@@ -33,7 +33,7 @@ function content_gallery(array $item) {
 function content_history_record(array $item, $complaint_reason) {
     return ['image' => content_image_key($item), 'text' => (string)($item['text'] ?? ''), 'description' => $item['description'] ?? '',
         'why_relevant' => $item['why_relevant'] ?? '', 'relevance' => $item['relevance'] ?? null, 'rating_assigned' => $item['rating'] ?? null,
-        'format' => $item['format'] ?? '', 'topic' => $item['topic'] ?? '', 'source' => $item['source'] ?? '', 'source_key' => content_source_key($item), 'board' => $item['board'] ?? '',
+        'format' => $item['format'] ?? '', 'tags' => content_tags_clean($item['tags'] ?? []), 'topic' => $item['topic'] ?? '', 'source' => $item['source'] ?? '', 'source_key' => content_source_key($item), 'board' => $item['board'] ?? '',
         'thread_id' => $item['thread_id'] ?? '', 'post_id' => $item['post_id'] ?? '', 'source_url' => source_post_url($item), 'posted_at' => $item['posted_at'] ?? 0,
         'engagement' => $item['engagement'] ?? null, 'complaint_reason' => $complaint_reason, 'video' => (string)($item['video'] ?? ''),
         'image_local' => (string)($item['image_local'] ?? ''), 'video_local' => (string)($item['video_local'] ?? ''), 'gallery' => content_gallery($item), 'timestamp' => time()];
@@ -63,7 +63,7 @@ function content_for_display(array $item, array $upcoming = []) {
     $shown = $display($own);
     return ['images' => [$main], 'captions' => [$item['captions'][0] ?? ($item['text'] ?? '')], 'source_url' => source_post_url($item), 'gallery' => $gallery,
         'post_check' => !empty($item['video']) || $gallery ? telegram_preflight_item($item) : ['status' => 'ok', 'problems' => [], 'warnings' => [], 'bad' => []],
-        'display_image' => $shown['display_image'], 'display_video' => $shown['display_video'],
+        'display_image' => $shown['display_image'], 'display_video' => $shown['display_video'], 'tags_info' => content_tags_public($item['tags'] ?? []),
         'preload' => array_values(array_filter(array_map(fn($i) => media_cache_existing($i['image_local'] ?? '') ?: content_image_key($i), $upcoming)))] + $item;
 }
 

@@ -477,13 +477,14 @@ function renderRecordField(key, value) {
 
 const DB_TIME_FIELDS = ['posted_at', 'timestamp', 'pooled_at', 'created_at', 'at'];
 /** Поля, которые помещаются в таблицу. Полная запись — в «Ред.» (там JSON со всеми полями). Порядок — как в базе. */
-const DB_TABLE_FIELDS = ['image_local', 'topic', 'source', 'text', 'description', 'relevance', 'rating', 'rating_assigned', 'posted_at', 'pooled_at', 'timestamp'];
+const DB_TABLE_FIELDS = ['image_local', 'topic', 'tags', 'source', 'text', 'description', 'relevance', 'rating', 'rating_assigned', 'posted_at', 'pooled_at', 'timestamp'];
 const DB_TEXT_LIMIT = 200;
 
 /** Ячейка: значение целиком, длинный текст сокращается с многоточием; полный текст — в подсказке. */
 function dbCell(key, value) {
     if (value === null || value === undefined || value === '') return el('span', { className: 'db-empty-cell', textContent: '—' });
     if (typeof value === 'boolean') return value ? 'да' : 'нет';
+    if (Array.isArray(value) && value.every(v => typeof v === 'string')) return value.length ? value.join(', ') : el('span', { className: 'db-empty-cell', textContent: '—' });
     if (DB_TIME_FIELDS.includes(key)) return Number(value) > 0 ? el('span', { title: new Date(Number(value) * 1000).toLocaleString('ru-RU'), textContent: new Date(Number(value) * 1000).toLocaleString('ru-RU') }) : el('span', { className: 'db-empty-cell', textContent: '—' });
     const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
     const short = text.length > DB_TEXT_LIMIT ? `${text.slice(0, DB_TEXT_LIMIT - 1)}…` : text;

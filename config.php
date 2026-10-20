@@ -143,6 +143,7 @@ const CONTENT_FORMATS = [
     'text'  => 'в основном текст: скриншот переписки, цитата, пост',
     'art'   => 'рисунок, комикс, 3D или сгенерированная картинка',
 ];
+const CONTENT_TAGS_MAX = 3;                                 // метки записи: частные темы дерева от модели полного анализа
 
 // ---- История и публикация ----
 const HISTORY_COLLECTIONS = ['liked', 'disliked', 'undecided', 'complaints'];

@@ -1,5 +1,5 @@
 // tabs.js — вкладки «Предложка» (лайки и «не знаю»), «Дерево» (выбор и смена темы) и «Тест ИИ» (оценка одной картинки).
-import { $, DEBUG_MODE, NO_TEXT, VIDEO_ICON, api, el, hide, isTabActive, log, onTabOpen, safeSourcePostUrl, setMessage, show } from './core.js';
+import { $, DEBUG_MODE, NO_TEXT, VIDEO_ICON, api, el, hide, isTabActive, log, onTabOpen, renderTags, safeSourcePostUrl, setMessage, show } from './core.js';
 import { createProgress } from './progress.js';
 import { cachedVideoUrl, releaseVideoSource, storeVideo } from './video-cache.js';
 import { openViewerGallery } from './viewer.js';
@@ -403,6 +403,7 @@ async function analyze(e) {
         if (!file) setPreview(url);
         setMessage('test-rating', d.rating == null ? '' : `${Number(d.rating)}%`);
         $('test-relevance').textContent = `По теме: ${Number(d.relevance)}%`;
+        renderTags($('test-tags'), d.tags_info);
         $('test-model').textContent = `Тема «${d.topic}» · ${d.rating == null ? '' : 'прогноз по вашим оценкам · '}${d.model}`;
         $('test-description').replaceChildren(el('strong', { textContent: 'Описание ИИ:' }), ` ${d.description || 'Описание не получено'}`);
         $('test-why').textContent = d.why_relevant ? `Почему по теме: ${d.why_relevant}` : '';

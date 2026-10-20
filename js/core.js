@@ -17,6 +17,12 @@ export function el(tag, props = {}, ...children) {
 
 export const COUNT = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 });
 export const chip = (label, value, title = '', className = '') => el('span', { className: `eng-chip ${className}`.trim(), title }, `${label} `, el('b', { textContent: value }));
+
+/** Метки записи от ИИ (tags_info с сервера) в контейнер; нет меток — контейнер скрыт. */
+export function renderTags(container, tags) {
+    container.replaceChildren(...(tags || []).map(t => el('span', { className: `tag-chip${t.nsfw ? ' is-nsfw' : ''}`, title: t.path, textContent: t.title })));
+    container.hidden = !tags?.length;
+}
 export const VIDEO_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="13" height="12" rx="3" fill="currentColor"/><path d="M16.5 10.2 21 7.6v8.8l-4.5-2.6z" fill="currentColor"/></svg>';
 export const NO_TEXT = ['Текст к посту отсутствует', 'Пост без текста'];
 

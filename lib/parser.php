@@ -436,10 +436,10 @@ function analyze_candidate($item, $poster, $history, $topic) {
         if (!PERSONAL_TASTE_ENABLED) $a['rating'] = null;
         $verdict = "соответствие теме {$a['relevance']}%" . ($a['rating'] !== null ? ", прогноз оценки {$a['rating']}%" : '');
         if ($a['relevance'] < RELEVANCE_THRESHOLD) { cli_echo("-> Отброшено по порогу: {$verdict}."); return false; }
-        cli_echo("-> Принято: {$verdict}.");
+        cli_echo("-> Принято: {$verdict}." . (($tags = content_tags_public($a['tags'] ?? [])) ? ' Метки: ' . implode(', ', array_column($tags, 'path')) . '.' : ''));
         if (search_topic_key() !== $topic) { cli_echo('-> Тема поиска сменилась — запись по старой теме не сохраняю.'); return false; }
         $item = ['description' => $a['description'] ?: 'Описание не получено', 'why_relevant' => $a['why_relevant'] ?: 'Нейросеть не сформулировала объяснение.',
-            'relevance' => $a['relevance'], 'rating' => $a['rating'], 'format' => $a['format'] ?? '', 'topic' => $topic, 'image_local' => media_cache_store_image($item['image'], $poster)] + $item;
+            'relevance' => $a['relevance'], 'rating' => $a['rating'], 'format' => $a['format'] ?? '', 'tags' => $a['tags'] ?? [], 'topic' => $topic, 'image_local' => media_cache_store_image($item['image'], $poster)] + $item;
         if ($is_video) {
             $item['video_local'] = !empty($video['file']) ? cache_downloaded_video($item['video'], $video['file']) : media_cache_store_video($item['video']);
             cli_echo($item['video_local'] !== '' ? '-> Видео сохранено в кэш сайта.' : '-> Видео не удалось сохранить в кэш, на сайте будет исходная ссылка.');

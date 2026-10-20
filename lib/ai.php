@@ -383,7 +383,7 @@ function video_storyboard_description(array $video) {
 }
 
 function content_analysis_schema() {
-    $p = ['description' => ['type' => 'string'], 'format' => ['type' => 'string', 'enum' => array_keys(CONTENT_FORMATS)],
+    $p = ['description' => ['type' => 'string'], 'format' => ['type' => 'string', 'enum' => array_keys(CONTENT_FORMATS)], 'tags' => content_tags_schema(),
         'why_relevant' => ['type' => 'string'], 'relevance' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 100]];
     if (PERSONAL_TASTE_ENABLED) $p['rating'] = ['type' => 'integer', 'minimum' => 0, 'maximum' => 100];
     return ['type' => 'object', 'properties' => $p, 'required' => array_keys($p)];
@@ -397,8 +397,9 @@ function content_analysis_prompt($topic, $caption, $history, $video, $source = '
         . "Верни JSON с полями в таком порядке:\n"
         . "description: 1-2 предложения по-русски, до 35 слов: что изображено или происходит и о чём надписи. Только то, что видно.\n"
         . "format: форма поста, одно из: " . implode('; ', array_map(fn($k, $v) => "$k — $v", array_keys(CONTENT_FORMATS), CONTENT_FORMATS)) . ". Для одной картинки не выбирай video.\n"
-        . "why_relevant: до 8 слов, почему подходит под тему или нет.\n"
-        . "relevance (0-100): насколько запись подходит под тему. 0-20 не про тему, реклама, спам, скриншот программы; 21-40 слабо; 41-60 по теме, но слабо; 61-80 хорошо; 81-100 отлично.\n"
+        . content_tags_prompt_rules()
+        . "why_relevant: до 8 слов, почему подходит под тему подборки или нет.\n"
+        . "relevance (0-100): насколько запись подходит под тему подборки. 0-20 не про тему, реклама, спам, скриншот программы; 21-40 слабо; 41-60 по теме, но слабо; 61-80 хорошо; 81-100 отлично.\n"
         . ($taste ? "rating (0-100): понравится ли это пользователю — сравни с примерами ниже. Нет примеров или не уверен — 50.\n" : '')
         . "Пиши по-русски, без иероглифов.\n";
     foreach ($taste ? ['ПОНРАВИЛОСЬ' => 'liked', 'НЕ ПОНРАВИЛОСЬ' => 'disliked'] : [] as $label => $c) {
@@ -428,7 +429,7 @@ function analyze_content_with_vision($images, $caption, $history, $topic, $video
             if (is_array($a) && is_numeric($a['relevance'] ?? null) && (!PERSONAL_TASTE_ENABLED || is_numeric($a['rating'] ?? null))) {
                 $format = (string)($a['format'] ?? '');   // не из списка — по типу файла
                 if (!array_key_exists($format, CONTENT_FORMATS)) $format = $video !== null ? 'video' : 'photo';
-                return ['description' => strip_cjk($a['description'] ?? ''), 'why_relevant' => strip_cjk($a['why_relevant'] ?? ''), 'format' => $format,
+                return ['description' => strip_cjk($a['description'] ?? ''), 'why_relevant' => strip_cjk($a['why_relevant'] ?? ''), 'format' => $format, 'tags' => content_tags_clean($a['tags'] ?? []),
                     'relevance' => clamp_score($a['relevance']), 'rating' => PERSONAL_TASTE_ENABLED ? clamp_score($a['rating']) : null];
             }
             $error = new RuntimeException('Модель вернула некорректный JSON-анализ.');
@@ -446,7 +447,7 @@ function analyze_image_local($bytes, $history, $topic) {
     validate_image_bytes($bytes);
     $a = analyze_content_with_vision([$bytes], '', $history, $topic, null, true);
     return ['rating' => $a['rating'], 'relevance' => $a['relevance'], 'description' => $a['description'] ?: 'Описание не получено',
-        'why_relevant' => $a['why_relevant'], 'topic' => $topic, 'model' => analysis_model()];
+        'why_relevant' => $a['why_relevant'], 'tags_info' => content_tags_public($a['tags']), 'topic' => $topic, 'model' => analysis_model()];
 }
 
 // ---- Быстрая оценка ----

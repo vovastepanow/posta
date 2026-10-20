@@ -85,7 +85,25 @@
   </form>
 
   <div id="item-loading" class="status-msg is-loading">Загрузка…</div>
-  <div id="item-searching" class="status-msg is-loading" role="status" hidden></div>
+
+  <div id="item-searching" class="parser-progress-container" role="status" hidden>
+    <div class="parser-progress-header">
+      <span class="parser-progress-icon">⏳</span>
+      <span class="parser-progress-title">Подбираем контент</span>
+    </div>
+    <div class="parser-progress-info">
+      <div class="parser-progress-topic">Тема: <span id="parser-topic-name"></span></div>
+      <div class="parser-progress-stats">
+        <div class="stat"><span class="stat-label">Прогресс:</span> <span id="parser-progress-percent">0</span>%</div>
+        <div class="stat"><span class="stat-label">Прошло:</span> <span id="parser-progress-time">0.0</span> мин</div>
+        <div class="stat"><span class="stat-label">Осталось:</span> <span id="parser-progress-remaining">~40</span> мин</div>
+      </div>
+    </div>
+    <div class="parser-progress-bar">
+      <div class="parser-progress-fill" id="parser-progress-fill"></div>
+    </div>
+  </div>
+
   <div id="item-error" class="status-msg error-msg" role="alert" hidden></div>
 
   <div id="item-card-wrapper" class="item-card-wrapper" hidden>
@@ -108,6 +126,7 @@
         <div id="item-engagement" class="engagement-row" aria-label="Активность у источника" hidden></div>
         <a id="item-source-link" class="source-post-link" target="_blank" rel="noopener noreferrer" hidden>Открыть исходный пост ↗</a>
         <span id="item-relevance" class="relevance-badge">По теме: —</span>
+        <div id="item-tags" class="tag-row" aria-label="Метки ИИ: о чём запись" hidden></div>
         <div class="item-ai-note"><strong>Почему по теме:</strong> <span id="item-why-text"></span></div>
         <div id="item-desc" class="desc-text"><strong>Описание ИИ:</strong> —</div>
       </div>
@@ -288,6 +307,7 @@
       <div class="test-result-heading"><h2>Оценка</h2><span id="test-rating" class="badge">0%</span></div>
       <div id="test-model" class="source-text"></div>
       <span id="test-relevance" class="relevance-badge"></span>
+      <div id="test-tags" class="tag-row" aria-label="Метки ИИ: о чём запись" hidden></div>
       <div id="test-description" class="desc-text"></div>
       <div id="test-why" class="item-ai-note"></div>
     </div>
