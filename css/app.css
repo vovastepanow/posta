@@ -541,10 +541,10 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .database-layout { display: grid; grid-template-columns: minmax(200px, 25%) 1fr; gap: 16px; height: 100%; min-height: 500px; }
 .database-sidebar { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .database-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
-.database-list { flex: 1; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 8px; min-height: 0; }
-.database-list-item { padding: 8px 10px; border: 1px solid transparent; border-radius: 4px; cursor: pointer; color: var(--text); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all 150ms ease; }
+.database-list { flex: 1; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); padding: 8px; min-height: 0; }
+.database-list-item { padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; color: var(--text); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all 150ms ease; background: var(--surface); }
 .database-list-item:hover { background: var(--surface-2); border-color: var(--line); }
-.database-list-item.active { background: var(--surface-3); border-color: var(--line-strong); font-weight: 500; }
+.database-list-item.active { background: var(--accent, #4a9eff); color: var(--bg); border-color: var(--accent, #4a9eff); font-weight: 500; }
 .database-browser { display: flex; flex-direction: column; gap: 12px; }
 .database-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
 .database-breadcrumb { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; flex: 1; min-width: 0; }
