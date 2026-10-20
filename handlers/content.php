@@ -408,7 +408,7 @@ function database_validate($database, $collection, $r) {
 }
 
 function handle_database_options() {
-    json_response(['databases' => array_map(fn($id, $d) => ['id' => $id, 'label' => $d['label'], 'collections' => array_map(fn($cid, $l) => ['id' => $cid, 'label' => $l], array_keys($d['collections']), $d['collections'])],
+    json_response(['databases' => array_map(fn($id, $d) => ['id' => $id, 'label' => $d['label'], 'is_sql_table' => $d['is_sql_table'] ?? false, 'collections' => array_map(fn($cid, $l) => ['id' => $cid, 'label' => $l], array_keys($d['collections']), $d['collections'])],
         array_keys(database_definitions()), database_definitions())]);
 }
 
