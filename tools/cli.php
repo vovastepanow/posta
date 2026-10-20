@@ -7,6 +7,7 @@
 //   engagement-report [файлы]      — угадывает ли активность голоса пользователей (AUC)
 //   rescore-sources [--catalog] [--apply] — переоценить найденные каналы по текущим правилам
 //   seed-topics                    — засеять готовое дерево тем (lib/topic_tree.php), повторный запуск ничего не меняет
+//   tag-content [N] [--dry-run]    — метки (темы дерева) записям без меток, по описанию ИИ; N запросов к модели (20)
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Только из командной строки.'); }
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../handlers/content.php';
@@ -93,6 +94,10 @@ case 'seed-topics':
     }
     break;
 
+case 'tag-content':
+    tag_content_backfill(max(1, (int)($args[0] ?? 20)), $flag('dry-run'));
+    break;
+
 case 'migrate-json':
     echo "Миграция JSON → SQLite\n";
     if (is_file(SOURCES_FILE)) {
@@ -112,7 +117,44 @@ case 'migrate-json':
     break;
 
 default:
-    echo preg_replace('/^\/\/ ?/m', '', implode("\n", array_slice(file(__FILE__, FILE_IGNORE_NEW_LINES), 1, 7))) . "\n";
+    echo preg_replace('/^\/\/ ?/m', '', implode("\n", array_slice(file(__FILE__, FILE_IGNORE_NEW_LINES), 1, 9))) . "\n";
+}
+
+/**
+ * Метки записям пулов и истории, найденным до появления меток: по описанию ИИ и подписи, умной моделью без картинки.
+ * Одна картинка — один запрос на всех пользователей. Не больше $limit запросов за запуск.
+ */
+function tag_content_backfill($limit, $dry_run) {
+    $untagged = fn($r) => is_array($r) && !isset($r['tags']) && !in_array(trim((string)($r['description'] ?? '')), ['', 'Описание не получено'], true);
+    [$found, $asked, $left] = [[], 0, 0];   // ключ картинки => метки
+    foreach (user_ids() as $uid) {
+        foreach (array_merge(pool_load($uid), ...array_values(history_load($uid))) as $r) {
+            if (!$untagged($r) || isset($found[$k = content_image_key($r)])) continue;
+            if ($asked >= $limit) { $left++; continue; }
+            $asked++;
+            if (($tags = content_tags_from_text($r['description'], post_caption_for_ai($r))) === null) { echo "  модель не ответила: $k\n"; continue; }
+            $found[$k] = $tags;
+            printf("  %s\n    → %s\n", mb_strimwidth($r['description'], 0, 90, '…'), implode(', ', array_column(content_tags_public($tags), 'path')) ?: 'нет подходящих');
+        }
+    }
+    printf("Размечено записей: %d из %d запросов.%s\n", count($found), $asked, $left ? " Без меток осталось ещё ~{$left} (повторите команду)." : '');
+    if ($dry_run || !$found) return;
+    $tag = function (array $list, &$n) use ($found) {
+        foreach ($list as &$r) if (is_array($r) && !isset($r['tags']) && isset($found[$k = content_image_key($r)])) { $r['tags'] = $found[$k]; $n++; }
+        unset($r);
+        return $list;
+    };
+    $saved = 0;
+    foreach (user_ids() as $uid) {
+        pool_update(function ($pool) use ($tag, &$saved) { $n = 0; $pool = $tag($pool, $n); $saved += $n; return $n ? $pool : null; }, $uid);
+        history_update(function ($history) use ($tag, &$saved) {
+            $n = 0;
+            foreach (HISTORY_COLLECTIONS as $c) $history[$c] = $tag((array)($history[$c] ?? []), $n);
+            $saved += $n;
+            return $n ? $history : null;
+        }, $uid);
+    }
+    echo "Сохранено в пулах и истории: {$saved}.\n";
 }
 
 /** Снимок активности для записи, найденной до включения сбора (страница канала или тред заново). */

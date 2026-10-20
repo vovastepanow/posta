@@ -5,7 +5,7 @@ import { openViewerGallery, registerViewerGallery, registerViewerPoster } from '
 import { formatWhen, openPostEditor, pickDateTime } from './editor.js';
 import { openAccountSection } from './account.js';
 
-const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], telegram: null, parserStartTime: null, progressInterval: null };
+const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], telegram: null, parserStartTime: null, progressInterval: null, currentTopic: null };
 const VIDEO_ERRORS = { 1: 'загрузка прервана', 2: 'сетевая ошибка', 3: 'файл не раскодировался', 4: 'формат не поддерживается или файл недоступен' };
 const TOPIC_CONFIRM = 'Сменить тему поиска? Неоценённые записи по старой теме будут убраны из пула, и поиск начнётся заново. История оценок сохранится.';
 export { TOPIC_CONFIRM };
@@ -33,32 +33,31 @@ function showArea(area, message = '') {
 
 /** Обновляет информацию о прогрессе парсера в UI. */
 async function updateParserProgress() {
+    if (!state.parserStartTime) return;
+
     try {
         const data = await api('parser_status');
         if (!data.running) {
             clearInterval(state.progressInterval);
             return;
         }
-
-        const elapsed = Math.floor((Date.now() - state.parserStartTime) / 1000);
-        const elapsedMin = (elapsed / 60).toFixed(1);
-        const remainingSeconds = Math.max(0, 2400 - elapsed);
-        const remainingMin = Math.ceil(remainingSeconds / 60);
-
-        const topic = data.topic || 'подбор контента';
-
-        $('parser-topic-name').textContent = topic;
-        $('parser-progress-time').textContent = elapsedMin;
-        $('parser-progress-remaining').textContent = '~' + remainingMin;
-
-        // Примерный прогресс: пока нет точного числа используем прошедшее время / максимальное время
-        const maxSeconds = 2400;
-        const progressPercent = Math.min(100, Math.floor((elapsed / maxSeconds) * 100));
-        $('parser-progress-percent').textContent = progressPercent;
-        $('parser-progress-fill').style.width = progressPercent + '%';
     } catch (e) {
-        // Если не удалось получить статус, продолжаем опрашивать
+        // Продолжаем обновлять локальное время даже если статус недоступен
     }
+
+    const elapsed = Math.floor((Date.now() - state.parserStartTime) / 1000);
+    const elapsedMin = (elapsed / 60).toFixed(1);
+    const remainingSeconds = Math.max(0, 2400 - elapsed);
+    const remainingMin = Math.ceil(remainingSeconds / 60);
+
+    $('parser-topic-name').textContent = state.currentTopic || '—';
+    $('parser-progress-time').textContent = elapsedMin;
+    $('parser-progress-remaining').textContent = '~' + remainingMin;
+
+    const maxSeconds = 2400;
+    const progressPercent = Math.min(100, Math.floor((elapsed / maxSeconds) * 100));
+    $('parser-progress-percent').textContent = progressPercent;
+    $('parser-progress-fill').style.width = progressPercent + '%';
 }
 
 // ---- Слайды: у каждого основной адрес (копия из кэша) и запасной (исходная ссылка) ----
@@ -216,6 +215,13 @@ export async function loadCurrentItem() {
         const data = await api('get_current_item');
         if (data.status === 'loading') {
             state.item = null;
+            // Получаем текущую тему
+            try {
+                const settings = await api('settings');
+                state.currentTopic = settings.topic || 'подбор контента';
+            } catch (e) {
+                state.currentTopic = 'подбор контента';
+            }
             showArea('searching');
             // Показываем время работы парсера если оно известно
             if (data.parser_runtime > 0) {

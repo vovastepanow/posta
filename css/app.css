@@ -200,25 +200,25 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 /* === ПРОГРЕСС ПАРСЕРА В UI === */
 .parser-progress-container {
     margin-top: 20px;
-    padding: 20px;
+    padding: 16px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--surface);
     display: grid;
-    gap: 16px;
+    gap: 12px;
 }
 
 .parser-progress-header {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 16px;
+    gap: 8px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--text);
 }
 
 .parser-progress-icon {
-    font-size: 20px;
+    font-size: 18px;
     animation: progress-pulse 1s ease-in-out infinite;
 }
 
@@ -227,19 +227,9 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
     50% { opacity: 0.6; }
 }
 
-.parser-progress-title {
-    color: var(--text);
-}
-
-.parser-progress-info {
-    display: grid;
-    gap: 12px;
-    font-size: 13px;
-}
-
 .parser-progress-topic {
+    font-size: 12px;
     color: var(--muted);
-    font-weight: 500;
 }
 
 .parser-progress-topic span {
@@ -248,29 +238,26 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 }
 
 .parser-progress-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
 }
 
 .stat {
-    padding: 8px 12px;
-    background: var(--surface-2);
-    border-radius: 5px;
     display: flex;
-    justify-content: space-between;
-    gap: 8px;
+    gap: 6px;
+    font-size: 12px;
+    align-items: center;
 }
 
 .stat-label {
     color: var(--muted);
-    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 600;
 }
 
-.stat span:last-child {
+.stat span:not(.stat-label) {
     color: var(--accent, #4a9eff);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -278,9 +265,9 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 
 .parser-progress-bar {
     width: 100%;
-    height: 24px;
+    height: 20px;
     background: var(--surface-2);
-    border-radius: 6px;
+    border-radius: 4px;
     overflow: hidden;
     border: 1px solid var(--line);
 }
@@ -290,24 +277,6 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
     background: linear-gradient(90deg, #4a9eff 0%, #6bb5ff 100%);
     width: 0%;
     transition: width 0.3s ease;
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 600;
-    color: #fff;
-    min-width: 24px;
-}
-
-@media (max-width: 600px) {
-    .parser-progress-stats {
-        grid-template-columns: 1fr;
-    }
-    .parser-progress-container {
-        padding: 16px;
-        gap: 12px;
-    }
 }
 
 /* ---- Карточка записи и источника ---- */
