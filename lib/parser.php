@@ -479,6 +479,13 @@ function parser_phase_with_topic($phase, $topic = null) {
 function run_collector() {
     $started = time();
     $topic = current_topic();
+    cli_echo('');  // пустая строка для визуального разделения
+    cli_echo('╔════════════════════════════════════════════════════════════════════════╗');
+    cli_echo('║ ⏱️  НАЧИНАЕТСЯ ПОДБОР КОНТЕНТА                                           ║');
+    cli_echo('║ Тема: «' . str_pad($topic, 62) . ' ║');
+    cli_echo('║ Максимальное время ожидания: ' . (PARSER_MAX_SECONDS / 60) . ' минут                        ║');
+    cli_echo('╚════════════════════════════════════════════════════════════════════════╝');
+    cli_echo('');
     parser_phase_with_topic('сбор постов', $topic);
     if ($n = media_cache_cleanup(all_users_pool_items())) cli_echo("Кэш медиа: удалено устаревших файлов: $n.");
     if ($n = prune_pool_already_rated()) cli_echo("Пул: убрано записей, пост которых уже оценён: $n.");
@@ -520,8 +527,21 @@ function run_collector() {
         . ' Быстрая оценка по картинке ' . PRESCREEN_MAX_SIDE . ' px, порог ' . PRESCREEN_THRESHOLD . '%.');
     $ctx = ['stats' => ['prescreened' => 0, 'rejected' => 0, 'source_skipped' => 0], 'misses' => [], 'cached' => $scores, 'new_cache' => []];
     [$analyzed, $added, $stop, $restart, $queue] = [0, 0, null, false, []];
+    $last_progress = time();
     $batches = array_chunk($candidates, PRESCREEN_BATCH);
     foreach ($batches as $i => $batch) {
+        $now = time();
+        // Показываем прогресс примерно каждые 30 секунд
+        if ($now - $last_progress >= 30) {
+            $elapsed = round(($now - $started) / 60, 1);
+            $percent = count($batches) > 0 ? (int)(($i + 1) / count($batches) * 100) : 0;
+            $remaining_max = PARSER_MAX_SECONDS - ($now - $started);
+            $remaining_min = (int)($remaining_max / 60);
+            $remaining_sec = $remaining_max % 60;
+            $remaining_text = $remaining_min > 0 ? "{$remaining_min}м {$remaining_sec}с" : "{$remaining_sec}с";
+            cli_echo("⏳ Прогресс: {$percent}% ({$i}/" . count($batches) . " пачек). Прошло: {$elapsed} мин. Осталось до лимита: ≈ {$remaining_text}");
+            $last_progress = $now;
+        }
         if ($stop = collector_stop_reason($started, $analyzed, $added)) break;
         // Тема перечитывается для каждой пачки: смена темы на сайте действует сразу (фильтры сбор не затрагивают)
         $stop = current_topic() !== $topic ? 'Тема поиска изменилась на «' . current_topic() . '» — начинаю заново с новой темой.'
@@ -545,8 +565,17 @@ function run_collector() {
     cache_merge(SCREENED_CACHE_FILE, $ctx['new_cache'], SCREENED_CACHE_LIMIT);
     if ($stop) cli_echo($stop);
     $s = $ctx['stats'];
-    cli_echo('✅ Сбор для темы «' . $topic . '» завершён за ' . round((time() - $started) / 60, 1) . " мин. Проверено: {$s['prescreened']}, отсеяно: {$s['rejected']},"
-        . " пропущено: {$s['source_skipped']}, проанализировано: {$analyzed}, добавлено в пул: {$added}.");
+    $elapsed_min = round((time() - $started) / 60, 1);
+    cli_echo('');
+    cli_echo('╔════════════════════════════════════════════════════════════════════════╗');
+    cli_echo('║ ✅ ПОДБОР КОНТЕНТА ЗАВЕРШЁН                                              ║');
+    cli_echo('║ Тема: «' . str_pad($topic, 62) . ' ║');
+    cli_echo('║ Время выполнения: ' . str_pad($elapsed_min . ' мин', 50) . ' ║');
+    cli_echo('║ Добавлено в пул: ' . str_pad($added . ' постов', 52) . ' ║');
+    cli_echo('║ Проанализировано: ' . str_pad($analyzed . ' кандидатов', 49) . ' ║');
+    cli_echo('║ Отклонено: ' . str_pad($s['rejected'] . ' (по релевантности)', 50) . ' ║');
+    cli_echo('╚════════════════════════════════════════════════════════════════════════╝');
+    cli_echo('');
     // Поиск постов закончился, а пул темы не наполнен: ищем новые источники (не чаще DISCOVERY_SHORTAGE_INTERVAL) и, если нашлись, собираем заново
     if (!$restart && !$discovered && !$added && pool_topic_count($key) < CONTENT_POOL_TARGET && parser_session_alive() && current_topic() === $topic && !topic_same(DEFAULT_TOPIC, $topic)
         && time() - discovery_last_run($db = load_source_db(), $topic) >= DISCOVERY_SHORTAGE_INTERVAL) {

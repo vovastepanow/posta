@@ -312,7 +312,13 @@ function run_source_discovery_locked($topic) {
     parser_phase('поиск источников — тема: «' . $topic . '»');
     $started = time();
     $db = load_source_db();
-    cli_echo('🔍 Автоподбор источников по теме: «' . $topic . '» (' . topic_prompt_context($topic) . ')...');
+    cli_echo('');
+    cli_echo('╔════════════════════════════════════════════════════════════════════════╗');
+    cli_echo('║ 🔍 НАЧИНАЕТСЯ ПОИСК НОВЫХ ИСТОЧНИКОВ                                   ║');
+    cli_echo('║ Тема: «' . str_pad($topic, 62) . ' ║');
+    cli_echo('║ Максимальное время ожидания: ' . (SOURCE_DISCOVERY_MAX_SECONDS / 60) . ' минут                 ║');
+    cli_echo('╚════════════════════════════════════════════════════════════════════════╝');
+    cli_echo('');
     $known = discovery_known_ids($db, $topic);
     $queue = [];
     $enqueue = function ($platform, $id, $origin, $info = null, $front = false) use (&$queue, &$known) {
@@ -378,5 +384,15 @@ function run_source_discovery_locked($topic) {
         $db['discovery']['runs'] = array_slice([mb_strtolower(trim($topic)) => time()] + (array)($db['discovery']['runs'] ?? []), 0, 50, true);
         return $db;
     });
-    cli_echo("✅ Автоподбор для темы «{$topic}» завершён: проверено {$stats['checked']}, добавлено {$stats['added']}, рекомендовано {$stats['suggested']}, отклонено {$stats['rejected']}.");
+    $elapsed_min = round((time() - $started) / 60, 1);
+    cli_echo('');
+    cli_echo('╔════════════════════════════════════════════════════════════════════════╗');
+    cli_echo('║ ✅ ПОИСК ИСТОЧНИКОВ ЗАВЕРШЁН                                             ║');
+    cli_echo('║ Тема: «' . str_pad($topic, 62) . ' ║');
+    cli_echo('║ Время выполнения: ' . str_pad($elapsed_min . ' мин', 50) . ' ║');
+    cli_echo('║ Добавлено в каталог: ' . str_pad($stats['added'] . ' источников', 48) . ' ║');
+    cli_echo('║ Рекомендовано: ' . str_pad($stats['suggested'] . ' источников', 52) . ' ║');
+    cli_echo('║ Проверено: ' . str_pad($stats['checked'] . ' кандидатов', 53) . ' ║');
+    cli_echo('╚════════════════════════════════════════════════════════════════════════╝');
+    cli_echo('');
 }
