@@ -469,9 +469,17 @@ function collector_stop_reason($started, $analyzed, $added) {
  * Один проход: уборка, тема и её профиль, подбор (если источников нет), сбор, пачки «быстрая оценка → анализ лучших».
  * Возвращает true, если тема или фильтры сменились и сбор нужно начать заново.
  */
+/** Устанавливает фазу парсера с информацией о теме поиска. */
+function parser_phase_with_topic($phase, $topic = null) {
+    $topic = $topic ?? current_topic();
+    $display_topic = $topic ? " — тема: «{$topic}»" : '';
+    parser_phase($phase . $display_topic);
+}
+
 function run_collector() {
     $started = time();
-    parser_phase('сбор постов');
+    $topic = current_topic();
+    parser_phase_with_topic('сбор постов', $topic);
     if ($n = media_cache_cleanup(all_users_pool_items())) cli_echo("Кэш медиа: удалено устаревших файлов: $n.");
     if ($n = prune_pool_already_rated()) cli_echo("Пул: убрано записей, пост которых уже оценён: $n.");
     pool_stamp_legacy();
@@ -505,7 +513,7 @@ function run_collector() {
     $skipped = [];
     $candidates = build_candidate_queue(collect_posts_by_platform(load_source_db(), $topic), $seen, array_filter($scores, fn($s) => $s < PRESCREEN_THRESHOLD),
         combined_source_rates(source_pass_rates($cache, $key), $topic), $skipped);
-    cli_echo("Тема поиска: «{$topic}». Кандидатов: " . count($candidates) . '.'
+    cli_echo("📌 Тема: «{$topic}». Кандидатов к проверке: " . count($candidates) . '.'
         . ($skipped['rejected_before'] ? " Уже отсеяны в прошлых запусках: {$skipped['rejected_before']}." : '')
         . ($skipped['outdated'] ? " Устаревших: {$skipped['outdated']}." : '')
         . ($skipped['disabled_sources'] ? " Пропущено из источников, которые пользователи оценивают плохо: {$skipped['disabled_sources']}." : '')
@@ -519,14 +527,14 @@ function run_collector() {
         $stop = current_topic() !== $topic ? 'Тема поиска изменилась на «' . current_topic() . '» — начинаю заново с новой темой.'
             : (search_topic_key() !== $key ? 'Вторая тема изменилась — собираю заново.' : null);
         if ($restart = $stop !== null) break;
-        parser_phase('быстрая оценка');
+        parser_phase_with_topic('быстрая оценка', $topic);
         $passed = prescreen_batch($batch, $key, $ctx, $started + PARSER_MAX_SECONDS);
         cache_merge(SCREENED_CACHE_FILE, $ctx['new_cache'], SCREENED_CACHE_LIMIT);
         $ctx['new_cache'] = [];
         // Прошедшие быструю оценку копятся и уходят на полный анализ блоком: каждая смена модели — перезагрузка в видеопамять
         array_push($queue, ...$passed);
         if (count($queue) < ANALYZE_BLOCK && $i < count($batches) - 1) continue;
-        parser_phase('полный анализ');
+        parser_phase_with_topic('полный анализ', $topic);
         foreach ($queue as $c) {
             if ($stop = collector_stop_reason($started, $analyzed, $added)) break 2;
             $analyzed++;
@@ -537,8 +545,8 @@ function run_collector() {
     cache_merge(SCREENED_CACHE_FILE, $ctx['new_cache'], SCREENED_CACHE_LIMIT);
     if ($stop) cli_echo($stop);
     $s = $ctx['stats'];
-    cli_echo('Сбор завершён за ' . round((time() - $started) / 60, 1) . " мин. Быстро оценено: {$s['prescreened']}, отсеяно: {$s['rejected']},"
-        . " пропущено из источников не по теме: {$s['source_skipped']}, полных анализов: {$analyzed}, добавлено в пул: {$added}.");
+    cli_echo('✅ Сбор для темы «' . $topic . '» завершён за ' . round((time() - $started) / 60, 1) . " мин. Проверено: {$s['prescreened']}, отсеяно: {$s['rejected']},"
+        . " пропущено: {$s['source_skipped']}, проанализировано: {$analyzed}, добавлено в пул: {$added}.");
     // Поиск постов закончился, а пул темы не наполнен: ищем новые источники (не чаще DISCOVERY_SHORTAGE_INTERVAL) и, если нашлись, собираем заново
     if (!$restart && !$discovered && !$added && pool_topic_count($key) < CONTENT_POOL_TARGET && parser_session_alive() && current_topic() === $topic && !topic_same(DEFAULT_TOPIC, $topic)
         && time() - discovery_last_run($db = load_source_db(), $topic) >= DISCOVERY_SHORTAGE_INTERVAL) {

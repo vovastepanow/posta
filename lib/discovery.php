@@ -309,10 +309,10 @@ function run_source_discovery($topic) {
 }
 
 function run_source_discovery_locked($topic) {
-    parser_phase('поиск источников');
+    parser_phase('поиск источников — тема: «' . $topic . '»');
     $started = time();
     $db = load_source_db();
-    cli_echo('Автоподбор источников по теме ' . topic_prompt_context($topic) . '...');
+    cli_echo('🔍 Автоподбор источников по теме: «' . $topic . '» (' . topic_prompt_context($topic) . ')...');
     $known = discovery_known_ids($db, $topic);
     $queue = [];
     $enqueue = function ($platform, $id, $origin, $info = null, $front = false) use (&$queue, &$known) {
@@ -378,5 +378,5 @@ function run_source_discovery_locked($topic) {
         $db['discovery']['runs'] = array_slice([mb_strtolower(trim($topic)) => time()] + (array)($db['discovery']['runs'] ?? []), 0, 50, true);
         return $db;
     });
-    cli_echo("Автоподбор завершён: проверено {$stats['checked']}, добавлено в каталог {$stats['added']}, в предложения {$stats['suggested']}, не подошло {$stats['rejected']}.");
+    cli_echo("✅ Автоподбор для темы «{$topic}» завершён: проверено {$stats['checked']}, добавлено {$stats['added']}, рекомендовано {$stats['suggested']}, отклонено {$stats['rejected']}.");
 }
