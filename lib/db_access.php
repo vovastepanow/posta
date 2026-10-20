@@ -335,3 +335,10 @@ function parser_state_update(array $state, $uid = null): void {
     db_exec('INSERT OR REPLACE INTO parser_runtime (user_id, pid, started_at, tab, tab_seen, tab_opened_at) VALUES (?, ?, ?, ?, ?, ?)',
             [$uid, $state['pid'] ?? 0, $state['started_at'] ?? 0, $state['tab'] ?? '', $state['tab_seen'] ?? 0, $state['tab_opened_at'] ?? 0]);
 }
+
+// ---- Кэш отскриненных записей ----
+
+/** Загрузить кэш отскриненных записей со скорингом. */
+function screened_cache_load(): array {
+    return db_all('SELECT url, topic, source, score, at FROM screened_cache ORDER BY at DESC');
+}
