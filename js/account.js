@@ -403,12 +403,28 @@ function renderRecordDetails(record, index) {
 
     const children = [];
 
-    // Медиа
+    // Медиа в красивом контейнере
     if (media) {
         const mediaEl = media.kind === 'image'
-            ? el('img', { src: media.src, alt: media.alt || '', className: 'database-record-item-media', style: 'max-width: 100%; height: auto;' })
-            : el('video', { src: media.src, className: 'database-record-item-media', controls: true, style: 'max-width: 100%; height: auto;' });
-        children.push(mediaEl);
+            ? el('img', { src: media.src, alt: media.alt || '', className: 'database-record-item-media' })
+            : el('video', { src: media.src, className: 'database-record-item-media', controls: true });
+
+        const mediaWrapper = el('div', { className: 'database-record-item-media-wrapper' }, mediaEl);
+
+        // Добавляем клик на медиа для открытия просмотрщика
+        mediaWrapper.addEventListener('click', () => {
+            if (media.kind === 'image' || media.kind === 'video') {
+                const items = [{
+                    kind: media.kind,
+                    src: media.src,
+                    fallback: media.src,
+                    poster: media.kind === 'video' ? (record.image || '') : ''
+                }];
+                openViewerGallery(items, 0);
+            }
+        });
+
+        children.push(mediaWrapper);
     }
 
     // Содержимое

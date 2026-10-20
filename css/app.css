@@ -648,14 +648,122 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .database-nav-btn { width: 40px; height: 40px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center; transition: all 150ms ease; }
 .database-nav-btn:hover { border-color: var(--line-strong); background: var(--surface-2); }
 .database-nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.database-record-view { flex: 1; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); max-height: 60vh; overflow-y: auto; }
-.database-record-item { display: grid; gap: 12px; }
-.database-record-item-media { max-width: 100%; border-radius: 6px; }
-.database-record-item-content { display: grid; gap: 8px; }
-.database-record-field { display: grid; gap: 4px; }
-.database-record-field-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-.database-record-field-value { color: var(--text); font-size: 13px; word-break: break-word; line-height: 1.45; }
-.database-record-field-value.code { font-family: var(--mono); background: var(--surface-2); padding: 8px; border-radius: 4px; overflow-x: auto; }
+/* === ПРОСМОТР ЗАПИСИ БАЗЫ ДАННЫХ === */
+.database-record-view {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    max-height: 60vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.database-record-item {
+    display: grid;
+    gap: 0;
+    height: 100%;
+    grid-template-rows: auto 1fr;
+}
+
+/* Медиа контейнер с красивым фоном и закругленными углами */
+.database-record-item-media-wrapper {
+    position: relative;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 280px;
+    max-height: 400px;
+    overflow: hidden;
+    border-bottom: 1px solid var(--line);
+}
+
+.database-record-item-media {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.database-record-item-media:hover {
+    transform: scale(1.02);
+}
+
+/* Видео в базе данных */
+.database-record-item-media[type="video"] {
+    width: 100%;
+    height: 100%;
+}
+
+.database-record-item-media video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+.database-record-item-media img {
+    cursor: zoom-in;
+}
+
+/* Контент с полями */
+.database-record-item-content {
+    display: grid;
+    gap: 16px;
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.database-record-field {
+    display: grid;
+    gap: 6px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line-strong);
+}
+
+.database-record-field:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.database-record-field-label {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+}
+
+.database-record-field-value {
+    color: var(--text);
+    font-size: 13px;
+    word-break: break-word;
+    line-height: 1.5;
+    font-weight: 500;
+}
+
+.database-record-field-value.code {
+    font-family: var(--mono);
+    background: var(--surface-2);
+    padding: 10px 12px;
+    border-radius: 5px;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.4;
+    font-weight: 400;
+}
+
+/* URL ссылки в полях */
+.database-record-field-value[href] {
+    color: var(--accent, #4a9eff);
+    text-decoration: none;
+}
 .database-record-actions { display: flex; gap: 8px; }
 @media (max-width: 600px) {
     .database-toolbar { grid-template-columns: minmax(0, 1fr) auto 42px; }
@@ -668,6 +776,8 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
     .database-layout { grid-template-columns: 1fr; }
     .database-viewer { grid-template-columns: 1fr; }
     .database-list { max-height: 200px; }
+    .database-record-item-media-wrapper { min-height: 200px; max-height: 300px; }
+    .database-record-item-content { padding: 12px; gap: 12px; }
 }
 .database-edit-dialog { width: min(640px, calc(100vw - 32px)); max-width: none; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); }
 .database-edit-dialog::backdrop { background: var(--modal-dim); }
