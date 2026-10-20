@@ -346,15 +346,12 @@ async function submitTopic(topic, forceNew = false) {
     const [buttonEl, input] = [$('topic-save'), $('topic-input')];
     buttonEl.disabled = input.disabled = true;
     hide('topic-notice');
-    setMessage('item-searching', 'Нейросеть определяет тему: название и общую тему (до минуты)…');
     try {
         const data = await saveTopic(topic, forceNew, 'topic-notice');
         input.value = input.dataset.saved = data.topic;
-        setMessage('item-searching', '');
         refreshTopicLabel();
         await loadCurrentItem();
     } catch (error) {
-        setMessage('item-searching', '');
         setMessage('item-error', `Тема не сохранена: ${error.message}`);
     } finally { buttonEl.disabled = input.disabled = false; }
 }
