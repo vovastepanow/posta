@@ -600,9 +600,31 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .privacy-badge { padding: 2px 7px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--muted); font-size: 11px; white-space: nowrap; }
 
 /* ---- Базы данных ---- */
-.database-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto 42px; align-items: end; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-.database-toolbar label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
-.database-toolbar select { width: 100%; height: 40px; }
+.database-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+}
+
+.database-toolbar label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+    flex: 1;
+    min-width: 140px;
+}
+
+.database-toolbar select {
+    width: 100%;
+    height: 40px;
+    min-width: 0;
+}
 .database-status { min-height: 22px; margin: 14px 2px 8px; color: var(--muted); font-size: 13px; }
 .database-records { display: grid; gap: 8px; }
 .database-record { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
@@ -766,10 +788,10 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 }
 .database-record-actions { display: flex; gap: 8px; }
 @media (max-width: 600px) {
-    .database-toolbar { grid-template-columns: minmax(0, 1fr) auto 42px; }
-    .database-toolbar label:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
-    .database-toolbar .primary-button { grid-column: 2; grid-row: 1; padding: 0 8px; }
-    .database-toolbar .refresh-button { grid-column: 3; grid-row: 1; }
+    .database-toolbar { flex-direction: column; align-items: stretch; }
+    .database-toolbar label { flex: 0 1 auto; width: 100%; }
+    .database-toolbar .primary-button { flex: 0 1 auto; }
+    .database-toolbar .refresh-button { flex: 0 0 42px; }
     .database-record { grid-template-columns: 36px minmax(0, 1fr); }
     .database-record-actions { grid-column: 2; }
     .database-danger-zone { flex-direction: column; align-items: stretch; }
