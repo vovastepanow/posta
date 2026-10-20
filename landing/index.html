@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Postmaker сам находит посты по теме вашего канала, раскладывает по расписанию и публикует.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23FFDA1A'/%3E%3Ctext x='32' y='50' text-anchor='middle' font-family='Futura,Arial' font-weight='900' font-size='48' fill='%23111'%3Ep%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16.png">
+<link rel="apple-touch-icon" href="img/favicon-180.png">
 <title>Postmaker</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -266,17 +268,62 @@ footer .fine { max-width: 60ch }
 @keyframes gbshadow { 50% { transform: scale(.88); opacity: .16 } }
 .gb-lid { transform-box: fill-box; transform-origin: 85% 100%; transition: transform .35s cubic-bezier(.3, 1.6, .5, 1) }
 .gb-light { opacity: 0; transition: opacity .35s }
-.giftbox:hover .gb-lid, .giftbox:focus-within .gb-lid { transform: translate(-8px, -26px) rotate(-5deg) }
 .giftbox:hover .gb-light { opacity: 1 }
 .gb-spark { transform-box: fill-box; transform-origin: center; animation: twinkle 1.6s ease-in-out infinite }
 .gb-spark.s2 { animation-delay: .5s } .gb-spark.s3 { animation-delay: 1s }
 @keyframes twinkle { 50% { transform: scale(.5) rotate(30deg) } }
-.giftbox .burst { position: absolute; right: -2%; top: 30%; width: 120px; height: 120px; --r: 14deg }
+.giftbox .burst { position: absolute; right: -4%; top: 6%; width: 120px; height: 120px; --r: 14deg }
 @media (max-width: 520px) { .giftbox .burst { width: 92px; height: 92px; right: -4px } }
+/* Варианты коробки и переключатель */
+.giftbox > svg[hidden] { display: none }
+.gb-pick { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center }
+.gb-pick button { font: 700 13px/1 var(--body); padding: 8px 11px; border-radius: 999px; border: 2px solid var(--outline); background: var(--paper); color: var(--ink); cursor: pointer }
+.gb-pick button[aria-pressed="true"] { background: var(--yellow); color: #111; border-color: #111; box-shadow: 2px 2px 0 var(--outline) }
+.gb-pick button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px }
+.gb-light { opacity: 0; transition: opacity .3s }
+.giftbox:hover .gb-light { opacity: 1 }
+.gb-pop { animation: gbpop 2.4s ease-in-out infinite }
+@keyframes gbpop { 50% { transform: translateY(-14px) } }
+.gb-rays { transform-box: fill-box; transform-origin: center; animation: spin 24s linear infinite }
+.gb-tag { transform-box: view-box; transform-origin: 214px 128px; animation: swing 2.6s ease-in-out infinite }
+@keyframes swing { 50% { transform: rotate(6deg) } }
+.gb-knob { transition: transform .25s, fill .25s }
+.giftbox:hover .gb-knob { transform: translateY(-20px); fill: #00A651 }
+.gb-auto { transition: opacity .2s }
+.giftbox:hover .gb-auto { opacity: 0 }
+@media (max-width: 760px) { .gb-pick { grid-column: 1 } }
+/* Коробка: наведение — крышка подрагивает (каждый заход курсора заново запускает анимацию).
+   Клик ставит на <html> класс boom: вспышка на весь экран, тряска страницы, крышка слетает, 60 карточек вылетают в зрителя.
+   Разлёт каждой карточки задан переменными в разметке: --dx/--dy (куда), --s (насколько вырастет), --r (поворот), --t (длительность), --d (задержка) */
+.gb-lid { transform-box: fill-box; transform-origin: 50% 100% }
+.giftbox:hover .gb-lid { animation: lidshake .9s }
+@keyframes lidshake { 0%, 100% { transform: none } 10% { transform: translate(-2px, -9px) rotate(-3deg) } 20% { transform: translate(2px, -3px) rotate(2deg) } 30% { transform: translate(-1px, -12px) rotate(-1deg) } 40% { transform: none } 55% { transform: translate(3px, -7px) rotate(3deg) } 65% { transform: translate(-2px, -2px) rotate(-2deg) } 80% { transform: translate(1px, -5px) } }
+.boom .giftbox .gb-lid { animation: lidfly 1.2s cubic-bezier(.2, .9, .3, 1) }
+@keyframes lidfly { 0% { transform: none } 12% { transform: translate(-30px, -150px) rotate(-18deg) } 70% { transform: translate(-30px, -150px) rotate(-18deg) } 100% { transform: none } }
+.boom .hero { z-index: 200 }
+.boom .wrap { animation: quake .36s }
+@keyframes quake { 25% { transform: translate(-10px, 7px) } 50% { transform: translate(9px, -6px) } 75% { transform: translate(-5px, 4px) } }
+.flash { position: fixed; inset: 0; z-index: 150; pointer-events: none; opacity: 0; background: radial-gradient(circle at 72% 42%, #fff 0 30%, #FFF8C8 55%, #fff 80%) }
+.boom .flash { animation: flash 1s ease-out }
+@keyframes flash { 0% { opacity: 0 } 6% { opacity: 1 } 30% { opacity: 1 } 100% { opacity: 0 } }
+.jets { position: absolute; left: 50%; top: 32%; width: 0; height: 0; z-index: 5; pointer-events: none }
+.jet { position: absolute; left: 0; top: 0; width: 150px; opacity: 0; border: 3px solid #111; border-radius: 10px; overflow: hidden; background: #000; box-shadow: 4px 4px 0 #111 }
+.boom .jet { animation: jet var(--t) var(--d) cubic-bezier(.15, .7, .35, 1) both }
+@keyframes jet {
+  0% { transform: translate(-50%, -50%) scale(.12) rotate(var(--r)); opacity: 1 }
+  55% { transform: translate(calc(-50% + var(--dx) * .5), calc(-50% + var(--dy) * .5)) scale(calc(var(--s) * .5)) rotate(calc(var(--r) / 2)); opacity: 1 }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(var(--s)); opacity: 0 } }
+.jet img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover }
+.jet .cap { position: absolute; left: 0; right: 0; top: 6px; text-align: center; font-size: 17px; padding: 0 4px }
+.jet .topic { position: absolute; left: 6px; bottom: 6px; font: 800 11px/1 var(--body); background: var(--yellow); color: #111; border: 2px solid #111; border-radius: 999px; padding: 4px 7px }
+.jet .play { position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; background: rgba(0, 0, 0, .6); border: 2px solid #fff }
+.jet .play::after { content: ""; position: absolute; left: 14px; top: 10px; border: 9px solid transparent; border-left: 13px solid #fff; border-right: 0 }
+.jet .dur { position: absolute; right: 6px; bottom: 6px; font: 700 11px/1 var(--body); background: rgba(0, 0, 0, .75); color: #fff; border-radius: 4px; padding: 3px 5px }
+.gb-note { position: absolute; left: 0; right: 0; bottom: -6px; text-align: center }
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-ph" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M2 8.2C2 5.6 6.5 4 12 4s10 1.6 10 4.2v.9c0 .8-.6 1.4-1.4 1.4h-2.7c-.8 0-1.4-.6-1.4-1.4V8.4h-9v.7c0 .8-.6 1.4-1.4 1.4H3.4C2.6 10.5 2 9.9 2 9.1zM7.6 11h8.8l3.9 7.9c.4.9-.2 2.1-1.2 2.1H4.9c-1 0-1.6-1.2-1.2-2.1zM12 12.6a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 1 0 0-6.4zm0 2.1a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z"/></symbol></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><pattern id="pm-dots" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="4" cy="4" r="1.6" fill="#111" opacity=".22"/></pattern><radialGradient id="pm-glow"><stop offset="0" stop-color="#FFF6B0"/><stop offset=".55" stop-color="#FFDA1A" stop-opacity=".55"/><stop offset="1" stop-color="#FFDA1A" stop-opacity="0"/></radialGradient></defs><symbol id="i-ph" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M2 8.2C2 5.6 6.5 4 12 4s10 1.6 10 4.2v.9c0 .8-.6 1.4-1.4 1.4h-2.7c-.8 0-1.4-.6-1.4-1.4V8.4h-9v.7c0 .8-.6 1.4-1.4 1.4H3.4C2.6 10.5 2 9.9 2 9.1zM7.6 11h8.8l3.9 7.9c.4.9-.2 2.1-1.2 2.1H4.9c-1 0-1.6-1.2-1.2-2.1zM12 12.6a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 1 0 0-6.4zm0 2.1a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z"/></symbol></svg>
 
 <div class="onair" aria-hidden="true">
   <span class="live"><i></i>В эфире</span>
@@ -301,72 +348,10 @@ footer .fine { max-width: 60ch }
         <span style="color:#111;text-shadow:none">Бес-<br>платно!*</span>
       </div>
     </div>
-    <p class="fine">* Тариф «Попробовать» — бесплатно навсегда. Без смс, но с регистрацией.</p>
+    <p class="fine">* Тариф «Попробовать» — бесплатно навсегда. Без смс, но с регистрацией. 18+ Postmaker отсеивает сам.</p>
   </div>
 
-  <div class="giftbox" role="img" aria-label="Подарочная коробка Postmaker: красная, с жёлтой лентой и большим бантом, на ней лого и надпись «Автопилот для каналов»">
-    <svg viewBox="0 0 480 540" aria-hidden="true">
-      <defs>
-        <radialGradient id="gb-glow"><stop offset="0" stop-color="#FFF6B0"/><stop offset=".5" stop-color="#FFDA1A" stop-opacity=".6"/><stop offset="1" stop-color="#FFDA1A" stop-opacity="0"/></radialGradient>
-        <linearGradient id="gb-front" x1="0" x2="1"><stop offset="0" stop-color="#FF2B3D"/><stop offset=".55" stop-color="#E1001A"/><stop offset="1" stop-color="#C40018"/></linearGradient>
-        <linearGradient id="gb-rib" x1="0" x2="1"><stop offset="0" stop-color="#FFE45C"/><stop offset=".5" stop-color="#FFD000"/><stop offset="1" stop-color="#F2B800"/></linearGradient>
-      </defs>
-      <ellipse class="gb-shadow" cx="250" cy="508" rx="180" ry="18" fill="#111" opacity=".25"/>
-      <g class="gb-float">
-        <ellipse class="gb-light" cx="240" cy="190" rx="210" ry="120" fill="url(#gb-glow)"/>
-        <g stroke="#111" stroke-width="5" stroke-linejoin="round">
-          <!-- тень -->
-          <path d="M70 230 H350 L430 190 V460 L350 500 H70 Z" fill="#111" stroke="none" transform="translate(10 10)"/>
-          <!-- корпус -->
-          <path d="M340 220 L420 180 V450 L340 490 Z" fill="#9E0014"/>
-          <rect x="60" y="220" width="280" height="270" fill="url(#gb-front)"/>
-          <path d="M340 335 L420 295 V330 L340 370 Z" fill="#D9A400"/>
-          <rect x="180" y="220" width="40" height="270" fill="url(#gb-rib)"/>
-          <path d="M72 236 V470" stroke="#fff" stroke-opacity=".35" stroke-width="9" stroke-linecap="round"/>
-        </g>
-        <!-- этикетка -->
-        <g>
-          <rect x="96" y="292" width="208" height="62" fill="#FFDA1A" stroke="#111" stroke-width="4"/>
-          <text x="200" y="335" text-anchor="middle" font-family="Jost, Futura, sans-serif" font-weight="900" font-size="40" letter-spacing="-1.6" fill="#111">postmaker<tspan font-size="19" dy="-15">,–</tspan></text>
-          <text x="200" y="384" text-anchor="middle" font-family="Rubik, sans-serif" font-style="italic" font-weight="900" font-size="17" fill="#fff" stroke="#111" stroke-width="4" paint-order="stroke">АВТОПИЛОТ ДЛЯ КАНАЛОВ</text>
-          <text x="200" y="410" text-anchor="middle" font-family="Rubik, sans-serif" font-weight="700" font-size="13" fill="#FFE9EC">Telegram · ВКонтакте · и дальше</text>
-          <text x="76" y="476" font-family="Jost, sans-serif" font-weight="700" font-size="11" fill="#FFC9CF" letter-spacing="1">В КОМПЛЕКТЕ: 1 АВТОПИЛОТ, 0 БЕССОННЫХ НОЧЕЙ</text>
-        </g>
-        <!-- крышка -->
-        <g class="gb-lid" stroke="#111" stroke-width="5" stroke-linejoin="round">
-          <path d="M48 160 L128 120 H432 L352 160 Z" fill="#FF4757"/>
-          <path d="M352 160 L432 120 V185 L352 225 Z" fill="#A80016"/>
-          <rect x="48" y="160" width="304" height="65" fill="url(#gb-front)"/>
-          <rect x="180" y="160" width="40" height="65" fill="url(#gb-rib)"/>
-          <path d="M352 175 L432 135 V165 L352 205 Z" fill="#D9A400"/>
-          <path d="M182 160 L262 120 H300 L220 160 Z" fill="url(#gb-rib)"/>
-          <path d="M80 144 H384 L400 136 H96 Z" fill="url(#gb-rib)"/>
-          <path d="M60 172 V214" stroke="#fff" stroke-opacity=".4" stroke-width="8" stroke-linecap="round"/>
-          <path d="M140 126 L180 126" stroke="#fff" stroke-opacity=".5" stroke-width="6" stroke-linecap="round"/>
-          <!-- бант -->
-          <path d="M232 152 L198 214 L214 206 L220 226 L246 158 Z" fill="#F2B800"/>
-          <path d="M252 152 L292 210 L274 205 L270 224 L240 158 Z" fill="#F2B800"/>
-          <path d="M240 140 C196 66 118 74 142 124 C156 152 210 150 240 140 Z" fill="url(#gb-rib)"/>
-          <path d="M240 140 C284 66 362 74 338 124 C324 152 270 150 240 140 Z" fill="url(#gb-rib)"/>
-          <path d="M226 132 C206 110 180 100 166 108" fill="none" stroke-width="3.5" stroke-linecap="round"/>
-          <path d="M254 132 C274 110 300 100 314 108" fill="none" stroke-width="3.5" stroke-linecap="round"/>
-          <ellipse cx="240" cy="142" rx="19" ry="15" fill="#FFD000"/>
-          <path d="M232 136 Q238 132 244 134" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="3" stroke-linecap="round"/>
-        </g>
-        <!-- наклейка NEW -->
-        <g class="gb-new" transform="rotate(-12 300 268)">
-          <circle cx="300" cy="268" r="30" fill="#fff" stroke="#111" stroke-width="4"/>
-          <text x="300" y="266" text-anchor="middle" font-family="Rubik, sans-serif" font-style="italic" font-weight="900" font-size="15" fill="#E1001A">NEW!</text>
-          <text x="300" y="282" text-anchor="middle" font-family="Rubik, sans-serif" font-weight="800" font-size="9" fill="#111">2026</text>
-        </g>
-      </g>
-      <g fill="#FFDA1A" stroke="#111" stroke-width="3.5" stroke-linejoin="round">
-        <path class="gb-spark" d="M440 70 l7 18 18 7 -18 7 -7 18 -7 -18 -18 -7 18 -7z"/>
-        <path class="gb-spark s2" d="M40 110 l5 13 13 5 -13 5 -5 13 -5 -13 -13 -5 13 -5z" fill="#fff"/>
-        <path class="gb-spark s3" d="M455 300 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5z"/>
-        <path class="gb-spark s2" d="M24 380 l6 15 15 6 -15 6 -6 15 -6 -15 -15 -6 15 -6z"/>
-      </g>
-    </svg>
+  <div class="giftbox" role="img" aria-label="Коробка с товаром Postmaker: внутри картинки и видео на любые темы"><svg data-v="3" viewBox="0 0 400 420" aria-hidden="true"><ellipse class="gb-shadow" cx="208" cy="394" rx="150" ry="18" fill="#111" opacity=".22"/><g class="gb-float"><g stroke="#111" stroke-width="5" stroke-linejoin="round"><polygon points="70.1,139.0 200.0,214.0 200.0,349.0 70.1,274.0" fill="#E1001A"/><polygon points="200.0,214.0 329.9,139.0 329.9,274.0 200.0,349.0" fill="#F2B800"/><polygon points="200.0,214.0 329.9,139.0 329.9,274.0 200.0,349.0" fill="url(#pm-dots)" stroke="none"/><polygon points="124.7,170.5 145.4,182.5 145.4,317.5 124.7,305.5" fill="#FFDA1A"/><polygon points="275.3,170.5 254.6,182.5 254.6,317.5 275.3,305.5" fill="#FFDA1A"/></g><line x1="79.1" y1="165.2" x2="79.1" y2="247.0" stroke="#fff" stroke-opacity=".35" stroke-width="7" stroke-linecap="round"/><g transform="matrix(0.8660254 .5 0 1 70.1 139.0)"><rect x="10.0" y="56" width="130" height="36" fill="#FFDA1A" stroke="#111" stroke-width="4"/><text x="75" y="81" text-anchor="middle" font-family="Jost, Futura, sans-serif" font-weight="900" font-size="23" letter-spacing="-1" fill="#111">postmaker</text></g><g transform="matrix(0.8660254 -.5 0 1 200.0 214.0)"><rect x="10" y="34" width="130" height="80" fill="#fff" stroke="#111" stroke-width="4"/><text x="75" y="84" text-anchor="middle" font-family="Jost, Futura, sans-serif" font-weight="900" font-size="46" letter-spacing="-2" fill="#111">390<tspan font-size="18" dy="-21">,–₽</tspan></text><text x="75" y="104" text-anchor="middle" font-family="Jost, Futura, sans-serif" font-weight="900" font-size="12.5" letter-spacing="2.5" fill="#E1001A">AUTÖPILÖT</text><g fill="#111" transform="translate(12 124)"><rect x="0" y="0" width="2" height="14"/><rect x="4" y="0" width="1" height="14"/><rect x="7" y="0" width="3" height="14"/><rect x="12" y="0" width="1" height="14"/><rect x="15" y="0" width="2" height="14"/><rect x="19" y="0" width="1" height="14"/><rect x="22" y="0" width="3" height="14"/><rect x="27" y="0" width="1" height="14"/><rect x="30" y="0" width="2" height="14"/></g></g><g class="gb-lid" stroke="#111" stroke-width="5" stroke-linejoin="round"><polygon points="61.0,164.7 200.0,244.9 339.0,164.7 339.0,171.7 200.0,251.9 61.0,171.7" fill="#111" opacity=".35" stroke="none"/><polygon points="61.0,135.0 200.0,215.2 200.0,244.9 61.0,164.7" fill="#C40018"/><polygon points="200.0,215.2 339.0,135.0 339.0,164.7 200.0,244.9" fill="#D9A400"/><polygon points="120.1,169.1 140.9,181.1 140.9,210.8 120.1,198.8" fill="#FFDA1A"/><polygon points="279.9,169.1 259.1,181.1 259.1,210.8 279.9,198.8" fill="#FFDA1A"/><polygon points="200.0,54.8 339.0,135.0 200.0,215.2 61.0,135.0" fill="#FFDA1A"/><polygon points="140.9,88.9 279.9,169.1 259.1,181.1 120.1,100.9" fill="#E1001A"/><polygon points="259.1,88.9 120.1,169.1 140.9,181.1 279.9,100.9" fill="#E1001A"/><line x1="164.3" y1="78.8" x2="129.6" y2="98.9" stroke="#fff" stroke-opacity=".55" stroke-width="5" stroke-linecap="round"/><g transform="translate(200.0 139.0) scale(1.00)" stroke="#111" stroke-width="5.0" stroke-linejoin="round" stroke-linecap="round"><path d="M-5 4 L-30 60 L-19 54 L-13 66 L5 8 Z" fill="#B8001A"/><path d="M5 4 L32 58 L20 53 L15 65 L-5 8 Z" fill="#B8001A"/><path d="M0 0 C-14 -44 -84 -62 -96 -28 C-102 -6 -46 6 0 0 Z" fill="#E1001A"/><path d="M0 0 C14 -44 84 -62 96 -28 C102 -6 46 6 0 0 Z" fill="#E1001A"/><path d="M-2 -2 C-26 -20 -60 -28 -82 -22 C-64 -10 -30 -2 -2 -2 Z" fill="#9A0014" stroke="none"/><path d="M2 -2 C26 -20 60 -28 82 -22 C64 -10 30 -2 2 -2 Z" fill="#9A0014" stroke="none"/><path d="M-30 -34 Q-52 -42 -70 -38 M30 -34 Q52 -42 70 -38" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="4"/><rect x="-13" y="-11" width="26" height="22" rx="6" fill="#E1001A"/><path d="M-6 -5 h8" stroke="#fff" stroke-opacity=".6" stroke-width="3"/></g></g></g><g fill="#FFDA1A" stroke="#111" stroke-width="3.5" stroke-linejoin="round"><path class="gb-spark" d="M360 70 l7 18 18 7 -18 7 -7 18 -7 -18 -18 -7 18 -7z"/><path class="gb-spark s2" d="M36 100 l5 13 13 5 -13 5 -5 13 -5 -13 -13 -5 13 -5z" fill="#fff"/><path class="gb-spark s3" d="M372 270 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5z"/><path class="gb-spark s2" d="M24 300 l6 15 15 6 -15 6 -6 15 -6 -15 -15 -6 15 -6z"/></g></svg><div class="jets" aria-hidden="true"><div class="jet" style="--dx:-30vw;--dy:-57vh;--s:4.7;--r:-13deg;--t:0.99s;--d:0.090s"><img src="img/boo.jpg?v=2" alt=""><span class="impact cap">Бу! Испугался?</span><span class="topic">Котики</span></div><div class="jet" style="--dx:-23vw;--dy:-71vh;--s:4.3;--r:-14deg;--t:0.95s;--d:0.104s"><img src="img/jet/p1025.webp" alt=""><span class="impact cap">Понедельник</span><span class="topic">Мопсы</span></div><div class="jet" style="--dx:-73vw;--dy:-66vh;--s:4.1;--r:10deg;--t:0.81s;--d:0.118s"><img src="img/jet/p111.webp" alt=""><span class="play"></span><span class="dur">0:12</span><span class="topic">Ретроавто</span></div><div class="jet" style="--dx:-47vw;--dy:14vh;--s:5.5;--r:2deg;--t:0.93s;--d:0.132s"><img src="img/jet/p63.webp" alt=""><span class="topic">Кофе</span></div><div class="jet" style="--dx:81vw;--dy:-73vh;--s:5.2;--r:-6deg;--t:0.81s;--d:0.146s"><img src="img/jet/p39.webp" alt=""><span class="play"></span><span class="dur">0:34</span><span class="topic">Винил</span></div><div class="jet" style="--dx:-65vw;--dy:-34vh;--s:5.1;--r:-10deg;--t:1.01s;--d:0.160s"><img src="img/jet/p235.webp" alt=""><span class="play"></span><span class="dur">0:21</span><span class="topic">Горы</span></div><div class="jet" style="--dx:24vw;--dy:-24vh;--s:4.4;--r:-13deg;--t:0.78s;--d:0.174s"><img src="img/jet/p237.webp" alt=""><span class="impact cap">Пост вышел сам</span><span class="topic">Собаки</span></div><div class="jet" style="--dx:-50vw;--dy:22vh;--s:4.1;--r:-6deg;--t:1.01s;--d:0.188s"><img src="img/jet/p24.webp" alt=""><span class="topic">Книги</span></div><div class="jet" style="--dx:-8vw;--dy:-35vh;--s:5.1;--r:6deg;--t:0.86s;--d:0.202s"><img src="img/jet/p215.webp" alt=""><span class="topic">Море</span></div><div class="jet" style="--dx:13vw;--dy:-1vh;--s:5.3;--r:7deg;--t:0.88s;--d:0.216s"><img src="img/jet/p274.webp" alt=""><span class="play"></span><span class="dur">0:15</span><span class="topic">Города</span></div><div class="jet" style="--dx:82vw;--dy:-62vh;--s:4.1;--r:8deg;--t:0.82s;--d:0.230s"><img src="img/jet/p145.webp" alt=""><span class="topic">Гитары</span></div><div class="jet" style="--dx:-2vw;--dy:-74vh;--s:4.7;--r:8deg;--t:1.01s;--d:0.244s"><img src="img/jet/p225.webp" alt=""><span class="topic">Чай</span></div><div class="jet" style="--dx:64vw;--dy:-33vh;--s:4.8;--r:3deg;--t:1.01s;--d:0.258s"><img src="img/jet/p91.webp" alt=""><span class="topic">Фото</span></div><div class="jet" style="--dx:-7vw;--dy:46vh;--s:5.5;--r:-1deg;--t:1.05s;--d:0.272s"><img src="img/jet/p183.webp" alt=""><span class="play"></span><span class="dur">0:09</span><span class="topic">Вэнлайф</span></div><div class="jet" style="--dx:-75vw;--dy:25vh;--s:4.7;--r:15deg;--t:1.12s;--d:0.286s"><img src="img/jet/p244.webp" alt=""><span class="topic">Птицы</span></div><div class="jet" style="--dx:-37vw;--dy:-22vh;--s:4.7;--r:-14deg;--t:0.96s;--d:0.300s"><img src="img/jet/p174.webp" alt=""><span class="topic">Путешествия</span></div><div class="jet" style="--dx:-56vw;--dy:-62vh;--s:3.2;--r:8deg;--t:0.81s;--d:0.314s"><img src="img/jet/p21.webp" alt=""><span class="topic">Мода</span></div><div class="jet" style="--dx:-43vw;--dy:-21vh;--s:5.3;--r:-13deg;--t:0.95s;--d:0.328s"><img src="img/jet/p75.webp" alt=""><span class="play"></span><span class="dur">0:27</span><span class="topic">Вино</span></div><div class="jet" style="--dx:8vw;--dy:53vh;--s:5.1;--r:11deg;--t:0.88s;--d:0.342s"><img src="img/jet/p0.webp" alt=""><span class="topic">IT</span></div><div class="jet" style="--dx:-14vw;--dy:-26vh;--s:5.3;--r:14deg;--t:0.82s;--d:0.356s"><img src="img/jet/p1062.webp" alt=""><span class="impact cap">Я в отпуске</span><span class="topic">Уют</span></div><div class="jet" style="--dx:-55vw;--dy:-45vh;--s:3.6;--r:-0deg;--t:1.02s;--d:0.370s"><img src="img/boo.jpg?v=2" alt=""><span class="impact cap">Бу! Испугался?</span><span class="topic">Котики</span></div><div class="jet" style="--dx:-40vw;--dy:-79vh;--s:4.1;--r:-4deg;--t:1.00s;--d:0.384s"><img src="img/jet/p1025.webp" alt=""><span class="impact cap">Понедельник</span><span class="topic">Мопсы</span></div><div class="jet" style="--dx:77vw;--dy:24vh;--s:4.3;--r:4deg;--t:1.05s;--d:0.398s"><img src="img/jet/p111.webp" alt=""><span class="play"></span><span class="dur">0:12</span><span class="topic">Ретроавто</span></div><div class="jet" style="--dx:-76vw;--dy:55vh;--s:5.0;--r:11deg;--t:1.11s;--d:0.412s"><img src="img/jet/p63.webp" alt=""><span class="topic">Кофе</span></div><div class="jet" style="--dx:-18vw;--dy:-20vh;--s:3.3;--r:4deg;--t:0.78s;--d:0.426s"><img src="img/jet/p39.webp" alt=""><span class="play"></span><span class="dur">0:34</span><span class="topic">Винил</span></div><div class="jet" style="--dx:-74vw;--dy:-49vh;--s:3.4;--r:-5deg;--t:0.77s;--d:0.440s"><img src="img/jet/p235.webp" alt=""><span class="play"></span><span class="dur">0:21</span><span class="topic">Горы</span></div><div class="jet" style="--dx:-85vw;--dy:-57vh;--s:3.3;--r:-4deg;--t:0.76s;--d:0.454s"><img src="img/jet/p237.webp" alt=""><span class="impact cap">Пост вышел сам</span><span class="topic">Собаки</span></div><div class="jet" style="--dx:64vw;--dy:12vh;--s:3.4;--r:-7deg;--t:0.91s;--d:0.468s"><img src="img/jet/p24.webp" alt=""><span class="topic">Книги</span></div><div class="jet" style="--dx:-23vw;--dy:-62vh;--s:5.2;--r:15deg;--t:0.96s;--d:0.482s"><img src="img/jet/p215.webp" alt=""><span class="topic">Море</span></div><div class="jet" style="--dx:-3vw;--dy:-67vh;--s:3.3;--r:-5deg;--t:0.87s;--d:0.496s"><img src="img/jet/p274.webp" alt=""><span class="play"></span><span class="dur">0:15</span><span class="topic">Города</span></div><div class="jet" style="--dx:56vw;--dy:-56vh;--s:3.1;--r:14deg;--t:0.99s;--d:0.510s"><img src="img/jet/p145.webp" alt=""><span class="topic">Гитары</span></div><div class="jet" style="--dx:-60vw;--dy:1vh;--s:3.1;--r:1deg;--t:1.19s;--d:0.524s"><img src="img/jet/p225.webp" alt=""><span class="topic">Чай</span></div><div class="jet" style="--dx:62vw;--dy:24vh;--s:3.7;--r:-4deg;--t:0.83s;--d:0.538s"><img src="img/jet/p91.webp" alt=""><span class="topic">Фото</span></div><div class="jet" style="--dx:46vw;--dy:-0vh;--s:5.0;--r:-5deg;--t:0.85s;--d:0.552s"><img src="img/jet/p183.webp" alt=""><span class="play"></span><span class="dur">0:09</span><span class="topic">Вэнлайф</span></div><div class="jet" style="--dx:53vw;--dy:68vh;--s:5.2;--r:9deg;--t:1.12s;--d:0.566s"><img src="img/jet/p244.webp" alt=""><span class="topic">Птицы</span></div><div class="jet" style="--dx:41vw;--dy:-46vh;--s:4.3;--r:-4deg;--t:0.76s;--d:0.580s"><img src="img/jet/p174.webp" alt=""><span class="topic">Путешествия</span></div><div class="jet" style="--dx:-80vw;--dy:-38vh;--s:3.7;--r:6deg;--t:1.18s;--d:0.594s"><img src="img/jet/p21.webp" alt=""><span class="topic">Мода</span></div><div class="jet" style="--dx:-9vw;--dy:61vh;--s:5.6;--r:14deg;--t:0.91s;--d:0.608s"><img src="img/jet/p75.webp" alt=""><span class="play"></span><span class="dur">0:27</span><span class="topic">Вино</span></div><div class="jet" style="--dx:-48vw;--dy:-46vh;--s:3.5;--r:-9deg;--t:1.03s;--d:0.622s"><img src="img/jet/p0.webp" alt=""><span class="topic">IT</span></div><div class="jet" style="--dx:68vw;--dy:46vh;--s:4.2;--r:5deg;--t:1.11s;--d:0.636s"><img src="img/jet/p1062.webp" alt=""><span class="impact cap">Я в отпуске</span><span class="topic">Уют</span></div><div class="jet" style="--dx:-71vw;--dy:19vh;--s:5.4;--r:8deg;--t:1.09s;--d:0.650s"><img src="img/boo.jpg?v=2" alt=""><span class="impact cap">Бу! Испугался?</span><span class="topic">Котики</span></div><div class="jet" style="--dx:-4vw;--dy:-53vh;--s:5.1;--r:-5deg;--t:1.11s;--d:0.664s"><img src="img/jet/p1025.webp" alt=""><span class="impact cap">Понедельник</span><span class="topic">Мопсы</span></div><div class="jet" style="--dx:80vw;--dy:-21vh;--s:4.0;--r:13deg;--t:1.08s;--d:0.678s"><img src="img/jet/p111.webp" alt=""><span class="play"></span><span class="dur">0:12</span><span class="topic">Ретроавто</span></div><div class="jet" style="--dx:-56vw;--dy:-61vh;--s:3.4;--r:12deg;--t:1.11s;--d:0.692s"><img src="img/jet/p63.webp" alt=""><span class="topic">Кофе</span></div><div class="jet" style="--dx:-60vw;--dy:44vh;--s:5.5;--r:5deg;--t:0.91s;--d:0.706s"><img src="img/jet/p39.webp" alt=""><span class="play"></span><span class="dur">0:34</span><span class="topic">Винил</span></div><div class="jet" style="--dx:8vw;--dy:-60vh;--s:3.0;--r:14deg;--t:1.04s;--d:0.720s"><img src="img/jet/p235.webp" alt=""><span class="play"></span><span class="dur">0:21</span><span class="topic">Горы</span></div><div class="jet" style="--dx:5vw;--dy:60vh;--s:4.1;--r:11deg;--t:1.12s;--d:0.734s"><img src="img/jet/p237.webp" alt=""><span class="impact cap">Пост вышел сам</span><span class="topic">Собаки</span></div><div class="jet" style="--dx:-49vw;--dy:-42vh;--s:3.8;--r:-8deg;--t:1.01s;--d:0.748s"><img src="img/jet/p24.webp" alt=""><span class="topic">Книги</span></div><div class="jet" style="--dx:-41vw;--dy:-17vh;--s:3.3;--r:12deg;--t:0.91s;--d:0.762s"><img src="img/jet/p215.webp" alt=""><span class="topic">Море</span></div><div class="jet" style="--dx:-7vw;--dy:8vh;--s:5.4;--r:-2deg;--t:1.16s;--d:0.776s"><img src="img/jet/p274.webp" alt=""><span class="play"></span><span class="dur">0:15</span><span class="topic">Города</span></div><div class="jet" style="--dx:0vw;--dy:-0vh;--s:4.4;--r:-14deg;--t:0.95s;--d:0.790s"><img src="img/jet/p145.webp" alt=""><span class="topic">Гитары</span></div><div class="jet" style="--dx:-54vw;--dy:-79vh;--s:5.1;--r:-10deg;--t:0.96s;--d:0.804s"><img src="img/jet/p225.webp" alt=""><span class="topic">Чай</span></div><div class="jet" style="--dx:38vw;--dy:3vh;--s:3.8;--r:1deg;--t:1.00s;--d:0.818s"><img src="img/jet/p91.webp" alt=""><span class="topic">Фото</span></div><div class="jet" style="--dx:48vw;--dy:-64vh;--s:4.5;--r:-8deg;--t:0.87s;--d:0.832s"><img src="img/jet/p183.webp" alt=""><span class="play"></span><span class="dur">0:09</span><span class="topic">Вэнлайф</span></div><div class="jet" style="--dx:46vw;--dy:-4vh;--s:4.5;--r:8deg;--t:1.16s;--d:0.846s"><img src="img/jet/p244.webp" alt=""><span class="topic">Птицы</span></div><div class="jet" style="--dx:-10vw;--dy:12vh;--s:4.3;--r:0deg;--t:1.06s;--d:0.860s"><img src="img/jet/p174.webp" alt=""><span class="topic">Путешествия</span></div><div class="jet" style="--dx:-8vw;--dy:-0vh;--s:4.2;--r:13deg;--t:1.06s;--d:0.874s"><img src="img/jet/p21.webp" alt=""><span class="topic">Мода</span></div><div class="jet" style="--dx:64vw;--dy:61vh;--s:3.7;--r:2deg;--t:1.17s;--d:0.888s"><img src="img/jet/p75.webp" alt=""><span class="play"></span><span class="dur">0:27</span><span class="topic">Вино</span></div><div class="jet" style="--dx:58vw;--dy:-59vh;--s:3.3;--r:-2deg;--t:0.78s;--d:0.902s"><img src="img/jet/p0.webp" alt=""><span class="topic">IT</span></div><div class="jet" style="--dx:-44vw;--dy:-69vh;--s:4.7;--r:9deg;--t:1.15s;--d:0.916s"><img src="img/jet/p1062.webp" alt=""><span class="impact cap">Я в отпуске</span><span class="topic">Уют</span></div></div><p class="fine gb-note">Нажмите! Внутри — картинки и видео на любые темы, кроме 18+*</p>
     <div class="burst" aria-hidden="true"><svg viewBox="0 0 100 100"><polygon points="50,2 59,22 80,10 76,33 98,36 82,52 96,70 73,72 74,95 55,83 42,100 36,78 14,88 19,65 0,55 18,42 6,22 29,24 30,2 43,20" fill="var(--blue)" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg><span>Хит<br>сезона!</span></div>
   </div>
 </header>
@@ -525,6 +510,7 @@ footer .fine { max-width: 60ch }
 
 </div>
 
+<div class="flash" aria-hidden="true"></div>
 <div class="dock" role="region" aria-label="Подключение">
   <span class="msg" id="dock-text">Пока вы читаете (<b id="sec">0</b> с), Postmaker уже предложил бы <b id="posts">0 постов</b> по вашей теме.</span>
   <button class="btn cta" type="button"><svg class="ph" aria-hidden="true"><use href="#i-ph"/></svg> Заказать</button>
@@ -548,6 +534,10 @@ setInterval(() => {
   const t = Math.floor((Date.now() - t0) / 1000), n = Math.floor(t / 12);
   sec.textContent = t; posts.textContent = n + ' ' + plural(n);
 }, 1000);
+// Коробка: вся анимация в CSS, скрипт только перезапускает класс boom на каждый клик
+const root = document.documentElement, gift = document.querySelector('.giftbox');
+let boomTimer;
+gift.addEventListener('click', () => { root.classList.remove('boom'); void root.offsetWidth; root.classList.add('boom'); clearTimeout(boomTimer); boomTimer = setTimeout(() => root.classList.remove('boom'), 2400); });
 </script>
 </body>
 </html>

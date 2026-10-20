@@ -306,17 +306,79 @@ function proposal_prune_dead_threads($force = false) {
 // ---- Базы данных: просмотр и правка записей JSON-файлов ----
 
 function database_definitions() {
-    return [
+    static $defs = null;
+    if ($defs !== null) return $defs;
+
+    $defs = [
         'content_pool' => ['label' => 'Пул контента', 'file' => null, 'collections' => ['items' => 'Записи']],
         'content_history' => ['label' => 'История оценок', 'file' => null, 'collections' => ['liked' => 'Лайки', 'disliked' => 'Дизлайки', 'undecided' => 'Без решения', 'complaints' => 'Жалобы']],
         'sources_db' => ['label' => 'Каталог источников', 'file' => null, 'collections' => ['2ch_boards' => 'Доски 2ch', 'vk_publics' => 'Паблики ВКонтакте', 'telegram_channels' => 'Каналы Telegram', 'source_votes' => 'Оценки источников']]
     ];
+
+    // Добавляем все таблицы SQLite
+    try {
+        $pdo = db();
+        $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+        $tableLabels = [
+            'analysis_cache' => 'Кэш анализов ИИ',
+            'catalog_sources' => 'Каталог источников (SQL)',
+            'history_items' => 'История оценок (SQL)',
+            'kv' => 'Конфиг (ключ-значение)',
+            'outbox' => 'Очередь постов',
+            'parser_runtime' => 'Состояние парсера',
+            'pool_items' => 'Пул контента (SQL)',
+            'published' => 'Опубликовано',
+            'screened_cache' => 'Кэш оценок контента',
+            'source_suggestions' => 'Рекомендации источников',
+            'source_votes' => 'Оценки источников (SQL)',
+            'topics' => 'Темы поиска',
+            'users' => 'Пользователи'
+        ];
+
+        foreach ($tables as $table) {
+            if (!isset($defs[$table])) {
+                $defs[$table] = [
+                    'label' => $tableLabels[$table] ?? ucfirst(str_replace('_', ' ', $table)),
+                    'file' => null,
+                    'collections' => ['all' => 'Все записи'],
+                    'is_sql_table' => true
+                ];
+            }
+        }
+    } catch (Exception $e) {
+        // если не смогли прочитать таблицы, используем только определённые выше
+    }
+
+    return $defs;
 }
 
 /** [определение, данные, записи коллекции]. Битый JSON — ошибка, а не пустая база: иначе сохранение затёрло бы файл. */
 function database_open($database, $collection) {
     $def = database_definitions()[$database] ?? throw new InvalidArgumentException('Неизвестная база данных.');
     if (!isset($def['collections'][$collection])) throw new InvalidArgumentException('Неизвестная коллекция.');
+
+    // Если это SQL таблица
+    if ($def['is_sql_table'] ?? false) {
+        $pdo = db();
+        $stmt = $pdo->prepare("SELECT * FROM " . $database . " ORDER BY rowid");
+        $stmt->execute();
+        $items = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            // Пытаемся распарсить JSON поля
+            $item = [];
+            foreach ($row as $k => $v) {
+                if (is_string($v) && ($v[0] ?? '') === '{') {
+                    try { $item[$k] = json_decode($v, true) ?? $v; }
+                    catch (Exception $e) { $item[$k] = $v; }
+                } else {
+                    $item[$k] = $v;
+                }
+            }
+            $items[] = $item;
+        }
+        return [$def, null, $items];
+    }
+
     // Пул хранится в SQLite: показываем записи выбранной темы
     // Пул показывается целиком, все темы: таблица выводит все записи, а тема — отдельным столбцом
     if ($database === 'content_pool') return [$def, null, array_values(pool_load())];
@@ -326,6 +388,12 @@ function database_open($database, $collection) {
 }
 
 function database_validate($database, $collection, $r) {
+    // SQL таблицы: минимальная валидация или её отсутствие
+    $def = database_definitions()[$database] ?? null;
+    if ($def['is_sql_table'] ?? false) {
+        return; // Для SQL таблиц особой валидации нет
+    }
+
     $object = is_array($r) && !array_is_list($r);
     $error = match (true) {
         $database === 'content_pool' => !$object || trim((string)($r['image'] ?? '')) === '' ? 'Записи нужны поля-объект и непустой image.'
@@ -398,6 +466,12 @@ function database_edit(array $all, $database, $collection, $in, $action): array 
 function handle_database_change($in, $action) {
     [$database, $collection] = [$in['database'] ?? '', $in['collection'] ?? ''];
     [$def] = database_open($database, $collection);
+
+    // SQL таблицы нельзя редактировать через этот интерфейс
+    if ($def['is_sql_table'] ?? false) {
+        json_error('Редактирование системных таблиц SQL недопустимо из интерфейса базы данных.');
+    }
+
     if ($database === 'content_pool') {
         $before = pool_load();
         $after = pool_update(fn($pool) => database_edit($pool, $database, $collection, $in, $action));

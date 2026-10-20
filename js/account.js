@@ -287,7 +287,7 @@ async function loadAccount() {
 
 // ---- Базы данных: записи JSON-файлов, правка с проверкой «запись не изменилась» на сервере ----
 
-const db = { databases: [], ready: null, items: [], columns: [], editing: null, currentIndex: null, database: null, collection: null };
+const db = { databases: [], ready: null, items: [], columns: [], editing: null, currentIndex: null, database: null, collection: null, isSqlTable: false };
 const dbSelected = () => [$('database-select').value, $('database-collection-select').value];
 const dbStatus = (text, error = false) => { $('database-status').textContent = text; $('database-status').classList.toggle('error-msg', error); };
 const option = ({ id, label }) => el('option', { value: id, textContent: label });
@@ -312,6 +312,7 @@ async function loadRecords() {
     if (!database || !collection) return;
     db.database = database;
     db.collection = collection;
+    db.isSqlTable = false;
     dbStatus('Загружаю записи...');
     try {
         const d = await api('database_read', { params: { database, collection } });
@@ -320,6 +321,8 @@ async function loadRecords() {
         db.mediaMissing = new Set(d.media_missing || []);
         db.databaseLabel = d.database_label;
         db.collectionLabel = d.collection_label;
+        // Проверяем, является ли это SQL таблицей
+        db.isSqlTable = db.databases.find(d => d.id === database)?.is_sql_table || false;
         dbStatus('');
     } catch (error) { db.items = []; db.columns = []; dbStatus(`Не удалось прочитать коллекцию: ${error.message}`, true); }
 
@@ -378,6 +381,17 @@ function renderDatabaseBrowser() {
     // Кнопки навигации
     $('database-prev').disabled = idx <= 0;
     $('database-next').disabled = idx >= db.items.length - 1;
+
+    // Отключаем редактирование для SQL таблиц
+    $('database-edit').disabled = db.isSqlTable;
+    $('database-delete').disabled = db.isSqlTable;
+    if (db.isSqlTable) {
+        $('database-edit').title = 'Редактирование системных таблиц недопустимо';
+        $('database-delete').title = 'Удаление из системных таблиц недопустимо';
+    } else {
+        $('database-edit').title = '';
+        $('database-delete').title = '';
+    }
 
     // Представление записи
     renderRecordDetails(record, idx);
