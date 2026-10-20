@@ -189,9 +189,11 @@ async function pollParser() {
     if (parser.busy) return;
     parser.busy = true;
     let running = parser.running;
+    let phase = 'ничего не делается';
     try {
         const data = await api('parser_status');
         running = Boolean(data.running);
+        phase = data.phase || (running ? 'парсер работает' : 'ничего не делается');
         if (running && !parser.running) { console_.parserLines = []; console_.waitingShown = false; }
         if (running || data.activity?.length) appendParserActivity(data.activity);
     } catch { /* сервер временно недоступен */ }
@@ -200,7 +202,7 @@ async function pollParser() {
         if (!running) finishLiveThinking();
         parser.listeners.forEach(listener => listener(running));
     }
-    $('activity-console-status').textContent = running ? 'парсер работает' : 'готово';
+    $('activity-console-status').textContent = running ? phase : 'ничего не делается';
     $('activity-console').classList.toggle('is-active', running);
     parser.busy = false;
     parser.timer = setTimeout(pollParser, running ? 2000 : 15000);
@@ -220,11 +222,11 @@ export function switchTab(tab) {
     if (!button || button.hidden) return;
     log(`Открыта вкладка: ${button.textContent.trim()}`);
     document.querySelectorAll('.view-panel').forEach(panel => panel.classList.toggle('active', panel.id === tab));
-    document.querySelectorAll('.tab-btn').forEach(b => { b.classList.toggle('active', b === button); b.setAttribute('aria-selected', String(b === button)); });
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(b => { b.classList.toggle('active', b === button); b.setAttribute('aria-selected', String(b === button)); });
     tabHandlers[tab]?.forEach(handler => handler());
 }
 
-// ---- Сессия вкладки: открытие занимает её (прежний парсер останавливается), сигнал раз в 5 с, закрытие освобождает ----
+// ---- Сессия вкладки: открытие занимает её (парсер не прерывается, а продолжает работу), сигнал раз в 5 с, закрытие освобождает ----
 
 const session = { timer: null, inactive: false };
 
@@ -238,14 +240,14 @@ function setInactive(value) {
 async function claimSession() {
     setInactive(false);
     const data = await api('tab_open', { body: { tab: TAB_ID } });
-    log(data.parser === 'started' ? 'Вкладка открыта: прежние процессы остановлены, поиск запущен заново.' : 'Вкладка открыта: прежние процессы остановлены.');
+    log(data.parser === 'started' ? 'Вкладка открыта: поиск запущен.' : 'Вкладка открыта: фоновые процессы продолжают работу.');
     clearInterval(session.timer);
     session.timer = setInterval(async () => {
         try { if (!(await api('tab_heartbeat', { body: { tab: TAB_ID } })).owner) setInactive(true); } catch { /* повторим со следующим сигналом */ }
     }, 5000);
 }
 
-/** Вызывать до первого запроса пула: он запускает парсер, привязанный к вкладке. */
+/** Вызывать до первого запроса пула: он может запустить парсер. Парсер вкладкой не управляется: переключение и закрытие его не останавливают. */
 export async function startTabSession() {
     if (DEBUG_MODE) return;
     $('tab-inactive-reload').addEventListener('click', () => location.reload());
@@ -259,5 +261,5 @@ export async function startTabSession() {
 
 export function initializeCore() {
     initializeConsole();
-    document.querySelectorAll('.tab-btn').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
 }

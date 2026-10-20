@@ -15,8 +15,7 @@ function candidate_log_label($item) {
 function parse_dvach($board) {
     $catalog = fetch_2ch_json($board, null, []);
     if (!is_array($catalog['threads'] ?? null)) return [];
-    $alive_only = content_filters()['active_sources_only'];
-    $threads = array_filter($catalog['threads'], fn($t) => empty($t['sticky']) && empty($t['endless']) && empty($t['closed']) && (!$alive_only || dvach_thread_is_alive($t)));
+    $threads = array_filter($catalog['threads'], fn($t) => empty($t['sticky']) && empty($t['endless']) && empty($t['closed']));   // все треды: флаги «живые» — только при показе
     $out = [];
     foreach (array_slice(array_values($threads), 0, DVACH_THREADS_PER_BOARD) as $t) {
         if (!is_valid_dvach_id($thread = (string)($t['num'] ?? ''))) continue;
@@ -40,8 +39,7 @@ function parse_dvach($board) {
 function collect_catalog_source($platform, array $entry) {
     if (($id = ltrim(trim((string)($entry['id'] ?? '')), '@')) === '') return [[], null, null];
     $label = $platform === PLATFORM_TELEGRAM ? "@$id" : $id;
-    $active_only = content_filters()['active_sources_only'];
-    if ($active_only && is_source_frozen($entry)) return [[], null, 'skipped_frozen'];
+    if (is_source_frozen($entry)) return [[], null, 'skipped_frozen'];   // заморожены неактивные: перепроверяются по своему расписанию
     $source = ['id' => $id, 'name' => source_display_name($platform, $entry['name'] ?? $id)];
     cli_echo("Парсинг {$platform} {$label}...");
     $gone = null;
@@ -174,12 +172,13 @@ function record_known_keys(array $records) {
     return $known;
 }
 
-function history_records($history_file) {
-    $history = load_data($history_file, []);
+// Пул и история живут в SQLite (db_access.php): парсер читает и пишет их теми же функциями, что и сайт.
+function history_records() {
+    $history = history_load();
     return array_merge(...array_map(fn($c) => (array)($history[$c] ?? []), HISTORY_COLLECTIONS));
 }
 
-function collect_known_images($pool_file, $history_file) { return record_known_keys(array_merge(load_data($pool_file, []), history_records($history_file))); }
+function collect_known_images() { return record_known_keys(array_merge(pool_load(), history_records())); }
 
 function candidate_is_known(array $item, array $known) {
     foreach ([$item['image'] ?? '', ...array_column((array)($item['gallery'] ?? []), 'image')] as $img) if (isset($known[$img])) return true;
@@ -187,10 +186,10 @@ function candidate_is_known(array $item, array $known) {
 }
 
 /** Убирает из пула записи, чей пост уже оценён. */
-function prune_pool_already_rated($pool_file, $history_file) {
-    $known = record_known_keys(history_records($history_file));
-    $before = load_data($pool_file, []);
-    $after = update_data($pool_file, [], function ($pool) use ($known) {
+function prune_pool_already_rated() {
+    $known = record_known_keys(history_records());
+    $before = pool_load();
+    $after = pool_update(function ($pool) use ($known) {
         $kept = array_values(array_filter($pool, fn($i) => !is_array($i) || !candidate_is_known($i, $known)));
         return count($kept) !== count($pool) ? $kept : null;
     });
@@ -198,17 +197,34 @@ function prune_pool_already_rated($pool_file, $history_file) {
     return count($before) - count($after);
 }
 
-/** Добавляет запись в пул под блокировкой (лучшие первыми). false — уже в пуле или оценена. */
-function add_item_to_pool_safely($pool_file, $history_file, $item) {
+/** Добавляет запись в пул в транзакции (лучшие первыми). false — уже в пуле или оценена. */
+/**
+ * Добавляет запись в пул. Если пул темы полон (CONTENT_POOL_TARGET записей, включая просроченные),
+ * вытесняется самая старая просроченная запись этой темы: только тогда её медиа удаляется.
+ * Если просроченных нет, полный пул не трогаем и запись не добавляется.
+ */
+function add_item_to_pool_safely($item) {
     $added = false;
-    update_data($pool_file, [], function ($pool) use ($pool_file, $history_file, $item, &$added) {
-        if (candidate_is_known($item, collect_known_images($pool_file, $history_file))) return null;
+    $item += ['pooled_at' => time()];   // по этой метке запись просрочивается (POOL_MAX_AGE_SECONDS)
+    $before = pool_load();
+    $after = pool_update(function ($pool) use ($item, &$added) {
+        if (candidate_is_known($item, collect_known_images())) return null;
+        $topic = topic_norm($item['topic'] ?? '');
+        $same = array_keys(array_filter($pool, fn($i) => is_array($i) && topic_norm($i['topic'] ?? '') === $topic));
+        if (count($same) >= CONTENT_POOL_TARGET) {
+            $expired = array_filter($same, fn($k) => !pool_item_is_fresh($pool[$k]));
+            if (!$expired) return null;
+            usort($expired, fn($a, $b) => ($pool[$a]['pooled_at'] ?? 0) <=> ($pool[$b]['pooled_at'] ?? 0));
+            unset($pool[$expired[0]]);
+            $pool = array_values($pool);
+        }
         $pool[] = $item;
         $key = PERSONAL_TASTE_ENABLED ? 'rating' : 'relevance';
         usort($pool, fn($a, $b) => ($b[$key] ?? 0) <=> ($a[$key] ?? 0));
         $added = true;
         return $pool;
     });
+    media_cache_release_removed($before, $after);   // медиа вытесненной записи — только сейчас
     return $added;
 }
 
@@ -225,14 +241,12 @@ function post_item_video_promote(array &$item) {
 
 /** Очередь: без виденных, устаревших, отсеянных раньше и отключённых источников; лучшие источники первыми, площадки чередуются. До 500. */
 function build_candidate_queue($by_platform, $seen, array $rejected = [], array $rates = [], array &$skipped = []) {
-    $skipped = ['outdated' => 0, 'rejected_before' => 0, 'disabled_sources' => 0, 'not_video' => 0];
-    $video_only = content_filters()['video_only'];
+    $skipped = ['outdated' => 0, 'rejected_before' => 0, 'disabled_sources' => 0];
     $unique = [];
     foreach ($by_platform as $posts) foreach (expand_post_images($posts) as $item) {
         if (empty($item['image']) || candidate_is_known($item, $seen) || isset($unique[$item['image']])) continue;
         $source = content_source_key($item);
         $reason = match (true) {
-            $video_only && !post_item_video_promote($item) => 'not_video',
             is_post_outdated($item['posted_at'] ?? 0, null, content_max_age_days(str_starts_with($source, 'dvach:'))) => 'outdated',
             isset($rejected[$item['image']]) => 'rejected_before',
             isset($rates[$source]) && $rates[$source] <= 0.0 => 'disabled_sources',
@@ -240,13 +254,19 @@ function build_candidate_queue($by_platform, $seen, array $rejected = [], array 
         };
         if ($reason) $skipped[$reason]++; else $unique[$item['image']] = $item;
     }
-    $queues = [];
-    foreach ($unique as $item) $queues[content_platform($item)][content_source_key($item)][] = $item;
-    foreach ($queues as $platform => $groups) {
-        uksort($groups, fn($a, $b) => ($rates[$b] ?? 0.5) <=> ($rates[$a] ?? 0.5));
-        $queues[$platform] = interleave(...array_map(function ($g) { shuffle($g); return $g; }, array_values($groups)));
-    }
-    return array_slice(interleave(...array_values($queues)), 0, 500);
+    // Сначала самые горячие по реакциям и просмотрам, при равенстве — свежие
+    $all = array_values($unique);
+    usort($all, fn($a, $b) => content_hotness($b) <=> content_hotness($a) ?: ($b['posted_at'] ?? 0) <=> ($a['posted_at'] ?? 0));
+    return array_slice($all, 0, 500);
+}
+
+/** Горячесть поста: просмотры, реакции и ответы на час жизни. Нет данных — 0. */
+function content_hotness($item) {
+    $e = is_array($item['engagement'] ?? null) ? $item['engagement'] : [];
+    $views = (int)($e['views'] ?? $item['post_views'] ?? 0);
+    $reactions = is_array($e['reactions'] ?? null) ? array_sum($e['reactions']) : 0;
+    $hours = max(1, (time() - (int)($item['posted_at'] ?? 0)) / 3600);
+    return ($views + 5 * $reactions + 10 * (int)($e['replies'] ?? 0)) / ($hours + 2);
 }
 
 // ---- Кэши оценок ----
@@ -368,15 +388,21 @@ function prescreen_batch(array $batch, $topic, array &$ctx, $deadline) {
     return $passed;
 }
 
-/** Параллельная быстрая оценка (запускает несколько quick_relevance_score одновременно). */
+/**
+ * Быстрая оценка пачки: первая попытка («да/нет») уходит всем сразу, до 5 одновременно (ollama_generate_many).
+ * Записи без ответа доспрашиваются последовательно через quick_relevance_score (вторая попытка — число).
+ */
 function parallel_quick_scores(array $candidates, $caption, $topic) {
-    if (count($candidates) <= 1) {
-        return array_map(fn($c) => quick_relevance_score($c['poster'], $caption, $topic), $candidates);
-    }
-    // Для простоты — просто вызываем обычную функцию
-    // В реальной реализации здесь была бы параллельная обработка через curl_multi
-    // Но это требует более глубокой переделки quick_relevance_score
-    return array_map(fn($c) => quick_relevance_score($c['poster'], $caption, $topic), $candidates);
+    if (!$candidates) return [];
+    ollama_prepare_model(prescreen_model());
+    $payloads = array_map(fn($c) => quick_yes_no_payload($c['poster'], $caption, $topic), $candidates);
+    $answers = ollama_generate_many($payloads, 120, 5);
+    return array_map(function ($answer, $c) use ($caption, $topic) {
+        $score = $answer ? (yes_probability_score($answer['logprobs'] ?? []) ?? parse_yes_no_score($answer['response'] ?? '')) : null;
+        return $score !== null
+            ? ['score' => $score, 'seconds' => null, 'error' => '', 'raw' => '', 'detail' => '']
+            : quick_relevance_score($c['poster'], $caption, $topic);
+    }, $answers, $candidates);
 }
 
 /** Полный анализ кандидата (видео — раскадровкой), порог, кэш медиа и запись в пул. true — добавлено. */
@@ -413,14 +439,14 @@ function analyze_candidate($item, $poster, $history, $topic) {
         cli_echo("-> Принято: {$verdict}.");
         if (search_topic_key() !== $topic) { cli_echo('-> Тема поиска сменилась — запись по старой теме не сохраняю.'); return false; }
         $item = ['description' => $a['description'] ?: 'Описание не получено', 'why_relevant' => $a['why_relevant'] ?: 'Нейросеть не сформулировала объяснение.',
-            'relevance' => $a['relevance'], 'rating' => $a['rating'], 'topic' => $topic, 'image_local' => media_cache_store_image($item['image'], $poster)] + $item;
+            'relevance' => $a['relevance'], 'rating' => $a['rating'], 'format' => $a['format'] ?? '', 'topic' => $topic, 'image_local' => media_cache_store_image($item['image'], $poster)] + $item;
         if ($is_video) {
             $item['video_local'] = !empty($video['file']) ? cache_downloaded_video($item['video'], $video['file']) : media_cache_store_video($item['video']);
             cli_echo($item['video_local'] !== '' ? '-> Видео сохранено в кэш сайта.' : '-> Видео не удалось сохранить в кэш, на сайте будет исходная ссылка.');
         }
         if (!empty($item['gallery'])) $item['gallery'] = gallery_cache_files($item['gallery'], $item['image']);
         if ($item['image_local'] === '') cli_echo('-> Картинку не удалось сохранить в кэш, на сайте будет исходная ссылка.');
-        $added = add_item_to_pool_safely(pool_file(), history_file(), $item);
+        $added = add_item_to_pool_safely($item);
         cli_echo($added ? '[!] Запись сохранена и выведена на сайт.' : '-> Запись уже в пуле или оценена пользователем, пропускаю.');
         return $added;
     } finally {
@@ -434,7 +460,7 @@ function collector_stop_reason($started, $analyzed, $added) {
         time() - $started > PARSER_MAX_SECONDS => 'Достигнут лимит времени одного запуска.',
         $analyzed >= CONTENT_ANALYZE_PER_RUN => 'Достигнут лимит полных анализов за запуск.',
         $added >= CONTENT_ADDED_PER_RUN => 'Достигнут лимит новых записей за запуск.',
-        count(load_data(pool_file(), [])) >= CONTENT_POOL_TARGET => 'Пул заполнен до ' . CONTENT_POOL_TARGET . ' записей.',
+        pool_topic_count(search_topic_key()) >= CONTENT_POOL_TARGET => 'Пул заполнен до ' . CONTENT_POOL_TARGET . ' записей.',
         default => null
     };
 }
@@ -445,15 +471,16 @@ function collector_stop_reason($started, $analyzed, $added) {
  */
 function run_collector() {
     $started = time();
+    parser_phase('сбор постов');
     if ($n = media_cache_cleanup(all_users_pool_items())) cli_echo("Кэш медиа: удалено устаревших файлов: $n.");
-    if ($n = prune_pool_already_rated(pool_file(), history_file())) cli_echo("Пул: убрано записей, пост которых уже оценён: $n.");
+    if ($n = prune_pool_already_rated()) cli_echo("Пул: убрано записей, пост которых уже оценён: $n.");
+    pool_stamp_legacy();
     cache_pool_galleries();
     prune_dead_pool_items();
     $history = load_history();
-    $seen = collect_known_images(pool_file(), history_file());
+    $seen = collect_known_images();
     $topic = current_topic();
     $key = search_topic_key();   // одна тема или «первая + вторая»
-    $filters = content_filters();
     cli_echo('Модели: быстрая оценка — ' . prescreen_model() . ', полный анализ — ' . analysis_model() . (PARSER_THINKING ? ' (с размышлениями)' : ' (без размышлений)') . '.');
     topic_ensure($topic);
     topic_classify_pending(1, $topic);
@@ -481,35 +508,39 @@ function run_collector() {
     cli_echo("Тема поиска: «{$topic}». Кандидатов: " . count($candidates) . '.'
         . ($skipped['rejected_before'] ? " Уже отсеяны в прошлых запусках: {$skipped['rejected_before']}." : '')
         . ($skipped['outdated'] ? " Устаревших: {$skipped['outdated']}." : '')
-        . ($skipped['not_video'] ? " Без видео пропущено: {$skipped['not_video']} (включено «Только с видео»)." : '')
         . ($skipped['disabled_sources'] ? " Пропущено из источников, которые пользователи оценивают плохо: {$skipped['disabled_sources']}." : '')
-        . ($filters['fresh_only'] ? ' Только новый контент (за последние сутки).' : '')
-        . ($filters['active_sources_only'] ? ' Только живые паблики, каналы и треды.' : ' Неактивные источники тоже используются.')
         . ' Быстрая оценка по картинке ' . PRESCREEN_MAX_SIDE . ' px, порог ' . PRESCREEN_THRESHOLD . '%.');
     $ctx = ['stats' => ['prescreened' => 0, 'rejected' => 0, 'source_skipped' => 0], 'misses' => [], 'cached' => $scores, 'new_cache' => []];
-    [$analyzed, $added, $stop, $restart] = [0, 0, null, false];
-    foreach (array_chunk($candidates, PRESCREEN_BATCH) as $batch) {
+    [$analyzed, $added, $stop, $restart, $queue] = [0, 0, null, false, []];
+    $batches = array_chunk($candidates, PRESCREEN_BATCH);
+    foreach ($batches as $i => $batch) {
         if ($stop = collector_stop_reason($started, $analyzed, $added)) break;
-        // Тема и фильтры перечитываются для каждой пачки: изменения на сайте действуют сразу
+        // Тема перечитывается для каждой пачки: смена темы на сайте действует сразу (фильтры сбор не затрагивают)
         $stop = current_topic() !== $topic ? 'Тема поиска изменилась на «' . current_topic() . '» — начинаю заново с новой темой.'
-            : (search_topic_key() !== $key ? 'Вторая тема изменилась — собираю заново.' : (content_filters() !== $filters ? 'Фильтры подбора изменились — собираю заново.' : null));
+            : (search_topic_key() !== $key ? 'Вторая тема изменилась — собираю заново.' : null);
         if ($restart = $stop !== null) break;
+        parser_phase('быстрая оценка');
         $passed = prescreen_batch($batch, $key, $ctx, $started + PARSER_MAX_SECONDS);
         cache_merge(SCREENED_CACHE_FILE, $ctx['new_cache'], SCREENED_CACHE_LIMIT);
         $ctx['new_cache'] = [];
-        foreach ($passed as $c) {
+        // Прошедшие быструю оценку копятся и уходят на полный анализ блоком: каждая смена модели — перезагрузка в видеопамять
+        array_push($queue, ...$passed);
+        if (count($queue) < ANALYZE_BLOCK && $i < count($batches) - 1) continue;
+        parser_phase('полный анализ');
+        foreach ($queue as $c) {
             if ($stop = collector_stop_reason($started, $analyzed, $added)) break 2;
             $analyzed++;
-            if (analyze_candidate($c['item'], $c['poster'], $history = load_data(history_file(), $history), $key)) $added++;
+            if (analyze_candidate($c['item'], $c['poster'], $history = load_history(), $key)) $added++;
         }
+        $queue = [];
     }
     cache_merge(SCREENED_CACHE_FILE, $ctx['new_cache'], SCREENED_CACHE_LIMIT);
     if ($stop) cli_echo($stop);
     $s = $ctx['stats'];
     cli_echo('Сбор завершён за ' . round((time() - $started) / 60, 1) . " мин. Быстро оценено: {$s['prescreened']}, отсеяно: {$s['rejected']},"
         . " пропущено из источников не по теме: {$s['source_skipped']}, полных анализов: {$analyzed}, добавлено в пул: {$added}.");
-    // Источники ничего не дали: ищем новые (не чаще DISCOVERY_SHORTAGE_INTERVAL) и, если нашлись, собираем заново
-    if (!$restart && !$discovered && !$added && !$candidates && parser_session_alive() && current_topic() === $topic && !topic_same(DEFAULT_TOPIC, $topic)
+    // Поиск постов закончился, а пул темы не наполнен: ищем новые источники (не чаще DISCOVERY_SHORTAGE_INTERVAL) и, если нашлись, собираем заново
+    if (!$restart && !$discovered && !$added && pool_topic_count($key) < CONTENT_POOL_TARGET && parser_session_alive() && current_topic() === $topic && !topic_same(DEFAULT_TOPIC, $topic)
         && time() - discovery_last_run($db = load_source_db(), $topic) >= DISCOVERY_SHORTAGE_INTERVAL) {
         cli_echo('Из источников темы нечего оценивать — ищу новые источники и соберу заново.');
         $before = topic_own_sources_count($db, $topic);

@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Postmaker сам находит посты по теме вашего канала, раскладывает по расписанию и публикует.">
+<link rel="icon" href="img/badge-v1.svg" type="image/svg+xml">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Postmaker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&family=Jost:wght@500;700;800&family=Oswald:wght@700&family=PT+Serif:wght@400;700&display=swap">
+<style>
+/* Layout: наклейки с контуром и жёсткой тенью; телемагазин + старая ИКЕА + котики из гравюр и живописи; маскот — виниловая фигурка Нэко-сана */
+:root {
+  --bg-light: #F3F5F7;
+  --bg: var(--bg-light);
+  --paper: #FFFFFF;
+  --ink: #111111;
+  --muted: #55595F;
+  --outline: #111111;
+  --a1: #FFC20E;
+  --a2: #D52B1E;
+  --a3: #1E5AA8;
+  --a4: #00843D;
+  --on-a1: #111111;
+  --display: "Rubik", "Arial Black", system-ui, sans-serif;
+  --body: "Rubik", "Segoe UI", system-ui, sans-serif;
+  --ikea: "Jost", "Futura", "Century Gothic", sans-serif;
+  --caption: Impact, "Oswald", "Arial Narrow", sans-serif;
+  --serif: "PT Serif", "Times New Roman", serif;
+}
+:root[data-palette="ikea"] { --a1: #FFDA1A; --a2: #E1001A; --a3: #0058A3; --a4: #3C8D2F; --bg-light: #F2F6FA }
+:root[data-palette="ukiyoe"] { --a1: #E9C46A; --a2: #C0392B; --a3: #264E86; --a4: #5C8A5A; --bg-light: #F5F0E6 }
+:root[data-palette="night"] { --a1: #FFE600; --a2: #FF2E88; --a3: #00A3FF; --a4: #00C97A; --bg-light: #EEF0FF }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15171B; --paper: #1F2228; --ink: #F3F1EC; --muted: #AEB3BA; --outline: #F3F1EC; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #15171B; --paper: #1F2228; --ink: #F3F1EC; --muted: #AEB3BA; --outline: #F3F1EC; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--body);
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 8%, transparent) 1px, transparent 1px); background-size: 22px 22px; transition: background-color .3s }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 40px 140px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 96px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; line-height: 1.1 }
+p { margin: 0; max-width: 62ch }
+section { display: grid; gap: 28px; min-width: 0 }
+.tag { justify-self: start; font: 700 13px/1 var(--body); letter-spacing: .06em; text-transform: uppercase;
+  background: var(--a1); color: var(--on-a1); border: 2px solid var(--outline); padding: 6px 10px; border-radius: 4px; transform: rotate(-1deg) }
+.lead { font-size: 18px; color: var(--muted) }
+.note { font-size: 14px; color: var(--muted) }
+.fine { font-size: 13px; color: var(--muted) }
+.sw { font: 700 12px/1 var(--ikea); letter-spacing: .16em; color: var(--muted) }
+.sticker { background: var(--paper); border: 2.5px solid var(--outline); border-radius: 20px; box-shadow: 4px 4px 0 var(--outline) }
+.shout { font: 800 clamp(30px, 4.8vw, 50px)/1.05 var(--display); letter-spacing: -.01em }
+.shout em { font-style: normal; color: var(--a2) }
+.impact { font: 700 1em/1 var(--caption); text-transform: uppercase; color: #fff; -webkit-text-stroke: .08em #000; paint-order: stroke fill; text-shadow: 0 .06em 0 #000; letter-spacing: .01em }
+svg text { paint-order: stroke fill }
+
+/* Кнопки */
+.cta-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 700 17px/1 var(--display); color: var(--on-a1); background: var(--a1);
+  border: 2.5px solid var(--outline); border-radius: 999px; padding: 16px 26px; box-shadow: 4px 4px 0 var(--outline); cursor: pointer; transition: transform .12s, box-shadow .12s }
+.btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--outline) }
+.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--outline) }
+.btn:focus-visible { outline: 3px solid var(--a3); outline-offset: 3px }
+.btn.ghost { background: var(--paper); color: var(--ink) }
+.btn.dark { background: #111; color: var(--a1); border-color: #111; box-shadow: 4px 4px 0 var(--a2) }
+.burst { position: relative; display: grid; place-items: center; width: 108px; height: 108px; flex: none; transform: rotate(10deg) }
+.burst svg { position: absolute; inset: 0; width: 100%; height: 100% }
+.burst span { position: relative; font: 800 15px/1.05 var(--display); text-align: center; color: #fff; text-shadow: 0 1px 0 #000 }
+
+/* Логотип */
+.lockup { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+.pm-head { height: 92px; width: auto; flex: none; display: block }
+.pm-head.sm { height: 76px; width: auto }
+.wm { font: 900 clamp(40px, 6vw, 62px)/1 var(--display); letter-spacing: -.03em }
+
+/* Шапка */
+.hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 44px; align-items: center }
+.hero-text { display: grid; gap: 22px; min-width: 0 }
+.hero h1 { font: 800 clamp(28px, 3.8vw, 42px)/1.12 var(--display); letter-spacing: -.01em }
+.hero h1 mark { background: var(--a1); color: var(--on-a1); padding: 0 .18em; border-radius: 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone }
+.platforms { display: flex; flex-wrap: wrap; gap: 8px }
+.platforms span { font: 600 13px/1 var(--body); padding: 7px 11px; border-radius: 999px; border: 2px solid var(--outline); background: var(--paper) }
+.platforms span.soon { border-style: dashed; color: var(--muted) }
+.box { margin: 0; justify-self: center; width: min(380px, 100%); display: grid; gap: 10px; justify-items: center }
+.box img { display: block; width: 100%; height: auto; border-radius: 18px; border: 2.5px solid var(--outline); box-shadow: 6px 6px 0 var(--outline); transform: rotate(1.5deg); transition: transform .3s }
+.box:hover img { transform: rotate(-.5deg) translateY(-4px) }
+.box figcaption { font: 500 13px/1.3 var(--ikea); color: var(--muted); text-align: center }
+
+/* Функции */
+.brag { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px }
+.brag-item { padding: 20px; display: grid; gap: 8px; align-content: start; position: relative; min-width: 0 }
+.brag-item b { font: 800 19px/1.15 var(--display) }
+.brag-item span:not(.hit):not(.sw) { color: var(--muted); font-size: 15px; line-height: 1.45 }
+.brag-item .hit { position: absolute; top: -12px; right: 14px; font: 700 12px/1 var(--body); letter-spacing: .06em; text-transform: uppercase;
+  background: var(--a2); color: #fff; border: 2px solid var(--outline); padding: 6px 9px; border-radius: 999px; transform: rotate(6deg) }
+.brag-item:nth-child(3n+1) { transform: rotate(-.8deg) }
+.brag-item:nth-child(3n) { transform: rotate(.8deg) }
+
+/* Инструкция по сборке */
+.manual { background: #fff; color: #111; padding: 20px 24px; display: grid; grid-template-columns: minmax(0, 1.1fr) repeat(3, minmax(0, 1fr)); gap: 20px; align-items: center }
+.manual .m-head { display: grid; gap: 6px }
+.manual .m-head .sw, .manual .m-head .fine { color: #55595F }
+.manual .m-head b { font: 700 22px/1.15 var(--ikea) }
+.manual figure { margin: 0; position: relative; display: grid; gap: 4px; justify-items: center; min-width: 0; border-left: 1.5px solid #ccc; padding-left: 14px }
+.manual svg { width: 100%; max-width: 150px; height: auto }
+.manual .m-n { position: absolute; left: 14px; top: -2px; font: 800 30px/1 var(--ikea) }
+.manual figcaption { font: 500 14px/1.2 var(--ikea) }
+
+/* Сравните сами */
+.vs-table { overflow: hidden }
+.vs-table .vt-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 18px 22px 12px }
+.vs-table .vt-head b { font: 800 clamp(24px, 3vw, 32px)/1.1 var(--display) }
+.vt-scroll { overflow-x: auto }
+.vs-table table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 15px }
+.vs-table th, .vs-table td { padding: 12px 22px; text-align: left; border-top: 2px dashed color-mix(in srgb, var(--ink) 18%, transparent) }
+.vs-table thead th { font: 700 13px/1.2 var(--body); letter-spacing: .05em; text-transform: uppercase; color: var(--muted) }
+.vs-table th.us { color: var(--ink) }
+.vs-table td:nth-child(n+2) { width: 24%; font-weight: 600 }
+.vs-table td.us { background: color-mix(in srgb, var(--a1) 22%, transparent) }
+.mark { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--outline); font: 800 13px/1 var(--display); margin-right: 8px; vertical-align: -6px }
+.mark.y { background: var(--a4); color: #fff }
+.mark.n { background: var(--a2); color: #fff }
+.mark.t { background: var(--paper); color: var(--ink) }
+
+
+/* Мемотека */
+.contents { columns: 3; column-gap: 22px }
+.content { break-inside: avoid; margin: 0 0 22px; overflow: hidden; display: grid }
+.content:nth-child(3n+1) { transform: rotate(-.6deg) }
+.content:nth-child(3n+2) { transform: rotate(.6deg) }
+.content figure { margin: 0; border-bottom: 2.5px solid var(--outline); position: relative }
+.content figure img { display: block; width: 100%; height: auto }
+.content .about { padding: 12px 16px 14px; display: grid; gap: 2px }
+.content .about b { font: 800 15px/1.2 var(--display) }
+.content .about span { color: var(--muted); font-size: 13px; line-height: 1.4 }
+.style { justify-self: start; font: 700 11px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px }
+.capcontent { background: #fff; color: #111; overflow: hidden; display: block; margin: 0; position: relative }
+.capcontent .top { padding: 14px 16px; font: 600 clamp(15px, 1.8vw, 19px)/1.3 var(--body) }
+.capcontent img { display: block; width: 100%; height: auto }
+.seal { position: absolute; right: 10px; bottom: 12px; width: 92px; height: 92px; display: grid; place-items: center; transform: rotate(-12deg) }
+.seal svg { position: absolute; inset: 0; width: 100% }
+.seal span { position: relative; font: 800 11px/1.1 var(--display); color: #fff; text-align: center; text-shadow: 0 1px 0 #000 }
+.macro { position: relative; background: #000 }
+.macro img { display: block; width: 100%; height: auto }
+.macro .impact { position: absolute; left: 0; right: 0; text-align: center; font-size: clamp(24px, 3.2vw, 34px); padding: 0 10px }
+.macro .t { top: 12px }
+.macro .b { bottom: 14px }
+.demot { background: #000; padding: 22px 22px 18px; display: grid; gap: 10px; text-align: center }
+.demot img { border: 2px solid #000; outline: 2px solid #fff; outline-offset: 4px; margin: 6px auto 8px; width: calc(100% - 12px) !important }
+.demot .dt { font: 700 clamp(26px, 3.2vw, 34px)/1 var(--serif); color: #fff; letter-spacing: .04em; text-transform: uppercase }
+.demot .ds { font: 400 15px/1.35 var(--serif); color: #ddd }
+.lb { position: absolute; font: 700 12px/1.2 var(--body); background: #fff; color: #111; border: 2px solid #111; border-radius: 8px; padding: 5px 8px; box-shadow: 2px 2px 0 #111; max-width: 46% }
+.lb.bad { background: #FFD6D6 }
+.lb.tg { background: #DCEBFF } .lb.vk { background: #E3E9FF }
+.brain { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); background: #fff; color: #111 }
+.brain > * { min-width: 0; border-bottom: 2.5px solid #111 }
+.brain > *:nth-last-child(-n+2) { border-bottom: 0 }
+.brain .bt { display: grid; place-items: center; padding: 10px 12px; text-align: center; font: 700 15px/1.3 var(--body); border-right: 2.5px solid #111 }
+.brain img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover }
+.strip { overflow: hidden }
+.strip figure { margin: 0; position: relative }
+.strip img { display: block; width: 100%; height: auto }
+.strip .lb { left: 16px; bottom: 16px; font-size: clamp(13px, 1.6vw, 16px); max-width: 70%; padding: 8px 12px }
+
+.bigcta { background: var(--a3); color: #fff; border-color: #111; box-shadow: 4px 4px 0 #111; padding: clamp(24px, 4vw, 44px); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 36px; align-items: center }
+.cta-copy { display: grid; gap: 14px; justify-items: start; min-width: 0 }
+.cta-copy .eyebrow { font: 700 13px/1 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--a1) }
+.cta-copy .shout { color: #fff }
+.cta-copy .shout em { color: var(--a1) }
+.cta-copy p { color: rgba(255, 255, 255, .85) }
+.cta-copy .btn { background: var(--a1); color: #111; border-color: #111; box-shadow: 4px 4px 0 #111; margin-top: 6px }
+.cta-fine { font-size: 12px; color: rgba(255, 255, 255, .7) }
+.cta-photo img { display: block; width: 100%; height: auto; border-radius: 14px; border: 3px solid #111; box-shadow: 6px 6px 0 #111; transform: rotate(3deg) }
+
+/* А вдруг запостит не то */
+.faq-wrap { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 22px; align-items: start }
+.faq-content { overflow: hidden; transform: rotate(-1.5deg); margin: 0 }
+.faq-content figcaption { padding: 10px 14px 12px; font-size: 13px; color: var(--muted) }
+.faq { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px }
+.faq-item { padding: 20px; display: grid; gap: 8px; align-content: start; min-width: 0 }
+.faq-item b { font: 800 18px/1.2 var(--display) }
+.faq-item span { color: var(--muted); font-size: 15px }
+
+/* Тарифы и висячие ценники в духе старой ИКЕА */
+.plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: stretch; padding-top: 14px }
+.plan { --hole: var(--paper); padding: 24px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 18px; min-width: 0; position: relative }
+.plan h3 { font: 800 22px/1.1 var(--display) }
+.plan ul { margin: 0; padding: 16px 0 0; display: grid; gap: 8px; font-size: 15px; align-content: start; border-top: 2px dashed color-mix(in srgb, currentColor 25%, transparent) }
+.plan li { list-style: none; padding-left: 24px; position: relative }
+.plan li::before { content: ""; position: absolute; left: 0; top: .35em; width: 14px; height: 14px; border-radius: 50%; background: var(--a4); border: 2px solid var(--outline) }
+.plan .btn { width: 100%; font-size: 16px; padding: 14px 20px }
+.plan.main { --hole: var(--a1); background: var(--a1); color: var(--on-a1); border-color: #111; box-shadow: 4px 4px 0 #111 }
+.plan.main li::before { border-color: #111; background: #fff }
+.plan .badge { position: absolute; top: -14px; left: 22px; font: 700 12px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; background: var(--a2); color: #fff; border: 2px solid #111; padding: 6px 10px; border-radius: 999px; transform: rotate(-3deg) }
+.tag-slot { display: grid; gap: 10px; justify-items: center; align-content: start; min-height: 196px; padding-top: 22px }
+.was { font: 500 13px/1.2 var(--ikea); text-decoration: line-through; text-decoration-color: var(--a2); text-decoration-thickness: 2px; color: color-mix(in srgb, #111 70%, transparent); text-align: center; margin: -14px 0 22px }
+.htag-wrap { position: relative; filter: drop-shadow(3px 3px 0 var(--outline)) }
+.htag-wrap::before { content: ""; position: absolute; left: 50%; top: -24px; width: 2px; height: 38px; margin-left: -1px; background: var(--outline); z-index: 1 }
+.htag { --cut: 16px; background: #111; padding: 2.5px; clip-path: polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%, 0 var(--cut)); transform: rotate(-3deg); transform-origin: 50% 0; transition: transform .35s }
+.htag-wrap:hover .htag { transform: rotate(3deg) }
+.htag-in { --cut: 15px; position: relative; display: grid; gap: 3px; justify-items: start; min-width: 176px; padding: 28px 18px 12px; background: #FFDA1A; color: #111;
+  clip-path: polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%, 0 var(--cut)) }
+.htag.red .htag-in { background: #E1001A; color: #fff }
+.hole { position: absolute; top: 9px; left: 50%; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 50%; background: var(--hole); border: 2px solid #111 }
+.ik-name { font: 800 15px/1 var(--ikea); letter-spacing: .14em }
+.ik-desc { font: 500 12px/1.3 var(--ikea); max-width: 20ch; opacity: .85 }
+.ik-price { font: 800 64px/.9 var(--ikea); letter-spacing: -.045em; font-variant-numeric: tabular-nums; margin-top: 4px }
+.ik-price sup { font-size: .46em; vertical-align: top; position: relative; top: .14em; margin-left: .04em; letter-spacing: 0 }
+.ik-unit { font: 500 12px/1.2 var(--ikea) }
+.ik-art { font: 500 10px/1 var(--ikea); letter-spacing: .08em; opacity: .7; margin-top: 6px; display: flex; gap: 8px; align-items: center }
+.ik-art i { display: block; width: 46px; height: 12px; background: repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 3px, currentColor 3px 5px, transparent 5px 6px) }
+.nyhet { position: absolute; top: 16px; right: -16px; font: 800 13px/1 var(--ikea); letter-spacing: .06em; background: #FFDA1A; color: #111; border: 2px solid #111; padding: 6px 8px; transform: rotate(12deg); z-index: 2 }
+.seats { padding: 18px 22px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 20px; align-items: center }
+.seats b { font: 800 17px/1.2 var(--display); white-space: nowrap }
+.seats .bar { height: 16px; border: 2.5px solid var(--outline); border-radius: 999px; background: var(--bg); overflow: hidden }
+.seats .bar i { display: block; height: 100%; width: 63%; background: var(--a2); border-right: 2.5px solid var(--outline) }
+.seats .fine { grid-column: 1 / -1 }
+
+/* Бренд */
+.brand { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px }
+.bcard { padding: 22px; display: grid; gap: 16px; align-content: start; min-width: 0 }
+.bcard h3 { font: 800 18px/1.2 var(--display) }
+.bcard p { color: var(--muted); font-size: 14px }
+.versus { grid-column: 1 / -1; padding: 22px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 24px; align-items: center }
+.vs-side { display: grid; gap: 14px; justify-items: start; min-width: 0 }
+.vs-side .k { font: 700 12px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+.vs-logo { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; min-height: 96px }
+.vs-logo .app-name { font: 700 30px/1 var(--body); letter-spacing: -.01em }
+.vs-side ul { margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; color: var(--muted) }
+.vs-side li { list-style: none; padding-left: 20px; position: relative }
+.vs-side li.p::before { content: "+"; position: absolute; left: 0; font-weight: 700; color: var(--a4) }
+.vs-side li.m::before { content: "−"; position: absolute; left: 0; font-weight: 700; color: var(--a2) }
+.vs-mid { font: 900 28px/1 var(--display); color: var(--a2) }
+.logo4 { grid-column: 1 / -1; padding: 22px; display: grid; gap: 18px }
+.logo4 h3 { font: 800 18px/1.2 var(--display) }
+.mv-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px }
+.mv { display: grid; gap: 10px; align-content: start; min-width: 0; padding: 14px; border: 2px dashed color-mix(in srgb, var(--ink) 25%, transparent); border-radius: 16px }
+.mv .k { font: 700 11px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+.mv-full { background: #F3E6C9; border: 2.5px solid var(--outline); border-radius: 14px; padding: 10px; display: grid; place-items: center }
+.mv-full img { width: 100%; max-width: 190px; height: auto }
+.mv-wm { font-size: clamp(20px, 2vw, 26px); white-space: nowrap }
+.mv p { font-size: 13px; color: var(--muted); line-height: 1.4 }
+.yuru { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 28px; align-items: center }
+.yuru-full { background: #F3E6C9; border: 2.5px solid var(--outline); border-radius: 18px; padding: 18px; display: grid; place-items: center }
+.yuru-full img { width: 100%; max-width: 210px; height: auto }
+.yuru-side { display: grid; gap: 18px; min-width: 0 }
+.yuru-side .k { display: block; font: 700 11px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px }
+.yuru-side p { font-size: 14px; color: var(--muted); max-width: 60ch }
+.dark-demo { background: #16141B; color: #F3F1EC; border-radius: 12px; padding: 12px 18px; justify-self: start }
+.cats4 { display: grid; gap: 14px }
+.cr { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.25fr) minmax(0, 1.25fr); gap: 18px; align-items: center; padding: 16px; border: 2px dashed color-mix(in srgb, var(--ink) 25%, transparent); border-radius: 16px }
+.cr .k { display: block; font: 700 11px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px }
+.cr-head { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 4px 12px; align-items: center }
+.cr-head .k { grid-column: 1 / -1 }
+.cr-head img { width: 96px; height: auto }
+.cr-head p { font-size: 13px; color: var(--muted); line-height: 1.4 }
+.cr-cell { min-width: 0 }
+.cr-badges { display: flex; gap: 10px; align-items: end }
+.cr-wm { font-size: clamp(26px, 2.6vw, 34px); white-space: nowrap }
+.o-cat { height: .82em; width: auto; vertical-align: -.06em; margin: 0 .01em; filter: drop-shadow(0 0 1px var(--outline)) }
+.o-badge { height: 1.02em; width: auto; vertical-align: -.16em; margin: 0 -.02em }
+.sizes { display: flex; gap: 16px; align-items: end; flex-wrap: wrap }
+.sizes figure { margin: 0; display: grid; gap: 6px; justify-items: center }
+.sizes figcaption { font-size: 12px; color: var(--muted) }
+.sizes svg { display: block }
+.type-sample { display: grid; gap: 8px; justify-items: start }
+.type-sample .mid { font: 400 15px/1.45 var(--body) }
+.palettes { display: grid; gap: 10px }
+.pal { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 10px; border: 2px solid transparent; border-radius: 12px; background: none; color: var(--ink); font: 600 15px/1.2 var(--body); cursor: pointer; text-align: left }
+.pal:hover { background: color-mix(in srgb, var(--ink) 6%, transparent) }
+.pal[aria-pressed="true"] { border-color: var(--outline); background: var(--paper); box-shadow: 3px 3px 0 var(--outline) }
+.pal:focus-visible { outline: 3px solid var(--a3); outline-offset: 2px }
+.dots { display: flex }
+.dots i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--outline); margin-right: -6px }
+
+/* Закреплённая кнопка */
+.dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: center; gap: 12px; align-items: center; flex-wrap: wrap;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-top: 2.5px solid var(--outline) }
+.dock .btn { padding: 12px 22px; font-size: 16px }
+.dock .fine { max-width: 36ch }
+.dock .fine.toast { font: 600 14px/1.3 var(--body); color: var(--ink) }
+
+@media (max-width: 900px) {
+  .contents { columns: 2 }
+  .brag { grid-template-columns: 1fr 1fr }
+  .faq-wrap { grid-template-columns: 1fr }
+  .faq-content { max-width: 320px }
+}
+@media (max-width: 760px) {
+  .hero, .faq, .plans, .brand, .versus, .bigcta { grid-template-columns: 1fr }
+  .cr { grid-template-columns: 1fr 1fr }
+  .yuru { grid-template-columns: 1fr }
+  .mv-grid { grid-template-columns: 1fr 1fr }
+  .yuru-full { max-width: 260px }
+  .cr-head { grid-column: 1 / -1 }
+  .cta-photo { max-width: 280px }
+  .vs-mid { justify-self: start }
+  .manual { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+  .manual .m-head { grid-column: 1 / -1 }
+  .seats { grid-template-columns: 1fr }
+  .seats b { white-space: normal }
+  .dock .fine { display: none }
+  .dock .fine.toast { display: block }
+}
+@media (max-width: 520px) {
+  .contents { columns: 1 }
+  .brag { grid-template-columns: 1fr }
+}
+@media (prefers-reduced-motion: reduce) { .btn, body, .htag, .box img { transition: none } }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="hero-text">
+    <div class="lockup" aria-label="Postmaker"><span class="wm">p<img class="o-badge" src="img/badge-v1.svg" width="200" height="200" alt="o">stmaker</span></div>
+    <h1>Устали искать посты в три часа ночи? <mark>Есть решение!</mark></h1>
+    <p class="lead">Postmaker сам находит посты по вашей теме, раскладывает их по расписанию и публикует. Это не магия вне Хогвартса, это автопилот.</p>
+    <div class="platforms" aria-label="Площадки"><span>Telegram</span><span>ВКонтакте</span><span class="soon">дальше — везде, где нужно</span></div>
+    <div class="cta-row">
+      <button class="btn cta" type="button">Подключить канал</button>
+      <div class="burst" aria-hidden="true">
+        <svg viewBox="0 0 100 100"><polygon points="50,2 59,22 80,10 76,33 98,36 82,52 96,70 73,72 74,95 55,83 42,100 36,78 14,88 19,65 0,55 18,42 6,22 29,24 30,2 43,20" fill="var(--a2)" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg>
+        <span>Бесплатно*</span>
+      </div>
+    </div>
+    <p class="fine">* Пока это пет-проект. Без смс, но с регистрацией.</p>
+  </div>
+
+  <figure class="box">
+    <img src="img/box-hero.jpg" width="680" height="1192" alt="Коллекционная фигурка Нэко-сана в жёлтой коробке postmaker: чёрный кот в голубом махровом халате и розовых тапочках с кружкой кофе, на коробке бумажный ценник 390 ₽">
+    <figcaption>Фигурка в комплект не входит. Входит автопилот.</figcaption>
+  </figure>
+</header>
+
+<section aria-labelledby="brag-h">
+  <span class="tag">Но и это ещё не всё!</span>
+  <h2 id="brag-h" class="shout">Что ещё умеет Postmaker? <em>Всё это.</em></h2>
+  <div class="brag">
+    <div class="brag-item sticker"><span class="hit">Хит</span><span class="sw">TITTA</span><b>Смотрит каждую картинку</b><span>Нейросеть разглядывает пост, как придирчивый редактор, и пропускает только то, что действительно по теме.</span></div>
+    <div class="brag-item sticker"><span class="sw">FILMRUTA</span><b>Видео тоже смотрит</b><span>Раскладывает ролик на кадры и решает, подходит ли он вашей теме.</span></div>
+    <div class="brag-item sticker"><span class="hit">Новинка</span><span class="sw">HITTA</span><b>Сам ищет новые источники</b><span>Каналы Telegram, паблики ВКонтакте, форумы и имиджборды. Вы только одобряете находки.</span></div>
+    <div class="brag-item sticker"><span class="hit">2 в 1</span><span class="sw">TVÅMIX</span><b>Две темы по цене одной</b><span>Мемы и котики сразу? Пожалуйста! Пост пройдёт, только если подходит под обе.</span></div>
+    <div class="brag-item sticker"><span class="sw">LÄRA</span><b>Учится на ваших оценках</b><span>Пара дизлайков источнику — и он больше не попадётся. Без звонков в службу поддержки.</span></div>
+    <div class="brag-item sticker"><span class="sw">ALBUMSKÖN</span><b>Альбомы не рвёт</b><span>В посте пять картинок? Опубликует все пять, в том же порядке. Ни одна не потеряется!</span></div>
+  </div>
+
+  <div class="manual sticker" aria-label="Инструкция по сборке канала">
+    <div class="m-head"><span class="sw">BYGGA</span><b>Инструкция по сборке канала</b><span class="fine">Шестигранник не нужен.</span></div>
+    <figure><span class="m-n">1</span>
+      <svg viewBox="0 0 120 90" aria-hidden="true"><g fill="none" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="18" y="12" width="84" height="60" rx="4"/><path d="M28 26 h52 M28 36 h36"/><rect x="28" y="46" width="48" height="16" rx="8"/></g><text x="52" y="58" text-anchor="middle" font-family="Jost, Futura, sans-serif" font-weight="700" font-size="10" fill="#111">котики</text><text x="104" y="86" text-anchor="end" font-family="Jost, Futura, sans-serif" font-weight="700" font-size="11" fill="#111">1x</text></svg>
+      <figcaption>Выберите тему</figcaption></figure>
+    <figure><span class="m-n">2</span>
+      <svg viewBox="0 0 120 90" aria-hidden="true"><g fill="none" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="28" width="34" height="34" rx="4"/><path d="M16 38 h18 M16 46 h12 M16 54 h16"/><path d="M42 45 H60"/><rect x="60" y="37" width="18" height="16" rx="3"/><path d="M78 41 h8 M78 49 h8"/><rect x="92" y="30" width="20" height="30" rx="3"/><circle cx="102" cy="40" r="1.5"/><circle cx="102" cy="50" r="1.5"/><path d="M66 24 l6 6 M74 22 l2 8"/></g></svg>
+      <figcaption>Подключите канал</figcaption></figure>
+    <figure><span class="m-n">3</span>
+      <svg viewBox="0 0 120 90" aria-hidden="true"><g fill="none" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 74 H112 M16 74 V36 M104 74 V58"/><rect x="16" y="56" width="88" height="12" rx="3"/><circle cx="32" cy="48" r="8"/><path d="M42 56 Q70 42 104 56"/></g><text x="70" y="30" font-family="Jost, Futura, sans-serif" font-weight="700" font-size="14" fill="#111">z</text><text x="80" y="22" font-family="Jost, Futura, sans-serif" font-weight="700" font-size="18" fill="#111">Z</text></svg>
+      <figcaption>Спите</figcaption></figure>
+  </div>
+
+  <div class="vs-table sticker">
+    <div class="vt-head"><b>Сравните сами!</b><span class="sw">JÄMFÖR</span></div>
+    <div class="vt-scroll">
+      <table>
+        <thead><tr><th scope="col"></th><th scope="col">Обычный админ</th><th scope="col" class="us">Postmaker</th></tr></thead>
+        <tbody>
+          <tr><td>Ищет посты в три часа ночи</td><td><span class="mark n" aria-label="да, увы">✓</span>увы, да</td><td class="us"><span class="mark y" aria-label="нет">✗</span>спит</td></tr>
+          <tr><td>Замечает баяны</td><td><span class="mark t">~</span>иногда</td><td class="us"><span class="mark y">✓</span>всегда</td></tr>
+          <tr><td>Смотрит каждую картинку источника</td><td><span class="mark n">✗</span>некогда</td><td class="us"><span class="mark y">✓</span>все до одной</td></tr>
+          <tr><td>Постит, пока вы в отпуске</td><td><span class="mark n">✗</span>сам в отпуске</td><td class="us"><span class="mark y">✓</span>по расписанию</td></tr>
+          <tr><td>Пьёт кофе</td><td><span class="mark y">✓</span>литрами</td><td class="us"><span class="mark y">✓</span>Нэко-сан тоже</td></tr>
+          <tr><td>Просит зарплату</td><td><span class="mark n">✓</span>каждый месяц</td><td class="us"><span class="mark y">✓</span>от 0 ₽</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="bigcta sticker">
+    <div class="cta-copy">
+      <span class="eyebrow">Звоните прямо сейчас*</span>
+      <p class="shout">Нэко-сан уже налил кофе. <em>Ваша очередь!</em></p>
+      <p>Подключите канал за минуту, а дальше Postmaker сам наполнит очередь постами по вашей теме.</p>
+      <button class="btn cta" type="button">Хочу автопилот</button>
+      <span class="cta-fine">* Звонить не нужно, это просто кнопка.</span>
+    </div>
+    <div class="cta-photo"><img src="img/box-wide.jpg" width="560" height="597" alt="Фигурка Нэко-сана в коробке с ценником 390 ₽"></div>
+  </div>
+</section>
+
+<section aria-labelledby="faq-h">
+  <span class="tag">Вы спросите — мы ответим</span>
+  <h2 id="faq-h" class="shout">А вдруг <em>запостит не то?</em></h2>
+  <div class="faq-wrap">
+    <figure class="faq-content sticker">
+      <div class="macro">
+        <img src="img/boo.jpg?v=2" width="480" height="480" alt="Пушистый кот в галстуке широко улыбается и смотрит прямо в камеру">
+        <span class="impact t">Бу! Испугался?</span>
+      </div>
+    </figure>
+    <div class="faq">
+      <div class="faq-item sticker"><b>А если опубликует ерунду?</b><span>Каждый пост ждёт в очереди 6 часов, и его можно отклонить одним нажатием. Не готовы доверять — оставайтесь в ручном режиме, автопилот включите позже.</span></div>
+      <div class="faq-item sticker"><b>Это же чужой контент?</b><span>У каждого поста есть источник, и Postmaker может указывать его в подписи. Авторы получают переходы, вы — контент.</span></div>
+      <div class="faq-item sticker"><b>Канал не забанят?</b><span>Публикация идёт через официальные инструменты площадок в обычном темпе: пять постов в день не отличаются от ручной работы.</span></div>
+      <div class="faq-item sticker"><b>А если тема не про мемы?</b><span>Тему вы задаёте словами: «Котики», «Ретроавто», «Кухня». Нейросеть составит критерии и проверит по ним каждый пост.</span></div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="plans-h">
+  <span class="tag">Тарифы</span>
+  <h2 id="plans-h" class="shout">Сколько стоит? <em>Меньше, чем ваш выходной.</em></h2>
+  <div class="plans">
+    <div class="plan sticker">
+      <h3>Попробовать</h3>
+      <div class="tag-slot"><div class="htag-wrap"><div class="htag"><div class="htag-in"><span class="hole"></span>
+        <span class="ik-name">PRÖVA</span><span class="ik-desc">Ручной режим. 1 канал, 3 поста в день</span>
+        <span class="ik-price">0<sup>,–</sup></span><span class="ik-unit">₽ навсегда</span><span class="ik-art">арт. 000.000.01 <i></i></span>
+      </div></div></div></div>
+      <ul><li>1 канал</li><li>Ручной режим</li><li>3 поста в день</li><li>Ссылка на Postmaker под постами</li></ul>
+      <button class="btn ghost cta" type="button">Начать бесплатно</button>
+    </div>
+    <div class="plan sticker main">
+      <span class="badge">Выбор админов</span>
+      <h3>Автопилот</h3>
+      <div class="tag-slot"><span class="was">Цена в магазине: ваши бессонные ночи</span><div class="htag-wrap"><span class="nyhet">NYHET!</span><div class="htag red"><div class="htag-in"><span class="hole"></span>
+        <span class="ik-name">AUTOPILOT</span><span class="ik-desc">Расписание и автопубликация. Новая низкая цена</span>
+        <span class="ik-price">390<sup>,–</sup></span><span class="ik-unit">₽ в месяц</span><span class="ik-art">арт. 390.007.24 <i></i></span>
+      </div></div></div></div>
+      <ul><li>1 канал</li><li>Автопилот и расписание</li><li>До 10 постов в день</li><li>Без ссылки на Postmaker</li><li>Отчёт: что зашло</li></ul>
+      <button class="btn dark cta" type="button">Хочу автопилот</button>
+    </div>
+    <div class="plan sticker">
+      <h3>Сетка</h3>
+      <div class="tag-slot"><div class="htag-wrap"><div class="htag"><div class="htag-in"><span class="hole"></span>
+        <span class="ik-name">NÄTVERK</span><span class="ik-desc">До 5 каналов на разных площадках</span>
+        <span class="ik-price">990<sup>,–</sup></span><span class="ik-unit">₽ в месяц</span><span class="ik-art">арт. 990.005.05 <i></i></span>
+      </div></div></div></div>
+      <ul><li>До 5 каналов на разных площадках</li><li>Своя тема у каждого</li><li>Приоритет в подборе</li><li>Общая очередь</li></ul>
+      <button class="btn ghost cta" type="button">Подключить сетку</button>
+    </div>
+  </div>
+  <div class="seats sticker">
+    <b>Спешите! На бете осталось 11 мест из 30</b>
+    <div class="bar" role="img" aria-label="Занято 19 мест из 30"><i></i></div>
+    <span class="fine">Это не маркетинговый трюк: видеокарта у нас одна, и больше 30 каналов она пока не потянет.</span>
+  </div>
+</section>
+
+<section aria-labelledby="brand-h">
+  <span class="tag">Бренд</span>
+  <h2 id="brand-h" class="shout">Знакомьтесь: <em>Нэко-сан</em></h2>
+  <div class="brand">
+    <div class="versus sticker">
+      <div class="vs-side">
+        <span class="k">Сейчас на сайте</span>
+        <div class="vs-logo"><img src="img/current-logo.svg" width="80" height="80" alt="Текущий логотип: белая карточка с буквой P и радужной обводкой на тёмном фоне"><span class="app-name">Postmaker</span></div>
+        <ul>
+          <li class="p">Аккуратный, хорошо читается в 16 px</li>
+          <li class="p">Похож на нормальную иконку приложения</li>
+          <li class="m">Радужный градиент и буква в карточке — как у сотни других сервисов</li>
+          <li class="m">Не связан ни с котиками, ни с автопилотом</li>
+        </ul>
+      </div>
+      <span class="vs-mid" aria-hidden="true">vs</span>
+      <div class="vs-side">
+        <span class="k">Нэко-сан</span>
+        <div class="vs-logo"><div class="lockup"><span class="wm" style="font-size:40px">p<img class="o-badge" src="img/badge-v1.svg" width="200" height="200" alt="o">stmaker</span></div></div>
+        <ul>
+          <li class="p">Котик в махровом халате с кофе — это и есть обещание: расслабьтесь, канал постит сам</li>
+          <li class="p">Японский маскот и гравюра в логотипе, виниловая фигурка в коробке и ценник старой ИКЕА на сайте</li>
+          <li class="p">Готовый герой для стикеров, пустых экранов и рекламы</li>
+          <li class="p">Логотип векторный: чёткий в любом размере, от вывески до 20 px</li>
+          <li class="m">Фигурку на фото сгенерировала нейросеть: для печати мерча понадобится иллюстратор</li>
+        </ul>
+      </div>
+    </div>
+    <div class="logo4 sticker">
+      <h3>Нэко-сан — японский маскот: 4 варианта</h3>
+      <div class="mv-grid">
+        <div class="mv">
+          <span class="k">1 · Блаженный</span>
+          <div class="mv-full"><img src="img/neko-v1.svg" width="206" height="262" alt="Нэко-сан, вариант «Блаженный»"></div>
+          <div class="cr-badges"><img src="img/badge-v1.svg" width="64" height="64" alt=""><img src="img/badge-v1.svg" width="32" height="32" alt="32 px"><img src="img/badge-v1.svg" width="16" height="16" alt="16 px"></div>
+          <span class="wm mv-wm">p<img class="o-badge" src="img/badge-v1.svg" width="200" height="200" alt="o">stmaker</span>
+          <p>Глаза-дуги и довольная улыбка: кофе удался, канал постит сам. Голубой махровый халат.</p>
+        </div>
+        <div class="mv">
+          <span class="k">2 · Сонный</span>
+          <div class="mv-full"><img src="img/neko-v2.svg" width="206" height="262" alt="Нэко-сан, вариант «Сонный»"></div>
+          <div class="cr-badges"><img src="img/badge-v2.svg" width="64" height="64" alt=""><img src="img/badge-v2.svg" width="32" height="32" alt="32 px"><img src="img/badge-v2.svg" width="16" height="16" alt="16 px"></div>
+          <span class="wm mv-wm">p<img class="o-badge" src="img/badge-v2.svg" width="200" height="200" alt="o">stmaker</span>
+          <p>Один глаз закрыт, второй приоткрыт, зевок. Полотенце на голове, как в онсэне, и полосатая юката.</p>
+        </div>
+        <div class="mv">
+          <span class="k">3 · Подмигивает</span>
+          <div class="mv-full"><img src="img/neko-v3.svg" width="206" height="262" alt="Нэко-сан, вариант «Подмигивает»"></div>
+          <div class="cr-badges"><img src="img/badge-v3.svg" width="64" height="64" alt=""><img src="img/badge-v3.svg" width="32" height="32" alt="32 px"><img src="img/badge-v3.svg" width="16" height="16" alt="16 px"></div>
+          <span class="wm mv-wm">p<img class="o-badge" src="img/badge-v3.svg" width="200" height="200" alt="o">stmaker</span>
+          <p>Блестящий глаз, подмигивание и язык — бодрый продавец из телемагазина. Повязка-хатимаки и красная куртка-хаппи.</p>
+        </div>
+        <div class="mv">
+          <span class="k">4 · Манэки-нэко</span>
+          <div class="mv-full"><img src="img/neko-v4.svg" width="206" height="262" alt="Нэко-сан, вариант «Манэки-нэко»"></div>
+          <div class="cr-badges"><img src="img/badge-v4.svg" width="64" height="64" alt=""><img src="img/badge-v4.svg" width="32" height="32" alt="32 px"><img src="img/badge-v4.svg" width="16" height="16" alt="16 px"></div>
+          <span class="wm mv-wm">p<img class="o-badge" src="img/badge-v4.svg" width="200" height="200" alt="o">stmaker</span>
+          <p>Глаза-точки, как у классических маскотов, лапа поднята «на удачу», ошейник с колокольчиком.</p>
+        </div>
+      </div>
+      <p class="note">Общее у всех: пропорции японских маскотов, светлая мордочка, красные щёчки, значок-гравюра с солнцем и волнами. В шапке для примера — «Блаженный». Можно смешивать: например, лицо от одного, наряд от другого.</p>
+    </div>
+    <div class="bcard sticker">
+      <h3>Маскот и иконки</h3>
+      <div class="sizes">
+        <figure><img src="img/neko-figure.jpg" width="120" height="183" style="width:120px;height:auto;border-radius:12px;border:2.5px solid var(--outline)" alt="Нэко-сан целиком"><figcaption>Целиком</figcaption></figure>
+        <figure><img class="pm-head" src="img/badge-v1.svg" width="96" height="96" style="height:96px;width:auto" alt="Иконка 96"><figcaption>96</figcaption></figure>
+        <figure><img class="pm-head" src="img/badge-v1.svg" width="48" height="48" style="height:48px;width:auto" alt="Иконка 48"><figcaption>48</figcaption></figure>
+        <figure><img class="pm-head" src="img/badge-v1.svg" width="32" height="32" style="height:32px;width:auto" alt="Иконка 32"><figcaption>32</figcaption></figure>
+        <figure><img class="pm-head" src="img/badge-v1.svg" width="20" height="20" style="height:20px;width:auto" alt="Иконка 20"><figcaption>20</figcaption></figure>
+      </div>
+      <p>Нэко-сан («нэко» по-японски — кошка): скептичный взгляд, голубой махровый халат, розовые тапочки и кружка кофе. Пока ваш канал постит сам, ему некуда спешить. В иконках — голова в круге.</p>
+    </div>
+    <div class="bcard sticker">
+      <h3>Шрифты, ценники и цвета</h3>
+      <div class="type-sample">
+        <span class="wm" style="font-size:40px">postmaker</span>
+        <span class="mid">Логотип, заголовки и текст — Rubik. Мемы — Impact. Ценники и шведские названия — Jost, наследник Futura из старых каталогов ИКЕА.</span>
+      </div>
+      <div class="palettes" role="group" aria-label="Палитра">
+        <button class="pal" type="button" data-pal="tv" aria-pressed="true"><span class="dots"><i style="background:#FFC20E"></i><i style="background:#D52B1E"></i><i style="background:#1E5AA8"></i><i style="background:#00843D"></i></span>Телемагазин</button>
+        <button class="pal" type="button" data-pal="ikea" aria-pressed="false"><span class="dots"><i style="background:#FFDA1A"></i><i style="background:#E1001A"></i><i style="background:#0058A3"></i><i style="background:#3C8D2F"></i></span>Каталог 80-х</button>
+        <button class="pal" type="button" data-pal="ukiyoe" aria-pressed="false"><span class="dots"><i style="background:#E9C46A"></i><i style="background:#C0392B"></i><i style="background:#264E86"></i><i style="background:#5C8A5A"></i></span>Укиё-э</button>
+        <button class="pal" type="button" data-pal="night" aria-pressed="false"><span class="dots"><i style="background:#FFE600"></i><i style="background:#FF2E88"></i><i style="background:#00A3FF"></i><i style="background:#00C97A"></i></span>Ночной эфир</button>
+      </div>
+      <p>Нажмите палитру — перекрасится вся страница. Маскот и ценники остаются в своих цветах.</p>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div class="dock" role="region" aria-label="Подключение">
+  <span class="fine" id="dock-text">Вы всё ещё постите вручную? Это можно исправить за минуту.</span>
+  <button class="btn cta" type="button">Подключить канал</button>
+</div>
+
+<script>
+// Набросок: кнопки отвечают шуткой, подключения на странице нет. Палитра запоминается в браузере.
+const replies = ['Отличный выбор! Подключение появится в приложении.', 'Вы уже второй раз нажимаете. Нам нравится ваш настрой.', 'Postmaker ценит вашу настойчивость.', 'Всё, вы официально фанат. Нэко-сан приподнял бровь.'];
+let clicks = 0;
+const dockText = document.getElementById('dock-text');
+document.querySelectorAll('.cta').forEach(b => b.addEventListener('click', () => {
+  dockText.textContent = replies[Math.min(clicks++, replies.length - 1)];
+  dockText.classList.add('toast');
+}));
+const pals = document.querySelectorAll('.pal');
+function setPalette(name) {
+  if (name === 'tv') delete document.documentElement.dataset.palette; else document.documentElement.dataset.palette = name;
+  pals.forEach(p => p.setAttribute('aria-pressed', String(p.dataset.pal === name)));
+  try { localStorage.setItem('pm-palette5', name); } catch (e) {}
+}
+pals.forEach(p => p.addEventListener('click', () => setPalette(p.dataset.pal)));
+try { const saved = localStorage.getItem('pm-palette5'); if (saved && document.querySelector(`.pal[data-pal="${saved}"]`)) setPalette(saved); } catch (e) {}
+</script>
+</body>
+</html>

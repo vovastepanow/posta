@@ -7,7 +7,7 @@ const ZOOM_LIMITS = { image: [0.15, 8], video: [0.3, 4] };
 const ZOOM_STEP = 1.15;
 const EDGE = 60;     // столько окна всегда остаётся на экране
 const MARGIN = 14;
-const state = { kind: 'image', zoom: 1, x: 0, y: 0, base: { width: 640, height: 360 }, drag: null, sourceUrl: '', justDragged: false, gallery: null };
+const state = { kind: 'image', zoom: 1, x: 0, y: 0, base: { width: 480, height: 270 }, drag: null, sourceUrl: '', justDragged: false, gallery: null };
 const providers = {};
 let mediaPoster = null;
 
@@ -98,7 +98,9 @@ function syncRocket() {
 /** Открывает файл: {kind, src, fallback (исходная ссылка, если копия не загрузится), poster, sourceUrl, alt}. */
 function open(item, gallery = null) {
     stopVideo();
-    Object.assign(state, { kind: item.kind, zoom: 1, base: { width: 640, height: 360 }, drag: null, justDragged: false, gallery, sourceUrl: item.sourceUrl || '' });
+    Object.assign(state, { kind: item.kind, zoom: 1, base: { width: 480, height: 270 }, drag: null, justDragged: false, gallery, sourceUrl: item.sourceUrl || '' });
+    // Стрелки перелистывания — только если медиа несколько
+    $('image-viewer-prev').hidden = $('image-viewer-next').hidden = !(gallery && gallery.items.length > 1);
     for (const m of [$('image-viewer-image'), $('image-viewer-video')]) m.style.width = m.style.height = '';
     syncRocket();
     setHeader(item.kind, item.src, item.fallback);
@@ -145,13 +147,6 @@ export function openViewerGallery(items, index = 0, onPost = null, postCheck = n
     if (!items?.length) return;
     index = Math.min(Math.max(0, index), items.length - 1);
     open(items[index], { items, index, onPost, postCheck });
-}
-
-function step(delta) {
-    const g = state.gallery;
-    if (!g || g.items.length < 2) return false;
-    openViewerGallery(g.items, (g.index + delta + g.items.length) % g.items.length, g.onPost, g.postCheck);
-    return true;
 }
 
 function postAction() {
@@ -240,9 +235,18 @@ function initializeVideoControls() {
     renderPlay(); renderTime(); renderVolume();
 }
 
+/** Перелистывание галереи стрелками; у одного медиа стрелок нет. */
+function step(delta) {
+    const g = state.gallery;
+    if (!g || g.items.length < 2) return;
+    openViewerGallery(g.items, (g.index + delta + g.items.length) % g.items.length, g.onPost, g.postCheck);
+}
+
 export function initializeImageViewer() {
     const [overlay, box] = [$('image-viewer'), frame()];
     initializeVideoControls();
+    $('image-viewer-prev').addEventListener('click', () => step(-1));
+    $('image-viewer-next').addEventListener('click', () => step(1));
     // Клик по любой картинке страницы: галерея (data-gallery), видео (data-video), внешняя ссылка (data-external) или картинка
     document.addEventListener('click', e => {
         const img = e.target.closest('img');
@@ -281,18 +285,19 @@ export function initializeImageViewer() {
     box.addEventListener('pointerup', endDrag);
     box.addEventListener('pointercancel', endDrag);
     box.addEventListener('dragstart', e => e.preventDefault());
+    // ЛКМ: картинка закрывается, видео ставится на паузу (и снимается с паузы). Перелистывания кликами нет.
     box.addEventListener('click', e => {
         const dragged = state.justDragged;
         state.justDragged = false;
         if (e.target.closest('a')) { if (dragged) e.preventDefault(); return; }
-        if (dragged || e.target.closest('video, .video-controls')) return;
+        if (dragged || e.target.closest('.video-controls, button, .image-viewer-status')) return;
         if (e.target.closest('#image-viewer-rocket')) { const post = postAction(); close(); post?.(); return; }
-        if (!step(-1)) close();
-    });
-    box.addEventListener('contextmenu', e => {
-        if (e.target.closest('a, .video-controls') || !state.gallery || state.gallery.items.length < 2) return;
-        e.preventDefault();
-        step(1);
+        if (state.kind === 'video') {
+            const video = $('image-viewer-video');
+            video.paused ? video.play().catch(() => {}) : video.pause();
+            return;
+        }
+        close();
     });
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 }

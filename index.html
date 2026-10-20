@@ -17,7 +17,7 @@
 <div id="app-loading" class="app-loading" role="status" aria-label="Загрузка приложения"><span class="spinner spinner-lg"></span></div>
 
 <section id="activity-console" class="activity-console" aria-label="Журнал приложения">
-  <div class="activity-console-header"><span class="console-indicator"></span><strong>Журнал</strong><span id="activity-console-status">готово</span><button id="debug-toggle" class="debug-toggle" type="button" aria-pressed="false">🐞 Демо</button><button id="activity-console-follow" class="activity-console-follow" type="button" hidden>К концу ↓</button></div>
+  <div class="activity-console-header"><span class="console-indicator"></span><span id="activity-console-status">ничего не делается</span><button id="debug-toggle" class="debug-toggle" type="button" aria-pressed="false">🐞 Демо</button><button id="activity-console-follow" class="activity-console-follow" type="button" hidden>К концу ↓</button></div>
   <div id="activity-track" class="activity-console-output" role="log" aria-live="polite"></div>
   <details id="model-panel" class="model-panel">
     <summary><span class="model-panel-title">Модель</span><span id="model-summary">…</span></summary>
@@ -53,8 +53,8 @@
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab">🌳 Дерево</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="test-tab">Тест ИИ</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="account-tab">Личный кабинет</button>
+    <div id="topic-tabs" class="topic-switch"></div>
   </nav>
-  <nav id="topic-tabs" class="tabs tabs-secondary" role="tablist" aria-label="Темы поиска"></nav>
 </div>
 
 <div id="debug-banner" class="debug-banner" hidden>
@@ -63,12 +63,6 @@
 </div>
 
 <!-- Панель управления: справа на всех вкладках -->
-<div id="control-dock" class="controls control-dock" role="group" aria-label="Управление приложением">
-  <button id="control-search" class="btn" type="button" aria-label="Искать контент" title="Искать контент: поиск новых записей по теме"><span class="btn-icon" aria-hidden="true">🔍</span></button>
-  <button id="control-sources" class="btn" type="button" aria-label="Обновить базу источников" title="Обновить базу источников: автоподбор каналов, пабликов и досок"><span class="btn-icon" aria-hidden="true">📚</span></button>
-  <button id="control-stop" class="btn btn-danger" type="button" aria-label="Остановить приложение" title="Остановить приложение: завершить все процессы (сборщики, помощник Telegram, модели)"><span class="btn-icon" aria-hidden="true">🛑</span></button>
-</div>
-
 <!-- ПОДБОР -->
 <div id="content-tab" class="view-panel active">
   <form id="topic-form" class="topic-form">
@@ -269,9 +263,9 @@
     </div>
     <div id="tree-notice" class="topic-notice" role="status" hidden><span id="tree-notice-text"></span><button id="tree-force-new" class="topic-link" type="button">Нет, это другая тема</button></div>
   </form>
-  <p class="tree-legend"><span>🗂 общая тема</span><span>🔹 частная</span><span>📍 текущая</span><span>число — свои источники</span></p>
+  <p class="tree-legend"><span>📍 текущая тема</span><span>число — свои источники</span><span>нажмите тему, чтобы открыть её справа</span></p>
   <div id="tree-status" class="proposals-status" role="status"></div>
-  <div class="tree-layout"><div id="tree-root" class="tree-root"></div><aside id="tree-detail" class="tree-detail" aria-live="polite"></aside></div>
+  <div class="tree-layout"><div id="tree-root" class="tree-groups"></div><aside id="tree-detail" class="tree-detail" aria-live="polite"></aside></div>
 </div>
 
 <!-- ТЕСТ ИИ -->
@@ -410,6 +404,8 @@
       <img id="image-viewer-image" alt="" draggable="false">
       <video id="image-viewer-video" playsinline loop hidden></video>
       <div class="image-viewer-video-hit"></div>
+      <button id="image-viewer-prev" class="image-viewer-nav is-prev" type="button" aria-label="Предыдущая" title="Предыдущая" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 4 7 12 15 20"/></svg></button>
+      <button id="image-viewer-next" class="image-viewer-nav is-next" type="button" aria-label="Следующая" title="Следующая" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 4 17 12 9 20"/></svg></button>
       <div id="video-controls" class="video-controls">
         <button id="vc-play" class="vc-btn" type="button" aria-label="Пауза">
           <svg class="vc-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>

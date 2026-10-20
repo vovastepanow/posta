@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 132 132" width="132" height="132">
+<defs><linearGradient id="pm-rainbow" x1="0" y1="0" x2="1" y2="1"><stop offset="0.00" stop-color="#ff4d6d"/><stop offset="0.20" stop-color="#ffb347"/><stop offset="0.40" stop-color="#f9f871"/><stop offset="0.60" stop-color="#4ade80"/><stop offset="0.80" stop-color="#38bdf8"/><stop offset="1.00" stop-color="#a78bfa"/></linearGradient></defs>
+<rect width="132" height="132" rx="32" fill="#17171a"/>
+<g transform="translate(70 58) rotate(11)"><rect x="-26.5" y="-34.5" width="53" height="69" rx="12.5" fill="none" stroke="url(#pm-rainbow)" stroke-width="3"/></g>
+<g transform="translate(61 69) rotate(-8)"><rect x="-29" y="-37" width="58" height="74" rx="14" fill="#f4f4f5"/><path d="M-0.02-17.50Q4.63-17.50 8.05-15.95Q11.48-14.40 13.32-11.55Q15.18-8.70 15.18-4.80L15.18-4.80Q15.18-0.95 13.32 1.92Q11.48 4.80 8.05 6.32Q4.63 7.85-0.02 7.85L-0.02 7.85L-7.07 7.85L-7.07 17.50L-15.17 17.50L-15.17-17.50L-0.02-17.50ZM-0.47 1.25Q3.18 1.25 5.08-0.32Q6.98-1.90 6.98-4.80L6.98-4.80Q6.98-7.75 5.08-9.33Q3.18-10.90-0.47-10.90L-0.47-10.90L-7.07-10.90L-7.07 1.25L-0.47 1.25Z" fill="#17171a"/></g>
+<circle cx="94" cy="98" r="10" fill="url(#pm-rainbow)" stroke="#17171a" stroke-width="4"/>
+</svg>

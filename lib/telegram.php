@@ -33,7 +33,7 @@ function telegram_bot_request($token, $method, array $fields = [], array $files 
 
 /** Подключённый канал с расшифрованным токеном или null. */
 function telegram_connection($uid = null) {
-    $t = load_data(connections_file($uid), [])['telegram'] ?? null;
+    $t = connections_load($uid)['telegram'] ?? null;
     if (!is_array($t) || empty($t['chat_id'])) return null;
     if (!empty($t['token_enc'])) $t['token'] = secret_decrypt($t['token_enc']);
     unset($t['token_enc']);
@@ -41,9 +41,7 @@ function telegram_connection($uid = null) {
 }
 
 function update_connections(callable $mutator, $uid = null) {
-    $r = update_data(connections_file($uid), [], fn($c) => $mutator(is_array($c) ? $c : []));
-    @chmod(connections_file($uid), 0660);
-    return $r;
+    return connections_update(fn($c) => $mutator(is_array($c) ? $c : []), $uid);
 }
 
 // ---- Лимиты на видео: документация (50 МБ бот, 2 ГБ аккаунт) уточняется ответами Telegram ----
@@ -292,13 +290,13 @@ function telegram_publish_prepared(array $c, $text, array $prepared) {
 function telegram_post_summary($text, $media_count) { return ['text' => mb_substr(trim((string)$text), 0, 120), 'media' => (int)$media_count]; }
 
 function telegram_log_published($uid, array $entry) {
-    update_data(published_file($uid), [], fn($log) => array_slice([$entry, ...$log], 0, TELEGRAM_PUBLISHED_LOG_LIMIT));
+    published_add($entry, $uid);
 }
 
 /** Пост в «Отложенных» канала: запись в outbox.json (status telegram), чтобы его видеть и отменять в кабинете. */
 function telegram_record_native_post($uid, $text, array $prepared, $publish_at, array $ids) {
     $id = bin2hex(random_bytes(6));
-    update_data(outbox_file($uid), [], fn($q) => [...$q, ['id' => $id, 'created_at' => time(), 'publish_at' => (int)$publish_at, 'text' => $text,
+    outbox_update(fn($q) => [...$q, ['id' => $id, 'created_at' => time(), 'publish_at' => (int)$publish_at, 'text' => $text,
         'media' => array_map(fn($f) => ['kind' => $f['kind'], 'name' => $f['name'] ?? ''], $prepared), 'status' => 'telegram', 'tg_ids' => $ids, 'attempts' => 0, 'error' => '']]);
     return $id;
 }
@@ -306,20 +304,20 @@ function telegram_record_native_post($uid, $text, array $prepared, $publish_at, 
 /** Отложенные посты, время которых прошло, переносятся в журнал отправленных. */
 function telegram_settle_native_posts($uid) {
     $settled = [];
-    update_data(outbox_file($uid), [], function ($q) use (&$settled) {
+    outbox_update(function ($q) use (&$settled) {
         $kept = [];
         foreach ($q as $e) (($e['status'] ?? '') === 'telegram' && (int)$e['publish_at'] + 120 < time()) ? $settled[] = $e : $kept[] = $e;
         return $settled ? $kept : null;
-    });
+    }, $uid);
     foreach ($settled as $e) telegram_log_published($uid, telegram_post_summary($e['text'], count($e['media'])) + ['at' => (int)$e['publish_at'], 'scheduled_for' => (int)$e['publish_at'], 'url' => '', 'status' => 'ok', 'error' => '']);
 }
 
 function telegram_unqueue_post($uid, $post_id) {
     $found = false;
-    update_data(outbox_file($uid), [], function ($q) use ($post_id, &$found) {
+    outbox_update(function ($q) use ($post_id, &$found) {
         $kept = array_values(array_filter($q, fn($e) => ($e['id'] ?? '') !== $post_id));
         return ($found = count($kept) !== count($q)) ? $kept : null;
-    });
+    }, $uid);
     return $found;
 }
 
@@ -348,7 +346,7 @@ function telegram_user_run(array $request, $timeout = TELEGRAM_USER_TIMEOUT) {
 }
 
 function telegram_user_connection($uid = null) {
-    $e = load_data(connections_file($uid), [])['telegram_user'] ?? null;
+    $e = connections_load($uid)['telegram_user'] ?? null;
     if (!is_array($e) || empty($e['session_enc']) || empty($e['api_hash_enc'])) return null;
     [$hash, $session] = [secret_decrypt($e['api_hash_enc']), secret_decrypt($e['session_enc'])];
     return $hash !== null && $session !== null ? ['api_id' => (string)$e['api_id'], 'api_hash' => $hash, 'session' => $session] + $e : null;

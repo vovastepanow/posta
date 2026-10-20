@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 750" width="1860" height="1125"><defs><radialGradient id="fur" cx=".4" cy=".28" r=".85"><stop offset="0" stop-color="#3A3A44"/><stop offset=".55" stop-color="#1E1E25"/><stop offset="1" stop-color="#101015"/></radialGradient>
+<pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="3.5" cy="3.5" r="1.6" fill="#000"/></pattern><symbol id="h-vinyl" viewBox="20 20 160 160">
+<path d="M56 76 Q46 30 68 34 Q86 40 94 60 Z M144 76 Q154 30 132 34 Q114 40 106 60 Z" fill="url(#fur)"/>
+<path d="M62 66 Q58 44 70 46 Q80 50 84 60 Z M138 66 Q142 44 130 46 Q120 50 116 60 Z" fill="#F2A3B6"/>
+<ellipse cx="100" cy="114" rx="68" ry="56" fill="url(#fur)"/>
+<ellipse cx="78" cy="84" rx="24" ry="10" fill="#fff" opacity=".2" transform="rotate(-15 78 84)"/><circle cx="124" cy="80" r="4" fill="#fff" opacity=".25"/>
+<path d="M62 116 L95 114 Q94 133 79 134 Q63 133 62 116 Z M105 114 L138 116 Q137 133 121 134 Q106 133 105 114 Z" fill="#F7C23B"/>
+<ellipse cx="81" cy="121" rx="4" ry="6" fill="#0E0E12"/><ellipse cx="119" cy="121" rx="4" ry="6" fill="#0E0E12"/>
+<path d="M58 116.5 L98 113.5 M102 113.5 L142 116.5" stroke="#0E0E12" stroke-width="6" stroke-linecap="round"/>
+<path d="M95 142 h10 l-5 6 Z" fill="#F2A3B6" stroke="#F2A3B6" stroke-width="2" stroke-linejoin="round"/>
+<path d="M90 153 q5 5 10 0 q5 5 10 0" fill="none" stroke="#8A8A96" stroke-width="3" stroke-linecap="round"/></symbol><symbol id="c-vinyl" viewBox="0 0 200 200"><polygon points="100.0,2.0 118.2,20.1 142.5,11.7 151.1,35.9 176.6,38.9 173.9,64.4 195.5,78.2 182.0,100.0 195.5,121.8 173.9,135.6 176.6,161.1 151.1,164.1 142.5,188.3 118.2,179.9 100.0,198.0 81.8,179.9 57.5,188.3 48.9,164.1 23.4,161.1 26.1,135.6 4.5,121.8 18.0,100.0 4.5,78.2 26.1,64.4 23.4,38.9 48.9,35.9 57.5,11.7 81.8,20.1" fill="#D52B1E" stroke="#111" stroke-width="5" stroke-linejoin="round"/><circle cx="100" cy="100" r="66" fill="#FFC20E" stroke="#111" stroke-width="5"/><use href="#h-vinyl" x="38" y="36" width="124" height="124"/></symbol><symbol id="h-geo" viewBox="20 20 160 160">
+<path d="M48 92 L50 26 L98 58 Z M152 92 L150 26 L102 58 Z" fill="#1A1A20"/>
+<path d="M58 78 L60 44 L86 60 Z M142 78 L140 44 L114 60 Z" fill="#F2A3B6"/>
+<circle cx="100" cy="114" r="62" fill="#1A1A20"/>
+<path d="M60 112 A17 17 0 0 0 94 112 Z M106 112 A17 17 0 0 0 140 112 Z" fill="#F7C23B"/>
+<rect x="74" y="112" width="7" height="12" rx="3.5" fill="#1A1A20"/><rect x="119" y="112" width="7" height="12" rx="3.5" fill="#1A1A20"/>
+<path d="M94 138 h12 l-6 7 Z" fill="#F2A3B6"/>
+<path d="M100 145 v5 M88 150 a6 6 0 0 0 12 0 a6 6 0 0 0 12 0" fill="none" stroke="#7C7C88" stroke-width="3" stroke-linecap="round"/></symbol><symbol id="c-geo" viewBox="0 0 200 200"><polygon points="100.0,2.0 118.2,20.1 142.5,11.7 151.1,35.9 176.6,38.9 173.9,64.4 195.5,78.2 182.0,100.0 195.5,121.8 173.9,135.6 176.6,161.1 151.1,164.1 142.5,188.3 118.2,179.9 100.0,198.0 81.8,179.9 57.5,188.3 48.9,164.1 23.4,161.1 26.1,135.6 4.5,121.8 18.0,100.0 4.5,78.2 26.1,64.4 23.4,38.9 48.9,35.9 57.5,11.7 81.8,20.1" fill="#D52B1E" stroke="#111" stroke-width="5" stroke-linejoin="round"/><circle cx="100" cy="100" r="66" fill="#FFC20E" stroke="#111" stroke-width="5"/><use href="#h-geo" x="38" y="36" width="124" height="124"/></symbol><symbol id="h-comic" viewBox="20 20 160 160">
+<g stroke="#000" stroke-width="7" stroke-linejoin="round">
+<path d="M50 90 L44 30 L94 58 Z M150 90 L156 30 L106 58 Z" fill="#2C2C35"/>
+<path d="M100 52 C152 52 170 84 170 116 C170 154 140 172 100 172 C60 172 30 154 30 116 C30 84 48 52 100 52 Z" fill="#2C2C35"/>
+</g>
+<path d="M56 78 L53 44 L82 62 Z M144 78 L147 44 L118 62 Z" fill="#F2A3B6" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
+<path d="M120 140 C140 140 160 128 164 112 C166 140 146 164 112 166 Z" fill="url(#dots)"/>
+<path d="M58 112 Q76 104 94 112 Q93 132 76 133 Q59 132 58 112 Z M106 112 Q124 104 142 112 Q141 132 124 133 Q107 132 106 112 Z" fill="#F7C23B" stroke="#000" stroke-width="4" stroke-linejoin="round"/>
+<path d="M58 112 Q76 104 94 112 L94 119 Q76 113 58 119 Z M106 112 Q124 104 142 112 L142 119 Q124 113 106 119 Z" fill="#000"/>
+<ellipse cx="78" cy="124" rx="4" ry="6" fill="#000"/><ellipse cx="122" cy="124" rx="4" ry="6" fill="#000"/>
+<path d="M94 142 h12 l-6 7 Z" fill="#F2A3B6" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
+<path d="M88 154 q6 6 12 0 q6 6 12 0" fill="none" stroke="#000" stroke-width="4" stroke-linecap="round"/>
+<path d="M40 132 H18 M42 142 L20 150 M160 132 H182 M158 142 L180 150" stroke="#000" stroke-width="3.5" stroke-linecap="round"/></symbol><symbol id="c-comic" viewBox="0 0 200 200"><polygon points="100.0,2.0 118.2,20.1 142.5,11.7 151.1,35.9 176.6,38.9 173.9,64.4 195.5,78.2 182.0,100.0 195.5,121.8 173.9,135.6 176.6,161.1 151.1,164.1 142.5,188.3 118.2,179.9 100.0,198.0 81.8,179.9 57.5,188.3 48.9,164.1 23.4,161.1 26.1,135.6 4.5,121.8 18.0,100.0 4.5,78.2 26.1,64.4 23.4,38.9 48.9,35.9 57.5,11.7 81.8,20.1" fill="#D52B1E" stroke="#111" stroke-width="5" stroke-linejoin="round"/><circle cx="100" cy="100" r="66" fill="#FFC20E" stroke="#111" stroke-width="5"/><use href="#h-comic" x="38" y="36" width="124" height="124"/></symbol><symbol id="h-brow" viewBox="20 20 160 160">
+<path d="M52 92 L46 32 Q47 24 55 28 L96 58 Z M148 92 L154 32 Q153 24 145 28 L104 58 Z" fill="url(#fur)"/>
+<path d="M58 80 L55 44 L84 62 Z M142 80 L145 44 L116 62 Z" fill="#F2A3B6"/>
+<path d="M100 54 C150 54 168 84 170 112 C173 150 148 176 100 176 C52 176 27 150 30 112 C32 84 50 54 100 54 Z" fill="url(#fur)"/>
+<path d="M60 118 L94 117 Q93 134 77 135 Q61 134 60 118 Z" fill="#F7C23B"/>
+<path d="M106 116 Q122 104 140 114 Q140 134 123 135 Q106 134 106 116 Z" fill="#F7C23B"/>
+<ellipse cx="80" cy="123" rx="3.8" ry="6" fill="#0E0E12"/><ellipse cx="121" cy="121" rx="4.2" ry="7" fill="#0E0E12"/>
+<path d="M56 118.5 L97 116.5" stroke="#0E0E12" stroke-width="6" stroke-linecap="round"/>
+<path d="M104 115 Q122 102 142 113" fill="none" stroke="#0E0E12" stroke-width="4" stroke-linecap="round"/>
+<path d="M108 98 Q124 86 140 94" fill="none" stroke="#6E6E7A" stroke-width="5" stroke-linecap="round"/>
+<path d="M58 106 Q76 104 94 108" fill="none" stroke="#6E6E7A" stroke-width="5" stroke-linecap="round"/>
+<path d="M95 143 h10 l-5 6 Z" fill="#F2A3B6"/>
+<path d="M90 156 q6 4 12 0 q6 -1 12 -6" fill="none" stroke="#8A8A96" stroke-width="3" stroke-linecap="round"/></symbol><symbol id="c-brow" viewBox="0 0 200 200"><polygon points="100.0,2.0 118.2,20.1 142.5,11.7 151.1,35.9 176.6,38.9 173.9,64.4 195.5,78.2 182.0,100.0 195.5,121.8 173.9,135.6 176.6,161.1 151.1,164.1 142.5,188.3 118.2,179.9 100.0,198.0 81.8,179.9 57.5,188.3 48.9,164.1 23.4,161.1 26.1,135.6 4.5,121.8 18.0,100.0 4.5,78.2 26.1,64.4 23.4,38.9 48.9,35.9 57.5,11.7 81.8,20.1" fill="#D52B1E" stroke="#111" stroke-width="5" stroke-linejoin="round"/><circle cx="100" cy="100" r="66" fill="#FFC20E" stroke="#111" stroke-width="5"/><use href="#h-brow" x="38" y="36" width="124" height="124"/></symbol></defs><rect width="1240" height="750" fill="#F3F5F7"/><text x="20" y="36" font-family="Arial" font-weight="700" font-size="18" fill="#55595F">1. ВИНИЛ</text>
+<use href="#h-vinyl" x="20" y="46" width="130" height="130"/>
+<use href="#c-vinyl" x="170" y="46" width="130" height="130"/>
+<use href="#c-vinyl" x="306" y="140" width="32" height="32"/><use href="#c-vinyl" x="344" y="156" width="16" height="16"/>
+<g font-family="Rubik, Arial Black, sans-serif" font-weight="900" font-size="64" fill="#111" letter-spacing="-2">
+<text x="390" y="132">p</text><use href="#h-vinyl" x="430" y="80" width="62" height="62"/><text x="494" y="132">stmaker</text>
+<text x="800" y="132">p</text><use href="#c-vinyl" x="838" y="76" width="68" height="68"/><text x="908" y="132">stmaker</text>
+</g><text x="20" y="216" font-family="Arial" font-weight="700" font-size="18" fill="#55595F">2. ГЕОМЕТРИЯ</text>
+<use href="#h-geo" x="20" y="226" width="130" height="130"/>
+<use href="#c-geo" x="170" y="226" width="130" height="130"/>
+<use href="#c-geo" x="306" y="320" width="32" height="32"/><use href="#c-geo" x="344" y="336" width="16" height="16"/>
+<g font-family="Rubik, Arial Black, sans-serif" font-weight="900" font-size="64" fill="#111" letter-spacing="-2">
+<text x="390" y="312">p</text><use href="#h-geo" x="430" y="260" width="62" height="62"/><text x="494" y="312">stmaker</text>
+<text x="800" y="312">p</text><use href="#c-geo" x="838" y="256" width="68" height="68"/><text x="908" y="312">stmaker</text>
+</g><text x="20" y="396" font-family="Arial" font-weight="700" font-size="18" fill="#55595F">3. КОМИКС</text>
+<use href="#h-comic" x="20" y="406" width="130" height="130"/>
+<use href="#c-comic" x="170" y="406" width="130" height="130"/>
+<use href="#c-comic" x="306" y="500" width="32" height="32"/><use href="#c-comic" x="344" y="516" width="16" height="16"/>
+<g font-family="Rubik, Arial Black, sans-serif" font-weight="900" font-size="64" fill="#111" letter-spacing="-2">
+<text x="390" y="492">p</text><use href="#h-comic" x="430" y="440" width="62" height="62"/><text x="494" y="492">stmaker</text>
+<text x="800" y="492">p</text><use href="#c-comic" x="838" y="436" width="68" height="68"/><text x="908" y="492">stmaker</text>
+</g><text x="20" y="576" font-family="Arial" font-weight="700" font-size="18" fill="#55595F">4. БРОВЬ ВВЕРХ</text>
+<use href="#h-brow" x="20" y="586" width="130" height="130"/>
+<use href="#c-brow" x="170" y="586" width="130" height="130"/>
+<use href="#c-brow" x="306" y="680" width="32" height="32"/><use href="#c-brow" x="344" y="696" width="16" height="16"/>
+<g font-family="Rubik, Arial Black, sans-serif" font-weight="900" font-size="64" fill="#111" letter-spacing="-2">
+<text x="390" y="672">p</text><use href="#h-brow" x="430" y="620" width="62" height="62"/><text x="494" y="672">stmaker</text>
+<text x="800" y="672">p</text><use href="#c-brow" x="838" y="616" width="68" height="68"/><text x="908" y="672">stmaker</text>
+</g></svg>

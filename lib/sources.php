@@ -482,7 +482,7 @@ function describe_source_audience($subs, $rate, array $q = []) {
 function source_feedback_stats($topic) {
     $stats = [];
     foreach (user_ids() as $uid) {
-        $history = load_data(USERS_DIR . "/$uid/history.json", []);
+        $history = history_load($uid);
         foreach (['liked' => 1, 'disliked' => 0, 'complaints' => 0] as $c => $positive) foreach ($history[$c] ?? [] as $r) {
             if (!is_array($r) || empty($r['source_key']) || ($c === 'complaints' && ($r['complaint_reason'] ?? '') !== 'match_error')) continue;
             if (!topics_are_equivalent((string)($r['topic'] ?? ''), $topic)) continue;
@@ -506,7 +506,7 @@ function combined_source_rates(array $pass_rates, $topic) {
 function popular_topics($limit = 5) {
     $counts = [];
     foreach (user_ids() as $uid) {
-        if (($t = normalize_topic(load_data(USERS_DIR . "/$uid/settings.json", [])['topic'] ?? '')) === '') continue;
+        if (($t = normalize_topic(db_load_settings($uid)['topic'] ?? '')) === '') continue;
         $counts[mb_strtolower($t)] = ['topic' => $t, 'users' => ($counts[mb_strtolower($t)]['users'] ?? 0) + 1];
     }
     uasort($counts, fn($a, $b) => $b['users'] <=> $a['users']);
@@ -546,7 +546,7 @@ function normalize_source_db($db) {
 function load_source_db() {
     $catalog = catalog_load();
     $db = [
-        '2ch_boards' => array_keys($catalog['sources']['2ch_boards'] ?? []),
+        '2ch_boards' => array_values(array_filter($catalog['sources']['2ch_boards'] ?? [], 'is_string')),
         'vk_publics' => array_values($catalog['sources']['vk_publics'] ?? []),
         'telegram_channels' => array_values($catalog['sources']['telegram_channels'] ?? []),
         'source_votes' => $catalog['votes'] ?? [],

@@ -33,7 +33,7 @@ function content_gallery(array $item) {
 function content_history_record(array $item, $complaint_reason) {
     return ['image' => content_image_key($item), 'text' => (string)($item['text'] ?? ''), 'description' => $item['description'] ?? '',
         'why_relevant' => $item['why_relevant'] ?? '', 'relevance' => $item['relevance'] ?? null, 'rating_assigned' => $item['rating'] ?? null,
-        'topic' => $item['topic'] ?? '', 'source' => $item['source'] ?? '', 'source_key' => content_source_key($item), 'board' => $item['board'] ?? '',
+        'format' => $item['format'] ?? '', 'topic' => $item['topic'] ?? '', 'source' => $item['source'] ?? '', 'source_key' => content_source_key($item), 'board' => $item['board'] ?? '',
         'thread_id' => $item['thread_id'] ?? '', 'post_id' => $item['post_id'] ?? '', 'source_url' => source_post_url($item), 'posted_at' => $item['posted_at'] ?? 0,
         'engagement' => $item['engagement'] ?? null, 'complaint_reason' => $complaint_reason, 'video' => (string)($item['video'] ?? ''),
         'image_local' => (string)($item['image_local'] ?? ''), 'video_local' => (string)($item['video_local'] ?? ''), 'gallery' => content_gallery($item), 'timestamp' => time()];
@@ -68,6 +68,33 @@ function content_for_display(array $item, array $upcoming = []) {
 }
 
 // ---- Кэш медиа: имя файла — хэш исходного адреса ----
+
+/**
+ * Перенос медиа из старой папки в MEDIA_CACHE_DIR и смена префикса ссылок в пуле и истории (JSON хранит «/» как «\/»).
+ * Без $apply только считает, сколько файлов и строк затронет.
+ */
+function media_migrate($from_dir, $apply = false) {
+    $names = is_dir($from_dir) ? array_values(array_filter(scandir($from_dir), fn($n) => is_file("$from_dir/$n"))) : [];
+    $rows = (int)db_value('SELECT COUNT(*) FROM pool_items WHERE data LIKE ?', ['%media_cache%'])
+        + (int)db_value('SELECT COUNT(*) FROM history_items WHERE data LIKE ?', ['%media_cache%']);
+    $report = ['files' => count($names), 'rows' => $rows, 'from' => $from_dir, 'to' => MEDIA_CACHE_DIR, 'applied' => false, 'moved' => 0];
+    if (!$apply || realpath($from_dir) === realpath(MEDIA_CACHE_DIR)) return $report;
+    if (!is_dir(MEDIA_CACHE_DIR) && !@mkdir(MEDIA_CACHE_DIR, 0775, true)) throw new RuntimeException('Не удалось создать папку медиа: ' . MEDIA_CACHE_DIR);
+    foreach ($names as $n) {
+        $src = "$from_dir/$n";
+        $dst = MEDIA_CACHE_DIR . "/$n";
+        if (is_file($dst) && filesize($dst) === filesize($src)) { @unlink($src); $report['moved']++; continue; }
+        if (@rename($src, $dst) || (@copy($src, $dst) && filesize($dst) === filesize($src) && @unlink($src))) $report['moved']++;
+    }
+    $to = MEDIA_CACHE_URL;
+    db_tx(function () use ($to) {
+        foreach (['pool_items', 'history_items'] as $table) {
+            db_exec("UPDATE $table SET data = replace(replace(data, ?, ?), ?, ?) WHERE data LIKE ?",
+                ['media_cache\\/', "$to\\/", 'media_cache/', "$to/", '%media_cache%']);
+        }
+    });
+    return array_replace($report, ['applied' => true]);
+}
 
 function media_cache_write($name, $bytes) {
     if (!is_dir(MEDIA_CACHE_DIR) && !@mkdir(MEDIA_CACHE_DIR, 0755, true) && !is_dir(MEDIA_CACHE_DIR)) throw new RuntimeException('Не удалось создать каталог кэша медиа.');
@@ -145,6 +172,33 @@ function media_cache_release_removed(array $before, array $after) {
     foreach ($before as $item) foreach (media_cache_item_urls($item) as $u) if (!isset($kept[$u])) media_cache_remove($u);
 }
 
+/** Запись просрочена, если добавлена раньше POOL_MAX_AGE_SECONDS назад. Записи без метки считаются свежими (метка ставится при первой проверке). */
+function pool_item_is_fresh($item, $now = null) {
+    return !isset($item['pooled_at']) || ($now ?? time()) - $item['pooled_at'] <= POOL_MAX_AGE_SECONDS;
+}
+
+/** Старым записям без метки ставит её сейчас. Ничего не удаляет: просроченные уходят только при нехватке места (pool_add_evicting). */
+function pool_stamp_legacy() {
+    pool_update(function ($pool) {
+        $now = time();
+        $changed = false;
+        foreach ($pool as &$i) if (is_array($i) && !isset($i['pooled_at'])) { $i['pooled_at'] = $now; $changed = true; }
+        unset($i);
+        return $changed ? $pool : null;
+    });
+}
+
+/** Свежие записи пула по теме (вместе с составной «первая + вторая»). Просроченные не считаются. */
+function pool_topic_count($key) {
+    return count(array_filter(pool_load(), fn($i) => is_array($i) && pool_item_is_fresh($i) && topic_norm($i['topic'] ?? '') === topic_norm($key)));
+}
+
+/** Пул для темы неполный: свежих записей меньше CONTENT_POOL_TARGET. Просроченные при этом остаются в пуле до нужды. */
+function content_pool_needs_fill($key) {
+    pool_stamp_legacy();
+    return pool_topic_count($key) < CONTENT_POOL_TARGET;
+}
+
 /** Очистка данных пользователя: пустые пул и история; каталог общий и остаётся. */
 function reset_project_data() {
     pool_update(fn() => []);
@@ -186,13 +240,13 @@ function gallery_cache_files(array $gallery, $main_image = null) {
 /** Догружает кэш галерей у записей пула, где его ещё нет (по нескольку за запуск). */
 function cache_pool_galleries($limit = 4) {
     $todo = [];
-    foreach (load_data(pool_file(), []) as $item) {
+    foreach (pool_load() as $item) {
         $rest = array_slice((array)($item['gallery'] ?? []), 1);
         if (!$rest || count($todo) >= $limit || array_filter($rest, fn($f) => !empty($f['image_local']) || !empty($f['video_local']))) continue;
         $todo[content_image_key($item)] = gallery_cache_files($item['gallery'], content_image_key($item));
     }
     if (!$todo) return 0;
-    update_data(pool_file(), [], fn($pool) => array_map(fn($i) => isset($todo[$k = content_image_key($i)]) ? ['gallery' => $todo[$k]] + $i : $i, $pool));
+    pool_update(fn($pool) => array_map(fn($i) => isset($todo[$k = content_image_key($i)]) ? ['gallery' => $todo[$k]] + $i : $i, $pool));
     cli_echo('Кэш галерей: обработано записей: ' . count($todo) . '.');
     return count($todo);
 }
@@ -304,7 +358,7 @@ function browser_playable_video($path) {
 function prune_dead_pool_items($uid = null, $dry_run = false, $force = false, $log = true) {
     $marker = user_dir($uid) . '/threads-checked';
     if (!$force && time() - (int)@filemtime($marker) < POOL_LIVENESS_INTERVAL) return null;
-    $pool = load_data(pool_file($uid), []);
+    $pool = pool_load($uid);
     $threads = [];
     foreach ($pool as $i) if (!empty($i['board']) && !empty($i['thread_id'])) $threads["{$i['board']}/{$i['thread_id']}"] = [$i['board'], $i['thread_id']];
     $states = dvach_threads_liveness(array_slice($threads, 0, POOL_LIVENESS_MAX_THREADS, true));
@@ -316,7 +370,7 @@ function prune_dead_pool_items($uid = null, $dry_run = false, $force = false, $l
     };
     if ($dry_run) $mutator($pool);
     else {
-        $after = update_data(pool_file($uid), [], $mutator);
+        $after = pool_update($mutator, $uid);
         if ($removed) media_cache_release_removed($pool, $after);
         @touch($marker);
     }

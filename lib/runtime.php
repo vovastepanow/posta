@@ -4,6 +4,7 @@
 // сигнал раз в 5 с; нет сигналов TAB_SESSION_TTL — парсер останавливается сам. Сессию ведёт последняя открытая вкладка.
 
 const TAB_SESSION_TTL = 150;
+const PARSER_QUEUE_MAX_SECONDS = 600;   // сколько сборщик ждёт свободный слот
 const PARSER_SESSION_ENDED = 'Окно приложения закрыто или открыто заново — работа остановлена.';
 
 /** Последние строки журнала парсера для консоли сайта. */
@@ -21,6 +22,14 @@ function content_parser_process_running($pid) {
 
 function parser_state() { return json_decode((string)@file_get_contents(parser_runtime_file('.json')), true) ?: []; }
 function content_parser_is_running() { return content_parser_process_running((int)(parser_state()['pid'] ?? 0)); }
+
+/** Текущий этап парсера для шапки журнала (сбор, быстрая оценка, полный анализ, поиск источников). Пишется на каждом переходе. */
+function parser_phase($text = null) {
+    $file = parser_runtime_file('.phase');
+    if ($text === null) return trim((string)@file_get_contents($file));
+    @file_put_contents($file, $text, LOCK_EX);
+    return $text;
+}
 
 /** Действие под блокировкой состояния парсера. */
 function with_parser_lock(callable $action) {
@@ -71,7 +80,7 @@ function parser_wait_for_slot() {
                 return;
             }
         }
-        if (!parser_session_alive()) exit(PARSER_SESSION_ENDED . "\n");
+        if (time() - $since > PARSER_QUEUE_MAX_SECONDS) exit("Очередь сборщиков слишком долгая — сбор не запущен.\n");   // не ждём слот бесконечно: иначе ожидающие копятся
         if (time() - $notice >= 20) echo 'Все сборщики заняты другими пользователями — жду очереди (' . (($notice = time()) - $since) . " с)...\n";
     }
 }
@@ -86,7 +95,7 @@ function tab_session_current_tab() { $s = tab_session_state(); return tab_sessio
 
 function tab_session_open($tab) {
     update_data(tab_session_file(), [], fn() => ['tab' => $tab, 'seen' => time(), 'opened_at' => time()]);
-    return restart_content_parser();
+    return start_content_parser_if_needed(true);   // уже работающий парсер не трогаем: он продолжает и отдаёт журнал новой вкладке
 }
 
 /** Сигнал вкладки: owner — ведёт ли она сессию. Уснувшая вкладка возобновляет парсер, ничья сессия забирается. */
@@ -100,7 +109,7 @@ function tab_session_heartbeat($tab) {
         return ['tab' => $tab, 'seen' => time(), 'opened_at' => (int)($s['opened_at'] ?? time())];
     });
     if ($outcome === 'other') return ['owner' => false, 'parser' => null];
-    return ['owner' => true, 'parser' => ['claimed' => fn() => restart_content_parser(), 'resumed' => fn() => start_content_parser_if_needed(true), 'owner' => fn() => null][$outcome]()];
+    return ['owner' => true, 'parser' => ['claimed' => fn() => start_content_parser_if_needed(true), 'resumed' => fn() => start_content_parser_if_needed(true), 'owner' => fn() => topic_is_hot(current_topic()) && content_pool_needs_fill(search_topic_key()) ? start_content_parser_if_needed() : null][$outcome]()];
 }
 
 function tab_session_close($tab) {
@@ -110,8 +119,7 @@ function tab_session_close($tab) {
         $owned = true;
         return ['seen' => 0] + $s;
     });
-    if ($owned) stop_content_parser();
-    return $owned;
+    return $owned;   // парсер не останавливаем: он доработает сам и его журнал будет виден при следующем открытии
 }
 
 /** Парсер: вкладка из аргумента командной строки. */
@@ -123,10 +131,5 @@ function parser_bind_tab($tab = null) {
 
 /** Жива ли вкладка парсера (без привязки — ручной запуск, всегда да). Файл читается не чаще раза в 2 с. */
 function parser_session_alive() {
-    static $checked = 0.0, $alive = true;
-    if (($tab = parser_bind_tab()) === '') return true;
-    if (microtime(true) - $checked < 2.0) return $alive;
-    $checked = microtime(true);
-    $s = tab_session_state();
-    return $alive = ($s['tab'] ?? '') === $tab && tab_session_is_fresh($s);
+    return true;   // процессы не привязаны к вкладке: закрытие окна или открытие другой вкладки их не останавливают
 }

@@ -58,17 +58,13 @@ async function controlModel(body) {
 // ---- Кнопки управления справа: искать контент, обновить источники, остановить всё ----
 
 async function dockAction(button, action, done, body = null) {
-    document.querySelectorAll('#control-dock .btn').forEach(b => { b.disabled = b !== button; });
+    document.querySelectorAll('.controls-management .btn').forEach(b => { b.disabled = b !== button; });
     button.classList.add('is-busy');
     try { done(await api(action, { body })); } catch (error) { log(`Ошибка: ${error.message}`); }
-    finally { document.querySelectorAll('#control-dock .btn').forEach(b => { b.disabled = false; }); button.classList.remove('is-busy'); }
+    finally { document.querySelectorAll('.controls-management .btn').forEach(b => { b.disabled = false; }); button.classList.remove('is-busy'); }
 }
 
 function initializeDock() {
-    $('control-search').onclick = e => dockAction(e.currentTarget, 'control_search', d => { log(d.message || 'Запущен поиск контента.'); watchParser(); loadCurrentItem(); });
-    $('control-sources').onclick = e => dockAction(e.currentTarget, 'control_sources', d => { log(d.message || 'Запущено обновление базы источников.'); watchParser(); });
-    $('control-stop').onclick = e => confirm('Остановить приложение? Будут остановлены все процессы: сборщики контента (в том числе других пользователей), помощник Telegram и модели. Чтобы снова работать, обновите страницу.')
-        && dockAction(e.currentTarget, 'app_stop', d => log(`Приложение остановлено: процессов завершено ${d.stopped}. Обновите страницу, чтобы снова работать.`), { tab: TAB_ID });
     $('card-control-search').onclick = e => dockAction(e.currentTarget, 'control_search', d => { log(d.message || 'Запущен поиск контента.'); watchParser(); loadCurrentItem(); });
     $('card-control-sources').onclick = e => dockAction(e.currentTarget, 'control_sources', d => { log(d.message || 'Запущено обновление базы источников.'); watchParser(); });
     $('card-control-stop').onclick = e => confirm('Остановить приложение? Будут остановлены все процессы: сборщики контента (в том числе других пользователей), помощник Telegram и модели. Чтобы снова работать, обновите страницу.')
@@ -88,7 +84,6 @@ function initializeDebugMode() {
     };
     if (!DEBUG_MODE) return;
     show('debug-banner');
-    hide('control-dock');
     $('debug-reset-button').onclick = () => api('debug_reset', { body: null }).then(() => { clearDiscoveredSource(); return loadCurrentItem(); }).catch(e => log(`Ошибка сброса демо: ${e.message}`));
 }
 

@@ -244,7 +244,7 @@ function topicSourceCard(source) {
     if (slides.length) {
         media = el('div', { className: `proposal-media mosaic-${slides.length}` });
         slides.forEach((slide, i) => {
-            const tile = el('button', { className: 'proposal-tile is-loading', type: 'button', title: 'Открыть', onclick: () => openViewerGallery(slides, i) },
+            const tile = el('button', { className: 'proposal-tile is-loading', type: 'button', title: 'Открыть', onclick: e => { e.stopPropagation(); openViewerGallery(slides, i); } },
                 el('img', { src: slide.src, alt: '', loading: 'lazy', decoding: 'async', referrerPolicy: 'no-referrer',
                     onload: () => tile.classList.remove('is-loading'),
                     onerror: () => { tile.remove(); const left = media.children.length; left ? media.className = `proposal-media mosaic-${left}` : media.replaceWith(cover()); } }));

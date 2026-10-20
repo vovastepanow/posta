@@ -25,8 +25,9 @@ const SCREENED_CACHE_LIMIT = 5000;
 const SCREENED_CACHE_DAYS = 14;
 const PARSER_SCRIPT = ROOT . '/cron_parser.php';
 const PARSER_RUNTIME_VERSION = 'v3';                      // входит в имена журнала и состояния парсера
-const MEDIA_CACHE_DIR = ROOT . '/media_cache';
-const MEDIA_CACHE_URL = 'media_cache';
+// Медиа: по умолчанию в папке проекта; на сервере — вне веб-корня, путь задаётся в config.local.php (MEDIA_CACHE_DIR, MEDIA_CACHE_URL)
+define('MEDIA_CACHE_DIR', $local['MEDIA_CACHE_DIR'] ?? ROOT . '/media_cache');
+define('MEDIA_CACHE_URL', $local['MEDIA_CACHE_URL'] ?? 'media_cache');
 const MEDIA_CACHE_GRACE_SECONDS = 600;                    // свежие файлы кэша не трогаем: парсер мог ещё не записать запись
 const DEFAULT_TOPIC = 'мемы и юмор';
 const TOPIC_MAX_LENGTH = 200;
@@ -57,17 +58,23 @@ const ANALYSIS_IMAGE_MAX_SIDE = 768;
 const FIXED_COST_IMAGE_MAX_SIDE = 1024;                   // малые qwen3-vl берут ~1040 токенов за картинку любого размера
 
 // ---- Парсер ----
-const CONTENT_POOL_TARGET = 40;
+const CONTENT_POOL_TARGET = 50;                        // записей в пуле на тему
+const POOL_MAX_AGE_SECONDS = 3600;                     // запись старше часа просрочена: не показывается и не считается; удаляется только когда пул полон и нужна новая
+const HOT_TOPICS_LIMIT = 7;                            // сколько горячих тем сервер подбирает всего (меньше, если меньше горячих)
+const HOT_TOPICS_WINDOW_DAYS = 7;                      // окно активности: голоса и заходы за неделю
+const HOT_TOPICS_MIN_SCORE = 3;                        // ниже этого балла тема не считается горячей
+const HOT_TOPICS_CACHE_SECONDS = 600;                  // результат кэшируется, чтобы heartbeat не читал всю историю
 const CONTENT_ADDED_PER_RUN = 30;
 const CONTENT_ANALYZE_PER_RUN = 80;
 const PARSER_MAX_SECONDS = 2400;
 const PARSER_COOLDOWN_SECONDS = 600;
 const RELEVANCE_THRESHOLD = 61;                           // порог «по теме» для попадания в пул
 const PRESCREEN_MAX_SIDE = 768;
-const PRESCREEN_THRESHOLD = 40;
+const PRESCREEN_THRESHOLD = RELEVANCE_THRESHOLD;           // тот же порог, что и для пула: записи 40–60 не тратят полный анализ зря
 const PRESCREEN_BATCH = 10;
+const ANALYZE_BLOCK = 8;                                  // прошедшие быструю оценку копятся до стольких и уходят на полный анализ разом: меньше смен модели
 const PRESCREEN_SOURCE_MISS_LIMIT = 6;                    // промахов подряд — источник пропускается до конца запуска
-const PRESCREEN_RELATIVE_PICK = 2;                        // не прошёл никто: лучшие из пачки всё равно идут на анализ
+const PRESCREEN_RELATIVE_PICK = 0;                        // 0 — выключено: ниже порога на полный анализ не идёт никто
 const PRESCREEN_RELATIVE_FLOOR = 10;
 
 // ---- Автоподбор источников ----
@@ -127,6 +134,14 @@ const VIDEO_FRAME_MAX_SIDE = 384;
 const STORYBOARD_FRAMES_PER_SHEET = 4;                    // кадры уходят в модель листами 2×2
 const VIDEO_LIGHT_BYTES = 6 * 1024 * 1024;                // тяжелее — пережимается для браузера
 const VIDEO_LIGHT_HEIGHT = 720;
+// Форма поста: отдельная ось от темы (картинка с котом — форма content, тема «Кошки»)
+const CONTENT_FORMATS = [
+    'content' => 'картинка или видео с наложенным текстом-шуткой',
+    'photo' => 'обычное фото без текста-шутки',
+    'video' => 'обычное видео без текста-шутки',
+    'text'  => 'в основном текст: скриншот переписки, цитата, пост',
+    'art'   => 'рисунок, комикс, 3D или сгенерированная картинка',
+];
 
 // ---- История и публикация ----
 const HISTORY_COLLECTIONS = ['liked', 'disliked', 'undecided', 'complaints'];

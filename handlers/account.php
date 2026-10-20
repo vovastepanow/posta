@@ -64,7 +64,7 @@ function handle_account_info() {
             'http_only' => $name === USER_COOKIE || ($name === session_name() && (bool)ini_get('session.cookie_httponly'))];
     }
     if (isset($_COOKIE[session_name()])) @session_start(['read_and_close' => true]);   // только ключи: в значениях служебные секреты входа VK
-    json_response(['user_id' => app_user_id(), 'topic' => current_topic(), 'last_seen' => (int)@filemtime(user_dir() . '/last-seen'), 'pool' => count(pool_load()),
+    json_response(['user_id' => app_user_id(), 'topic' => current_topic(), 'last_seen' => (int)@filemtime(user_dir() . '/last-seen'), 'pool' => count(pool_topic_positions(pool_load())),
         'counts' => array_map('count', array_intersect_key($history, array_flip(HISTORY_COLLECTIONS))), 'files' => $files, 'cookies' => $cookies,
         'session_keys' => array_keys($_SESSION ?? []), 'retention_days' => USER_RETENTION_DAYS, 'exposed' => account_web_exposure(),
         'fix_command' => 'sudo sh ' . ROOT . '/tools/apache-setup.sh', 'telegram' => account_telegram_public(), 'telegram_user' => telegram_user_public()]);
@@ -330,16 +330,16 @@ function handle_telegram_queue() {
     $bot = telegram_connection();
     telegram_settle_native_posts(app_user_id());
     $scheduled = array_map(fn($e) => telegram_post_summary($e['text'], count($e['media'])) + ['id' => $e['id'], 'publish_at' => (int)$e['publish_at'],
-        'status' => $e['status'] ?? 'pending', 'attempts' => (int)($e['attempts'] ?? 0), 'error' => (string)($e['error'] ?? '')], load_data(outbox_file(), []));
+        'status' => $e['status'] ?? 'pending', 'attempts' => (int)($e['attempts'] ?? 0), 'error' => (string)($e['error'] ?? '')], outbox_load());
     usort($scheduled, fn($a, $b) => $a['publish_at'] <=> $b['publish_at']);
     json_response(['connected' => $bot !== null, 'channel' => $bot ? ['title' => $bot['chat_title'] ?? '', 'username' => $bot['chat_username'] ?? ''] : null,
-        'scheduled' => $scheduled, 'published' => array_slice(load_data(published_file(), []), 0, 10)]);
+        'scheduled' => $scheduled, 'published' => published_load(null, 10)]);
 }
 
 /** {id}: убрать отложенный пост из списка и из «Отложенных» канала. */
 function handle_telegram_cancel($in) {
     if (!preg_match('/^[a-f0-9]{12}$/', $id = (string)($in['id'] ?? ''))) json_error('Некорректный номер поста.');
-    foreach (load_data(outbox_file(), []) as $e) {
+    foreach (outbox_load() as $e) {
         if (($e['id'] ?? '') !== $id || ($e['status'] ?? '') !== 'telegram' || !($bot = telegram_connection())) continue;
         try { telegram_user_cancel(app_user_id(), $bot, array_map('intval', $e['tg_ids'] ?? [])); }
         catch (RuntimeException $err) { json_error('Не удалось убрать пост из отложенных в Telegram: ' . $err->getMessage() . ' Удалите его в канале вручную («Отложенные»).', 502); }

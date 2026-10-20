@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" width="1600" height="920"><defs><radialGradient id="iris" cx=".5" cy=".75" r=".7"><stop offset="0" stop-color="#F8D85E"/><stop offset=".7" stop-color="#E6A11E"/><stop offset="1" stop-color="#B66E18"/></radialGradient>
+<pattern id="terry" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="#fff" opacity=".45"/><circle cx="4.5" cy="4.5" r="1" fill="#3B7DB0" opacity=".2"/></pattern>
+<pattern id="wave" width="24" height="12" patternUnits="userSpaceOnUse"><rect width="24" height="12" fill="#1F3A68"/><g fill="none" stroke="#F3E6C9" stroke-width="1.3"><path d="M0 12 a12 12 0 0 1 24 0"/><path d="M4 12 a8 8 0 0 1 16 0"/><path d="M8 12 a4 4 0 0 1 8 0"/></g></pattern>
+<symbol id="neko-full" viewBox="20 6 190 254">
+<!-- хвост -->
+<path d="M150 228 Q196 226 196 190 Q196 172 182 176" fill="none" stroke="#0A0A0D" stroke-width="17" stroke-linecap="round"/>
+<path d="M150 228 Q196 226 196 190 Q196 172 182 176" fill="none" stroke="#1C1C22" stroke-width="10" stroke-linecap="round"/>
+<!-- ноги и тапочки -->
+<ellipse cx="88" cy="248" rx="20" ry="9" fill="#F4A8BC" stroke="#0A0A0D" stroke-width="4"/><ellipse cx="132" cy="248" rx="20" ry="9" fill="#F4A8BC" stroke="#0A0A0D" stroke-width="4"/>
+<!-- халат с запахом (левая пола сверху), махра -->
+<path d="M66 150 Q110 136 154 150 L162 236 Q110 248 58 236 Z" fill="#8FCDE8" stroke="#0A0A0D" stroke-width="5" stroke-linejoin="round"/>
+<path d="M66 150 Q110 136 154 150 L162 236 Q110 248 58 236 Z" fill="url(#terry)"/>
+<path d="M88 146 L124 206 L132 202 L100 144 Z" fill="#DDF0F9" stroke="#0A0A0D" stroke-width="3" stroke-linejoin="round"/>
+<path d="M132 146 L108 186" stroke="#DDF0F9" stroke-width="9" stroke-linecap="round"/>
+<path d="M60 196 Q110 208 160 196 L161 212 Q110 224 59 212 Z" fill="#1F3A68" stroke="#0A0A0D" stroke-width="4" stroke-linejoin="round"/>
+<path d="M60 202 Q110 214 160 202" fill="none" stroke="#C8362B" stroke-width="2.5"/>
+<!-- рукава и кружка в обеих лапах -->
+<path d="M70 160 Q54 184 82 198" fill="none" stroke="#0A0A0D" stroke-width="26" stroke-linecap="round"/><path d="M70 160 Q54 184 82 198" fill="none" stroke="#8FCDE8" stroke-width="19" stroke-linecap="round"/>
+<path d="M150 160 Q166 184 138 198" fill="none" stroke="#0A0A0D" stroke-width="26" stroke-linecap="round"/><path d="M150 160 Q166 184 138 198" fill="none" stroke="#8FCDE8" stroke-width="19" stroke-linecap="round"/>
+<path d="M128 178 q12 0 12 10 q0 10 -12 10" fill="none" stroke="#0A0A0D" stroke-width="5"/>
+<rect x="92" y="172" width="38" height="34" rx="7" fill="#FFFDF6" stroke="#0A0A0D" stroke-width="4.5"/>
+<rect x="104" y="181" width="14" height="14" rx="2" fill="#C8362B"/><text x="111" y="192.5" text-anchor="middle" font-family="serif" font-weight="700" font-size="10" fill="#FFFDF6">猫</text>
+<circle cx="90" cy="194" r="10" fill="#1C1C22" stroke="#0A0A0D" stroke-width="4"/><circle cx="132" cy="194" r="10" fill="#1C1C22" stroke="#0A0A0D" stroke-width="4"/>
+<path d="M104 166 q-5 -7 0 -13 q5 -7 0 -13 M118 166 q-5 -7 0 -13" fill="none" stroke="#9AA3AE" stroke-width="3" stroke-linecap="round"/><g transform="translate(0 -2)">
+<path d="M52 76 C44 52 44 32 50 18 C64 24 82 38 94 52 Z M168 76 C176 52 176 32 170 18 C156 24 138 38 126 52 Z" fill="#1C1C22" stroke="#0A0A0D" stroke-width="5" stroke-linejoin="round"/>
+<path d="M58 66 C54 50 54 38 57 30 C66 36 78 46 86 54 Z M162 66 C166 50 166 38 163 30 C154 36 142 46 134 54 Z" fill="#E7A0B0"/>
+<path d="M110 40 C160 40 186 66 186 100 C186 136 154 158 110 158 C66 158 34 136 34 100 C34 66 60 40 110 40 Z" fill="#1C1C22" stroke="#0A0A0D" stroke-width="5"/>
+<path d="M36 108 l-10 4 l9 4 l-6 7 l10 -1 M184 108 l10 4 l-9 4 l6 7 l-10 -1" fill="#1C1C22" stroke="#0A0A0D" stroke-width="3.5" stroke-linejoin="round"/>
+<g stroke="#4C4C58" stroke-width="2" stroke-linecap="round"><path d="M100 48 q-2 8 0 13 M110 46 v15 M120 48 q2 8 0 13"/></g>
+<ellipse cx="78" cy="70" rx="20" ry="8" fill="#fff" opacity=".12" transform="rotate(-20 78 70)"/>
+<!-- глаза: скептичный прищур + аниме-блики -->
+<path d="M64 98 Q80 88 100 94 Q98 110 82 111 Q68 110 64 98 Z" fill="url(#iris)"/>
+<path d="M156 98 Q140 88 120 94 Q122 110 138 111 Q152 110 156 98 Z" fill="url(#iris)"/>
+<ellipse cx="83" cy="101" rx="3.2" ry="7.5" fill="#0A0A0D"/><ellipse cx="137" cy="101" rx="3.2" ry="7.5" fill="#0A0A0D"/>
+<ellipse cx="76" cy="97" rx="4" ry="2.8" fill="#fff"/><circle cx="90" cy="106" r="1.6" fill="#fff"/>
+<ellipse cx="130" cy="97" rx="4" ry="2.8" fill="#fff"/><circle cx="144" cy="106" r="1.6" fill="#fff"/>
+<path d="M61 97 Q80 87 103 93 M159 97 Q140 87 117 93" fill="none" stroke="#0A0A0D" stroke-width="6.5" stroke-linecap="round"/>
+<!-- светлая мордочка и красные щёчки, как у японских маскотов -->
+<ellipse cx="110" cy="128" rx="30" ry="19" fill="#F3EAD9"/>
+<circle cx="60" cy="124" r="11" fill="#E2453B"/><circle cx="160" cy="124" r="11" fill="#E2453B"/>
+<path d="M104 116 h12 q2 0 1 2 l-5 5 q-1 1 -2 0 l-5 -5 q-1 -2 -1 -2 Z" fill="#D77C8C"/>
+<path d="M110 123 v4 M98 129 q6 6 12 0 q6 6 12 0" fill="none" stroke="#0A0A0D" stroke-width="2.6" stroke-linecap="round"/>
+<g stroke="#F3EAD9" stroke-width="1.6" stroke-linecap="round" opacity=".7" fill="none"><path d="M78 126 Q56 122 32 126 M78 132 Q56 134 36 142 M142 126 Q164 122 188 126 M142 132 Q164 134 184 142"/></g></g></symbol>
+<symbol id="neko-head" viewBox="18 12 184 150">
+<path d="M52 76 C44 52 44 32 50 18 C64 24 82 38 94 52 Z M168 76 C176 52 176 32 170 18 C156 24 138 38 126 52 Z" fill="#1C1C22" stroke="#0A0A0D" stroke-width="5" stroke-linejoin="round"/>
+<path d="M58 66 C54 50 54 38 57 30 C66 36 78 46 86 54 Z M162 66 C166 50 166 38 163 30 C154 36 142 46 134 54 Z" fill="#E7A0B0"/>
+<path d="M110 40 C160 40 186 66 186 100 C186 136 154 158 110 158 C66 158 34 136 34 100 C34 66 60 40 110 40 Z" fill="#1C1C22" stroke="#0A0A0D" stroke-width="5"/>
+<path d="M36 108 l-10 4 l9 4 l-6 7 l10 -1 M184 108 l10 4 l-9 4 l6 7 l-10 -1" fill="#1C1C22" stroke="#0A0A0D" stroke-width="3.5" stroke-linejoin="round"/>
+<g stroke="#4C4C58" stroke-width="2" stroke-linecap="round"><path d="M100 48 q-2 8 0 13 M110 46 v15 M120 48 q2 8 0 13"/></g>
+<ellipse cx="78" cy="70" rx="20" ry="8" fill="#fff" opacity=".12" transform="rotate(-20 78 70)"/>
+<!-- глаза: скептичный прищур + аниме-блики -->
+<path d="M64 98 Q80 88 100 94 Q98 110 82 111 Q68 110 64 98 Z" fill="url(#iris)"/>
+<path d="M156 98 Q140 88 120 94 Q122 110 138 111 Q152 110 156 98 Z" fill="url(#iris)"/>
+<ellipse cx="83" cy="101" rx="3.2" ry="7.5" fill="#0A0A0D"/><ellipse cx="137" cy="101" rx="3.2" ry="7.5" fill="#0A0A0D"/>
+<ellipse cx="76" cy="97" rx="4" ry="2.8" fill="#fff"/><circle cx="90" cy="106" r="1.6" fill="#fff"/>
+<ellipse cx="130" cy="97" rx="4" ry="2.8" fill="#fff"/><circle cx="144" cy="106" r="1.6" fill="#fff"/>
+<path d="M61 97 Q80 87 103 93 M159 97 Q140 87 117 93" fill="none" stroke="#0A0A0D" stroke-width="6.5" stroke-linecap="round"/>
+<!-- светлая мордочка и красные щёчки, как у японских маскотов -->
+<ellipse cx="110" cy="128" rx="30" ry="19" fill="#F3EAD9"/>
+<circle cx="60" cy="124" r="11" fill="#E2453B"/><circle cx="160" cy="124" r="11" fill="#E2453B"/>
+<path d="M104 116 h12 q2 0 1 2 l-5 5 q-1 1 -2 0 l-5 -5 q-1 -2 -1 -2 Z" fill="#D77C8C"/>
+<path d="M110 123 v4 M98 129 q6 6 12 0 q6 6 12 0" fill="none" stroke="#0A0A0D" stroke-width="2.6" stroke-linecap="round"/>
+<g stroke="#F3EAD9" stroke-width="1.6" stroke-linecap="round" opacity=".7" fill="none"><path d="M78 126 Q56 122 32 126 M78 132 Q56 134 36 142 M142 126 Q164 122 188 126 M142 132 Q164 134 184 142"/></g></symbol>
+<symbol id="badge" viewBox="0 0 200 200"><clipPath id="clb"><circle cx="100" cy="100" r="88"/></clipPath>
+<circle cx="100" cy="100" r="95" fill="#F3E6C9" stroke="#111" stroke-width="6"/>
+<g clip-path="url(#clb)"><circle cx="146" cy="58" r="30" fill="#C8362B"/><rect y="150" width="200" height="60" fill="url(#wave)"/></g>
+<circle cx="100" cy="100" r="88" fill="none" stroke="#1F3A68" stroke-width="2.5"/>
+<use href="#neko-head" x="16" y="44" width="168" height="137"/></symbol></defs><rect width="800" height="460" fill="#F3F5F7"/><rect x="20" y="20" width="300" height="400" rx="20" fill="#F3E6C9"/><use href="#neko-full" x="40" y="40" width="260" height="350"/>
+<use href="#badge" x="350" y="40" width="200" height="200"/>
+<use href="#badge" x="570" y="190" width="48" height="48"/><use href="#badge" x="630" y="206" width="32" height="32"/><use href="#badge" x="672" y="222" width="16" height="16"/>
+<g font-family="Rubik, Arial Black, sans-serif" font-weight="900" font-size="72" fill="#111" letter-spacing="-2"><text x="350" y="350">p</text><use href="#badge" x="393" y="290" width="76" height="76"/><text x="472" y="350">stmaker</text></g>
+<rect x="350" y="380" width="430" height="60" fill="#16141B"/><g font-family="Rubik, Arial Black, sans-serif" font-weight="900" font-size="44" fill="#F3F1EC" letter-spacing="-1"><text x="370" y="424">p</text><use href="#badge" x="397" y="388" width="46" height="46"/><text x="445" y="424">stmaker</text></g></svg>

@@ -104,7 +104,7 @@ function published_file($uid = null) { return user_dir($uid) . '/published.json'
 function outbox_file($uid = null) { return user_dir($uid) . '/outbox.json'; }
 function parser_runtime_file($suffix) { return user_dir() . '/parser-' . PARSER_RUNTIME_VERSION . $suffix; }
 function empty_history() { return array_fill_keys(HISTORY_COLLECTIONS, []); }
-function load_history() { return load_data(history_file(), empty_history()); }
+function load_history() { return history_load(); }
 
 /** Отметка захода (не чаще раза в 10 минут) и раз в сутки — удаление брошенных профилей. */
 function user_touch() {
@@ -126,7 +126,7 @@ function user_touch() {
     foreach (user_ids() as $id) {
         if ($id === $uid) continue;
         $row = db_one('SELECT last_seen, created_at FROM users WHERE id = ?', [$id]);
-        $seen = (int)($row['last_seen'] ?? $row['created_at'] ?? $now);
+        $seen = (int)($row['last_seen'] ?: $row['created_at'] ?: $now);   // 0 — отметки захода ещё не было, считаем от создания профиля
         if ($now - $seen >= USER_RETENTION_DAYS * DAY_SECONDS) {
             db_exec('DELETE FROM users WHERE id = ?', [$id]);
         }
@@ -138,9 +138,9 @@ function ensure_default_project_data() {
     $uid = app_user_id();
     load_settings($uid);
     history_load($uid);
-    $db = load_data(SOURCES_FILE, null);
-    $normalized = normalize_source_db($db ?? []);
-    if ($db !== $normalized) save_data(SOURCES_FILE, $normalized);
+    $db = load_source_db();
+    $normalized = normalize_source_db($db);
+    if ($db !== $normalized) update_source_db(fn() => $normalized);
 }
 
 /** История пользователя из БД (или пусто). */
@@ -346,5 +346,5 @@ function search_topic_key() { $second = current_topic2(); return current_topic()
 function content_filters() { return array_intersect_key(load_settings(), array_flip(CONTENT_FILTERS)); }
 
 function content_max_age_days($dvach = false) {
-    return content_filters()['fresh_only'] ? CONTENT_FRESH_MAX_AGE_DAYS : ($dvach ? DVACH_MAX_AGE_DAYS : CONTENT_MAX_AGE_DAYS);
+    return $dvach ? DVACH_MAX_AGE_DAYS : CONTENT_MAX_AGE_DAYS;   // сбор — полный объём; «только новое» действует при показе
 }

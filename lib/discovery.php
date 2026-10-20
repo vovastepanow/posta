@@ -253,7 +253,7 @@ function check_discovery_candidate(array $c, $topic, array &$stats) {
     $subs = (int)($info['subscribers'] ?? 0);
     $rate = source_view_rate($subs, $info['post_views'] ?? array_column($posts, 'views'));
     $activity = source_activity($info['post_times'] ?? array_column($posts, 'posted_at'));
-    $active_only = app_user_bind() === '' || content_filters()['active_sources_only'];
+    $active_only = true;   // поиск новых источников не зависит от флагов пользователя
     $title = "{$label} «{$info['title']}»";
     if (($inactive = ($active_only ? source_inactivity_reason($activity) : null) ?? source_dead_audience_reason($subs, $rate)) !== null) {
         $stats['rejected']++;
@@ -309,6 +309,7 @@ function run_source_discovery($topic) {
 }
 
 function run_source_discovery_locked($topic) {
+    parser_phase('поиск источников');
     $started = time();
     $db = load_source_db();
     cli_echo('Автоподбор источников по теме ' . topic_prompt_context($topic) . '...');

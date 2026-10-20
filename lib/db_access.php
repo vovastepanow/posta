@@ -144,8 +144,8 @@ function all_users_pool_items(): array {
     }
 
     // История (предложки, скрытые)
-    $proposal_cols = implode(',', array_map(fn($c) => "'$c'", PROPOSAL_COLLECTIONS));
-    $rows = db_all("SELECT data FROM history_items WHERE collection IN ($proposal_cols) AND proposal_hidden = 0");
+    // Все коллекции истории: их медиа нужно для показа в таблице, а не только предложке. Иначе очистка удаляла файлы дизлайков и жалоб.
+    $rows = db_all('SELECT data FROM history_items');
     foreach ($rows as $r) {
         $items[] = db_unjson($r['data'], []);
     }
@@ -257,6 +257,8 @@ function kv_update($key, callable $fn, $default = null) {
 
 // ---- Каталог источников и темы ----
 
+const CATALOG_KV_KEYS = ['dvach_topic_boards', 'discovery'];
+
 /** Загрузить каталог источников, темы и голоса. */
 function catalog_load(): array {
     $catalog = ['sources' => [], 'votes' => [], 'suggestions' => [], 'topics' => [], 'kv' => []];
@@ -264,14 +266,17 @@ function catalog_load(): array {
     $rows = db_all('SELECT kind, source_id, position, data FROM catalog_sources ORDER BY kind, position');
     foreach ($rows as $r) {
         if (!isset($catalog['sources'][$r['kind']])) $catalog['sources'][$r['kind']] = [];
-        $catalog['sources'][$r['kind']][$r['source_id']] = db_unjson($r['data'], []);
+        // Доска Двача — строка, а db_unjson() отдаёт только массивы: имя доски берётся из source_id
+        $catalog['sources'][$r['kind']][$r['source_id']] = $r['kind'] === '2ch_boards' ? (string)$r['source_id'] : db_unjson($r['data'], []);
     }
 
-    $catalog['votes'] = array_column(db_all('SELECT data FROM source_votes ORDER BY position'), null);
-    $catalog['suggestions'] = array_column(db_all('SELECT data FROM source_suggestions ORDER BY position'), null);
-    $catalog['topics'] = array_column(db_all('SELECT id, data FROM topics ORDER BY position'), null, 'id');
+    // В колонке data — JSON записи: его нужно раскрыть, иначе при следующей записи каталога голоса, предложения и темы пропадут
+    $decode = fn(array $rows) => array_values(array_filter(array_map(fn($r) => db_unjson($r['data'], null), $rows), 'is_array'));
+    $catalog['votes'] = $decode(db_all('SELECT data FROM source_votes ORDER BY position'));
+    $catalog['suggestions'] = $decode(db_all('SELECT data FROM source_suggestions ORDER BY position'));
+    $catalog['topics'] = array_column($decode(db_all('SELECT data FROM topics ORDER BY position')), null, 'id');
 
-    $rows = db_all('SELECT key, value FROM kv');
+    $rows = db_all('SELECT key, value FROM kv WHERE key IN (' . implode(', ', array_fill(0, count(CATALOG_KV_KEYS), '?')) . ')', CATALOG_KV_KEYS);
     foreach ($rows as $r) $catalog['kv'][$r['key']] = db_unjson($r['value'], []);
 
     return $catalog;
@@ -286,8 +291,8 @@ function catalog_update(callable $fn): void {
     db_tx(function () use ($updated) {
         db_exec('DELETE FROM catalog_sources');
         foreach ($updated['sources'] as $kind => $sources) {
-            foreach ($sources as $pos => $source) {
-                $source_id = $source['id'] ?? $pos;
+            foreach (array_values($sources) as $pos => $source) {
+                $source_id = is_array($source) ? (string)($source['id'] ?? $pos) : (string)$source;   // доска Двача — просто имя
                 db_exec('INSERT INTO catalog_sources (kind, source_id, position, data) VALUES (?, ?, ?, ?)',
                         [$kind, $source_id, $pos, db_json($source)]);
             }
@@ -306,16 +311,16 @@ function catalog_update(callable $fn): void {
         }
 
         db_exec('DELETE FROM topics');
+        $pos = 0;
         foreach ($updated['topics'] as $id => $topic) {
             $topic['id'] = $id;
-            $pos = $topic['position'] ?? 0;
             db_exec('INSERT INTO topics (id, position, data) VALUES (?, ?, ?)',
-                    [$id, $pos, db_json($topic)]);
+                    [$id, $pos++, db_json($topic)]);
         }
 
-        db_exec('DELETE FROM kv');
-        foreach ($updated['kv'] as $key => $value) {
-            db_exec('INSERT INTO kv (key, value) VALUES (?, ?)', [$key, db_json($value)]);
+        // В kv лежат и чужие ключи (лимиты Telegram, отметки и т. п.) — меняются только ключи каталога
+        foreach (CATALOG_KV_KEYS as $key) {
+            if (array_key_exists($key, $updated['kv'])) db_exec('INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)', [$key, db_json($updated['kv'][$key])]);
         }
     });
 }

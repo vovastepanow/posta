@@ -8,16 +8,42 @@ function handle_get_current_item() {
         : json_response(['status' => 'empty', 'message' => 'Нового контента пока нет. Можно повторить поиск или добавить запись вручную.']);
 }
 
-/** Пул без записей другой темы и не подходящих под фильтры (остаются, если тему сменили во время записи). */
+/** Запись относится к теме поиска или к составной «первая + вторая»; записи без темы подходят всем. */
+function pool_item_in_topic($i, $topic, $key) {
+    return ($i['topic'] ?? '') === '' || topic_same((string)$i['topic'], $topic) || topic_same((string)$i['topic'], $key);
+}
+
+/** Позиции в пуле записей выбранной темы: по ним показываются и правятся записи в «Базах данных» и в кабинете. */
+function pool_topic_positions(array $pool) {
+    [$topic, $key] = [current_topic(), search_topic_key()];
+    return array_keys(array_filter($pool, fn($i) => pool_item_in_topic($i, $topic, $key)));
+}
+
+/** Подписи замороженных (неактивных) Telegram и VK источников, как они стоят в записях. */
+function frozen_source_labels() {
+    $labels = [];
+    $db = load_source_db();
+    foreach (CATALOG_KEYS as $platform => $key) foreach ($db[$key] as $s) {
+        if (is_source_frozen($s)) $labels[mb_strtolower(source_display_name($platform, $s['name'] ?? ($s['id'] ?? '')))] = true;
+    }
+    return $labels;
+}
+
+/** Пул без записей другой темы и не подходящих под фильтры подборки (остаются, если тему сменили во время записи). */
 function pool_for_current_topic() {
     [$topic, $key, $f] = [current_topic(), search_topic_key(), content_filters()];
-    $keep = fn($i) => (($i['topic'] ?? '') === '' || topic_same((string)$i['topic'], $topic) || topic_same((string)$i['topic'], $key))
-        && (!$f['video_only'] || post_item_has_video($i)) && (!$f['fresh_only'] || !is_post_outdated($i['posted_at'] ?? 0, null, CONTENT_FRESH_MAX_AGE_DAYS));
+    $frozen = $f['active_sources_only'] ? frozen_source_labels() : [];
+    $keep = fn($i) => pool_item_in_topic($i, $topic, $key) && pool_item_is_fresh($i)
+        && (!$f['video_only'] || post_item_has_video($i)) && (!$f['fresh_only'] || !is_post_outdated($i['posted_at'] ?? 0, null, CONTENT_FRESH_MAX_AGE_DAYS))
+        && !isset($frozen[mb_strtolower((string)($i['source'] ?? ''))]);
     $pool = pool_load();
     return count(array_filter($pool, $keep)) === count($pool) ? $pool : pool_update(fn($p) => array_values(array_filter($p, $keep)));
 }
 
-function handle_parser_status() { json_response(['running' => content_parser_is_running(), 'activity' => content_parser_activity()]); }
+function handle_parser_status() {
+    $running = content_parser_is_running();
+    json_response(['running' => $running, 'phase' => $running ? (parser_phase() ?: 'парсер работает') : 'ничего не делается', 'activity' => content_parser_activity()]);
+}
 
 function request_tab_id($input) { return is_valid_tab_id($tab = $input['tab'] ?? '') ? $tab : json_error('Некорректный идентификатор вкладки.'); }
 function handle_tab_open($in) { ok(['parser' => tab_session_open(request_tab_id($in))]); }
@@ -36,6 +62,13 @@ function handle_settings() {
     json_response(['topic' => $topic, 'topic2' => current_topic2(), 'topic_info' => $entry ? topic_public($entry) : null, 'filters' => content_filters()]);
 }
 
+/** Полная запись темы из базы, все поля как есть, для панели «Дерево». */
+function handle_topic_record() {
+    $entry = topic_registry()[(string)($_GET['id'] ?? '')] ?? null;
+    if (!$entry) json_error('Такой темы нет.', 404);
+    json_response(['topic' => $entry, 'summary' => topic_public($entry, load_source_db())]);
+}
+
 function handle_topics() {
     $db = load_source_db();
     $topics = array_map(fn($e) => topic_public($e, $db), array_values(topic_registry()));
@@ -43,20 +76,24 @@ function handle_topics() {
     json_response(['current' => topic_lookup(current_topic())['id'] ?? null, 'topics' => $topics]);
 }
 
-/** Новая тема: старый парсер останавливается сразу, неоценённое по старой теме убирается, поиск запускается заново. */
+/**
+ * Новая тема: старый парсер останавливается, неоценённое по старой теме убирается.
+ * Новый парсер запускается, только если в пуле новой темы не хватает свежих записей (просроченные уходят).
+ */
 function handle_save_topic($in) {
     if (($typed = normalize_topic($in['topic'] ?? '')) === '') json_error('Тема поиска не может быть пустой.');
     $previous = current_topic();
+    $previous_key = search_topic_key();
     $stopped = !topic_same($typed, $previous) && stop_content_parser();
     $resolved = topic_resolve($typed, !empty($in['force_new']));
     save_settings(['topic' => $topic = $resolved['topic']['title']]);
     if ($lacks = topic_lacks_sources(load_source_db(), $topic)) request_source_discovery();
     $parser = 'unchanged';
     if (!topic_same($topic, $previous)) {
-        pool_update(fn() => []);
+        pool_update(fn($pool) => array_values(array_filter($pool, fn($i) => !is_array($i) || topic_norm($i['topic'] ?? '') !== topic_norm($previous_key))));
         media_cache_cleanup(all_users_pool_items());
-        $parser = start_content_parser_if_needed(true);
-    } elseif ($stopped) $parser = start_content_parser_if_needed(true);
+    }
+    if (!topic_same($topic, $previous) || $stopped) $parser = content_pool_needs_fill(search_topic_key()) ? start_content_parser_if_needed(true) : 'unchanged';
     ok(['topic' => $topic, 'parser' => $parser, 'typed' => $typed, 'matched' => $resolved['matched'], 'created' => $resolved['created'], 'ai' => $resolved['ai'],
         'discovery' => $lacks, 'topic_info' => topic_public($resolved['topic'])]);
 }
@@ -132,7 +169,17 @@ function proposal_items(array $history) {
     return array_slice($items, 0, PROPOSALS_LIMIT);
 }
 
-function handle_proposals() { json_response(['items' => proposal_items(load_history()), 'refreshing' => proposal_backfill_async()]); }
+/** Лёгкий опрос прогресса: читает только файл прогресса и отметку блокировки, без истории. */
+function handle_proposals_progress() {
+    $progress = proposal_progress_read();
+    $lock = sys_get_temp_dir() . '/postmaker-backfill-' . app_user_id() . '.lock';
+    json_response(['refreshing' => !empty($progress['running']) && time() - (int)@filemtime($lock) < 180, 'progress' => $progress]);
+}
+
+function handle_proposals() {
+    $refreshing = proposal_backfill_async();
+    json_response(['items' => proposal_items(load_history()), 'refreshing' => $refreshing, 'progress' => $refreshing ? proposal_progress_read() : null]);
+}
 
 /** Убрать из «Предложки» (в истории оценка остаётся). */
 function handle_proposal_hide($in) {
@@ -159,11 +206,12 @@ function update_history_proposals(callable $change, $uid = null) {
 
 /** Записи «Предложки», не сверенные с источником, достраиваются в фоне (tools/cli.php backfill-proposals). true — идёт. */
 function proposal_backfill_async() {
-    $pending = array_filter(array_merge(...array_map(fn($c) => (array)(load_history()[$c] ?? []), PROPOSAL_COLLECTIONS)), fn($r) => is_array($r) && empty($r['media_cached']) && empty($r['proposal_hidden']));
+    $pending = proposal_pending();
     if (!$pending && time() - (int)@filemtime(user_dir() . '/proposals-checked') < POOL_LIVENESS_INTERVAL) return false;
     $lock = sys_get_temp_dir() . '/postmaker-backfill-' . app_user_id() . '.lock';
-    if (time() - (int)@filemtime($lock) < 180) return true;
+    if (time() - (int)@filemtime($lock) < 180) return !empty(proposal_progress_read()['running']);   // недавно запущен: идёт ли он ещё
     @touch($lock);
+    proposal_progress_write(['total' => count($pending), 'done' => 0, 'running' => true, 'updated_at' => time()]);
     exec('/usr/bin/php ' . escapeshellarg(ROOT . '/tools/cli.php') . ' backfill-proposals ' . escapeshellarg(app_user_id()) . ' >/dev/null 2>&1 &');
     return true;
 }
@@ -204,6 +252,22 @@ function proposal_cache_media(array $r, array $m) {
     return $m;
 }
 
+/** Записи «Предложки», которые ещё не сверены с источником. */
+function proposal_pending(): array {
+    return array_filter(array_merge(...array_map(fn($c) => (array)(load_history()[$c] ?? []), PROPOSAL_COLLECTIONS)), fn($r) => is_array($r) && empty($r['media_cached']) && empty($r['proposal_hidden']));
+}
+
+/** Прогресс достраивания для страницы: сколько записей проверено из скольких в текущем проходе. */
+function proposal_progress_file() { return user_dir() . '/proposals-backfill.json'; }
+function proposal_progress_read(): array { return load_data(proposal_progress_file(), []); }
+function proposal_progress_write(array $progress): void { save_data(proposal_progress_file(), $progress); }
+function proposal_progress_tick(): void {
+    $progress = proposal_progress_read();
+    $progress['done'] = (int)($progress['done'] ?? 0) + 1;
+    $progress['updated_at'] = time();
+    proposal_progress_write($progress);
+}
+
 function proposal_backfill_media($limit = 6) {
     $todo = [];
     foreach (PROPOSAL_COLLECTIONS as $c) foreach (load_history()[$c] ?? [] as $r) {
@@ -211,7 +275,10 @@ function proposal_backfill_media($limit = 6) {
     }
     if (!$todo) return 0;
     $found = [];
-    foreach ($todo as $key => $r) if (($m = proposal_fetch_media($r)) !== null) $found[$key] = proposal_cache_media($r, $m);
+    foreach ($todo as $key => $r) {
+        if (($m = proposal_fetch_media($r)) !== null) $found[$key] = proposal_cache_media($r, $m);
+        proposal_progress_tick();   // считаем проверенной и ту запись, источник которой недоступен
+    }
     if (!$found) return 0;
     return update_history_proposals(function ($r) use ($found) {
         if (!isset($found[$k = content_image_key($r)]) || !empty($r['media_cached'])) return null;
@@ -240,9 +307,9 @@ function proposal_prune_dead_threads($force = false) {
 
 function database_definitions() {
     return [
-        'content_pool' => ['label' => 'Пул контента', 'file' => pool_file(), 'collections' => ['items' => 'Записи']],
-        'content_history' => ['label' => 'История оценок', 'file' => history_file(), 'collections' => ['liked' => 'Лайки', 'disliked' => 'Дизлайки', 'undecided' => 'Без решения', 'complaints' => 'Жалобы']],
-        'sources_db' => ['label' => 'Каталог источников', 'file' => SOURCES_FILE, 'collections' => ['2ch_boards' => 'Доски 2ch', 'vk_publics' => 'Паблики ВКонтакте', 'telegram_channels' => 'Каналы Telegram', 'source_votes' => 'Оценки источников']]
+        'content_pool' => ['label' => 'Пул контента', 'file' => null, 'collections' => ['items' => 'Записи']],
+        'content_history' => ['label' => 'История оценок', 'file' => null, 'collections' => ['liked' => 'Лайки', 'disliked' => 'Дизлайки', 'undecided' => 'Без решения', 'complaints' => 'Жалобы']],
+        'sources_db' => ['label' => 'Каталог источников', 'file' => null, 'collections' => ['2ch_boards' => 'Доски 2ch', 'vk_publics' => 'Паблики ВКонтакте', 'telegram_channels' => 'Каналы Telegram', 'source_votes' => 'Оценки источников']]
     ];
 }
 
@@ -250,10 +317,12 @@ function database_definitions() {
 function database_open($database, $collection) {
     $def = database_definitions()[$database] ?? throw new InvalidArgumentException('Неизвестная база данных.');
     if (!isset($def['collections'][$collection])) throw new InvalidArgumentException('Неизвестная коллекция.');
-    $data = is_file($def['file']) ? json_decode((string)file_get_contents($def['file']), true) : null;
-    if (!is_array($data)) throw new RuntimeException('Файл базы не найден или содержит некорректный JSON.');
-    $items = $database === 'content_pool' ? $data : ($data[$collection] ?? []);
-    return is_array($items) ? [$def, $data, array_values($items)] : throw new RuntimeException('Коллекция должна быть массивом записей.');
+    // Пул хранится в SQLite: показываем записи выбранной темы
+    // Пул показывается целиком, все темы: таблица выводит все записи, а тема — отдельным столбцом
+    if ($database === 'content_pool') return [$def, null, array_values(pool_load())];
+    // История и каталог источников тоже в базе
+    $items = $database === 'content_history' ? (history_load()[$collection] ?? []) : (load_source_db()[$collection] ?? []);
+    return [$def, null, array_values($items)];
 }
 
 function database_validate($database, $collection, $r) {
@@ -275,38 +344,78 @@ function handle_database_options() {
         array_keys(database_definitions()), database_definitions())]);
 }
 
+/** Столбцы таблицы — поля записей в том порядке, в каком они лежат в базе (JSON). Строки-значения (например, список досок) — один столбец value. */
+function database_columns(array $items) {
+    $keys = [];
+    foreach ($items as $i) if (is_array($i)) foreach (array_keys($i) as $k) $keys[(string)$k] = true;
+    return array_keys($keys) ?: ['value'];
+}
+
+/** Номера записей, у которых локальный файл картинки или видео указан, но на диске его нет (удалён очисткой раньше). */
+function database_media_missing(array $items) {
+    $missing = [];
+    foreach ($items as $n => $r) {
+        if (!is_array($r)) continue;
+        foreach (['image_local', 'video_local'] as $field) {
+            $path = media_cache_path((string)($r[$field] ?? ''));
+            if ($path !== null && !is_file($path)) { $missing[] = $n; break; }
+        }
+    }
+    return $missing;
+}
+
 function handle_database_read() {
     [$def, , $items] = database_open($db = $_GET['database'] ?? '', $c = $_GET['collection'] ?? '');
-    json_response(['database_label' => $def['label'], 'collection_label' => $def['collections'][$c], 'items' => $items]);
+    json_response(['database_label' => $def['label'], 'collection_label' => $def['collections'][$c], 'columns' => database_columns($items), 'items' => $items,
+        'media_missing' => database_media_missing($items)]);
+}
+
+/** Правка коллекции в памяти. $all — все записи файла или базы. Номер в списке пула — позиция среди записей выбранной темы, поэтому переводим его в позицию в $all. */
+function database_edit(array $all, $database, $collection, $in, $action): array {
+    $visible = array_keys($all);   // таблица показывает все записи коллекции, номер строки — позиция в коллекции
+    $items = $all;
+    if ($action !== 'database_delete' && !array_key_exists('record', $in)) throw new InvalidArgumentException('Не переданы данные записи.');
+    if ($action === 'database_add') {
+        database_validate($database, $collection, $items[] = $in['record']);
+        return $items;
+    }
+    $i = filter_var($in['index'] ?? null, FILTER_VALIDATE_INT);
+    if ($i === false || $i < 0) throw new InvalidArgumentException('Некорректный номер записи.');
+    if (!array_key_exists($i, $visible)) throw new DomainException('Запись уже удалена или не существует. Обновите список.');
+    $pos = $visible[$i];
+    if (array_key_exists('expected', $in) && $in['expected'] != $items[$pos]) throw new DomainException('Запись изменилась с момента загрузки списка. Обновите список и повторите.');
+    if ($action === 'database_delete') {
+        array_splice($items, $pos, 1);
+        return $items;
+    }
+    $old = $items[$pos];
+    if (gettype($old) !== gettype($in['record']) || (is_array($old) && array_is_list($old) !== array_is_list($in['record']))) throw new InvalidArgumentException('Нельзя менять тип записи.');
+    database_validate($database, $collection, $items[$pos] = $in['record']);
+    return $items;
 }
 
 /** Правка и удаление передают прежнее значение записи (expected): если её успел изменить парсер — 409. */
 function handle_database_change($in, $action) {
     [$database, $collection] = [$in['database'] ?? '', $in['collection'] ?? ''];
     [$def] = database_open($database, $collection);
-    $count = with_file_lock($def['file'], function () use ($in, $action, $database, $collection) {
-        [$def, $data, $items] = database_open($database, $collection);
-        $before = $items;
-        if ($action !== 'database_delete' && !array_key_exists('record', $in)) throw new InvalidArgumentException('Не переданы данные записи.');
-        if ($action === 'database_add') {
-            database_validate($database, $collection, $items[] = $in['record']);
-        } else {
-            $i = filter_var($in['index'] ?? null, FILTER_VALIDATE_INT);
-            if ($i === false || $i < 0) throw new InvalidArgumentException('Некорректный номер записи.');
-            if (!array_key_exists($i, $items)) throw new DomainException('Запись уже удалена или не существует. Обновите список.');
-            if (array_key_exists('expected', $in) && $in['expected'] != $items[$i]) throw new DomainException('Запись изменилась с момента загрузки списка. Обновите список и повторите.');
-            if ($action === 'database_delete') array_splice($items, $i, 1);
-            else {
-                $old = $items[$i];
-                if (gettype($old) !== gettype($in['record']) || (is_array($old) && array_is_list($old) !== array_is_list($in['record']))) throw new InvalidArgumentException('Нельзя менять тип записи.');
-                database_validate($database, $collection, $items[$i] = $in['record']);
-            }
-        }
-        save_data($def['file'], $database === 'content_pool' ? array_values($items) : [$collection => array_values($items)] + $data);
-        if ($database === 'content_pool') media_cache_release_removed($before, $items);
-        return count($items);
+    if ($database === 'content_pool') {
+        $before = pool_load();
+        $after = pool_update(fn($pool) => database_edit($pool, $database, $collection, $in, $action));
+        media_cache_release_removed($before, $after);
+        ok(['count' => count($after)]);
+    }
+    if ($database === 'content_history') {
+        $history = history_update(function ($h) use ($in, $action, $collection) {
+            $h[$collection] = database_edit(array_values($h[$collection] ?? []), 'content_history', $collection, $in, $action);
+            return $h;
+        });
+        ok(['count' => count($history[$collection])]);
+    }
+    $catalog = update_source_db(function ($db) use ($in, $action, $collection) {
+        $db[$collection] = database_edit(array_values($db[$collection] ?? []), 'sources_db', $collection, $in, $action);
+        return $db;
     });
-    ok(['count' => $count]);
+    ok(['count' => count($catalog[$collection])]);
 }
 
 function handle_database_reset() { ok(['removed_media' => reset_project_data(), 'parser' => start_content_parser_if_needed(true)]); }

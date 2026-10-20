@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="1800" height="1140">
+<defs>
+  <!-- Плоская голова Нэко-сана: силуэт и мордочка отдельно, чтобы обводить силуэт -->
+  <path id="sil" d="M48 96 L40 30 Q41 20 51 24 L86 52 Q100 48 114 52 L149 24 Q159 20 160 30 L152 96 C164 112 168 124 168 134 C168 166 138 182 100 182 C62 182 32 166 32 134 C32 124 36 112 48 96 Z"/>
+  <g id="face">
+    <path d="M54 86 L52 40 L80 60 Z M146 86 L148 40 L120 60 Z" fill="#F2A3B6"/>
+    <path d="M58 122 L93 120 Q92 138 75 139 Q59 138 58 122 Z" fill="#F7C23B"/>
+    <path d="M107 120 L142 122 Q141 138 125 139 Q108 138 107 120 Z" fill="#F7C23B"/>
+    <ellipse cx="79" cy="127" rx="3.6" ry="5.6" fill="#0E0E12"/><ellipse cx="121" cy="127" rx="3.6" ry="5.6" fill="#0E0E12"/>
+    <path d="M54 122.5 L96 119.5 M104 119.5 L146 122.5" stroke="#0E0E12" stroke-width="5.5" stroke-linecap="round"/>
+    <path d="M95 146 h10 l-5 6 Z" fill="#F2A3B6" stroke="#F2A3B6" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M90 157 q5 5 10 0 q5 5 10 0" fill="none" stroke="#8A8A96" stroke-width="3" stroke-linecap="round"/>
+    <path d="M64 70 q14 -12 30 -14" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".22"/>
+  </g>
+  <g id="head"><use href="#sil" fill="#18181D"/><use href="#face"/></g>
+
+  <!-- A. Наклейка: белая вырубка вокруг силуэта и жёсткая тень -->
+  <symbol id="logoA" viewBox="-14 -2 228 204">
+    <use href="#sil" fill="#111" stroke="#111" stroke-width="30" stroke-linejoin="round" transform="translate(7 7)"/>
+    <use href="#sil" fill="#fff" stroke="#fff" stroke-width="26" stroke-linejoin="round"/>
+    <use href="#sil" fill="#18181D" stroke="#111" stroke-width="4" stroke-linejoin="round"/>
+    <use href="#face"/>
+  </symbol>
+  <!-- B. Бумажный ценник ИКЕА с дырочкой и ниткой -->
+  <symbol id="logoB" viewBox="0 0 200 240">
+    <path d="M100 0 Q96 24 100 42" fill="none" stroke="#8B6B3E" stroke-width="3"/>
+    <path d="M40 40 H160 L188 66 V232 H12 V66 Z" fill="#111" transform="translate(5 5)"/>
+    <path d="M40 40 H160 L188 66 V232 H12 V66 Z" fill="#FFDA1A" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="100" cy="58" r="8" fill="#F3F5F7" stroke="#111" stroke-width="4"/>
+    <g transform="translate(22 66) scale(.78)"><use href="#head"/></g>
+  </symbol>
+  <!-- C. Телемагазин: красная звезда-«взрыв» -->
+  <symbol id="logoC" viewBox="0 0 220 220">
+    <polygon points="110,4 124,30 150,12 156,42 186,36 180,66 210,74 192,98 216,116 190,132 204,160 174,164 172,194 144,186 130,214 110,192 90,214 76,186 48,194 46,164 16,160 30,132 4,116 28,98 10,74 40,66 34,36 64,42 70,12 96,30" fill="#D52B1E" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="110" cy="112" r="70" fill="#FFC20E" stroke="#111" stroke-width="5"/>
+    <g transform="translate(46 44) scale(.64)"><use href="#head"/></g>
+  </symbol>
+  <!-- D. Голова вместо буквы «о» -->
+  <symbol id="logoD" viewBox="0 0 200 200">
+    <rect x="4" y="4" width="192" height="192" rx="44" fill="#FFC20E" stroke="#111" stroke-width="7"/>
+    <g transform="translate(22 14) scale(.78)"><use href="#head"/></g>
+  </symbol>
+</defs>
+<rect width="1200" height="760" fill="#F3F5F7"/>
+<g font-family="Rubik, Arial Black, sans-serif" font-weight="900" fill="#111">
+  <!-- A -->
+  <text x="30" y="40" font-size="20" font-family="Arial" font-weight="700" fill="#55595F">A. НАКЛЕЙКА</text>
+  <use href="#logoA" x="30" y="60" width="170" height="152"/>
+  <text x="210" y="160" font-size="54" letter-spacing="-2">postmaker</text>
+  <use href="#logoA" x="30" y="260" width="40" height="36"/><use href="#logoA" x="90" y="270" width="20" height="18"/>
+  <!-- B -->
+  <text x="630" y="40" font-size="20" font-family="Arial" font-weight="700" fill="#55595F">B. ЦЕННИК</text>
+  <use href="#logoB" x="630" y="50" width="140" height="168"/>
+  <text x="790" y="160" font-size="54" letter-spacing="-2">postmaker</text>
+  <use href="#logoB" x="630" y="250" width="34" height="41"/><use href="#logoB" x="684" y="262" width="17" height="20"/>
+  <!-- C -->
+  <text x="30" y="420" font-size="20" font-family="Arial" font-weight="700" fill="#55595F">C. ТЕЛЕМАГАЗИН</text>
+  <use href="#logoC" x="30" y="440" width="170" height="170"/>
+  <text x="210" y="550" font-size="54" letter-spacing="-2">postmaker</text>
+  <use href="#logoC" x="30" y="650" width="40" height="40"/><use href="#logoC" x="90" y="660" width="20" height="20"/>
+  <!-- D -->
+  <text x="630" y="420" font-size="20" font-family="Arial" font-weight="700" fill="#55595F">D. КОТ ВМЕСТО «О»</text>
+  <text x="640" y="550" font-size="80" letter-spacing="-3">p</text>
+  <g transform="translate(688 470) scale(.46)"><use href="#head"/></g>
+  <text x="784" y="550" font-size="80" letter-spacing="-3">stmaker</text>
+  <use href="#logoD" x="640" y="650" width="40" height="40"/><use href="#logoD" x="700" y="660" width="20" height="20"/>
+</g>
+</svg>

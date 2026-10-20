@@ -6,6 +6,7 @@
 //   backfill-engagement            — дособрать активность (просмотры, ответы) у записей пулов
 //   engagement-report [файлы]      — угадывает ли активность голоса пользователей (AUC)
 //   rescore-sources [--catalog] [--apply] — переоценить найденные каналы по текущим правилам
+//   seed-topics                    — засеять готовое дерево тем (lib/topic_tree.php), повторный запуск ничего не меняет
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Только из командной строки.'); }
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../handlers/content.php';
@@ -39,6 +40,7 @@ case 'backfill-proposals':
     foreach ($args ? [$args[0]] : user_ids() as $uid) {
         app_user_bind($uid);
         for ($total = 0; ($n = proposal_backfill_media(10)) > 0; $total += $n);
+        proposal_progress_write(['running' => false] + proposal_progress_read());
         if ($total) echo $short($uid) . ": обновлено записей: $total\n";
         if ($dead = proposal_prune_dead_threads($flag('force'))) echo $short($uid) . ": скрыто записей из мёртвых тредов: $dead\n";
     }
@@ -66,6 +68,29 @@ case 'engagement-report':
 
 case 'rescore-sources':
     rescore_sources($flag('catalog'), $flag('apply'));
+    break;
+
+case 'migrate-media':
+    // Без --apply только отчёт. Перед --apply: копия базы (sqlite3 data/postmaker.sqlite ".backup …")
+    $r = media_migrate(ROOT . '/media_cache', $flag('apply'));
+    echo ($r['applied'] ? 'Перенесено' : 'Будет перенесено') . ": файлов {$r['files']}" . ($r['applied'] ? ", перемещено {$r['moved']}" : '') . ", строк в базе {$r['rows']}\n";
+    echo "Откуда: {$r['from']}\nКуда: {$r['to']}\n";
+    if (!$r['applied']) echo "Для переноса запустите с --apply.\n";
+    break;
+
+case 'hot-topics':
+    $hot = hot_topics(HOT_TOPICS_LIMIT, true);
+    echo $hot ? "Горячие темы (" . count($hot) . " из " . HOT_TOPICS_LIMIT . "):\n" : "Горячих тем сейчас нет.\n";
+    foreach ($hot as $t) echo "  {$t['title']} — {$t['score']}\n";
+    break;
+
+case 'seed-topics':
+    $c = topic_tree_seed();
+    echo "Дерево тем: создано {$c['created']}, обновлено {$c['updated']}, перенесено {$c['moved']}, пропущено {$c['skipped']}\n";
+    foreach (TOPIC_TREE as $branch) {
+        echo $branch['title'] . ($branch['nsfw'] ? ' [18+]' : '') . "\n";
+        foreach ($branch['children'] as $child) echo "  " . $child['title'] . ($branch['nsfw'] ? ' [18+]' : '') . "\n";
+    }
     break;
 
 case 'migrate-json':

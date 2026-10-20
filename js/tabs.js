@@ -1,37 +1,76 @@
 // tabs.js — вкладки «Предложка» (лайки и «не знаю»), «Дерево» (выбор и смена темы) и «Тест ИИ» (оценка одной картинки).
-import { $, DEBUG_MODE, NO_TEXT, VIDEO_ICON, api, el, hide, log, onTabOpen, safeSourcePostUrl, setMessage, show } from './core.js';
+import { $, DEBUG_MODE, NO_TEXT, VIDEO_ICON, api, el, hide, isTabActive, log, onTabOpen, safeSourcePostUrl, setMessage, show } from './core.js';
+import { createProgress } from './progress.js';
+import { cachedVideoUrl, releaseVideoSource, storeVideo } from './video-cache.js';
 import { openViewerGallery } from './viewer.js';
 import { TOPIC_CONFIRM, applyRocketCheck, loadCurrentItem, postItemToTelegram, recordGallery, refreshTopicLabel, saveTopic } from './content.js';
 
 // ---- «Предложка» ----
 
-const proposals = { items: [], filter: 'all', refreshed: false };
-// Видео в карточках играют, только пока видны: иначе десятки роликов качаются разом
-const videoObserver = new IntersectionObserver(entries => entries.forEach(({ target: v, isIntersecting }) => {
-    if (!isIntersecting) return v.pause();
-    if (!v.getAttribute('src')) v.src = v.dataset.src;
-    v.play().catch(() => {});
-}), { rootMargin: '100px' });
+const proposals = { items: [], filter: 'all' };
+// Ролики в карточках автовоспроизводятся, пока видны (с запасом 100px). Ушедший из экрана ролик освобождается полностью.
+const visibleVideos = new Set();
+const playingVideos = new Set();
+function stopVideo(v) {
+    playingVideos.delete(v);
+    const src = v.getAttribute('src');
+    if (src) { v.pause(); v.removeAttribute('src'); v.load(); releaseVideoSource(src); }
+}
+function forgetVideo(v) {
+    visibleVideos.delete(v);
+    stopVideo(v);
+    videoObserver.unobserve(v);
+}
+const loadingVideos = new Set();
+/** Свежая копия из кэша играет мгновенно. Если копии нет, ролик сразу играет по сети, а копия качается в фоне для следующих открытий. */
+async function startVideo(v) {
+    loadingVideos.add(v);
+    const cached = await cachedVideoUrl(v.dataset.src);
+    loadingVideos.delete(v);
+    if (!visibleVideos.has(v)) return releaseVideoSource(cached);   // ушёл из экрана, пока проверяли кэш
+    if (!cached) storeVideo(v.dataset.src);
+    v.src = cached || v.dataset.src;
+    playingVideos.add(v);
+    v.play().catch(() => {
+        stopVideo(v);
+        v.closest('.proposal-tile')?.classList.remove('is-loading');   // не запустился: плитка не должна висеть в загрузке
+    });
+}
+function playVisibleVideos() {
+    for (const v of visibleVideos) if (!playingVideos.has(v) && !loadingVideos.has(v)) startVideo(v);
+}
+const videoObserver = new IntersectionObserver(entries => {
+    entries.forEach(({ target: v, isIntersecting }) => {
+        if (isIntersecting) visibleVideos.add(v);
+        else { visibleVideos.delete(v); stopVideo(v); }
+    });
+    playVisibleVideos();
+}, { rootMargin: '100px' });
 
 function mediaTile(slide, onOpen, extra) {
-    const tile = el('button', { className: 'proposal-tile is-loading', type: 'button', title: 'Открыть', onclick: onOpen });
+    const tile = el('button', { className: 'proposal-tile is-loading', type: 'button', title: 'Открыть', onclick: e => { e.stopPropagation(); onOpen(); } });   // глобальный обработчик просмотрщика не должен открыть картинку без галереи
     const settled = () => tile.classList.remove('is-loading');
-    const image = el('img', { src: slide.poster || slide.src || '', alt: '', loading: 'lazy', decoding: 'async', onload: settled });
-    image.onerror = () => {
-        const backup = slide.kind !== 'video' && slide.fallback;
-        if (backup && image.getAttribute('src') !== backup) return void (image.src = backup);   // копия из кэша не открылась — исходная ссылка
-        image.hidden = true;
-        settled();
-        tile.classList.add('is-broken');
-    };
-    tile.append(image);
+    // У ролика картинка — только постер. Без постера браузер скачал бы весь видеофайл как изображение.
+    const poster = slide.kind === 'video' ? (slide.poster || '') : (slide.poster || slide.src || '');
+    if (poster) {
+        const image = el('img', { src: poster, alt: '', loading: 'lazy', decoding: 'async', onload: settled });
+        image.onerror = () => {
+            const backup = slide.kind !== 'video' && slide.fallback;
+            if (backup && image.getAttribute('src') !== backup) return void (image.src = backup);   // копия из кэша не открылась — исходная ссылка
+            image.hidden = true;
+            settled();
+            tile.classList.add('is-broken');
+        };
+        tile.append(image);
+    }
     if (slide.kind === 'video') {
+        if (!poster) settled();
         const video = el('video', { poster: slide.poster || '', muted: true, loop: true, playsInline: true, preload: 'metadata' });
         Object.assign(video.dataset, { src: slide.src, fallback: slide.fallback || '' });
         video.addEventListener('playing', settled, { once: true });
         video.onerror = () => {
-            if (video.dataset.fallback && video.getAttribute('src') !== video.dataset.fallback) { video.src = video.dataset.fallback; return void video.play().catch(() => {}); }
-            videoObserver.unobserve(video);
+            if (video.dataset.fallback && video.getAttribute('src') !== video.dataset.fallback) { releaseVideoSource(video.getAttribute('src')); video.src = video.dataset.fallback; return void video.play().catch(() => stopVideo(video)); }
+            forgetVideo(video);
             video.remove();
         };
         tile.append(video, el('span', { className: 'video-mark', innerHTML: VIDEO_ICON }));
@@ -68,16 +107,82 @@ function renderProposals() {
     const visible = proposals.items.filter(i => proposals.filter === 'all' || i.vote === proposals.filter);
     $('proposals-count').textContent = proposals.items.length ? `${visible.length} из ${proposals.items.length}` : '';
     $('proposals-status').textContent = visible.length ? '' : proposals.items.length ? 'В этом разделе пусто.' : 'Пока пусто: сюда попадают записи, которые вы отметили «Нравится» или «Не знаю» на вкладке «Подбор».';
-    $('proposals-grid').querySelectorAll('video').forEach(v => videoObserver.unobserve(v));
+    $('proposals-grid').querySelectorAll('video').forEach(forgetVideo);
     $('proposals-grid').replaceChildren(...visible.map(proposalCard));
     document.querySelectorAll('[data-proposal-filter]').forEach(b => b.classList.toggle('active', b.dataset.proposalFilter === proposals.filter));
 }
 
+let proposalsPollTimer = null;
+
+/** Полоса проверки медиа в источниках: сервер отдаёт, сколько записей проверено из скольких. */
+const proposalBar = createProgress({ className: 'proposals-progress' });
+/** Полоса закреплена внизу экрана, поэтому её появление не сдвигает верстку. */
+function setProposalProgress(progress) {
+    if (!progress?.total) return proposalBar.root.remove();
+    proposalBar.set(progress.done || 0, progress.total);
+    if (!proposalBar.root.isConnected) document.body.append(proposalBar.root);
+}
+
+/** Полоса загрузки самой вкладки: сначала запрос к серверу (объём неизвестен), потом картинки в видимой части списка. */
+const listBar = createProgress({ className: 'proposals-loader' });
+/** Полоса над карточками: появляется на время загрузки и гаснет сразу после 100%. */
+function showListBar() {
+    listBar.root.classList.remove('is-fading');
+    $('proposals-grid').prepend(listBar.root);   // внутри сетки и абсолютно: сетка не сдвигается
+}
+function hideListBar() {
+    listBar.root.classList.add('is-fading');
+    setTimeout(() => { if (listBar.root.classList.contains('is-fading')) listBar.root.remove(); }, 300);
+}
+let mediaTimer = null;
+let loadTimer = null;
+let loadPercent = 0;
+let responded = false;
+/** Полоса только растёт, поэтому скачков назад не бывает. */
+function setLoadPercent(value) {
+    loadPercent = Math.max(loadPercent, Math.min(100, value));
+    listBar.percent(loadPercent);
+}
+/** 0–30%: ожидание ответа сервера. Объём заранее неизвестен, поэтому плавно замедляется к 30%. */
+function startLoadBar() {
+    clearInterval(loadTimer);
+    loadPercent = 0;
+    responded = false;
+    const started = Date.now();
+    showListBar();
+    listBar.percent(0);
+    loadTimer = setInterval(() => {
+        if (!responded) setLoadPercent(30 * (1 - Math.exp(-(Date.now() - started) / 1200)));
+    }, 100);
+}
+/** 30–100%: доля картинок в видимой части, которые уже загрузились. */
+function trackProposalMedia() {
+    clearInterval(mediaTimer);
+    clearInterval(loadTimer);
+    responded = true;
+    setLoadPercent(30);
+    const inView = t => { const r = t.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; };
+    const started = Date.now();
+    const finish = () => { clearInterval(mediaTimer); setLoadPercent(100); setTimeout(hideListBar, 400); };
+    const tick = () => {
+        const tiles = [...$('proposals-grid').querySelectorAll('.proposal-tile')].filter(inView);
+        if (!tiles.length || Date.now() - started > 20000) return finish();
+        const done = tiles.filter(t => !t.classList.contains('is-loading')).length;
+        setLoadPercent(30 + 70 * done / tiles.length);
+        if (done === tiles.length) finish();
+    };
+    mediaTimer = setInterval(tick, 150);
+    tick();
+}
+
 async function loadProposals() {
+    clearTimeout(proposalsPollTimer);
+    clearInterval(mediaTimer);
     try {
         const status = $('proposals-status');
-        status.textContent = 'Загружаю предложки...';
+        if (!proposals.items.length) status.textContent = 'Загружаю предложки...';
         status.style.opacity = '0.7';
+        startLoadBar();
 
         const start = Date.now();
         const data = await api('proposals');
@@ -86,41 +191,71 @@ async function loadProposals() {
         proposals.items = data.items || [];
         renderProposals();
 
-        status.textContent = `${proposals.items.length} предложек${elapsed > 1000 ? ` (${(elapsed/1000).toFixed(1)}с)` : ''}${data.refreshing ? ' • обновляю...' : ''}`;
+        status.textContent = `${proposals.items.length} предложек${elapsed > 1000 ? ` (${(elapsed/1000).toFixed(1)}с)` : ''}`;
+        trackProposalMedia();
+        if (data.refreshing) {
+            status.append(' • проверяю медиа в источниках');
+            setProposalProgress(data.progress);
+        }
         status.style.opacity = '1';
 
-        if (data.refreshing && !proposals.refreshed) {
-            proposals.refreshed = true;
-            setTimeout(loadProposals, 8000);
-        }
+        if (data.refreshing) pollProposalProgress();
     } catch (error) {
+        clearInterval(mediaTimer);
+        clearInterval(loadTimer);
+        listBar.root.remove();
         $('proposals-status').textContent = `Не удалось загрузить предложку: ${error.message}`;
         $('proposals-status').style.opacity = '1';
     }
+}
+
+/** Пока сервер достраивает медиа, обновляет полосу раз в 250 мс (лёгкий запрос). По окончании перечитывает список один раз. */
+async function pollProposalProgress() {
+    clearTimeout(proposalsPollTimer);
+    if (!isTabActive('proposals-tab')) return;
+    try {
+        const data = await api('proposals_progress');
+        setProposalProgress(data.progress);
+        if (data.refreshing) proposalsPollTimer = setTimeout(pollProposalProgress, 250);
+        else loadProposals();
+    } catch { /* сеть моргнула — следующий опрос не нужен, список обновит кнопка «↻» */ }
 }
 
 // ---- «Дерево»: общие темы — корни, частные — внутри; справа — панель выбранной темы ----
 
 const tree = { topics: [], current: null, selected: null, busy: false, parentOpen: false };
 
+/** Всё дерево развёрнуто сразу: общая тема — карточка, частные — кнопки внутри. Клик открывает тему в панели справа. */
+function selectTopic(id) {
+    Object.assign(tree, { selected: id, parentOpen: false });
+    renderTree();
+    renderDetail();
+}
+
 function renderTree() {
     const ids = new Set(tree.topics.map(t => t.id));
     const children = new Map();
-    const roots = [];
-    for (const t of tree.topics) t.parent?.id && ids.has(t.parent.id) ? children.set(t.parent.id, [...(children.get(t.parent.id) || []), t]) : roots.push(t);
+    const broads = [];
+    for (const t of tree.topics) {
+        if (t.parent?.id && ids.has(t.parent.id)) children.set(t.parent.id, [...(children.get(t.parent.id) || []), t]);
+        else broads.push(t);
+    }
     const byTitle = (a, b) => a.title.localeCompare(b.title, 'ru');
-    roots.sort((a, b) => (b.scope === 'broad') - (a.scope === 'broad') || byTitle(a, b));
-    const nodeFor = t => {
+    broads.sort((a, b) => (b.scope === 'broad') - (a.scope === 'broad') || byTitle(a, b));
+    const stateClass = t => ['', tree.current === t.id && 'is-current', tree.selected === t.id && 'is-selected'].filter(Boolean);
+    const chip = t => el('button', { type: 'button', className: ['tree-chip', ...stateClass(t)].join(' '), title: t.about || t.title, onclick: () => selectTopic(t.id) },
+        el('span', { className: 'tree-chip-name', textContent: t.title }),
+        t.own_sources ? el('span', { className: 'tree-count', textContent: String(t.own_sources), title: 'Свои источники темы' }) : null,
+        tree.current === t.id ? el('span', { className: 'tree-chip-mark', textContent: '📍', 'aria-hidden': 'true' }) : null);
+    const group = t => {
         const kids = (children.get(t.id) || []).sort(byTitle);
-        const label = el('span', { className: 'tree-label', title: t.about || t.title, onclick: () => { Object.assign(tree, { selected: t.id, parentOpen: false }); renderTree(); renderDetail(); } },
-            el('span', { className: 'tree-icon', textContent: tree.current === t.id ? '📍' : t.scope === 'broad' ? '🗂' : '🔹' }), el('span', { className: 'tree-name', textContent: t.title }),
-            el('span', { className: `tree-count${t.own_sources ? '' : ' is-empty'}`, textContent: String(t.own_sources || 0), title: 'Свои источники темы' }),
-            t.uses_parent_sources ? el('span', { className: 'tree-note', textContent: 'берёт источники общей' }) : null);
-        const item = el('li', { className: ['tree-node', `tree-${t.scope}`, tree.current === t.id && 'is-current', tree.selected === t.id && 'is-selected'].filter(Boolean).join(' ') });
-        item.append(kids.length ? el('details', { className: 'tree-branch', open: t.scope === 'broad' || tree.selected === t.id }, el('summary', {}, label), el('ul', { className: 'tree-children' }, ...kids.map(nodeFor))) : label);
-        return item;
+        return el('section', { className: ['tree-group', ...stateClass(t)].join(' ') },
+            el('button', { type: 'button', className: 'tree-group-head', title: t.about || t.title, onclick: () => selectTopic(t.id) },
+                el('span', { className: 'tree-group-name', textContent: t.title }),
+                t.own_sources ? el('span', { className: 'tree-count', textContent: String(t.own_sources), title: 'Свои источники темы' }) : null),
+            kids.length ? el('div', { className: 'tree-chips' }, ...kids.map(chip)) : el('p', { className: 'tree-group-empty', textContent: 'Частных тем пока нет' }));
     };
-    $('tree-root').replaceChildren(el('ul', { className: 'tree' }, ...roots.map(nodeFor)));
+    $('tree-root').replaceChildren(...broads.map(group));
     $('tree-current-name').textContent = tree.topics.find(t => t.id === tree.current)?.title || '—';
     $('tree-status').textContent = tree.topics.length ? '' : 'Тем пока нет: введите первую тему выше.';
 }
@@ -142,7 +277,47 @@ function renderDetail() {
                 try { await api('topic_reprofile', { body: { id: t.id } }); log(`Профиль темы «${t.title}» пересоставится при следующем запуске сборщика.`); await loadTree(); }
                 catch (error) { setMessage('tree-status', `Профиль не сброшен: ${error.message}`); }
             }, 'Критерии и план поиска напишутся заново')),
-        parentEditor(t));
+        parentEditor(t), el('div', { className: 'tree-record' }, el('p', { className: 'tree-detail-empty', textContent: 'Загружаю полную запись…' })));
+    loadTopicRecord(t.id);
+}
+
+const TOPIC_LABELS = { id: 'ID', title: 'Название', scope: 'Тип', parent: 'Общая тема', aliases: 'Ещё называют', about: 'Описание', classified: 'Классифицирована', smart: 'Классифицирована ИИ', manual: 'Создана вручную', created_at: 'Создана' };
+const PROFILE_LABELS = { criteria: 'Подходит', exclude: 'Не подходит', question: 'Вопрос к картинке', queries: 'Поисковые запросы', telegram: 'Поиск в Telegram', v: 'Версия профиля', smart: 'Профиль составлен ИИ', at: 'Профиль составлен' };
+const TIME_FIELDS = ['created_at', 'at'];
+
+/** Значение поля для показа: читаемо, а сложные структуры целиком, как JSON. */
+function recordValue(key, value) {
+    if (value === null || value === undefined || value === '') return '—';
+    if (typeof value === 'boolean') return value ? 'да' : 'нет';
+    if (TIME_FIELDS.includes(key)) return value ? new Date(value * 1000).toLocaleString('ru-RU') : '—';
+    if (key === 'scope') return value === 'broad' ? 'общая тема' : 'частная тема';
+    if (Array.isArray(value) && value.every(x => x === null || typeof x !== 'object')) return value.length ? value.join(', ') : '—';
+    if (typeof value === 'object') return el('pre', { textContent: JSON.stringify(value, null, 2) });
+    return String(value);
+}
+
+/** Все поля записи темы из базы, включая профиль. Неизвестные поля тоже выводятся, под своим именем. */
+function recordRows(topic) {
+    const rows = [];
+    const add = (label, key, value) => rows.push(el('div', { className: 'tree-row' }, el('dt', { textContent: label }), el('dd', {}, recordValue(key, value))));
+    for (const [key, value] of Object.entries(topic)) {
+        if (key === 'profile') continue;
+        const shown = key === 'parent' && value ? (tree.topics.find(x => x.id === value)?.title ?? value) : value;
+        add(TOPIC_LABELS[key] || key, key, shown);
+    }
+    for (const [key, value] of Object.entries(topic.profile || {})) add(PROFILE_LABELS[key] || `Профиль: ${key}`, key, value);
+    return rows;
+}
+
+async function loadTopicRecord(id) {
+    const box = () => $('tree-detail').querySelector('.tree-record');
+    try {
+        const { topic } = await api('topic_record', { params: { id } });
+        if (tree.selected !== id) return;   // пока грузилось, выбрали другую тему
+        box()?.replaceChildren(el('h4', { className: 'tree-record-title', textContent: 'Полная запись из базы' }), el('dl', { className: 'tree-facts' }, ...recordRows(topic)));
+    } catch (error) {
+        if (tree.selected === id) box()?.replaceChildren(el('p', { className: 'tree-detail-empty', textContent: `Запись не загрузилась: ${error.message}` }));
+    }
 }
 
 function parentEditor(t) {

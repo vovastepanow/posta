@@ -43,7 +43,10 @@ function topic_normalize_entry($e) {
         'smart' => !empty($e['smart']),       // описана умной моделью (иначе её переопишут)
         'profile' => topic_profile_clean($e['profile'] ?? []),
         'manual' => !empty($e['manual']),     // место темы поправил пользователь
-        'created_at' => (int)($e['created_at'] ?? time())
+        'created_at' => (int)($e['created_at'] ?? time()),
+        'key' => preg_match('/^[a-z_]+(\.[a-z_]+)?$/', (string)($e['key'] ?? '')) ? $e['key'] : '',   // ключ из TOPIC_TREE
+        'seed' => !empty($e['seed']),         // тема пришла из готового дерева
+        'nsfw' => !empty($e['nsfw'])          // ветка 18+ или шок (частные наследуют)
     ];
 }
 
@@ -157,11 +160,92 @@ function topic_public(array $e, ?array $db = null) {
     $parent = topic_parent($e);
     $own = topic_own_source_count($e, $db);
     $p = $e['profile'];
-    return ['id' => $e['id'], 'title' => $e['title'], 'scope' => $e['scope'], 'parent' => $parent ? ['id' => $parent['id'], 'title' => $parent['title']] : null,
+    return ['id' => $e['id'], 'key' => $e['key'], 'nsfw' => $e['nsfw'], 'title' => $e['title'], 'scope' => $e['scope'], 'parent' => $parent ? ['id' => $parent['id'], 'title' => $parent['title']] : null,
         'path' => $parent ? "{$parent['title']} › {$e['title']}" : $e['title'], 'about' => $e['about'], 'aliases' => $e['aliases'], 'own_sources' => $own,
         'uses_parent_sources' => $parent !== null && $own < TOPIC_PARENT_FALLBACK_MIN, 'children' => array_column(topic_children($e), 'title'),
         'criteria' => $p['criteria'] ?? '', 'exclude' => $p['exclude'] ?? '', 'question' => $p['question'] ?? '',
         'profile' => $p ? ['smart' => $p['smart'], 'at' => $p['at']] : null];
+}
+
+/** Тема 18+ или шок: её флаг или флаг её общей темы. Пока никто не вызывает, понадобится для фильтров. */
+function topic_is_nsfw($text) {
+    if (($e = topic_lookup($text)) === null) return false;
+    return $e['nsfw'] || (bool)(topic_parent($e)['nsfw'] ?? false);
+}
+
+// ---- Засев готового дерева (lib/topic_tree.php) ----
+
+/** Тема реестра по названию (сначала) или синониму ветки; null — нет. */
+function topic_tree_find(array $topics, array $names) {
+    foreach ($names as $name) {
+        $norm = topic_norm($name);
+        foreach ($topics as $e) if (in_array($norm, array_map('topic_norm', array_merge([$e['title']], $e['aliases'])), true)) return $e;
+    }
+    return null;
+}
+
+/**
+ * Засев TOPIC_TREE в реестр: существующие темы обновляются (id, пользовательские синонимы и профиль сохраняются),
+ * новые создаются. Всё за один вызов каталога. Повторный запуск ничего не меняет.
+ * Возвращает счётчики created / updated / moved / skipped.
+ */
+function topic_tree_seed(): array {
+    $counts = ['created' => 0, 'updated' => 0, 'moved' => 0, 'skipped' => 0];
+    update_source_db(function ($db) use (&$counts) {
+        $topics = array_values($db['topics']);
+        $resolved = [];   // ключ ветки → id темы
+        $nodes = [];
+        foreach (TOPIC_TREE as $branch) {
+            $nodes[] = [$branch, null, $branch['nsfw']];
+            foreach ($branch['children'] as $child) $nodes[] = [$child, $branch, $branch['nsfw']];
+        }
+        foreach ($nodes as [$node, $parent_node, $nsfw]) {
+            $names = [$node['title'], ...$node['aliases']];
+            $existing = topic_tree_find($topics, $names);
+            $id = $existing['id'] ?? topic_id_for($node['title']);
+            $resolved[$node['key']] = $id;
+            $parent_id = $parent_node ? $resolved[$parent_node['key']] : null;
+            $pos = $existing ? array_search($existing['id'], array_column($topics, 'id'), true) : false;
+            $before = $existing ? json_encode($existing) : null;
+            $e = $existing ?? ['id' => $id, 'title' => $node['title'], 'created_at' => time(), 'profile' => [], 'classified' => true, 'smart' => true];
+            $e['key'] = $node['key'];
+            $e['seed'] = true;
+            $e['nsfw'] = $nsfw;
+            $e['aliases'] = array_values(array_merge($e['aliases'] ?? [], $node['aliases']));
+            if (!$existing || !$e['smart'] || trim((string)$e['about']) === '') $e['about'] = $node['about'];
+            if (!empty($e['manual'])) {
+                $counts['skipped']++;   // место поправил пользователь
+            } else {
+                $children = array_filter($topics, fn($c) => $c['parent'] === $id);
+                $want_scope = $parent_node ? 'narrow' : 'broad';
+                if ($want_scope === 'narrow' && $children) {
+                    $counts['skipped']++;   // в тему входят другие темы — остаётся общей
+                    cli_echo("«{$e['title']}» оставлена общей: в неё входят другие темы.");
+                } else {
+                    [$e['scope'], $e['parent']] = [$want_scope, $parent_id];
+                }
+            }
+            $e = topic_normalize_entry($e);
+            if (!$existing) {
+                $topics[] = $e;
+                $counts['created']++;
+            } else {
+                $topics[$pos] = $e;
+                $moved = $e['scope'] !== $existing['scope'] || $e['parent'] !== $existing['parent'];
+                if (json_encode($e) !== $before) $counts[$moved ? 'moved' : 'updated']++;
+            }
+        }
+        // Пользовательские темы вне дерева: без ручного места и без дочерних сбрасываем классификацию — модель подберёт родителя среди общих
+        $tree_ids = array_values($resolved);
+        foreach ($topics as &$t) {
+            if (!in_array($t['id'], $tree_ids, true) && !$t['manual'] && !array_filter($topics, fn($c) => $c['parent'] === $t['id'])) $t['classified'] = false;
+        }
+        unset($t);
+        $db['topics'] = $topics;
+        return $db;
+    });
+    topic_registry(true);
+    return $counts;
 }
 
 // ---- Название и место новой темы ----
@@ -213,7 +297,9 @@ function topic_ai_classify($text, $allow_match = true, ?string $skip_id = null) 
 
 /** Косинусная близость двух текстов по эмбеддингам; 0 — модель недоступна. */
 function topic_similarity($a, $b) {
-    [$x, $y] = array_pad((array)(http_post_json(OLLAMA_URL . '/api/embed', ['model' => TOPIC_EMBED_MODEL, 'input' => [mb_strtolower($a), mb_strtolower($b)]], 60)['data']['embeddings'] ?? []), 2, null);
+    // На процессоре: иначе bge-m3 занимает видеопамять и вытесняет модель оценки картинок, а для двух коротких строк CPU хватает
+    $payload = ['model' => TOPIC_EMBED_MODEL, 'input' => [mb_strtolower($a), mb_strtolower($b)], 'options' => ['num_gpu' => 0], 'keep_alive' => '5m'];
+    [$x, $y] = array_pad((array)(http_post_json(OLLAMA_URL . '/api/embed', $payload, 60)['data']['embeddings'] ?? []), 2, null);
     if (!is_array($x) || !is_array($y) || count($x) !== count($y)) return 0.0;
     $dot = $nx = $ny = 0.0;
     foreach ($x as $i => $v) { $dot += $v * $y[$i]; $nx += $v * $v; $ny += $y[$i] * $y[$i]; }
@@ -358,6 +444,47 @@ function topic_profile_ensure($topic) {
 function topic_profile_for_prompts($topic) {
     $e = topic_lookup(topic_parts($topic)[0] ?? $topic);
     return $e && $e['profile'] && $e['profile']['v'] === TOPIC_PROFILE_VERSION ? $e['profile'] : [];
+}
+
+/**
+ * Горячие темы сейчас: голоса за неделю (лайк 3, «не знаю» 1, не больше 15 с одного пользователя на тему)
+ * и текущая тема активных за неделю пользователей (2). Тема до HOT_TOPICS_MIN_SCORE не попадает.
+ * Возвращает не больше $limit тем, может вернуть меньше. Результат кэшируется на HOT_TOPICS_CACHE_SECONDS.
+ */
+function hot_topics($limit = HOT_TOPICS_LIMIT, $fresh = false) {
+    $cache_file = ROOT . '/hot_topics.json';
+    $cached = load_data($cache_file, []);
+    if (!$fresh && isset($cached['at']) && time() - $cached['at'] < HOT_TOPICS_CACHE_SECONDS) return array_slice($cached['topics'], 0, $limit);
+
+    $since = time() - HOT_TOPICS_WINDOW_DAYS * DAY_SECONDS;
+    $weights = ['liked' => 3, 'undecided' => 1];
+    $votes = [];   // id темы => uid => баллы
+    foreach (db_all('SELECT user_id, collection, data FROM history_items WHERE collection IN (?, ?)', array_keys($weights)) as $r) {
+        $d = db_unjson($r['data'], []);
+        if ((int)($d['timestamp'] ?? 0) < $since || !($t = topic_lookup($d['topic'] ?? ''))) continue;
+        $votes[$t['id']][$r['user_id']] = ($votes[$t['id']][$r['user_id']] ?? 0) + $weights[$r['collection']];
+    }
+    $scores = [];
+    foreach ($votes as $id => $by_user) $scores[$id] = array_sum(array_map(fn($v) => min($v, 15), $by_user));
+
+    $active = [];
+    foreach (db_all('SELECT id FROM users WHERE last_seen >= ?', [$since]) as $u) $active[$u['id']] = true;
+    foreach (user_ids() as $uid) {
+        if (!isset($active[$uid]) || !($t = topic_lookup(load_settings($uid)['topic'] ?? ''))) continue;
+        $scores[$t['id']] = ($scores[$t['id']] ?? 0) + 2;
+    }
+
+    $hot = [];
+    foreach ($scores as $id => $score) if ($score >= HOT_TOPICS_MIN_SCORE && ($t = topic_registry()[$id] ?? null)) $hot[] = ['id' => $id, 'title' => $t['title'], 'score' => $score];
+    usort($hot, fn($a, $b) => $b['score'] <=> $a['score']);
+    $hot = array_slice($hot, 0, HOT_TOPICS_LIMIT);
+    save_data($cache_file, ['at' => time(), 'topics' => $hot]);
+    return array_slice($hot, 0, $limit);
+}
+
+function topic_is_hot($text) {
+    $t = topic_lookup($text);
+    return $t !== null && in_array($t['id'], array_column(hot_topics(), 'id'), true);
 }
 
 function topic_profile_hint($topic) {

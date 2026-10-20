@@ -198,20 +198,37 @@ export async function refreshTopicLabel() {
         $('topic2-input').value = $('topic2-input').dataset.saved = data.topic2 || '';
         for (const [key, id] of Object.entries(FILTERS)) $(id).checked = key === 'active_sources_only' ? data.filters?.[key] !== false : Boolean(data.filters?.[key]);
 
-        // Обновляем тему в заголовке
-        const topicTabsNav = $('topic-tabs');
+        // Тема в заголовке: одна кнопка в стиле вкладки и выпадающий список всех тем
         try {
             const topics = (await api('topics')).topics || [];
-            const topicButtons = topics.slice(0, 8).map(t => {
-                const btn = el('button', { className: 'tab-btn', type: 'button', role: 'tab', textContent: t.title });
-                if (t.title === currentTopic) btn.classList.add('active');
-                btn.onclick = () => submitTopic(t.title);
-                return btn;
-            });
-            topicTabsNav.replaceChildren(...topicButtons);
+            renderTopicSwitch(topics, currentTopic);
             $('topic-options').replaceChildren(...topics.map(t => el('option', { value: t.title, label: t.path })));
         } catch { /* подсказок не будет */ }
     } catch (error) { log(`Не удалось загрузить тему поиска: ${error.message}`); }
+}
+
+let topicSwitch = null;
+
+/** Меню создаётся один раз, при каждом обновлении меняются подпись кнопки и список. */
+function renderTopicSwitch(topics, currentTopic) {
+    if (!topicSwitch) {
+        const label = el('span', { className: 'topic-switch-label' });
+        const caret = el('span', { className: 'topic-switch-caret', textContent: '▾' });
+        caret.setAttribute('aria-hidden', 'true');
+        const button = el('button', { className: 'tab-btn topic-switch-button', type: 'button', title: 'Выбрать тему поиска' }, label, caret);
+        button.setAttribute('aria-haspopup', 'menu');
+        button.setAttribute('aria-expanded', 'false');
+        const menu = el('div', { className: 'topic-switch-menu', role: 'menu', hidden: true });
+        $('topic-tabs').replaceChildren(el('div', { className: 'topic-switch' }, button, menu));
+        bindMenu(button, menu, item => submitTopic(item.dataset.topic));
+        topicSwitch = { label, menu };
+    }
+    topicSwitch.label.textContent = currentTopic || 'Тема';
+    topicSwitch.menu.replaceChildren(...topics.map(t => {
+        const item = el('button', { type: 'button', role: 'menuitem', textContent: t.title, title: t.path || '', className: t.title === currentTopic ? 'is-current' : '' });
+        item.dataset.topic = t.title;
+        return item;
+    }));
 }
 
 /** Сохраняет тему (общий код с вкладкой «Дерево»): показывает, во что превратился ввод, и даёт возразить. Возвращает ответ сервера. */
