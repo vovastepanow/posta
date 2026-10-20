@@ -368,14 +368,35 @@
   </section>
 
   <section class="account-section" data-section="databases" hidden>
-    <div class="database-toolbar">
-      <label><span>База</span><select id="database-select"></select></label>
-      <label><span>Коллекция</span><select id="database-collection-select"></select></label>
-      <button id="database-add" class="primary-button" type="button">＋ Добавить запись</button>
-      <button id="database-refresh" class="refresh-button" type="button" aria-label="Обновить список">↻</button>
+    <div class="database-layout">
+      <div class="database-sidebar">
+        <div class="database-toolbar">
+          <label><span>База</span><select id="database-select"></select></label>
+          <label><span>Коллекция</span><select id="database-collection-select"></select></label>
+          <button id="database-refresh" class="refresh-button" type="button" aria-label="Обновить список">↻</button>
+        </div>
+        <div id="database-list" class="database-list" role="listbox"></div>
+      </div>
+      <div class="database-main">
+        <div id="database-status" class="database-status" role="status">Выберите базу для просмотра записей.</div>
+        <div id="database-browser" class="database-browser" hidden>
+          <div class="database-header">
+            <div class="database-breadcrumb" id="database-breadcrumb"></div>
+            <button id="database-add" class="primary-button" type="button">＋ Добавить</button>
+          </div>
+          <div class="database-viewer">
+            <button id="database-prev" class="database-nav-btn" type="button" aria-label="Предыдущая запись">‹</button>
+            <div id="database-record-view" class="database-record-view"></div>
+            <button id="database-next" class="database-nav-btn" type="button" aria-label="Следующая запись">›</button>
+          </div>
+          <div class="database-record-actions">
+            <button id="database-edit" class="secondary-button" type="button">Редактировать</button>
+            <button id="database-delete" class="danger-button" type="button">Удалить</button>
+          </div>
+        </div>
+        <div id="database-records" class="database-records"></div>
+      </div>
     </div>
-    <div id="database-status" class="database-status" role="status">Выберите базу для просмотра записей.</div>
-    <div id="database-records" class="database-records"></div>
     <div class="database-danger-zone">
       <span>Очистить ваши данные: пул и история станут пустыми и сразу начнётся поиск контента по текущей теме. Общий каталог источников не меняется.</span>
       <button id="database-reset" class="danger-button" type="button">Очистить мои данные</button>

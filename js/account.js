@@ -287,7 +287,7 @@ async function loadAccount() {
 
 // ---- Базы данных: записи JSON-файлов, правка с проверкой «запись не изменилась» на сервере ----
 
-const db = { databases: [], ready: null, items: [], columns: [], editing: null };
+const db = { databases: [], ready: null, items: [], columns: [], editing: null, currentIndex: null, database: null, collection: null };
 const dbSelected = () => [$('database-select').value, $('database-collection-select').value];
 const dbStatus = (text, error = false) => { $('database-status').textContent = text; $('database-status').classList.toggle('error-msg', error); };
 const option = ({ id, label }) => el('option', { value: id, textContent: label });
@@ -301,6 +301,7 @@ function loadDatabaseOptions() {
 }
 
 async function loadCollections() {
+    db.currentIndex = null;
     $('database-collection-select').replaceChildren(...(db.databases.find(d => d.id === $('database-select').value)?.collections || []).map(option));
     await loadRecords();
 }
@@ -309,15 +310,139 @@ async function loadCollections() {
 async function loadRecords() {
     const [database, collection] = dbSelected();
     if (!database || !collection) return;
+    db.database = database;
+    db.collection = collection;
     dbStatus('Загружаю записи...');
     try {
         const d = await api('database_read', { params: { database, collection } });
         db.items = d.items || [];
         db.columns = d.columns || [];
         db.mediaMissing = new Set(d.media_missing || []);
-        dbStatus(`${d.database_label} · ${d.collection_label} · ${db.items.length} ${pluralRu(db.items.length, 'запись', 'записи', 'записей')}`);
+        db.databaseLabel = d.database_label;
+        db.collectionLabel = d.collection_label;
+        dbStatus('');
     } catch (error) { db.items = []; db.columns = []; dbStatus(`Не удалось прочитать коллекцию: ${error.message}`, true); }
-    $('database-records').replaceChildren(...(db.items.length ? [recordsTable(db.items, db.columns, db.mediaMissing)] : [el('div', { className: 'database-empty', textContent: 'В этой коллекции пока нет записей.' })]));
+
+    if (!db.items.length) {
+        $('database-status').textContent = 'В этой коллекции пока нет записей.';
+        $('database-records').replaceChildren(el('div', { className: 'database-empty', textContent: 'В этой коллекции пока нет записей.' }));
+        $('database-browser').hidden = true;
+        $('database-list').replaceChildren();
+        return;
+    }
+
+    renderDatabaseList();
+    if (db.currentIndex === null) selectRecord(0);
+}
+
+function renderDatabaseList() {
+    const items = db.items.map((record, idx) => {
+        const label = record && typeof record === 'object' ? (record.text ? record.text.slice(0, 50) : record.name || record.title || `Запись #${idx + 1}`) : String(record).slice(0, 50);
+        const btn = el('button', { type: 'button', className: 'database-list-item', textContent: `#${idx + 1}: ${label}` });
+        btn.addEventListener('click', () => selectRecord(idx));
+        return btn;
+    });
+    $('database-list').replaceChildren(...items);
+    updateListSelection();
+}
+
+function updateListSelection() {
+    document.querySelectorAll('.database-list-item').forEach((btn, idx) => {
+        btn.classList.toggle('active', idx === db.currentIndex);
+    });
+}
+
+function selectRecord(index) {
+    if (index < 0 || index >= db.items.length) return;
+    db.currentIndex = index;
+    updateListSelection();
+    renderDatabaseBrowser();
+}
+
+function renderDatabaseBrowser() {
+    const idx = db.currentIndex;
+    const record = db.items[idx];
+
+    $('database-browser').hidden = false;
+    $('database-records').replaceChildren();
+
+    // Хлебные крошки
+    $('database-breadcrumb').replaceChildren(
+        el('span', { textContent: db.databaseLabel }),
+        el('span', { className: 'separator', textContent: '›' }),
+        el('span', { textContent: db.collectionLabel }),
+        el('span', { className: 'separator', textContent: '›' }),
+        el('span', { textContent: `Запись #${idx + 1} / ${db.items.length}` })
+    );
+
+    // Кнопки навигации
+    $('database-prev').disabled = idx <= 0;
+    $('database-next').disabled = idx >= db.items.length - 1;
+
+    // Представление записи
+    renderRecordDetails(record, idx);
+}
+
+function renderRecordDetails(record, index) {
+    const isMedia = db.mediaMissing.has(index);
+    const media = !isMedia ? dbMediaItem(record) : null;
+
+    const children = [];
+
+    // Медиа
+    if (media) {
+        const mediaEl = media.kind === 'image'
+            ? el('img', { src: media.src, alt: media.alt || '', className: 'database-record-item-media', style: 'max-width: 100%; height: auto;' })
+            : el('video', { src: media.src, className: 'database-record-item-media', controls: true, style: 'max-width: 100%; height: auto;' });
+        children.push(mediaEl);
+    }
+
+    // Содержимое
+    const isObject = record && typeof record === 'object' && !Array.isArray(record);
+    const fields = isObject ? Object.entries(record) : [['value', record]];
+
+    const contentChildren = [];
+    for (const [key, value] of fields) {
+        if (key === 'image_local' || key === 'image' || key === 'video_local' || key === 'video') continue;
+        contentChildren.push(renderRecordField(key, value));
+    }
+
+    if (contentChildren.length) {
+        children.push(el('div', { className: 'database-record-item-content' }, ...contentChildren));
+    }
+
+    const recordView = el('div', { className: 'database-record-item' }, ...children);
+    $('database-record-view').replaceChildren(recordView);
+}
+
+function renderRecordField(key, value) {
+    let displayValue;
+    if (value === null || value === undefined || value === '') {
+        displayValue = el('span', { className: 'database-record-field-value', textContent: '(пусто)' });
+    } else if (typeof value === 'boolean') {
+        displayValue = el('span', { className: 'database-record-field-value', textContent: value ? 'да' : 'нет' });
+    } else if (DB_TIME_FIELDS.includes(key) && Number(value) > 0) {
+        displayValue = el('span', { className: 'database-record-field-value', textContent: new Date(Number(value) * 1000).toLocaleString('ru-RU') });
+    } else if (typeof value === 'object') {
+        displayValue = el('code', { className: 'database-record-field-value code', textContent: JSON.stringify(value, null, 2) });
+    } else {
+        const text = String(value);
+        const isUrl = /^https?:\/\//.test(text);
+        if (isUrl && text.length > DB_TEXT_LIMIT) {
+            displayValue = el('a', { href: text, target: '_blank', rel: 'noopener noreferrer', className: 'database-record-field-value', title: text, textContent: `${text.slice(0, DB_TEXT_LIMIT - 1)}…` });
+        } else if (isUrl) {
+            displayValue = el('a', { href: text, target: '_blank', rel: 'noopener noreferrer', className: 'database-record-field-value', textContent: text });
+        } else if (text.length > DB_TEXT_LIMIT) {
+            displayValue = el('span', { className: 'database-record-field-value', textContent: `${text.slice(0, DB_TEXT_LIMIT - 1)}…`, title: text });
+        } else {
+            displayValue = el('span', { className: 'database-record-field-value', textContent: text });
+        }
+    }
+
+    return el('div', { className: 'database-record-field' },
+        el('div', { className: 'database-record-field-label', textContent: key }),
+        displayValue
+    );
 }
 
 const DB_TIME_FIELDS = ['posted_at', 'timestamp', 'pooled_at', 'created_at', 'at'];
@@ -389,7 +514,7 @@ function openDialog(title, record, index = null) {
 
 async function change(action, extra) {
     const [database, collection] = dbSelected();
-    try { await api(action, { body: { database, collection, ...extra } }); $('database-edit-dialog').close(); await loadRecords(); return true; }
+    try { await api(action, { body: { database, collection, ...extra } }); $('database-edit-dialog').close(); db.currentIndex = null; await loadRecords(); return true; }
     catch (error) { dbStatus(`Не удалось ${action === 'database_delete' ? 'удалить' : 'сохранить'} запись: ${error.message}`, true); return false; }
 }
 
@@ -408,6 +533,19 @@ function initializeDatabases(onReset) {
     $('database-collection-select').addEventListener('change', loadRecords);
     $('database-refresh').addEventListener('click', loadRecords);
     $('database-add').addEventListener('click', () => openDialog('Добавить запись', template(...dbSelected())));
+    $('database-prev').addEventListener('click', () => selectRecord(db.currentIndex - 1));
+    $('database-next').addEventListener('click', () => selectRecord(db.currentIndex + 1));
+    $('database-edit').addEventListener('click', () => {
+        if (db.currentIndex !== null) openDialog('Редактировать запись', db.items[db.currentIndex], db.currentIndex);
+    });
+    $('database-delete').addEventListener('click', () => {
+        if (db.currentIndex !== null) {
+            const idx = db.currentIndex;
+            if (confirm(`Удалить запись #${idx + 1}? Это действие нельзя отменить.`)) {
+                change('database_delete', { index: idx, expected: db.items[idx] });
+            }
+        }
+    });
     $('database-cancel').addEventListener('click', () => $('database-edit-dialog').close());
     $('database-edit-form').addEventListener('submit', e => {
         e.preventDefault();
@@ -422,6 +560,7 @@ function initializeDatabases(onReset) {
             log(`Базы очищены. Поиск контента: ${['started', 'running'].includes(d.parser) ? 'запущен' : 'не запустился'}.`);
             watchParser();
             onReset?.();
+            db.currentIndex = null;
             await loadRecords();
         });
     });
