@@ -130,7 +130,7 @@ function formatPostedAt(seconds) {
     return minutes < 20160 ? `${Math.round(minutes / 1440)} дн назад` : new Date(seconds * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function renderCard(item) {
+function renderCard(item, archiveInfo = null) {
     Object.assign(state, { item, slides: itemSlides(item), index: 0 });
     renderSlide();
     applyRocketCheck($('item-rocket'), item.post_check);
@@ -148,6 +148,18 @@ function renderCard(item) {
     $('item-source-link').hidden = !url;
     $('item-why-text').textContent = item.why_relevant || 'Нет объяснения от ИИ';
     $('item-desc').replaceChildren(el('strong', { textContent: 'Описание ИИ:' }), ` ${item.description || 'Анализ отсутствует'}`);
+
+    // Если это архивный пост - показываем предупреждение о 🔥
+    if (archiveInfo?.archive) {
+        const runtime = archiveInfo.parser_runtime || 0;
+        const runtimeText = runtime < 60 ? `${runtime}с` : `${Math.floor(runtime / 60)}м ${runtime % 60}с`;
+        const warning = `${archiveInfo.fire_warning || '🔥 Пост скоро исчезнет'} (поиск идёт ${runtimeText})`;
+        log(`⚠️ ${warning}`);
+        setMessage('item-error', warning);  // используем существующий элемент для сообщения об ошибке как предупреждение
+    } else {
+        setMessage('item-error', '');
+    }
+
     showArea('card');
     const source = item.source || 'источник не указан';
     log(`Показана запись: ${url ? `[${source}](${url})` : source}, по теме ${relevance}%${rating === null ? '' : `, прогноз ${rating}%`}.`);
@@ -158,9 +170,26 @@ export async function loadCurrentItem() {
     clearTimeout(state.poll);
     try {
         const data = await api('get_current_item');
-        if (data.status === 'loading') { state.item = null; showArea('searching'); watchParser(); state.poll = setTimeout(loadCurrentItem, 3000); return; }
-        if (data.status === 'empty' || !data.image) { Object.assign(state, { item: null, slides: [] }); showArea('empty', data.message); log(data.message || 'Пул контента пуст.'); return; }
-        renderCard(data);
+        if (data.status === 'loading') {
+            state.item = null;
+            showArea('searching');
+            // Показываем время работы парсера если оно известно
+            if (data.parser_runtime > 0) {
+                const runtimeText = data.parser_runtime < 60 ? `${Math.floor(data.parser_runtime)}с` : `${Math.floor(data.parser_runtime / 60)}м`;
+                log(`⏱️ Парсер работает ${runtimeText}...`);
+            }
+            watchParser();
+            state.poll = setTimeout(loadCurrentItem, 3000);
+            return;
+        }
+        if (data.status === 'empty' || !data.image) {
+            Object.assign(state, { item: null, slides: [] });
+            showArea('empty', data.message);
+            log(data.message || 'Пул контента пуст.');
+            return;
+        }
+        // Архивный пост (парсер медленный) или обычный
+        renderCard(data, data.archive ? data : null);
     } catch (error) {
         log(`Ошибка загрузки записи: ${error.message}`);
         showArea('error', `Не удалось загрузить запись: ${error.message}`);

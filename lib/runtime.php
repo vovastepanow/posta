@@ -23,6 +23,14 @@ function content_parser_process_running($pid) {
 function parser_state() { return json_decode((string)@file_get_contents(parser_runtime_file('.json')), true) ?: []; }
 function content_parser_is_running() { return content_parser_process_running((int)(parser_state()['pid'] ?? 0)); }
 
+/** Сколько секунд парсер работает, или null если он не работает. */
+function parser_runtime_seconds() {
+    $state = parser_state();
+    if (!content_parser_is_running()) return null;
+    $started = (int)($state['started_at'] ?? 0);
+    return $started > 0 ? time() - $started : null;
+}
+
 /** Текущий этап парсера для шапки журнала (сбор, быстрая оценка, полный анализ, поиск источников). Пишется на каждом переходе. */
 function parser_phase($text = null) {
     $file = parser_runtime_file('.phase');

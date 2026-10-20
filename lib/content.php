@@ -193,6 +193,20 @@ function pool_topic_count($key) {
     return count(array_filter(pool_load(), fn($i) => is_array($i) && pool_item_is_fresh($i) && topic_norm($i['topic'] ?? '') === topic_norm($key)));
 }
 
+/** Архивные (старые, но с кэшированным медиа) посты для показа когда парсер медленный. */
+function pool_archive_items(array $frozen_labels = []) {
+    $archive = [];
+    foreach (pool_load() as $i) {
+        if (!is_array($i)) continue;
+        // Пропускаем свежие посты и посты замороженных источников
+        if (pool_item_is_fresh($i) || isset($frozen_labels[mb_strtolower((string)($i['source'] ?? ''))])) continue;
+        if (!empty($i['proposal_hidden'])) continue;
+        // Проверяем что есть локальный кэш медиа (иначе пост не покажется)
+        if (!empty($i['image_local']) || !empty($i['video_local'])) $archive[] = $i;
+    }
+    return $archive;
+}
+
 /** Пул для темы неполный: свежих записей меньше CONTENT_POOL_TARGET. Просроченные при этом остаются в пуле до нужды. */
 function content_pool_needs_fill($key) {
     pool_stamp_legacy();

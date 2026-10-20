@@ -68,6 +68,7 @@ const CONTENT_ADDED_PER_RUN = 30;
 const CONTENT_ANALYZE_PER_RUN = 80;
 const PARSER_MAX_SECONDS = 2400;
 const PARSER_COOLDOWN_SECONDS = 600;
+const PARSER_SLOW_THRESHOLD_SECONDS = 30;                // через сколько сек показываем архивные посты с 🔥 если парсер ещё работает
 const RELEVANCE_THRESHOLD = 61;                           // порог «по теме» для попадания в пул
 const PRESCREEN_MAX_SIDE = 768;
 const PRESCREEN_THRESHOLD = RELEVANCE_THRESHOLD;           // тот же порог, что и для пула: записи 40–60 не тратят полный анализ зря

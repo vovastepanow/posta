@@ -190,10 +190,12 @@ async function pollParser() {
     parser.busy = true;
     let running = parser.running;
     let phase = 'ничего не делается';
+    let runtime = 0;
     try {
         const data = await api('parser_status');
         running = Boolean(data.running);
         phase = data.phase || (running ? 'парсер работает' : 'ничего не делается');
+        runtime = data.runtime || 0;
         if (running && !parser.running) { console_.parserLines = []; console_.waitingShown = false; }
         if (running || data.activity?.length) appendParserActivity(data.activity);
     } catch { /* сервер временно недоступен */ }
@@ -202,7 +204,13 @@ async function pollParser() {
         if (!running) finishLiveThinking();
         parser.listeners.forEach(listener => listener(running));
     }
-    $('activity-console-status').textContent = running ? phase : 'ничего не делается';
+    // Показываем статус парсера с временем работы если оно есть
+    let statusText = running ? phase : 'ничего не делается';
+    if (running && runtime > 0) {
+        const runtimeText = runtime < 60 ? `${Math.floor(runtime)}с` : `${Math.floor(runtime / 60)}м ${runtime % 60}с`;
+        statusText = `${phase} (${runtimeText})`;
+    }
+    $('activity-console-status').textContent = statusText;
     $('activity-console').classList.toggle('is-active', running);
     parser.busy = false;
     parser.timer = setTimeout(pollParser, running ? 2000 : 15000);

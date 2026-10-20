@@ -3,9 +3,37 @@
 
 function handle_get_current_item() {
     if ($pool = pool_for_current_topic()) json_response(content_for_display($pool[0], array_slice($pool, 1, 3)));
-    in_array(start_content_parser_if_needed(), ['started', 'running'], true)
-        ? json_response(['status' => 'loading', 'message' => 'Ищем контент...'])
-        : json_response(['status' => 'empty', 'message' => 'Нового контента пока нет. Можно повторить поиск или добавить запись вручную.']);
+
+    // Проверяем статус парсера
+    $parser_started = start_content_parser_if_needed();
+    $is_running = in_array($parser_started, ['started', 'running'], true);
+
+    if (!$is_running) {
+        json_response(['status' => 'empty', 'message' => 'Нового контента пока нет. Можно повторить поиск или добавить запись вручную.']);
+    }
+
+    // Парсер работает - проверяем как долго и показываем архивные посты если долго
+    $runtime = parser_runtime_seconds();
+    if ($runtime !== null && $runtime >= PARSER_SLOW_THRESHOLD_SECONDS) {
+        [$topic, $key, $f] = [current_topic(), search_topic_key(), content_filters()];
+        $frozen = $f['active_sources_only'] ? frozen_source_labels() : [];
+
+        // Фильтруем архивные посты по теме
+        $all_archive = pool_archive_items($frozen);
+        $archive = array_values(array_filter($all_archive, fn($i) => pool_item_in_topic($i, $topic, $key)));
+
+        if ($archive) {
+            $response = content_for_display($archive[0], array_slice($archive, 1, 3));
+            $response['archive'] = true;
+            $response['fire_warning'] = "🔥 Пост скоро исчезнет";
+            $response['parser_runtime'] = $runtime;
+            $response['parser_status'] = 'slow';
+            json_response($response);
+        }
+    }
+
+    // Нормальный показ "loading"
+    json_response(['status' => 'loading', 'message' => 'Ищем контент...', 'parser_runtime' => $runtime ?? 0]);
 }
 
 /** Запись относится к теме поиска или к составной «первая + вторая»; записи без темы подходят всем. */
@@ -42,7 +70,9 @@ function pool_for_current_topic() {
 
 function handle_parser_status() {
     $running = content_parser_is_running();
-    json_response(['running' => $running, 'phase' => $running ? (parser_phase() ?: 'парсер работает') : 'ничего не делается', 'activity' => content_parser_activity()]);
+    $response = ['running' => $running, 'phase' => $running ? (parser_phase() ?: 'парсер работает') : 'ничего не делается', 'activity' => content_parser_activity()];
+    if ($running) $response['runtime'] = parser_runtime_seconds();
+    json_response($response);
 }
 
 function request_tab_id($input) { return is_valid_tab_id($tab = $input['tab'] ?? '') ? $tab : json_error('Некорректный идентификатор вкладки.'); }
