@@ -209,6 +209,7 @@ function proposal_backfill_media($limit = 6) {
     foreach (PROPOSAL_COLLECTIONS as $c) foreach (load_history()[$c] ?? [] as $r) {
         if (is_array($r) && empty($r['media_cached']) && empty($r['proposal_hidden']) && count($todo) < $limit) $todo[content_image_key($r)] = $r;
     }
+    if (!$todo) return 0;
     $found = [];
     foreach ($todo as $key => $r) if (($m = proposal_fetch_media($r)) !== null) $found[$key] = proposal_cache_media($r, $m);
     if (!$found) return 0;

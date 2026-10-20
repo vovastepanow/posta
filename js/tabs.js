@@ -75,11 +75,28 @@ function renderProposals() {
 
 async function loadProposals() {
     try {
+        const status = $('proposals-status');
+        status.textContent = 'Загружаю предложки...';
+        status.style.opacity = '0.7';
+
+        const start = Date.now();
         const data = await api('proposals');
+        const elapsed = Date.now() - start;
+
         proposals.items = data.items || [];
         renderProposals();
-        if (data.refreshing && !proposals.refreshed) { proposals.refreshed = true; setTimeout(loadProposals, 8000); }   // сервер достраивает старые записи в фоне
-    } catch (error) { $('proposals-status').textContent = `Не удалось загрузить предложку: ${error.message}`; }
+
+        status.textContent = `${proposals.items.length} предложек${elapsed > 1000 ? ` (${(elapsed/1000).toFixed(1)}с)` : ''}${data.refreshing ? ' • обновляю...' : ''}`;
+        status.style.opacity = '1';
+
+        if (data.refreshing && !proposals.refreshed) {
+            proposals.refreshed = true;
+            setTimeout(loadProposals, 8000);
+        }
+    } catch (error) {
+        $('proposals-status').textContent = `Не удалось загрузить предложку: ${error.message}`;
+        $('proposals-status').style.opacity = '1';
+    }
 }
 
 // ---- «Дерево»: общие темы — корни, частные — внутри; справа — панель выбранной темы ----
