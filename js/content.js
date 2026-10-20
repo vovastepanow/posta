@@ -34,7 +34,7 @@ function showArea(area, message = '') {
 /** Обновляет информацию о прогрессе парсера в UI. */
 async function updateParserProgress() {
     if (!state.parserStartTime) return;
-
+    
     try {
         const data = await api('parser_status');
         if (!data.running) {
@@ -50,14 +50,20 @@ async function updateParserProgress() {
     const remainingSeconds = Math.max(0, 2400 - elapsed);
     const remainingMin = Math.ceil(remainingSeconds / 60);
 
-    $('parser-topic-name').textContent = state.currentTopic || '—';
-    $('parser-progress-time').textContent = elapsedMin;
-    $('parser-progress-remaining').textContent = '~' + remainingMin;
+    const topicEl = $('parser-topic-name');
+    const timeEl = $('parser-progress-time');
+    const remainingEl = $('parser-progress-remaining');
+    const percentEl = $('parser-progress-percent');
+    const fillEl = $('parser-progress-fill');
+    
+    if (topicEl) topicEl.textContent = state.currentTopic || '—';
+    if (timeEl) timeEl.textContent = elapsedMin;
+    if (remainingEl) remainingEl.textContent = '~' + remainingMin;
 
     const maxSeconds = 2400;
     const progressPercent = Math.min(100, Math.floor((elapsed / maxSeconds) * 100));
-    $('parser-progress-percent').textContent = progressPercent;
-    $('parser-progress-fill').style.width = progressPercent + '%';
+    if (percentEl) percentEl.textContent = progressPercent;
+    if (fillEl) fillEl.style.width = progressPercent + '%';
 }
 
 // ---- Слайды: у каждого основной адрес (копия из кэша) и запасной (исходная ссылка) ----
