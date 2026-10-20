@@ -547,8 +547,8 @@ function load_source_db() {
     $catalog = catalog_load();
     $db = [
         '2ch_boards' => array_keys($catalog['sources']['2ch_boards'] ?? []),
-        'vk_publics' => array_keys($catalog['sources']['vk_publics'] ?? []),
-        'telegram_channels' => array_keys($catalog['sources']['telegram_channels'] ?? []),
+        'vk_publics' => array_values($catalog['sources']['vk_publics'] ?? []),
+        'telegram_channels' => array_values($catalog['sources']['telegram_channels'] ?? []),
         'source_votes' => $catalog['votes'] ?? [],
         'source_suggestions' => $catalog['suggestions'] ?? [],
         'dvach_topic_boards' => $catalog['kv']['dvach_topic_boards'] ?? [],
