@@ -149,14 +149,16 @@ function renderCard(item, archiveInfo = null) {
     $('item-why-text').textContent = item.why_relevant || 'Нет объяснения от ИИ';
     $('item-desc').replaceChildren(el('strong', { textContent: 'Описание ИИ:' }), ` ${item.description || 'Анализ отсутствует'}`);
 
-    // Если это архивный пост - показываем предупреждение о 🔥
+    // Если это архивный пост - добавляем CSS класс для анимаций (весь контент генерируется в CSS)
+    const cardEl = $('item-card-wrapper').querySelector('.card');
     if (archiveInfo?.archive) {
         const runtime = archiveInfo.parser_runtime || 0;
         const runtimeText = runtime < 60 ? `${runtime}с` : `${Math.floor(runtime / 60)}м ${runtime % 60}с`;
-        const warning = `${archiveInfo.fire_warning || '🔥 Пост скоро исчезнет'} (поиск идёт ${runtimeText})`;
-        log(`⚠️ ${warning}`);
-        setMessage('item-error', warning);  // используем существующий элемент для сообщения об ошибке как предупреждение
+        cardEl.classList.add('is-archive');
+        setMessage('item-error', '');
+        log(`🔥 Архивный пост (парсер работает ${runtimeText})`);
     } else {
+        cardEl.classList.remove('is-archive');
         setMessage('item-error', '');
     }
 
