@@ -20,6 +20,7 @@ function showArea(area, message = '') {
         show('item-searching');
         clearInterval(state.progressInterval);
         state.parserStartTime = Date.now();
+        console.log('🟢 Прогресс начат. Время:', state.parserStartTime, 'Тема:', state.currentTopic);
         updateParserProgress();
         state.progressInterval = setInterval(updateParserProgress, 2000);
     } else {
@@ -33,22 +34,29 @@ function showArea(area, message = '') {
 
 /** Обновляет информацию о прогрессе парсера в UI. */
 async function updateParserProgress() {
-    if (!state.parserStartTime) return;
+    if (!state.parserStartTime) {
+        console.log('❌ parserStartTime не установлен');
+        return;
+    }
     
     try {
         const data = await api('parser_status');
         if (!data.running) {
+            console.log('⏹️ Парсер остановлен');
             clearInterval(state.progressInterval);
             return;
         }
     } catch (e) {
-        // Продолжаем обновлять локальное время даже если статус недоступен
+        console.log('⚠️ Ошибка API:', e.message);
     }
 
     const elapsed = Math.floor((Date.now() - state.parserStartTime) / 1000);
     const elapsedMin = (elapsed / 60).toFixed(1);
     const remainingSeconds = Math.max(0, 2400 - elapsed);
     const remainingMin = Math.ceil(remainingSeconds / 60);
+    const progressPercent = Math.min(100, Math.floor((elapsed / 2400) * 100));
+
+    console.log(`⏱️ Прошло: ${elapsedMin}м | Осталось: ~${remainingMin}м | ${progressPercent}%`);
 
     const topicEl = $('parser-topic-name');
     const timeEl = $('parser-progress-time');
@@ -59,9 +67,9 @@ async function updateParserProgress() {
     if (topicEl) topicEl.textContent = state.currentTopic || '—';
     if (timeEl) timeEl.textContent = elapsedMin;
     if (remainingEl) remainingEl.textContent = '~' + remainingMin;
-
-    const maxSeconds = 2400;
-    const progressPercent = Math.min(100, Math.floor((elapsed / maxSeconds) * 100));
+    if (percentEl) percentEl.textContent = progressPercent;
+    if (fillEl) fillEl.style.width = progressPercent + '%';
+}
     if (percentEl) percentEl.textContent = progressPercent;
     if (fillEl) fillEl.style.width = progressPercent + '%';
 }
@@ -225,8 +233,10 @@ export async function loadCurrentItem() {
             try {
                 const settings = await api('settings');
                 state.currentTopic = settings.topic || 'подбор контента';
+                console.log('📍 Тема получена:', state.currentTopic);
             } catch (e) {
                 state.currentTopic = 'подбор контента';
+                console.log('⚠️ Ошибка при получении темы:', e.message);
             }
             showArea('searching');
             // Показываем время работы парсера если оно известно
