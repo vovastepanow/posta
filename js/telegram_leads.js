@@ -4,7 +4,32 @@
  * Управление "умным радаром лидов" из Telegram
  * Long-Polling каждые N секунд для получения новых лидов
  * Отправка actions на бэкенд
+ * Отдельная консоль для логов обработки
  */
+
+/**
+ * Логирование в отдельную консоль радара
+ */
+function logToRadarConsole(message, type = 'info') {
+    const console = document.getElementById('telegram-leads-console');
+    if (!console) return;
+
+    const time = new Date().toLocaleTimeString('ru-RU');
+    const line = document.createElement('div');
+    line.className = `tg-console-line tg-console-${type}`;
+    line.innerHTML = `<span class="tg-console-timestamp">[${time}]</span> ${message}`;
+
+    console.appendChild(line);
+
+    // Автоскролл вниз
+    console.scrollTop = console.scrollHeight;
+
+    // Ограничиваем количество строк (максимум 500)
+    const lines = console.querySelectorAll('.tg-console-line');
+    if (lines.length > 500) {
+        lines[0].remove();
+    }
+}
 
 class TelegramLeadsManager {
     constructor(options = {}) {
@@ -28,8 +53,11 @@ class TelegramLeadsManager {
 
         if (!this.container) {
             console.warn('[TelegramLeads] Container not found:', this.containerSelector);
+            logToRadarConsole('❌ Контейнер лидов не найден', 'error');
             return;
         }
+
+        logToRadarConsole('✅ Радар лидов инициализирован', 'success');
 
         // Запуск первого опроса сразу
         this.poll();
@@ -64,6 +92,7 @@ class TelegramLeadsManager {
             const data = await response.json();
 
             if (data.leads && data.leads.length > 0) {
+                logToRadarConsole(`📥 Получено ${data.leads.length} лидов (всего: ${data.total})`, 'info');
                 // Рендерим новые лиды в DOM
                 this.renderLeads(data.leads);
 
@@ -72,6 +101,7 @@ class TelegramLeadsManager {
             }
         } catch (error) {
             console.error('[TelegramLeads] Poll error:', error);
+            logToRadarConsole(`⚠️ Ошибка при опросе: ${error.message}`, 'error');
         } finally {
             this.isPolling = false;
         }
@@ -175,6 +205,14 @@ class TelegramLeadsManager {
         // Добавляем визуальный feedback
         cardElement.classList.add('tg-lead-processing');
 
+        const actionLabels = {
+            'replied': 'Ответил',
+            'interested': 'Интересен',
+            'spam': 'Спам'
+        };
+        const actionLabel = actionLabels[action] || action;
+        logToRadarConsole(`🔄 Обновление статуса лида #${leadId}: ${actionLabel}...`, 'info');
+
         try {
             const response = await fetch('/?action=update_telegram_lead', {
                 method: 'POST',
@@ -193,6 +231,7 @@ class TelegramLeadsManager {
             const result = await response.json();
 
             if (result.status === 'success') {
+                logToRadarConsole(`✓ Лид #${leadId} отмечен как "${actionLabel}"`, 'success');
                 // Плавное удаление карточки из DOM
                 this.removeCardWithAnimation(cardElement);
 
@@ -204,6 +243,7 @@ class TelegramLeadsManager {
 
         } catch (error) {
             console.error('[TelegramLeads] Action error:', error);
+            logToRadarConsole(`❌ Ошибка при обновлении: ${error.message}`, 'error');
             cardElement.classList.remove('tg-lead-processing');
             alert('Ошибка: не удалось обновить статус лида');
         }

@@ -111,7 +111,7 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 }
 
 /* ---- Журнал ---- */
-.activity-console { display: flex; flex-direction: column; box-sizing: border-box; width: min(100%, 900px); height: 600px; margin: 0 0 20px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: #080809; font: 12px/1.55 var(--mono); }
+.activity-console { display: flex; flex-direction: column; box-sizing: border-box; width: min(100%, 900px); height: 850px; margin: 0 0 20px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: #080809; font: 12px/1.55 var(--mono); }
 .activity-console-header { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
 #activity-console-status { margin-left: 0; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
 #debug-toggle { margin-left: auto; }

@@ -1,6 +1,63 @@
 /* css/telegram_leads.css */
 /* Стили для компонента "умный радар лидов из Telegram" */
 
+/* === ОТДЕЛЬНАЯ КОНСОЛЬ РАДАРА === */
+
+.telegram-leads-console {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 100%;
+    height: 250px;
+    overflow: hidden;
+    border: 1px solid var(--line, #e0e0e0);
+    border-radius: 6px;
+    background: #0a0a0b;
+    font: 11px/1.5 'Courier New', monospace;
+    padding: 0;
+}
+
+.telegram-leads-console {
+    scrollbar-color: var(--line, #d0d0d0) transparent;
+    overflow-y: auto;
+}
+
+.tg-console-line {
+    padding: 6px 12px;
+    margin: 0;
+    border-bottom: 1px solid #1a1a1c;
+    color: #a8a8ae;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    font-size: 11px;
+}
+
+.tg-console-line:last-child {
+    border-bottom: none;
+}
+
+.tg-console-info {
+    color: #6b8bff;
+}
+
+.tg-console-success {
+    color: #4caf50;
+}
+
+.tg-console-warning {
+    color: #ff9800;
+}
+
+.tg-console-error {
+    color: #f04545;
+}
+
+.tg-console-timestamp {
+    color: #555;
+    font-size: 10px;
+    margin-right: 6px;
+}
+
 /* Контейнер с лидами */
 #telegram-leads-container {
     display: flex;
