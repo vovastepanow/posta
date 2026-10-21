@@ -71,7 +71,7 @@ function pool_for_current_topic() {
 function handle_parser_status() {
     $running = content_parser_is_running();
     $response = ['running' => $running, 'phase' => $running ? (parser_phase() ?: 'парсер работает') : 'ничего не делается', 'activity' => content_parser_activity()];
-    if ($running) $response['runtime'] = parser_runtime_seconds();
+    if ($running) $response += ['runtime' => parser_runtime_seconds(), 'progress' => parser_progress_public()];
     json_response($response);
 }
 
@@ -340,9 +340,9 @@ function database_definitions() {
     if ($defs !== null) return $defs;
 
     $defs = [
-        'content_pool' => ['label' => 'Пул контента', 'file' => null, 'collections' => ['items' => 'Записи']],
-        'content_history' => ['label' => 'История оценок', 'file' => null, 'collections' => ['liked' => 'Лайки', 'disliked' => 'Дизлайки', 'undecided' => 'Без решения', 'complaints' => 'Жалобы']],
-        'sources_db' => ['label' => 'Каталог источников', 'file' => null, 'collections' => ['2ch_boards' => 'Доски 2ch', 'vk_publics' => 'Паблики ВКонтакте', 'telegram_channels' => 'Каналы Telegram', 'source_votes' => 'Оценки источников']]
+        'content_pool' => ['label' => 'Пул контента', 'file' => null, 'collections' => ['items' => 'Записи'], 'hidden' => true],
+        'content_history' => ['label' => 'История оценок', 'file' => null, 'collections' => ['liked' => 'Лайки', 'disliked' => 'Дизлайки', 'undecided' => 'Без решения', 'complaints' => 'Жалобы'], 'hidden' => true],
+        'sources_db' => ['label' => 'Каталог источников', 'file' => null, 'collections' => ['2ch_boards' => 'Доски 2ch', 'vk_publics' => 'Паблики ВКонтакте', 'telegram_channels' => 'Каналы Telegram', 'source_votes' => 'Оценки источников'], 'hidden' => true]
     ];
 
     // Добавляем все таблицы SQLite
@@ -394,7 +394,7 @@ function database_open($database, $collection) {
         $stmt->execute();
         $items = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            // Пытаемся распарсить JSON поля
+            // Парсим JSON поля
             $item = [];
             foreach ($row as $k => $v) {
                 if (is_string($v) && ($v[0] ?? '') === '{') {
@@ -404,6 +404,16 @@ function database_open($database, $collection) {
                     $item[$k] = $v;
                 }
             }
+
+            // Для таблиц, где содержимое хранится в поле 'data',
+            // распаковываем его на верхний уровень (для удобства отображения)
+            if (isset($item['data']) && is_array($item['data'])) {
+                // Сохраняем системные поля отдельно
+                $system = array_intersect_key($item, array_flip(['id', 'rowid', 'user_id', 'position', 'image_key', 'collection', 'proposal_hidden']));
+                // Распаковываем содержимое data на верхний уровень
+                $item = array_merge($item['data'], $system);
+            }
+
             $items[] = $item;
         }
         return [$def, null, $items];
@@ -438,7 +448,7 @@ function database_validate($database, $collection, $r) {
 }
 
 function handle_database_options() {
-    json_response(['databases' => array_map(fn($id, $d) => ['id' => $id, 'label' => $d['label'], 'is_sql_table' => $d['is_sql_table'] ?? false, 'collections' => array_map(fn($cid, $l) => ['id' => $cid, 'label' => $l], array_keys($d['collections']), $d['collections'])],
+    json_response(['databases' => array_map(fn($id, $d) => ['id' => $id, 'label' => $d['label'], 'is_sql_table' => $d['is_sql_table'] ?? false, 'hidden' => $d['hidden'] ?? false, 'collections' => array_map(fn($cid, $l) => ['id' => $cid, 'label' => $l], array_keys($d['collections']), $d['collections'])],
         array_keys(database_definitions()), database_definitions())]);
 }
 

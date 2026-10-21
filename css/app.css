@@ -987,6 +987,16 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
     letter-spacing: 0.08em;
     font-weight: 700;
 }
+
+.database-record-field-system {
+    opacity: 0.6;
+    border-left-color: var(--faint) !important;
+}
+
+.database-record-field-system .database-record-field-label {
+    color: var(--faint);
+}
+
 @media (max-width: 600px) {
     .database-toolbar { flex-direction: column; align-items: stretch; }
     .database-toolbar label { flex: 0 1 auto; width: 100%; }

@@ -294,7 +294,8 @@ const option = ({ id, label }) => el('option', { value: id, textContent: label }
 
 function loadDatabaseOptions() {
     return db.ready ??= api('database_options').then(async d => {
-        db.databases = d.databases || [];
+        // Отфильтровываем скрытые базы (старые JSON версии)
+        db.databases = (d.databases || []).filter(b => !b.hidden);
         $('database-select').replaceChildren(...db.databases.map(option));
         await loadCollections();
     }).catch(error => { db.ready = null; dbStatus(`Не удалось загрузить базы: ${error.message}`, true); });
@@ -465,22 +466,38 @@ function renderRecordDetails(record, index) {
     topSection.appendChild(infoSection);
     container.appendChild(topSection);
 
-    // Нижняя часть: остальные поля в аккордеон или скрытом блоке
+    // Остальные поля в развертывающемся блоке
     if (isObject) {
         const fields = Object.entries(record);
+        const systemFields = ['id', 'rowid', 'user_id', 'position', 'image_key', 'collection', 'proposal_hidden'];
         const technicalFields = [];
+        const sqlSystemFields = [];
 
         for (const [key, value] of fields) {
             if (key === 'image_local' || key === 'image' || key === 'video_local' || key === 'video') continue;
             if (priorityFields.includes(key) && value) continue;
-            technicalFields.push([key, value]);
+
+            if (systemFields.includes(key)) {
+                sqlSystemFields.push([key, value]);
+            } else {
+                technicalFields.push([key, value]);
+            }
         }
 
-        if (technicalFields.length > 0) {
+        // Объединяем поля: сначала остальные, потом системные
+        const allOtherFields = [...technicalFields, ...sqlSystemFields];
+
+        if (allOtherFields.length > 0) {
             const expandable = el('details', { className: 'database-record-expandable' },
                 el('summary', { textContent: '📋 Все поля' }),
                 el('div', { className: 'database-record-all-fields' },
-                    ...technicalFields.map(([key, value]) => renderRecordField(key, value))
+                    ...allOtherFields.map(([key, value]) => {
+                        const fieldEl = renderRecordField(key, value);
+                        if (systemFields.includes(key)) {
+                            fieldEl.classList.add('database-record-field-system');
+                        }
+                        return fieldEl;
+                    })
                 )
             );
             container.appendChild(expandable);
