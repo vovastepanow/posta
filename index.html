@@ -10,7 +10,10 @@
 <meta name="theme-color" content="#0b0b0c">
 <link rel="preload" href="fonts/GolosText-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/telegram_leads.css">
+<link rel="stylesheet" href="css/telegram_leads_panel.css">
 <script type="module" src="js/main.js"></script>
+<script src="js/telegram_leads.js" defer></script>
 <script>setTimeout(() => document.getElementById('app-loading')?.classList.add('is-done'), 20000);</script>
 </head>
 <body>
@@ -52,6 +55,7 @@
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="source-tab">Источники</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab">🌳 Дерево</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="test-tab">Тест ИИ</button>
+    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="telegram-leads-tab">🎯 Радар лидов</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="account-tab">Личный кабинет</button>
     <div id="topic-tabs" class="topic-switch"></div>
   </nav>
@@ -413,6 +417,42 @@
       </form>
     </dialog>
   </section>
+
+<!-- ВКЛАДКА: РАДАР ЛИДОВ ИЗ TELEGRAM -->
+<div id="telegram-leads-tab" class="view-panel wide-panel" hidden>
+  <div class="telegram-leads-panel">
+    <div class="telegram-leads-header">
+      <h2>🎯 Умный радар лидов из Telegram</h2>
+      <p class="telegram-leads-subtitle">Автоматическое обнаружение потенциальных клиентов, ищущих решение для автопостинга контента</p>
+    </div>
+
+    <!-- Статистика -->
+    <div class="telegram-leads-section">
+      <h3>Статистика</h3>
+      <div id="telegram-leads-stats" role="status" aria-live="polite"></div>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="telegram-leads-section">
+      <h3>Статус</h3>
+      <div class="tg-leads-filters">
+        <button class="tg-leads-filter-btn tg-active" data-status="new">🆕 Новые</button>
+        <button class="tg-leads-filter-btn" data-status="interested">⭐ Интересные</button>
+        <button class="tg-leads-filter-btn" data-status="replied">✓ Ответил</button>
+        <button class="tg-leads-filter-btn" data-status="spam">🚫 Спам</button>
+        <button class="tg-leads-filter-btn" data-status="ignored">— Игнорированы</button>
+      </div>
+    </div>
+
+    <!-- Контейнер с лидами -->
+    <div class="telegram-leads-section">
+      <h3>Лиды</h3>
+      <div id="telegram-leads-container" role="feed" aria-label="Список потенциальных клиентов">
+        <div class="status-msg is-loading">Загрузка лидов...</div>
+      </div>
+    </div>
+  </div>
+</div>
 </div>
 </main>
 

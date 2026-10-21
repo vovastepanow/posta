@@ -577,4 +577,114 @@ function demo_route($action, array $in): never {
     json_response($debug);
 }
 
+// ========== TELEGRAM LEADS (УМНЫЙ РАДАР ЛИДОВ) ==========
+
+function handle_telegram_leads() {
+    require_once __DIR__ . '/../lib/ollama_classifier.php';
+
+    $limit = min((int)($_GET['limit'] ?? 20), 100);
+    $offset = (int)($_GET['offset'] ?? 0);
+    $status = $_GET['status'] ?? 'new';
+
+    $pdo = db();
+
+    // Получаем лиды с фильтром по статусу
+    $stmt = $pdo->prepare("
+        SELECT id, user_id, message, chat_id, message_id, lead_status,
+               telegram_username, telegram_profile_url, created_at
+        FROM telegram_leads
+        WHERE lead_status = ?
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    ");
+    $stmt->execute([$status, $limit, $offset]);
+    $leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Считаем всего для пагинации
+    $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM telegram_leads WHERE lead_status = ?");
+    $countStmt->execute([$status]);
+    $total = (int)$countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+    json_response([
+        'leads' => $leads,
+        'total' => $total,
+        'limit' => $limit,
+        'offset' => $offset
+    ]);
+}
+
+function handle_update_telegram_lead() {
+    require_once __DIR__ . '/../lib/ollama_classifier.php';
+
+    if (($_SERVER['HTTP_X_POSTMAKER'] ?? '') !== '1') {
+        json_error('CSRF token missing', 403);
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $leadId = (int)($input['lead_id'] ?? 0);
+    $status = $input['status'] ?? '';
+
+    if (!$leadId) {
+        json_error('Invalid lead_id');
+    }
+
+    // Маппинг действий фронтенда на статусы БД
+    $statusMap = [
+        'replied' => 'replied',
+        'interested' => 'interested',
+        'spam' => 'spam',
+        'ignored' => 'ignored'
+    ];
+
+    if (!isset($statusMap[$status])) {
+        json_error('Invalid status');
+    }
+
+    $pdo = db();
+
+    // Обновляем статус
+    $stmt = $pdo->prepare("
+        UPDATE telegram_leads
+        SET lead_status = ?, updated_at = NOW()
+        WHERE id = ?
+    ");
+
+    if ($stmt->execute([$statusMap[$status], $leadId])) {
+        ok([
+            'lead_id' => $leadId,
+            'new_status' => $statusMap[$status]
+        ]);
+    } else {
+        json_error('Database error', 500);
+    }
+}
+
+function handle_telegram_leads_stats() {
+    require_once __DIR__ . '/../lib/ollama_classifier.php';
+
+    $pdo = db();
+
+    // Количество в каждом статусе
+    $stmt = $pdo->query("
+        SELECT lead_status, COUNT(*) as count
+        FROM telegram_leads
+        GROUP BY lead_status
+    ");
+    $statuses = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+    // Количество в очереди ожидания
+    $pendingStmt = $pdo->query("SELECT COUNT(*) as cnt FROM telegram_lead_queue WHERE status = 'pending'");
+    $pendingCount = (int)$pendingStmt->fetch()['cnt'];
+
+    json_response([
+        'new' => (int)($statuses['new'] ?? 0),
+        'replied' => (int)($statuses['replied'] ?? 0),
+        'interested' => (int)($statuses['interested'] ?? 0),
+        'spam' => (int)($statuses['spam'] ?? 0),
+        'ignored' => (int)($statuses['ignored'] ?? 0),
+        'pending_in_queue' => $pendingCount
+    ]);
+}
+
 function handle_debug_reset() { json_error('Сброс доступен только в демо-режиме.', 403); }

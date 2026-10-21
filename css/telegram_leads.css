@@ -1,0 +1,331 @@
+/* css/telegram_leads.css */
+/* Стили для компонента "умный радар лидов из Telegram" */
+
+/* Контейнер с лидами */
+#telegram-leads-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    max-height: 600px;
+    overflow-y: auto;
+    border: 1px solid var(--line, #e0e0e0);
+    border-radius: 8px;
+    background: var(--bg, #fff);
+}
+
+/* Карточка лида */
+.tg-lead-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--line-strong, #d0d0d0);
+    border-radius: 6px;
+    background: var(--surface, #f9f9f9);
+
+    opacity: 1;
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+/* Анимация входа новой карточки */
+.tg-lead-card.tg-lead-fade-in {
+    animation: tgFadeInSlide 0.4s ease-out forwards;
+}
+
+@keyframes tgFadeInSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Анимация выхода при удалении */
+.tg-lead-card.tg-lead-fade-out {
+    animation: tgFadeOutSlide 0.3s ease-in forwards;
+}
+
+@keyframes tgFadeOutSlide {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+}
+
+/* Состояние обработки (когда нажата кнопка действия) */
+.tg-lead-card.tg-lead-processing {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Заголовок карточки с именем и временем */
+.tg-lead-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* Ссылка на профиль в Telegram */
+.tg-lead-username {
+    color: #0088cc;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    word-break: break-word;
+
+    transition: color 0.2s ease;
+}
+
+.tg-lead-username:hover {
+    text-decoration: underline;
+    color: #0073aa;
+}
+
+/* Время создания лида */
+.tg-lead-time {
+    font-size: 12px;
+    color: var(--muted, #999);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Текст сообщения */
+.tg-lead-message {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text, #333);
+    background: var(--bg, #fff);
+    padding: 10px 12px;
+    border-radius: 4px;
+    border-left: 3px solid var(--accent, #4a9eff);
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+/* Блок с кнопками действий */
+.tg-lead-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* Базовый стиль кнопки действия */
+.tg-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--line, #d0d0d0);
+    border-radius: 4px;
+    background: var(--surface-2, #f0f0f0);
+    color: var(--text, #333);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 70px;
+}
+
+.tg-btn:hover {
+    background: var(--surface-3, #e0e0e0);
+    border-color: var(--muted, #999);
+    transform: translateY(-1px);
+}
+
+.tg-btn:active {
+    transform: translateY(0);
+    opacity: 0.8;
+}
+
+/* Кнопка "Ответил" (зелёная) */
+.tg-btn-replied {
+    border-color: #4caf50;
+    color: #4caf50;
+}
+
+.tg-btn-replied:hover {
+    background: rgba(76, 175, 80, 0.1);
+}
+
+/* Кнопка "Интересен" (жёлтая) */
+.tg-btn-interested {
+    border-color: #ff9800;
+    color: #ff9800;
+}
+
+.tg-btn-interested:hover {
+    background: rgba(255, 152, 0, 0.1);
+}
+
+/* Кнопка "Спам" (красная) */
+.tg-btn-spam {
+    border-color: #f04545;
+    color: #f04545;
+}
+
+.tg-btn-spam:hover {
+    background: rgba(240, 69, 69, 0.1);
+}
+
+/* === СТАТИСТИКА === */
+
+#telegram-leads-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    gap: 8px;
+    padding: 12px;
+    background: var(--surface, #f9f9f9);
+    border: 1px solid var(--line, #e0e0e0);
+    border-radius: 6px;
+}
+
+.tg-stats-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px;
+    background: var(--bg, #fff);
+    border-radius: 4px;
+    border: 1px solid var(--line-strong, #d0d0d0);
+}
+
+.tg-stats-label {
+    font-size: 11px;
+    color: var(--muted, #999);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.tg-stats-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent, #4a9eff);
+    line-height: 1;
+}
+
+/* Подсветка статистики "в очереди" */
+.tg-stats-pending .tg-stats-value {
+    color: #ff9800; /* Оранжевый для "в очереди" */
+}
+
+/* === ФИЛЬТРЫ === */
+
+.tg-leads-filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.tg-leads-filter-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--line, #d0d0d0);
+    border-radius: 16px;
+    background: var(--surface-2, #f0f0f0);
+    color: var(--muted, #999);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.tg-leads-filter-btn:hover {
+    border-color: var(--accent, #4a9eff);
+    color: var(--accent, #4a9eff);
+}
+
+.tg-leads-filter-btn.tg-active {
+    background: var(--accent, #4a9eff);
+    color: white;
+    border-color: var(--accent, #4a9eff);
+}
+
+/* === АДАПТИВНОСТЬ === */
+
+@media (max-width: 768px) {
+    #telegram-leads-container {
+        max-height: 500px;
+        padding: 12px;
+    }
+
+    .tg-lead-card {
+        padding: 12px;
+        gap: 8px;
+    }
+
+    .tg-lead-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .tg-lead-time {
+        order: -1; /* Время вверх */
+    }
+
+    .tg-lead-message {
+        font-size: 12px;
+        padding: 8px 10px;
+        max-height: 100px;
+    }
+
+    .tg-lead-actions {
+        gap: 4px;
+    }
+
+    .tg-btn {
+        padding: 5px 10px;
+        font-size: 11px;
+        min-width: 60px;
+    }
+
+    #telegram-leads-stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+        padding: 10px;
+    }
+
+    .tg-stats-item {
+        padding: 8px;
+    }
+
+    .tg-stats-value {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    #telegram-leads-container {
+        max-height: 400px;
+    }
+
+    .tg-lead-actions {
+        flex-direction: column;
+    }
+
+    .tg-btn {
+        width: 100%;
+    }
+
+    #telegram-leads-stats {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .tg-lead-message {
+        max-height: 80px;
+        font-size: 12px;
+    }
+}

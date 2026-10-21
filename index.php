@@ -24,12 +24,12 @@ set_exception_handler(function (Throwable $e) {
 
 const GET = ['vk_oauth_status', 'vk_oauth_start', 'vk_oauth_callback', 'database_options', 'database_read', 'get_current_item', 'settings', 'topics',
     'topic_sources', 'discovery_status', 'parser_status', 'model_status', 'account_info', 'telegram_queue', 'proposals', 'proposals_progress', 'topic_record', 'telegram_user_qr_status',
-    'telegram_publish_progress'];
+    'telegram_publish_progress', 'telegram_leads', 'telegram_leads_stats'];
 const POST = ['tab_open', 'tab_heartbeat', 'tab_close', 'database_add', 'database_update', 'database_delete', 'database_reset', 'analyze_image', 'vote',
     'refresh_content', 'save_topic', 'topic_parent', 'remove_topic_source', 'topic_reprofile', 'save_second_topic', 'control_search', 'control_sources',
     'app_stop', 'save_filters', 'suggest_sources', 'source_vote', 'discover_sources', 'debug_reset', 'model_control', 'telegram_connect', 'telegram_disconnect',
     'telegram_publish', 'telegram_cancel', 'telegram_user_start', 'telegram_user_confirm', 'telegram_user_qr_start', 'telegram_user_resend',
-    'telegram_user_disconnect', 'proposal_hide'];
+    'telegram_user_disconnect', 'proposal_hide', 'update_telegram_lead'];
 // Псевдонимы: одно действие обслуживает несколько маршрутов
 const ROUTE_HANDLERS = ['database_add' => 'database_change', 'database_update' => 'database_change', 'database_delete' => 'database_change',
     'control_search' => 'refresh_content', 'control_sources' => 'discover_sources'];
