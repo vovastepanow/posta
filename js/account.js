@@ -400,49 +400,143 @@ function renderDatabaseBrowser() {
 function renderRecordDetails(record, index) {
     const isMedia = db.mediaMissing.has(index);
     const media = !isMedia ? dbMediaItem(record) : null;
+    const isObject = record && typeof record === 'object' && !Array.isArray(record);
 
-    const children = [];
+    // Главный контейнер с улучшенным стилем
+    const container = el('div', { className: 'database-record-item-improved' });
 
-    // Медиа в красивом контейнере
+    // Верхняя часть: медиа и основная информация рядом
+    const topSection = el('div', { className: 'database-record-top' });
+
+    // Медиа в красивом контейнере (займёт место слева)
     if (media) {
         const mediaEl = media.kind === 'image'
-            ? el('img', { src: media.src, alt: media.alt || '', className: 'database-record-item-media' })
-            : el('video', { src: media.src, className: 'database-record-item-media', controls: true });
+            ? el('img', { src: media.src, alt: media.alt || '', className: 'database-record-item-media-large' })
+            : el('video', { src: media.src, className: 'database-record-item-media-large', controls: true });
 
-        const mediaWrapper = el('div', { className: 'database-record-item-media-wrapper' }, mediaEl);
+        const mediaWrapper = el('div', { className: 'database-record-item-media-wrapper-large' }, mediaEl);
 
-        // Добавляем клик на медиа для открытия просмотрщика
+        // Клик на медиа для открытия просмотрщика
         mediaWrapper.addEventListener('click', () => {
-            if (media.kind === 'image' || media.kind === 'video') {
-                const items = [{
-                    kind: media.kind,
-                    src: media.src,
-                    fallback: media.src,
-                    poster: media.kind === 'video' ? (record.image || '') : ''
-                }];
-                openViewerGallery(items, 0);
-            }
+            const items = [{
+                kind: media.kind,
+                src: media.src,
+                fallback: media.src,
+                poster: media.kind === 'video' ? (record.image || '') : ''
+            }];
+            openViewerGallery(items, 0);
         });
 
-        children.push(mediaWrapper);
+        topSection.appendChild(mediaWrapper);
+    } else if (isMedia) {
+        // Показываем плейсхолдер если нет медиа
+        const placeholder = el('div', { className: 'database-record-no-media' }, el('span', { textContent: 'Нет медиа' }));
+        topSection.appendChild(placeholder);
     }
 
-    // Содержимое
-    const isObject = record && typeof record === 'object' && !Array.isArray(record);
-    const fields = isObject ? Object.entries(record) : [['value', record]];
+    // Основная информация рядом с медиа
+    const infoSection = el('div', { className: 'database-record-info-section' });
 
-    const contentChildren = [];
-    for (const [key, value] of fields) {
-        if (key === 'image_local' || key === 'image' || key === 'video_local' || key === 'video') continue;
-        contentChildren.push(renderRecordField(key, value));
+    // Заголовок записи
+    if (isObject) {
+        const title = record.title || record.name || record.text;
+        if (title) {
+            const titleEl = el('h3', { className: 'database-record-title', textContent: String(title).slice(0, 100) });
+            infoSection.appendChild(titleEl);
+        }
     }
 
-    if (contentChildren.length) {
-        children.push(el('div', { className: 'database-record-item-content' }, ...contentChildren));
+    // Приоритетные поля показываем красиво в строк
+    const priorityFields = ['description', 'why_relevant', 'source', 'topic', 'tags', 'relevance', 'rating'];
+    const priorityInfo = el('div', { className: 'database-record-priority-fields' });
+
+    for (const fieldName of priorityFields) {
+        if (isObject && fieldName in record && record[fieldName]) {
+            const value = record[fieldName];
+            const fieldEl = renderPriorityField(fieldName, value);
+            if (fieldEl) priorityInfo.appendChild(fieldEl);
+        }
     }
 
-    const recordView = el('div', { className: 'database-record-item' }, ...children);
-    $('database-record-view').replaceChildren(recordView);
+    if (priorityInfo.children.length > 0) {
+        infoSection.appendChild(priorityInfo);
+    }
+
+    topSection.appendChild(infoSection);
+    container.appendChild(topSection);
+
+    // Нижняя часть: остальные поля в аккордеон или скрытом блоке
+    if (isObject) {
+        const fields = Object.entries(record);
+        const technicalFields = [];
+
+        for (const [key, value] of fields) {
+            if (key === 'image_local' || key === 'image' || key === 'video_local' || key === 'video') continue;
+            if (priorityFields.includes(key) && value) continue;
+            technicalFields.push([key, value]);
+        }
+
+        if (technicalFields.length > 0) {
+            const expandable = el('details', { className: 'database-record-expandable' },
+                el('summary', { textContent: '📋 Все поля' }),
+                el('div', { className: 'database-record-all-fields' },
+                    ...technicalFields.map(([key, value]) => renderRecordField(key, value))
+                )
+            );
+            container.appendChild(expandable);
+        }
+    }
+
+    $('database-record-view').replaceChildren(container);
+}
+
+function renderPriorityField(key, value) {
+    if (value === null || value === undefined || value === '') return null;
+
+    let displayValue;
+    const labels = {
+        description: '📝',
+        why_relevant: '💡',
+        source: '📍',
+        topic: '🏷',
+        tags: '🔖',
+        relevance: '📊',
+        rating: '⭐'
+    };
+
+    if (Array.isArray(value)) {
+        displayValue = el('span', { className: 'database-priority-value', textContent: value.join(', ') });
+    } else if (typeof value === 'object') {
+        displayValue = el('span', { className: 'database-priority-value', textContent: JSON.stringify(value) });
+    } else {
+        const text = String(value);
+        if (/^https?:\/\//.test(text)) {
+            displayValue = el('a', { href: text, target: '_blank', rel: 'noopener noreferrer', className: 'database-priority-value database-priority-link', textContent: text.slice(0, 50) + (text.length > 50 ? '…' : '') });
+        } else {
+            displayValue = el('span', { className: 'database-priority-value', textContent: text.slice(0, 150) });
+        }
+    }
+
+    return el('div', { className: 'database-priority-field' },
+        el('span', { className: 'database-priority-label', textContent: labels[key] || '•' }),
+        el('div', { className: 'database-priority-content' },
+            el('strong', { textContent: formatFieldLabel(key) }),
+            displayValue
+        )
+    );
+}
+
+function formatFieldLabel(key) {
+    const labels = {
+        description: 'Описание',
+        why_relevant: 'Почему релевантно',
+        source: 'Источник',
+        topic: 'Тема',
+        tags: 'Метки',
+        relevance: 'Релевантность',
+        rating: 'Рейтинг'
+    };
+    return labels[key] || key;
 }
 
 function renderRecordField(key, value) {
