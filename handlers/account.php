@@ -306,6 +306,8 @@ function handle_telegram_publish($in) {
     }
     @set_time_limit(900);       // большое видео заливается и перекодируется долго
     ignore_user_abort(true);
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();   // иначе опрос прогресса ждёт конца отправки
+    $GLOBALS['telegram_progress_file'] = telegram_progress_file($fields['progress_id'] ?? null);
     $work = null;
     try {
         telegram_check_text($text, count($items));
@@ -322,8 +324,16 @@ function handle_telegram_publish($in) {
         $failure = $e->getMessage();
     } finally {
         if ($work !== null) remove_dir($work);
+        if ($GLOBALS['telegram_progress_file'] !== null) @unlink($GLOBALS['telegram_progress_file']);
     }
     isset($failure) ? json_error($failure, 422) : ok($response);
+}
+
+/** ?id=: этап и процент идущей отправки; stage null — файла нет (отправка ещё не началась или закончилась). */
+function handle_telegram_publish_progress() {
+    $file = telegram_progress_file($_GET['id'] ?? null);
+    $data = $file !== null ? json_decode((string)@file_get_contents($file), true) : null;
+    json_response(is_array($data) ? ['stage' => $data['stage'] ?? null, 'percent' => $data['percent'] ?? null] : ['stage' => null]);
 }
 
 function handle_telegram_queue() {

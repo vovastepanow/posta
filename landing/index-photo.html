@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Postmaker сам находит посты по теме вашего канала, раскладывает по расписанию и публикует.">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16.png">
+<link rel="apple-touch-icon" href="img/favicon-180.png">
+<title>Postmaker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,900&family=Jost:wght@500;700;800;900&family=Oswald:wght@700&display=swap">
+<style>
+/* Layout: телемагазин 90-х — эфирные плашки, звёзды-бабахи, бегущая строка, таймер акции. Лого и тарифы — жёлтые ценники старой ИКЕА */
+:root {
+  --bg: #FFF4D6;
+  --paper: #FFFFFF;
+  --ink: #111111;
+  --muted: #54504A;
+  --outline: #111111;
+  --yellow: #FFDA1A;
+  --red: #E1001A;
+  --blue: #1546C8;
+  --green: #00A651;
+  --display: "Rubik", "Arial Black", system-ui, sans-serif;
+  --body: "Rubik", "Segoe UI", system-ui, sans-serif;
+  --tag: "Jost", "Futura", "Century Gothic", sans-serif;
+  --caption: Impact, "Oswald", "Arial Narrow", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14151C; --paper: #1F2129; --ink: #F5F2EA; --muted: #B4B0A8; --outline: #F5F2EA; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #14151C; --paper: #1F2129; --ink: #F5F2EA; --muted: #B4B0A8; --outline: #F5F2EA; color-scheme: dark }
+
+* { box-sizing: border-box }
+html, body { overflow-x: clip }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--body);
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 9%, transparent) 1.2px, transparent 1.5px); background-size: 18px 18px }
+img { max-width: 100% }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-right, 0px)) 150px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 88px }
+h1, h2, h3 { margin: 0; text-wrap: balance; line-height: 1.05 }
+p { margin: 0; max-width: 62ch }
+section { display: grid; gap: 26px; min-width: 0; position: relative }
+.faq-wrap, .seats { position: relative }
+.muted { color: var(--muted) }
+.fine { font-size: 13px; color: var(--muted) }
+.card { background: var(--paper); border: 3px solid var(--outline); border-radius: 18px; box-shadow: 5px 5px 0 var(--outline) }
+.shout { font: italic 900 clamp(32px, 5.4vw, 60px)/1 var(--display); letter-spacing: -.02em; text-transform: uppercase }
+.shout em { font-style: inherit; color: var(--red); -webkit-text-stroke: 0 }
+.kicker { justify-self: start; font: 800 14px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; background: var(--red); color: #fff; border: 3px solid var(--outline); padding: 8px 12px; transform: rotate(-2deg); box-shadow: 3px 3px 0 var(--outline) }
+.impact { font: 700 1em/1 var(--caption); text-transform: uppercase; color: #fff; -webkit-text-stroke: .08em #000; paint-order: stroke fill; text-shadow: 0 .06em 0 #000 }
+
+/* Лого: жёлтая плашка ценника ИКЕА — плоский прямоугольник, жирный геометрический гротеск, «,–» как у цены */
+.logo { display: inline-flex; justify-self: start }
+.logo-in span { display: flex; align-items: flex-start; background: var(--yellow); color: #111; padding: .1em .22em .12em .2em;
+  font: 900 var(--fs, 40px)/1 var(--tag); letter-spacing: -.045em }
+.logo sup { font-size: .46em; letter-spacing: 0; position: relative; top: .12em; margin-left: .04em }
+
+/* Эфирная шапка */
+.onair { position: sticky; top: 0; z-index: 30; display: flex; align-items: stretch; background: #111; color: #fff; border-bottom: 3px solid var(--yellow); font: 800 14px/1 var(--display); text-transform: uppercase; letter-spacing: .04em }
+.live { flex: none; display: flex; align-items: center; gap: 8px; background: var(--red); padding: 10px 14px }
+.live i { width: 10px; height: 10px; border-radius: 50%; background: #fff; animation: blink 1s steps(2) infinite }
+.ticker { overflow: hidden; flex: 1; display: flex; align-items: center; mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent) }
+.ticker div { display: flex; gap: 48px; padding-left: 24px; white-space: nowrap; animation: run 38s linear infinite }
+.ticker b { color: var(--yellow) }
+@keyframes run { to { transform: translateX(-50%) } }
+@keyframes blink { 50% { opacity: 0 } }
+@keyframes wob { 0%, 100% { transform: rotate(var(--r, 10deg)) scale(1) } 50% { transform: rotate(calc(var(--r, 10deg) - 6deg)) scale(1.06) } }
+@keyframes ring { 0%, 70%, 100% { transform: rotate(0) } 75% { transform: rotate(-14deg) } 80% { transform: rotate(14deg) } 85% { transform: rotate(-10deg) } 90% { transform: rotate(10deg) } }
+@keyframes spin { to { transform: rotate(360deg) } }
+
+/* Кнопки и бабахи */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; font: 800 18px/1 var(--display); text-transform: uppercase; color: #111; background: var(--yellow);
+  border: 3px solid #111; border-radius: 999px; padding: 18px 28px; box-shadow: 0 6px 0 #111; cursor: pointer; transition: transform .1s, box-shadow .1s }
+.btn:hover { transform: translateY(-2px); box-shadow: 0 8px 0 #111 }
+.btn:active { transform: translateY(5px); box-shadow: 0 1px 0 #111 }
+.btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px }
+.btn.red { background: var(--red); color: #fff }
+.btn.ghost { background: var(--paper); color: var(--ink); border-color: var(--outline); box-shadow: 0 6px 0 var(--outline) }
+.ph { display: inline-block; width: 1.15em; height: 1.15em; fill: currentColor; flex: none; vertical-align: -.18em; animation: ring 2.4s infinite }
+.burst { --r: 10deg; position: relative; display: grid; place-items: center; width: 120px; height: 120px; flex: none; animation: wob 1.8s ease-in-out infinite }
+.burst svg { position: absolute; inset: 0; width: 100%; height: 100% }
+.burst span { position: relative; font: italic 900 16px/1 var(--display); text-align: center; text-transform: uppercase; color: #fff; text-shadow: 0 2px 0 #111 }
+.burst.y span { color: #111; text-shadow: none }
+
+/* Первый экран — телевизор */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: center; position: relative; isolation: isolate }
+/* Студийные лучи только за телевизором и тают к краям */
+.hero::before { content: ""; position: absolute; z-index: -1; left: 74%; top: 50%; width: 1400px; height: 1400px; margin: -700px 0 0 -700px; pointer-events: none;
+  background: repeating-conic-gradient(color-mix(in srgb, var(--yellow) 42%, transparent) 0 7.5deg, transparent 7.5deg 15deg);
+  -webkit-mask: radial-gradient(closest-side, #000 8%, transparent 70%); mask: radial-gradient(closest-side, #000 8%, transparent 70%) }
+.hero-text { display: grid; gap: 22px; min-width: 0 }
+.hero-text .logo { margin-bottom: 16px }
+.hero h1 { font: italic 900 clamp(34px, 5vw, 58px)/.98 var(--display); letter-spacing: -.02em; text-transform: uppercase }
+.hero h1 mark { background: var(--yellow); color: #111; padding: 0 .12em; box-decoration-break: clone; -webkit-box-decoration-break: clone }
+.hero .lead { font-size: 19px; color: var(--muted) }
+.cta-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: center }
+.platforms { display: flex; flex-wrap: wrap; gap: 8px }
+.platforms span { font: 700 13px/1 var(--body); padding: 7px 11px; border-radius: 999px; border: 2px solid var(--outline); background: var(--paper) }
+.platforms span.soon { border-style: dashed; color: var(--muted) }
+
+/* Телевизор: мультяшный ретро-ТВ 50-х в стиле наклеек — толстый контур, плоские цвета, жёсткая тень. Корпус — SVG, экран — HTML поверх него */
+.tv { position: relative; width: 100%; max-width: 520px; justify-self: center; aspect-ratio: 655 / 681; filter: drop-shadow(8px 8px 0 color-mix(in srgb, var(--outline) 85%, transparent)) }
+.tv-img { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none }
+/* Клоунский нос на табличке телевизора */
+.nose { position: absolute; z-index: 2; left: 37.5%; top: 83.5%; width: 9%; aspect-ratio: 1; border-radius: 50%; border: 3px solid #111; background: radial-gradient(circle at 34% 30%, #fff 0 12%, #FF4D4D 14%, #C8001A 80%); transform: translate(-50%, -50%); cursor: pointer; transition: transform .15s }
+.nose:active { transform: translate(-50%, -50%) scale(.8) }
+.screen { position: absolute; z-index: 0; left: 7.8%; top: 28%; width: 67.4%; height: 48%; border-radius: 6%; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, #2A5BEF, #0B2A8F 78%); animation: flick 7s infinite }
+.screen::before { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(130deg, rgba(255,255,255,.32), rgba(255,255,255,.06) 28%, transparent 40%) }
+.screen::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: repeating-linear-gradient(#0000 0 2px, rgba(0,0,0,.18) 2px 3px), radial-gradient(ellipse at center, transparent 52%, rgba(0,0,0,.6)) }
+@keyframes flick { 0%, 95%, 98%, 100% { filter: none } 96% { filter: brightness(1.7) contrast(1.3) } 97% { filter: brightness(.6) hue-rotate(20deg) } }
+.osd { position: absolute; z-index: 1; right: 10px; top: 8px; font: 700 18px/1 var(--caption); color: #4DFF7A; text-shadow: 0 0 6px #4DFF7A; letter-spacing: .06em }
+.ch { position: absolute; top: 9px; left: 12px; z-index: 1; font: 700 12px/1 var(--caption); color: #fff; opacity: .85; letter-spacing: .06em }
+.feed { position: absolute; inset: 30px 7% 48px; display: grid; gap: 8px; align-content: start }
+.post { background: #fff; color: #111; border-radius: 10px; padding: 8px 10px; display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; font: 600 12px/1.25 var(--body); box-shadow: 0 3px 0 rgba(0,0,0,.4); animation: drop 9s infinite both }
+.post i { width: 34px; height: 34px; border-radius: 6px; background: var(--c) }
+.post b { font: 800 10px/1 var(--display); color: var(--green); text-transform: uppercase }
+.post:nth-child(2) { animation-delay: .4s } .post:nth-child(3) { animation-delay: .8s }
+@keyframes drop { 0% { opacity: 0; transform: translateY(-14px) } 6%, 88% { opacity: 1; transform: none } 96%, 100% { opacity: 0 } }
+.lower { position: absolute; left: 0; right: 0; bottom: 10px; display: grid; grid-template-columns: auto 1fr }
+.lower .l1 { background: var(--red); color: #fff; font: italic 900 15px/1 var(--display); text-transform: uppercase; padding: 9px 12px }
+.lower .l2 { background: #fff; color: #111; font: 700 13px/1 var(--body); padding: 10px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.tv .burst { position: absolute; right: -14px; top: 4%; width: 130px; height: 130px; --r: 14deg; z-index: 4 }
+.pop { position: absolute; z-index: 4; width: 112px; height: 112px }
+.pop span { font-size: 14px }
+.phone { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: #111; color: #fff; border-radius: 14px; padding: 12px 18px; border: 3px solid var(--outline) }
+.phone .num { font: italic 900 clamp(22px, 3vw, 30px)/1 var(--display); color: var(--yellow); letter-spacing: .02em }
+.phone .fine { color: #bbb }
+
+/* Но и это ещё не всё */
+.brag { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px }
+.brag-item { padding: 22px 20px 20px; display: grid; gap: 8px; align-content: start; position: relative; min-width: 0 }
+.brag-item .n { font: 800 13px/1 var(--tag); color: var(--muted); letter-spacing: .16em }
+.brag-item b { font: 800 20px/1.15 var(--display) }
+.brag-item p { color: var(--muted); font-size: 15px; line-height: 1.45 }
+.hit { position: absolute; top: -14px; right: 12px; font: italic 900 13px/1 var(--display); text-transform: uppercase; background: var(--red); color: #fff; border: 2.5px solid var(--outline); padding: 7px 10px; border-radius: 999px; transform: rotate(7deg) }
+.hit.y { background: var(--yellow); color: #111 }
+.brag-item:nth-child(3n+1) { transform: rotate(-.8deg) }
+.brag-item:nth-child(3n) { transform: rotate(.8deg) }
+.wait { text-align: center; font: italic 900 clamp(26px, 4vw, 44px)/1 var(--display); text-transform: uppercase; color: var(--red); -webkit-text-stroke: 1.5px var(--outline); paint-order: stroke fill; text-shadow: 3px 3px 0 var(--outline) }
+
+/* Три шага */
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; counter-reset: s }
+.step { padding: 22px; display: grid; gap: 10px; justify-items: center; text-align: center; position: relative; background: #fff; color: #111; border-color: #111 }
+.step svg { width: 100%; max-width: 150px; height: auto }
+.step b { font: 800 19px/1.1 var(--display) }
+.step .no { position: absolute; left: -12px; top: -14px; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: var(--blue); color: #fff; font: italic 900 22px/1 var(--display); border: 3px solid #111 }
+.step .fine { color: #555 }
+.zz { animation: float 2.4s ease-in-out infinite }
+@keyframes float { 50% { transform: translateY(-3px) } }
+
+/* Сравнение */
+.vs { overflow: hidden }
+.vs-scroll { overflow-x: auto }
+.vs table { width: 100%; min-width: 540px; border-collapse: collapse; font-size: 16px }
+.vs th, .vs td { padding: 14px 20px; text-align: left; border-top: 2px solid color-mix(in srgb, var(--ink) 14%, transparent) }
+.vs thead th { border-top: 0; font: italic 900 15px/1.1 var(--display); text-transform: uppercase }
+.vs thead th.them { color: var(--muted) }
+.vs thead th.us { background: var(--yellow); color: #111 }
+.vs td:nth-child(n+2) { width: 25%; font-weight: 700 }
+.vs td.them { color: var(--muted); filter: grayscale(1) }
+.vs td.us { background: color-mix(in srgb, var(--yellow) 26%, transparent) }
+.mk { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--outline); font: 900 14px/1 var(--display); margin-right: 8px; vertical-align: -7px; color: #fff }
+.mk.y { background: var(--green) } .mk.n { background: var(--red) } .mk.t { background: #888 }
+
+/* Отзывы */
+.reviews { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px }
+.rev { padding: 20px; display: grid; gap: 12px; align-content: start; min-width: 0 }
+.rev q { font: 600 17px/1.4 var(--body); quotes: "«" "»" }
+.rev .who { display: flex; gap: 10px; align-items: center; font-size: 14px; color: var(--muted) }
+.rev .ava { width: 44px; height: 44px; border-radius: 50%; border: 2.5px solid var(--outline); display: grid; place-items: center; font: 900 18px/1 var(--display); background: var(--c); color: #111; flex: none }
+.stars { color: #F2A900; letter-spacing: 2px; font-size: 18px; -webkit-text-stroke: .5px #111 }
+.actor { font: 700 11px/1.2 var(--body); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-top: 2px dashed color-mix(in srgb, var(--ink) 20%, transparent); padding-top: 10px }
+
+/* А вдруг запостит не то */
+.faq-wrap { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 22px; align-items: start }
+.faq-meme { overflow: hidden; transform: rotate(-2deg); margin: 0 }
+.macro { position: relative; background: #000 }
+.macro img { display: block; width: 100%; height: auto }
+.macro .impact { position: absolute; left: 0; right: 0; top: 12px; text-align: center; font-size: clamp(24px, 3.2vw, 34px); padding: 0 10px }
+.faq { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px }
+.faq-item { padding: 20px; display: grid; gap: 8px; align-content: start; min-width: 0 }
+.faq-item b { font: 800 18px/1.2 var(--display) }
+.faq-item p { color: var(--muted); font-size: 15px }
+
+/* Тарифы: ценники */
+.plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: stretch; padding-top: 14px }
+.plan { --hole: var(--paper); padding: 24px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 18px; min-width: 0; position: relative }
+.plan h3 { font: italic 900 24px/1.05 var(--display); text-transform: uppercase }
+.plan ul { margin: 0; padding: 16px 0 0; display: grid; gap: 8px; font-size: 15px; align-content: start; border-top: 2px dashed color-mix(in srgb, currentColor 25%, transparent) }
+.plan li { list-style: none; padding-left: 26px; position: relative }
+.plan li::before { content: "✓"; position: absolute; left: 0; top: .1em; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--green); color: #fff; font: 900 11px/1 var(--display); border: 2px solid var(--outline) }
+.plan .btn { width: 100%; font-size: 16px; padding: 15px 20px }
+.plan.main { --hole: var(--yellow); background: var(--yellow); color: #111; border-color: #111; box-shadow: 5px 5px 0 #111; transform: scale(1.03) }
+.plan.main li::before { border-color: #111 }
+.plan .badge { position: absolute; top: -16px; left: 20px; font: italic 900 13px/1 var(--display); text-transform: uppercase; background: var(--red); color: #fff; border: 2.5px solid #111; padding: 7px 11px; border-radius: 999px; transform: rotate(-3deg) }
+.tag-slot { display: grid; gap: 10px; justify-items: center; align-content: start; min-height: 196px; padding-top: 22px }
+.was { font: 700 14px/1.2 var(--body); text-decoration: line-through; text-decoration-color: var(--red); text-decoration-thickness: 3px; text-align: center; margin: -14px 0 22px }
+.htag-wrap { position: relative; filter: drop-shadow(3px 3px 0 var(--outline)) }
+.htag-wrap::before { content: ""; position: absolute; left: 50%; top: -24px; width: 2px; height: 38px; margin-left: -1px; background: var(--outline); z-index: 1 }
+.htag { --cut: 16px; background: #111; padding: 2.5px; clip-path: polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%, 0 var(--cut)); transform: rotate(-3deg); transform-origin: 50% 0; transition: transform .35s }
+.htag-wrap:hover .htag { transform: rotate(3deg) }
+.htag-in { --cut: 15px; position: relative; display: grid; gap: 3px; justify-items: start; min-width: 176px; padding: 28px 18px 12px; background: var(--yellow); color: #111;
+  clip-path: polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%, 0 var(--cut)) }
+.htag.red .htag-in { background: var(--red); color: #fff }
+.hole { position: absolute; top: 9px; left: 50%; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 50%; background: var(--hole); border: 2px solid #111 }
+.ik-name { font: 800 15px/1 var(--tag); letter-spacing: .1em; text-transform: uppercase }
+.ik-desc { font: 500 12px/1.3 var(--tag); max-width: 20ch; opacity: .85 }
+.ik-price { font: 900 64px/.9 var(--tag); letter-spacing: -.045em; font-variant-numeric: tabular-nums; margin-top: 4px }
+.ik-price sup { font-size: .46em; vertical-align: top; position: relative; top: .14em; margin-left: .04em; letter-spacing: 0 }
+.ik-price sup { font-size: .36em }
+.rub { position: relative; display: inline-block; font-size: .5em; vertical-align: top; top: .1em; margin-left: .08em; letter-spacing: 0 }
+.rub::after { content: ""; position: absolute; left: -.1em; width: .5em; top: .56em; height: .11em; background: currentColor }
+.ik-unit { font: 500 12px/1.2 var(--tag) }
+.plan .burst { position: absolute; right: -22px; top: 70px; width: 92px; height: 92px; z-index: 2; --r: 16deg }
+.plan .burst span { font-size: 13px }
+.seats { padding: 18px 22px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 20px; align-items: center }
+.seats b { font: italic 900 18px/1.2 var(--display); text-transform: uppercase; white-space: nowrap }
+.seats .bar { height: 20px; border: 3px solid var(--outline); border-radius: 999px; background: var(--bg); overflow: hidden }
+.seats .bar i { display: block; height: 100%; width: 63%; background: repeating-linear-gradient(-45deg, var(--red) 0 10px, #B8001A 10px 20px); border-right: 3px solid var(--outline); animation: barber 1s linear infinite; background-size: 28px 28px }
+@keyframes barber { to { background-position: 28px 0 } }
+.seats .fine { grid-column: 1 / -1 }
+
+footer { display: flex; justify-content: space-between; align-items: center; gap: 16px 24px; flex-wrap: wrap; border-top: 3px solid var(--outline); padding-top: 22px }
+footer .fine { max-width: 60ch }
+
+/* Закреплённая панель */
+.dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: center; gap: 14px; align-items: center; flex-wrap: wrap;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: #111; color: #fff; border-top: 3px solid var(--yellow) }
+.dock .btn { padding: 12px 22px; font-size: 15px; box-shadow: 0 4px 0 var(--red); border-color: var(--yellow) }
+.dock .msg { font: 600 14px/1.3 var(--body); max-width: 40ch; color: #ddd }
+.dock .msg b { color: var(--yellow); font-variant-numeric: tabular-nums }
+
+@media (max-width: 900px) {
+  .brag, .reviews { grid-template-columns: 1fr 1fr }
+  .faq-wrap { grid-template-columns: 1fr }
+  .faq-meme { max-width: 320px }
+}
+@media (max-width: 760px) {
+  .hero, .faq, .plans, .steps { grid-template-columns: 1fr }
+  .hero::before { left: 50%; top: 75% }
+  .feed { inset: 26px 5% 40px }
+  .post { font-size: 10px; grid-template-columns: 22px 1fr auto; padding: 5px 7px }
+  .post i { width: 22px; height: 22px }
+  .post:nth-child(3) { display: none }
+  .lower .l1, .lower .l2 { font-size: 11px; padding: 6px 8px }
+  .pop { width: 92px; height: 92px }
+  .pop span { font-size: 12px }
+  .plan.main { transform: none }
+  .seats { grid-template-columns: 1fr }
+  .seats b { white-space: normal }
+  .dock .msg { display: none }
+}
+@media (max-width: 520px) {
+  .brag, .reviews { grid-template-columns: 1fr }
+  .tv .burst { width: 96px; height: 96px; right: -8px }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important } }
+/* Подарочная коробка: парит, искры мерцают, при наведении крышка приподнимается и изнутри идёт свет */
+.giftbox { position: relative; width: 100%; max-width: 480px; justify-self: center; aspect-ratio: 480 / 540; cursor: pointer }
+.giftbox > svg { width: 100%; height: 100%; overflow: visible; display: block }
+.gb-float { animation: gbfloat 3.2s ease-in-out infinite }
+.gb-shadow { transform-box: fill-box; transform-origin: center; animation: gbshadow 3.2s ease-in-out infinite }
+@keyframes gbfloat { 50% { transform: translateY(-10px) } }
+@keyframes gbshadow { 50% { transform: scale(.88); opacity: .16 } }
+.gb-lid { transform-box: fill-box; transform-origin: 85% 100%; transition: transform .35s cubic-bezier(.3, 1.6, .5, 1) }
+.gb-light { opacity: 0; transition: opacity .35s }
+.giftbox:hover .gb-light { opacity: 1 }
+.gb-spark { transform-box: fill-box; transform-origin: center; animation: twinkle 1.6s ease-in-out infinite }
+.gb-spark.s2 { animation-delay: .5s } .gb-spark.s3 { animation-delay: 1s }
+@keyframes twinkle { 50% { transform: scale(.5) rotate(30deg) } }
+.giftbox .burst { position: absolute; right: -4%; top: 6%; width: 120px; height: 120px; --r: 14deg }
+@media (max-width: 520px) { .giftbox .burst { width: 92px; height: 92px; right: -4px } }
+/* Варианты коробки и переключатель */
+.giftbox > svg[hidden] { display: none }
+.gb-pick { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center }
+.gb-pick button { font: 700 13px/1 var(--body); padding: 8px 11px; border-radius: 999px; border: 2px solid var(--outline); background: var(--paper); color: var(--ink); cursor: pointer }
+.gb-pick button[aria-pressed="true"] { background: var(--yellow); color: #111; border-color: #111; box-shadow: 2px 2px 0 var(--outline) }
+.gb-pick button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px }
+.gb-light { opacity: 0; transition: opacity .3s }
+.giftbox:hover .gb-light { opacity: 1 }
+.gb-pop { animation: gbpop 2.4s ease-in-out infinite }
+@keyframes gbpop { 50% { transform: translateY(-14px) } }
+.gb-rays { transform-box: fill-box; transform-origin: center; animation: spin 24s linear infinite }
+.gb-tag { transform-box: view-box; transform-origin: 214px 128px; animation: swing 2.6s ease-in-out infinite }
+@keyframes swing { 50% { transform: rotate(6deg) } }
+.gb-knob { transition: transform .25s, fill .25s }
+.giftbox:hover .gb-knob { transform: translateY(-20px); fill: #00A651 }
+.gb-auto { transition: opacity .2s }
+.giftbox:hover .gb-auto { opacity: 0 }
+@media (max-width: 760px) { .gb-pick { grid-column: 1 } }
+/* Коробка: наведение — крышка подрагивает (каждый заход курсора заново запускает анимацию).
+   Клик ставит на <html> класс boom: вспышка на весь экран, тряска страницы, крышка слетает, 120 карточек вылетают в зрителя.
+   Разлёт каждой карточки задан переменными в разметке: --dx/--dy (куда), --s (насколько вырастет), --r (поворот), --t (длительность), --d (задержка) */
+.gb-lid { transform-box: fill-box; transform-origin: 50% 100% }
+.giftbox:hover .gb-lid { animation: lidshake .9s }
+@keyframes lidshake { 0%, 100% { transform: none } 10% { transform: translate(-2px, -9px) rotate(-3deg) } 20% { transform: translate(2px, -3px) rotate(2deg) } 30% { transform: translate(-1px, -12px) rotate(-1deg) } 40% { transform: none } 55% { transform: translate(3px, -7px) rotate(3deg) } 65% { transform: translate(-2px, -2px) rotate(-2deg) } 80% { transform: translate(1px, -5px) } }
+.boom .giftbox .gb-lid { animation: lidfly 1.2s cubic-bezier(.2, .9, .3, 1) }
+@keyframes lidfly { 0% { transform: none } 12% { transform: translate(-30px, -150px) rotate(-18deg) } 70% { transform: translate(-30px, -150px) rotate(-18deg) } 100% { transform: none } }
+.boom .hero { z-index: 200 }
+.boom .wrap { animation: quake .36s }
+@keyframes quake { 25% { transform: translate(-10px, 7px) } 50% { transform: translate(9px, -6px) } 75% { transform: translate(-5px, 4px) } }
+.flash { position: fixed; inset: 0; z-index: 150; pointer-events: none; opacity: 0; background: radial-gradient(circle at 72% 42%, #fff 0 30%, #FFF8C8 55%, #fff 80%) }
+.boom .flash { animation: flash 1s ease-out }
+@keyframes flash { 0% { opacity: 0 } 6% { opacity: 1 } 30% { opacity: 1 } 100% { opacity: 0 } }
+.gb-note { position: absolute; left: 0; right: 0; bottom: -6px; text-align: center }
+/* Ценники качаются как маятник от прокрутки: скрипт считает угол (толчок от скорости прокрутки, пружина, затухание)
+   и пишет его в --swing на блоке тарифов; каждый ценник умножает его на свой --m, чтобы качались не в ногу.
+   Отдельное свойство rotate не мешает наклону по наведению (он на transform) */
+.htag { rotate: calc(var(--swing, 0) * var(--m, 1) * 1deg) }
+.plan:nth-child(1) .htag { --m: .8 }
+.plan:nth-child(3) .htag { --m: 1.2 }
+/* Фото-коробка (слои img/box-body.webp и img/box-lid.webp из source/photo_box.py).
+   В покое крышку время от времени чуть подбрасывает изнутри; наведение — мелкая дрожь. Сдвиги в % от высоты слоя
+   и не больше нарощенной стенки (3%), поэтому в щели всегда стенка, а не внутренность.
+   Клик (класс boom на <html>) — крышку срывает и уносит с вращением, коробка светится изнутри, потом крышка падает обратно.
+   Всё анимируется только transform и opacity; класс armed (первое наведение) заранее выносит слои на GPU */
+.pb { position: absolute; left: 0; right: 0; top: 0; aspect-ratio: 810 / 840; animation: gbfloat 3.2s ease-in-out infinite }
+.pb > *, .pb-body > * { position: absolute; inset: 0; width: 100%; height: 100% }
+.pb-shadow { inset: auto 14% -2% 14% !important; height: 7% !important; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,.35), transparent); animation: gbshadow 3.2s ease-in-out infinite }
+.pb-in { opacity: 0 }
+.pb-body { transform-origin: 50% 100%; animation: pbjolt 4.6s infinite }
+.pb-lid { transform-origin: 97% 38%; animation: pbknock 4.6s infinite }
+@keyframes pbknock {
+  0%, 56%, 100% { transform: none; animation-timing-function: ease-in }
+  58% { transform: translateY(-1.1%); animation-timing-function: ease-in }
+  60.5% { transform: none }
+  62% { transform: translateY(-.35%) }
+  63.5% { transform: none }
+  80% { transform: none }
+  82% { transform: translateY(-.8%) rotate(.45deg) }
+  84.5% { transform: none }
+  86% { transform: translateY(-.25%) }
+  87.5% { transform: none } }
+@keyframes pbjolt { 0%, 56%, 61%, 80%, 85%, 100% { transform: none } 58% { transform: scale(1.006, .994) } 82% { transform: scale(1.006, .994) } }
+.giftbox:hover .pb-lid { animation: pbrattle .5s infinite }
+.giftbox:hover .pb-body { animation: none }
+@keyframes pbrattle { 0%, 100% { transform: none } 20% { transform: translateY(-.7%) rotate(.3deg) } 40% { transform: translateY(-.15%) } 60% { transform: translateY(-.9%) rotate(-.2deg) } 80% { transform: translateY(-.2%) } }
+.armed .pb-lid, .armed .pb-body, .armed .pb-in, .armed .flash { will-change: transform, opacity }
+/* Взрыв длится 3,6 с: крышку срывает за полсекунды, она пропадает за кадром, пока летят карты,
+   а когда последние почти растаяли (~2,2 с), плавно опускается сверху на место без отскока */
+html.boom .giftbox .pb-lid { animation: pbfly 3.6s both }
+html.boom .giftbox .pb-body { animation: pbsquash 3.6s both }
+html.boom .giftbox .pb-in { animation: pbopen 3.6s both }
+@keyframes pbfly {
+  0% { transform: none; opacity: 1; animation-timing-function: cubic-bezier(.1, .8, .3, 1) }
+  15% { transform: translate(-40vw, -95vh) rotate(-540deg) scale(.7); opacity: 1 }
+  16% { transform: translate(-40vw, -95vh) rotate(-540deg) scale(.7); opacity: 0 }
+  60% { transform: translateY(-60vh) rotate(-4deg); opacity: 0 }
+  61% { transform: translateY(-60vh) rotate(-4deg); opacity: 1; animation-timing-function: cubic-bezier(.22, .65, .3, 1) }
+  90% { transform: translateY(-.6%) rotate(0); animation-timing-function: ease-in }
+  93% { transform: none }
+  100% { transform: none; opacity: 1 } }
+@keyframes pbsquash { 0% { transform: none } 3% { transform: scale(1.06, .9) } 8% { transform: scale(.97, 1.04) } 13% { transform: none } 93% { transform: none } 95% { transform: scale(1.008, .992) } 98%, 100% { transform: none } }
+@keyframes pbopen { 0% { opacity: 0 } 2%, 92% { opacity: 1 } 93%, 100% { opacity: 0 } }
+.boom .wrap { animation: none }
+.boom .hero { animation: quake .36s }
+.armed .hero { z-index: 200; will-change: transform }
+
+/* Игральные карты 63×88 мм. Внешний .jet летит (сдвиг, рост, поворот в плоскости); лицо и рубашка поворачиваются по Y
+   каждая сама (рубашка на 180° дальше) — без preserve-3d, который ломается от opacity у родителя.
+   Карта рисуется сразу в полном размере и стартует с маленького scale — растр готовится один раз и не мылится */
+.jets { position: absolute; left: 50%; top: 34%; width: 0; height: 0; z-index: 5; pointer-events: none }
+.giftbox.photo .burst { top: 2%; right: -6% }
+.jet { position: absolute; left: 0; top: 0; width: 200px; height: 280px; margin: -140px 0 0 -100px; opacity: 0; border: 0; border-radius: 0; background: none; box-shadow: none; overflow: visible }
+.jc { position: absolute; inset: 0 }
+.jf, .jb { position: absolute; inset: 0; border-radius: 11px; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 1px 0 rgba(0,0,0,.1), 0 5px 12px rgba(0,0,0,.24) }
+.jf { background: linear-gradient(160deg, #FFFEFA, #F1EEE6); border: 1px solid rgba(0,0,0,.14); padding: 10px; display: grid; grid-template-rows: 1fr auto auto auto; gap: 0; color: #1A1A1A }
+.jp { position: relative; border-radius: 4px; overflow: hidden; background: #222; box-shadow: inset 0 0 0 1px rgba(0,0,0,.2) }
+.jp img, .jp canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; background-size: cover; background-position: center }
+.jsrc { position: fixed; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none }
+.jd { position: absolute; right: 6px; bottom: 6px; font: 600 10px/1 var(--body); color: #fff; background: rgba(0,0,0,.7); border-radius: 3px; padding: 3px 5px }
+.jf b { margin-top: 10px; font: 800 16px/1.1 "Jost", var(--body); text-transform: uppercase; letter-spacing: .04em }
+.jf span { margin-top: 3px; font: 500 11px/1.2 var(--body); color: #77736A; text-transform: uppercase; letter-spacing: .08em }
+.jf em { margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(0,0,0,.12); font: normal 900 11px/1 "Jost", sans-serif; color: #1A1A1A; text-align: right }
+.jf em sup, .jb sup { font-size: .7em; vertical-align: .45em }
+.jb { transform: perspective(1100px) rotateY(180deg); background: #FFD21A; border: 1px solid rgba(0,0,0,.18); display: grid; place-items: center; overflow: hidden }
+.jb::before { content: ""; position: absolute; inset: 10px; border: 2px solid #111; border-radius: 6px;
+  background: repeating-linear-gradient(45deg, rgba(0,0,0,.07) 0 2px, transparent 2px 9px), repeating-linear-gradient(-45deg, rgba(0,0,0,.07) 0 2px, transparent 2px 9px) }
+.jb::after { content: ""; position: absolute; inset: 16px; border: 1px solid rgba(0,0,0,.45); border-radius: 3px }
+.jb span { position: relative; z-index: 1; background: #FFD21A; border: 3px solid #111; padding: 10px 14px 12px; font: 900 36px/.88 "Jost", sans-serif; letter-spacing: -.02em; color: #111 }
+.armed .jet { will-change: transform, opacity }
+.armed .jet:not(.nf) .jf, .armed .jb { will-change: transform }
+.nf .jf { backface-visibility: visible; -webkit-backface-visibility: visible }
+.boom .jet { animation: jet var(--t) var(--d) cubic-bezier(.12, .75, .3, 1) both }
+.boom .jet:not(.nf) .jf { animation: jflip var(--t) var(--d) cubic-bezier(.3, .6, .4, 1) both }
+.boom .jb { animation: jflipb var(--t) var(--d) cubic-bezier(.3, .6, .4, 1) both }
+@keyframes jet {
+  0% { transform: scale(.06); opacity: 0 }
+  5% { opacity: 1 }
+  72% { opacity: 1 }
+  100% { transform: translate(calc(var(--tx) - var(--ox, 0px)), calc(var(--ty) - var(--oy, 0px))) rotate(var(--r)) scale(var(--s)); opacity: 0 } }
+@keyframes jflip { from { transform: perspective(1100px) rotateY(0) } to { transform: perspective(1100px) rotateY(var(--f)) } }
+@keyframes jflipb { from { transform: perspective(1100px) rotateY(180deg) } to { transform: perspective(1100px) rotateY(calc(var(--f) + 180deg)) } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><pattern id="pm-dots" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="4" cy="4" r="1.6" fill="#111" opacity=".22"/></pattern><radialGradient id="pm-glow"><stop offset="0" stop-color="#FFF6B0"/><stop offset=".55" stop-color="#FFDA1A" stop-opacity=".55"/><stop offset="1" stop-color="#FFDA1A" stop-opacity="0"/></radialGradient></defs><symbol id="i-ph" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M2 8.2C2 5.6 6.5 4 12 4s10 1.6 10 4.2v.9c0 .8-.6 1.4-1.4 1.4h-2.7c-.8 0-1.4-.6-1.4-1.4V8.4h-9v.7c0 .8-.6 1.4-1.4 1.4H3.4C2.6 10.5 2 9.9 2 9.1zM7.6 11h8.8l3.9 7.9c.4.9-.2 2.1-1.2 2.1H4.9c-1 0-1.6-1.2-1.2-2.1zM12 12.6a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 1 0 0-6.4zm0 2.1a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z"/></symbol></svg>
+
+<div class="onair" aria-hidden="true">
+  <span class="live"><i></i>В эфире</span>
+  <div class="ticker"><div>
+    <span>Только сегодня! <b>Автопилот для каналов</b></span><span>Telegram и ВКонтакте <b>в одной коробке</b></span><span>Админы <b>снова высыпаются</b></span><span>Баяны <b>не пройдут!</b></span><span>Цирк уехал — <b>посты остались</b></span><span>Звоните прямо сейчас* <b>*не звоните</b></span>
+    <span>Только сегодня! <b>Автопилот для каналов</b></span><span>Telegram и ВКонтакте <b>в одной коробке</b></span><span>Админы <b>снова высыпаются</b></span><span>Баяны <b>не пройдут!</b></span><span>Цирк уехал — <b>посты остались</b></span><span>Звоните прямо сейчас* <b>*не звоните</b></span>
+  </div></div>
+</div>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="hero-text">
+    <div class="logo" aria-label="Postmaker"><div class="logo-in"><span style="--fs:clamp(36px,5vw,52px)">postmaker<sup>,–</sup></span></div></div>
+    <h1>Устали искать посты <mark>в три часа ночи?</mark></h1>
+    <p class="lead">Есть решение! Postmaker сам находит посты по вашей теме, раскладывает их по расписанию и публикует. Это не магия, это автопилот.</p>
+    <div class="platforms" aria-label="Площадки"><span>Telegram</span><span>ВКонтакте</span><span class="soon">дальше — везде</span></div>
+    <div class="cta-row">
+      <button class="btn red cta" type="button"><svg class="ph" aria-hidden="true"><use href="#i-ph"/></svg> Заказать сейчас</button>
+      <div class="burst" aria-hidden="true">
+        <svg viewBox="0 0 100 100"><polygon points="50,2 59,22 80,10 76,33 98,36 82,52 96,70 73,72 74,95 55,83 42,100 36,78 14,88 19,65 0,55 18,42 6,22 29,24 30,2 43,20" fill="var(--yellow)" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg>
+        <span style="color:#111;text-shadow:none">Бес-<br>платно!*</span>
+      </div>
+    </div>
+    <p class="fine">* Тариф «Попробовать» — бесплатно навсегда. Без смс, но с регистрацией. 18+ Postmaker отсеивает сам.</p>
+  </div>
+
+  <div class="giftbox photo" role="img" aria-label="Коробка с товаром Postmaker: внутри картинки и видео на любые темы"><div class="pb" aria-hidden="true">
+<i class="pb-shadow"></i>
+<svg class="pb-in" viewBox="0 0 810 840"><defs><radialGradient id="pb-glow" cx=".5" cy=".55" r=".55"><stop offset="0" stop-color="#FFF6B0"/><stop offset=".5" stop-color="#FFD21A" stop-opacity=".7"/><stop offset="1" stop-color="#FFD21A" stop-opacity="0"/></radialGradient></defs>
+<polygon points="42,307 406,98 768,307 406,516" fill="#2A1E00"/>
+<polygon points="42,307 406,98 406,228 42,437" fill="#5C4400" opacity=".9"/>
+<polygon points="406,98 768,307 768,437 406,228" fill="#3E2E00"/>
+<polygon points="42,307 406,98 768,307 406,516" fill="url(#pb-glow)"/>
+</svg>
+<div class="pb-body"><img src="img/box-body.webp" alt="">
+<svg viewBox="0 0 810 840"><g transform="matrix(1 -.5733 0 1 437 537)"><g transform="rotate(-3 150 105)">
+<text x="150" y="122" text-anchor="middle" font-family="Jost, Futura, sans-serif" font-weight="900" font-size="66" textLength="272" lengthAdjust="spacingAndGlyphs" fill="#111">БЕСПЛАТНО</text>
+<text x="150" y="172" text-anchor="middle" font-family="Jost, Futura, sans-serif" font-weight="900" font-size="30" letter-spacing="7" fill="#C8001A">AUTÖPILÖT</text>
+</g></g></svg></div>
+<img class="pb-lid" src="img/box-lid.webp" alt="">
+</div><div class="jets" aria-hidden="true"><div class="jet nf" style="--tx:-1vw;--ty:61vh;--s:1.20;--r:0deg;--f:0deg;--t:1.57s;--d:0.045s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="skate" style="background-image:url(img/vid/skate.webp)"></canvas><span class="jd">0:14</span></div><b>Скейт</b><span>Видео · 0:14</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:18vw;--ty:1vh;--s:1.14;--r:1deg;--f:0deg;--t:1.13s;--d:0.066s"><div class="jc"><div class="jf"><div class="jp"><img src="img/boo.jpg?v=2" alt="" decoding="async"></div><b>Котики</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:34vw;--ty:39vh;--s:1.30;--r:-1deg;--f:0deg;--t:1.49s;--d:0.097s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="coaster" style="background-image:url(img/vid/coaster.webp)"></canvas><span class="jd">0:21</span></div><b>Аттракционы</b><span>Видео · 0:21</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:-1vw;--ty:84vh;--s:1.29;--r:-3deg;--f:-360deg;--t:1.02s;--d:0.066s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p1025.webp" alt="" decoding="async"></div><b>Мопсы</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:54vw;--ty:57vh;--s:1.27;--r:8deg;--f:0deg;--t:1.41s;--d:0.078s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="puppies" style="background-image:url(img/vid/puppies.webp)"></canvas><span class="jd">0:09</span></div><b>Собаки</b><span>Видео · 0:09</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:25vw;--ty:67vh;--s:1.23;--r:-17deg;--f:-180deg;--t:1.26s;--d:0.112s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p111.webp" alt="" decoding="async"></div><b>Ретроавто</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:42vw;--ty:56vh;--s:1.41;--r:18deg;--f:0deg;--t:1.35s;--d:0.143s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="city" style="background-image:url(img/vid/city.webp)"></canvas><span class="jd">0:32</span></div><b>Дороги</b><span>Видео · 0:32</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:24vw;--ty:43vh;--s:0.85;--r:-16deg;--f:-180deg;--t:1.26s;--d:0.130s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p63.webp" alt="" decoding="async"></div><b>Кофе</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:37vw;--ty:54vh;--s:1.17;--r:24deg;--f:0deg;--t:1.55s;--d:0.120s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="fire" style="background-image:url(img/vid/fire.webp)"></canvas><span class="jd">0:18</span></div><b>Костры</b><span>Видео · 0:18</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:95vw;--ty:96vh;--s:0.98;--r:-23deg;--f:540deg;--t:1.20s;--d:0.143s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p39.webp" alt="" decoding="async"></div><b>Винил</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:35vw;--ty:65vh;--s:1.29;--r:-8deg;--f:0deg;--t:1.31s;--d:0.160s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="hyperlapse" style="background-image:url(img/vid/hyperlapse.webp)"></canvas><span class="jd">0:11</span></div><b>Города</b><span>Видео · 0:11</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:51vw;--ty:95vh;--s:1.31;--r:18deg;--f:0deg;--t:1.03s;--d:0.128s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p235.webp" alt="" decoding="async"></div><b>Горы</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:33vw;--ty:89vh;--s:1.20;--r:-15deg;--f:0deg;--t:1.62s;--d:0.192s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="waterfall" style="background-image:url(img/vid/waterfall.webp)"></canvas><span class="jd">0:47</span></div><b>Природа</b><span>Видео · 0:47</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:15vw;--ty:66vh;--s:1.17;--r:-5deg;--f:-540deg;--t:1.28s;--d:0.186s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p237.webp" alt="" decoding="async"></div><b>Собаки</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:61vw;--ty:-0vh;--s:1.33;--r:-8deg;--f:0deg;--t:1.47s;--d:0.176s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="fireworks" style="background-image:url(img/vid/fireworks.webp)"></canvas><span class="jd">0:26</span></div><b>Праздники</b><span>Видео · 0:26</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:80vw;--ty:82vh;--s:0.84;--r:6deg;--f:180deg;--t:1.28s;--d:0.229s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p24.webp" alt="" decoding="async"></div><b>Книги</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:60vw;--ty:74vh;--s:1.10;--r:-21deg;--f:0deg;--t:1.60s;--d:0.245s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="mountains" style="background-image:url(img/vid/mountains.webp)"></canvas><span class="jd">0:38</span></div><b>Горы</b><span>Видео · 0:38</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:1vw;--ty:27vh;--s:1.35;--r:20deg;--f:540deg;--t:1.10s;--d:0.237s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p91.webp" alt="" decoding="async"></div><b>Фото</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:90vw;--ty:66vh;--s:1.07;--r:21deg;--f:0deg;--t:1.55s;--d:0.276s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="frying" style="background-image:url(img/vid/frying.webp)"></canvas><span class="jd">0:16</span></div><b>Еда</b><span>Видео · 0:16</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:42vw;--ty:-2vh;--s:0.91;--r:-9deg;--f:360deg;--t:1.06s;--d:0.270s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p75.webp" alt="" decoding="async"></div><b>Вино</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:16vw;--ty:17vh;--s:1.21;--r:-15deg;--f:0deg;--t:1.48s;--d:0.248s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="skate" style="background-image:url(img/vid/skate.webp)"></canvas><span class="jd">0:14</span></div><b>Скейт</b><span>Видео · 0:14</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:83vw;--ty:52vh;--s:0.82;--r:0deg;--f:0deg;--t:0.96s;--d:0.309s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p274.webp" alt="" decoding="async"></div><b>Города</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:101vw;--ty:20vh;--s:1.33;--r:-3deg;--f:0deg;--t:1.39s;--d:0.295s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="coaster" style="background-image:url(img/vid/coaster.webp)"></canvas><span class="jd">0:21</span></div><b>Аттракционы</b><span>Видео · 0:21</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:11vw;--ty:102vh;--s:1.10;--r:23deg;--f:-540deg;--t:1.26s;--d:0.278s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p244.webp" alt="" decoding="async"></div><b>Птицы</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:57vw;--ty:28vh;--s:1.17;--r:-14deg;--f:0deg;--t:1.38s;--d:0.335s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="puppies" style="background-image:url(img/vid/puppies.webp)"></canvas><span class="jd">0:09</span></div><b>Собаки</b><span>Видео · 0:09</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:42vw;--ty:13vh;--s:0.99;--r:-18deg;--f:180deg;--t:0.97s;--d:0.281s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p225.webp" alt="" decoding="async"></div><b>Чай</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:33vw;--ty:2vh;--s:1.46;--r:-16deg;--f:0deg;--t:1.39s;--d:0.293s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="city" style="background-image:url(img/vid/city.webp)"></canvas><span class="jd">0:32</span></div><b>Дороги</b><span>Видео · 0:32</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:17vw;--ty:45vh;--s:1.17;--r:-12deg;--f:-540deg;--t:1.05s;--d:0.320s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p215.webp" alt="" decoding="async"></div><b>Море</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:33vw;--ty:32vh;--s:1.30;--r:-3deg;--f:0deg;--t:1.36s;--d:0.329s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="fire" style="background-image:url(img/vid/fire.webp)"></canvas><span class="jd">0:18</span></div><b>Костры</b><span>Видео · 0:18</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:46vw;--ty:80vh;--s:1.10;--r:22deg;--f:-360deg;--t:1.04s;--d:0.344s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p21.webp" alt="" decoding="async"></div><b>Мода</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:65vw;--ty:31vh;--s:1.25;--r:-6deg;--f:0deg;--t:1.30s;--d:0.368s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="hyperlapse" style="background-image:url(img/vid/hyperlapse.webp)"></canvas><span class="jd">0:11</span></div><b>Города</b><span>Видео · 0:11</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:1vw;--ty:49vh;--s:1.23;--r:15deg;--f:180deg;--t:0.98s;--d:0.353s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p183.webp" alt="" decoding="async"></div><b>Вэнлайф</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:47vw;--ty:31vh;--s:1.37;--r:-10deg;--f:0deg;--t:1.44s;--d:0.402s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="waterfall" style="background-image:url(img/vid/waterfall.webp)"></canvas><span class="jd">0:47</span></div><b>Природа</b><span>Видео · 0:47</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:62vw;--ty:99vh;--s:1.09;--r:8deg;--f:0deg;--t:1.21s;--d:0.420s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p174.webp" alt="" decoding="async"></div><b>Путешествия</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:74vw;--ty:66vh;--s:1.53;--r:-8deg;--f:0deg;--t:1.44s;--d:0.453s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="fireworks" style="background-image:url(img/vid/fireworks.webp)"></canvas><span class="jd">0:26</span></div><b>Праздники</b><span>Видео · 0:26</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:29vw;--ty:80vh;--s:1.14;--r:16deg;--f:180deg;--t:1.00s;--d:0.442s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p145.webp" alt="" decoding="async"></div><b>Гитары</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:85vw;--ty:103vh;--s:1.33;--r:10deg;--f:0deg;--t:1.45s;--d:0.436s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="mountains" style="background-image:url(img/vid/mountains.webp)"></canvas><span class="jd">0:38</span></div><b>Горы</b><span>Видео · 0:38</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:91vw;--ty:32vh;--s:1.12;--r:9deg;--f:0deg;--t:1.26s;--d:0.462s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p0.webp" alt="" decoding="async"></div><b>IT</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:82vw;--ty:47vh;--s:1.18;--r:-18deg;--f:0deg;--t:1.31s;--d:0.447s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="frying" style="background-image:url(img/vid/frying.webp)"></canvas><span class="jd">0:16</span></div><b>Еда</b><span>Видео · 0:16</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:103vw;--ty:76vh;--s:1.05;--r:-23deg;--f:0deg;--t:0.97s;--d:0.472s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p1062.webp" alt="" decoding="async"></div><b>Уют</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:11vw;--ty:41vh;--s:1.18;--r:-2deg;--f:0deg;--t:1.39s;--d:0.446s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="skate" style="background-image:url(img/vid/skate.webp)"></canvas><span class="jd">0:14</span></div><b>Скейт</b><span>Видео · 0:14</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:29vw;--ty:100vh;--s:0.84;--r:-12deg;--f:0deg;--t:1.21s;--d:0.457s"><div class="jc"><div class="jf"><div class="jp"><img src="img/boo.jpg?v=2" alt="" decoding="async"></div><b>Котики</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:74vw;--ty:29vh;--s:1.20;--r:-14deg;--f:0deg;--t:1.56s;--d:0.521s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="coaster" style="background-image:url(img/vid/coaster.webp)"></canvas><span class="jd">0:21</span></div><b>Аттракционы</b><span>Видео · 0:21</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:42vw;--ty:66vh;--s:1.01;--r:9deg;--f:540deg;--t:1.12s;--d:0.534s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p1025.webp" alt="" decoding="async"></div><b>Мопсы</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:73vw;--ty:58vh;--s:1.39;--r:-20deg;--f:0deg;--t:1.52s;--d:0.496s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="puppies" style="background-image:url(img/vid/puppies.webp)"></canvas><span class="jd">0:09</span></div><b>Собаки</b><span>Видео · 0:09</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:80vw;--ty:69vh;--s:1.18;--r:-18deg;--f:-360deg;--t:1.17s;--d:0.534s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p111.webp" alt="" decoding="async"></div><b>Ретроавто</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:94vw;--ty:60vh;--s:1.32;--r:-19deg;--f:0deg;--t:1.64s;--d:0.523s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="city" style="background-image:url(img/vid/city.webp)"></canvas><span class="jd">0:32</span></div><b>Дороги</b><span>Видео · 0:32</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:7vw;--ty:20vh;--s:1.08;--r:-2deg;--f:540deg;--t:1.11s;--d:0.526s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p63.webp" alt="" decoding="async"></div><b>Кофе</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:-3vw;--ty:12vh;--s:1.54;--r:23deg;--f:0deg;--t:1.37s;--d:0.603s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="fire" style="background-image:url(img/vid/fire.webp)"></canvas><span class="jd">0:18</span></div><b>Костры</b><span>Видео · 0:18</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:25vw;--ty:30vh;--s:0.84;--r:24deg;--f:0deg;--t:1.13s;--d:0.619s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p39.webp" alt="" decoding="async"></div><b>Винил</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:52vw;--ty:69vh;--s:1.26;--r:21deg;--f:0deg;--t:1.62s;--d:0.556s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="hyperlapse" style="background-image:url(img/vid/hyperlapse.webp)"></canvas><span class="jd">0:11</span></div><b>Города</b><span>Видео · 0:11</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:99vw;--ty:42vh;--s:1.09;--r:-18deg;--f:0deg;--t:1.28s;--d:0.627s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p235.webp" alt="" decoding="async"></div><b>Горы</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:85vw;--ty:35vh;--s:1.33;--r:10deg;--f:0deg;--t:1.61s;--d:0.591s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="waterfall" style="background-image:url(img/vid/waterfall.webp)"></canvas><span class="jd">0:47</span></div><b>Природа</b><span>Видео · 0:47</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:54vw;--ty:6vh;--s:0.89;--r:9deg;--f:540deg;--t:1.28s;--d:0.615s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p237.webp" alt="" decoding="async"></div><b>Собаки</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:42vw;--ty:46vh;--s:1.45;--r:-6deg;--f:0deg;--t:1.45s;--d:0.604s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="fireworks" style="background-image:url(img/vid/fireworks.webp)"></canvas><span class="jd">0:26</span></div><b>Праздники</b><span>Видео · 0:26</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:94vw;--ty:47vh;--s:1.21;--r:-18deg;--f:360deg;--t:1.24s;--d:0.679s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p24.webp" alt="" decoding="async"></div><b>Книги</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:6vw;--ty:79vh;--s:1.44;--r:-10deg;--f:0deg;--t:1.62s;--d:0.646s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="mountains" style="background-image:url(img/vid/mountains.webp)"></canvas><span class="jd">0:38</span></div><b>Горы</b><span>Видео · 0:38</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:44vw;--ty:92vh;--s:1.28;--r:20deg;--f:540deg;--t:0.98s;--d:0.687s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p91.webp" alt="" decoding="async"></div><b>Фото</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:10vw;--ty:-2vh;--s:1.52;--r:-22deg;--f:0deg;--t:1.40s;--d:0.691s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="frying" style="background-image:url(img/vid/frying.webp)"></canvas><span class="jd">0:16</span></div><b>Еда</b><span>Видео · 0:16</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:74vw;--ty:8vh;--s:0.95;--r:-15deg;--f:180deg;--t:1.13s;--d:0.679s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p75.webp" alt="" decoding="async"></div><b>Вино</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:76vw;--ty:86vh;--s:1.58;--r:15deg;--f:0deg;--t:1.61s;--d:0.710s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="skate" style="background-image:url(img/vid/skate.webp)"></canvas><span class="jd">0:14</span></div><b>Скейт</b><span>Видео · 0:14</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:97vw;--ty:32vh;--s:0.83;--r:-2deg;--f:-180deg;--t:1.21s;--d:0.731s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p274.webp" alt="" decoding="async"></div><b>Города</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:83vw;--ty:2vh;--s:1.40;--r:-22deg;--f:0deg;--t:1.40s;--d:0.756s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="coaster" style="background-image:url(img/vid/coaster.webp)"></canvas><span class="jd">0:21</span></div><b>Аттракционы</b><span>Видео · 0:21</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:21vw;--ty:101vh;--s:1.03;--r:-12deg;--f:180deg;--t:1.05s;--d:0.752s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p244.webp" alt="" decoding="async"></div><b>Птицы</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:-1vw;--ty:69vh;--s:1.41;--r:-13deg;--f:0deg;--t:1.44s;--d:0.743s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="puppies" style="background-image:url(img/vid/puppies.webp)"></canvas><span class="jd">0:09</span></div><b>Собаки</b><span>Видео · 0:09</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:56vw;--ty:15vh;--s:1.15;--r:0deg;--f:540deg;--t:0.98s;--d:0.780s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p225.webp" alt="" decoding="async"></div><b>Чай</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:17vw;--ty:81vh;--s:1.35;--r:-8deg;--f:0deg;--t:1.46s;--d:0.787s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="city" style="background-image:url(img/vid/city.webp)"></canvas><span class="jd">0:32</span></div><b>Дороги</b><span>Видео · 0:32</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:62vw;--ty:17vh;--s:0.91;--r:-8deg;--f:540deg;--t:0.98s;--d:0.744s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p215.webp" alt="" decoding="async"></div><b>Море</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:24vw;--ty:3vh;--s:1.18;--r:3deg;--f:0deg;--t:1.39s;--d:0.819s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="fire" style="background-image:url(img/vid/fire.webp)"></canvas><span class="jd">0:18</span></div><b>Костры</b><span>Видео · 0:18</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:37vw;--ty:12vh;--s:1.21;--r:-11deg;--f:540deg;--t:1.02s;--d:0.819s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p21.webp" alt="" decoding="async"></div><b>Мода</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:84vw;--ty:18vh;--s:1.32;--r:-7deg;--f:0deg;--t:1.50s;--d:0.825s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="hyperlapse" style="background-image:url(img/vid/hyperlapse.webp)"></canvas><span class="jd">0:11</span></div><b>Города</b><span>Видео · 0:11</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:73vw;--ty:14vh;--s:1.29;--r:7deg;--f:180deg;--t:1.08s;--d:0.816s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p183.webp" alt="" decoding="async"></div><b>Вэнлайф</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:-2vw;--ty:94vh;--s:1.22;--r:22deg;--f:0deg;--t:1.59s;--d:0.802s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="waterfall" style="background-image:url(img/vid/waterfall.webp)"></canvas><span class="jd">0:47</span></div><b>Природа</b><span>Видео · 0:47</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:25vw;--ty:57vh;--s:1.29;--r:4deg;--f:-540deg;--t:1.12s;--d:0.803s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p174.webp" alt="" decoding="async"></div><b>Путешествия</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:103vw;--ty:60vh;--s:1.27;--r:16deg;--f:0deg;--t:1.62s;--d:0.882s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="fireworks" style="background-image:url(img/vid/fireworks.webp)"></canvas><span class="jd">0:26</span></div><b>Праздники</b><span>Видео · 0:26</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:16vw;--ty:54vh;--s:0.86;--r:1deg;--f:540deg;--t:1.00s;--d:0.880s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p145.webp" alt="" decoding="async"></div><b>Гитары</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:103vw;--ty:0vh;--s:1.57;--r:7deg;--f:0deg;--t:1.55s;--d:0.897s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="mountains" style="background-image:url(img/vid/mountains.webp)"></canvas><span class="jd">0:38</span></div><b>Горы</b><span>Видео · 0:38</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:52vw;--ty:41vh;--s:1.23;--r:-18deg;--f:540deg;--t:0.95s;--d:0.893s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p0.webp" alt="" decoding="async"></div><b>IT</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:67vw;--ty:59vh;--s:1.07;--r:22deg;--f:0deg;--t:1.55s;--d:0.908s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="frying" style="background-image:url(img/vid/frying.webp)"></canvas><span class="jd">0:16</span></div><b>Еда</b><span>Видео · 0:16</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:89vw;--ty:17vh;--s:0.86;--r:1deg;--f:-540deg;--t:0.97s;--d:0.916s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p1062.webp" alt="" decoding="async"></div><b>Уют</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:34vw;--ty:97vh;--s:1.26;--r:5deg;--f:0deg;--t:1.38s;--d:0.881s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="skate" style="background-image:url(img/vid/skate.webp)"></canvas><span class="jd">0:14</span></div><b>Скейт</b><span>Видео · 0:14</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:98vw;--ty:94vh;--s:0.95;--r:16deg;--f:-360deg;--t:1.06s;--d:0.910s"><div class="jc"><div class="jf"><div class="jp"><img src="img/boo.jpg?v=2" alt="" decoding="async"></div><b>Котики</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:12vw;--ty:53vh;--s:1.34;--r:-23deg;--f:0deg;--t:1.49s;--d:0.935s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="coaster" style="background-image:url(img/vid/coaster.webp)"></canvas><span class="jd">0:21</span></div><b>Аттракционы</b><span>Видео · 0:21</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:28vw;--ty:15vh;--s:0.91;--r:7deg;--f:360deg;--t:1.26s;--d:0.919s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p1025.webp" alt="" decoding="async"></div><b>Мопсы</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:95vw;--ty:-2vh;--s:1.18;--r:-6deg;--f:0deg;--t:1.45s;--d:0.963s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="puppies" style="background-image:url(img/vid/puppies.webp)"></canvas><span class="jd">0:09</span></div><b>Собаки</b><span>Видео · 0:09</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:89vw;--ty:87vh;--s:1.00;--r:-24deg;--f:-360deg;--t:1.09s;--d:0.958s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p111.webp" alt="" decoding="async"></div><b>Ретроавто</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:70vw;--ty:43vh;--s:1.51;--r:-0deg;--f:0deg;--t:1.32s;--d:0.962s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="city" style="background-image:url(img/vid/city.webp)"></canvas><span class="jd">0:32</span></div><b>Дороги</b><span>Видео · 0:32</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:101vw;--ty:87vh;--s:0.92;--r:-10deg;--f:180deg;--t:1.22s;--d:1.033s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p63.webp" alt="" decoding="async"></div><b>Кофе</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:76vw;--ty:97vh;--s:1.32;--r:-13deg;--f:0deg;--t:1.37s;--d:1.001s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="fire" style="background-image:url(img/vid/fire.webp)"></canvas><span class="jd">0:18</span></div><b>Костры</b><span>Видео · 0:18</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:-2vw;--ty:-1vh;--s:0.88;--r:-14deg;--f:0deg;--t:1.09s;--d:1.057s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p39.webp" alt="" decoding="async"></div><b>Винил</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet nf" style="--tx:55vw;--ty:79vh;--s:1.13;--r:-21deg;--f:0deg;--t:1.32s;--d:1.021s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="hyperlapse" style="background-image:url(img/vid/hyperlapse.webp)"></canvas><span class="jd">0:11</span></div><b>Города</b><span>Видео · 0:11</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:64vw;--ty:89vh;--s:1.35;--r:-8deg;--f:-360deg;--t:1.28s;--d:1.016s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p235.webp" alt="" decoding="async"></div><b>Горы</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:6vw;--ty:72vh;--s:1.56;--r:-22deg;--f:0deg;--t:1.56s;--d:1.065s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="waterfall" style="background-image:url(img/vid/waterfall.webp)"></canvas><span class="jd">0:47</span></div><b>Природа</b><span>Видео · 0:47</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:17vw;--ty:33vh;--s:1.34;--r:-19deg;--f:-540deg;--t:1.10s;--d:1.029s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p237.webp" alt="" decoding="async"></div><b>Собаки</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div><div class="jet nf" style="--tx:63vw;--ty:47vh;--s:1.09;--r:18deg;--f:0deg;--t:1.45s;--d:1.079s"><div class="jc"><div class="jf"><div class="jp"><canvas width="256" height="272" data-v="fireworks" style="background-image:url(img/vid/fireworks.webp)"></canvas><span class="jd">0:26</span></div><b>Праздники</b><span>Видео · 0:26</span><em>postmaker<sup>,–</sup></em></div></div></div><div class="jet" style="--tx:12vw;--ty:26vh;--s:1.22;--r:15deg;--f:180deg;--t:1.06s;--d:1.052s"><div class="jc"><div class="jf"><div class="jp"><img src="img/jet/p24.webp" alt="" decoding="async"></div><b>Книги</b><span>Фото</span><em>postmaker<sup>,–</sup></em></div><div class="jb"><span>post<sup>,–</sup><br>maker</span></div></div></div></div><div class="jsrc" aria-hidden="true"><video src="img/vid/skate.mp4" data-v="skate" muted loop playsinline preload="none"></video><video src="img/vid/coaster.mp4" data-v="coaster" muted loop playsinline preload="none"></video><video src="img/vid/puppies.mp4" data-v="puppies" muted loop playsinline preload="none"></video><video src="img/vid/city.mp4" data-v="city" muted loop playsinline preload="none"></video><video src="img/vid/fire.mp4" data-v="fire" muted loop playsinline preload="none"></video><video src="img/vid/hyperlapse.mp4" data-v="hyperlapse" muted loop playsinline preload="none"></video><video src="img/vid/waterfall.mp4" data-v="waterfall" muted loop playsinline preload="none"></video><video src="img/vid/fireworks.mp4" data-v="fireworks" muted loop playsinline preload="none"></video><video src="img/vid/mountains.mp4" data-v="mountains" muted loop playsinline preload="none"></video><video src="img/vid/frying.mp4" data-v="frying" muted loop playsinline preload="none"></video></div><p class="fine gb-note">Нажмите! Внутри — картинки и видео на любые темы, кроме 18+*</p>
+    <div class="burst" aria-hidden="true"><svg viewBox="0 0 100 100"><polygon points="50,2 59,22 80,10 76,33 98,36 82,52 96,70 73,72 74,95 55,83 42,100 36,78 14,88 19,65 0,55 18,42 6,22 29,24 30,2 43,20" fill="var(--blue)" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg><span>Хит<br>сезона!</span></div>
+  </div>
+</header>
+
+<div class="phone">
+  <span class="num"><svg class="ph" aria-hidden="true"><use href="#i-ph"/></svg> 8 800 ПОСТ-ПОСТ</span>
+  <span class="fine">Звонок бесплатный. Потому что такого номера нет — просто нажмите кнопку.</span>
+</div>
+
+<section aria-labelledby="brag-h">
+  <div class="burst pop" aria-hidden="true" style="right:0;top:-24px;--r:12deg"><svg viewBox="0 0 100 100"><polygon points="50,2 59,22 80,10 76,33 98,36 82,52 96,70 73,72 74,95 55,83 42,100 36,78 14,88 19,65 0,55 18,42 6,22 29,24 30,2 43,20" fill="var(--red)" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg><span>Скидка<br>−100%<br>на рутину</span></div>
+  <span class="kicker">Но и это ещё не всё!</span>
+  <h2 id="brag-h" class="shout">Что ещё умеет Postmaker? <em>Всё это!</em></h2>
+  <div class="brag">
+    <div class="brag-item card"><span class="hit">Хит</span><span class="n">TITTA</span><b>Смотрит каждую картинку</b><p>Нейросеть разглядывает пост, как придирчивый редактор, и пропускает только то, что действительно по теме.</p></div>
+    <div class="brag-item card"><span class="n">FILMRUTA</span><b>Видео тоже смотрит</b><p>Раскладывает ролик на кадры и решает, подходит ли он вашей теме.</p></div>
+    <div class="brag-item card"><span class="hit y">Новинка</span><span class="n">HITTA</span><b>Сам ищет новые источники</b><p>Каналы Telegram, паблики ВКонтакте, форумы и имиджборды. Вы только одобряете находки.</p></div>
+    <div class="brag-item card"><span class="hit">2 в 1</span><span class="n">TVÅMIX</span><b>Две темы по цене одной</b><p>Мемы и котики сразу? Пожалуйста! Пост пройдёт, только если подходит под обе.</p></div>
+    <div class="brag-item card"><span class="n">LÄRA</span><b>Учится на ваших оценках</b><p>Пара дизлайков источнику — и он больше не попадётся. Без звонков в службу поддержки.</p></div>
+    <div class="brag-item card"><span class="n">ALBUMSKÖN</span><b>Альбомы не рвёт</b><p>В посте пять картинок? Опубликует все пять, в том же порядке. Ни одна не потеряется!</p></div>
+  </div>
+  <p class="wait">Подождите! Это ещё не всё!</p>
+</section>
+
+<section aria-labelledby="steps-h">
+  <div class="burst pop y" aria-hidden="true" style="right:4%;top:-20px;--r:-10deg"><svg viewBox="0 0 100 100"><polygon points="50,2 59,22 80,10 76,33 98,36 82,52 96,70 73,72 74,95 55,83 42,100 36,78 14,88 19,65 0,55 18,42 6,22 29,24 30,2 43,20" fill="var(--yellow)" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg><span>Легко!</span></div>
+  <span class="kicker">Это настолько просто</span>
+  <h2 id="steps-h" class="shout">Всего <em>три шага!</em></h2>
+  <div class="steps">
+    <div class="step card"><span class="no">1</span>
+      <svg viewBox="0 0 120 90" aria-hidden="true"><g fill="none" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="18" y="12" width="84" height="60" rx="4"/><path d="M28 26 h52 M28 36 h36"/><rect x="28" y="46" width="48" height="16" rx="8"/></g><text x="52" y="58" text-anchor="middle" font-family="Jost, Futura, sans-serif" font-weight="700" font-size="10" fill="#111">котики</text></svg>
+      <b>Выберите тему</b><span class="fine">Словами: «Котики», «Ретроавто», «Кухня».</span></div>
+    <div class="step card"><span class="no">2</span>
+      <svg viewBox="0 0 120 90" aria-hidden="true"><g fill="none" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="28" width="34" height="34" rx="4"/><path d="M16 38 h18 M16 46 h12 M16 54 h16"/><path d="M42 45 H60"/><rect x="60" y="37" width="18" height="16" rx="3"/><path d="M78 41 h8 M78 49 h8"/><rect x="92" y="30" width="20" height="30" rx="3"/><circle cx="102" cy="40" r="1.5"/><circle cx="102" cy="50" r="1.5"/><path d="M66 24 l6 6 M74 22 l2 8"/></g></svg>
+      <b>Подключите канал</b><span class="fine">Минута. Шестигранник не нужен.</span></div>
+    <div class="step card"><span class="no">3</span>
+      <svg viewBox="0 0 120 90" aria-hidden="true">
+        <g stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 80 H114" fill="none"/>
+          <rect x="10" y="34" width="13" height="46" rx="5" fill="#fff"/>
+          <rect x="100" y="52" width="11" height="28" rx="4" fill="#fff"/>
+          <rect x="22" y="60" width="80" height="11" rx="3" fill="var(--yellow)"/>
+          <path d="M24 52 q1-9 12-9 q11 0 11 8 q-2 6-11 6 q-10 0-12-5z" fill="#fff"/>
+          <circle cx="37" cy="46" r="7.5" fill="#FFE0C2"/>
+          <path d="M33.5 46.5 q2 2 4 0" fill="none" stroke-width="2"/>
+          <path d="M43 60 C46 47 58 44 68 48 C78 52 90 47 100 51 V60 Z" fill="#fff"/>
+          <path d="M58 54 q5 2 10 0" fill="none" stroke-width="2"/>
+        </g>
+        <g fill="#111">
+          <ellipse cx="85" cy="46.5" rx="8.5" ry="4.6"/>
+          <circle cx="77.5" cy="44" r="3.8"/>
+          <path d="M74.6 42 l.6-4.6 2.6 3.2z M78 40.4 l2.8-3.6 .6 4.4z"/>
+          <path d="M93 47.5 q5 1 3.5 -4" fill="none" stroke="#111" stroke-width="2.2" stroke-linecap="round"/>
+        </g>
+        <g font-family="Jost, Futura, sans-serif" font-weight="800" fill="var(--blue)" class="zz">
+          <text x="50" y="34" font-size="10">z</text><text x="58" y="25" font-size="14">z</text><text x="68" y="14" font-size="19">Z</text>
+        </g>
+      </svg>
+      <b>Спите</b><span class="fine">Самый сложный шаг. Справитесь!</span></div>
+  </div>
+
+  <div class="vs card">
+    <div class="vs-scroll">
+      <table>
+        <thead><tr><th scope="col">Сравните сами!</th><th scope="col" class="them">Обычный админ</th><th scope="col" class="us">Postmaker</th></tr></thead>
+        <tbody>
+          <tr><td>Ищет посты в три часа ночи</td><td class="them"><span class="mk n">✓</span>увы, да</td><td class="us"><span class="mk y">✗</span>спит</td></tr>
+          <tr><td>Замечает баяны</td><td class="them"><span class="mk t">~</span>иногда</td><td class="us"><span class="mk y">✓</span>всегда</td></tr>
+          <tr><td>Смотрит каждую картинку источника</td><td class="them"><span class="mk n">✗</span>некогда</td><td class="us"><span class="mk y">✓</span>все до одной</td></tr>
+          <tr><td>Постит, пока вы в отпуске</td><td class="them"><span class="mk n">✗</span>сам в отпуске</td><td class="us"><span class="mk y">✓</span>по расписанию</td></tr>
+          <tr><td>Устраивает цирк с расписанием</td><td class="them"><span class="mk n">✓</span>ежедневно</td><td class="us"><span class="mk y">✗</span>всё по часам</td></tr>
+          <tr><td>Просит зарплату</td><td class="them"><span class="mk n">✓</span>каждый месяц</td><td class="us"><span class="mk y">✓</span>от 0 ₽</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="rev-h">
+  <span class="kicker">Отзывы благодарных зрителей</span>
+  <h2 id="rev-h" class="shout">Мне <em>помогло!</em></h2>
+  <div class="reviews">
+    <div class="rev card"><span class="stars">★★★★★</span><q>Раньше я искала посты про рассаду до утра. Теперь рассада растёт, а я сплю.</q><span class="who"><span class="ava" style="--c:#FFB4A2">Г</span>Галина, 54 года, канал про дачу</span><span class="actor">Роль Галины исполняет актриса</span></div>
+    <div class="rev card"><span class="stars">★★★★★</span><q>Я подключил три канала и впервые за год посмотрел сериал целиком.</q><span class="who"><span class="ava" style="--c:#A2D2FF">А</span>Артём, 27 лет, сетка мем-пабликов</span><span class="actor">Роль Артёма исполняет актёр</span></div>
+    <div class="rev card"><span class="stars">★★★★☆</span><q>Минус звезда: теперь мне нечем заняться по вечерам. Пришлось завести хобби.</q><span class="who"><span class="ava" style="--c:#C1F0B2">М</span>Марина, 35 лет, канал про котиков</span><span class="actor">Роль Марины исполняет актриса</span></div>
+  </div>
+  <p class="fine">Отзывы сыграны для смеха: Postmaker пока в бете, настоящие появятся после первых пользователей.</p>
+</section>
+
+<section aria-labelledby="faq-h">
+  <span class="kicker">Вы спросите — мы ответим</span>
+  <h2 id="faq-h" class="shout">А вдруг <em>запостит не то?</em></h2>
+  <div class="faq-wrap">
+    <div class="burst pop" aria-hidden="true" style="left:220px;top:-30px;--r:14deg"><svg viewBox="0 0 100 100"><polygon points="50,2 59,22 80,10 76,33 98,36 82,52 96,70 73,72 74,95 55,83 42,100 36,78 14,88 19,65 0,55 18,42 6,22 29,24 30,2 43,20" fill="var(--red)" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg><span>Без<br>смс!</span></div>
+    <figure class="faq-meme card">
+      <div class="macro">
+        <img src="img/boo.jpg?v=2" width="480" height="480" alt="Пушистый кот в галстуке широко улыбается и смотрит прямо в камеру">
+        <span class="impact">Бу! Испугался?</span>
+      </div>
+    </figure>
+    <div class="faq">
+      <div class="faq-item card"><b>А если опубликует ерунду?</b><p>Каждый пост ждёт в очереди 6 часов, и его можно отклонить одним нажатием. Не готовы доверять — оставайтесь в ручном режиме, автопилот включите позже.</p></div>
+      <div class="faq-item card"><b>Это же чужой контент?</b><p>У каждого поста есть источник, и Postmaker может указывать его в подписи. Авторы получают переходы, вы — контент.</p></div>
+      <div class="faq-item card"><b>Канал не забанят?</b><p>Публикация идёт через официальные инструменты площадок в обычном темпе: пять постов в день не отличаются от ручной работы.</p></div>
+      <div class="faq-item card"><b>А если тема не про мемы?</b><p>Тему вы задаёте словами: «Котики», «Ретроавто», «Кухня». Нейросеть составит критерии и проверит по ним каждый пост.</p></div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="plans-h">
+  <span class="kicker">Цены, от которых вы упадёте с дивана</span>
+  <h2 id="plans-h" class="shout">Сколько стоит? <em>Меньше, чем ваш выходной!</em></h2>
+  <div class="plans">
+    <div class="plan card">
+      <h3>Попробовать</h3>
+      <div class="tag-slot"><div class="htag-wrap"><div class="htag"><div class="htag-in"><span class="hole"></span>
+        <span class="ik-name">BESPLÄTT</span><span class="ik-desc">Ручной режим. 1 канал, 3 поста в день</span>
+        <span class="ik-price">0<sup>,–</sup><span class="rub">P</span></span><span class="ik-unit">навсегда</span>
+      </div></div></div></div>
+      <ul><li>1 канал</li><li>Ручной режим</li><li>3 поста в день</li><li>Ссылка на Postmaker под постами</li></ul>
+      <button class="btn ghost cta" type="button">Начать бесплатно</button>
+    </div>
+    <div class="plan card main">
+      <span class="badge">Выбор админов</span>
+      <h3>Автопилот</h3>
+      <div class="burst" aria-hidden="true"><svg viewBox="0 0 100 100"><polygon points="50,2 59,22 80,10 76,33 98,36 82,52 96,70 73,72 74,95 55,83 42,100 36,78 14,88 19,65 0,55 18,42 6,22 29,24 30,2 43,20" fill="var(--blue)" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg><span>Вы-<br>года!</span></div>
+      <div class="tag-slot"><span class="was">Цена в магазине: ваши бессонные ночи</span><div class="htag-wrap"><div class="htag red"><div class="htag-in"><span class="hole"></span>
+        <span class="ik-name">AUTÖPILÖT</span><span class="ik-desc">Расписание и автопубликация</span>
+        <span class="ik-price">390<sup>,–</sup><span class="rub">P</span></span><span class="ik-unit">в месяц</span>
+      </div></div></div></div>
+      <ul><li>1 канал</li><li>Автопилот и расписание</li><li>До 10 постов в день</li><li>Без ссылки на Postmaker</li><li>Отчёт: что зашло</li></ul>
+      <button class="btn red cta" type="button">Хочу автопилот</button>
+    </div>
+    <div class="plan card">
+      <h3>Сетка</h3>
+      <div class="tag-slot"><div class="htag-wrap"><div class="htag"><div class="htag-in"><span class="hole"></span>
+        <span class="ik-name">SJÄTKÅ</span><span class="ik-desc">До 5 каналов на разных площадках</span>
+        <span class="ik-price">990<sup>,–</sup><span class="rub">P</span></span><span class="ik-unit">в месяц</span>
+      </div></div></div></div>
+      <ul><li>До 5 каналов на разных площадках</li><li>Своя тема у каждого</li><li>Приоритет в подборе</li><li>Общая очередь</li></ul>
+      <button class="btn ghost cta" type="button">Подключить сетку</button>
+    </div>
+  </div>
+  <div class="seats card">
+    <div class="burst pop" aria-hidden="true" style="right:-14px;top:-56px;--r:-12deg"><svg viewBox="0 0 100 100"><polygon points="50,2 59,22 80,10 76,33 98,36 82,52 96,70 73,72 74,95 55,83 42,100 36,78 14,88 19,65 0,55 18,42 6,22 29,24 30,2 43,20" fill="var(--green)" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg><span>Успей!</span></div>
+    <b>Спешите! Осталось 11 мест из 30</b>
+    <div class="bar" role="img" aria-label="Занято 19 мест из 30"><i></i></div>
+    <span class="fine">Это не маркетинговый трюк: видеокарта у нас одна, и больше 30 каналов она пока не потянет.</span>
+  </div>
+</section>
+
+<footer>
+  <div class="logo" aria-label="Postmaker"><div class="logo-in"><span style="--fs:28px">postmaker<sup>,–</sup></span></div></div>
+  <span class="fine">Telegram, ВКонтакте и дальше. Товар сертифицирован здравым смыслом. Не является лекарственным средством. Перед применением проконсультируйтесь с котом.</span>
+</footer>
+
+</div>
+
+<div class="flash" aria-hidden="true"></div>
+<div class="dock" role="region" aria-label="Подключение">
+  <span class="msg" id="dock-text">Пока вы читаете (<b id="sec">0</b> с), Postmaker уже предложил бы <b id="posts">0 постов</b> по вашей теме.</span>
+  <button class="btn cta" type="button"><svg class="ph" aria-hidden="true"><use href="#i-ph"/></svg> Заказать</button>
+</div>
+
+<script>
+// Набросок: кнопки отвечают шуткой, подключения на странице нет. Счётчик в панели: секунды на странице и примерное число постов за это время.
+const replies = ['Ваш звонок очень важен для нас! Подключение появится в приложении.', 'Вы уже второй раз нажимаете. Оператор растроган.', 'Третий звонок! Вам положен второй ценник бесплатно.', 'Всё, вы официально лучший зритель эфира.'];
+let clicks = 0;
+const dockText = document.getElementById('dock-text');
+document.querySelector('.giftbox').addEventListener('click', () => { dockText.textContent = 'Коробка ваша! Осталось подключить канал — и автопилот внутри заработает.'; dockText.style.display = 'block'; });
+document.querySelectorAll('.cta').forEach(b => b.addEventListener('click', () => {
+  dockText.textContent = replies[Math.min(clicks++, replies.length - 1)];
+  dockText.style.display = 'block';
+}));
+// Примерно один проверенный пост каждые 12 секунд — порядок скорости разбора одной видеокартой
+const t0 = Date.now(), sec = document.getElementById('sec'), posts = document.getElementById('posts');
+const plural = n => n % 10 === 1 && n % 100 !== 11 ? 'пост' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'поста' : 'постов';
+setInterval(() => {
+  if (!sec.isConnected) return;
+  const t = Math.floor((Date.now() - t0) / 1000), n = Math.floor(t / 12);
+  sec.textContent = t; posts.textContent = n + ' ' + plural(n);
+}, 1000);
+// Коробка: вся анимация в CSS, скрипт только перезапускает класс boom на каждый клик
+const root = document.documentElement, gift = document.querySelector('.giftbox');
+let boomTimer;
+const vids = [...gift.querySelectorAll('.jsrc video')];
+// Каждый ролик копирует свой новый кадр в карты со своим data-v — но только в те, что сейчас в середине полёта
+// (не крошечные на старте и не тающие в конце), и через кадр (~12 к/с): так копий втрое меньше, а глазу не заметно
+const mirrors = new Map(vids.map(v => [v, [...gift.querySelectorAll(`canvas[data-v="${v.dataset.v}"]`)].map(c => {
+  const ctx = c.getContext('2d', { alpha: false }), st = c.closest('.jet').style;
+  ctx.from = (parseFloat(st.getPropertyValue('--d')) + parseFloat(st.getPropertyValue('--t')) * .08) * 1000;
+  ctx.to = (parseFloat(st.getPropertyValue('--d')) + parseFloat(st.getPropertyValue('--t')) * .7) * 1000;
+  return ctx; })]));
+let boomAt = 0;
+const pump = v => { if (v.pumping) return; v.pumping = true; const ctxs = mirrors.get(v);
+  const draw = () => { if (!root.classList.contains('boom')) { v.pumping = false; return; }
+    const e = performance.now() - boomAt;
+    if (v.readyState >= 2 && (v.odd = !v.odd)) ctxs.forEach(c => { if (e > c.from && e < c.to) c.drawImage(v, 0, 0); });
+    next(); };
+  const next = () => v.requestVideoFrameCallback ? v.requestVideoFrameCallback(draw) : requestAnimationFrame(draw);
+  next(); };
+// Карты летят в точки экрана (--tx/--ty), поэтому один раз при клике запоминаем, где на экране вылетают
+const jetsBox = gift.querySelector('.jets');
+gift.addEventListener('click', () => { const o = jetsBox.getBoundingClientRect(); jetsBox.style.setProperty('--ox', o.left + 'px'); jetsBox.style.setProperty('--oy', o.top + 'px'); root.classList.remove('boom'); void root.offsetWidth; root.classList.add('boom'); clearTimeout(boomTimer); boomTimer = setTimeout(() => { root.classList.remove('boom'); vids.forEach(v => v.pause()); }, 3700);
+  boomAt = performance.now(); vids.forEach(v => { v.currentTime = 0; v.play().catch(() => {}); pump(v); }); });
+// Перед первым взрывом выносим слои карт на GPU и декодируем картинки — чтобы сам клик не подлагивал
+// Видео на картах играют только во время взрыва; при наведении их начинают грузить и рисуют первый кадр во все карты —
+// так полотна и декодеры создаются заранее, а не в момент клика
+const arm = () => { if (root.classList.contains('armed')) return; root.classList.add('armed'); gift.querySelectorAll('.jet img').forEach(i => i.decode && i.decode().catch(() => {})); vids.forEach(v => { v.preload = 'auto'; v.load(); v.addEventListener('loadeddata', () => mirrors.get(v).forEach(c => c.drawImage(v, 0, 0)), { once: true }); }); };
+['pointerenter', 'pointerdown', 'focusin'].forEach(e => gift.addEventListener(e, arm));
+// Маятник для ценников: прокрутка копит толчок, он плавно передаётся за несколько кадров; пружина тянет к нулю, трение гасит.
+// Угол пишется в --swing только на блоке тарифов, чтобы не пересчитывать стили всей страницы; цикл спит, когда всё успокоилось
+const plans = document.querySelector('.plans');
+let lastY = scrollY, angle = 0, speed = 0, push = 0, ticking = false, prevT = 0;
+const swingCalm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function swingStep(t) {
+  const dt = prevT ? Math.min(t - prevT, 34) / 16.67 : 1; prevT = t;
+  const f = push * Math.min(1, 0.12 * dt); push -= f;
+  speed += (f * 0.022 - 0.018 * angle - 0.07 * speed) * dt;
+  angle = Math.max(-14, Math.min(14, angle + speed * dt));
+  plans.style.setProperty('--swing', angle.toFixed(2));
+  if (Math.abs(angle) > 0.03 || Math.abs(speed) > 0.03 || Math.abs(push) > 0.5) requestAnimationFrame(swingStep);
+  else { ticking = false; prevT = 0; plans.style.setProperty('--swing', 0); }
+}
+addEventListener('scroll', () => {
+  const y = scrollY, dy = y - lastY; lastY = y;
+  if (swingCalm || !dy) return;
+  push = Math.max(-260, Math.min(260, push + dy));
+  if (!ticking) { ticking = true; requestAnimationFrame(swingStep); }
+}, { passive: true });
+</script>
+</body>
+</html>

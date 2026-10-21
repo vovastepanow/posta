@@ -86,46 +86,22 @@
 
   <div id="item-loading" class="status-msg is-loading">Загрузка…</div>
 
-  <div id="item-searching" class="parser-progress-container" role="status" hidden>
-    <div class="parser-progress-header">
-      <span class="parser-progress-icon">⏳</span>
-      <span class="parser-progress-title">Подбираем контент</span>
+  <div id="item-searching" class="search-progress is-indeterminate" role="status" aria-live="polite" hidden>
+    <div class="search-progress-head">
+      <span class="search-progress-title">Ищем <b id="search-progress-topic">контент</b></span>
+      <span id="search-progress-percent" class="search-progress-percent"></span>
     </div>
-    <div class="parser-progress-topic">Тема: <span id="parser-topic-name">—</span></div>
-    <div class="parser-progress-stats">
-      <div class="stat">
-        <span class="stat-label">Прогресс:</span>
-        <span id="parser-progress-percent">0</span>%
-      </div>
-      <div class="stat">
-        <span class="stat-label">Прошло:</span>
-        <span id="parser-progress-time">0.0</span> мин
-      </div>
-      <div class="stat">
-        <span class="stat-label">Осталось:</span>
-        <span id="parser-progress-remaining">~40</span> мин
-      </div>
-    </div>
-    <div class="parser-progress-bar">
-      <div class="parser-progress-fill" id="parser-progress-fill"></div>
-    </div>
+    <div class="search-progress-track"><div id="search-progress-fill" class="search-progress-fill"></div></div>
+    <span id="search-progress-eta" class="search-progress-eta">запускаем…</span>
   </div>
 
   <div id="item-error" class="status-msg error-msg" role="alert" hidden></div>
 
   <div id="item-card-wrapper" class="item-card-wrapper" hidden>
     <div class="card">
-      <div class="media-shell">
-        <button id="carousel-prev" class="carousel-btn" type="button" aria-label="Предыдущая картинка">‹</button>
-        <div class="img-wrap">
-          <img id="item-image" alt="Запись" hidden>
-          <video id="item-video" class="card-video" muted loop autoplay playsinline preload="auto" aria-label="Видео: нажмите, чтобы смотреть со звуком" hidden></video>
-          <span id="item-video-mark" class="video-mark" title="Видео: клик откроет со звуком" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="13" height="12" rx="3" fill="currentColor"/><path d="M16.5 10.2 21 7.6v8.8l-4.5-2.6z" fill="currentColor"/></svg></span>
-          <div id="item-media-fallback" class="media-fallback" hidden>Картинка недоступна: источник удалил файл или ссылка устарела.</div>
-        </div>
-        <button id="carousel-next" class="carousel-btn" type="button" aria-label="Следующая картинка">›</button>
+      <div class="media-shell" id="item-media-grid">
+        <!-- Медиа элементы будут добавлены здесь JavaScript-ом -->
       </div>
-      <div class="slide-caption"><span id="item-slide-caption"></span><span id="item-slide-position" class="slide-position"></span></div>
       <div class="info">
         <span id="item-rating" class="badge">0%</span>
         <div id="item-source" class="source-text">Источник: —</div>

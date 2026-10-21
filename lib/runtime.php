@@ -5,7 +5,8 @@
 
 const TAB_SESSION_TTL = 150;
 const PARSER_QUEUE_MAX_SECONDS = 600;   // сколько сборщик ждёт свободный слот
-const PARSER_SESSION_ENDED = 'Окно приложения закрыто или открыто заново — работа остановлена.';
+const PARSER_EXPECTED_SECONDS = 1200;   // ожидаемый проход, пока своей истории нет (замер: ~55 записей за 22 мин)
+const PARSER_SESSION_ENDED ='Окно приложения закрыто или открыто заново — работа остановлена.';
 
 /** Последние строки журнала парсера для консоли сайта. */
 function content_parser_activity() {
@@ -37,6 +38,57 @@ function parser_phase($text = null) {
     if ($text === null) return trim((string)@file_get_contents($file));
     @file_put_contents($file, $text, LOCK_EX);
     return $text;
+}
+
+/**
+ * Ход сбора для полосы прогресса (пишет run_collector): total — кандидатов в очереди, done — разобрано (отсеяно быстрой
+ * оценкой или прошло полный анализ), analyzed, added, need — сколько записей нужно до лимита, queue_at — начало проверки,
+ * deadline — лимит времени прохода. $reset — новый проход.
+ */
+function parser_progress(?array $update = null, $reset = false) {
+    $file = parser_runtime_file('.progress');
+    $current = $reset ? [] : (json_decode((string)@file_get_contents($file), true) ?: []);
+    if ($update === null) return $current;
+    @file_put_contents($file, json_encode($update + $current), LOCK_EX);
+}
+
+/**
+ * Для интерфейса: share — доля сделанного 0–1 (null — очередь ещё собирается), eta — секунд до конца (null — пока не оценить).
+ * Сбор кончается, когда разобрана очередь, набран лимит анализов или записей — что наступит раньше; время — по скорости с начала проверки.
+ */
+function parser_progress_public() {
+    $p = parser_progress();
+    $now = time();
+    if (empty($p['queued_at']) && empty($p['deadline']) && ($runtime = parser_runtime_seconds()) !== null) $p['deadline'] = $now - $runtime + PARSER_MAX_SECONDS;   // процесс без хода работы (запущен старым кодом) — по времени работы
+    if (empty($p['deadline'])) return ['share' => null, 'eta' => null, 'added' => 0, 'queued' => !empty($p['queued_at'])];
+    $left_cap = !empty($p['deadline']) ? max(0, (int)$p['deadline'] - $now) : null;
+    $live = null;
+    if (!empty($p['queue_at'])) {
+        $ratio = fn($a, $b) => $b > 0 ? min(1, $a / $b) : 0;
+        $share = ($p['total'] ?? 0) === 0 ? 1 : max($ratio($p['done'] ?? 0, $p['total']), $ratio($p['analyzed'] ?? 0, CONTENT_ANALYZE_PER_RUN), $ratio($p['added'] ?? 0, $p['need'] ?? 0));
+        $spent = $now - (int)$p['queue_at'];
+        if ($share >= 1) $live = [1, 0];
+        elseif ($share > 0 && $spent >= 5) $live = [$share, (int)round($spent * (1 - $share) / $share)];
+    }
+    // Живой оценки ещё нет (собираются посты, разобрана первая пачка) — по длительности прошлых проходов
+    if ($live === null && !empty($p['deadline'])) {
+        $expected = parser_expected_seconds();
+        $elapsed = $now - ((int)$p['deadline'] - PARSER_MAX_SECONDS);
+        $expected = max($expected, (int)($elapsed / 0.9));   // идёт дольше обычного — ожидание растёт, полоса не упирается в конец
+        $live = [$elapsed / $expected, max(30, $expected - $elapsed)];
+    }
+    if ($live === null) return ['share' => null, 'eta' => null, 'added' => (int)($p['added'] ?? 0)];
+    return ['share' => round($live[0], 3), 'eta' => $left_cap === null ? $live[1] : min($live[1], $left_cap), 'added' => (int)($p['added'] ?? 0)];
+}
+
+/** Длительность прохода: запоминаем последние 5 законченных, ожидаем медиану; истории нет — PARSER_EXPECTED_SECONDS. */
+function parser_expected_seconds(?int $finished = null) {
+    $file = parser_runtime_file('.durations');
+    $list = json_decode((string)@file_get_contents($file), true) ?: [];
+    if ($finished !== null) @file_put_contents($file, json_encode($list = array_slice([...$list, $finished], -5)), LOCK_EX);
+    if (!$list) return PARSER_EXPECTED_SECONDS;
+    sort($list);
+    return max(60, (int)$list[intdiv(count($list), 2)]);
 }
 
 /** Действие под блокировкой состояния парсера. */
@@ -81,6 +133,7 @@ function restart_content_parser() { return with_parser_lock(function () { stop_c
 function parser_wait_for_slot() {
     users_ensure_root();
     $since = time();
+    parser_progress(['queued_at' => $since], true);   // ход прошлого запуска стирается; пока нет слота — полоса пишет «ждём очереди»
     for ($notice = 0; ; sleep(2)) {
         for ($slot = 0; $slot < MAX_PARALLEL_PARSERS; $slot++) {
             if ($GLOBALS['parser_slot_handle'] = try_lock(USERS_DIR . "/.slot-$slot.lock")) {

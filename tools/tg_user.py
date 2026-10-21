@@ -15,6 +15,7 @@ import datetime
 import json
 import os
 import sys
+import time
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tg-lib'))
@@ -111,6 +112,24 @@ async def similar_channels(client, refs):
     return list(found.values())
 
 
+def upload_progress(path):
+    """Колбэк заливки для send_file: пишет в файл прогресса тот же JSON, что telegram_progress в PHP, не чаще раза в 0,3 с."""
+    last = [0.0]
+
+    def callback(current, total):
+        now = time.monotonic()
+        if not total or (now - last[0] < 0.3 and current < total):
+            return
+        last[0] = now
+        try:
+            with open(path + '.tmp', 'w', encoding='utf-8') as handle:
+                json.dump({'stage': 'Отправка в Telegram', 'percent': round(current / total * 100), 'at': int(time.time())}, handle, ensure_ascii=False)
+            os.replace(path + '.tmp', path)   # PHP не прочтёт недописанный файл
+        except OSError:
+            pass   # прогресс не главное: отправка идёт дальше
+    return callback
+
+
 def video_attributes(item):
     return [types.DocumentAttributeVideo(
         duration=int(item.get('duration') or 0), w=int(item.get('width') or 0), h=int(item.get('height') or 0),
@@ -169,13 +188,14 @@ async def run(request, client):
             sent = await client.send_message(entity, text, schedule=when, link_preview=False)
             return {'ids': [sent.id]}
         paths = [item['path'] for item in media]
+        progress = {'progress_callback': upload_progress(request['progress_file'])} if request.get('progress_file') else {}
         if len(media) == 1:
             single = media[0]
             sent = await client.send_file(entity, single['path'], caption=text, schedule=when, force_document=False,
                                           supports_streaming=True,
-                                          attributes=video_attributes(single) if single['kind'] == 'video' else None)
+                                          attributes=video_attributes(single) if single['kind'] == 'video' else None, **progress)
             return {'ids': [sent.id]}
-        sent = await client.send_file(entity, paths, caption=text, schedule=when, force_document=False, supports_streaming=True)
+        sent = await client.send_file(entity, paths, caption=text, schedule=when, force_document=False, supports_streaming=True, **progress)
         return {'ids': [message.id for message in sent]}
     if action == 'cancel':
         await client(functions.messages.DeleteScheduledMessagesRequest(peer=entity, id=[int(i) for i in request['ids']]))

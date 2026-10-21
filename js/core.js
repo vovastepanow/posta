@@ -187,8 +187,10 @@ export async function api(action, { body, params } = {}) {
 
 // ---- Опрос парсера: часто, пока работает (размышления идут «вживую»), иначе редко ----
 
-const parser = { timer: null, running: false, busy: false, listeners: [] };
+const parser = { timer: null, running: false, busy: false, listeners: [], statusListeners: [] };
 export const onParserStateChange = listener => parser.listeners.push(listener);
+/** Каждый ответ parser_status (running, phase, runtime, progress) — без отдельного опроса. */
+export const onParserStatus = listener => parser.statusListeners.push(listener);
 
 async function pollParser() {
     clearTimeout(parser.timer);
@@ -204,6 +206,7 @@ async function pollParser() {
         runtime = data.runtime || 0;
         if (running && !parser.running) { console_.parserLines = []; console_.waitingShown = false; }
         if (running || data.activity?.length) appendParserActivity(data.activity);
+        parser.statusListeners.forEach(listener => listener(data));
     } catch { /* сервер временно недоступен */ }
     if (running !== parser.running) {
         parser.running = running;

@@ -78,6 +78,8 @@ const PRESCREEN_SOURCE_MISS_LIMIT = 6;                    // промахов п
 const PRESCREEN_RELATIVE_PICK = 0;                        // 0 — выключено: ниже порога на полный анализ не идёт никто
 const PRESCREEN_RELATIVE_FLOOR = 10;
 
+const PHASH_SAME_DISTANCE = 20;   // из 256 бит: ближе — та же картинка (пережатая, уменьшенная); подбирается командой phash-report
+
 // ---- Автоподбор источников ----
 const SOURCE_DISCOVERY_ENABLED = true;
 const SOURCE_DISCOVERY_INTERVAL = 12 * 3600;

@@ -399,8 +399,13 @@ function content_analysis_prompt($topic, $caption, $history, $video, $source = '
         . "format: форма поста, одно из: " . implode('; ', array_map(fn($k, $v) => "$k — $v", array_keys(CONTENT_FORMATS), CONTENT_FORMATS)) . ". Для одной картинки не выбирай video.\n"
         . content_tags_prompt_rules()
         . "why_relevant: до 8 слов, почему подходит под тему подборки или нет.\n"
-        . "relevance (0-100): насколько запись подходит под тему подборки. 0-20 не про тему, реклама, спам, скриншот программы; 21-40 слабо; 41-60 по теме, но слабо; 61-80 хорошо; 81-100 отлично.\n"
-        . ($taste ? "rating (0-100): понравится ли это пользователю — сравни с примерами ниже. Нет примеров или не уверен — 50.\n" : '')
+        . "relevance (0-100): насколько запись подходит под тему подборки. 0-20 не про тему, реклама, спам, скриншот программы; 21-40 слабо; 41-60 по теме, но слабо; 61-80 хорошо; 81-100 отлично.\n";
+    if ($complaint_texts = topic_complaint_texts(topic_complaints($topic, $history), TOPIC_COMPLAINT_EXAMPLES)) {
+        $prompt .= "Пользователь уже пожаловался, что эти записи НЕ подходят под тему подборки, хотя их пропустили.\n"
+            . "Запись, похожая на них по смыслу или виду, получает relevance не выше 30:\n"
+            . json_encode($complaint_texts, JSON_UNESCAPED_UNICODE) . "\n";
+    }
+    $prompt .= ($taste ? "rating (0-100): понравится ли это пользователю — сравни с примерами ниже. Нет примеров или не уверен — 50.\n" : '')
         . "Пиши по-русски, без иероглифов.\n";
     foreach ($taste ? ['ПОНРАВИЛОСЬ' => 'liked', 'НЕ ПОНРАВИЛОСЬ' => 'disliked'] : [] as $label => $c) {
         if ($texts = history_taste_texts($history, $c)) $prompt .= "$label: " . json_encode($texts, JSON_UNESCAPED_UNICODE) . "\n";

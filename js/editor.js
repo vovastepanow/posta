@@ -90,7 +90,8 @@ function buildUi() {
         counter: el('span', { className: 'pe-counter' }), summary: el('span', { className: 'pe-summary' }), warning: el('p', { className: 'pe-warning', role: 'alert', hidden: true }),
         original: button('pe-chip-btn', 'Текст оригинала', () => setText(session.options.original)),
         description: button('pe-chip-btn', 'Описание ИИ', () => setText(session.options.description)),
-        progress: el('div', { className: 'pe-progress-wrap', hidden: true }, el('div', { className: 'pe-progress-bar' }, el('div', { className: 'pe-progress-fill', style: 'width: 0%' })), el('span', { className: 'pe-progress-text', textContent: '0%' })),
+        progress: el('div', { className: 'pe-progress-wrap', hidden: true }, el('span', { className: 'pe-progress-label' }),
+            el('div', { className: 'pe-progress-bar' }, el('div', { className: 'pe-progress-fill' })), el('span', { className: 'pe-progress-text' })),
         cancel: button('pe-btn', 'Отмена', closeEditor), submit: el('button', { type: 'submit', className: 'pe-btn pe-btn-primary', textContent: 'Запостить' })
     };
     const reset = button('pe-btn pe-btn-ghost', 'Сбросить правки', () => {
@@ -216,18 +217,22 @@ async function submit(e) {
     if (!session || ui.submit.disabled) return;
     const { options, media } = session;
     const label = ui.submit.textContent;
-    const hasFiles = media.some(m => m.file);
     Object.assign(ui.submit, { disabled: true, textContent: 'Отправляю…' });
     ui.cancel.disabled = true;
     ui.warning.hidden = true;
-    ui.progress.hidden = !hasFiles;
+    // Этап и процент; percent null — полоса бежит без процентов
+    const onProgress = ({ stage, percent }) => {
+        const known = typeof percent === 'number';
+        ui.progress.classList.toggle('is-indeterminate', !known);
+        ui.progress.querySelector('.pe-progress-label').textContent = stage;
+        ui.progress.querySelector('.pe-progress-fill').style.width = known ? `${percent}%` : '';
+        ui.progress.querySelector('.pe-progress-text').textContent = known ? `${percent}%` : '';
+    };
+    onProgress({ stage: 'Готовлю пост…', percent: null });
+    ui.progress.hidden = false;
     try {
         const post = { target: options.target.value, scheduledAt: options.scheduledAt, scheduledTs: options.scheduledTs || 0,
             media: media.map(({ kind, src, name, file }) => ({ kind, src, name, file })), text: ui.text.value.trim() };
-        const onProgress = hasFiles ? (percent) => {
-            ui.progress.querySelector('.pe-progress-fill').style.width = `${percent}%`;
-            ui.progress.querySelector('.pe-progress-text').textContent = `${percent}%`;
-        } : null;
         await options.onSubmit(post, onProgress);
         drafts.delete(options.key);
         closeEditor();

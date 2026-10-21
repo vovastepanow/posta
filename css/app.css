@@ -310,17 +310,59 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
     }
 }
 
-.media-shell { position: relative; background: #000; }
-.carousel-btn { position: absolute; top: 50%; z-index: 3; width: 38px; height: 38px; border: 1px solid var(--line-strong); border-radius: 50%; background: rgba(21, 21, 23, 0.8); font-size: 28px; line-height: 1; transform: translateY(-50%); }
-#carousel-prev { left: 10px; }
-#carousel-next { right: 10px; }
-.img-wrap { position: relative; display: flex; justify-content: center; align-items: center; width: 100%; height: 380px; overflow: hidden; background: #000; }
-.img-wrap img, .img-wrap .card-video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.media-shell {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1px;
+    background: #000;
+    padding: 0;
+    margin: 0;
+    min-height: 200px;
+}
+
+.media-shell .media-item {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    aspect-ratio: auto;
+    overflow: hidden;
+    background: #000;
+}
+
+.media-shell img,
+.media-shell .card-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    cursor: pointer;
+}
+
 .card-video, img.is-video-thumb { cursor: pointer !important; }
+
+.video-mark {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    color: #fff;
+    pointer-events: none;
+}
+
+.video-mark svg { width: 16px; height: 16px; }
+
 .media-fallback { display: grid; place-items: center; padding: 24px; color: var(--muted); font-size: 13px; text-align: center; }
 #source-card-wrapper .media-fallback { position: absolute; inset: 0; }
-.slide-caption { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; min-height: 44px; padding: 10px 16px 0; font-size: 13px; line-height: 1.5; }
-.slide-position { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.slide-caption { display: none; }
 .info { padding: 20px; border-top: 1px solid var(--line); }
 .badge { float: right; padding: 4px 12px; border: 1px solid var(--line-strong); border-radius: 15px; background: var(--surface-2); font-size: 13px; font-weight: 700; }
 .source-text { color: var(--muted); font-size: 13px; font-weight: 500; }

@@ -1,11 +1,11 @@
 // content.js — вкладка «Подбор»: тема и вторая тема, фильтры, карточка записи (карусель, видео, активность), голоса, жалобы,
 // публикация в Telegram (панель 🚀 и редактор поста).
-import { $, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, el, hide, log, onParserStateChange, pluralRu, renderTags, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
+import { $, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, el, hide, log, onParserStateChange, onParserStatus, pluralRu, renderTags, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
 import { openViewerGallery, registerViewerGallery, registerViewerPoster } from './viewer.js';
 import { formatWhen, openPostEditor, pickDateTime } from './editor.js';
 import { openAccountSection } from './account.js';
 
-const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], telegram: null, parserStartTime: null, progressInterval: null, currentTopic: null };
+const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], telegram: null };
 const VIDEO_ERRORS = { 1: 'загрузка прервана', 2: 'сетевая ошибка', 3: 'файл не раскодировался', 4: 'формат не поддерживается или файл недоступен' };
 const TOPIC_CONFIRM = 'Сменить тему поиска? Неоценённые записи по старой теме будут убраны из пула, и поиск начнётся заново. История оценок сохранится.';
 export { TOPIC_CONFIRM };
@@ -15,63 +15,30 @@ function showArea(area, message = '') {
     show('item-card-wrapper', area === 'card');
     show('item-empty', area === 'empty');
     setMessage('item-error', area === 'error' ? message : '');
-
-    if (area === 'searching') {
-        show('item-searching');
-        clearInterval(state.progressInterval);
-        state.parserStartTime = Date.now();
-        console.log('🟢 Прогресс начат. Время:', state.parserStartTime, 'Тема:', state.currentTopic);
-        updateParserProgress();
-        state.progressInterval = setInterval(updateParserProgress, 2000);
-    } else {
-        hide('item-searching');
-        clearInterval(state.progressInterval);
-    }
-
+    show('item-searching', area === 'searching');
+    if (area === 'searching') $('search-progress-topic').textContent = $('topic-input').dataset.saved || 'контент';
     if (area === 'empty') $('item-empty-message').textContent = message || 'Пул контента пуст.';
     hide('item-loading');
 }
 
-/** Обновляет информацию о прогрессе парсера в UI. */
-async function updateParserProgress() {
-    if (!state.parserStartTime) {
-        console.log('❌ parserStartTime не установлен');
-        return;
-    }
-    
-    try {
-        const data = await api('parser_status');
-        if (!data.running) {
-            console.log('⏹️ Парсер остановлен');
-            clearInterval(state.progressInterval);
-            return;
-        }
-    } catch (e) {
-        console.log('⚠️ Ошибка API:', e.message);
-    }
-
-    const elapsed = Math.floor((Date.now() - state.parserStartTime) / 1000);
-    const elapsedMin = (elapsed / 60).toFixed(1);
-    const remainingSeconds = Math.max(0, 2400 - elapsed);
-    const remainingMin = Math.ceil(remainingSeconds / 60);
-    const progressPercent = Math.min(100, Math.floor((elapsed / 2400) * 100));
-
-    console.log(`⏱️ Прошло: ${elapsedMin}м | Осталось: ~${remainingMin}м | ${progressPercent}%`);
-
-    const topicEl = $('parser-topic-name');
-    const timeEl = $('parser-progress-time');
-    const remainingEl = $('parser-progress-remaining');
-    const percentEl = $('parser-progress-percent');
-    const fillEl = $('parser-progress-fill');
-    
-    if (topicEl) topicEl.textContent = state.currentTopic || '—';
-    if (timeEl) timeEl.textContent = elapsedMin;
-    if (remainingEl) remainingEl.textContent = '~' + remainingMin;
-    if (percentEl) percentEl.textContent = progressPercent;
-    if (fillEl) fillEl.style.width = progressPercent + '%';
+/** Сколько осталось: оценку считает сервер по скорости разбора очереди; пока её нет — полоса бежит без процентов. */
+function formatEta(seconds) {
+    if (seconds == null) return 'считаем время…';
+    if (seconds <= 0) return 'почти готово';
+    if (seconds < 60) return 'осталось меньше минуты';
+    const minutes = Math.round(seconds / 60);
+    return `осталось ≈ ${minutes} ${pluralRu(minutes, 'минута', 'минуты', 'минут')}`;
 }
-    if (percentEl) percentEl.textContent = progressPercent;
-    if (fillEl) fillEl.style.width = progressPercent + '%';
+
+/** Полоса поиска по ответу parser_status (опрос — общий, в core.js). */
+function renderSearchProgress(data) {
+    const p = data.running ? data.progress : null;
+    const known = p?.share != null;
+    $('item-searching').classList.toggle('is-indeterminate', !known);
+    $('search-progress-fill').style.width = known ? `${Math.max(3, p.share * 100).toFixed(1)}%` : '';
+    $('search-progress-percent').textContent = known ? `${Math.floor(p.share * 100)}%` : '';
+    $('search-progress-eta').textContent = !data.running ? 'запускаем…' : p?.queued ? 'ждём очереди…' : formatEta(known ? p.eta : null);
+    $('item-searching').title = data.running ? `${data.phase}${p?.added ? ` · найдено: ${p.added}` : ''}` : '';
 }
 
 // ---- Слайды: у каждого основной адрес (копия из кэша) и запасной (исходная ссылка) ----
@@ -92,63 +59,84 @@ export function recordGallery(item, index = 0) {
         items: itemSlides(item).map(s => ({ kind: s.video ? 'video' : 'image', src: s.video || s.image, fallback: s.video ? s.fallbackVideo : s.fallbackImage, poster: s.image, sourceUrl, alt: 'Запись' })) };
 }
 
-function setImage(image, slide) {
-    const wrap = image.parentElement;
-    wrap.classList.add('is-loading');
-    image.onload = () => wrap.classList.remove('is-loading');
-    image.onerror = () => {
-        if (slide.fallbackImage && image.getAttribute('src') !== slide.fallbackImage) { image.src = slide.fallbackImage; return; }
-        image.onerror = null;
-        wrap.classList.remove('is-loading');
-        image.hidden = true;
-        if ($('item-video').hidden) { show('item-media-fallback'); log(`Картинка не загрузилась: ${slide.fallbackImage || slide.image}`); }
-    };
-    image.src = slide.image;
-}
-
-/** Видео в карточке играет само без звука; не открылось — исходная ссылка, потом обложка. */
-function renderCardVideo(slide) {
-    const video = $('item-video');
-    video.onerror = null;
-    if (!slide.video) { video.pause(); video.removeAttribute('src'); video.load(); video.hidden = true; return; }
-    const wrap = video.parentElement;
-    video.onerror = () => {
-        const reason = VIDEO_ERRORS[video.error?.code] || 'неизвестная ошибка';
-        if (slide.fallbackVideo && video.getAttribute('src') !== slide.fallbackVideo) { log(`Видео в карточке не открылось (${reason}), пробую исходную ссылку.`); video.src = slide.fallbackVideo; return; }
-        log(`Видео в карточке не воспроизводится (${reason}): ${slide.fallbackVideo || slide.video}`);
-        video.onerror = null;
-        wrap.classList.remove('is-loading');
-        video.hidden = true;
-        $('item-image').hidden = !slide.image;
-    };
-    wrap.classList.add('is-loading');
-    video.addEventListener('loadeddata', () => wrap.classList.remove('is-loading'), { once: true });
-    Object.assign(video, { poster: slide.image || '', muted: true, hidden: false, src: slide.video });
-    video.play().catch(e => log(`Браузер не запустил видео сам (${e.name}). Оно начнётся после первого клика или нажатия клавиши; если нет — проверьте разрешение автовоспроизведения для этого сайта и расширения, блокирующие видео.`));
-}
+// Старые функции больше не используются, но оставляем для совместимости
 
 function renderSlide() {
-    const slide = state.slides[state.index] || { image: '', text: 'Нет изображения' };
-    const image = $('item-image');
-    const isVideo = Boolean(slide.video);
-    hide('item-media-fallback');
-    renderCardVideo(slide);
-    image.classList.toggle('is-video-thumb', isVideo);
-    Object.assign(image.dataset, { gallery: 'card', fallback: slide.fallbackImage || '', sourceUrl: safeSourcePostUrl(state.item) });
-    image.alt = isVideo ? 'Видео: нажмите, чтобы смотреть' : 'Запись';
-    $('item-video-mark').hidden = !isVideo;
-    image.hidden = !slide.image || (isVideo && !$('item-video').hidden);
-    if (slide.image) setImage(image, slide); else image.removeAttribute('src');
-    $('item-slide-caption').textContent = slide.text || state.item?.text || NO_TEXT[0];
-    const many = state.slides.length > 1;
-    for (const b of [$('carousel-prev'), $('carousel-next')]) b.hidden = b.disabled = !many;
-    $('item-slide-position').textContent = many ? `${state.index + 1} / ${state.slides.length}` : '';
+    const grid = $('item-media-grid');
+    grid.replaceChildren();
+
+    if (!state.slides.length) {
+        grid.appendChild(el('div', { className: 'media-item', style: 'grid-column: 1 / -1; padding: 24px;' },
+            el('div', { textContent: 'Нет медиа' })));
+        return;
+    }
+
+    // Отображаем ВСЕ медиа элементы в грид
+    for (const slide of state.slides) {
+        const container = el('div', { className: 'media-item' });
+
+        if (slide.video) {
+            const video = el('video', {
+                className: 'card-video',
+                muted: true,
+                loop: true,
+                autoplay: true,
+                playsinline: true,
+                preload: 'auto',
+                poster: slide.image || '',
+                'aria-label': 'Видео: нажмите, чтобы смотреть со звуком'
+            });
+
+            video.src = slide.video;
+            video.onerror = () => {
+                if (slide.fallbackVideo && video.src !== slide.fallbackVideo) {
+                    video.src = slide.fallbackVideo;
+                    return;
+                }
+                video.hidden = true;
+                if (slide.image) {
+                    const img = el('img', { alt: 'Запись', src: slide.image });
+                    img.onerror = () => { img.hidden = true; };
+                    container.replaceChildren(img);
+                }
+            };
+
+            video.play().catch(() => {});
+            container.appendChild(video);
+
+            // Иконка видео
+            const videoMark = el('span', { className: 'video-mark', title: 'Видео: клик откроет со звуком' },
+                el('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' },
+                    el('rect', { x: '2', y: '6', width: '13', height: '12', rx: '3', fill: 'currentColor' }),
+                    el('path', { d: 'M16.5 10.2 21 7.6v8.8l-4.5-2.6z', fill: 'currentColor' })));
+            container.appendChild(videoMark);
+        } else if (slide.image) {
+            const img = el('img', { alt: 'Запись', src: slide.image });
+            img.onerror = () => {
+                if (slide.fallbackImage && img.src !== slide.fallbackImage) {
+                    img.src = slide.fallbackImage;
+                    return;
+                }
+                img.hidden = true;
+            };
+
+            Object.assign(img.dataset, {
+                gallery: 'card',
+                fallback: slide.fallbackImage || '',
+                sourceUrl: safeSourcePostUrl(state.item)
+            });
+
+            container.appendChild(img);
+        }
+
+        grid.appendChild(container);
+    }
 }
 
 function changeSlide(delta) {
+    // Больше не используется в режиме сетки, но оставляем для совместимости
     if (!state.slides.length) return;
     state.index = (state.index + delta + state.slides.length) % state.slides.length;
-    renderSlide();
 }
 
 /** Активность у источника: просмотры и реакции в Telegram, ответы и размер треда на Дваче. */
@@ -229,15 +217,6 @@ export async function loadCurrentItem() {
         const data = await api('get_current_item');
         if (data.status === 'loading') {
             state.item = null;
-            // Получаем текущую тему
-            try {
-                const settings = await api('settings');
-                state.currentTopic = settings.topic || 'подбор контента';
-                console.log('📍 Тема получена:', state.currentTopic);
-            } catch (e) {
-                state.currentTopic = 'подбор контента';
-                console.log('⚠️ Ошибка при получении темы:', e.message);
-            }
             showArea('searching');
             // Показываем время работы парсера если оно известно
             if (data.parser_runtime > 0) {
@@ -276,7 +255,13 @@ async function vote(type, details = {}) {
     if (!state.item || state.voting) return;
     state.voting = true;
     $('content-tab').classList.add('is-busy');
-    try { await api('vote', { body: { vote: type, image: state.item.image, ...details } }); await loadCurrentItem(); }
+    try {
+        await api('vote', { body: { vote: type, image: state.item.image, ...details } });
+        if (type === 'wrong' && details.reason === 'match_error') {
+            log('🚩 Жалоба учтена: ИИ увидит эту запись как пример «не по теме», источник теряет рейтинг, а каждые 5 жалоб уточняют профиль темы.');
+        }
+        await loadCurrentItem();
+    }
     catch (error) { log(`Голос не сохранён: ${error.message}`); setMessage('item-error', `Не удалось сохранить оценку: ${error.message}`); }
     finally { state.voting = false; $('content-tab').classList.remove('is-busy'); }
 }
@@ -426,7 +411,31 @@ async function refreshTelegramTarget() {
 }
 const channelLabel = () => `Канал «${state.telegram.title || '@' + state.telegram.username}»`;
 
-/** Файлы из редактора уходят загрузкой, остальные медиа — адресом (кэш сайта или ссылка). С отслеживанием прогресса если есть файлы. */
+/** POST с файлами через XMLHttpRequest: fetch не сообщает, сколько байт ушло на сервер. */
+function postFormWithUpload(action, form, onUpload) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', e => { if (e.lengthComputable) onUpload(Math.round(e.loaded / e.total * 100)); });
+        xhr.addEventListener('load', () => {
+            try {
+                const data = JSON.parse(xhr.responseText);
+                if (xhr.status >= 400) throw Object.assign(new Error(data?.message || `HTTP ${xhr.status}`), { status: xhr.status, data });
+                (data?.ai_log || []).forEach(log);
+                resolve(data);
+            } catch (e) { reject(e); }
+        });
+        xhr.addEventListener('error', () => reject(new Error('Ошибка загрузки')));
+        xhr.addEventListener('abort', () => reject(new Error('Загрузка отменена')));
+        xhr.open('POST', apiUrl(action, { debug: DEBUG_MODE ? '1' : undefined }));
+        xhr.setRequestHeader('X-Postmaker', '1');
+        xhr.send(form);
+    });
+}
+
+/**
+ * Файлы из редактора уходят загрузкой, остальные медиа — адресом (кэш сайта или ссылка).
+ * onProgress({stage, percent}): пока файлы идут на сервер — «Загрузка на сервер», дальше — этапы сервера из опроса (percent null — без процентов).
+ */
 async function publishToTelegram(post, onProgress = null) {
     const form = new FormData();
     form.append('text', post.text);
@@ -434,30 +443,26 @@ async function publishToTelegram(post, onProgress = null) {
     const files = [];
     form.append('media', JSON.stringify(post.media.map(m => (m.file ? { kind: m.kind, name: m.name, upload: files.push(m.file) - 1 } : { kind: m.kind, src: m.src, name: m.name }))));
     files.forEach(f => form.append('files[]', f, f.name));
-
+    // Сервер пишет этап и процент в файл по этому id, а мы опрашиваем его, пока идёт отправка
+    const id = crypto.randomUUID().replaceAll('-', '');
+    form.append('progress_id', id);
+    let [uploading, done] = [files.length > 0 && !!onProgress, false];
+    const report = p => { if (!done) onProgress(p); };
+    const poll = onProgress && setInterval(() => {
+        if (!uploading) api('telegram_publish_progress', { params: { id } }).then(p => p?.stage && report({ stage: p.stage, percent: p.percent ?? null })).catch(() => {});
+    }, 700);
     let result;
-    if (files.length && onProgress) {
-        result = await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.upload.addEventListener('progress', e => {
-                if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100));
-            });
-            xhr.addEventListener('load', async () => {
-                try {
-                    const data = JSON.parse(xhr.responseText);
-                    if (xhr.status >= 400) throw Object.assign(new Error(data?.message || `HTTP ${xhr.status}`), { status: xhr.status, data });
-                    (data?.ai_log || []).forEach(log);
-                    resolve(data);
-                } catch (e) { reject(e); }
-            });
-            xhr.addEventListener('error', () => reject(new Error('Ошибка загрузки')));
-            xhr.addEventListener('abort', () => reject(new Error('Загрузка отменена')));
-            xhr.open('POST', apiUrl('telegram_publish', { debug: DEBUG_MODE ? '1' : undefined }));
-            xhr.setRequestHeader('X-Postmaker', '1');
-            xhr.send(form);
-        });
-    } else {
-        result = await api('telegram_publish', { body: form });
+    try {
+        result = uploading
+            ? await postFormWithUpload('telegram_publish', form, percent => {
+                if (!uploading) return;
+                uploading = percent < 100;
+                report({ stage: 'Загрузка на сервер', percent });
+            })
+            : await api('telegram_publish', { body: form });
+    } finally {
+        done = true;
+        clearInterval(poll);
     }
     log(result.scheduled ? `🚀 Пост запланирован на ${post.scheduledAt}: он в «Отложенных» канала в Telegram и уйдёт сам.` : `🚀 Пост опубликован${result.url ? `: [открыть в Telegram](${result.url})` : ''}.`);
 }
@@ -515,10 +520,17 @@ function initializePostPanel() {
 
 export function initializeContentTab({ onAddItem }) {
     bindMenu($('complaint-button'), $('complaint-menu'), item => vote('wrong', { reason: item.dataset.reason }));
-    $('carousel-prev').addEventListener('click', () => changeSlide(-1));
-    $('carousel-next').addEventListener('click', () => changeSlide(1));
-    const cardGallery = () => ({ ...recordGallery(state.item), index: state.index });
-    $('item-video').addEventListener('click', () => { const g = cardGallery(); openViewerGallery(g.items, g.index, g.onPost, g.postCheck); });
+    const cardGallery = () => recordGallery(state.item);
+    // Обработка клика по видео/изображению в грид-контейнере
+    const mediaGrid = $('item-media-grid');
+    mediaGrid.addEventListener('click', e => {
+        const mediaEl = e.target.closest('img, video');
+        if (mediaEl) {
+            const g = cardGallery();
+            const index = Array.from(mediaGrid.querySelectorAll('img, video')).indexOf(mediaEl);
+            openViewerGallery(g.items, Math.max(0, index), g.onPost, g.postCheck);
+        }
+    });
     registerViewerGallery('card', cardGallery);
     registerViewerPoster(({ kind, src, poster }) => {
         const item = kind === 'video'
@@ -527,7 +539,12 @@ export function initializeContentTab({ onAddItem }) {
         return postItemToTelegram(item).catch(e => log(`Ошибка при публикации: ${e.message}`));
     });
     // Видео не запустилось само (фоновая вкладка, запрет автозапуска) — возобновляем при возврате и первом нажатии
-    const resume = () => { const v = $('item-video'); if (!v.hidden && v.paused && v.getAttribute('src')) v.play().catch(() => {}); };
+    const resume = () => {
+        const videos = $('item-media-grid').querySelectorAll('video');
+        for (const v of videos) {
+            if (!v.hidden && v.paused && v.getAttribute('src')) v.play().catch(() => {});
+        }
+    };
     document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && resume());
     for (const type of ['pointerdown', 'keydown']) document.addEventListener(type, resume, { passive: true });
     initializePostPanel();
@@ -543,6 +560,7 @@ export function initializeContentTab({ onAddItem }) {
     Object.values(FILTERS).forEach(id => $(id).addEventListener('change', saveFilters));
     initializeSecondTopic();
     onParserStateChange(running => { if (!running && !state.item) loadCurrentItem(); });
+    onParserStatus(renderSearchProgress);
     if (DEBUG_MODE) { hide('item-search-button'); hide('item-add-button'); }
     refreshTopicLabel();
 }

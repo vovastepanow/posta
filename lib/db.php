@@ -140,6 +140,10 @@ CREATE TABLE IF NOT EXISTS screened_cache (
 );
 CREATE INDEX IF NOT EXISTS screened_cache_at ON screened_cache(at);
 CREATE INDEX IF NOT EXISTS screened_cache_topic ON screened_cache(topic);
+        ",
+        2 => "
+ALTER TABLE screened_cache ADD COLUMN phash TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS screened_cache_phash ON screened_cache(phash);
         "
     ];
 

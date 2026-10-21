@@ -396,17 +396,24 @@ function topic_profile_clean($p) {
     return ['criteria' => $text($p['criteria'], 300), 'exclude' => $text($p['exclude'] ?? '', 300), 'question' => $text($p['question'], 200),
         'queries' => array_slice(array_map(fn($q) => $text($q, 60), (array)($p['queries'] ?? [])), 0, 12),
         'telegram' => array_slice(array_values(array_filter(array_map('strval', (array)($p['telegram'] ?? [])), 'is_valid_telegram_channel')), 0, 20),
-        'v' => (int)($p['v'] ?? 0), 'smart' => !empty($p['smart']), 'at' => (int)($p['at'] ?? 0)];
+        'v' => (int)($p['v'] ?? 0), 'smart' => !empty($p['smart']), 'at' => (int)($p['at'] ?? 0),
+        'complaints' => (int)($p['complaints'] ?? 0)];
 }
 
-function topic_profile_build(array $e) {
+function topic_profile_build(array $e, array $complaints = []) {
     $prompt = "Тема подбора картинок и видео из соцсетей: " . topic_prompt_context($e['title']) . ".\nСоставь профиль для отбора записей по этой теме:\n"
         . "criteria — что должно быть видно на картинке или в видео, чтобы запись подходила под тему (1–2 предложения, конкретные признаки, не общие слова).\n"
         . "exclude — что похоже на тему, но не подходит (1 предложение).\n"
         . "question — один вопрос по-русски, на который отвечают «да» или «нет» по одной картинке; начинается со слов «Это …?» и проверяет критерии (например: «Это картинка с мотоциклом или мотоциклистом?»).\n"
         . "queries — 8 поисковых запросов по-русски, которыми люди ищут такие каналы и паблики: 1–3 слова, от прямого названия к синонимам, сленгу и подтемам. Все строго про тему, без слов «канал», «телеграм», «паблик», «группа», без опечаток.\n"
         . "queries_en — 3 запроса по-английски.\n"
-        . "telegram — адреса (username, латиница, цифры и _) публичных Telegram-каналов по теме, которые ты точно знаешь. Не уверен — пустой список.\nОтветь только JSON.";
+        . "telegram — адреса (username, латиница, цифры и _) публичных Telegram-каналов по теме, которые ты точно знаешь. Не уверен — пустой список.\n";
+    if ($complaints) {
+        $prompt .= "Пользователи пожаловались, что эти записи НЕ подходят под тему, хотя их пропустили: "
+            . json_encode($complaints, JSON_UNESCAPED_UNICODE) . ".\n"
+            . "Пойми, что в них общего, и опиши это в exclude. criteria и question сделай строже, чтобы такие записи не проходили.\n";
+    }
+    $prompt .= "Ответь только JSON.";
     $list = ['type' => 'array', 'items' => ['type' => 'string']];
     $schema = ['type' => 'object', 'properties' => ['criteria' => ['type' => 'string'], 'exclude' => ['type' => 'string'], 'question' => ['type' => 'string'],
         'queries' => $list, 'queries_en' => $list, 'telegram' => $list], 'required' => ['criteria', 'exclude', 'question', 'queries', 'queries_en', 'telegram']];
@@ -428,15 +435,34 @@ function topic_profile_build(array $e) {
 function topic_profile_ensure($topic) {
     if (($e = topic_lookup($topic)) === null) return [];
     $p = $e['profile'];
-    if ($p && $p['v'] === TOPIC_PROFILE_VERSION && ($p['smart'] || time() - $p['at'] < TOPIC_PROFILE_FALLBACK_RETRY)) return $p;
-    if (!($built = topic_profile_build($e))) return $p ?: [];
+
+    // Проверяем, нужно ли обновить профиль из-за новых жалоб
+    $all_complaints = topic_complaints($e['title']);
+    $complaints_count = count($all_complaints);
+    $needs_rebuild_from_complaints = $complaints_count >= ($p['complaints'] ?? 0) + TOPIC_COMPLAINT_STEP && time() - ($p['at'] ?? 0) > 600;
+
+    if ($p && $p['v'] === TOPIC_PROFILE_VERSION && ($p['smart'] || time() - $p['at'] < TOPIC_PROFILE_FALLBACK_RETRY) && !$needs_rebuild_from_complaints) return $p;
+
+    $complaint_texts = topic_complaint_texts($all_complaints, TOPIC_COMPLAINT_EXAMPLES);
+    if (!($built = topic_profile_build($e, $complaint_texts))) return $p ?: [];
+
+    $built['complaints'] = $complaints_count;
+
     if ($p && $p['question'] !== $built['question']) {
-        $cache = load_data(SCREENED_CACHE_FILE, []);
-        $kept = array_filter($cache, fn($x) => !is_array($x) || !topic_same((string)($x['topic'] ?? ''), $e['title']));
-        if (count($kept) !== count($cache)) save_data(SCREENED_CACHE_FILE, $kept);
+        db_tx(function () use ($e) {
+            foreach (screened_cache_load() as $r) {
+                if (topic_same((string)($r['topic'] ?? ''), $e['title'])) {
+                    db_exec('DELETE FROM screened_cache WHERE url = ?', [$r['url']]);
+                }
+            }
+        });
     }
     topic_save(['profile' => $built] + $e);
-    cli_echo("Профиль темы «{$e['title']}»" . ($built['smart'] ? '' : ' (быстрой моделью)') . ": {$built['criteria']}");
+    if ($needs_rebuild_from_complaints) {
+        cli_echo("Профиль темы «{$e['title']}» уточнён по {$complaints_count} жалобам. Не подходит: {$built['exclude']}");
+    } else {
+        cli_echo("Профиль темы «{$e['title']}»" . ($built['smart'] ? '' : ' (быстрой моделью)') . ": {$built['criteria']}");
+    }
     return $built;
 }
 
@@ -491,6 +517,56 @@ function topic_profile_hint($topic) {
     if (count($parts = topic_parts($topic)) > 1) return implode('', array_map('topic_profile_hint', $parts));
     $p = topic_profile_for_prompts($topic);
     return $p ? " Подходит: {$p['criteria']}" . ($p['exclude'] !== '' ? " Не подходит: {$p['exclude']}" : '') . '.' : '';
+}
+
+// ---- Жалобы «ошибка подбора» учат тему ----
+
+const TOPIC_COMPLAINT_EXAMPLES = 8;   // сколько последних жалоб видит полный анализ
+const TOPIC_COMPLAINT_STEP = 5;       // через сколько новых жалоб по теме профиль переписывается
+
+/** Жалобы «ошибка подбора» на записи темы (с непустым описанием), старые первыми. $history — одного пользователя; null — всех. */
+function topic_complaints($topic, ?array $history = null) {
+    $complaints = [];
+
+    if ($history !== null) {
+        // История одного пользователя
+        $records = $history['complaints'] ?? [];
+        foreach ($records as $r) {
+            if (($r['complaint_reason'] ?? '') === 'match_error' &&
+                topic_same((string)($r['topic'] ?? ''), $topic) &&
+                trim((string)($r['description'] ?? '')) !== '') {
+                $complaints[] = $r;
+            }
+        }
+    } else {
+        // Все пользователи
+        foreach (user_ids() as $uid) {
+            $h = history_load($uid);
+            $records = $h['complaints'] ?? [];
+            foreach ($records as $r) {
+                if (($r['complaint_reason'] ?? '') === 'match_error' &&
+                    topic_same((string)($r['topic'] ?? ''), $topic) &&
+                    trim((string)($r['description'] ?? '')) !== '') {
+                    $complaints[] = $r;
+                }
+            }
+        }
+    }
+
+    usort($complaints, fn($a, $b) => (int)($a['timestamp'] ?? 0) <=> (int)($b['timestamp'] ?? 0));
+    return $complaints;
+}
+
+/** Описания последних $limit жалоб, каждое обрезано до TASTE_EXAMPLE_CHARS символов. */
+function topic_complaint_texts(array $records, $limit) {
+    $texts = [];
+    foreach (array_slice($records, -$limit) as $r) {
+        $text = mb_substr(trim((string)($r['description'] ?? '')), 0, TASTE_EXAMPLE_CHARS);
+        if ($text !== '') {
+            $texts[] = $text;
+        }
+    }
+    return $texts;
 }
 
 // ---- Метки записи: частные темы дерева (TOPIC_TREE), которые ставит модель полного анализа ----

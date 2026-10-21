@@ -290,8 +290,8 @@ export function initializeImageViewer() {
         const dragged = state.justDragged;
         state.justDragged = false;
         if (e.target.closest('a')) { if (dragged) e.preventDefault(); return; }
+        if (!dragged && e.target.closest('#image-viewer-rocket')) { const post = postAction(); close(); post?.(); return; }
         if (dragged || e.target.closest('.video-controls, button, .image-viewer-status')) return;
-        if (e.target.closest('#image-viewer-rocket')) { const post = postAction(); close(); post?.(); return; }
         if (state.kind === 'video') {
             const video = $('image-viewer-video');
             video.paused ? video.play().catch(() => {}) : video.pause();

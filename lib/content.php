@@ -36,7 +36,7 @@ function content_history_record(array $item, $complaint_reason) {
         'format' => $item['format'] ?? '', 'tags' => content_tags_clean($item['tags'] ?? []), 'topic' => $item['topic'] ?? '', 'source' => $item['source'] ?? '', 'source_key' => content_source_key($item), 'board' => $item['board'] ?? '',
         'thread_id' => $item['thread_id'] ?? '', 'post_id' => $item['post_id'] ?? '', 'source_url' => source_post_url($item), 'posted_at' => $item['posted_at'] ?? 0,
         'engagement' => $item['engagement'] ?? null, 'complaint_reason' => $complaint_reason, 'video' => (string)($item['video'] ?? ''),
-        'image_local' => (string)($item['image_local'] ?? ''), 'video_local' => (string)($item['video_local'] ?? ''), 'gallery' => content_gallery($item), 'timestamp' => time()];
+        'image_local' => (string)($item['image_local'] ?? ''), 'video_local' => (string)($item['video_local'] ?? ''), 'phash' => (string)($item['phash'] ?? ''), 'gallery' => content_gallery($item), 'timestamp' => time()];
 }
 
 /** Ссылка на исходный пост: сохранённая (только известные площадки по HTTPS) или собранная из полей Двача. */
@@ -280,6 +280,19 @@ function ffmpeg_run($args, $out, $timeout = 0) {
     return $code === 0 && is_file($out) && filesize($out) > 0;
 }
 
+/** Как ffmpeg_run, но сообщает долю готового: $on_progress(0–100) по out_time_us из -progress и длительности исходника. */
+function ffmpeg_run_progress($args, $out, $timeout, $duration, callable $on_progress) {
+    $command = ($timeout ? "timeout $timeout " : '') . escapeshellarg(ffmpeg_binary()) . " -v error -y -progress pipe:1 -nostats $args " . escapeshellarg($out);
+    $proc = proc_open($command, [['file', '/dev/null', 'r'], ['pipe', 'w'], ['file', '/dev/null', 'w']], $pipes);
+    if (!is_resource($proc)) return false;
+    if ($duration <= 0) $on_progress(null);
+    while (($line = fgets($pipes[1])) !== false) {
+        if ($duration > 0 && str_starts_with($line, 'out_time_us=')) $on_progress(min(99, max(0, (int)substr($line, 12)) / 1e6 / $duration * 100));
+    }
+    fclose($pipes[1]);
+    return proc_close($proc) === 0 && is_file($out) && filesize($out) > 0;
+}
+
 function download_video_temp($url, $max_bytes = VIDEO_MAX_BYTES) {
     if (($path = tempnam(sys_get_temp_dir(), 'ct-video-')) === false || !($handle = @fopen($path, 'wb'))) { if ($path) @unlink($path); return null; }
     $size = 0;
@@ -407,4 +420,57 @@ function dvach_threads_liveness(array $threads) {
 function dvach_item_gone(array $item, array $states) {
     $s = $states[($item['board'] ?? '') . '/' . ($item['thread_id'] ?? '')] ?? null;
     return $s === false || (is_array($s) && !empty($item['post_id']) && !isset($s[(string)$item['post_id']]));
+}
+
+// ---- Повторы: отпечаток картинки (dHash) ----
+
+/** Отпечаток картинки (dHash 256 бит, 64 hex-символа): одинаков у пережатой, уменьшенной копии. null — не картинка. */
+function image_phash($bytes) {
+    $img = @imagecreatefromstring($bytes);
+    if (!$img) return null;
+    $small = imagecreatetruecolor(17, 16);
+    imagecopyresampled($small, $img, 0, 0, 0, 0, 17, 16, imagesx($img), imagesy($img));
+    $hash = '';
+    for ($row = 0; $row < 16; $row++) {
+        for ($col = 0; $col < 16; $col++) {
+            $left = imagecolorat($small, $col, $row);
+            $right = imagecolorat($small, $col + 1, $row);
+            $left_lum = 0.299 * (($left >> 16) & 0xFF) + 0.587 * (($left >> 8) & 0xFF) + 0.114 * ($left & 0xFF);
+            $right_lum = 0.299 * (($right >> 16) & 0xFF) + 0.587 * (($right >> 8) & 0xFF) + 0.114 * ($right & 0xFF);
+            $hash .= $left_lum > $right_lum ? '1' : '0';
+        }
+    }
+    imagedestroy($img);
+    imagedestroy($small);
+    $hex = '';
+    for ($i = 0; $i < 256; $i += 8) {
+        $byte = substr($hash, $i, 8);
+        $hex .= str_pad(dechex(bindec($byte)), 2, '0', STR_PAD_LEFT);
+    }
+    return $hex;
+}
+
+/** Сколько бит из 256 различаются у двух отпечатков. */
+function phash_distance($a, $b) {
+    if (strlen($a) !== 64 || strlen($b) !== 64) return 256;
+    try {
+        $a_bytes = unpack('J4', hex2bin($a));
+        $b_bytes = unpack('J4', hex2bin($b));
+        $distance = 0;
+        foreach ($a_bytes as $i => $a_val) {
+            $b_val = $b_bytes[$i] ?? 0;
+            $distance += substr_count(decbin($a_val ^ $b_val), '1');
+        }
+        return $distance;
+    } catch (Throwable $e) {
+        return 256;
+    }
+}
+
+/** Первый ключ из $known ([отпечаток => что угодно]), чей отпечаток ближе PHASH_SAME_DISTANCE, или null. */
+function phash_find($hash, array $known) {
+    foreach ($known as $known_hash => $data) {
+        if (phash_distance($hash, (string)$known_hash) <= PHASH_SAME_DISTANCE) return $known_hash;
+    }
+    return null;
 }

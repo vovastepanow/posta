@@ -20,11 +20,39 @@ function telegram_error_text(array $data, $status = 0) {
     };
 }
 
+// ---- Прогресс отправки: этап и процент в файле, браузер опрашивает его отдельным запросом ----
+
+/** Файл прогресса отправки: id приходит от браузера (32 hex-символа). null — id нет или он некорректный. */
+function telegram_progress_file($id) {
+    return is_string($id) && preg_match('/^[a-f0-9]{32}$/', $id) ? user_dir() . "/publish-{$id}.json" : null;
+}
+
+/** Записывает этап и процент (0–100 или null — «неизвестно, идёт»). Не чаще раза в 300 мс, кроме смены этапа. */
+function telegram_progress($stage, $percent = null) {
+    static $last = ['stage' => null, 'percent' => null, 'ms' => 0];
+    if (($file = $GLOBALS['telegram_progress_file'] ?? null) === null) return;
+    $percent = $percent === null ? null : (int)round(max(0, min(100, $percent)));
+    $ms = hrtime(true) / 1e6;
+    if ($stage === $last['stage'] && $percent === $last['percent'] && $ms - $last['ms'] < 300) return;
+    $last = ['stage' => $stage, 'percent' => $percent, 'ms' => $ms];
+    @file_put_contents($file, json_encode(['stage' => $stage, 'percent' => $percent, 'at' => time()], JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+
+/** Колбэк заливки: пока байты уходят — проценты, после — ждём ответа Telegram. */
+function telegram_upload_progress($percent) {
+    $percent < 100 ? telegram_progress('Отправка в Telegram', $percent) : telegram_progress('Telegram обрабатывает видео…');
+}
+
 /** POST к Bot API ($files — [поле => путь], уходят multipart). Адрес можно подменить POSTMAKER_TELEGRAM_API для проверок. */
-function telegram_bot_request($token, $method, array $fields = [], array $files = [], $timeout = 60) {
+function telegram_bot_request($token, $method, array $fields = [], array $files = [], $timeout = 60, ?callable $on_upload = null) {
     foreach ($files as $name => $path) $fields[$name] = new CURLFile($path, mime_content_type($path) ?: 'application/octet-stream', basename($path));
-    $r = http_post((getenv('POSTMAKER_TELEGRAM_API') ?: 'https://api.telegram.org/bot') . "$token/$method", $fields,
-        [CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => $timeout, CURLOPT_USERAGENT => HTTP_UA]);
+    $options = [CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => $timeout, CURLOPT_USERAGENT => HTTP_UA];
+    if ($on_upload) $options += [CURLOPT_NOPROGRESS => false,
+        CURLOPT_XFERINFOFUNCTION => function ($ch, $down_total, $down_now, $up_total, $up_now) use ($on_upload) {
+            if ($up_total > 0) $on_upload($up_now / $up_total * 100);
+            return 0;   // 0 — продолжать; не 1, иначе curl оборвёт заливку
+        }];
+    $r = http_post((getenv('POSTMAKER_TELEGRAM_API') ?: 'https://api.telegram.org/bot') . "$token/$method", $fields, $options);
     if ($r['body'] === false) throw new RuntimeException('Telegram недоступен: ' . $r['error']);
     $data = json_decode((string)$r['body'], true);
     if (!is_array($data) || empty($data['ok'])) throw new RuntimeException(telegram_error_text(is_array($data) ? $data : [], $r['status']));
@@ -139,7 +167,8 @@ function telegram_prepare_video($path, $dir, $index, $route = 'bot') {
     if (!telegram_video_ready($info)) {
         if (ffmpeg_binary() === '') throw new RuntimeException('Видео нужно перекодировать в MP4, но на сервере нет ffmpeg.');
         $out = "$dir/video-$index.mp4";
-        if (!ffmpeg_run('-i ' . escapeshellarg($path) . ' -map 0:v:0 -map 0:a:0? -c:v libx264 -preset veryfast -crf 26 -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:a aac -b:a 128k -movflags +faststart -f mp4', $out, 600)) {
+        if (!ffmpeg_run_progress('-i ' . escapeshellarg($path) . ' -map 0:v:0 -map 0:a:0? -c:v libx264 -preset veryfast -crf 26 -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:a aac -b:a 128k -movflags +faststart -f mp4', $out, 600,
+            $info['duration'], fn($p) => telegram_progress('Перекодирую видео', $p))) {
             throw new RuntimeException('Не удалось перекодировать видео в MP4.');
         }
         $info = telegram_video_info($path = $out);
@@ -161,7 +190,10 @@ function telegram_prepare_media(array $items, array $uploads, $dir, $route = 'bo
         try {
             if (($item['upload'] ?? '') !== '' && isset($uploads[(int)$item['upload']])) $path = $uploads[(int)$item['upload']]['path'];
             elseif (($cached = media_cache_path($src)) !== null && is_file($cached)) $path = $cached;
-            elseif (preg_match('~^https?://~i', $src)) fetch_public_media($src, $path = "$dir/source-$i", TELEGRAM_UPLOAD_MAX_BYTES);
+            elseif (preg_match('~^https?://~i', $src)) {
+                if (($item['kind'] ?? '') === 'video') telegram_progress('Скачиваю видео');
+                fetch_public_media($src, $path = "$dir/source-$i", TELEGRAM_UPLOAD_MAX_BYTES);
+            }
             else throw new RuntimeException('файл недоступен (ни в кэше сайта, ни по ссылке).');
             $mime = (new finfo(FILEINFO_MIME_TYPE))->file($path) ?: '';
             $prepared[] = ['name' => $name] + match (true) {
@@ -265,7 +297,7 @@ function telegram_publish_prepared(array $c, $text, array $prepared) {
             $f = $prepared[0];
             $method = ['photo' => 'sendPhoto', 'animation' => 'sendAnimation', 'video' => 'sendVideo'][$f['kind']];
             $extra = $f['kind'] === 'video' ? ['supports_streaming' => 'true'] + $video_meta($f) : [];
-            $messages = [telegram_bot_request($token, $method, ['chat_id' => $chat] + $caption + $extra, [$f['kind'] => $f['path']], 600)];
+            $messages = [telegram_bot_request($token, $method, ['chat_id' => $chat] + $caption + $extra, [$f['kind'] => $f['path']], 600, 'telegram_upload_progress')];
         } else {
             $media = $files = [];
             foreach ($prepared as $i => $f) {
@@ -273,7 +305,7 @@ function telegram_publish_prepared(array $c, $text, array $prepared) {
                     + ($f['kind'] === 'video' ? ['supports_streaming' => true] + $video_meta($f) : []) + ($i === 0 ? $caption : []);
                 $files["file$i"] = $f['path'];
             }
-            $messages = telegram_bot_request($token, 'sendMediaGroup', ['chat_id' => $chat, 'media' => json_encode($media, JSON_UNESCAPED_UNICODE)], $files, 600);
+            $messages = telegram_bot_request($token, 'sendMediaGroup', ['chat_id' => $chat, 'media' => json_encode($media, JSON_UNESCAPED_UNICODE)], $files, 600, 'telegram_upload_progress');
         }
     } catch (RuntimeException $e) {
         if ($biggest > 0 && $e->getMessage() === 'Файл слишком большой для Telegram.') {
@@ -365,7 +397,8 @@ function telegram_user_call($uid, array $request, $timeout = TELEGRAM_USER_TIMEO
 
 function telegram_user_schedule($uid, array $bot, $text, array $prepared, $publish_at) {
     $media = array_map(fn($f) => ['kind' => $f['kind'], 'path' => $f['path'], 'width' => $f['width'] ?? 0, 'height' => $f['height'] ?? 0, 'duration' => $f['duration'] ?? 0], $prepared);
-    return array_map('intval', telegram_user_call($uid, ['action' => 'schedule', 'channel' => telegram_user_channel_ref($bot), 'text' => $text, 'publish_at' => (int)$publish_at, 'media' => $media])['ids'] ?? []);
+    return array_map('intval', telegram_user_call($uid, ['action' => 'schedule', 'channel' => telegram_user_channel_ref($bot), 'text' => $text, 'publish_at' => (int)$publish_at, 'media' => $media,
+        'progress_file' => (string)($GLOBALS['telegram_progress_file'] ?? '')])['ids'] ?? []);
 }
 
 function telegram_user_cancel($uid, array $bot, array $ids) {

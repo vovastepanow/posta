@@ -345,5 +345,5 @@ function parser_state_update(array $state, $uid = null): void {
 
 /** Загрузить кэш отскриненных записей со скорингом. */
 function screened_cache_load(): array {
-    return db_all('SELECT url, topic, source, score, at FROM screened_cache ORDER BY at DESC');
+    return db_all('SELECT url, topic, source, score, phash, at FROM screened_cache ORDER BY at DESC');
 }

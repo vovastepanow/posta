@@ -180,6 +180,17 @@ function history_records() {
 
 function collect_known_images() { return record_known_keys(array_merge(pool_load(), history_records())); }
 
+/** Отпечатки записей пула и истории: [phash => подпись источника] — с чем сравнивать новых кандидатов. */
+function collect_known_hashes() {
+    $hashes = [];
+    foreach (array_merge(pool_load(), history_records()) as $r) {
+        if (!is_array($r)) continue;
+        $phash = (string)($r['phash'] ?? '');
+        if ($phash !== '') $hashes[$phash] = $r['source'] ?? '';
+    }
+    return $hashes;
+}
+
 function candidate_is_known(array $item, array $known) {
     foreach ([$item['image'] ?? '', ...array_column((array)($item['gallery'] ?? []), 'image')] as $img) if (isset($known[$img])) return true;
     return ($post = candidate_post_key($item)) !== '' && isset($known[$post]);
@@ -273,7 +284,8 @@ function content_hotness($item) {
 
 function screened_scores_for_topic(array $cache, $topic) {
     $topic = mb_strtolower($topic);
-    return array_map(fn($e) => (int)$e['score'], array_filter($cache, fn($e) => mb_strtolower((string)($e['topic'] ?? '')) === $topic));
+    $filtered = array_filter($cache, fn($e) => mb_strtolower((string)($e['topic'] ?? '')) === $topic);
+    return array_column($filtered, 'score', 'url');
 }
 
 /** Сглаженная доля прошедших быструю оценку по источникам. */
@@ -293,8 +305,8 @@ function cache_merge($file, array $new, $limit) {
     if (!$new) return;
     db_tx(function () use ($new, $limit) {
         foreach ($new as $url => $data) {
-            db_exec('INSERT OR REPLACE INTO screened_cache (url, topic, source, score, at) VALUES (?, ?, ?, ?, ?)',
-                    [$url, $data['topic'] ?? '', $data['source'] ?? '', $data['score'] ?? 0, time()]);
+            db_exec('INSERT OR REPLACE INTO screened_cache (url, topic, source, score, phash, at) VALUES (?, ?, ?, ?, ?, ?)',
+                    [$url, $data['topic'] ?? '', $data['source'] ?? '', $data['score'] ?? 0, $data['phash'] ?? '', time()]);
         }
         db_exec('DELETE FROM screened_cache WHERE at < ?', [time() - SCREENED_CACHE_DAYS * DAY_SECONDS]);
         $count = db_value('SELECT COUNT(*) FROM screened_cache');
@@ -337,14 +349,28 @@ function prescreen_batch(array $batch, $topic, array &$ctx, $deadline) {
         $source = content_source_key($item);
         if (!empty($ctx['passed_total']) && ($ctx['misses'][$source] ?? 0) >= PRESCREEN_SOURCE_MISS_LIMIT) { $ctx['stats']['source_skipped']++; continue; }
         if (($poster = fetch_candidate_poster($item)) === null) continue;
+
+        $hash = image_phash($poster) ?? '';
+        if ($hash !== '' && ($seen = phash_find($hash, $ctx['known_hashes'])) !== null) {
+            $ctx['stats']['duplicates']++;
+            cli_echo('-> ' . candidate_log_label($item) . ': повтор уже виденной картинки' . ($ctx['known_hashes'][$seen] !== '' ? " (из «{$ctx['known_hashes'][$seen]}»)" : '') . ' — пропуск.');
+            continue;
+        }
+        if ($hash !== '') $ctx['known_hashes'][$hash] = $item['source'] ?? '';
+
         if (($cached = $ctx['cached'][$item['image']] ?? null) !== null) {
             // Из кэша — обрабатываем сразу
             $this_row = ['item' => $item, 'poster' => $poster, 'score' => $cached];
             if ($cached < PRESCREEN_THRESHOLD) { $ctx['stats']['rejected']++; $below[] = $this_row; }
             else { $ctx['passed_total'] = ($ctx['passed_total'] ?? 0) + 1; $passed[] = $this_row; }
+        } elseif ($hash !== '' && ($screened_score = phash_find($hash, $ctx['screened_hashes'])) !== null) {
+            // Нашлась быстрая оценка копии в экране - используй её score
+            $this_row = ['item' => $item, 'poster' => $poster, 'score' => $ctx['screened_hashes'][$screened_score]];
+            if ($ctx['screened_hashes'][$screened_score] < PRESCREEN_THRESHOLD) { $ctx['stats']['rejected']++; $below[] = $this_row; }
+            else { $ctx['passed_total'] = ($ctx['passed_total'] ?? 0) + 1; $passed[] = $this_row; }
         } else {
             // Нужна оценка — добавляем в параллельную батч
-            $to_score[] = ['item' => $item, 'poster' => $poster, 'source' => $source];
+            $to_score[] = ['item' => $item, 'poster' => $poster, 'source' => $source, 'phash' => $hash];
         }
     }
 
@@ -363,7 +389,7 @@ function prescreen_batch(array $batch, $topic, array &$ctx, $deadline) {
                 $passed[] = ['score' => PRESCREEN_THRESHOLD] + $row;
                 continue;
             }
-            $ctx['new_cache'][$item['image']] = ['score' => $quick['score'], 'topic' => $topic, 'source' => $source, 'at' => time()];
+            $ctx['new_cache'][$item['image']] = ['score' => $quick['score'], 'topic' => $topic, 'source' => $source, 'phash' => $to_score[$idx]['phash'] ?? '', 'at' => time()];
             $ctx['stats']['prescreened']++;
 
             if ($quick['score'] < PRESCREEN_THRESHOLD) {
@@ -439,7 +465,7 @@ function analyze_candidate($item, $poster, $history, $topic) {
         cli_echo("-> Принято: {$verdict}." . (($tags = content_tags_public($a['tags'] ?? [])) ? ' Метки: ' . implode(', ', array_column($tags, 'path')) . '.' : ''));
         if (search_topic_key() !== $topic) { cli_echo('-> Тема поиска сменилась — запись по старой теме не сохраняю.'); return false; }
         $item = ['description' => $a['description'] ?: 'Описание не получено', 'why_relevant' => $a['why_relevant'] ?: 'Нейросеть не сформулировала объяснение.',
-            'relevance' => $a['relevance'], 'rating' => $a['rating'], 'format' => $a['format'] ?? '', 'tags' => $a['tags'] ?? [], 'topic' => $topic, 'image_local' => media_cache_store_image($item['image'], $poster)] + $item;
+            'relevance' => $a['relevance'], 'rating' => $a['rating'], 'format' => $a['format'] ?? '', 'tags' => $a['tags'] ?? [], 'topic' => $topic, 'image_local' => media_cache_store_image($item['image'], $poster), 'phash' => image_phash($poster) ?? ''] + $item;
         if ($is_video) {
             $item['video_local'] = !empty($video['file']) ? cache_downloaded_video($item['video'], $video['file']) : media_cache_store_video($item['video']);
             cli_echo($item['video_local'] !== '' ? '-> Видео сохранено в кэш сайта.' : '-> Видео не удалось сохранить в кэш, на сайте будет исходная ссылка.');
@@ -479,6 +505,7 @@ function parser_phase_with_topic($phase, $topic = null) {
 function run_collector() {
     $started = time();
     $topic = current_topic();
+    parser_progress(['deadline' => $started + PARSER_MAX_SECONDS], true);
     cli_echo('');  // пустая строка для визуального разделения
     cli_echo('╔════════════════════════════════════════════════════════════════════════╗');
     cli_echo('║ ⏱️  НАЧИНАЕТСЯ ПОДБОР КОНТЕНТА                                           ║');
@@ -517,6 +544,8 @@ function run_collector() {
     }
     $cache = screened_cache_load();
     $scores = screened_scores_for_topic($cache, $key);
+    $key_lower = mb_strtolower($key);
+    $screened_hashes = array_column(array_filter($cache, fn($e) => mb_strtolower((string)($e['topic'] ?? '')) === $key_lower && ($e['phash'] ?? '') !== ''), 'score', 'phash');
     $skipped = [];
     $candidates = build_candidate_queue(collect_posts_by_platform(load_source_db(), $topic), $seen, array_filter($scores, fn($s) => $s < PRESCREEN_THRESHOLD),
         combined_source_rates(source_pass_rates($cache, $key), $topic), $skipped);
@@ -525,8 +554,10 @@ function run_collector() {
         . ($skipped['outdated'] ? " Устаревших: {$skipped['outdated']}." : '')
         . ($skipped['disabled_sources'] ? " Пропущено из источников, которые пользователи оценивают плохо: {$skipped['disabled_sources']}." : '')
         . ' Быстрая оценка по картинке ' . PRESCREEN_MAX_SIDE . ' px, порог ' . PRESCREEN_THRESHOLD . '%.');
-    $ctx = ['stats' => ['prescreened' => 0, 'rejected' => 0, 'source_skipped' => 0], 'misses' => [], 'cached' => $scores, 'new_cache' => []];
-    [$analyzed, $added, $stop, $restart, $queue] = [0, 0, null, false, []];
+    $ctx = ['stats' => ['prescreened' => 0, 'rejected' => 0, 'source_skipped' => 0, 'duplicates' => 0], 'misses' => [], 'cached' => $scores, 'new_cache' => [], 'known_hashes' => collect_known_hashes(), 'screened_hashes' => $screened_hashes];
+    [$analyzed, $added, $stop, $restart, $queue, $done] = [0, 0, null, false, [], 0];
+    // Полоса прогресса на сайте: сбор кончится, когда разобрана очередь или набран лимит записей (столько не хватает пулу)
+    parser_progress(['total' => count($candidates), 'queue_at' => time(), 'need' => max(1, min(CONTENT_ADDED_PER_RUN, CONTENT_POOL_TARGET - pool_topic_count($key)))]);
     $last_progress = time();
     $batches = array_chunk($candidates, PRESCREEN_BATCH);
     foreach ($batches as $i => $batch) {
@@ -551,6 +582,7 @@ function run_collector() {
         $passed = prescreen_batch($batch, $key, $ctx, $started + PARSER_MAX_SECONDS);
         cache_merge(SCREENED_CACHE_FILE, $ctx['new_cache'], SCREENED_CACHE_LIMIT);
         $ctx['new_cache'] = [];
+        parser_progress(['done' => $done += count($batch) - count($passed)]);   // отсеянные быстрой оценкой разобраны
         // Прошедшие быструю оценку копятся и уходят на полный анализ блоком: каждая смена модели — перезагрузка в видеопамять
         array_push($queue, ...$passed);
         if (count($queue) < ANALYZE_BLOCK && $i < count($batches) - 1) continue;
@@ -559,10 +591,13 @@ function run_collector() {
             if ($stop = collector_stop_reason($started, $analyzed, $added)) break 2;
             $analyzed++;
             if (analyze_candidate($c['item'], $c['poster'], $history = load_history(), $key)) $added++;
+            parser_progress(['done' => ++$done, 'analyzed' => $analyzed, 'added' => $added]);
         }
         $queue = [];
     }
     cache_merge(SCREENED_CACHE_FILE, $ctx['new_cache'], SCREENED_CACHE_LIMIT);
+    parser_progress(['done' => count($candidates)]);   // проверка окончена (в том числе по лимиту), дальше — только итоги и поиск источников
+    if (!$restart) parser_expected_seconds(time() - $started);   // по ней оценивается время следующих проходов, пока нет своей скорости
     if ($stop) cli_echo($stop);
     $s = $ctx['stats'];
     $elapsed_min = round((time() - $started) / 60, 1);
@@ -574,6 +609,7 @@ function run_collector() {
     cli_echo('║ Добавлено в пул: ' . str_pad($added . ' постов', 52) . ' ║');
     cli_echo('║ Проанализировано: ' . str_pad($analyzed . ' кандидатов', 49) . ' ║');
     cli_echo('║ Отклонено: ' . str_pad($s['rejected'] . ' (по релевантности)', 50) . ' ║');
+    cli_echo('║ Повторов пропущено: ' . str_pad($s['duplicates'] ?? 0, 48) . ' ║');
     cli_echo('╚════════════════════════════════════════════════════════════════════════╝');
     cli_echo('');
     // Поиск постов закончился, а пул темы не наполнен: ищем новые источники (не чаще DISCOVERY_SHORTAGE_INTERVAL) и, если нашлись, собираем заново

@@ -8,6 +8,8 @@
 //   rescore-sources [--catalog] [--apply] — переоценить найденные каналы по текущим правилам
 //   seed-topics                    — засеять готовое дерево тем (lib/topic_tree.php), повторный запуск ничего не меняет
 //   tag-content [N] [--dry-run]    — метки (темы дерева) записям без меток, по описанию ИИ; N запросов к модели (20)
+//   phash-backfill [--dry-run]     — для записей пула и истории без phash считает отпечаток по локальному файлу
+//   phash-report [N]               — печатает N самых близких пар разных картинок (по умолчанию 30)
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Только из командной строки.'); }
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../handlers/content.php';
@@ -116,8 +118,83 @@ case 'migrate-json':
     echo "Готово.\n";
     break;
 
+case 'phash-backfill':
+    $dry_run = $flag('dry-run');
+    $backfill_fn = function (array $list) {
+        $result = [];
+        foreach ($list as $item) {
+            if (!is_array($item) || ($item['phash'] ?? '') !== '') { $result[] = $item; continue; }
+            $local_path = media_cache_path($item['image_local'] ?? '');
+            if (!is_file($local_path)) { $result[] = $item; continue; }
+            $bytes = file_get_contents($local_path);
+            if ($phash = image_phash($bytes)) $item['phash'] = $phash;
+            $result[] = $item;
+        }
+        return $result;
+    };
+    $computed = $skipped = 0;
+    foreach (user_ids() as $uid) {
+        pool_update(function ($pool) use ($backfill_fn, &$computed, &$skipped) {
+            $before = array_filter($pool, fn($i) => is_array($i) && ($i['phash'] ?? '') === '');
+            $after = $backfill_fn($pool);
+            $changed = count($before) - count(array_filter($after, fn($i) => is_array($i) && ($i['phash'] ?? '') === ''));
+            $computed += $changed;
+            $skipped += count($before) - $changed;
+            return $after !== $pool ? $after : null;
+        }, $uid);
+        history_update(function ($history) use ($backfill_fn, &$computed, &$skipped) {
+            $updated = false;
+            foreach (HISTORY_COLLECTIONS as $c) {
+                $before = array_filter($history[$c] ?? [], fn($i) => is_array($i) && ($i['phash'] ?? '') === '');
+                $history[$c] = $backfill_fn($history[$c] ?? []);
+                $changed = count($before) - count(array_filter($history[$c], fn($i) => is_array($i) && ($i['phash'] ?? '') === ''));
+                $computed += $changed;
+                $skipped += count($before) - $changed;
+                if ($changed > 0) $updated = true;
+            }
+            return $updated ? $history : null;
+        }, $uid);
+    }
+    echo "посчитано $computed, без локального файла $skipped\n";
+    break;
+
+case 'phash-report':
+    $limit = max(1, (int)($args[0] ?? 30));
+    $hashes = [];
+    foreach (user_ids() as $uid) {
+        $records = array_merge(pool_load($uid), ...array_values(history_load($uid)));
+        foreach ($records as $item) {
+            if (!is_array($item) || ($item['phash'] ?? '') === '') continue;
+            $phash = $item['phash'];
+            if (!isset($hashes[$phash])) $hashes[$phash] = [];
+            $hashes[$phash][] = $item;
+        }
+    }
+    $pairs = [];
+    $keys = array_keys($hashes);
+    for ($i = 0; $i < count($keys); $i++) {
+        for ($j = $i + 1; $j < count($keys); $j++) {
+            $dist = phash_distance($keys[$i], $keys[$j]);
+            if ($dist <= PHASH_SAME_DISTANCE + 15) {
+                foreach ($hashes[$keys[$i]] as $item1) {
+                    foreach ($hashes[$keys[$j]] as $item2) {
+                        if (content_image_key($item1) !== content_image_key($item2)) {
+                            $pairs[] = ['distance' => $dist, 'path1' => media_cache_path($item1['image_local'] ?? ''), 'path2' => media_cache_path($item2['image_local'] ?? ''), 'source1' => $item1['source'] ?? '', 'source2' => $item2['source'] ?? ''];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    usort($pairs, fn($a, $b) => $a['distance'] <=> $b['distance']);
+    $pairs = array_slice($pairs, 0, $limit);
+    foreach ($pairs as $p) {
+        printf("%d  %s  %s  ← (%s vs %s)\n", $p['distance'], $p['path1'], $p['path2'], $p['source1'], $p['source2']);
+    }
+    break;
+
 default:
-    echo preg_replace('/^\/\/ ?/m', '', implode("\n", array_slice(file(__FILE__, FILE_IGNORE_NEW_LINES), 1, 9))) . "\n";
+    echo preg_replace('/^\/\/ ?/m', '', implode("\n", array_slice(file(__FILE__, FILE_IGNORE_NEW_LINES), 1, 11))) . "\n";
 }
 
 /**
