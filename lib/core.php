@@ -1,39 +1,11 @@
 <?php
-// Ядро: JSON-файлы под блокировкой, пользователи, HTTP, шифрование секретов, настройки, загрузка картинок.
+// Ядро: пользователи, HTTP, шифрование секретов, настройки, загрузка картинок.
 
-// ---- JSON-хранилище ----
+// ---- JSON-файлы: только временные кэши в /tmp. Данные — в SQLite (lib/db.php, lib/db_access.php) ----
 
 function load_data($file, $default = []) {
     $data = is_file($file) ? json_decode((string)file_get_contents($file), true) : null;
     return is_array($data) ? $data : $default;
-}
-
-/** Атомарная запись: временный файл + rename, читатели не видят половину файла. */
-function save_data($file, $data) {
-    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE);
-    $tmp = $json === false ? false : tempnam(dirname($file), '.content-data-');
-    if ($tmp === false) throw new RuntimeException('Не удалось подготовить запись JSON-базы.');
-    $mode = is_file($file) ? fileperms($file) & 0777 : 0664;
-    $ok = file_put_contents($tmp, $json, LOCK_EX) === strlen($json);
-    @chmod($tmp, $mode);
-    if (!$ok || !rename($tmp, $file)) { @unlink($tmp); throw new RuntimeException('Не удалось сохранить JSON-базу.'); }
-}
-
-function with_file_lock($file, callable $callback) {
-    $lock = @fopen($file . '.lock', 'c+');
-    if ($lock && !flock($lock, LOCK_EX)) { fclose($lock); $lock = false; }
-    try { return $callback(); } finally { if ($lock) { flock($lock, LOCK_UN); fclose($lock); } }
-}
-
-/** Прочитать → изменить → сохранить под одной блокировкой. $mutator вернул null — файл не трогается. */
-function update_data($file, $default, callable $mutator) {
-    return with_file_lock($file, function () use ($file, $default, $mutator) {
-        $data = load_data($file, $default);
-        $updated = $mutator($data);
-        if ($updated === null) return $data;
-        save_data($file, $updated);
-        return $updated;
-    });
 }
 
 /** Блокировка без ожидания (очереди, подборы): ресурс или null, если занято. */
@@ -70,13 +42,14 @@ function app_user_id() {
     return app_user_bind() ?: throw new RuntimeException('Пользователь не определён.');
 }
 
-/** Веб-запрос: id из куки или новый; кука продлевается при каждом заходе. */
+/** Веб-запрос: из сессии или куки; кука сессии устанавливается, старая кука удаляется. */
 function app_user_from_request() {
-    $uid = $_COOKIE[USER_COOKIE] ?? '';
-    if (!is_valid_user_id($uid)) $uid = bin2hex(random_bytes(16));
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
-    if (!headers_sent()) setcookie(USER_COOKIE, $uid, ['expires' => time() + USER_COOKIE_DAYS * DAY_SECONDS, 'secure' => $https,
-        'path' => rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/\\') . '/', 'httponly' => true, 'samesite' => 'Lax']);
+    $result = session_resolve($_COOKIE[SESSION_COOKIE] ?? '', $_COOKIE[USER_COOKIE] ?? '');
+    $uid = $result['uid'];
+    if ($result['sid']) session_cookie_set($result['sid']);
+    if ($result['drop_legacy'] && !headers_sent()) {
+        setcookie(USER_COOKIE, '', ['expires' => 1, 'path' => rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/\\') . '/']);
+    }
     return app_user_bind($uid);
 }
 
@@ -96,41 +69,51 @@ function user_dir($uid = null) {
     return $dir;
 }
 
-function pool_file($uid = null) { return user_dir($uid) . '/pool.json'; }
-function history_file($uid = null) { return user_dir($uid) . '/history.json'; }
-function settings_file($uid = null) { return user_dir($uid) . '/settings.json'; }
-function connections_file($uid = null) { return user_dir($uid) . '/connections.json'; }
-function published_file($uid = null) { return user_dir($uid) . '/published.json'; }
-function outbox_file($uid = null) { return user_dir($uid) . '/outbox.json'; }
 function parser_runtime_file($suffix) { return user_dir() . '/parser-' . PARSER_RUNTIME_VERSION . $suffix; }
 function empty_history() { return array_fill_keys(HISTORY_COLLECTIONS, []); }
 function load_history() { return history_load(); }
 
-/** Отметка захода (не чаще раза в 10 минут) и раз в сутки — удаление брошенных профилей. */
+/** Отметка захода (в базе, не чаще раза в 10 минут) и раз в час — удаление брошенных и пустых профилей.
+ *  Раньше отметка жила в static-переменных, которые обнуляются на каждом запросе: last_seen не писался вовсе. */
 function user_touch() {
-    static $last_touch = 0, $last_gc = 0;
     $now = time();
-
     $uid = app_user_id();
-    if ($now - $last_touch < 600) {
-        db_exec('INSERT OR IGNORE INTO users (id, created_at, last_seen) VALUES (?, ?, ?)',
-                [$uid, $now, $now]);
-        db_exec('UPDATE users SET last_seen = ? WHERE id = ?', [$now, $uid]);
-        return;
-    }
-    $last_touch = $now;
+    db_exec('INSERT OR IGNORE INTO users (id, created_at) VALUES (?, ?)', [$uid, $now]);
+    db_exec('UPDATE users SET last_seen = ? WHERE id = ? AND last_seen < ?', [$now, $uid, $now - 600]);
+    if ($now - (int)kv_get('users_gc_at', 0) < 3600) return;
+    kv_update('users_gc_at', fn() => $now);
+    users_gc($uid);
+}
 
-    if ($now - $last_gc < DAY_SECONDS) return;
-    $last_gc = $now;
+/** Пустой профиль: ни оценок, ни подключений, ни постов, ни денег, ни приглашённых. Вошедший через Telegram — не пустой. */
+function user_is_empty($id) {
+    if (db_value('SELECT telegram_id FROM users WHERE id = ?', [$id])) return false;   // вошедший — не пустой
+    return !db_value('SELECT 1 FROM history_items WHERE user_id = ? LIMIT 1', [$id]) && !db_value('SELECT 1 FROM outbox WHERE user_id = ? LIMIT 1', [$id])
+        && !db_value('SELECT 1 FROM published WHERE user_id = ? LIMIT 1', [$id]) && !db_value('SELECT 1 FROM ledger WHERE user_id = ? LIMIT 1', [$id])
+        && !db_value('SELECT 1 FROM users WHERE referred_by = ? LIMIT 1', [$id])
+        && db_one("SELECT 1 FROM users WHERE id = ? AND settings IN ('', '{}') AND connections IN ('', '{}')", [$id]) !== null;
+}
 
-    foreach (user_ids() as $id) {
-        if ($id === $uid) continue;
-        $row = db_one('SELECT last_seen, created_at FROM users WHERE id = ?', [$id]);
-        $seen = (int)($row['last_seen'] ?: $row['created_at'] ?: $now);   // 0 — отметки захода ещё не было, считаем от создания профиля
-        if ($now - $seen >= USER_RETENTION_DAYS * DAY_SECONDS) {
-            db_exec('DELETE FROM users WHERE id = ?', [$id]);
-        }
+/** Удаляет профили без заходов дольше USER_RETENTION_DAYS и пустые — через EMPTY_USER_RETENTION_HOURS. Чистит сессии и login_requests. */
+function users_gc($keep = '', $dry_run = false) {
+    $now = time();
+    if (!$dry_run) {
+        // Удалить старые сессии
+        db_exec('DELETE FROM sessions WHERE last_seen < ?', [$now - USER_COOKIE_DAYS * DAY_SECONDS]);
+        // Удалить старые login_requests (старше суток)
+        db_exec('DELETE FROM login_requests WHERE created_at < ?', [$now - DAY_SECONDS]);
     }
+    $removed = 0;
+    foreach (db_all('SELECT id, last_seen, created_at FROM users') as $row) {
+        if ($row['id'] === $keep || db_value('SELECT 1 FROM ledger WHERE user_id = ? LIMIT 1', [$row['id']])) continue;
+        $idle = $now - (int)($row['last_seen'] ?: $row['created_at'] ?: $now);
+        if ($idle < USER_RETENTION_DAYS * DAY_SECONDS && ($idle < EMPTY_USER_RETENTION_HOURS * 3600 || !user_is_empty($row['id']))) continue;
+        $removed++;
+        if ($dry_run) continue;
+        db_exec('DELETE FROM users WHERE id = ?', [$row['id']]);
+        if (is_valid_user_id($row['id'])) remove_dir(USERS_DIR . '/' . $row['id']);
+    }
+    return $removed;
 }
 
 /** Инициализация данных нового пользователя и нормализация каталога источников. */
@@ -150,7 +133,7 @@ function load_history_sql($uid = null): array {
 
 // ---- HTTP ----
 
-const HTTP_UA = 'Postmaker/1.0';
+const HTTP_UA = 'Posta/1.0';
 const BROWSER_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 
 function http_get($url, array $options = []) {
@@ -209,8 +192,10 @@ function fetch_public($url, $max_bytes, $dest = null, $timeout = 20) {
     $handle = $dest !== null ? (@fopen($dest, 'wb') ?: throw new RuntimeException('Не удалось сохранить файл во временную папку.')) : null;
     $bytes = '';
     $size = 0;
+    $location = '';
     $ch = curl_init($url);
-    curl_setopt_array($ch, [CURLOPT_FOLLOWLOCATION => false, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => $timeout,
+    curl_setopt_array($ch, [CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_HEADERFUNCTION => function ($c, $line) use (&$location) { if (stripos($line, 'location:') === 0) $location = trim(substr($line, 9)); return strlen($line); }, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => $timeout,
         CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_USERAGENT => HTTP_UA,
         CURLOPT_WRITEFUNCTION => function ($c, $chunk) use (&$bytes, &$size, $max_bytes, $handle) {
             if (($size += strlen($chunk)) > $max_bytes) return 0;
@@ -227,7 +212,7 @@ function fetch_public($url, $max_bytes, $dest = null, $timeout = 20) {
     if ($handle) fclose($handle);
     $ok = $ok && $status >= 200 && $status < 300 && $size > 0;
     if (!$ok && $dest !== null) @unlink($dest);
-    return ['ok' => $ok, 'bytes' => $bytes, 'type' => $type, 'error' => $error, 'too_big' => $size > $max_bytes];
+    return ['ok' => $ok, 'bytes' => $bytes, 'type' => $type, 'error' => $error, 'too_big' => $size > $max_bytes, 'status' => $status, 'location' => $location];
 }
 
 function fetch_public_image($url) {
@@ -285,7 +270,7 @@ function secret_key() {
     if (!function_exists('sodium_crypto_secretbox')) throw new RuntimeException('На сервере нет расширения PHP sodium: нельзя безопасно хранить токены.');
     $file = ROOT . '/secret.key.php';
     if (!is_file($file)) {
-        $code = "<?php\n// Ключ шифрования токенов Postmaker. Не публиковать и не коммитить.\nreturn '" . base64_encode(random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES)) . "';\n";
+        $code = "<?php\n// Ключ шифрования токенов Posta. Не публиковать и не коммитить.\nreturn '" . base64_encode(random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES)) . "';\n";
         if (@file_put_contents($file, $code, LOCK_EX) === false) throw new RuntimeException('Не удалось создать ключ шифрования (secret.key.php): проверьте права на папку сайта.');
         @chmod($file, 0640);
     }

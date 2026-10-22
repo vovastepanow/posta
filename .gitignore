@@ -4,9 +4,7 @@ secret.key.php
 # Данные: пользователи, каталог, кэши, медиа, БД (создаются приложением)
 users/
 media_cache/
-history_media/
 data/*.sqlite*
-data/locks/
 *.json
 !package.json
 # Блокировки, журналы, временные файлы, байт-код Python
@@ -14,8 +12,7 @@ data/locks/
 *.log
 *.backup
 *.bak
-.content-data-*
-.postmaker-*
+.posta-*
 __pycache__/
 *.pyc
 *.session

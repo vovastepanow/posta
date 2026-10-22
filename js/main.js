@@ -3,8 +3,9 @@ import { $, DEBUG_MODE, TAB_ID, api, el, hide, initializeCore, log, show, startT
 import { initializeImageViewer } from './viewer.js';
 import { initializeContentTab, loadCurrentItem } from './content.js';
 import { clearDiscoveredSource, initializeSourceTab } from './sources.js';
-import { consumeVkRedirectResult, initializeAccountTab, openAccountSection, openNewItemEditor } from './account.js';
+import { consumeReferralLink, consumeVkRedirectResult, initializeAccountTab, openAccountSection, openNewItemEditor } from './account.js';
 import { initializeTabs } from './tabs.js';
+import { initializeTheme } from './theme.js';
 
 // ---- Панель модели под журналом: что загружено в Ollama, загрузка и выгрузка ----
 
@@ -93,6 +94,7 @@ initializeContentTab({ onAddItem: openNewItemEditor });
 initializeSourceTab();
 initializeAccountTab({ onDatabasesReset: loadCurrentItem });
 initializeTabs();
+initializeTheme();
 $('model-panel').addEventListener('toggle', refreshModel);
 document.querySelectorAll('#model-panel [data-model-op]').forEach(b => b.addEventListener('click', () => controlModel({ op: b.dataset.modelOp, role: b.dataset.role })));
 refreshModel();
@@ -102,6 +104,7 @@ initializeDebugMode();
 log('Приложение запущено. Загружаю пул контента.');
 if (consumeVkRedirectResult()) openAccountSection('social');
 await startTabSession();   // сначала сессия: запрос пула запускает парсер, привязанный к этой вкладке
+consumeReferralLink();   // после первого запроса: у браузера уже есть кука, иначе два запроса без неё заведут двух пользователей
 const first = loadCurrentItem();
 watchParser();
 await first.catch(() => {});

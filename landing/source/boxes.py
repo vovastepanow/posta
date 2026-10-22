@@ -1,4 +1,4 @@
-"""Генератор вариантов коробки Postmaker для первого экрана лендинга."""
+"""Генератор вариантов коробки Posta для первого экрана лендинга."""
 import re
 
 K = .8660254
@@ -96,7 +96,7 @@ def svg(body, vb='0 0 400 420'): return f'<svg viewBox="{vb}" aria-hidden="true"
 
 import math
 V = {}
-PLATE = lambda w, fs, txt='postmaker': f'<rect x="{(150 - w) / 2}" y="56" width="{w}" height="36" fill="#FFDA1A" stroke="#111" stroke-width="4"/><text x="75" y="81" text-anchor="middle" {J} font-weight="900" font-size="{fs}" letter-spacing="-1" fill="#111">{txt}</text>'
+PLATE = lambda w, fs, txt='posta': f'<rect x="{(150 - w) / 2}" y="56" width="{w}" height="36" fill="#FFDA1A" stroke="#111" stroke-width="4"/><text x="75" y="81" text-anchor="middle" {J} font-weight="900" font-size="{fs}" letter-spacing="-1" fill="#111">{txt}</text>'
 PRICE = lambda c='#111': f'<text x="18" y="80" {J} font-weight="900" font-size="42" letter-spacing="-2" fill="{c}">390<tspan font-size="16" dy="-19">,–₽</tspan></text>'
 
 # Изо: красно-золотая, наклейка NEW, бант с хвостами
@@ -115,7 +115,7 @@ tag = (f'<g class="gb-tag"><path d="M214 128 Q262 112 292 150" fill="none" strok
 V['4'] = svg(SHADOW.format(y=394, rx=150) + '<g class="gb-float">'
     + '<path class="gb-light" d="M200 120 L56 -30 H344 Z" fill="#FFF6B0" opacity=".85"/>'
     + iso(200, 64, 150, 135, '#FFE45C', '#FFDA1A', '#F2C200', '#111', '#F5CC00', '#E0B000', bow='#111', bowk='#111',
-          ltext=f'<rect x="10" y="56" width="130" height="36" fill="#111"/><text x="75" y="81" text-anchor="middle" {J} font-weight="900" font-size="23" letter-spacing="-1" fill="#FFDA1A">postmaker</text>'
+          ltext=f'<rect x="10" y="56" width="130" height="36" fill="#111"/><text x="75" y="81" text-anchor="middle" {J} font-weight="900" font-size="23" letter-spacing="-1" fill="#FFDA1A">posta</text>'
                 f'<g fill="#111" transform="translate(14 112)">{BAR}</g><text x="136" y="126" text-anchor="end" {J} font-weight="700" font-size="7.5" fill="#111">арт. 390.007.24</text>',
           rtext=f'<rect x="16" y="48" width="118" height="50" fill="#fff" stroke="#111" stroke-width="4"/><text x="75" y="88" text-anchor="middle" {J} font-weight="900" font-size="38" letter-spacing="-2" fill="#111">390<tspan font-size="15" dy="-17">,–₽</tspan></text>'
                 f'<text x="75" y="120" text-anchor="middle" {J} font-weight="900" font-size="12" letter-spacing="2" fill="#111">NY LÅG PRIS!</text>')
@@ -135,7 +135,7 @@ V['5'] = svg(SHADOW.format(y=402, rx=150)
     + f'<g class="gb-pop"><g class="gb-confetti" stroke="#111" stroke-width="1.5">{conf}</g>'
     + chip(110, 168, 'TG', '#2AABEE', -14) + chip(296, 172, 'VK', '#0077FF', 12)
     + f'<g transform="rotate(-6 200 100)"><rect x="98" y="72" width="212" height="62" fill="#111"/><rect x="90" y="64" width="212" height="62" fill="#FFDA1A" stroke="#111" stroke-width="5"/>'
-      f'<text x="196" y="107" text-anchor="middle" {J} font-weight="900" font-size="40" letter-spacing="-2" fill="#111">postmaker<tspan font-size="18" dy="-16">,–</tspan></text></g></g>'
+      f'<text x="196" y="107" text-anchor="middle" {J} font-weight="900" font-size="40" letter-spacing="-2" fill="#111">posta<tspan font-size="18" dy="-16">,–</tspan></text></g></g>'
     + burst(340, 236, 78, '#E1001A', 'ВАУ!', fs=17, r=14) + SPARKS)
 
 # Как в рекламе: тумблер щёлкает при наведении, ценник-звезда, надпись на боку
@@ -151,9 +151,9 @@ V['6'] = svg(SHADOW.format(y=402, rx=140) + '<g class="gb-float"><g stroke="#111
     '<path d="M144 196 L170 186 M144 214 L196 194 M290 290 L300 280" stroke="#fff" stroke-width="5" stroke-linecap="round" fill="none"/>'
     '<rect x="96" y="326" width="248" height="34" fill="#E1001A" transform="rotate(-3 220 343)"/></g>'
     '<path d="M108 74 V384" stroke="#fff" stroke-opacity=".22" stroke-width="8" stroke-linecap="round"/>'
-    f'<text transform="matrix(0 -1 1 -.6 366 330)" {J} font-weight="900" font-size="22" letter-spacing="2" fill="#FFDA1A">POSTMAKER</text>'
+    f'<text transform="matrix(0 -1 1 -.6 366 330)" {J} font-weight="900" font-size="22" letter-spacing="2" fill="#FFDA1A">POSTA</text>'
     f'<text x="220" y="349" text-anchor="middle" transform="rotate(-3 220 343)" {R} font-style="italic" font-weight="900" font-size="17" fill="#fff">КАК В РЕКЛАМЕ!</text>'
-    f'<rect x="196" y="98" width="128" height="40" fill="#FFDA1A" stroke="#111" stroke-width="4"/><text x="260" y="127" text-anchor="middle" {J} font-weight="900" font-size="26" letter-spacing="-1.2" fill="#111">postmaker</text>'
+    f'<rect x="196" y="98" width="128" height="40" fill="#FFDA1A" stroke="#111" stroke-width="4"/><text x="260" y="127" text-anchor="middle" {J} font-weight="900" font-size="26" letter-spacing="-1.2" fill="#111">posta</text>'
     f'<text x="220" y="160" text-anchor="middle" {R} font-weight="900" font-size="12" letter-spacing="1" fill="#fff">АВТОПИЛОТ ДЛЯ КАНАЛОВ</text>'
     f'<text class="gb-auto" x="220" y="296" text-anchor="middle" {J} font-weight="900" font-size="13" letter-spacing="2" fill="#111">ВЫКЛ</text>'
     f'<text x="220" y="380" text-anchor="middle" {J} font-weight="700" font-size="9" letter-spacing="1" fill="#BFD0FF">TELEGRAM · ВКОНТАКТЕ · АНАЛОГОВ НЕТ*</text>'
@@ -181,7 +181,7 @@ if __name__ == '__main__':
     m = re.search(r'(<div class="giftbox"[^>]*>)\s*(<svg viewBox="0 0 480 540".*?</svg>)', page, flags=re.S)
     order = [('3', 'Изо')]
     stack = ''.join(V[k].replace('<svg ', f'<svg data-v="{k}"' + ('' if i == 0 else ' hidden') + ' ', 1) for i, (k, _) in enumerate(order))
-    page = page.replace(m.group(0), '<div class="giftbox" role="img" aria-label="Коробка с товаром Postmaker">' + stack)
+    page = page.replace(m.group(0), '<div class="giftbox" role="img" aria-label="Коробка с товаром Posta">' + stack)
     chips = '<div class="gb-pick" role="group" aria-label="Вариант коробки">' + ''.join(f'<button type="button" data-v="{k}" aria-pressed="{str(i == 0).lower()}">{n}</button>' for i, (k, n) in enumerate(order)) + '</div>'
     if len(order) > 1: page = page.replace('\n  </div>\n</header>', '\n  </div>\n  ' + chips + '\n</header>', 1)
     defs = ('<defs><pattern id="pm-dots" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="4" cy="4" r="1.6" fill="#111" opacity=".22"/></pattern>'

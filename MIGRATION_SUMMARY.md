@@ -1,9 +1,9 @@
-# SQLite Migration Summary - Postmaker
+# SQLite Migration Summary - Posta
 
 **Status**: ✅ COMPLETED AND TESTED
 
 ## Overview
-Full migration of Postmaker from JSON file storage to SQLite database completed successfully.
+Full migration of Posta from JSON file storage to SQLite database completed successfully.
 
 ## Commits (7 Total)
 
@@ -126,13 +126,13 @@ This tool:
 
 ```bash
 # Check database integrity
-sqlite3 data/postmaker.sqlite ".tables"
+sqlite3 data/posta.sqlite ".tables"
 
 # Monitor database size
-du -sh data/postmaker.sqlite*
+du -sh data/posta.sqlite*
 
 # Run full test suite
-php /tmp/test_postmaker.php
+php /tmp/test_posta.php
 
 # Migrate existing JSON data
 php tools/cli.php migrate-json
@@ -143,3 +143,13 @@ php tools/cli.php migrate-json
 **Completed**: October 20, 2026
 **Branch**: feature/topics-tree-control
 **Status**: Ready for Production ✅
+
+## Дочистка 2026-10-22
+
+Первый проход оставил хвосты, теперь в файлах только временное (журнал и ход работы парсера, блокировки, кэши в /tmp):
+
+- `migrate-json` раньше перебирал только пользователей, уже бывших в базе: два профиля с историей (90 и 225 оценок) остались в `users/<id>/*.json`. Перенесены.
+- В базу переехали: состояние парсера и сессия вкладки (`parser_runtime`), ключи Telegram-приложения, лимиты видео, горячие темы, названия досок Двача, токены VK (зашифрованы), ход достраивания «Предложки» — в `kv`; отметки проверок тредов и «Предложки» — в `users`.
+- `backfill-engagement` и `engagement-report` в `tools/cli.php` читали JSON — переписаны на базу.
+- Радар лидов: схема была на MySQL (`migrations/009_*.sql`) и в SQLite не создавалась — теперь миграция 4 в `lib/db.php`; `NOW()` → `CURRENT_TIMESTAMP`.
+- Старые JSON-файлы — в `data/json-archive-2026-10-22/` (не удалены). Функции `save_data`/`update_data`, константы `*_FILE` и пути `pool_file()` и т. п. удалены.

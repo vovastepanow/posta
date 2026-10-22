@@ -1,5 +1,5 @@
 <?php
-// JSON API интерфейса: ?action=... → обработчик из handlers/. POST требует заголовок X-Postmaker: 1 (защита от CSRF).
+// JSON API интерфейса: ?action=... → обработчик из handlers/. POST требует заголовок X-Posta: 1 (защита от CSRF).
 require_once __DIR__ . '/bootstrap.php';
 foreach (['content', 'sources', 'account'] as $file) require_once __DIR__ . "/handlers/$file.php";
 
@@ -24,12 +24,12 @@ set_exception_handler(function (Throwable $e) {
 
 const GET = ['vk_oauth_status', 'vk_oauth_start', 'vk_oauth_callback', 'database_options', 'database_read', 'get_current_item', 'settings', 'topics',
     'topic_sources', 'discovery_status', 'parser_status', 'model_status', 'account_info', 'telegram_queue', 'proposals', 'proposals_progress', 'topic_record', 'telegram_user_qr_status',
-    'telegram_publish_progress', 'telegram_leads', 'telegram_leads_stats'];
+    'telegram_publish_progress', 'telegram_next_slot', 'billing_info', 'auth_status', 'login_status'];
 const POST = ['tab_open', 'tab_heartbeat', 'tab_close', 'database_add', 'database_update', 'database_delete', 'database_reset', 'analyze_image', 'vote',
     'refresh_content', 'save_topic', 'topic_parent', 'remove_topic_source', 'topic_reprofile', 'save_second_topic', 'control_search', 'control_sources',
-    'app_stop', 'save_filters', 'suggest_sources', 'source_vote', 'discover_sources', 'debug_reset', 'model_control', 'telegram_connect', 'telegram_disconnect',
-    'telegram_publish', 'telegram_cancel', 'telegram_user_start', 'telegram_user_confirm', 'telegram_user_qr_start', 'telegram_user_resend',
-    'telegram_user_disconnect', 'proposal_hide', 'update_telegram_lead'];
+    'app_stop', 'save_filters', 'suggest_sources', 'source_vote', 'discover_sources', 'debug_reset', 'model_control', 'telegram_connect', 'telegram_disconnect', 'telegram_channel_default',
+    'telegram_publish', 'telegram_cancel', 'telegram_retry', 'telegram_reschedule', 'channel_schedule_save', 'telegram_user_start', 'telegram_user_confirm', 'telegram_user_qr_start', 'telegram_user_resend',
+    'telegram_user_disconnect', 'add_topic_source', 'proposal_hide', 'proposal_refetch', 'proposal_repair', 'billing_buy', 'referral_bind', 'login_start', 'logout', 'logout_all'];
 // Псевдонимы: одно действие обслуживает несколько маршрутов
 const ROUTE_HANDLERS = ['database_add' => 'database_change', 'database_update' => 'database_change', 'database_delete' => 'database_change',
     'control_search' => 'refresh_content', 'control_sources' => 'discover_sources'];
@@ -40,7 +40,7 @@ $expected = in_array($action, GET, true) ? 'GET' : (in_array($action, POST, true
 if ($method !== $expected) { header("Allow: $expected"); json_error("Метод {$method} не поддерживается для этого действия.", 405); }
 $input = [];
 if ($method === 'POST') {
-    if (($_SERVER['HTTP_X_POSTMAKER'] ?? '') !== '1') json_error('Запрос отклонён: отсутствует заголовок X-Postmaker.', 403);
+    if (($_SERVER['HTTP_X_POSTA'] ?? '') !== '1') json_error('Запрос отклонён: отсутствует заголовок X-Posta.', 403);
     if (str_starts_with(strtolower($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')) {
         $input = json_decode((string)file_get_contents('php://input'), true);
         if (!is_array($input)) json_error('Тело запроса должно быть JSON-объектом.');
@@ -50,6 +50,7 @@ if (($_GET['debug'] ?? '') === '1') demo_route($action, $input);   // демо-�
 app_user_from_request();
 if ($action === 'proposals_progress') handle_proposals_progress();   // опрос каждые полсекунды: без загрузки всей истории
 if ($action === 'telegram_publish_progress') handle_telegram_publish_progress();   // опрос во время отправки поста
+if ($action === 'login_status') handle_login_status($input);   // опрос статуса входа через Telegram
 ensure_default_project_data();
 user_touch();
 ('handle_' . (ROUTE_HANDLERS[$action] ?? $action))($input, $action);

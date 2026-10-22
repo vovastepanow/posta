@@ -1,56 +1,86 @@
 <?php
 /**
- * Интеграция с локальной Ollama для классификации лидов из Telegram
- * Модель: my-model:latest
+ * Классификация сообщений из Telegram: являются ли они лидами для Postä
+ * Использует локальную Ollama модель (SMART_MODEL) с JSON-схемой
  */
 
-const OLLAMA_ENDPOINT = 'http://127.0.0.1:11434/api/generate';
-const OLLAMA_MODEL = 'my-model:latest';
-const OLLAMA_TIMEOUT = 5; // секунд
-const OLLAMA_TEMPERATURE = 0.1; // Минимальная случайность для консистентности
+const LEAD_MODEL = SMART_MODEL;
+const LEAD_TIMEOUT = 120; // 120 секунд на ответ модели
+const LEAD_BATCH = 15;    // максимум 15 сообщений за проход
+
+const LEAD_KEYWORDS = [
+    'контент', 'пост', 'автопост', 'отложен', 'расписан', 'канал', 'паблик', 'группу вк',
+    'админ', 'smm', 'смм', 'наполн', 'мем', 'рерайт', 'бот'
+];
 
 /**
- * Классифицировать сообщение из Telegram: это лид или нет?
- *
- * @param string $userMessage Текст сообщения (до 4096 символов)
- * @return array ['success' => bool, 'result' => 0|1|null, 'raw_response' => string, 'error' => string|null]
+ * Классифицировать сообщение: это лид или нет?
+ * Возвращает ['lead' => 0|1, 'reason' => string] или выбрасывает RuntimeException
  */
-function classifyWithOllama(string $userMessage): array {
-    // Системный промпт на русском: строгий, одно слово на выход
-    $systemPrompt = <<<PROMPT
-Ты бинарный классификатор лидов для SaaS-сервиса автопостинга контента.
+function lead_classify(string $text): array {
+    if (!parser_session_alive()) {
+        // В CLI парсер может быть неживой — используем прямой запрос без проверки сессии
+        return lead_classify_direct($text);
+    }
 
-Твоя задача: определить, ищет ли человек в сообщении РЕШЕНИЕ ДЛЯ:
-- Автоматизации подбора контента из соцсетей
-- Автоматизации постинга контента в свои каналы
-- Рерайта или переписывания текстов
-
-Если ДА → верни ТОЛЬКО цифру: 1
-Если НЕТ (флуд, реклама других сервисов, общий вопрос) → верни ТОЛЬКО цифру: 0
-
-БЕЗ дополнительного текста, БЕЗ пунктуации, БЕЗ пояснений.
-Только "1" или "0".
-PROMPT;
-
-    // Подготовка тела запроса для Ollama
-    $payload = [
-        'model' => OLLAMA_MODEL,
-        'system' => $systemPrompt,
-        'prompt' => $userMessage,
-        'stream' => false,  // КРИТИЧНО! Иначе будет streaming
-        'temperature' => OLLAMA_TEMPERATURE,
+    // В веб-запросе используем ollama_quick_json (проверяет сессию)
+    $format = [
+        'type' => 'object',
+        'properties' => [
+            'lead' => ['type' => 'integer', 'enum' => [0, 1]],
+            'reason' => ['type' => 'string']
+        ],
+        'required' => ['lead', 'reason']
     ];
 
-    // Настройка cURL
-    $ch = curl_init();
+    $prompt = lead_classify_prompt($text);
+
+    try {
+        $result = ollama_quick_json(LEAD_MODEL, $prompt, $format, 60, LEAD_TIMEOUT);
+        if (!is_array($result) || !isset($result['lead'])) {
+            throw new RuntimeException('Модель не ответила корректным JSON');
+        }
+        return [
+            'lead' => (int)$result['lead'],
+            'reason' => substr((string)($result['reason'] ?? ''), 0, 100)
+        ];
+    } catch (Exception $e) {
+        throw new RuntimeException('Модель не ответила: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Прямой запрос к Ollama без проверки сессии (для CLI)
+ */
+function lead_classify_direct(string $text): array {
+    $prompt = lead_classify_prompt($text);
+    $format = [
+        'type' => 'object',
+        'properties' => [
+            'lead' => ['type' => 'integer', 'enum' => [0, 1]],
+            'reason' => ['type' => 'string']
+        ],
+        'required' => ['lead', 'reason']
+    ];
+
+    $payload = [
+        'model' => LEAD_MODEL,
+        'prompt' => $prompt,
+        'format' => $format,
+        'stream' => false,
+        'think' => false,
+        'options' => ['temperature' => 0, 'num_predict' => 60],
+        'keep_alive' => OLLAMA_KEEP_ALIVE
+    ];
+
+    $ch = curl_init(OLLAMA_GENERATE_URL);
     curl_setopt_array($ch, [
-        CURLOPT_URL => OLLAMA_ENDPOINT,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => json_encode($payload),
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_TIMEOUT => OLLAMA_TIMEOUT,
-        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_TIMEOUT => LEAD_TIMEOUT,
+        CURLOPT_CONNECTTIMEOUT => 5
     ]);
 
     $response = curl_exec($ch);
@@ -58,104 +88,78 @@ PROMPT;
     $curlError = curl_error($ch);
     curl_close($ch);
 
-    // Проверка ошибок
     if ($curlError || $httpCode !== 200) {
-        return [
-            'success' => false,
-            'result' => null,
-            'raw_response' => '',
-            'error' => "Ollama error (HTTP $httpCode): $curlError"
-        ];
+        throw new RuntimeException("HTTP $httpCode: $curlError");
     }
 
-    // Парсинг ответа от Ollama
     $decoded = json_decode($response, true);
-    if (!$decoded) {
-        return [
-            'success' => false,
-            'result' => null,
-            'raw_response' => $response,
-            'error' => 'Invalid JSON from Ollama'
-        ];
+    if (!$decoded || empty($decoded['response'])) {
+        throw new RuntimeException('Пустой ответ от модели');
     }
 
-    $rawResponse = $decoded['response'] ?? '';
-
-    // Очистка и парсинг бинарного результата
-    $cleanResult = extractBinaryResult($rawResponse);
-
-    if ($cleanResult === null) {
-        return [
-            'success' => false,
-            'result' => null,
-            'raw_response' => $rawResponse,
-            'error' => "Could not parse Ollama response as binary (0 or 1). Got: $rawResponse"
-        ];
+    $json = decode_model_json($decoded['response']);
+    if (!is_array($json) || !isset($json['lead'])) {
+        throw new RuntimeException('Модель вернула некорректный JSON');
     }
 
     return [
-        'success' => true,
-        'result' => $cleanResult,
-        'raw_response' => $rawResponse,
-        'error' => null
+        'lead' => (int)$json['lead'],
+        'reason' => substr((string)($json['reason'] ?? ''), 0, 100)
     ];
 }
 
 /**
- * Извлечь из ответа Ollama ровно одно число: 0 или 1
- * Модель может вернуть " 1", "1 ", "\n1", "1." и т.п.
- * Функция максимально толерантна к шумам.
+ * Дешёвый отсев до модели: проверяет длину, ключевые слова, признаки запроса
  */
-function extractBinaryResult(string $response): ?int {
-    // Убираем whitespace с начала и конца
-    $cleaned = trim($response);
+function lead_prefilter(string $text): bool {
+    $text = trim($text);
+    $len = mb_strlen($text);
 
-    // Если первый символ это 0 или 1
-    if (preg_match('/^(0|1)/', $cleaned, $m)) {
-        return (int)$m[1];
+    // Проверка длины
+    if ($len < 15 || $len > 1500) {
+        return false;
     }
 
-    // Если модель совсем сломалась, возвращаем null
-    return null;
+    // Проверка ключевых слов
+    $lower = mb_strtolower($text);
+    $has_keyword = false;
+    foreach (LEAD_KEYWORDS as $keyword) {
+        if (str_contains($lower, $keyword)) {
+            $has_keyword = true;
+            break;
+        }
+    }
+
+    if (!$has_keyword) {
+        return false;
+    }
+
+    // Проверка признаков запроса (вопрос, просьба или поиск)
+    return (bool)preg_match('/[?]|ищу|посоветуй|подскажи|нужен|нужна|кто знает|как |где |чем |помогите|помощь/ui', $text);
 }
 
 /**
- * Добавить сообщение в очередь обработки
- * (Вызывается из Telegram-парсера мгновенно)
+ * Промпт для классификации (полный текст включая инструкции)
  */
-function addToLeadQueue(
-    string $userId,
-    int $chatId,
-    string $message,
-    ?int $messageId = null
-): int {
-    $pdo = db();
+function lead_classify_prompt(string $text): string {
+    $text = mb_substr($text, 0, 1500);
+    return <<<PROMPT
+Ты отбираешь потенциальных клиентов для сервиса Postä. Сервис сам находит свежий контент по теме (посты, мемы, видео из Telegram, VK, форумов) и публикует его в канал владельца по расписанию.
 
-    $stmt = $pdo->prepare("
-        INSERT INTO telegram_lead_queue
-        (user_id, chat_id, message, message_id, status)
-        VALUES (?, ?, ?, ?, 'pending')
-    ");
+Лид (1) — автор САМ ищет такое решение или жалуется на эту боль: ищет, где брать контент для канала, чем автоматизировать постинг, как вести канал без затрат времени, просит посоветовать сервис/бота для отложенных постов или подбора контента, ищет админа/контент-менеджера для наполнения канала.
+Не лид (0) — реклама своих услуг (SMM-специалист предлагает себя), продажа каналов, спам, флуд, вопросы не про контент и постинг, сообщения без запроса.
 
-    $stmt->execute([$userId, $chatId, $message, $messageId]);
+Примеры:
+«Посоветуйте бота, чтобы посты сами выходили по расписанию» → 1
+«Где брать мемы для паблика каждый день? Устал искать вручную» → 1
+«Ищу человека, который будет наполнять мой телеграм-канал про авто» → 1
+«Веду ваши соцсети под ключ, пишите в лс» → 0
+«Продам канал 5к подписчиков» → 0
+«Кто-нибудь знает, когда обновят тарифы?» → 0
 
-    return $pdo->lastInsertId();
-}
+Сообщение:
+"""$text"""
 
-/**
- * Получить количество необработанных лидов в очереди
- */
-function getPendingLeadCount(): int {
-    $pdo = db();
-    $stmt = $pdo->query("SELECT COUNT(*) as cnt FROM telegram_lead_queue WHERE status = 'pending'");
-    return (int)$stmt->fetch(PDO::FETCH_ASSOC)['cnt'];
-}
-
-/**
- * Получить количество новых лидов (classified = 1)
- */
-function getNewLeadsCount(): int {
-    $pdo = db();
-    $stmt = $pdo->query("SELECT COUNT(*) as cnt FROM telegram_leads WHERE lead_status = 'new'");
-    return (int)$stmt->fetch(PDO::FETCH_ASSOC)['cnt'];
+Ответь JSON: {"lead": 0 или 1, "reason": "до 12 слов, почему"}
+PROMPT;
 }

@@ -1,0 +1,16 @@
+<!doctype html><meta charset=utf-8><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@900&display=swap">
+<style>html,body{margin:0;background:#fff}canvas{display:block}</style><canvas id=c></canvas>
+<script>
+// Фавиконка Postä: одна «ä» растянута на жёлтый квадрат, 1 px от краёв в пикселях целевого размера
+const N = +location.hash.slice(1) || 32, c = document.getElementById('c'), x = c.getContext('2d');
+c.width = c.height = N;
+document.fonts.load('900 100px Jost').then(() => {
+  x.fillStyle = '#FFDA1A'; x.fillRect(0, 0, N, N);
+  const pad = Math.max(1, Math.round(N * .1)), W = N - 2 * pad;
+  x.font = '900 100px Jost'; const m = x.measureText('ä');
+  const iw = m.actualBoundingBoxLeft + m.actualBoundingBoxRight, ih = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+  x.translate(pad, pad); x.scale(W / iw, W / ih);
+  x.fillStyle = '#111'; x.fillText('ä', m.actualBoundingBoxLeft, m.actualBoundingBoxAscent);
+  document.title = 'done';
+});
+</script>

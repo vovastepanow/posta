@@ -21,7 +21,7 @@ function content_parser_process_running($pid) {
     return $cmd !== false ? str_contains(str_replace("\0", ' ', $cmd), PARSER_SCRIPT) : function_exists('posix_kill') && @posix_kill($pid, 0);
 }
 
-function parser_state() { return json_decode((string)@file_get_contents(parser_runtime_file('.json')), true) ?: []; }
+function parser_state() { return parser_state_load(); }   // pid, started_at и сессия вкладки — в таблице parser_runtime
 function content_parser_is_running() { return content_parser_process_running((int)(parser_state()['pid'] ?? 0)); }
 
 /** Сколько секунд парсер работает, или null если он не работает. */
@@ -83,9 +83,8 @@ function parser_progress_public() {
 
 /** Длительность прохода: запоминаем последние 5 законченных, ожидаем медиану; истории нет — PARSER_EXPECTED_SECONDS. */
 function parser_expected_seconds(?int $finished = null) {
-    $file = parser_runtime_file('.durations');
-    $list = json_decode((string)@file_get_contents($file), true) ?: [];
-    if ($finished !== null) @file_put_contents($file, json_encode($list = array_slice([...$list, $finished], -5)), LOCK_EX);
+    $key = 'parser_durations:' . app_user_id();
+    $list = $finished === null ? (array)kv_get($key, []) : kv_update($key, fn($l) => array_slice([...(array)$l, $finished], -5), []);
     if (!$list) return PARSER_EXPECTED_SECONDS;
     sort($list);
     return max(60, (int)$list[intdiv(count($list), 2)]);
@@ -94,13 +93,15 @@ function parser_expected_seconds(?int $finished = null) {
 /** Действие под блокировкой состояния парсера. */
 function with_parser_lock(callable $action) {
     if (!function_exists('exec')) return 'unavailable';
-    $lock = @fopen(parser_runtime_file('.json') . '.lock', 'c+');
+    $lock = @fopen(parser_runtime_file('.lock'), 'c+');
     if (!$lock || !flock($lock, LOCK_EX)) return 'unavailable';
     try { return $action(); } finally { flock($lock, LOCK_UN); fclose($lock); }
 }
 
 /** started | running | cooldown | no_session | unavailable. */
 function launch_content_parser_locked($force) {
+    // Тема 18+ без флага: сборщик не запускаем ни с одного пути (подбор, вкладка, сигнал вкладки)
+    if (topic_save_denied(current_topic()) !== null) return 'forbidden';
     $state = parser_state();
     if (content_parser_process_running((int)($state['pid'] ?? 0))) return 'running';
     if (!$force && time() - (int)($state['started_at'] ?? 0) < PARSER_COOLDOWN_SECONDS) return 'cooldown';
@@ -110,7 +111,7 @@ function launch_content_parser_locked($force) {
     if (($tab = tab_session_current_tab()) === '') return 'no_session';
     exec('nohup ' . implode(' ', array_map('escapeshellarg', [$php, PARSER_SCRIPT, $tab, app_user_id()])) . ' > ' . escapeshellarg(parser_runtime_file('.log')) . ' 2>&1 < /dev/null & echo $!', $out, $code);
     if ($code !== 0 || ($pid = (int)trim($out[0] ?? '0')) < 1) return 'unavailable';
-    file_put_contents(parser_runtime_file('.json'), json_encode(['pid' => $pid, 'started_at' => time()]), LOCK_EX);
+    parser_state_update(['pid' => $pid, 'started_at' => time()] + parser_state_load());
     return 'started';
 }
 
@@ -148,34 +149,55 @@ function parser_wait_for_slot() {
 
 // ---- Сессия вкладки ----
 
-function tab_session_file() { return parser_runtime_file('.session'); }
 function is_valid_tab_id($tab) { return is_string($tab) && preg_match('/^[a-f0-9-]{8,64}$/', $tab) === 1; }
-function tab_session_state() { return json_decode((string)@file_get_contents(tab_session_file()), true) ?: []; }
+function tab_session_state() { $s = parser_state_load(); return ['tab' => $s['tab'], 'seen' => (int)$s['tab_seen'], 'opened_at' => (int)$s['tab_opened_at']]; }
+
+/** Сессия вкладки через мутатор (как update_data раньше): null — без изменений. Хранится в той же строке parser_runtime, что и pid. */
+function tab_session_update(callable $fn) {
+    db_tx(function () use ($fn) {
+        if (($s = $fn(tab_session_state())) === null) return;
+        parser_state_update(['tab' => $s['tab'] ?? '', 'tab_seen' => $s['seen'] ?? 0, 'tab_opened_at' => $s['opened_at'] ?? 0] + parser_state_load());
+    });
+}
 function tab_session_is_fresh(array $s) { return !empty($s['tab']) && time() - (int)($s['seen'] ?? 0) <= TAB_SESSION_TTL; }
 function tab_session_current_tab() { $s = tab_session_state(); return tab_session_is_fresh($s) ? (string)$s['tab'] : ''; }
 
 function tab_session_open($tab) {
-    update_data(tab_session_file(), [], fn() => ['tab' => $tab, 'seen' => time(), 'opened_at' => time()]);
+    tab_session_update(fn() => ['tab' => $tab, 'seen' => time(), 'opened_at' => time()]);
     return start_content_parser_if_needed(true);   // уже работающий парсер не трогаем: он продолжает и отдаёт журнал новой вкладке
 }
 
 /** Сигнал вкладки: owner — ведёт ли она сессию. Уснувшая вкладка возобновляет парсер, ничья сессия забирается. */
 function tab_session_heartbeat($tab) {
     $outcome = 'other';
-    update_data(tab_session_file(), [], function ($s) use ($tab, &$outcome) {
+    tab_session_update(function ($s) use ($tab, &$outcome) {
         $stale = !tab_session_is_fresh($s);
         if (($s['tab'] ?? '') === $tab) $outcome = $stale ? 'resumed' : 'owner';
         elseif ($stale) $outcome = 'claimed';
         else return null;
         return ['tab' => $tab, 'seen' => time(), 'opened_at' => (int)($s['opened_at'] ?? time())];
     });
+    publisher_kick_if_due(app_user_id());
     if ($outcome === 'other') return ['owner' => false, 'parser' => null];
     return ['owner' => true, 'parser' => ['claimed' => fn() => start_content_parser_if_needed(true), 'resumed' => fn() => start_content_parser_if_needed(true), 'owner' => fn() => topic_is_hot(current_topic()) && content_pool_needs_fill(search_topic_key()) ? start_content_parser_if_needed() : null][$outcome]()];
 }
 
+/** Страховка, если cron публикатора не настроен: созревшие посты пользователя — публикатор в фоне (не чаще раза в 30 секунд). */
+function publisher_kick_if_due($uid) {
+    if (!db_value('SELECT 1 FROM outbox WHERE user_id = ? AND status = ? AND publish_at <= ? LIMIT 1', [$uid, 'queued', time()])) return;
+    if (time() - (int)kv_get('publisher_kick:' . $uid, 0) < 30) return;
+    kv_update('publisher_kick:' . $uid, fn() => time());
+    $lock = try_lock(USERS_DIR . '/.publisher.lock');
+    if (!$lock) return;   // публикатор уже работает
+    flock($lock, LOCK_UN);
+    fclose($lock);
+    $php = PHP_BINARY !== '' && is_executable(PHP_BINARY) ? PHP_BINARY : '/usr/bin/php';
+    exec('nohup ' . escapeshellarg($php) . ' ' . escapeshellarg(ROOT . '/tools/publisher.php') . ' > /dev/null 2>&1 < /dev/null &');
+}
+
 function tab_session_close($tab) {
     $owned = false;
-    update_data(tab_session_file(), [], function ($s) use ($tab, &$owned) {
+    tab_session_update(function ($s) use ($tab, &$owned) {
         if (($s['tab'] ?? '') !== $tab) return null;
         $owned = true;
         return ['seen' => 0] + $s;

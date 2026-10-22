@@ -5,30 +5,32 @@ foreach (['VK_CLIENT_ID', 'VK_REDIRECT_URI', 'VK_SERVICE_TOKEN', 'VK_OAUTH_SCOPE
     if ((string)getenv($name) === '') putenv($name . '=' . (is_array($local) ? ($local[$name] ?? '') : ''));
 }
 
-const APP_NAME = 'Postmaker';
+const APP_NAME = 'Posta';
 const ROOT = __DIR__;
 
 // ---- Данные ----
-const SOURCES_FILE = ROOT . '/sources_db.json';           // общий каталог источников и реестр тем
-const USERS_DIR = ROOT . '/users';                        // users/<id>/: пул, история, настройки, журнал парсера
+const USERS_DIR = ROOT . '/users';                        // users/<id>/: только журнал и ход работы парсера (данные — в базе)
 const USER_COOKIE = 'ct_uid';
+const SESSION_COOKIE = 'pm_sid';
 const USER_COOKIE_DAYS = 365;
+const LOGIN_REQUEST_TTL = 600;                            // 10 минут на подтверждение входа
+const SESSION_TOUCH_SECONDS = 600;
 const USER_RETENTION_DAYS = 60;                           // профили без заходов дольше удаляются
+const EMPTY_USER_RETENTION_HOURS = 24;                   // пустые профили (зашёл без куки и ничего не сделал) удаляются быстрее
 const MAX_PARALLEL_PARSERS = 4;  // Увеличено для лучшей GPU загрузки (от 6% до 70%+)
-const DB_FILE = ROOT . '/data/postmaker.sqlite';             // вся база: пользователи, пулы, история, каталог, кэши
+const DB_FILE = ROOT . '/data/posta.sqlite';             // вся база: пользователи, пулы, история, каталог, кэши
 const DB_BUSY_TIMEOUT_MS = 15000;
-const ANALYSIS_CACHE_FILE = ROOT . '/analysis_cache.json'; // полный анализ, общий для всех пользователей темы
 const ANALYSIS_CACHE_LIMIT = 2000;
 const ANALYSIS_CACHE_DAYS = 14;
-const SCREENED_CACHE_FILE = ROOT . '/screened_cache.json'; // быстрые оценки картинок по темам
 const SCREENED_CACHE_LIMIT = 5000;
 const SCREENED_CACHE_DAYS = 14;
 const PARSER_SCRIPT = ROOT . '/cron_parser.php';
 const PARSER_RUNTIME_VERSION = 'v3';                      // входит в имена журнала и состояния парсера
 // Медиа: по умолчанию в папке проекта; на сервере — вне веб-корня, путь задаётся в config.local.php (MEDIA_CACHE_DIR, MEDIA_CACHE_URL)
-define('MEDIA_CACHE_DIR', $local['MEDIA_CACHE_DIR'] ?? ROOT . '/media_cache');
+define('MEDIA_CACHE_DIR', getenv('POSTA_MEDIA_CACHE_DIR') ?: ($local['MEDIA_CACHE_DIR'] ?? ROOT . '/media_cache'));
 define('MEDIA_CACHE_URL', $local['MEDIA_CACHE_URL'] ?? 'media_cache');
 const MEDIA_CACHE_GRACE_SECONDS = 600;                    // свежие файлы кэша не трогаем: парсер мог ещё не записать запись
+const MEDIA_CACHE_CLEANUP_MAX_SHARE = 0.3;               // если удалится больше доли файлов от всех, кэш признаётся повреждённым
 const DEFAULT_TOPIC = 'мемы и юмор';
 const TOPIC_MAX_LENGTH = 200;
 const DAY_SECONDS = 86400;
@@ -91,6 +93,9 @@ const SOURCE_SAMPLE_IMAGES = 6;
 const SOURCE_EARLY_REJECT_AFTER = 3;
 const SOURCE_EARLY_REJECT_SCORE = 45;
 const SOURCE_TEXT_WEIGHT = 0.15;
+const SOURCE_TEXT_TRUST_SCORE = 70;                      // канал явно по теме по тексту: картинки — лишь иллюстрации (бизнес, новости)
+const SOURCE_TEXT_LED_WEIGHT = 0.7;
+const DISCOVERY_RECHECK_DAYS = 30;                       // отклонённый канал перепроверяется через месяц
 const DVACH_BOARDS_PER_TOPIC = 4;
 const DVACH_BOARDS_PER_RUN = 20;
 const DISCOVERY_CHECKED_LIMIT = 1000;
@@ -127,6 +132,7 @@ const DVACH_THREAD_TITLE_MAX = 36;
 const DVACH_POSTS_PER_THREAD = 60;
 const TELEGRAM_POSTS_PER_CHANNEL = 40;
 const VK_POSTS_PER_PUBLIC = 60;
+const RSS_POSTS_PER_FEED = 15;
 
 // ---- Видео ----
 const VIDEO_MAX_BYTES = 30 * 1024 * 1024;
@@ -163,8 +169,24 @@ const TELEGRAM_MAX_DELAY_DAYS = 365;
 const TELEGRAM_PUBLISHED_LOG_LIMIT = 30;
 const TELEGRAM_UPLOAD_MAX_BYTES = 64 * 1024 * 1024;
 const TELEGRAM_LIMIT_DEFAULTS = ['bot' => 50 * 1024 * 1024, 'account' => 2000 * 1024 * 1024];
-const TELEGRAM_LIMITS_FILE = ROOT . '/telegram_limits.json';
-const TELEGRAM_APP_KEYS_FILE = ROOT . '/telegram_app.json';
 const TELEGRAM_USER_PYTHON = '/usr/bin/python3';
 const TELEGRAM_USER_TIMEOUT = 300;
 const TELEGRAM_USER_PENDING_TTL = 900;
+
+// ---- Тарифы, баланс и приглашения ----
+// Деньги — рубли на внутреннем балансе, без «баллов». Хранятся в копейках. Вывести нельзя — только оплатить Posta.
+const BILLING_ENFORCE = false;            // лимиты тарифов: false — только показываются (приёма платежей ещё нет), true — проверяются при публикации
+const BILLING_PERIOD_DAYS = 30;
+const BILLING_FREE_PLAN = 'free';
+const BILLING_PLANS = [                   // цены в рублях за период; совпадают с ценниками на лендинге
+    'free' => ['title' => 'Смотреть', 'tag' => 'TITTA', 'price' => 0, 'channels' => 1, 'posts_per_day' => 3, 'schedule' => false],
+    // «Хот-дог»: неделя «Автопилота» за 49 ₽ — один раз и только до первой покупки любого тарифа
+    'trial' => ['title' => 'Хот-дог', 'tag' => 'KORV', 'price' => 49, 'channels' => 1, 'posts_per_day' => 10, 'schedule' => true, 'days' => 7, 'once' => true],
+    'autopilot' => ['title' => 'Автопилот', 'tag' => 'AUTÖPILÖT', 'price' => 390, 'channels' => 1, 'posts_per_day' => 10, 'schedule' => true],
+    'network' => ['title' => 'Сетка', 'tag' => 'SJÄTKÅ', 'price' => 990, 'channels' => 5, 'posts_per_day' => 50, 'schedule' => true],
+];
+// «Свой тариф»: цена «Автопилота» + за каждый канал сверх первого + за каждые 10 постов в день сверх 10. Готовые тарифы — со скидкой.
+const BILLING_CUSTOM = ['base' => 390, 'channel' => 150, 'posts_step' => 10, 'posts_step_price' => 60, 'max_channels' => 10, 'max_posts_per_day' => 100];
+const BILLING_HOUR_SHARE = 4;             // за час — не больше четверти дневного лимита (минимум 1 пост): канал не забанят за спам
+const REFERRAL_PERCENT = 20;              // приглашённый оплатил тариф — пригласившему на баланс 20% от суммы
+const REFERRAL_BIND_DAYS = 7;             // приглашение засчитывается новому профилю (первые 7 дней) до его первой покупки

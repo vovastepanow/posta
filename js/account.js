@@ -1,6 +1,7 @@
 // account.js — личный кабинет: профиль, соцсети (VK на весь сайт, бот и аккаунт Telegram), «Мои данные и куки», базы данных.
-import { $, DEBUG_MODE, api, apiUrl, el, log, onTabOpen, pluralRu, switchTab, watchParser, safeSourcePostUrl } from './core.js';
+import { $, DEBUG_MODE, api, apiUrl, el, log, onTabOpen, onTopicChange, pluralRu, switchTab, watchParser, safeSourcePostUrl } from './core.js';
 import { openViewerGallery } from './viewer.js';
+import { pickDateTime } from './editor.js';
 
 const VK_MESSAGES = { connected: 'VK подключён.', misconfigured: 'Настройте VK_CLIENT_ID и VK_REDIRECT_URI на сервере.', error: 'Не удалось подключить VK. Проверьте настройки OAuth и журнал PHP.' };
 const COLLECTIONS = { liked: 'Нравится', disliked: 'Не нравится', undecided: 'Не знаю', complaints: 'Жалобы' };
@@ -94,13 +95,127 @@ export function consumeVkRedirectResult() {
     return true;
 }
 
-function renderTelegram(t) {
-    $('telegram-connected').hidden = !t;
-    $('telegram-form').hidden = Boolean(t);
-    if (!t) return;
-    const channel = t.chat_username ? `@${t.chat_username}` : t.chat_title;
-    $('telegram-summary').replaceChildren(el('strong', { textContent: `Подключён канал «${t.chat_title || channel}»` }),
-        el('span', { className: 'account-muted', textContent: `${channel ? `${channel} · ` : ''}бот @${t.bot} · токен ${t.token} · с ${formatDate(t.connected_at)}` }));
+let channelList = [];
+
+/** Каналы Telegram: основной помечен, у остальных «Сделать основным» и «Отключить»; затем выбор бота для нового канала. */
+/** Кнопка очереди: run() — запрос к серверу (undefined — действие отменено пользователем), потом обновляем список. */
+function queueButton(text, run, done) {
+    const button = el('button', { type: 'button', className: 'account-secondary', textContent: text });
+    button.onclick = async () => {
+        button.disabled = true;
+        try {
+            if (await run() !== undefined) log(done);
+        } catch (error) {
+            log(`Не удалось: ${error.message}`);
+        }
+        loadTelegramQueue();
+    };
+    return button;
+}
+
+const DAY_NAMES = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+
+/** Расписание канала: слоты по дням недели, случайный сдвиг; часовой пояс берём из браузера. */
+function openSchedule(channel) {
+    const schedule = channel.schedule || {};
+    const slots = schedule.slots || {};
+    const fields = DAY_NAMES.map((name, i) => {
+        const input = el('input', { type: 'text', value: (slots[String(i + 1)] || []).join(', '), placeholder: 'например 10:00, 14:00, 19:00', autocomplete: 'off' });
+        input.dataset.day = String(i + 1);
+        return el('label', { className: 'sched-day' }, el('span', { textContent: name }), input);
+    });
+    const copyMonday = el('button', { type: 'button', className: 'account-secondary', textContent: 'Как в пн' });
+    copyMonday.onclick = () => {
+        const monday = fields[0].querySelector('input').value;
+        fields.slice(1, 5).forEach(field => { field.querySelector('input').value = monday; });   // вторник — пятница
+    };
+    const jitter = el('input', { type: 'number', min: '0', max: '30', step: '1', value: String(schedule.jitter ?? 0), ariaLabel: 'Случайный сдвиг, минут' });
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const message = el('p', { className: 'sched-error', role: 'status' });
+    const save = el('button', { type: 'button', className: 'primary-button', textContent: 'Сохранить' });
+    save.onclick = async () => {
+        const days = {};
+        for (const field of fields) {
+            const input = field.querySelector('input');
+            const times = input.value.split(',').map(t => t.trim()).filter(Boolean);
+            if (times.length) days[input.dataset.day] = times;
+        }
+        save.disabled = true;
+        message.textContent = '';
+        try {
+            const d = await api('channel_schedule_save', { body: { channel: channel.id, schedule: { tz: zone, jitter: Number(jitter.value) || 0, slots: days } } });
+            renderTelegram(d.channels);
+            renderChannelLimit(d.channels.length);
+            log(`Расписание канала «${channel.title || channel.id}» сохранено.`);
+            $('sched-panel').hidden = true;
+        } catch (error) {
+            message.textContent = error.message;
+        } finally {
+            save.disabled = false;
+        }
+    };
+    $('sched-panel').replaceChildren(el('h4', { textContent: `Расписание: «${channel.title || channel.id}»` }),
+        el('p', { className: 'account-muted', textContent: `Время по поясу ${zone}. Через запятую — несколько слотов в день; день без времени — без публикаций.` }),
+        ...fields, el('label', { className: 'sched-day' }, el('span', { textContent: 'Случайный сдвиг, мин (0–30)' }), jitter),
+        el('div', { className: 'sched-actions' }, copyMonday, save, el('button', { type: 'button', className: 'account-secondary', textContent: 'Закрыть', onclick: () => { $('sched-panel').hidden = true; } })),
+        message);
+    $('sched-panel').hidden = false;
+}
+
+function renderTelegram(channels) {
+    channelList = channels || [];
+    $('telegram-channels').hidden = !channelList.length;
+    $('telegram-channels').replaceChildren(...channelList.map(c => el('div', { className: 'channel-row' },
+        el('div', { className: 'channel-main' }, el('strong', { textContent: c.title || c.id }),
+            c.username ? el('a', { href: `https://t.me/${c.username}`, target: '_blank', rel: 'noopener noreferrer', textContent: `@${c.username}` }) : el('span', { className: 'account-muted', textContent: 'канал без имени' }),
+            el('span', { className: 'account-muted', textContent: `бот @${c.bot_username} · с ${formatDate(c.connected_at)}` })),
+        el('div', { className: 'channel-actions' }, c.default ? el('span', { className: 'channel-default', textContent: 'по умолчанию' })
+            : channelButton('Сделать основным', 'telegram_channel_default', c, `Основной канал: «${c.title || c.id}».`),
+            el('button', { type: 'button', className: 'account-secondary', textContent: 'Расписание', onclick: () => openSchedule(c) }),
+            channelButton('Отключить', 'telegram_disconnect', c, `Telegram: канал «${c.title || c.id}» отключён.`)))));
+    renderBotChoice();
+}
+
+function channelButton(text, action, channel, done) {
+    const button = el('button', { type: 'button', className: 'account-secondary', textContent: text });
+    button.onclick = () => {
+        if (action === 'telegram_disconnect' && !confirm(`Отключить канал «${channel.title || channel.id}»? Бот и уже отправленные посты не затрагиваются.`)) return;
+        busy(button, 'telegram-status', async () => {
+            const d = await api(action, { body: { channel: channel.id } });
+            renderTelegram(d.channels);
+            renderChannelLimit(d.channels.length);
+            log(done);
+            loadAccount();
+        });
+    };
+    return button;
+}
+
+/** Выбор бота для нового канала: боты уже подключённых каналов или новый (тогда нужен токен). */
+function renderBotChoice() {
+    const bots = new Map();
+    for (const c of channelList) if (!bots.has(c.bot_username)) bots.set(c.bot_username, c);
+    $('telegram-bot').replaceChildren(...[...bots.values()].map(c => el('option', { value: c.id, textContent: `@${c.bot_username} (как у канала «${c.title || c.id}»)` })),
+        el('option', { value: '', textContent: 'Новый бот (ввести токен)' }));
+    $('telegram-bot-row').hidden = !channelList.length;
+    syncTokenRow();
+}
+
+function syncTokenRow() {
+    const newBot = !channelList.length || $('telegram-bot').value === '';
+    $('telegram-token-row').hidden = !newBot;
+    $('telegram-token').required = newBot;
+}
+
+/** Строка «Каналов: N из M по тарифу»; сверх тарифа — предупреждение (лимиты пока не проверяются). */
+async function renderChannelLimit(count) {
+    const box = $('telegram-channels-limit');
+    const plan = await api('billing_info').then(b => b.plan, () => null);
+    box.hidden = !plan;
+    if (!plan) return;
+    const over = count > plan.channels;
+    box.textContent = `Каналов: ${count} из ${plan.channels} по тарифу «${plan.title}».` + (over ? ` Больше каналов, чем в тарифе: когда включатся лимиты, публиковать можно будет только в первые ${plan.channels}.` : '');
+    box.classList.toggle('is-warning', over);
 }
 
 async function loadTelegramQueue() {
@@ -109,18 +224,24 @@ async function loadTelegramQueue() {
     const [scheduled, published] = [data?.scheduled || [], data?.published || []];
     box.hidden = !data?.connected || (!scheduled.length && !published.length);
     if (box.hidden) return;
+    const multi = (data.channels || []).length > 1;   // название канала — только когда их несколько
     const row = (when, entry, extra, action = null) => el('div', { className: 'queue-row' }, el('div', { className: 'queue-main' }, el('strong', { textContent: formatDate(when) }),
-        el('span', { textContent: `${files(entry.media)}${entry.text ? ' · ' + entry.text : ''}` }), extra), action);
+        el('span', { textContent: `${files(entry.media)}${entry.text ? ' · ' + entry.text : ''}${multi && entry.channel_title ? ` · канал «${entry.channel_title}»` : ''}` }), extra), action);
     box.replaceChildren(
         ...(scheduled.length ? [el('h4', { textContent: `Запланировано: ${scheduled.length}` }), ...scheduled.map(p => {
-            const text = { telegram: 'в «Отложенных» Telegram — уйдёт само', failed: `не отправлено (${p.error})`, sending: 'отправляется…' }[p.status] || (p.error ? `будет повтор ${formatDate(p.publish_at)}: ${p.error}` : 'ждёт времени');
-            const cancel = el('button', { type: 'button', className: 'account-secondary', textContent: p.status === 'sending' ? '…' : 'Отменить', disabled: p.status === 'sending' });
-            cancel.onclick = async () => {
-                cancel.disabled = true;
-                await api('telegram_cancel', { body: { id: p.id } }).then(() => log('Отложенный пост отменён.'), e => log(`Не удалось отменить пост: ${e.message}`));
-                loadTelegramQueue();
-            };
-            return row(p.publish_at, p, el('span', { className: `account-muted${p.status === 'failed' || p.error ? ' queue-error' : ''}`, textContent: text }), cancel);
+            const text = { telegram: 'в «Отложенных» Telegram — уйдёт само', failed: `не вышел: ${p.error}`, sending: 'отправляется…' }[p.status] || (p.error ? `будет повтор ${formatDate(p.publish_at)}: ${p.error}` : 'ждёт времени');
+            const actions = el('div', { className: 'sched-actions' });
+            if (p.status === 'failed') actions.append(queueButton('Повторить', () => api('telegram_retry', { body: { id: p.id } }), 'Пост снова в очереди.'));
+            if (p.status === 'queued') {
+                actions.append(queueButton('В слот', () => api('telegram_reschedule', { body: { id: p.id, slot: true } }), 'Пост перенесён в ближайший слот.'));
+                actions.append(queueButton('Перенести', async () => {
+                    const chosen = await pickDateTime({ value: new Date(p.publish_at * 1000) });
+                    return chosen ? api('telegram_reschedule', { body: { id: p.id, publish_at: Math.floor(chosen.getTime() / 1000) } }) : undefined;
+                }, 'Пост перенесён.'));
+            }
+            if (p.status !== 'sending') actions.append(queueButton('Отменить', () => api('telegram_cancel', { body: { id: p.id } }), 'Отложенный пост отменён.'));
+            else actions.append(el('span', { className: 'account-muted', textContent: '…' }));
+            return row(p.publish_at, p, el('span', { className: `account-muted${p.status === 'failed' || p.error ? ' queue-error' : ''}`, textContent: text }), actions);
         })] : []),
         ...(published.length ? [el('h4', { textContent: 'Последние отправленные' }), ...published.map(e => row(e.at, e, e.status !== 'ok' ? el('span', { className: 'account-muted queue-error', textContent: `не отправлено: ${e.error}` })
             : e.url ? el('a', { href: e.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть в Telegram ↗' }) : el('span', { className: 'account-muted', textContent: 'отправлено' })))] : []));
@@ -133,6 +254,7 @@ function renderTelegramUser(info, botConnected = true) {
     const keys = Boolean(info?.app_keys);
     $('tgu-keys').hidden = $('tgu-step-keys').hidden = keys;
     $('tgu-api-id').required = $('tgu-api-hash').required = !keys;
+    if (keys) $('tgu-api-id').value = $('tgu-api-hash').value = '';   // скрытые поля мог заполнить менеджер паролей браузера
     const [connected, awaiting] = [Boolean(info?.connected), !info?.connected && Boolean(info?.awaiting_code)];
     $('tgu-connected').hidden = !connected;
     $('tgu-start').hidden = connected || awaiting || !$('tgu-qr').hidden;
@@ -165,9 +287,13 @@ export function normalizePhone(value) {
 function stopQr() { clearInterval(qrTimer); $('tgu-qr').hidden = true; }
 
 /** QR-вход: код на экране, раз в 2 с спрашиваем сервер, отсканировали ли его. */
+/** api_id и api_hash — только если поля видны (ключей на сайте ещё нет). Иначе менеджер паролей Chrome подставляет в эту
+ *  пару «текст + пароль» сохранённый логин, и сервер отвечает «api_id — число». */
+const appKeysInput = () => ($('tgu-keys').hidden ? {} : { api_id: $('tgu-api-id').value.trim(), api_hash: $('tgu-api-hash').value.trim() });
+
 async function startQr() {
     status('tgu-status', 'Готовлю QR-код…');
-    try { await api('telegram_user_qr_start', { body: { api_id: $('tgu-api-id').value, api_hash: $('tgu-api-hash').value } }); } catch (error) { return status('tgu-status', error.message); }
+    try { await api('telegram_user_qr_start', { body: appKeysInput() }); } catch (error) { return status('tgu-status', error.message); }
     $('tgu-start').hidden = true;
     $('tgu-qr').hidden = false;
     $('tgu-qr-image').replaceChildren();
@@ -192,27 +318,24 @@ async function startQr() {
 }
 
 function initializeTelegram() {
+    $('telegram-bot').addEventListener('change', syncTokenRow);
     $('telegram-form').addEventListener('submit', e => { e.preventDefault(); busy($('telegram-connect'), 'telegram-status', async () => {
         status('telegram-status', 'Проверяю бота и канал в Telegram…');
-        const d = await api('telegram_connect', { body: { token: $('telegram-token').value, channel: $('telegram-channel').value } });
+        const bot = $('telegram-bot-row').hidden ? '' : $('telegram-bot').value;   // тот же бот — токен не нужен
+        const d = await api('telegram_connect', { body: { channel: $('telegram-channel').value, ...(bot ? { bot } : { token: $('telegram-token').value }) } });
         $('telegram-token').value = '';
         status('telegram-status', '');
-        renderTelegram(d.telegram);
+        renderTelegram(d.channels);
+        renderChannelLimit(d.channels.length);
         loadAccount();
         log(`Telegram: подключён канал «${d.telegram.chat_title}».`);
     }); });
-    $('telegram-disconnect').addEventListener('click', e => {   // подтверждение в самой кнопке: первое нажатие спрашивает
-        const b = e.currentTarget;
-        const reset = () => { b.dataset.armed = ''; b.textContent = 'Отключить'; };
-        if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Точно отключить?'; return setTimeout(reset, 4000); }
-        busy(b, 'telegram-status', async () => { await api('telegram_disconnect', { body: null }); renderTelegram(null); log('Telegram отключён.'); }).finally(reset);
-    });
     const phone = $('tgu-phone');
     phone.addEventListener('blur', () => { phone.value = normalizePhone(phone.value); });
     phone.addEventListener('paste', () => setTimeout(() => { phone.value = normalizePhone(phone.value); }));
     $('tgu-start').addEventListener('submit', e => { e.preventDefault(); phone.value = normalizePhone(phone.value); busy(e.submitter, 'tgu-status', async () => {
         status('tgu-status', 'Запрашиваю код у Telegram…');
-        const d = await api('telegram_user_start', { body: { api_id: $('tgu-api-id').value, api_hash: $('tgu-api-hash').value, phone: phone.value } });
+        const d = await api('telegram_user_start', { body: { ...appKeysInput(), phone: phone.value } });
         $('tgu-api-id').value = $('tgu-api-hash').value = '';
         $('tgu-password-row').hidden = true;
         renderTelegramUser(d.telegram_user);
@@ -232,7 +355,7 @@ function initializeTelegram() {
     }));
     $('tgu-disconnect').addEventListener('click', () => busy(null, 'tgu-status', async () => {
         renderTelegramUser((await api('telegram_user_disconnect', { body: null })).telegram_user);
-        status('tgu-status', 'Отключено. Чтобы завершить вход совсем, закройте сессию «Postmaker» в Telegram → Настройки → Устройства.');
+        status('tgu-status', 'Отключено. Чтобы завершить вход совсем, закройте сессию «Postä» в Telegram → Настройки → Устройства.');
         log('Аккаунт Telegram отключён.');
     }));
     $('tgu-restart').addEventListener('click', () => busy(null, 'tgu-status', async () => { renderTelegramUser((await api('telegram_user_disconnect', { body: null })).telegram_user); status('tgu-status', ''); }));
@@ -250,7 +373,7 @@ function renderPrivacy(info) {
     $('privacy-cookies').replaceChildren(table(['Кука', 'Значение', 'Срок', 'Доступ', 'Зачем'], cookies, 'Браузер не отправляет этому сайту ни одной куки.'));
     renderStorage();
     const total = info.files.reduce((a, f) => a + f.size, 0);
-    $('privacy-server-note').textContent = `Папка вашего профиля: ${files(info.files.length)}, ${formatBytes(total)}.`
+    $('privacy-server-note').textContent = `Пул, история оценок, тема, соцсети и баланс хранятся в базе сайта (их видно в «Базах данных»). Папка профиля — только временные файлы парсера: ${files(info.files.length)}, ${formatBytes(total)}.`
         + (info.session_keys.length ? ` В сессии PHP: ${info.session_keys.join(', ')}.` : ' Сессии PHP нет.') + ' Общие для всех данные (каталог источников, кэш картинок и анализов) к профилю не привязаны.';
     $('privacy-files').replaceChildren(table(['Файл', 'Размер', 'Изменён', 'Что внутри'], info.files.map(f => [el('code', { textContent: f.name }), formatBytes(f.size), formatDate(f.modified), f.about]), 'Файлов нет.'));
 }
@@ -274,7 +397,8 @@ async function loadAccount() {
     try {
         const info = await api('account_info');
         renderProfile(info);
-        renderTelegram(info.telegram);
+        renderTelegram(info.channels);
+        renderChannelLimit(info.channels.length);
         renderTelegramUser(info.telegram_user, Boolean(info.telegram));
         renderExposure(info);
         if (info.telegram) loadTelegramQueue();
@@ -285,7 +409,7 @@ async function loadAccount() {
     }
 }
 
-// ---- Базы данных: записи JSON-файлов, правка с проверкой «запись не изменилась» на сервере ----
+// ---- Базы данных: записи из SQLite, правка с проверкой «запись не изменилась» на сервере ----
 
 const db = { databases: [], ready: null, items: [], columns: [], editing: null, currentIndex: null, database: null, collection: null, isSqlTable: false };
 const dbSelected = () => [$('database-select').value, $('database-collection-select').value];
@@ -295,7 +419,7 @@ const option = ({ id, label }) => el('option', { value: id, textContent: label }
 function loadDatabaseOptions() {
     return db.ready ??= api('database_options').then(async d => {
         // Отфильтровываем скрытые базы (старые JSON версии)
-        db.databases = (d.databases || []).filter(b => !b.hidden);
+        db.databases = d.databases || [];
         $('database-select').replaceChildren(...db.databases.map(option));
         await loadCollections();
     }).catch(error => { db.ready = null; dbStatus(`Не удалось загрузить базы: ${error.message}`, true); });
@@ -322,14 +446,16 @@ async function loadRecords() {
         db.mediaMissing = new Set(d.media_missing || []);
         db.databaseLabel = d.database_label;
         db.collectionLabel = d.collection_label;
+        db.topic = d.topic || '';
         // Проверяем, является ли это SQL таблицей
         db.isSqlTable = db.databases.find(d => d.id === database)?.is_sql_table || false;
         dbStatus('');
     } catch (error) { db.items = []; db.columns = []; dbStatus(`Не удалось прочитать коллекцию: ${error.message}`, true); }
 
     if (!db.items.length) {
-        $('database-status').textContent = 'В этой коллекции пока нет записей.';
-        $('database-records').replaceChildren(el('div', { className: 'database-empty', textContent: 'В этой коллекции пока нет записей.' }));
+        const empty = db.topic ? `В этой коллекции нет записей по теме «${db.topic}».` : 'В этой коллекции пока нет записей.';
+        $('database-status').textContent = empty;
+        $('database-records').replaceChildren(el('div', { className: 'database-empty', textContent: empty }));
         $('database-browser').hidden = true;
         $('database-list').replaceChildren();
         return;
@@ -376,6 +502,8 @@ function renderDatabaseBrowser() {
         el('span', { className: 'separator', textContent: '›' }),
         el('span', { textContent: db.collectionLabel }),
         el('span', { className: 'separator', textContent: '›' }),
+        db.topic ? el('span', { textContent: `тема «${db.topic}»` }) : null,
+        db.topic ? el('span', { className: 'separator', textContent: '›' }) : null,
         el('span', { textContent: `Запись #${idx + 1} / ${db.items.length}` })
     );
 
@@ -644,7 +772,7 @@ function template(database, collection) {
     const now = Math.floor(Date.now() / 1000);
     return database === 'content_pool' ? { image: '', text: '', description: '', why_relevant: '', relevance: 0, rating: 0, source: '', board: '', thread_id: '', post_id: '', source_url: '' }
         : database === 'content_history' ? { image: '', text: '', description: '', rating_assigned: 0, source: '', timestamp: now }
-        : { '2ch_boards': 'b', vk_publics: { id: '', name: '' }, telegram_channels: { id: '', name: '' }, source_votes: { source_id: '', platform: '', name: '', vote: 'approve', timestamp: now } }[collection] ?? {};
+        : { '2ch_boards': 'b', vk_publics: { id: '', name: '' }, telegram_channels: { id: '', name: '' }, rss_feeds: { id: '', name: '' }, source_votes: { source_id: '', platform: '', name: '', vote: 'approve', timestamp: now } }[collection] ?? {};
 }
 
 function openDialog(title, record, index = null) {
@@ -708,12 +836,143 @@ function initializeDatabases(onReset) {
     });
 }
 
+// ---- Тариф, баланс в рублях и приглашения ----
+
+const billing = { info: null };
+const rub = n => `${Number(n).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`;
+const plural = (n, forms) => `${n} ${pluralRu(n, ...forms)}`;
+const CHANNELS = ['канал', 'канала', 'каналов'];
+const POSTS = ['пост', 'поста', 'постов'];
+const DAYS = ['день', 'дня', 'дней'];
+
+/** Цена своего тарифа — та же формула, что billing_custom_price на сервере (сервер при покупке считает сам). */
+function customPrice(c, channels, perDay) {
+    return c.base + c.channel * Math.max(0, channels - 1) + c.posts_step_price * Math.ceil(Math.max(0, perDay - c.posts_step) / c.posts_step);
+}
+
+// Подписи бирок — как в лендинге
+const PLAN_TAGS = {
+    free: { desc: 'Лента лучших постов по вашей теме', unit: 'навсегда' },
+    trial: { desc: 'Неделя Автопилота', unit: 'один раз · 7 дней' },
+    autopilot: { desc: 'Тренды сразу, посты в 1 клик', unit: 'в месяц · как две чашки кофе', main: true, badge: 'Выбор админов' },
+    network: { desc: 'До 5 каналов на разных площадках', unit: 'в месяц' }
+};
+
+/** Подвесная бирка «390,–₽» из лендинга. */
+function priceTag(plan, copy) {
+    const [whole, frac] = String(plan.price).split('.');
+    return el('div', { className: 'tag-slot' }, el('div', { className: 'htag-wrap' }, el('div', { className: `htag${copy.main ? ' red' : ''}` },
+        el('div', { className: 'htag-in' }, el('span', { className: 'hole' }),
+            el('span', { className: 'ik-name', textContent: plan.tag }),
+            copy.desc ? el('span', { className: 'ik-desc', textContent: copy.desc }) : null,
+            el('span', { className: 'ik-price' }, whole, el('sup', { textContent: frac ? `,${frac}` : ',–' }), el('span', { className: 'rub', textContent: 'P', ariaLabel: 'рублей' })),
+            el('span', { className: 'ik-unit', textContent: copy.unit || (plan.price ? `за ${plural(plan.days, DAYS)}` : 'навсегда') })))));
+}
+
+function renderBilling(info) {
+    billing.info = info;
+    const p = info.plan;
+    const stat = (value, label) => el('div', { className: 'account-stat' }, el('strong', { textContent: String(value) }), el('span', { textContent: label }));
+    $('billing-summary').replaceChildren(stat(rub(info.balance), 'на балансе'), stat(p.title, p.until ? `тариф до ${formatDate(p.until)}` : 'тариф'),
+        stat(`${info.usage.day} / ${p.posts_per_day}`, 'постов за сутки'), stat(`${info.usage.hour} / ${p.posts_per_hour}`, 'постов за час'));
+    $('billing-plan-note').textContent = `${plural(p.channels, CHANNELS)}, до ${plural(p.posts_per_day, POSTS)} в день${p.schedule ? ', отложенные посты' : ', только публикация сразу'}.`
+        + (info.enforce ? '' : ' Лимиты пока не ограничивают публикацию — включатся вместе с приёмом оплаты.');
+
+    $('billing-plans').replaceChildren(...info.plans.map(plan => {
+        const isCurrent = plan.id === p.id;
+        // Разовый «Хот-дог» после первой покупки не продаётся — вместо кнопки пояснение
+        const buy = !plan.price ? null : !plan.available ? el('p', { className: 'muted', textContent: 'Только один раз, до первой покупки тарифа.' })
+            : el('button', { type: 'button', className: isCurrent ? 'account-secondary' : 'primary-button', textContent: isCurrent ? 'Продлить' : 'Купить',
+                onclick: e => buyPlan(e.currentTarget, { plan: plan.id }, plan.title, plan.price) });
+        const copy = PLAN_TAGS[plan.id] || {};
+        const badge = isCurrent ? 'Ваш тариф' : copy.badge;
+        return el('div', { className: `billing-plan${copy.main ? ' is-main' : ''}${isCurrent ? ' is-current' : ''}` },
+            badge ? el('span', { className: 'billing-plan-badge', textContent: badge }) : null,
+            el('h4', { textContent: plan.title }),
+            priceTag(plan, copy),
+            el('ul', {}, el('li', { textContent: plural(plan.channels, CHANNELS) }), el('li', { textContent: `до ${plural(plan.posts_per_day, POSTS)} в день, ${plan.posts_per_hour} в час` }),
+                el('li', { textContent: plan.schedule ? 'Отложенные посты' : 'Только публикация сразу' })), buy);
+    }));
+
+    const c = info.custom;
+    Object.assign($('billing-channels'), { max: c.max_channels });
+    Object.assign($('billing-posts'), { min: c.posts_step, max: c.max_posts_per_day, step: c.posts_step });
+    renderCustomQuote();
+
+    const r = info.referral;
+    const link = `${location.origin}${location.pathname}?ref=${encodeURIComponent(r.code)}`;
+    $('billing-ref-link').textContent = link;
+    $('billing-ref-copy').onclick = async e => {
+        e.currentTarget.textContent = await navigator.clipboard.writeText(link).then(() => 'Скопировано', () => 'Не удалось');
+        setTimeout(() => { $('billing-ref-copy').textContent = 'Скопировать'; }, 1500);
+    };
+    $('billing-ref-about').textContent = `Друг заходит по ссылке и оплачивает любой тариф — вам на баланс ${r.percent}% от суммы, с каждой его оплаты. Ссылка работает для новых пользователей.`;
+    $('billing-ref-stats').replaceChildren(stat(r.invited, 'пришли по ссылке'), stat(r.paid, 'оплатили'), stat(rub(r.earned), 'заработано'));
+
+    $('billing-ledger').replaceChildren(table(['Когда', 'Сумма', 'Операция', 'Подробности'], info.ledger.map(o => [formatDate(o.at),
+        el('span', { className: o.amount > 0 ? 'billing-amount-plus' : '', textContent: `${o.amount > 0 ? '+' : ''}${rub(o.amount)}` }), o.kind, o.note || '—']), 'Операций пока не было.'));
+}
+
+function renderCustomQuote() {
+    const info = billing.info;
+    if (!info) return;
+    const [channels, perDay] = [Number($('billing-channels').value), Number($('billing-posts').value)];
+    $('billing-channels-out').textContent = channels;
+    $('billing-posts-out').textContent = `${perDay} (до ${Math.max(1, Math.ceil(perDay / info.custom.hour_share))} в час)`;
+    const price = customPrice(info.custom, channels, perDay);
+    $('billing-custom-price').textContent = `${rub(price)} / ${info.period_days} дней`;
+    // Готовый тариф, который даёт не меньше и стоит дешевле, — подсказываем честно
+    const cheaper = info.plans.find(p => !p.once && p.price > 0 && p.price < price && p.channels >= channels && p.posts_per_day >= perDay);
+    $('billing-custom-hint').textContent = cheaper ? `«${cheaper.title}» даст не меньше и выйдет дешевле: ${rub(cheaper.price)}.` : '';
+}
+
+async function buyPlan(button, body, title, price) {
+    const balance = billing.info?.balance ?? 0;
+    if (!confirm(`Купить «${title}» за ${rub(price)} с баланса (сейчас ${rub(balance)})? Если сейчас действует другой тариф, неиспользованный остаток вернётся на баланс.`)) return;
+    await busy(button, 'billing-status', async () => {
+        const d = await api('billing_buy', { body });
+        status('billing-status', `Тариф «${d.plan.title}» действует до ${formatDate(d.plan.until)}. На балансе ${rub(d.balance)}.`);
+        log(`Оплачен тариф «${d.plan.title}».`);
+        await loadBilling();
+    });
+}
+
+async function loadBilling() {
+    try { renderBilling(await api('billing_info')); }
+    catch (error) { status('billing-status', `Не удалось загрузить тариф: ${error.message}`); }
+}
+
+function initializeBilling() {
+    ['billing-channels', 'billing-posts'].forEach(id => $(id).addEventListener('input', renderCustomQuote));
+    $('billing-custom').addEventListener('submit', e => {
+        e.preventDefault();
+        const [channels, perDay] = [Number($('billing-channels').value), Number($('billing-posts').value)];
+        buyPlan(e.submitter, { plan: 'custom', channels, posts_per_day: perDay }, 'Свой тариф', customPrice(billing.info.custom, channels, perDay));
+    });
+}
+
+/** Ссылка-приглашение ?ref=код: засчитываем и убираем код из адреса. */
+export async function consumeReferralLink() {
+    const url = new URL(location.href);
+    const code = url.searchParams.get('ref');
+    if (!code || DEBUG_MODE) return;
+    url.searchParams.delete('ref');
+    history.replaceState(null, '', url);
+    try {
+        const d = await api('referral_bind', { body: { code } });
+        if (d.bound) log('Вы пришли по приглашению — спасибо! Пригласивший получит бонус, когда вы оплатите тариф.');
+    } catch { /* приглашение не главное: молча */ }
+}
+
 export function initializeAccountTab({ onDatabasesReset } = {}) {
     document.querySelectorAll('[data-account-section]').forEach(b => b.addEventListener('click', () => openAccountSection(b.dataset.accountSection)));
     $('vk-oauth-button').addEventListener('click', () => location.assign(apiUrl('vk_oauth_start')));
     initializeTelegram();
-    Object.assign(sections, { profile: loadAccount, privacy: loadAccount, social: () => { loadVkStatus(); loadAccount(); }, databases: loadDatabaseOptions });
+    Object.assign(sections, { profile: loadAccount, privacy: loadAccount, social: () => { loadVkStatus(); loadAccount(); }, databases: loadDatabaseOptions, billing: loadBilling });
+    initializeBilling();
+    // Тему сменили во вкладках — открытая база с записями по темам перечитывается под новую
+    onTopicChange(() => { if (current === 'databases' && db.ready && db.databases.find(d => d.id === db.database)?.by_topic) { db.currentIndex = null; loadRecords(); } });
     onTabOpen('account-tab', () => openAccountSection(current));
-    if (DEBUG_MODE) document.querySelector('[data-account-section="databases"]').hidden = true;
+    if (DEBUG_MODE) ['databases', 'billing'].forEach(name => { document.querySelector(`[data-account-section="${name}"]`).hidden = true; });
     else initializeDatabases(onDatabasesReset);
 }

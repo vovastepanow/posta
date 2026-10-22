@@ -1,6 +1,6 @@
-# Задача: перевести хранилище Postmaker с JSON-файлов на SQLite
+# Задача: перевести хранилище Posta с JSON-файлов на SQLite
 
-Ты работаешь в репозитории `/var/www/html/postmaker` (PHP 8.5, без фреймворка, без Composer). Сейчас все данные
+Ты работаешь в репозитории `/var/www/html/posta` (PHP 8.5, без фреймворка, без Composer). Сейчас все данные
 лежат в JSON-файлах, а целостность держится на `flock` (`lib/core.php`: `load_data`, `save_data`, `with_file_lock`,
 `update_data`). Нужно перенести данные в одну базу SQLite через PDO, не меняя поведение приложения и JSON API.
 
@@ -55,7 +55,7 @@ sudo systemctl restart apache2
 
 В `config.php`, раздел «Данные», добавь:
 ```php
-const DB_FILE = ROOT . '/data/postmaker.sqlite';          // вся база: пользователи, пулы, история, каталог, кэши
+const DB_FILE = ROOT . '/data/posta.sqlite';          // вся база: пользователи, пулы, история, каталог, кэши
 const DB_BUSY_TIMEOUT_MS = 15000;
 ```
 
@@ -243,7 +243,7 @@ CREATE INDEX screened_cache_topic ON screened_cache(topic);
   показывай строки «Пул: N записей», «История: N», «Настройки», «Подключения», «Последний заход», а реальные файлы
   (журнал парсера) оставь как есть. Формат элементов массива (`name`, `size`, `modified`, `about`) не меняй, `size`
   для таблиц можно считать как длину JSON.
-- `account_web_exposure()` проверяет, что данные не отдаются по HTTP. Замени `sources_db.json` на `data/postmaker.sqlite`.
+- `account_web_exposure()` проверяет, что данные не отдаются по HTTP. Замени `sources_db.json` на `data/posta.sqlite`.
 - Демо-режим (`?debug=1`, `demo_route`) не должен обращаться к БД. Проверь, что `demo_route` вызывается раньше, чем что-либо вызывает `db()`.
 - `reset_project_data()` (`lib/content.php:149`) очищает пул и историю пользователя через `db_tx`.
 - `tools/cli.php`: все команды, которые перебирают `users/*/pool.json` и `history.json` (`check-threads`,
@@ -255,12 +255,12 @@ CREATE INDEX screened_cache_topic ON screened_cache(topic);
 ## 5. Что НЕ переносить (остаётся файлами)
 
 - **Межпроцессные блокировки** через `try_lock` и `flock`: слоты парсера (`users/.slot-N.lock`), блокировка подбора
-  (`.discovery-*.lock`), `with_parser_lock`, перезапуск Ollama (`postmaker-ollama-recycle.lock`). Они защищают
+  (`.discovery-*.lock`), `with_parser_lock`, перезапуск Ollama (`posta-ollama-recycle.lock`). Они защищают
   процессы, а не данные. Оставь их, но лок-файлы могут жить в `data/locks/` вместо `users/`.
 - Журнал парсера `users/<id>/parser-v3.log` и папка `users/<id>/` для него.
 - Медиафайлы `media_cache/`, `history_media/`.
-- Временные файлы в `sys_get_temp_dir()`: VK-токены, `postmaker-remote-sizes.json`, `postmaker-exposure-*`, состояние
-  QR-входа `postmaker-tgu-*`, обмен с `tools/tg_user.py`. Python-скрипт читает и пишет эти файлы сам.
+- Временные файлы в `sys_get_temp_dir()`: VK-токены, `posta-remote-sizes.json`, `posta-exposure-*`, состояние
+  QR-входа `posta-tgu-*`, обмен с `tools/tg_user.py`. Python-скрипт читает и пишет эти файлы сам.
 - `secret.key.php`, `config.local.php`.
 - `MAIN_MODEL_SLOW_FLAG` можно перенести в `kv`, но это не обязательно.
 
@@ -280,7 +280,7 @@ CREATE INDEX screened_cache_topic ON screened_cache(topic);
 5. Сравнивает: для каждого пользователя `pool_load($uid)` и `history_load($uid)` после переноса должны совпадать с
    исходным JSON (`==`). Если не совпали, выводит ошибку и возвращает ненулевой код.
 
-Перед запуском на реальных данных сделай резервную копию: `tar czf ../postmaker-json-backup-$(date +%F).tgz *.json users`.
+Перед запуском на реальных данных сделай резервную копию: `tar czf ../posta-json-backup-$(date +%F).tgz *.json users`.
 
 ---
 
@@ -288,7 +288,7 @@ CREATE INDEX screened_cache_topic ON screened_cache(topic);
 
 - `.gitignore`: добавь `data/*.sqlite*` и `data/locks/`.
 - `.htaccess`: добавь `sqlite|sqlite-wal|sqlite-shm` в `FilesMatch` с запретом, `data` в `RedirectMatch 404`.
-- `tools/fix-permissions.sh`: файлы `data/postmaker.sqlite*` должны иметь права `664` и группу `www-data`.
+- `tools/fix-permissions.sh`: файлы `data/posta.sqlite*` должны иметь права `664` и группу `www-data`.
 - `README.md`: обнови «Требования», «Настройку» (шаг `php tools/cli.php migrate-json` для старых установок),
   строку про `lib/core.php` в таблице «Структура», добавь `lib/db.php`. Пункт «Пользователи» теперь говорит о таблицах, а не о папках.
 - Комментарий в шапке `lib/core.php` («JSON-файлы под блокировкой») исправь.
@@ -329,16 +329,16 @@ php tools/cli.php                      # печатает список кома�
 Проверка через API (Apache должен работать). Используй отдельного тестового пользователя, чтобы не трогать реальных:
 
 ```sh
-U=$(openssl rand -hex 16); B=http://localhost/postmaker/index.php
+U=$(openssl rand -hex 16); B=http://localhost/posta/index.php
 curl -s -b "ct_uid=$U" "$B?action=settings"
 curl -s -b "ct_uid=$U" "$B?action=account_info"
 curl -s -b "ct_uid=$U" "$B?action=topics"
 curl -s -b "ct_uid=$U" "$B?action=database_options"
 curl -s -b "ct_uid=$U" "$B?action=database_read&database=content_history&collection=liked"
 curl -s -b "ct_uid=$U" "$B?action=database_read&database=sources_db&collection=telegram_channels" | head -c 300
-curl -s -b "ct_uid=$U" -H 'X-Postmaker: 1' -H 'Content-Type: application/json' -d '{"filters":{"video_only":true}}' "$B?action=save_filters"
+curl -s -b "ct_uid=$U" -H 'X-Posta: 1' -H 'Content-Type: application/json' -d '{"filters":{"video_only":true}}' "$B?action=save_filters"
 curl -s "$B?action=settings&debug=1"   # демо-режим: не должен создать строку в users
-sqlite3 data/postmaker.sqlite "SELECT count(*) FROM users WHERE id='$U'"   # 1
+sqlite3 data/posta.sqlite "SELECT count(*) FROM users WHERE id='$U'"   # 1
 ```
 Посмотри обработчики и подставь правильные тела запросов, если они отличаются от примера выше.
 Ответы до и после переноса должны совпадать по структуре. Перед этапом 2 сохрани эталонные ответы на старой версии

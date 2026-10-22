@@ -1,5 +1,5 @@
 <?php
-// Реестр тем (sources_db.json → topics): ['id', 'title', 'scope' (broad|narrow), 'parent', 'aliases', 'about', 'profile', …].
+// Реестр тем (таблица topics): ['id', 'title', 'scope' (broad|narrow), 'parent', 'aliases', 'about', 'profile', …].
 // Для темы годятся её источники (по названию и синонимам), у широкой — ещё источники её узких тем, у узкой без своих
 // источников (меньше TOPIC_PARENT_FALLBACK_MIN) — источники широкой. Профиль темы (критерии, вопрос «да/нет», план поиска)
 // пишет умная модель один раз и он идёт во все промпты темы.
@@ -66,7 +66,7 @@ function topic_registry_from_db(array $db) {
         'about' => 'Мемы, приколы, смешные картинки и видео на любые темы.']));
     $used = array_merge(array_keys((array)($db['dvach_topic_boards'] ?? [])), array_keys((array)($db['discovery']['runs'] ?? [])),
         array_column((array)($db['source_suggestions'] ?? []), 'topic'));
-    foreach (array_merge((array)($db['telegram_channels'] ?? []), (array)($db['vk_publics'] ?? [])) as $e) array_push($used, ...(array)($e['topics'] ?? []));
+    foreach (array_merge((array)($db['telegram_channels'] ?? []), (array)($db['vk_publics'] ?? []), (array)($db['rss_feeds'] ?? [])) as $e) array_push($used, ...(array)($e['topics'] ?? []));
     foreach ($used as $t) if (trim((string)$t) !== '') $add(topic_normalize_entry(['title' => (string)$t]));
     return array_values($registry);
 }
@@ -478,8 +478,7 @@ function topic_profile_for_prompts($topic) {
  * Возвращает не больше $limit тем, может вернуть меньше. Результат кэшируется на HOT_TOPICS_CACHE_SECONDS.
  */
 function hot_topics($limit = HOT_TOPICS_LIMIT, $fresh = false) {
-    $cache_file = ROOT . '/hot_topics.json';
-    $cached = load_data($cache_file, []);
+    $cached = (array)kv_get('hot_topics', []);
     if (!$fresh && isset($cached['at']) && time() - $cached['at'] < HOT_TOPICS_CACHE_SECONDS) return array_slice($cached['topics'], 0, $limit);
 
     $since = time() - HOT_TOPICS_WINDOW_DAYS * DAY_SECONDS;
@@ -504,7 +503,7 @@ function hot_topics($limit = HOT_TOPICS_LIMIT, $fresh = false) {
     foreach ($scores as $id => $score) if ($score >= HOT_TOPICS_MIN_SCORE && ($t = topic_registry()[$id] ?? null)) $hot[] = ['id' => $id, 'title' => $t['title'], 'score' => $score];
     usort($hot, fn($a, $b) => $b['score'] <=> $a['score']);
     $hot = array_slice($hot, 0, HOT_TOPICS_LIMIT);
-    save_data($cache_file, ['at' => time(), 'topics' => $hot]);
+    kv_update('hot_topics', fn() => ['at' => time(), 'topics' => $hot]);
     return array_slice($hot, 0, $limit);
 }
 

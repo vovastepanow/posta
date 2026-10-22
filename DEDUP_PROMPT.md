@@ -1,6 +1,6 @@
 # Задача: распознавать один и тот же мем в разных местах
 
-Ты работаешь в PHP-проекте `/var/www/html/postmaker`. Парсер собирает картинки и видео из Telegram, VK и Двача,
+Ты работаешь в PHP-проекте `/var/www/html/posta`. Парсер собирает картинки и видео из Telegram, VK и Двача,
 быстро оценивает их маленькой моделью и лучшие отдаёт на полный анализ.
 
 Сейчас повтор узнаётся только по точному адресу файла или поста. Если один мем перезалили в пять каналов, у него пять
@@ -25,7 +25,7 @@
 - **Перед первым запуском любого PHP-кода после правок сделай копию базы.** Миграция из части B применится сама при
   первом обращении к базе:
   ```
-  sqlite3 data/postmaker.sqlite ".backup data/postmaker.sqlite.bak-dedup"
+  sqlite3 data/posta.sqlite ".backup data/posta.sqlite.bak-dedup"
   ```
 
 ## Часть 0. Починить кэш быстрых оценок
@@ -138,9 +138,9 @@ php -l lib/db.php
 php -l lib/db_access.php
 php -l lib/parser.php
 php -l lib/content.php
-sqlite3 data/postmaker.sqlite ".backup data/postmaker.sqlite.bak-dedup"
+sqlite3 data/posta.sqlite ".backup data/posta.sqlite.bak-dedup"
 php -r 'require "bootstrap.php"; db(); echo "версия схемы: ", db_value("PRAGMA user_version"), "\n";'
-sqlite3 data/postmaker.sqlite "PRAGMA table_info(screened_cache)"
+sqlite3 data/posta.sqlite "PRAGMA table_info(screened_cache)"
 ```
 
 Ожидается версия 2 и колонка `phash` в списке.

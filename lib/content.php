@@ -15,6 +15,16 @@ function pool_find_item(array $pool, $image) {
 
 function pool_without_image(array $pool, $image) { return array_values(array_filter($pool, fn($i) => content_image_key($i) !== $image)); }
 
+/** Убирает из пула записи, у которых пропал кэш видео: ссылки Telegram с истёкшим токеном не играют, карточка мигала бы. */
+function pool_without_lost_video(array $pool) {
+    $lost = fn($i) => (bool)array_filter([$i, ...(array)($i['gallery'] ?? [])],
+        fn($f) => is_array($f) && !empty($f['video']) && ($l = (string)($f['video_local'] ?? '')) !== '' && media_cache_existing($l) === '');
+    $bad = array_map('content_image_key', array_filter($pool, $lost));
+    if (!$bad) return $pool;
+    pool_update(fn($all) => array_values(array_filter($all, fn($i) => !in_array(content_image_key($i), $bad, true))));
+    return array_values(array_filter($pool, fn($i) => !in_array(content_image_key($i), $bad, true)));
+}
+
 function content_source_key($item) {
     return (string)($item['source_key'] ?? '') ?: (!empty($item['board']) ? 'dvach:' . $item['board'] : 'source:' . mb_strtolower((string)($item['source'] ?? '')));
 }
@@ -41,7 +51,7 @@ function content_history_record(array $item, $complaint_reason) {
 
 /** Ссылка на исходный пост: сохранённая (только известные площадки по HTTPS) или собранная из полей Двача. */
 function source_post_url($item) {
-    if (is_trusted_source_url($url = (string)($item['source_url'] ?? ''))) return $url;
+    if (is_trusted_source_url($url = (string)($item['source_url'] ?? '')) || rss_post_url_trusted($item)) return $url;
     $board = (string)($item['board'] ?? '');
     if ($board === '' && preg_match('~Двач\s+/([a-z0-9_-]+)/~iu', (string)($item['source'] ?? ''), $m)) $board = $m[1];
     [$thread, $post] = [(string)($item['thread_id'] ?? ''), (string)($item['post_id'] ?? '')];
@@ -53,7 +63,7 @@ function post_item_has_video(array $item) {
 }
 
 /** Запись для карточки: display_* — копия из кэша или исходная ссылка, preload — картинки следующих записей. */
-function content_for_display(array $item, array $upcoming = []) {
+function content_for_display(array $item, array $upcoming = [], $remote_check = true) {
     $main = content_image_key($item);
     $display = fn($f) => $f + ['display_image' => media_cache_existing($f['image_local'] ?? '') ?: $f['image'],
         'display_video' => $f['video'] === '' ? '' : (media_cache_existing($f['video_local'] ?? '') ?: $f['video'])];
@@ -62,7 +72,7 @@ function content_for_display(array $item, array $upcoming = []) {
     if ($gallery && !in_array($main, array_column($gallery, 'image'), true)) array_unshift($gallery, $display($own));
     $shown = $display($own);
     return ['images' => [$main], 'captions' => [$item['captions'][0] ?? ($item['text'] ?? '')], 'source_url' => source_post_url($item), 'gallery' => $gallery,
-        'post_check' => !empty($item['video']) || $gallery ? telegram_preflight_item($item) : ['status' => 'ok', 'problems' => [], 'warnings' => [], 'bad' => []],
+        'post_check' => !empty($item['video']) || $gallery ? telegram_preflight_item($item, $remote_check) : ['status' => 'ok', 'problems' => [], 'warnings' => [], 'bad' => []],
         'display_image' => $shown['display_image'], 'display_video' => $shown['display_video'], 'tags_info' => content_tags_public($item['tags'] ?? []),
         'preload' => array_values(array_filter(array_map(fn($i) => media_cache_existing($i['image_local'] ?? '') ?: content_image_key($i), $upcoming)))] + $item;
 }
@@ -147,20 +157,41 @@ function media_cache_item_urls($item) {
     return $urls;
 }
 
-/** Удаляет файл, если он не показывается другому пользователю. */
+/** Удаляет файл, если он не показывается ни одному пользователю. */
 function media_cache_remove($url) {
-    foreach (all_users_pool_items(app_user_bind() ?: null) as $item) if (in_array($url, media_cache_item_urls($item), true)) return;
+    foreach (all_users_pool_items() as $item) if (in_array($url, media_cache_item_urls($item), true)) return;
     if (($p = media_cache_path($url)) !== null) @unlink($p);
 }
 
 /** Удаляет файлы, на которые не ссылается ни одна запись; свежие щадит, пока не $include_fresh. */
-function media_cache_cleanup(array $pool, $include_fresh = false) {
+function media_cache_cleanup(array $pool, $include_fresh = false, $force = false) {
     $keep = [];
     foreach ($pool as $item) foreach (media_cache_item_urls($item) as $u) if ($p = media_cache_path($u)) $keep[basename($p)] = true;
-    $removed = 0;
+    $all_files = [];
     foreach (is_dir(MEDIA_CACHE_DIR) ? scandir(MEDIA_CACHE_DIR) : [] as $name) {
         $path = MEDIA_CACHE_DIR . "/$name";
-        if (isset($keep[$name]) || !is_file($path) || (!$include_fresh && time() - (int)@filemtime($path) < MEDIA_CACHE_GRACE_SECONDS)) continue;
+        if (!is_file($path)) continue;
+        $all_files[$name] = $path;
+    }
+    $to_remove = [];
+    foreach ($all_files as $name => $path) {
+        if (isset($keep[$name]) || (!$include_fresh && time() - (int)@filemtime($path) < MEDIA_CACHE_GRACE_SECONDS)) continue;
+        $to_remove[$name] = $path;
+    }
+
+    // Защита от массового удаления: пустая база или ошибка чтения
+    if (!$force) {
+        $total_files = count($all_files);
+        $will_remove = count($to_remove);
+        if (($total_files > 20 && empty($pool)) || ($total_files > 0 && $will_remove / $total_files > MEDIA_CACHE_CLEANUP_MAX_SHARE)) {
+            cli_echo("Кэш медиа: очистка остановлена — удалилось бы $will_remove из $total_files файлов. Проверьте базу; удалить принудительно: tools/cli.php media-cleanup --force");
+            error_log("Media cache cleanup blocked: $will_remove/$total_files files would be removed");
+            return 0;
+        }
+    }
+
+    $removed = 0;
+    foreach ($to_remove as $path) {
         $removed += (int)@unlink($path);
     }
     return $removed;
@@ -170,6 +201,52 @@ function media_cache_cleanup(array $pool, $include_fresh = false) {
 function media_cache_release_removed(array $before, array $after) {
     $kept = array_flip(array_merge([], ...array_map('media_cache_item_urls', array_values($after))));
     foreach ($before as $item) foreach (media_cache_item_urls($item) as $u) if (!isset($kept[$u])) media_cache_remove($u);
+}
+
+/**
+ * Ремонт ссылок на кэш в одной записи (и в её gallery): старый путь media_cache/<имя> → media/<имя>, если файл есть;
+ * ссылка на пропавший файл — очищается. $redownload (запись «Предложки» с источником) — снять media_cached, чтобы
+ * proposal_backfill_media скачала её заново. Возвращает исправленную запись или null — менять нечего.
+ * $stats: fixed — путей исправлено, cleared — пропавших ссылок очищено, marked — помечено на загрузку.
+ */
+function media_repair_record(array $r, $redownload, array &$stats) {
+    $fix = function (array $e) use (&$stats) {
+        foreach (['image_local', 'video_local'] as $f) {
+            if (($url = (string)($e[$f] ?? '')) === '') continue;
+            if (preg_match('~^media_cache/([a-f0-9]{32}\.[a-z0-9]{2,5})$~', $url, $m) && is_file(MEDIA_CACHE_DIR . "/$m[1]")) { $e[$f] = MEDIA_CACHE_URL . "/$m[1]"; $stats['fixed']++; }
+            elseif (media_cache_existing($url) === '') { $e[$f] = ''; $stats['cleared']++; }
+        }
+        return $e;
+    };
+    $cleared_before = $stats['cleared'];
+    $new = $fix($r);
+    if (is_array($r['gallery'] ?? null)) $new['gallery'] = array_map(fn($g) => is_array($g) ? $fix($g) : $g, $r['gallery']);
+    $has_source = preg_match('~^https://t\.me/~', (string)($r['source_url'] ?? '')) || (!empty($r['board']) && !empty($r['thread_id']) && !empty($r['post_id']));
+    if ($redownload && $stats['cleared'] > $cleared_before && $has_source && empty($r['media_gone'])) {   // только если файл действительно пропал
+        unset($new['media_cached'], $new['media_checked']);
+        $stats['marked']++;
+    }
+    return $new !== $r ? $new : null;
+}
+
+/** media_repair_record для пула и всей истории пользователя: «Предложка» — с повторной загрузкой, остальное — только очистка. */
+function media_repair_user($uid, $dry_run = false) {
+    $stats = ['fixed' => 0, 'cleared' => 0, 'marked' => 0];
+    $repair = function (array $list, $redownload, &$changed) use (&$stats) {
+        foreach ($list as $i => $r) if (is_array($r) && ($new = media_repair_record($r, $redownload, $stats)) !== null) { $list[$i] = $new; $changed = true; }
+        return $list;
+    };
+    pool_update(function ($pool) use ($repair, $dry_run) {
+        $changed = false;
+        $pool = $repair($pool, false, $changed);
+        return $changed && !$dry_run ? $pool : null;
+    }, $uid);
+    history_update(function ($h) use ($repair, $dry_run) {
+        $changed = false;
+        foreach (HISTORY_COLLECTIONS as $c) $h[$c] = $repair($h[$c] ?? [], in_array($c, PROPOSAL_COLLECTIONS, true), $changed);
+        return $changed && !$dry_run ? $h : null;
+    }, $uid);
+    return $stats;
 }
 
 /** Запись просрочена, если добавлена раньше POOL_MAX_AGE_SECONDS назад. Записи без метки считаются свежими (метка ставится при первой проверке). */
@@ -383,8 +460,7 @@ function browser_playable_video($path) {
 
 /** Убирает записи удалённых тредов и удалённых постов. Раз в POOL_LIVENESS_INTERVAL; null — ещё рано. */
 function prune_dead_pool_items($uid = null, $dry_run = false, $force = false, $log = true) {
-    $marker = user_dir($uid) . '/threads-checked';
-    if (!$force && time() - (int)@filemtime($marker) < POOL_LIVENESS_INTERVAL) return null;
+    if (!$force && time() - user_checked_at('threads', $uid) < POOL_LIVENESS_INTERVAL) return null;
     $pool = pool_load($uid);
     $threads = [];
     foreach ($pool as $i) if (!empty($i['board']) && !empty($i['thread_id'])) $threads["{$i['board']}/{$i['thread_id']}"] = [$i['board'], $i['thread_id']];
@@ -399,7 +475,7 @@ function prune_dead_pool_items($uid = null, $dry_run = false, $force = false, $l
     else {
         $after = pool_update($mutator, $uid);
         if ($removed) media_cache_release_removed($pool, $after);
-        @touch($marker);
+        user_threads_checked($uid);
     }
     $r = ['threads' => count($states), 'gone' => count(array_filter($states, fn($s) => $s === false)), 'removed' => count($removed)];
     if ($log && $removed) cli_echo("Проверка тредов: проверено {$r['threads']}, удалённых тредов {$r['gone']}, убрано записей из пула: {$r['removed']}.");
@@ -471,6 +547,59 @@ function phash_distance($a, $b) {
 function phash_find($hash, array $known) {
     foreach ($known as $known_hash => $data) {
         if (phash_distance($hash, (string)$known_hash) <= PHASH_SAME_DISTANCE) return $known_hash;
+    }
+    return null;
+}
+
+// ---- 18+ и «Жесть» ----
+
+/** Разрешён ли пользователю контент 18+ и «Жесть» (флаг ставит администратор: tools/cli.php adult-allow). */
+function user_adult_allowed($uid = null, $reset = false) {
+    static $allowed = [];
+    $uid ??= app_user_id();
+    if ($reset) unset($allowed[$uid]);
+    return $allowed[$uid] ??= (bool)db_value('SELECT adult_allowed FROM users WHERE id = ?', [$uid]);
+}
+
+/** Тема 18+ или «Жесть»: по реестру (topic_is_nsfw) или по словам (topic_is_adult). Пустая тема — нет. Результат кэшируется на процесс. */
+function topic_is_restricted($topic) {
+    static $cache = [];
+    if (($topic = (string)$topic) === '') return false;
+    return $cache[$topic] ??= topic_is_nsfw($topic) || topic_is_adult($topic);
+}
+
+/** Запись 18+ или «Жесть». Порядок проверок важен: сначала самое надёжное. */
+function content_is_adult(array $r) {
+    foreach ((array)($r['tags'] ?? []) as $key) if (content_tag_catalog()[$key]['nsfw'] ?? false) return true;
+    if (topic_is_restricted($r['topic'] ?? '')) return true;
+    return !empty($r['board']) && in_array(DVACH_ADULT_TAG, dvach_board_tags($r['board']), true);
+}
+
+/** Запись пользователя (пул или история), у которой этот адрес — картинка, видео или их локальная копия. null — не нашли. */
+function content_record_by_media($src, $uid = null) {
+    if (($src = (string)$src) === '') return null;
+    foreach ([pool_load($uid), ...array_values(history_load($uid))] as $list) foreach ($list as $r) {
+        if (!is_array($r)) continue;
+        if (in_array($src, (array)($r['images'] ?? []), true)) return $r;   // 2-я и следующие картинки поста Telegram
+        foreach ([$r, ...(array)($r['gallery'] ?? [])] as $f) {
+            if (!is_array($f)) continue;
+            foreach (['image', 'video', 'image_local', 'video_local'] as $field) if (($f[$field] ?? '') === $src) return $r;
+        }
+    }
+    return null;
+}
+
+/** Отказ в теме для текущего пользователя (текст) или null. */
+function topic_save_denied($topic) {
+    return !user_adult_allowed() && topic_is_restricted($topic) ? 'Темы 18+ и «Жесть» недоступны.' : null;
+}
+
+/** Отказ опубликовать медиа (текст) или null. Свои файлы (upload) и ссылки не из записей пользователя не проверяем: за них отвечает сам пользователь. */
+function publish_media_denied(array $items) {
+    if (user_adult_allowed()) return null;
+    foreach ($items as $item) {
+        if (($item['upload'] ?? '') !== '' || ($src = (string)($item['src'] ?? '')) === '') continue;
+        if (($r = content_record_by_media($src)) && content_is_adult($r)) return 'В посте есть материал 18+ или «Жесть» — такое через Posta публиковать нельзя.';
     }
     return null;
 }

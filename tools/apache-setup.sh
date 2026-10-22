@@ -1,12 +1,12 @@
 #!/bin/sh
-# Настраивает Apache для Postmaker (нужен root): включает чтение .htaccess и задаёт лимиты загрузки для редактора поста.
+# Настраивает Apache для Posta (нужен root): включает чтение .htaccess и задаёт лимиты загрузки для редактора поста.
 # Без этого .htaccess игнорируется (в Debian/Ubuntu для /var/www стоит AllowOverride None): по HTTP отдаются .git, истории оценок,
 # каталог источников и другие служебные файлы. Запуск: sudo sh tools/apache-setup.sh
 set -e
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-CONF=/etc/apache2/conf-available/postmaker.conf
+CONF=/etc/apache2/conf-available/posta.conf
 cat > "$CONF" <<CONFIG
-# Postmaker (создано tools/apache-setup.sh)
+# Posta (создано tools/apache-setup.sh)
 <Directory $DIR>
     AllowOverride All
     <IfModule mod_php.c>
@@ -16,7 +16,7 @@ cat > "$CONF" <<CONFIG
     </IfModule>
 </Directory>
 CONFIG
-a2enconf postmaker >/dev/null
+a2enconf posta >/dev/null
 a2enmod headers alias >/dev/null 2>&1 || true
 apache2ctl configtest
 systemctl reload apache2

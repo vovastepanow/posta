@@ -298,7 +298,25 @@ async function loadTopicSources() {
     finally { topicSources.loading = false; }
 }
 
+/** «Добавить источник»: ссылка → проверка на сервере → источник темы; список обновляется. */
+async function addSource(event) {
+    event.preventDefault();
+    const [input, button, status] = [$('source-add-link'), $('source-add-button'), $('source-add-status')];
+    const link = input.value.trim();
+    if (!link) return;
+    button.disabled = true;
+    status.textContent = 'Проверяю источник…';
+    try {
+        const result = await api('add_topic_source', { body: { link } });
+        status.textContent = result.added ? `Добавлен: ${result.name} (свежих постов с картинками: ${result.posts})` : `Уже в теме: ${result.name}`;
+        input.value = '';
+        await loadTopicSources();
+    } catch (error) { status.textContent = error.message; }
+    finally { button.disabled = false; }
+}
+
 export function initializeSourceTab() {
+    $('source-add-form').addEventListener('submit', addSource);
     registerViewerGallery('source', sourceGallery);
     document.querySelectorAll('#source-tab [data-source-vote]').forEach(b => b.addEventListener('click', () => vote(b.dataset.sourceVote)));
     bindMenu($('source-complaint-button'), $('source-complaint-menu'), item => vote('reject', item.dataset.sourceReason));

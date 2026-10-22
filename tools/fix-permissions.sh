@@ -2,7 +2,7 @@
 # Возвращает файлам проекта права, нужные Apache и парсеру (группа www-data).
 # Новые файлы, которые записывает Claude, создаются с правами только для владельца —
 # скрипт делает их доступными группе. Безопасно запускать сколько угодно раз, например из cron:
-#   * * * * * /bin/sh /var/www/html/postmaker/tools/fix-permissions.sh
+#   * * * * * /bin/sh /var/www/html/posta/tools/fix-permissions.sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 

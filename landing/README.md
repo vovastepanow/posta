@@ -1,4 +1,4 @@
-# Лендинг Postmaker
+# Лендинг Posta
 
 Статическая страница без сборки: `index.html` + `img/`. Стиль — телемагазин, ценники старой ИКЕА, маскот Нэко-сан.
 Черновик для обсуждения: https://claude.ai/artifact/UThD2HqfNde75KCSkSxidy (приватный, это превью той же страницы).
@@ -19,11 +19,11 @@
 
 ```sh
 sudo mkdir -p /var/www/landing
-sudo rsync -a --delete --exclude source --exclude README.md /var/www/html/postmaker/landing/ /var/www/landing/
+sudo rsync -a --delete --exclude source --exclude README.md /var/www/html/posta/landing/ /var/www/landing/
 sudo chown -R www-data:www-data /var/www/landing
 ```
 
-Конфиг хоста, `Require ip` для `/postmaker` и certbot — см. разговор о развёртывании; кратко:
+Конфиг хоста, `Require ip` для `/posta` и certbot — см. разговор о развёртывании; кратко:
 `DocumentRoot /var/www/landing`, `Options -Indexes`, `sudo certbot --apache -d домен -d www.домен`.
 
 Кнопки «Подключить» пока только показывают шутку в нижней плашке — сбора заявок нет.
@@ -47,7 +47,7 @@ Product photo of a boxed collectible vinyl figure, Japanese designer toy style
 (like Pop Mart / Sonny Angel). Inside: a slim black cat character standing upright,
 wearing a fluffy light-blue terry-cloth bathrobe with a tied belt and pink slippers,
 holding a white enamel coffee mug with steam, calm half-closed yellow eyes, small smile.
-Box: yellow cardboard with a red header reading "postmaker", large clear plastic
+Box: yellow cardboard with a red header reading "posta", large clear plastic
 window with realistic reflections, hang tab with euro slot on top.
 A small paper IKEA-style price tag hangs from the box on a string:
 yellow paper, bold black numbers "390 ₽", Futura-like font, slightly creased.

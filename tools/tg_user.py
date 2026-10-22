@@ -6,7 +6,8 @@
 JSON-ответ в stdout. Секреты (api_hash, сессия) приходят в запросе и нигде не сохраняются.
 
 Действия: send_code, resend_code, sign_in, password, check_channel, schedule, cancel,
-search_channels (поиск каналов по запросам — для автоподбора источников), similar_channels (похожие каналы).
+search_channels (поиск каналов по запросам — для автоподбора источников), similar_channels (похожие каналы),
+read_chats (новые сообщения чатов, без вступления), search_chats (поиск публичных групп — для радара лидов).
 Режим `tg_user.py qr-login <файл запроса>` — вход по QR-коду (когда код входа не доходит): работает до двух минут в фоне и пишет
 состояние в файл из запроса (state_file), см. lib/telegram_user.php.
 """
@@ -76,6 +77,92 @@ def channel_info(chat, origin):
     return {'username': chat.username, 'title': chat.title or '', 'subscribers': chat.participants_count or 0, 'origin': origin}
 
 
+def group_info(chat, origin):
+    """Публичная группа-чат (мегагруппа) с @именем или None: каналы-витрины, приватные группы и обычные чаты пропускаются."""
+    if not isinstance(chat, types.Channel) or not chat.username:
+        return None
+    if getattr(chat, 'broadcast', False) or not (getattr(chat, 'megagroup', False) or getattr(chat, 'gigagroup', False)):
+        return None
+    return {'username': chat.username, 'title': chat.title or '', 'members': chat.participants_count or 0, 'query': origin}
+
+
+async def read_chats(client, chats):
+    """Читать новые сообщения из списка чатов. Возвращает {'chats': [...], 'ok': true}."""
+    result_chats = []
+
+    for chat_spec in chats:
+        ref = chat_spec.get('ref', '')
+        min_id = int(chat_spec.get('min_id', 0))
+        limit = int(chat_spec.get('limit', 100))
+        if min_id == 0:
+            limit = min(limit, 30)  # первый запуск — только последние 30
+
+        result_chat = {
+            'ref': ref,
+            'chat_id': None,
+            'title': '',
+            'username': '',
+            'error': None,
+            'messages': []
+        }
+
+        try:
+            entity = await find_channel(client, ref)
+
+            # Проверяем что это чат/группа, не канал
+            if isinstance(entity, types.Channel) and getattr(entity, 'broadcast', False):
+                result_chat['error'] = 'Это канал, а не чат: людей там не видно'
+                result_chats.append(result_chat)
+                continue
+
+            result_chat['chat_id'] = entity.id
+            result_chat['title'] = getattr(entity, 'title', '')
+            result_chat['username'] = getattr(entity, 'username', '') or ''
+
+            # Читаем сообщения
+            async for message in client.iter_messages(entity, min_id=min_id, limit=limit):
+                # Пропускаем служебные, свои, от ботов, без текста
+                if (message.action or message.out or getattr(message, 'from_id', None) is None or
+                    getattr(message.sender, 'is_bot', False) or not message.text):
+                    continue
+
+                sender_id = getattr(message.from_id, 'user_id', 0) if hasattr(message.from_id, 'user_id') else 0
+                sender = getattr(message, 'sender', None)
+                sender_name = ''
+                sender_username = ''
+
+                if sender:
+                    first = getattr(sender, 'first_name', '')
+                    last = getattr(sender, 'last_name', '')
+                    sender_name = (first + (' ' + last if last else '')).strip()[:64]
+                    sender_username = getattr(sender, 'username', '') or ''
+
+                result_chat['messages'].append({
+                    'id': message.id,
+                    'date': int(message.date.timestamp()) if message.date else int(time.time()),
+                    'text': message.text,
+                    'sender_id': sender_id,
+                    'sender_username': sender_username,
+                    'sender_name': sender_name,
+                    'is_bot': getattr(message.sender, 'is_bot', False),
+                    'out': message.out
+                })
+
+        except errors.FloodWaitError as e:
+            if e.seconds > 60:
+                # Слишком долгий ввод — прерываем весь запрос
+                break
+            result_chat['error'] = 'Telegram просит подождать %d с' % e.seconds
+        except (errors.ChannelPrivateError, errors.ChatAdminRequiredError):
+            result_chat['error'] = 'Закрыт для чтения без вступления'   # в чат не вступаем
+        except Exception as e:
+            result_chat['error'] = describe(e)
+
+        result_chats.append(result_chat)
+
+    return {'chats': result_chats, 'ok': True}
+
+
 async def search_channels(client, queries, limit):
     """Глобальный поиск Telegram по каждому запросу: реально существующие каналы в порядке, в каком их ранжирует Telegram."""
     found = {}
@@ -89,6 +176,24 @@ async def search_channels(client, queries, limit):
             break   # лимит поиска исчерпан: возвращаем, что успели найти
         for chat in result.chats:
             info = channel_info(chat, query)
+            if info and info['username'].lower() not in found:
+                found[info['username'].lower()] = info
+    return list(found.values())
+
+
+async def search_chats(client, queries, limit):
+    """Глобальный поиск Telegram: публичные группы (не каналы) по каждому запросу, без вступления."""
+    found = {}
+    for query in queries[:15]:
+        query = str(query).strip()
+        if len(query) < 2:
+            continue
+        try:
+            result = await client(functions.contacts.SearchRequest(q=query, limit=min(limit, 100)))
+        except errors.FloodWaitError:
+            break   # лимит поиска исчерпан: возвращаем, что успели найти
+        for chat in result.chats:
+            info = group_info(chat, query)
             if info and info['username'].lower() not in found:
                 found[info['username'].lower()] = info
     return list(found.values())
@@ -143,6 +248,8 @@ async def run(request, client):
     if action == 'resend_code':
         # следующий способ доставки, который предлагает Telegram (обычно SMS после кода в приложении)
         return code_info(await client(functions.auth.ResendCodeRequest(request['phone'], request['phone_code_hash'])))
+    if action == 'read_chats':
+        return await read_chats(client, request.get('chats') or [])
     if action == 'sign_in':
         try:
             await client.sign_in(request['phone'], request.get('code', ''), phone_code_hash=request.get('phone_code_hash'))
@@ -161,6 +268,8 @@ async def run(request, client):
         raise errors.AuthKeyUnregisteredError(None)
     if action == 'search_channels':
         return {'channels': await search_channels(client, request.get('queries') or [], int(request.get('limit') or 30))}
+    if action == 'search_chats':
+        return {'chats': await search_chats(client, request.get('queries') or [], int(request.get('limit') or 30))}
     if action == 'similar_channels':
         return {'channels': await similar_channels(client, request.get('channels') or [])}
     entity = await find_channel(client, request['channel'])
@@ -237,7 +346,7 @@ async def qr_login(request_path):
     os.remove(request_path)   # в файле api_hash: сразу удаляем
     path, token = request['state_file'], request['token']
     client = TelegramClient(StringSession(''), int(request['api_id']), request['api_hash'],
-                            device_model='Postmaker', system_version='Linux', app_version='1.0', lang_code='ru', timeout=20)
+                            device_model='Posta', system_version='Linux', app_version='1.0', lang_code='ru', timeout=20)
     state = {'token': token, 'status': 'waiting', 'at': 0}
     try:
         await client.connect()
@@ -274,7 +383,7 @@ async def main():
         return
     request = json.load(sys.stdin)
     client = TelegramClient(StringSession(request.get('session') or ''), int(request['api_id']), request['api_hash'],
-                            device_model='Postmaker', system_version='Linux', app_version='1.0', lang_code='ru',
+                            device_model='Posta', system_version='Linux', app_version='1.0', lang_code='ru',
                             connection_retries=2, request_retries=2, timeout=20)
     try:
         await client.connect()

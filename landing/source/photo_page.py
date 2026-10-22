@@ -1,5 +1,5 @@
 # Собирает index-photo.html: тот же лендинг, но в первом экране фото-коробка (слои из photo_box.py) вместо SVG,
-# а из коробки вылетают игральные карты с жёлтой рубашкой postmaker.
+# а из коробки вылетают игральные карты с жёлтой рубашкой posta.
 # Запуск из landing/: python3 -I source/photo_page.py
 # Координаты — в пикселях обрезанного фото 810×840 (исходник минус CROP из photo_box.py).
 import math
@@ -65,7 +65,7 @@ for i in range(N):
     back = '' if flip == 0 else '<div class="jb"><span>post<sup>,–</sup><br>maker</span></div>'
     jets.append(f'<div class="jet{" nf" if flip == 0 else ""}" style="{style}"><div class="jc">'
                 f'<div class="jf"><div class="jp">{media}</div>'
-                f'<b>{topic}</b><span>{meta}</span><em>postmaker<sup>,–</sup></em></div>{back}</div></div>')
+                f'<b>{topic}</b><span>{meta}</span><em>posta<sup>,–</sup></em></div>{back}</div></div>')
 # Плееров ровно по одному на ролик: 48 одновременных <video> декодировали видео 48 раз и роняли частоту кадров в 4 раза.
 # Карты — <canvas>, в которые скрипт копирует новый кадр своего ролика (копия идёт на видеокарте и почти ничего не стоит)
 SOURCES = ''.join(f'<video src="img/vid/{k}.mp4" data-v="{k}" muted loop playsinline preload="none"></video>' for k, _, _ in VIDEOS)

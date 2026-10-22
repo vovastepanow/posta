@@ -4,8 +4,9 @@
 const PLATFORM_DVACH = 'Двач';
 const PLATFORM_TELEGRAM = 'Telegram';
 const PLATFORM_VK = 'ВКонтакте';
-const SOURCE_NAME_PREFIXES = [PLATFORM_TELEGRAM => 'Telegram | ', PLATFORM_VK => 'ВКонтакте | '];
-const CATALOG_KEYS = [PLATFORM_TELEGRAM => 'telegram_channels', PLATFORM_VK => 'vk_publics'];
+const PLATFORM_RSS = 'RSS';
+const SOURCE_NAME_PREFIXES = [PLATFORM_TELEGRAM => 'Telegram | ', PLATFORM_VK => 'ВКонтакте | ', PLATFORM_RSS => 'RSS | '];
+const CATALOG_KEYS = [PLATFORM_TELEGRAM => 'telegram_channels', PLATFORM_VK => 'vk_publics', PLATFORM_RSS => 'rss_feeds'];
 const TRUSTED_SOURCE_HOSTS = ['2ch.hk', 't.me', 'vk.com'];
 const EMPTY_POST_TEXT = 'Пост без текста';
 const TELEGRAM_RESERVED_PATHS = ['joinchat', 'addlist', 'addstickers', 'addemoji', 'addtheme', 'setlanguage', 'share', 'proxy', 'socks', 'boost', 'contact', 'login', 'premium', 'username', 'telegram', 'durov', 'iv'];
@@ -18,8 +19,13 @@ function is_valid_dvach_board($b) { return preg_match('/^[a-z0-9_-]{1,30}$/i', (
 function is_valid_dvach_id($id) { return preg_match('/^[0-9]{1,20}$/', (string)$id) === 1; }
 function is_valid_telegram_channel($c) { return preg_match('/^[A-Za-z][A-Za-z0-9_]{4,31}$/', (string)$c) === 1; }
 function is_valid_vk_domain($d) { return preg_match('/^[A-Za-z0-9_.-]{1,64}$/', (string)$d) === 1; }
-function is_valid_source_id($platform, $id) { return $platform === PLATFORM_TELEGRAM ? is_valid_telegram_channel($id) : is_valid_vk_domain($id); }
-function source_id_for($platform, $id) { return ($platform === PLATFORM_TELEGRAM ? 'telegram:' : 'vk:') . strtolower($id); }
+function is_valid_rss_url($url) { return strlen((string)$url) <= 500 && str_starts_with((string)$url, 'https://') && filter_var($url, FILTER_VALIDATE_URL) !== false; }
+function is_valid_source_id($platform, $id) {
+    return match ($platform) { PLATFORM_TELEGRAM => is_valid_telegram_channel($id), PLATFORM_VK => is_valid_vk_domain($id), PLATFORM_RSS => is_valid_rss_url($id), default => false };
+}
+function source_id_for($platform, $id) {
+    return match ($platform) { PLATFORM_TELEGRAM => 'telegram:', PLATFORM_VK => 'vk:', PLATFORM_RSS => 'rss:', default => throw new InvalidArgumentException("Неизвестная площадка источника: $platform") } . strtolower($id);
+}
 function source_display_name($platform, $name) { return (SOURCE_NAME_PREFIXES[$platform] ?? '') . $name; }
 
 function is_trusted_source_url($url) {
@@ -155,7 +161,7 @@ function dvach_thread_engagement(array $posts, array $catalog_threads) {
 function fetch_telegram_channel_page($channel, $before = null) {
     if (!is_valid_telegram_channel($channel)) return false;
     return http_get('https://t.me/s/' . rawurlencode($channel) . ($before ? "?before=$before" : ''),
-        [CURLOPT_TIMEOUT => 12, CURLOPT_MAXREDIRS => 2, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; Postmaker/1.0)']);
+        [CURLOPT_TIMEOUT => 12, CURLOPT_MAXREDIRS => 2, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; Posta/1.0)']);
 }
 
 /** Блоки постов страницы: [[id поста, разметка]]. */
@@ -284,17 +290,22 @@ function vk_oauth_config() {
 }
 function vk_oauth_is_configured() { $c = vk_oauth_config(); return $c['client_id'] !== '' && $c['redirect_uri'] !== ''; }
 
-function vk_token_file() {
-    return trim((string)getenv('POSTMAKER_VK_TOKEN_FILE')) ?: sys_get_temp_dir() . '/postmaker-vk-' . substr(hash('sha256', ROOT . '/sources'), 0, 16) . '.json';
+/** Прежнее место токенов — файл в /tmp (у Apache он приватный и пропадает при перезагрузке). Нужен только для переноса в базу. */
+function vk_legacy_token_file() {
+    return trim((string)getenv('POSTA_VK_TOKEN_FILE')) ?: sys_get_temp_dir() . '/posta-vk-' . substr(hash('sha256', ROOT . '/sources'), 0, 16) . '.json';
 }
 
-function load_vk_tokens() { return load_data(vk_token_file(), []); }
+/** Токены VK сайта — в kv, зашифрованные ключом сервера. Старый файл при первом чтении переносится в базу и удаляется. */
+function load_vk_tokens() {
+    $tokens = json_decode((string)secret_decrypt((string)kv_get('vk_tokens', '')), true);
+    if (is_array($tokens)) return $tokens;
+    $legacy = load_data(vk_legacy_token_file(), []);
+    if ($legacy) { save_vk_tokens($legacy); @unlink(vk_legacy_token_file()); }
+    return $legacy;
+}
 
 function save_vk_tokens($tokens) {
-    $file = vk_token_file();
-    if (!is_writable(dirname($file))) throw new RuntimeException('Каталог для серверных токенов VK недоступен для записи.');
-    save_data($file, $tokens);
-    @chmod($file, 0600);
+    kv_update('vk_tokens', fn() => secret_encrypt(json_encode($tokens, JSON_UNESCAPED_UNICODE)));
 }
 
 function vk_oauth_post($url, $params) {
@@ -380,6 +391,7 @@ function build_source_preview_posts($source, $count = 4) {
     return match ($source['platform'] ?? '') {
         PLATFORM_TELEGRAM => ($html = fetch_telegram_channel_page(ltrim((string)($source['id'] ?? ''), '@'))) ? telegram_posts_from_html($html, $source, $count) : [],
         PLATFORM_VK => build_vk_preview_posts($source, $count),
+        PLATFORM_RSS => rss_preview_posts($source, $count),
         PLATFORM_DVACH => build_dvach_preview_posts($source, $count),
         default => []
     };
@@ -513,7 +525,7 @@ function popular_topics($limit = 5) {
     return array_slice(array_column($counts, 'topic'), 0, $limit);
 }
 
-// ---- Каталог источников (sources_db.json) ----
+// ---- Каталог источников (таблицы catalog_sources, source_votes, source_suggestions) ----
 // Каналы и паблики привязаны к темам (поле topics); без topics — источник для любой темы.
 
 function create_default_source_catalog() {
@@ -521,6 +533,7 @@ function create_default_source_catalog() {
     return [
         '2ch_boards' => ['b', 'me', 'pr', 'r', 'cc', 'a', 'mu', 'd', 's'],
         'vk_publics' => $tag([['mrzlk', 'MDK'], ['leprum', 'Лепрекон'], ['sci_one', 'Умный Юмор'], ['british_humor', 'БРИТИШ ЮМОР'], ['bessm_humor', 'ОВСЯНКА, СЭР!'], ['memes_2024', 'Мемы на каждый день']]),
+        'rss_feeds' => [],
         'telegram_channels' => $tag([['memesdaily', 'Мемы каждый день'], ['this_is_not_funny', 'Это не смешно'], ['humorhub', 'Humor Hub'], ['trashmemes', 'Trash memes'], ['russmemes', 'Русские мемы'], ['memechi', 'Meme Chi']]),
         'source_votes' => [],
         'source_suggestions' => [],      // находки автоподбора, ждут решения пользователя
@@ -533,7 +546,7 @@ function create_default_source_catalog() {
 function normalize_source_db($db) {
     $defaults = create_default_source_catalog();
     $out = $defaults;
-    foreach (['2ch_boards', 'vk_publics', 'telegram_channels'] as $key) $out[$key] = is_array($db[$key] ?? null) ? array_values($db[$key]) : $defaults[$key];
+    foreach (['2ch_boards', 'vk_publics', 'telegram_channels', 'rss_feeds'] as $key) $out[$key] = is_array($db[$key] ?? null) ? array_values($db[$key]) : $defaults[$key];
     $with_id = fn($key) => array_values(array_filter((array)($db[$key] ?? []), fn($e) => is_array($e) && !empty($e['source_id'])));
     $out['source_votes'] = $with_id('source_votes');
     $out['source_suggestions'] = $with_id('source_suggestions');
@@ -549,6 +562,7 @@ function load_source_db() {
         '2ch_boards' => array_values(array_filter($catalog['sources']['2ch_boards'] ?? [], 'is_string')),
         'vk_publics' => array_values($catalog['sources']['vk_publics'] ?? []),
         'telegram_channels' => array_values($catalog['sources']['telegram_channels'] ?? []),
+        'rss_feeds' => array_values($catalog['sources']['rss_feeds'] ?? []),
         'source_votes' => $catalog['votes'] ?? [],
         'source_suggestions' => $catalog['suggestions'] ?? [],
         'dvach_topic_boards' => $catalog['kv']['dvach_topic_boards'] ?? [],
@@ -570,6 +584,7 @@ function update_source_db(callable $mutator) {
                 '2ch_boards' => array_values($updated['2ch_boards'] ?? []),
                 'vk_publics' => array_values($updated['vk_publics'] ?? []),
                 'telegram_channels' => array_values($updated['telegram_channels'] ?? []),
+                'rss_feeds' => array_values($updated['rss_feeds'] ?? []),
             ],
             'votes' => array_values($updated['source_votes'] ?? []),
             'suggestions' => array_values($updated['source_suggestions'] ?? []),

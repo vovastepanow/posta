@@ -74,9 +74,11 @@ export function pickDateTime({ value = null } = {}) {
 
 const TEXT_LIMITS = { tg: [1024, 4096], vk: [16384, 16384] };   // [подпись к медиа, пост без медиа]
 const MAX_MEDIA = 10;
+const POLL_MAX_OPTIONS = 10;   // как в Telegram: от двух до десяти вариантов
 const drafts = new Map();   // черновики правок по записи, пока страница открыта
 let ui = null;
 let session = null;
+document.addEventListener('click', () => { if (ui?.targetMenu) ui.targetMenu.hidden = true; });   // меню «Куда» закрывается кликом в стороне
 
 const textLimit = (target, mediaCount) => (TEXT_LIMITS[String(target).split(':')[0]] || TEXT_LIMITS.tg)[mediaCount ? 0 : 1];
 const chip = (label, value) => el('span', { className: 'pe-chip' }, el('span', { className: 'pe-chip-label', textContent: label }), el('strong', { textContent: value }));
@@ -92,6 +94,8 @@ function buildUi() {
         description: button('pe-chip-btn', 'Описание ИИ', () => setText(session.options.description)),
         progress: el('div', { className: 'pe-progress-wrap', hidden: true }, el('span', { className: 'pe-progress-label' }),
             el('div', { className: 'pe-progress-bar' }, el('div', { className: 'pe-progress-fill' })), el('span', { className: 'pe-progress-text' })),
+        question: el('input', { type: 'text', className: 'pe-input', maxLength: 300, placeholder: 'Вопрос опроса' }),
+        pollOptions: el('div', { className: 'pe-poll-options' }), addOption: button('pe-btn pe-btn-ghost', 'Добавить вариант', addPollOption),
         cancel: button('pe-btn', 'Отмена', closeEditor), submit: el('button', { type: 'submit', className: 'pe-btn pe-btn-primary', textContent: 'Запостить' })
     };
     const reset = button('pe-btn pe-btn-ghost', 'Сбросить правки', () => {
@@ -101,14 +105,15 @@ function buildUi() {
         u.note.textContent = '';
         render();
     });
+    u.mediaSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Медиа' }), u.count), u.grid,
+        el('div', { className: 'pe-url-row' }, u.url, button('pe-btn pe-btn-ghost', 'Добавить по ссылке', addByUrl)), u.note, u.file);
+    u.textSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Текст' }), u.counter), u.text,
+        el('div', { className: 'pe-chip-row' }, u.original, u.description, button('pe-chip-btn', 'Очистить', () => setText(''))));
+    u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), u.question, u.pollOptions, u.addOption);
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
         u.chips,
-        el('div', { className: 'pe-body' },
-            el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Медиа' }), u.count), u.grid,
-                el('div', { className: 'pe-url-row' }, u.url, button('pe-btn pe-btn-ghost', 'Добавить по ссылке', addByUrl)), u.note, u.file),
-            el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Текст' }), u.counter), u.text,
-                el('div', { className: 'pe-chip-row' }, u.original, u.description, button('pe-chip-btn', 'Очистить', () => setText(''))))),
+        el('div', { className: 'pe-body' }, u.mediaSection, u.textSection, u.pollSection),
         u.warning,
         u.progress,
         el('footer', { className: 'pe-footer' }, u.summary, el('div', { className: 'pe-actions' }, reset, u.cancel, u.submit)));
@@ -116,6 +121,7 @@ function buildUi() {
     u.overlay.addEventListener('mousedown', e => { if (e.target === u.overlay) closeEditor(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && session) { e.preventDefault(); closeEditor(); } });
     u.text.addEventListener('input', () => session && render());
+    u.question.addEventListener('input', () => { if (session?.poll) { session.poll.question = u.question.value; render(); } });
     u.url.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addByUrl(); } });
     u.file.addEventListener('change', () => {
         const files = [...u.file.files].filter(f => /^(image|video)\//.test(f.type));
@@ -175,39 +181,167 @@ function mediaCard(item, i, total) {
 
 /** Медиа, счётчики и сводка; черновик сохраняется. */
 function render() {
-    const { media, options } = session;
+    const { media, poll, options } = session;
     ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
         media.length ? '' : el('div', { className: 'pe-empty', textContent: 'Медиа нет — пост уйдёт только с текстом' }),
         el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', onclick: () => ui.file.click() }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
     ui.count.textContent = `${media.length} / ${MAX_MEDIA}`;
     if (media.length < MAX_MEDIA && ui.note.textContent.startsWith('В пост помещается')) ui.note.textContent = '';
+    ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll);
+    if (poll) return renderPollState(poll);
     const text = ui.text.value;
-    const limit = textLimit(options.target.value, media.length);
+    const limit = Math.min(...options.picked.map(v => textLimit(v, media.length)));   // лимит — самый строгий из выбранных ресурсов
     const [empty, over] = [!media.length && !text.trim(), text.length > limit];
     ui.counter.textContent = `${text.length} / ${limit}`;
     ui.counter.classList.toggle('is-over', over);
     ui.submit.disabled = empty || over;
     ui.warning.hidden = !(empty || over);
     ui.warning.textContent = empty ? 'Добавьте медиа или текст.' : `Текст длиннее лимита: ${text.length} из ${limit}. Сократите его или уберите медиа.`;
-    ui.summary.textContent = `${media.length} медиа · ${text.length} ${pluralRu(text.length, 'символ', 'символа', 'символов')}`;
+    ui.summary.textContent = `${media.length} медиа · ${text.length} ${pluralRu(text.length, 'символ', 'символа', 'символов')} · ${options.picked.length} ${pluralRu(options.picked.length, 'ресурс', 'ресурса', 'ресурсов')}`;
     ui.original.disabled = !options.original;
     ui.description.disabled = !options.description;
     drafts.set(options.key, { media: media.map(m => ({ ...m })), text });
 }
 
+/** Подпись выбранных ресурсов: имя одного или «N из M». */
+const targetLabel = o => {
+    const picked = o.targets.filter(t => o.picked.includes(t.value));
+    return picked.length === 1 ? picked[0].label : `${picked.length} из ${o.targets.length}`;
+};
+
+/** Чип «Куда»: один ресурс — подпись; несколько — меню с галочками, отметить можно любые, хотя бы один остаётся. */
+function targetChip(o) {
+    if (o.targets.length < 2) return chip('Куда', targetLabel(o));
+    const label = el('strong', { textContent: `${targetLabel(o)} ▾` });
+    const boxes = o.targets.map(t => {
+        const box = el('input', { type: 'checkbox', checked: o.picked.includes(t.value) });
+        box.addEventListener('change', () => togglePicked(t.value, box));
+        return el('label', { className: 'pe-target-option' }, box, el('span', { textContent: t.label }));
+    });
+    const menu = el('div', { className: 'pe-target-menu', role: 'menu', hidden: true }, ...boxes);
+    menu.addEventListener('click', e => e.stopPropagation());   // клик по галочке не закрывает меню
+    const button = el('button', { type: 'button', className: 'pe-chip pe-chip-target', title: 'Выбрать ресурсы' },
+        el('span', { className: 'pe-chip-label', textContent: 'Куда' }), label);
+    button.onclick = e => { e.stopPropagation(); menu.hidden = !menu.hidden; ui.targetMenu = menu; };
+    ui.targetLabel = label;
+    return el('span', { className: 'pe-target' }, button, menu);
+}
+
+/** Галочка в меню «Куда»: меню остаётся открытым; последний выбранный ресурс снять нельзя. */
+function togglePicked(value, box) {
+    const o = session.options;
+    const picked = box.checked ? [...o.picked, value] : o.picked.filter(v => v !== value);
+    if (!picked.length) { box.checked = true; return; }
+    o.picked = o.targets.map(t => t.value).filter(v => picked.includes(v));
+    ui.targetLabel.textContent = `${targetLabel(o)} ▾`;
+    render();
+}
+
+/** Опрос вместо поста: медиа и текст скрываются, открываются вопрос и варианты. Через «Отложенные» Telegram опрос не ставится. */
+function togglePoll() {
+    const o = session.options;
+    session.poll = session.poll ? null : { question: '', options: ['', ''] };
+    if (session.poll && o.mode === 'native') o.mode = 'queue';
+    renderPoll();
+    renderWhen();
+    render();
+}
+
+/** Строки вариантов перестраиваются только при открытии, добавлении и удалении: при вводе фокус остаётся в поле. */
+function renderPoll() {
+    const poll = session?.poll;
+    ui.pollSection.hidden = !poll;
+    if (!poll) return;
+    ui.question.value = poll.question;
+    ui.pollOptions.replaceChildren(...poll.options.map((value, i) => {
+        const input = el('input', { type: 'text', className: 'pe-input', maxLength: 100, value, placeholder: `Вариант ${i + 1}` });
+        input.addEventListener('input', () => { poll.options[i] = input.value; render(); });
+        return el('div', { className: 'pe-poll-row' }, input,
+            poll.options.length > 2 ? button('pe-chip-btn', '✕', () => { poll.options.splice(i, 1); renderPoll(); render(); }, { ariaLabel: 'Убрать вариант' }) : null);
+    }));
+    ui.addOption.disabled = poll.options.length >= POLL_MAX_OPTIONS;
+}
+
+function addPollOption() {
+    session.poll.options.push('');
+    renderPoll();
+    render();
+    ui.pollOptions.lastElementChild?.querySelector('input')?.focus();
+}
+
+/** Кнопка отправки для опроса: вопрос и минимум два заполненных варианта. */
+function renderPollState(poll) {
+    const filled = poll.options.map(v => v.trim()).filter(Boolean);
+    const ready = poll.question.trim() !== '' && filled.length >= 2;
+    ui.submit.disabled = !ready;
+    ui.warning.hidden = ready;
+    ui.warning.textContent = 'Напишите вопрос и минимум два варианта ответа.';
+    ui.summary.textContent = `Опрос · ${filled.length} ${pluralRu(filled.length, 'вариант', 'варианта', 'вариантов')}`;
+}
+
+/** Переключатель «Опрос» в строке чипов. */
+function pollChip() {
+    const on = Boolean(session.poll);
+    return el('button', { type: 'button', className: `pe-chip pe-chip-poll${on ? ' is-on' : ''}`, title: 'Опрос вместо текста и медиа', textContent: on ? '📊 Опрос ✕' : '📊 Опрос', onclick: togglePoll });
+}
+
 /** «Куда / Когда»; «Когда» открывает то же окно выбора времени. */
+/** Подпись «Когда»: сразу, слот канала или дата и способ — через «Отложенные» Telegram или через очередь Posta. */
+function whenLabel(o) {
+    if (o.mode === 'slot') return o.picked.length > 1 ? 'в ближайший слот каждого канала' : `в слот · ${formatWhen(new Date(o.slotAt * 1000))}`;
+    if (!o.scheduledTs) return 'сразу';
+    return `${formatWhen(new Date(o.scheduledTs * 1000))} · ${o.mode === 'native' ? '«Отложенные» Telegram' : 'очередь Posta'}`;
+}
+
+function setWhen(o, patch) {
+    Object.assign(o, patch);
+    renderWhen();
+    render();
+}
+
+async function pickDate(o) {
+    const chosen = await pickDateTime({ value: o.scheduledTs ? new Date(o.scheduledTs * 1000) : null });
+    if (chosen === undefined || !session) return;
+    if (!chosen) return setWhen(o, { mode: 'now', scheduledTs: 0, scheduledAt: '' });
+    const mode = o.mode === 'native' || o.mode === 'queue' ? o.mode : (o.schedule?.native ? 'native' : 'queue');
+    setWhen(o, { mode, scheduledTs: Math.floor(chosen.getTime() / 1000), scheduledAt: formatWhen(chosen) });
+}
+
+/** Ближайший свободный слот: у каждого канала свой, сервер выберет при публикации; здесь показываем слот первого канала с расписанием. */
+async function pickSlot(o) {
+    const first = o.picked.find(v => o.schedule.slots(v));
+    if (!first) { ui.note.textContent = 'У выбранных ресурсов нет расписания: «Соцсети» → канал → «Расписание».'; return; }
+    const slot = await o.schedule.nextSlot(first).catch(() => null);
+    if (!session) return;
+    if (!slot || slot.none) { ui.note.textContent = 'В расписании канала нет свободного слота в ближайшие 60 дней.'; return; }
+    setWhen(o, { mode: 'slot', slotAt: slot.slot_at, scheduledTs: slot.slot_at, scheduledAt: formatWhen(new Date(slot.slot_at * 1000)) });
+}
+
+/** Чип «Когда»: меню — сразу, ближайший слот канала (если расписание есть), дата; при личном аккаунте — выбор способа. */
+function whenChip(o) {
+    const items = [
+        { label: 'Сразу', run: () => setWhen(o, { mode: 'now', scheduledTs: 0, scheduledAt: '' }) },
+        ...(o.schedule ? [{ label: 'В ближайший слот', run: () => pickSlot(o) }] : []),
+        { label: 'Выбрать дату и время…', run: () => pickDate(o) },
+        ...(o.scheduledTs && o.schedule?.native && o.mode !== 'slot' && !session.poll ? [
+            { label: o.mode === 'native' ? '✓ Через «Отложенные» Telegram' : 'Через «Отложенные» Telegram', run: () => setWhen(o, { mode: 'native' }) },
+            { label: o.mode === 'queue' ? '✓ Через очередь Posta' : 'Через очередь Posta', run: () => setWhen(o, { mode: 'queue' }) },
+        ] : []),
+    ];
+    const menu = el('div', { className: 'pe-target-menu', role: 'menu', hidden: true }, ...items.map(item => {
+        const button = el('button', { type: 'button', role: 'menuitem', textContent: item.label });
+        button.onclick = () => { menu.hidden = true; item.run(); };
+        return button;
+    }));
+    const toggle = el('button', { type: 'button', className: 'pe-chip pe-chip-when', title: 'Выбрать время публикации' },
+        el('span', { className: 'pe-chip-label', textContent: 'Когда' }), el('strong', { textContent: whenLabel(o) }));
+    toggle.onclick = e => { e.stopPropagation(); menu.hidden = !menu.hidden; ui.targetMenu = menu; };
+    return el('span', { className: 'pe-target' }, toggle, menu);
+}
+
 function renderWhen() {
     const o = session.options;
-    const when = el('button', { type: 'button', className: 'pe-chip pe-chip-when', title: 'Выбрать дату и время публикации' },
-        el('span', { className: 'pe-chip-label', textContent: 'Когда' }), el('strong', { textContent: o.scheduledTs ? formatWhen(new Date(o.scheduledTs * 1000)) : 'сразу' }));
-    when.addEventListener('click', async () => {
-        const chosen = await pickDateTime({ value: o.scheduledTs ? new Date(o.scheduledTs * 1000) : null });
-        if (chosen === undefined || !session) return;
-        o.scheduledTs = chosen ? Math.floor(chosen.getTime() / 1000) : 0;
-        o.scheduledAt = chosen ? formatWhen(chosen) : '';
-        renderWhen();
-    });
-    ui.chips.replaceChildren(chip('Куда', o.target.label), when);
+    ui.chips.replaceChildren(targetChip(o), whenChip(o), pollChip());
     ui.title.textContent = o.scheduledTs ? 'Отложенный пост' : 'Новый пост';
     ui.submit.textContent = o.scheduledTs ? 'Запланировать' : 'Запостить';
 }
@@ -231,8 +365,10 @@ async function submit(e) {
     onProgress({ stage: 'Готовлю пост…', percent: null });
     ui.progress.hidden = false;
     try {
-        const post = { target: options.target.value, scheduledAt: options.scheduledAt, scheduledTs: options.scheduledTs || 0,
-            media: media.map(({ kind, src, name, file }) => ({ kind, src, name, file })), text: ui.text.value.trim() };
+        const { poll } = session;
+        const post = { targets: [...options.picked], mode: options.mode, scheduledAt: options.scheduledAt, scheduledTs: options.mode === 'now' ? 0 : options.scheduledTs || 0,
+            media: poll ? [] : media.map(({ kind, src, name, file }) => ({ kind, src, name, file })), text: poll ? '' : ui.text.value.trim(),
+            poll: poll ? { question: poll.question.trim(), options: poll.options.map(v => v.trim()).filter(Boolean) } : null };
         await options.onSubmit(post, onProgress);
         drafts.delete(options.key);
         closeEditor();
@@ -253,14 +389,17 @@ function closeEditor() {
     session = null;
 }
 
-/** options: { key, target: {value, label}, scheduledAt, scheduledTs, media: [{kind, src, thumb, name}], original, description, onSubmit(post) → Promise }. */
+/** options: { key, targets: [{value, label}], picked: [value], scheduledAt, scheduledTs, media: [{kind, src, thumb, name}], original, description, schedule, onSubmit(post) → Promise }.
+ *  post.targets — значения выбранных ресурсов; post.poll — {question, options} вместо текста и медиа. */
 export function openPostEditor(options) {
     ui ||= buildUi();
+    options.mode ??= options.scheduledTs ? (options.schedule?.native ? 'native' : 'queue') : 'now';
+    options.picked = [...options.picked];
     const draft = drafts.get(options.key);
-    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), dragFrom: null };
+    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: null, dragFrom: null };
+    renderPoll();
     renderWhen();
-    const isTgOrVk = String(options.target.value).startsWith('tg:') || String(options.target.value).startsWith('vk:');
-    ui.text.value = draft ? draft.text : (options.original || (isTgOrVk ? options.description : '') || '');
+    ui.text.value = draft ? draft.text : (options.original || options.description || '');
     ui.note.textContent = ui.url.value = '';
     ui.overlay.hidden = false;
     document.body.classList.add('post-editor-open');

@@ -30,7 +30,9 @@ export const NO_TEXT = ['Текст к посту отсутствует', 'По
 export function safeSourcePostUrl(record) {
     try {
         const url = new URL(record?.source_url);
-        return url.protocol === 'https:' && ['2ch.hk', 't.me', 'vk.com'].includes(url.hostname) ? url.href : '';
+        if (url.protocol !== 'https:') return '';
+        // RSS: адрес уже проверен сервером (source_post_url) — хост совпадает с хостом ленты
+        return String(record?.source_key || '').startsWith('rss:') || ['2ch.hk', 't.me', 'vk.com'].includes(url.hostname) ? url.href : '';
     } catch { return ''; }
 }
 
@@ -59,6 +61,20 @@ export function bindMenu(button, menu, onPick) {
     document.addEventListener('click', event => { if (!menu.hidden && !menu.parentElement.contains(event.target)) setOpen(false); });
     document.addEventListener('keydown', event => { if (event.key === 'Escape') setOpen(false); });
     return setOpen;
+}
+
+// ---- Текущая тема поиска: одно место на всё приложение ----
+// Сама настройка живёт на сервере (settings.topic); здесь — её последняя копия. Записывает только refreshTopicLabel,
+// остальные (подбор, «Предложка», «Дерево», «Базы данных») читают currentTopic() и перерисовываются по onTopicChange.
+const topicState = { topic: '', topic2: '' };
+const topicListeners = new Set();
+export const currentTopic = () => ({ ...topicState });
+export const onTopicChange = fn => topicListeners.add(fn);
+export function setCurrentTopic(topic, topic2 = '') {
+    if (topic === topicState.topic && topic2 === topicState.topic2) return;
+    const first = topicState.topic === '';
+    Object.assign(topicState, { topic, topic2 });
+    if (!first) topicListeners.forEach(fn => fn(currentTopic()));   // первая загрузка — не смена
 }
 
 // ---- Журнал ----
@@ -113,7 +129,7 @@ function appendConsole(entry) {
 export function log(message) {
     const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const ai = AI_LINE.exec(message);
-    if (!ai) return appendConsole(el('p', { className: 'activity-console-line' }, `${time} `, ...linkify(message)));
+    if (!ai) return appendConsole(el('p', { className: 'activity-console-line' }, el('span', { className: 'console-time', textContent: time }), ' ', ...linkify(message)));
     const [, direction, model, text] = ai;
     if (direction === 'мысли+' && console_.live) {
         console_.live.querySelector('.ai-message-text').append(` ${text}`);
@@ -173,7 +189,7 @@ export async function api(action, { body, params } = {}) {
     if (ACTION_LABELS[action]) log(ACTION_LABELS[action]);
     const options = { method: body === undefined ? 'GET' : 'POST', headers: {} };
     if (options.method === 'POST') {
-        options.headers['X-Postmaker'] = '1';
+        options.headers['X-Posta'] = '1';
         if (body instanceof FormData) options.body = body;
         else if (body !== null) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); }
     }
@@ -269,7 +285,7 @@ export async function startTabSession() {
     if (DEBUG_MODE) return;
     $('tab-inactive-reload').addEventListener('click', () => location.reload());
     addEventListener('pagehide', () => {   // keepalive: запрос дойдёт и после закрытия; не дошёл — сервер остановит сам по таймауту
-        if (!session.inactive) fetch(apiUrl('tab_close'), { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', 'X-Postmaker': '1' }, body: JSON.stringify({ tab: TAB_ID }) }).catch(() => {});
+        if (!session.inactive) fetch(apiUrl('tab_close'), { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', 'X-Posta': '1' }, body: JSON.stringify({ tab: TAB_ID }) }).catch(() => {});
         clearInterval(session.timer);
     });
     addEventListener('pageshow', event => { if (event.persisted) claimSession().catch(() => {}); });

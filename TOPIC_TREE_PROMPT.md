@@ -1,6 +1,6 @@
-# Задача: встроить готовое дерево тем в проект Postmaker
+# Задача: встроить готовое дерево тем в проект Posta
 
-Ты работаешь в PHP-проекте `/var/www/html/postmaker`. Проект подбирает картинки и видео из соцсетей по теме,
+Ты работаешь в PHP-проекте `/var/www/html/posta`. Проект подбирает картинки и видео из соцсетей по теме,
 которую выбирает пользователь. Локальные модели (Ollama, qwen) оценивают каждую запись по теме.
 
 Нужно сделать две вещи:
@@ -23,7 +23,7 @@
 - **Пиши в стиле проекта.** Короткие функции, комментарии по-русски, без лишних абстракций и классов.
 - **Перед любым запуском, который пишет в базу, сделай копию:**
   ```
-  cp data/postmaker.sqlite data/postmaker.sqlite.bak-topics
+  cp data/posta.sqlite data/posta.sqlite.bak-topics
   ```
 
 ## Как сейчас устроены темы
@@ -292,11 +292,11 @@ other | Разное | Не подходит ни под одну тему вы�
 php -l lib/topic_tree.php
 php -l lib/topics.php
 php -l tools/cli.php
-cp data/postmaker.sqlite data/postmaker.sqlite.bak-topics
+cp data/posta.sqlite data/posta.sqlite.bak-topics
 php tools/cli.php seed-topics
 php tools/cli.php seed-topics
-sqlite3 data/postmaker.sqlite "select json_extract(data,'$.scope'), count(*) from topics group by 1"
-sqlite3 data/postmaker.sqlite "select id, json_extract(data,'$.title'), json_extract(data,'$.parent') from topics where json_extract(data,'$.title') in ('Мемы и юмор','Порно','Фап контент')"
+sqlite3 data/posta.sqlite "select json_extract(data,'$.scope'), count(*) from topics group by 1"
+sqlite3 data/posta.sqlite "select id, json_extract(data,'$.title'), json_extract(data,'$.parent') from topics where json_extract(data,'$.title') in ('Мемы и юмор','Порно','Фап контент')"
 ```
 
 Ожидаемый результат:
@@ -319,7 +319,7 @@ php -r 'require "bootstrap.php"; foreach (["мемы и юмор","мемы и �
 Если хоть что-то не совпало, восстанови базу из копии и исправляй код:
 
 ```
-cp data/postmaker.sqlite.bak-topics data/postmaker.sqlite
+cp data/posta.sqlite.bak-topics data/posta.sqlite
 ```
 
 ## Часть B. Форма поста

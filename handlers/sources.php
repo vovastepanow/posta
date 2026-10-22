@@ -123,8 +123,8 @@ function handle_suggest_sources($in) {
 }
 
 function source_vote_record(array $s, $vote) {
-    if (($id = trim((string)($s['source_id'] ?? ''))) === '' || strlen($id) > 200) json_error('Некорректный источник.');
-    return ['source_id' => $id, 'platform' => in_array($s['platform'] ?? '', [PLATFORM_DVACH, PLATFORM_TELEGRAM, PLATFORM_VK], true) ? $s['platform'] : 'Неизвестно',
+    if (($id = trim((string)($s['source_id'] ?? ''))) === '' || strlen($id) > 600) json_error('Некорректный источник.');
+    return ['source_id' => $id, 'platform' => in_array($s['platform'] ?? '', [PLATFORM_DVACH, PLATFORM_TELEGRAM, PLATFORM_VK, PLATFORM_RSS], true) ? $s['platform'] : 'Неизвестно',
         'name' => mb_substr(trim((string)($s['name'] ?? '')), 0, 200) ?: 'Источник', 'vote' => $vote, 'timestamp' => time()]
         + (is_valid_dvach_board($s['board'] ?? '') ? ['board' => (string)$s['board']] : []) + (is_valid_dvach_id($s['thread_id'] ?? '') ? ['thread_id' => (string)$s['thread_id']] : []);
 }
@@ -195,7 +195,7 @@ function handle_discover_sources() {
 function handle_discovery_status() {
     $db = load_source_db();
     $topic = current_topic();
-    $entries = array_filter(array_merge($db['telegram_channels'], $db['vk_publics']), fn($e) => catalog_entry_matches_topic($e, $topic));
+    $entries = array_filter(array_merge($db["telegram_channels"], $db["vk_publics"], $db["rss_feeds"]), fn($e) => catalog_entry_matches_topic($e, $topic));
     $entry = topic_ensure($topic);
     json_response(['enabled' => SOURCE_DISCOVERY_ENABLED, 'topic' => $topic, 'topic_info' => $entry ? topic_public($entry, $db) : null, 'last_topic' => $db['discovery']['topic'],
         'last_run' => (int)$db['discovery']['last_run'], 'requested' => (bool)$db['discovery']['requested'],
@@ -214,8 +214,10 @@ function handle_topic_sources() {
         $id = ltrim((string)($e['id'] ?? ''), '@');
         $subs = (int)($e['audience']['subscribers'] ?? 0);
         $tg = $platform === PLATFORM_TELEGRAM;
+        $rss = $platform === PLATFORM_RSS;
+        if ($rss && !is_valid_rss_url($id)) continue;
         $cards[] = ['source_id' => source_id_for($platform, $id), 'platform' => $platform, 'id' => $id, 'name' => (string)($e['name'] ?? $id),
-            'url' => ($tg ? 'https://t.me/' : 'https://vk.com/') . rawurlencode($id), 'handle' => ($tg ? '@' : 'vk.com/') . $id, 'topics' => array_values((array)($e['topics'] ?? [])),
+            'url' => $rss ? $id : ($tg ? 'https://t.me/' : 'https://vk.com/') . rawurlencode($id), 'handle' => $rss ? (string)parse_url($id, PHP_URL_HOST) : ($tg ? '@' : 'vk.com/') . $id, 'topics' => array_values((array)($e['topics'] ?? [])),
             'own' => !empty($e['topics']) && catalog_entry_matches_topic($e, $topic, true), 'auto' => !empty($e['auto']), 'score' => isset($e['score']) ? (int)$e['score'] : null,
             'subscribers' => $subs, 'subscribers_label' => $subs ? format_subscribers($subs) : '', 'view_rate' => isset($e['audience']['view_rate']) ? (float)$e['audience']['view_rate'] : null,
             'activity' => is_array($e['activity'] ?? null) ? describe_source_activity($e['activity']) : '', 'frozen' => isset($e['frozen_until']),
@@ -245,7 +247,7 @@ function handle_remove_topic_source($in) {
         });
         ok();
     }
-    if (!isset(CATALOG_KEYS[$platform]) || $id === '' || strlen($id) > 100) json_error('Некорректный источник.');
+    if (!isset(CATALOG_KEYS[$platform]) || $id === '' || strlen($id) > 500) json_error('Некорректный источник.');
     $source = ['platform' => $platform, 'id' => $id, 'name' => (string)($in['name'] ?? $id), 'source_id' => source_id_for($platform, $id)];
     $record = source_vote_record($source, 'reject') + ['topic' => $topic, 'reason' => 'other'];
     update_source_db(function ($db) use ($record, $source, $topic) {
@@ -253,4 +255,12 @@ function handle_remove_topic_source($in) {
         return remove_rejected_source_from_catalog($db, $source, $topic);
     });
     ok();
+}
+
+/** «Добавить источник»: ссылка на Telegram-канал, паблик VK или сайт/RSS — в каталог с текущей темой. */
+function handle_add_topic_source($in) {
+    $link = (string)($in['link'] ?? '');
+    if (mb_strlen($link) > SOURCE_ADD_MAX_LINK) json_error('Ссылка слишком длинная.');
+    if (topic_save_denied($topic = current_topic()) !== null) json_error('Тема «' . $topic . '» недоступна: выберите другую тему.');
+    ok(source_add_manual($link, $topic));
 }

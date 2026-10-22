@@ -1,5 +1,5 @@
 <?php
-// Функции доступа к данным: замена load_data/update_data для всех таблиц.
+// Функции доступа к данным SQLite: пользователи, пул, история, очередь, каталог, kv.
 
 // ---- Пользователи и настройки ----
 
@@ -38,6 +38,11 @@ function update_settings(callable $fn, $uid = null): array {
 /** Список всех пользователей. */
 function user_ids(): array {
     return array_column(db_all('SELECT id FROM users ORDER BY last_seen DESC'), 'id');
+}
+
+/** Когда последний раз сверялись с источником: proposals — «Предложка», threads — треды Двача в пуле. 0 — не сверялись. */
+function user_checked_at($what, $uid = null): int {
+    return (int)db_value('SELECT ' . ($what === 'threads' ? 'threads_checked_at' : 'proposals_checked_at') . ' FROM users WHERE id = ?', [$uid ?: app_user_id()]);
 }
 
 /** Обновить proposals_checked_at. */
@@ -155,7 +160,7 @@ function all_users_pool_items(): array {
 
 // ---- Соединения (Telegram, VK) ----
 
-/** Загрузить connections.json. */
+/** Подключения пользователя (Telegram, VK) из users.connections. */
 function connections_load($uid = null): array {
     $uid = $uid ?: app_user_id();
     $data = db_value('SELECT connections FROM users WHERE id = ?', [$uid]);
@@ -172,6 +177,94 @@ function connections_update(callable $fn, $uid = null): array {
         if ($updated === null) return $current;
         db_exec('UPDATE users SET connections = ? WHERE id = ?', [db_json($updated), $uid]);
         return $updated;
+    });
+}
+
+// ---- Каналы (несколько Telegram-каналов на пользователя) ----
+
+/** Строка таблицы channels → канал: токен расшифрован в поле 'token' (без token_enc). Битый токен — канал без 'token'. */
+function channel_from_row(array $row): array {
+    $c = ['id' => $row['id'], 'platform' => $row['platform'], 'position' => (int)$row['position'], 'bot_id' => (int)$row['bot_id'], 'bot_username' => $row['bot_username'],
+        'chat_id' => (int)$row['chat_id'], 'chat_title' => $row['chat_title'], 'chat_username' => $row['chat_username'], 'chat_type' => $row['chat_type'], 'connected_at' => (int)$row['connected_at'],
+        'schedule' => db_unjson($row['schedule'] ?? '', [])];
+    $token = secret_decrypt($row['token_enc']);
+    if ($token !== null && $token !== '') $c['token'] = $token;
+    return $c;
+}
+
+/** Каналы пользователя по position. Пока таблица пуста, переносит старый канал из connections.telegram. */
+function channels_load($uid = null): array {
+    $uid = $uid ?: app_user_id();
+    if (!db_value('SELECT 1 FROM channels WHERE user_id = ? LIMIT 1', [$uid])) channels_import_legacy($uid);
+    return array_map('channel_from_row', db_all('SELECT * FROM channels WHERE user_id = ? ORDER BY position, connected_at', [$uid]));
+}
+
+/** Канал пользователя по id или null (чужой id — тоже null). */
+function channel_get($channel_id, $uid = null): ?array {
+    $uid = $uid ?: app_user_id();
+    $row = db_one('SELECT * FROM channels WHERE id = ? AND user_id = ?', [(string)$channel_id, $uid]);
+    return $row ? channel_from_row($row) : null;
+}
+
+/**
+ * Добавить или обновить (по chat_id) канал; возвращает его id. Новый канал встаёт в конец списка,
+ * если не задан position (0 — первым). Токен передаётся открытым и хранится зашифрованным.
+ */
+function channel_save(array $channel, $uid = null): string {
+    $uid = $uid ?: app_user_id();
+    return db_tx(function () use ($channel, $uid) {
+        db_exec('INSERT OR IGNORE INTO users (id, created_at) VALUES (?, ?)', [$uid, time()]);
+        $fields = ['token_enc' => secret_encrypt((string)($channel['token'] ?? '')), 'bot_id' => (int)($channel['bot_id'] ?? 0), 'bot_username' => (string)($channel['bot_username'] ?? ''),
+            'chat_title' => (string)($channel['chat_title'] ?? ''), 'chat_username' => (string)($channel['chat_username'] ?? ''), 'chat_type' => (string)($channel['chat_type'] ?? ''),
+            'connected_at' => (int)($channel['connected_at'] ?? time())];
+        if ($id = db_value('SELECT id FROM channels WHERE user_id = ? AND chat_id = ?', [$uid, (int)$channel['chat_id']])) {
+            db_exec('UPDATE channels SET ' . implode(', ', array_map(fn($k) => "$k = ?", array_keys($fields))) . ' WHERE id = ?', [...array_values($fields), $id]);
+            return $id;
+        }
+        $id = 'c' . bin2hex(random_bytes(5));
+        $position = isset($channel['position']) ? (int)$channel['position'] : (int)db_value('SELECT COALESCE(MAX(position), -1) + 1 FROM channels WHERE user_id = ?', [$uid]);
+        db_exec('INSERT INTO channels (id, user_id, position, chat_id, ' . implode(', ', array_keys($fields)) . ') VALUES (?, ?, ?, ?, ' . implode(', ', array_fill(0, count($fields), '?')) . ')',
+            [$id, $uid, $position, (int)$channel['chat_id'], ...array_values($fields)]);
+        return $id;
+    });
+}
+
+/** Удалить канал пользователя. Старый канал из connections не возвращается: см. channels_import_legacy. */
+function channel_delete($channel_id, $uid = null): bool {
+    $uid = $uid ?: app_user_id();
+    kv_update('channels_legacy_done:' . $uid, fn() => 1);
+    return db_exec('DELETE FROM channels WHERE id = ? AND user_id = ?', [(string)$channel_id, $uid]) > 0;
+}
+
+/** Сделать канал первым (каналом по умолчанию): остальные сохраняют порядок. */
+function channel_make_default($channel_id, $uid = null): void {
+    $uid = $uid ?: app_user_id();
+    db_tx(function () use ($channel_id, $uid) {
+        $ids = array_column(db_all('SELECT id FROM channels WHERE user_id = ? ORDER BY position, connected_at', [$uid]), 'id');
+        if (!in_array((string)$channel_id, $ids, true)) throw new InvalidArgumentException('Такого канала нет.');
+        foreach ([(string)$channel_id, ...array_values(array_diff($ids, [(string)$channel_id]))] as $i => $id) {
+            db_exec('UPDATE channels SET position = ? WHERE id = ?', [$i, $id]);
+        }
+    });
+}
+
+/**
+ * Старый канал из connections.telegram — в channels первым (position 0), остальные сдвигаются. Повторно не переносит:
+ * после переноса или удаления отметка в kv. true — перенесли сейчас.
+ */
+function channels_import_legacy($uid = null): bool {
+    $uid = $uid ?: app_user_id();
+    $t = connections_load($uid)['telegram'] ?? null;
+    if (!is_array($t) || empty($t['chat_id']) || empty($t['token_enc']) || kv_get('channels_legacy_done:' . $uid)) return false;
+    if (($token = secret_decrypt($t['token_enc'])) === null || $token === '') return false;
+    return db_tx(function () use ($uid, $t, $token) {
+        if (db_value('SELECT 1 FROM channels WHERE user_id = ? AND chat_id = ?', [$uid, (int)$t['chat_id']])) return false;
+        db_exec('UPDATE channels SET position = position + 1 WHERE user_id = ?', [$uid]);
+        channel_save(['token' => $token, 'position' => 0, 'bot_id' => $t['bot_id'] ?? 0, 'bot_username' => $t['bot_username'] ?? '', 'chat_id' => $t['chat_id'],
+            'chat_title' => $t['chat_title'] ?? '', 'chat_username' => $t['chat_username'] ?? '', 'chat_type' => $t['chat_type'] ?? '',
+            'connected_at' => $t['connected_at'] ?? time()], $uid);
+        kv_update('channels_legacy_done:' . $uid, fn() => 1);
+        return true;
     });
 }
 

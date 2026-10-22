@@ -1,5 +1,6 @@
 <?php
 // Утилиты: php tools/cli.php <команда> [аргументы]
+//   adult-allow <id> on|off        — разрешить пользователю 18+ и «Жесть» (или запретить)
 //   nightly-discovery [N]          — подбор источников для N популярных тем (cron: 0 4 * * *)
 //   check-threads [--dry-run]      — убрать из пулов записи удалённых тредов Двача
 //   backfill-proposals [id] [--force] — достроить медиа записей «Предложки» (запускается сайтом сам)
@@ -10,6 +11,18 @@
 //   tag-content [N] [--dry-run]    — метки (темы дерева) записям без меток, по описанию ИИ; N запросов к модели (20)
 //   phash-backfill [--dry-run]     — для записей пула и истории без phash считает отпечаток по локальному файлу
 //   phash-report [N]               — печатает N самых близких пар разных картинок (по умолчанию 30)
+//   migrate-json [--apply]         — остатки JSON (ключи Telegram, лимиты, горячие темы) в базу, старые JSON-файлы — в архив
+//   balance-add <id> <₽> [заметка] — пополнить баланс пользователя (пока нет приёма платежей)
+//   outbox-gc                      — удалить папки файлов отложенных постов, у которых уже нет поста в очереди
+//   channels-migrate [--dry-run]   — перенести старый канал пользователя (connections.telegram) в таблицу каналов
+//   login-bot-from-channel <id>    — подключить бот входа к токену бота канала пользователя
+//   users-gc [--dry-run]           — удалить пустые профили (заход без куки) и брошенные дольше USER_RETENTION_DAYS
+//   users-merge <из> <в> [--dry-run] — слить два профиля, один в другой
+//   media-cleanup [--dry-run] [--force] — очистить кэш медиа (без файлов, на которые ссылаются записи)
+//   media-audit [id]                   — проверить состояние медиа (только чтение): файлы, старые пути, источники
+//   media-repair [id] [--dry-run]      — исправить пути, пометить записи на перезагрузку медиа
+//   leads-scan [<uid>|--all] [--log=<файл>] — проход радара лидов (один пользователь или всем с включённым), журнал в stdout и файл
+//   admin-password                     — задать пароль владельца для админки радара (admin/), дважды, без эха
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Только из командной строки.'); }
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../handlers/content.php';
@@ -53,20 +66,20 @@ case 'backfill-engagement':
     $cache = [];
     foreach (user_ids() as $uid) {
         $snapshots = [];
-        foreach (load_data(pool_file($uid), []) as $item) {
+        foreach (pool_load($uid) as $item) {
             if (empty($item['engagement']) && ($s = engagement_backfill_item($item, $cache))) $snapshots[content_image_key($item)] = $s + ['backfilled' => true];
         }
         $applied = 0;
-        update_data(pool_file($uid), [], function ($pool) use ($snapshots, &$applied) {
+        pool_update(function ($pool) use ($snapshots, &$applied) {
             foreach ($pool as &$i) if (empty($i['engagement']) && isset($snapshots[$k = content_image_key($i)])) { $i['engagement'] = $snapshots[$k]; $applied++; }
             return $applied ? $pool : null;
-        });
+        }, $uid);
         printf("%s: дособрано %d\n", $short($uid), $applied);
     }
     break;
 
 case 'engagement-report':
-    engagement_report($args ?: array_map('history_file', user_ids()));
+    engagement_report($args ?: user_ids());
     break;
 
 case 'rescore-sources':
@@ -74,7 +87,7 @@ case 'rescore-sources':
     break;
 
 case 'migrate-media':
-    // Без --apply только отчёт. Перед --apply: копия базы (sqlite3 data/postmaker.sqlite ".backup …")
+    // Без --apply только отчёт. Перед --apply: копия базы (sqlite3 data/posta.sqlite ".backup …")
     $r = media_migrate(ROOT . '/media_cache', $flag('apply'));
     echo ($r['applied'] ? 'Перенесено' : 'Будет перенесено') . ": файлов {$r['files']}" . ($r['applied'] ? ", перемещено {$r['moved']}" : '') . ", строк в базе {$r['rows']}\n";
     echo "Откуда: {$r['from']}\nКуда: {$r['to']}\n";
@@ -101,21 +114,124 @@ case 'tag-content':
     break;
 
 case 'migrate-json':
-    echo "Миграция JSON → SQLite\n";
-    if (is_file(SOURCES_FILE)) {
-        $sources = load_data(SOURCES_FILE, []);
-        update_source_db(fn() => $sources);
-        echo "  ✓ sources_db.json\n";
+    // Последний шаг переезда: настройки сайта из JSON — в kv, старые JSON-файлы — в архив data/json-archive-<дата>/ (не удаляются)
+    $apply = $flag('apply');
+    echo $apply ? "Перенос остатков JSON → SQLite\n" : "Только отчёт; перенести — с --apply (перед этим: sqlite3 data/posta.sqlite \".backup …\")\n";
+    foreach (['telegram_app.json' => 'telegram_app_keys', 'telegram_limits.json' => 'telegram_limits', 'hot_topics.json' => 'hot_topics'] as $file => $key) {
+        $data = is_file(ROOT . "/$file") ? json_decode((string)file_get_contents(ROOT . "/$file"), true) : null;
+        if (!is_array($data)) continue;
+        $have = kv_get($key) !== null;
+        echo "  $file → kv[$key]" . ($have ? ' (в базе уже есть — файл не нужен)' : '') . "\n";
+        if ($apply && !$have) kv_update($key, fn() => $data);
     }
-    foreach (user_ids() as $uid) {
-        app_user_bind($uid);
-        if (is_file(settings_file())) db_save_settings(load_data(settings_file(), []), $uid);
-        if (is_file(pool_file())) pool_update(fn() => load_data(pool_file(), []), $uid);
-        if (is_file(history_file())) history_update(fn() => load_data(history_file(), []), $uid);
-        if (is_file(connections_file())) connections_update(fn() => load_data(connections_file(), []), $uid);
-        echo "  ✓ users/" . substr($uid, 0, 8) . "\n";
+    // Профили, которые остались только в папках users/<id>/ (прежний импорт перебирал лишь тех, кто уже был в базе). Без оценок — мусор от заходов без куки.
+    foreach (glob(USERS_DIR . '/*/history.json') ?: [] as $file) {
+        $uid = basename(dirname($file));
+        $dir = dirname($file);
+        $history = load_data($file, []);
+        if (!is_valid_user_id($uid) || db_value('SELECT 1 FROM users WHERE id = ?', [$uid]) || !array_sum(array_map('count', array_intersect_key($history, array_flip(HISTORY_COLLECTIONS))))) continue;
+        echo "  профиль {$short($uid)} есть только в папке — переношу в базу (оценок: " . array_sum(array_map('count', array_intersect_key($history, array_flip(HISTORY_COLLECTIONS)))) . ")\n";
+        if (!$apply) continue;
+        db_tx(function () use ($uid, $dir, $history) {
+            db_exec('INSERT INTO users (id, created_at, last_seen) VALUES (?, ?, ?)', [$uid, (int)filectime($dir), (int)filemtime("$dir/history.json")]);
+            if ($settings = load_data("$dir/settings.json", [])) db_save_settings($settings, $uid);
+            history_update(fn() => $history + empty_history(), $uid);
+            if ($pool = load_data("$dir/pool.json", [])) pool_update(fn() => $pool, $uid);
+            if ($connections = load_data("$dir/connections.json", [])) connections_update(fn() => $connections, $uid);
+            foreach (array_reverse(load_data("$dir/published.json", [])) as $entry) published_add($entry, $uid);
+        });
     }
-    echo "Готово.\n";
+    $archive = ROOT . '/data/json-archive-' . date('Y-m-d');
+    $old = array_merge(glob(ROOT . '/*.json') ?: [], glob(ROOT . '/*.json.lock') ?: [], glob(USERS_DIR . '/*/*.json') ?: [], glob(USERS_DIR . '/*/*.lock') ?: [],
+        glob(USERS_DIR . '/*/{last-seen,proposals-checked,threads-checked,parser-v3.durations}', GLOB_BRACE) ?: []);
+    foreach ($old as $path) {
+        $rel = substr($path, strlen(ROOT) + 1);
+        echo "  в архив: $rel\n";
+        if (!$apply) continue;
+        @mkdir(dirname("$archive/$rel"), 0770, true);
+        rename($path, "$archive/$rel") || print("    не удалось перенести $rel\n");
+    }
+    echo $apply ? "Готово. Архив: $archive\n" : '';
+    break;
+
+case 'adult-allow':
+    [$uid, $mode] = [$args[0] ?? '', $args[1] ?? ''];
+    if (!is_valid_user_id($uid) || !db_value('SELECT 1 FROM users WHERE id = ?', [$uid])) exit("Нет такого пользователя: $uid\n");
+    if (!in_array($mode, ['on', 'off'], true)) exit("Укажите on или off: adult-allow <id> on|off\n");
+    db_exec('UPDATE users SET adult_allowed = ? WHERE id = ?', [$mode === 'on' ? 1 : 0, $uid]);
+    printf("%s: 18+ %s\n", $short($uid), $mode === 'on' ? 'разрешено' : 'запрещено');
+    break;
+
+case 'balance-add':
+    [$uid, $rub] = [$args[0] ?? '', (float)($args[1] ?? 0)];
+    if (!is_valid_user_id($uid) || !db_value('SELECT 1 FROM users WHERE id = ?', [$uid])) exit("Нет такого пользователя: $uid\n");
+    printf("%s: на балансе %.2f ₽\n", $short($uid), kop_to_rub(billing_topup($uid, $rub, implode(' ', array_slice($args, 2)) ?: 'Пополнение вручную')));
+    break;
+
+case 'outbox-gc':
+    $root = ROOT . '/data/outbox';
+    $removed = 0;
+    foreach (is_dir($root) ? scandir($root) : [] as $name) {
+        if ($name === '.' || $name === '..' || !is_dir("$root/$name") || db_value('SELECT 1 FROM outbox WHERE id = ?', [$name])) continue;
+        remove_dir("$root/$name");
+        $removed++;
+    }
+    echo "Удалено папок без поста: $removed\n";
+    break;
+
+case 'channels-migrate':
+    foreach (db_all('SELECT id, connections FROM users') as $u) {
+        $t = db_unjson($u['connections'], [])['telegram'] ?? null;
+        if (!is_array($t) || empty($t['chat_id']) || empty($t['token_enc'])) continue;
+        $label = $short($u['id']) . ": канал «{$t['chat_title']}» (@{$t['chat_username']})";
+        if (db_value('SELECT 1 FROM channels WHERE user_id = ? AND chat_id = ?', [$u['id'], (int)$t['chat_id']])) echo "$label уже есть\n";
+        elseif ($flag('dry-run')) echo "$label перенесётся\n";
+        elseif (channels_import_legacy($u['id'])) echo "$label перенесён\n";
+        else echo "$label не перенесён: токен не расшифровался\n";
+    }
+    break;
+
+case 'login-bot-from-channel':
+    $uid = $args[0] ?? '';
+    if (!is_valid_user_id($uid)) exit("Некорректный id: $uid\n");
+    if (!db_value('SELECT 1 FROM users WHERE id = ?', [$uid])) exit("Нет такого пользователя: $uid\n");
+    $conn = telegram_connection($uid);
+    if (!$conn) exit("У пользователя нет подключённого Telegram-канала\n");
+    try {
+        $me = telegram_bot_request($conn['token'], 'getMe');
+        $bot_username = $me['username'] ?? '';
+        if (!$bot_username) exit("Не удалось получить имя бота\n");
+        kv_update('telegram_login_bot', fn() => ['token_enc' => secret_encrypt($conn['token']), 'username' => $bot_username, 'bot_id' => $me['id'] ?? 0]);
+        echo "Бот входа: @{$bot_username}\n";
+    } catch (RuntimeException $e) {
+        exit("Ошибка: " . $e->getMessage() . "\n");
+    }
+    break;
+
+case 'users-merge':
+    [$from, $to] = [$args[0] ?? '', $args[1] ?? ''];
+    if (!is_valid_user_id($from) || !is_valid_user_id($to)) exit("Некорректные id\n");
+    if ($from === $to) exit("id должны быть разными\n");
+    if (!db_value('SELECT 1 FROM users WHERE id = ?', [$from])) exit("Профиль $from не найден\n");
+    if (!db_value('SELECT 1 FROM users WHERE id = ?', [$to])) exit("Профиль $to не найден\n");
+
+    $count = fn($table, $uid) => (int)db_value("SELECT COUNT(*) FROM $table WHERE user_id = ?", [$uid]);
+    // Сколько оценок добавится: как в user_merge — по коллекциям, без повторов картинки
+    [$from_h, $to_h, $added] = [history_load($from), history_load($to), 0];
+    foreach (HISTORY_COLLECTIONS as $c) {
+        $have = array_flip(array_map('content_image_key', $to_h[$c] ?? []));
+        foreach ($from_h[$c] ?? [] as $r) if (($k = content_image_key($r)) !== '' && !isset($have[$k])) $added++;
+    }
+    printf("%s → %s%s:\n  оценок у второго: %d, добавится: %d (у первого %d, остальные — повторы)\n  операций баланса: %d, опубликованных: %d, в очереди: %d\n",
+        $short($from), $short($to), $flag('dry-run') ? ' (--dry-run, без изменений)' : '', $count('history_items', $to), $added, $count('history_items', $from),
+        $count('ledger', $from), $count('published', $from), $count('outbox', $from));
+    if ($flag('dry-run')) break;
+    user_merge($from, $to);
+    printf("Готово: у %s теперь %d оценок, профиль %s удалён.\n", $short($to), $count('history_items', $to), $short($from));
+    break;
+
+case 'users-gc':
+    printf("%s профилей: %d\n", $flag('dry-run') ? 'Будет удалено' : 'Удалено', users_gc('', $flag('dry-run')));
     break;
 
 case 'phash-backfill':
@@ -193,8 +309,131 @@ case 'phash-report':
     }
     break;
 
+case 'media-cleanup':
+    $pool = all_users_pool_items();
+    $removed = media_cache_cleanup($pool, false, $flag('force'));
+    if ($removed > 0 || $flag('dry-run')) {
+        echo "Кэш медиа: " . ($flag('dry-run') ? 'будет удалено' : 'удалено') . " $removed файлов.\n";
+    }
+    break;
+
+case 'media-audit':
+    $users = $args ? [$args[0]] : user_ids();
+    $total_ok = 0;
+    $total_missing = 0;
+    $total_old_path = 0;
+    $recoverable = 0;
+    foreach ($users as $uid) {
+        app_user_bind($uid);
+        $pool = pool_load($uid);
+        $history = history_load($uid);
+        $items = array_merge($pool, ...array_values($history));
+        $uid_ok = $uid_missing = $uid_old = $uid_recoverable = 0;
+
+        foreach ($items as $r) {
+            if (!is_array($r)) continue;
+            foreach ([$r, ...(array)($r['gallery'] ?? [])] as $e) {
+                if (!is_array($e)) continue;
+                foreach (['image_local', 'video_local'] as $field) {
+                    $url = (string)($e[$field] ?? '');
+                    if ($url === '') continue;
+
+                    // Старый путь media_cache/...
+                    if (preg_match('~^media_cache/([a-f0-9]{32}\.[a-z0-9]{2,5})$~', $url, $m)) {
+                        $file_path = MEDIA_CACHE_DIR . '/' . $m[1];
+                        if (is_file($file_path)) {
+                            $uid_old++;
+                        } else {
+                            $uid_missing++;
+                        }
+                    } elseif (media_cache_existing($url) !== '') {
+                        $uid_ok++;
+                    } else {
+                        $uid_missing++;
+                    }
+                }
+            }
+        }
+
+        // Счётчик восстанавливаемых: записи из Telegram или Двача без файла
+        foreach ($items as $r) {
+            if (!is_array($r) || (!empty($r['image_local']) && !empty($r['video_local']))) continue;
+            if (preg_match('~^https://t\.me/~', (string)($r['source_url'] ?? ''))) {
+                $uid_recoverable++;
+            } elseif (!empty($r['board']) && !empty($r['thread_id']) && !empty($r['post_id'])) {
+                $uid_recoverable++;
+            }
+        }
+
+        echo $short($uid) . ": файл на месте $uid_ok, файла нет $uid_missing, старый путь $uid_old\n";
+        $total_ok += $uid_ok;
+        $total_missing += $uid_missing;
+        $total_old_path += $uid_old;
+        $recoverable += $uid_recoverable;
+    }
+    if (count($users) > 1) {
+        echo "Итого: файл на месте $total_ok, файла нет $total_missing, старый путь $total_old_path\n";
+    }
+    echo "Можно попробовать вернуть: $recoverable записей из источников (Telegram и Двач)\n";
+    break;
+
+case 'media-repair':
+    $total = ['fixed' => 0, 'cleared' => 0, 'marked' => 0];
+    foreach ($args ? [$args[0]] : user_ids() as $uid) {
+        $st = media_repair_user($uid, $flag('dry-run'));
+        foreach ($st as $k => $v) $total[$k] += $v;
+        if (array_sum($st)) printf("%s: путей исправлено %d, пропавших ссылок очищено %d, помечено на загрузку %d\n", $short($uid), $st['fixed'], $st['cleared'], $st['marked']);
+    }
+    printf("%sИтого: путей исправлено %d, ссылок очищено %d, помечено на загрузку %d\n", $flag('dry-run') ? '(--dry-run, без изменений) ' : '', $total['fixed'], $total['cleared'], $total['marked']);
+    break;
+
+case 'leads-scan':
+    if ($flag('all')) {
+        // Все пользователи с включённым радаром
+        $uids = array_filter(
+            array_map(fn($row) => preg_match('/^lead_radar:(.+)$/', $row['key'], $m) ? $m[1] : null, db_all("SELECT key FROM kv WHERE key LIKE 'lead_radar:%'")),
+            fn($uid) => (lead_radar_settings($uid)['enabled'] ?? false)
+        );
+    } else {
+        $uids = $args ? [$args[0]] : [app_user_id()];
+    }
+
+    $log_arg = null;
+    foreach ($argv as $arg) if (str_starts_with($arg, '--log=')) $log_arg = substr($arg, 6);
+    foreach ($uids as $uid) {
+        if (lead_radar_is_running($uid)) { printf("%s: уже идёт\n", $short($uid)); continue; }
+        // Журнал шагов: в stdout и в файл (по умолчанию — тот, что читает админка), в начале прохода файл перезаписывается
+        $log_file = $log_arg ?? lead_radar_log_path($uid);
+        file_put_contents($log_file, '');
+        $log = function ($line) use ($log_file) {
+            echo $line . "\n";
+            file_put_contents($log_file, date('H:i:s') . ' ' . $line . "\n", FILE_APPEND);
+        };
+        try {
+            $result = lead_radar_run($uid, $log);
+            if (isset($result['skipped'])) $log($short($uid) . ': ' . $result['skipped']);
+        } catch (Exception $e) {
+            $log($short($uid) . ': исключение: ' . $e->getMessage());
+        }
+    }
+    break;
+
+case 'admin-password':
+    require_once __DIR__ . '/../lib/radar_admin.php';
+    $read = function ($prompt) {
+        echo $prompt;
+        @shell_exec("stty -echo 2>/dev/null");
+        try { $line = fgets(STDIN); } finally { @shell_exec("stty echo 2>/dev/null"); echo "\n"; }
+        return $line === false ? '' : rtrim($line, "\r\n");
+    };
+    $password = $read('Пароль (от 10 символов): ');
+    if ($password !== $read('Ещё раз: ')) exit("Пароли не совпадают.\n");
+    try { admin_password_set($password); } catch (RuntimeException $e) { exit($e->getMessage() . "\n"); }
+    echo "Пароль админки сохранён.\n";
+    break;
+
 default:
-    echo preg_replace('/^\/\/ ?/m', '', implode("\n", array_slice(file(__FILE__, FILE_IGNORE_NEW_LINES), 1, 11))) . "\n";
+    echo preg_replace('/^\/\/ ?/m', '', implode("\n", array_slice(file(__FILE__, FILE_IGNORE_NEW_LINES), 1, 24))) . "\n";
 }
 
 /**
@@ -278,9 +517,9 @@ function report_features(array $e) {
             'reply_share' => ($e['posts_after'] ?? 0) > 0 ? ($e['replies'] ?? 0) / $e['posts_after'] : 0, 'position' => $e['index'] ?? null] : []);   // у ОП-поста ответов почти как постов в треде
 }
 
-function engagement_report(array $files) {
+function engagement_report(array $uids) {
     [$records, $total] = [[], 0];
-    foreach ($files as $file) foreach (HISTORY_COLLECTIONS as $c) foreach (load_data($file, [])[$c] ?? [] as $r) {
+    foreach ($uids as $uid) foreach (HISTORY_COLLECTIONS as $c) foreach (history_load($uid)[$c] ?? [] as $r) {
         $total++;
         if (!is_array($r['engagement'] ?? null) || !empty($r['engagement']['backfilled']) || ($c === 'complaints' && ($r['complaint_reason'] ?? '') !== 'match_error')) continue;
         $records[] = ['label' => $c, 'source' => $r['engagement']['source'] ?? '', 'relevance' => $r['relevance'] ?? null, 'features' => report_features($r['engagement'])];

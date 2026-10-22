@@ -1,11 +1,11 @@
 // content.js — вкладка «Подбор»: тема и вторая тема, фильтры, карточка записи (карусель, видео, активность), голоса, жалобы,
 // публикация в Telegram (панель 🚀 и редактор поста).
-import { $, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, el, hide, log, onParserStateChange, onParserStatus, pluralRu, renderTags, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
+import { $, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
 import { openViewerGallery, registerViewerGallery, registerViewerPoster } from './viewer.js';
-import { formatWhen, openPostEditor, pickDateTime } from './editor.js';
+import { formatWhen, openPostEditor } from './editor.js';
 import { openAccountSection } from './account.js';
 
-const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], telegram: null };
+const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], channels: [], nativeAccount: false };
 const VIDEO_ERRORS = { 1: 'загрузка прервана', 2: 'сетевая ошибка', 3: 'файл не раскодировался', 4: 'формат не поддерживается или файл недоступен' };
 const TOPIC_CONFIRM = 'Сменить тему поиска? Неоценённые записи по старой теме будут убраны из пула, и поиск начнётся заново. История оценок сохранится.';
 export { TOPIC_CONFIRM };
@@ -16,7 +16,7 @@ function showArea(area, message = '') {
     show('item-empty', area === 'empty');
     setMessage('item-error', area === 'error' ? message : '');
     show('item-searching', area === 'searching');
-    if (area === 'searching') $('search-progress-topic').textContent = $('topic-input').dataset.saved || 'контент';
+    if (area === 'searching') $('search-progress-topic').textContent = currentTopic().topic || 'контент';
     if (area === 'empty') $('item-empty-message').textContent = message || 'Пул контента пуст.';
     hide('item-loading');
 }
@@ -94,6 +94,8 @@ function renderSlide() {
                     return;
                 }
                 video.hidden = true;
+                // Постер ролика — мелкое размытое превью: в альбоме рядом обычно та же картинка в хорошем качестве
+                if (grid.children.length > 1) return void container.remove();
                 if (slide.image) {
                     const img = el('img', { alt: 'Запись', src: slide.image });
                     img.onerror = () => { img.hidden = true; };
@@ -185,6 +187,8 @@ function renderCard(item, archiveInfo = null) {
     $('item-source').textContent = `Источник: ${item.source || 'неизвестно'}`;
     const posted = formatPostedAt(item.posted_at);
     setMessage('item-date', posted && `Опубликовано: ${posted}`);
+    // «Свежак!»: пост опубликован меньше двух часов назад
+    document.querySelector('#item-card-wrapper .card')?.classList.toggle('is-fresh', Number(item.posted_at) > 0 && Date.now() / 1000 - Number(item.posted_at) < 2 * 3600);
     renderEngagement(item.engagement);
     const url = safeSourcePostUrl(item);
     if (url) $('item-source-link').href = url; else $('item-source-link').removeAttribute('href');
@@ -273,15 +277,16 @@ const FILTERS = { fresh_only: 'filter-fresh', active_sources_only: 'filter-activ
 export async function refreshTopicLabel() {
     try {
         const data = await api('settings');
-        const currentTopic = data.topic || '';
-        $('topic-input').value = $('topic-input').dataset.saved = currentTopic;
+        const topic = data.topic || '';
+        $('topic-input').value = $('topic-input').dataset.saved = topic;
         $('topic2-input').value = $('topic2-input').dataset.saved = data.topic2 || '';
+        setCurrentTopic(topic, data.topic2 || '');
         for (const [key, id] of Object.entries(FILTERS)) $(id).checked = key === 'active_sources_only' ? data.filters?.[key] !== false : Boolean(data.filters?.[key]);
 
         // Тема в заголовке: одна кнопка в стиле вкладки и выпадающий список всех тем
         try {
             const topics = (await api('topics')).topics || [];
-            renderTopicSwitch(topics, currentTopic);
+            renderTopicSwitch(topics, topic);
             $('topic-options').replaceChildren(...topics.map(t => el('option', { value: t.title, label: t.path })));
         } catch { /* подсказок не будет */ }
     } catch (error) { log(`Не удалось загрузить тему поиска: ${error.message}`); }
@@ -354,6 +359,7 @@ function initializeSecondTopic() {
         try {
             const data = await api('save_second_topic', { body: { topic2: value } });
             input.value = input.dataset.saved = data.topic2 || '';
+            setCurrentTopic(currentTopic().topic, data.topic2 || '');
             log(data.topic2 ? `Вторая тема: «${data.topic2}» — контент ищется по обеим.` : 'Вторая тема убрана.');
             watchParser();
             await loadCurrentItem();
@@ -404,12 +410,47 @@ function logPostCheck(check) {
     if (problems.length) log(`🚀 ${check.status === 'blocked' ? 'Этот пост нельзя опубликовать как есть' : 'Замечания к публикации'}: ${problems.join('; ')}.`);
 }
 
+/** Цель поста канала: первый канал — tg:main (канал по умолчанию), остальные — tg:<id>. */
+function channelTarget(channel, index) {
+    const name = channel.title || (channel.username ? '@' + channel.username : channel.id);
+    return { value: index === 0 ? 'tg:main' : `tg:${channel.id}`, label: `Канал «${name}»` + (index === 0 && state.channels.length > 1 ? ' (по умолчанию)' : '') };
+}
+const telegramTargets = () => state.channels.map(channelTarget);
+
+/** Канал по цели поста: tg:main — первый, tg:<id> — конкретный. */
+const channelOfTarget = value => (value === 'tg:main' ? state.channels[0] : state.channels.find(c => c.id === value.slice(3)));
+
+/** Что редактор умеет по расписанию: есть ли слоты у канала цели, есть ли личный аккаунт, запрос ближайшего слота. */
+const scheduleOptions = () => ({
+    native: state.nativeAccount,
+    slots: value => Object.keys(channelOfTarget(value)?.schedule?.slots || {}).length > 0,
+    nextSlot: value => api('telegram_next_slot', { params: { channel: value === 'tg:main' ? '' : value.slice(3) } }),
+});
+
+/** Подключённые каналы и личный аккаунт: нужны редактору поста (куда постить, слоты, «Отложенные»). */
 async function refreshTelegramTarget() {
     if (DEBUG_MODE) return;
-    try { const data = await api('telegram_queue'); state.telegram = data.connected ? data.channel : null; } catch { /* остаётся прежняя подпись */ }
-    document.querySelector('#post-target option[value="tg:main"]').textContent = state.telegram ? channelLabel() : 'Мой канал в Telegram (не подключён)';
+    try { const data = await api('telegram_queue'); state.channels = data.connected ? data.channels || [] : []; state.nativeAccount = Boolean(data.native_account); } catch { /* остаётся прежний список */ }
 }
-const channelLabel = () => `Канал «${state.telegram.title || '@' + state.telegram.username}»`;
+
+/** Название ресурса для журнала. */
+const targetName = value => {
+    const c = channelOfTarget(value);
+    return c ? `Канал «${c.title || '@' + c.username}»` : 'Канал';
+};
+
+/** Текст поста по умолчанию: оригинал записи или описание ИИ. Так же, как в редакторе. */
+const defaultText = item => {
+    const original = String(item.text || '').trim();
+    return (original && !NO_TEXT.includes(original) ? original : '') || item.description || '';
+};
+
+/** Медиа записи для поста: файлы, которые Telegram точно не примет (post_check), пропускаются. */
+function itemMedia(item) {
+    const bad = new Set(item.post_check?.bad || []);
+    return itemSlides(item).filter((s, i) => !bad.has(i)).map((s, i) => ({ kind: s.video ? 'video' : 'image', src: s.video || s.image, thumb: s.image,
+        name: (s.video || s.fallbackImage || s.image || '').split('/').pop().split('?')[0] || `медиа ${i + 1}` }));
+}
 
 /** POST с файлами через XMLHttpRequest: fetch не сообщает, сколько байт ушло на сервер. */
 function postFormWithUpload(action, form, onUpload) {
@@ -427,7 +468,7 @@ function postFormWithUpload(action, form, onUpload) {
         xhr.addEventListener('error', () => reject(new Error('Ошибка загрузки')));
         xhr.addEventListener('abort', () => reject(new Error('Загрузка отменена')));
         xhr.open('POST', apiUrl(action, { debug: DEBUG_MODE ? '1' : undefined }));
-        xhr.setRequestHeader('X-Postmaker', '1');
+        xhr.setRequestHeader('X-Posta', '1');
         xhr.send(form);
     });
 }
@@ -439,7 +480,10 @@ function postFormWithUpload(action, form, onUpload) {
 async function publishToTelegram(post, onProgress = null) {
     const form = new FormData();
     form.append('text', post.text);
+    form.append('channel', post.target === 'tg:main' ? '' : post.target.slice(3));   // пусто — канал по умолчанию
+    form.append('mode', post.mode || (post.scheduledTs ? 'native' : 'now'));
     if (post.scheduledTs) form.append('scheduled_ts', String(post.scheduledTs));
+    if (post.poll) form.append('poll', JSON.stringify(post.poll));
     const files = [];
     form.append('media', JSON.stringify(post.media.map(m => (m.file ? { kind: m.kind, name: m.name, upload: files.push(m.file) - 1 } : { kind: m.kind, src: m.src, name: m.name }))));
     files.forEach(f => form.append('files[]', f, f.name));
@@ -464,57 +508,39 @@ async function publishToTelegram(post, onProgress = null) {
         done = true;
         clearInterval(poll);
     }
-    log(result.scheduled ? `🚀 Пост запланирован на ${post.scheduledAt}: он в «Отложенных» канала в Telegram и уйдёт сам.` : `🚀 Пост опубликован${result.url ? `: [открыть в Telegram](${result.url})` : ''}.`);
+    log(result.scheduled
+        ? `🚀 ${targetName(post.target)}: пост запланирован на ${formatWhen(new Date(result.publish_at * 1000))}, ${result.native ? 'он в «Отложенных» Telegram' : 'он в очереди Posta и уйдёт сам'}.`
+        : `🚀 ${targetName(post.target)}: пост опубликован${result.url ? `: [открыть в Telegram](${result.url})` : ''}.`);
 }
 
-/** Открывает редактор поста для записи (без бота — ведёт в кабинет). */
-export async function postItemToTelegram(item, { target = null, scheduledTs = 0 } = {}) {
+/** Один пост во все отмеченные ресурсы по очереди: сбой одного не останавливает остальные. Если упали все — исключение (редактор останется открытым). */
+async function publishToTargets(post, onProgress = null) {
+    const failed = [];
+    for (const target of post.targets) {
+        try {
+            await publishToTelegram({ ...post, target }, onProgress);
+        } catch (e) {
+            failed.push(e.message);
+            log(`✖ ${targetName(target)}: ${e.message}`);
+        }
+    }
+    if (failed.length === post.targets.length) throw new Error(failed.join('; '));
+}
+
+/** Единое окно публикации для всех кнопок «Запостить»: редактор поста; ресурсы выбираются в нём (по умолчанию — основной канал). */
+export async function postItemToTelegram(item) {
     logPostCheck(item.post_check);
-    if (!target) await refreshTelegramTarget();
-    if (!state.telegram && (!target || target.value === 'tg:main')) {
+    await refreshTelegramTarget();
+    if (!state.channels.length) {
         log('Telegram не подключён: бот и канал подключаются в «Личном кабинете» → «Соцсети».');
         return openAccountSection('social');
     }
-    const bad = new Set(item.post_check?.bad || []);   // файлы, которые Telegram точно не примет, в редактор не попадают
     const original = String(item.text || '').trim();
     openPostEditor({
-        key: item.image || item.display_image || '', target: target || { value: 'tg:main', label: channelLabel() },
-        scheduledTs, scheduledAt: scheduledTs ? formatWhen(new Date(scheduledTs * 1000)) : '', description: item.description || '',
-        original: original && !NO_TEXT.includes(original) ? original : '',
-        media: itemSlides(item).filter((s, i) => !bad.has(i)).map((s, i) => ({ kind: s.video ? 'video' : 'image', src: s.video || s.image, thumb: s.image,
-            name: (s.video || s.fallbackImage || s.image || '').split('/').pop().split('?')[0] || `медиа ${i + 1}` })),
-        onSubmit: (post, onProgress) => {
-            if (post.target.startsWith('tg:')) return publishToTelegram(post, onProgress);
-            throw new Error('Отправка во ВКонтакте пока не готова: сейчас публикуются только посты в Telegram-канал.');
-        }
-    });
-}
-
-function initializePostPanel() {
-    const [panel, rocket, when] = [$('post-panel'), $('item-rocket'), $('post-when')];
-    let scheduled = null;   // null — сразу
-    const setOpen = open => {
-        panel.hidden = !open;
-        rocket.setAttribute('aria-expanded', String(open));
-        if (!open) return;
-        refreshTelegramTarget();
-        if (scheduled && scheduled.getTime() < Date.now() + 60000) scheduled = null;
-        when.textContent = scheduled ? formatWhen(scheduled) : 'Сразу';
-    };
-    rocket.addEventListener('click', () => setOpen(panel.hidden));
-    when.addEventListener('click', async () => {
-        const chosen = await pickDateTime({ value: scheduled });
-        if (chosen !== undefined) { scheduled = chosen; when.textContent = chosen ? formatWhen(chosen) : 'Сразу'; }
-    });
-    document.addEventListener('click', e => { if (!panel.hidden && !e.target.closest('.rocket-wrap')) setOpen(false); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden) setOpen(false); });
-    panel.addEventListener('submit', e => {
-        e.preventDefault();
-        const target = $('post-target');
-        if (!target.value) return target.focus();
-        if (!state.item) return;
-        setOpen(false);
-        postItemToTelegram(state.item, { target: { value: target.value, label: target.selectedOptions[0].textContent }, scheduledTs: scheduled ? Math.floor(scheduled.getTime() / 1000) : 0 });
+        key: item.image || item.display_image || '', picked: ['tg:main'], targets: telegramTargets(), schedule: scheduleOptions(),
+        scheduledTs: 0, scheduledAt: '', description: item.description || '', original: original && !NO_TEXT.includes(original) ? original : '',
+        media: itemMedia(item),   // файлы, которые Telegram точно не примет, в редактор не попадают
+        onSubmit: (post, onProgress) => publishToTargets(post, onProgress)
     });
 }
 
@@ -547,14 +573,14 @@ export function initializeContentTab({ onAddItem }) {
     };
     document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && resume());
     for (const type of ['pointerdown', 'keydown']) document.addEventListener(type, resume, { passive: true });
-    initializePostPanel();
+    $('item-rocket').addEventListener('click', () => state.item && postItemToTelegram(state.item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)));
     document.querySelectorAll('#content-tab [data-vote]').forEach(b => b.addEventListener('click', () => vote(b.dataset.vote)));
     $('item-search-button').addEventListener('click', searchForContent);
     $('item-add-button').addEventListener('click', onAddItem);
     $('topic-form').addEventListener('submit', e => {
         e.preventDefault();
         const topic = $('topic-input').value.trim();
-        if (topic && topic !== $('topic-input').dataset.saved && confirm(TOPIC_CONFIRM)) submitTopic(topic);
+        if (topic && topic !== currentTopic().topic && confirm(TOPIC_CONFIRM)) submitTopic(topic);
     });
     $('topic-force-new').addEventListener('click', e => submitTopic(e.currentTarget.dataset.typed || $('topic-input').value.trim(), true));
     Object.values(FILTERS).forEach(id => $(id).addEventListener('change', saveFilters));

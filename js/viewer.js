@@ -84,6 +84,20 @@ function status(text, withLink = false) {
     $('image-viewer-source').hidden = !(withLink && state.sourceUrl);
     if (state.sourceUrl) $('image-viewer-source').href = state.sourceUrl;
     $('image-viewer-status').hidden = !text;
+    if (!text) $('image-viewer-refetch').hidden = true;
+}
+
+/** Кнопка «Загрузить заново» в окне ошибки: item.refetch() качает файл из исходного поста, при успехе окно закрывается. */
+function offerRefetch(item) {
+    const button = $('image-viewer-refetch');
+    button.hidden = typeof item.refetch !== 'function';
+    button.disabled = false;
+    button.onclick = async () => {
+        button.disabled = true;
+        status('Загружаю файл из исходного поста…');
+        try { await item.refetch(); close(); }
+        catch (error) { status(`Не удалось загрузить: ${error.message}`, true); offerRefetch(item); }
+    };
 }
 
 function syncRocket() {
@@ -120,9 +134,11 @@ function open(item, gallery = null) {
         }
         target.onerror = null;
         stage.classList.remove('is-loading');
-        status(item.kind !== 'video' ? 'Картинка недоступна: источник удалил файл или ссылка устарела.'
+        status(item.refetch ? 'Файл пропал: сохранённой копии нет, а исходная ссылка устарела.'
+            : item.kind !== 'video' ? 'Картинка недоступна: источник удалил файл или ссылка устарела.'
             : video.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED ? 'Видео не воспроизводится: файл недоступен или браузер не поддерживает его формат.'
             : 'Видео не загрузилось: источник удалил файл или ссылка устарела.', true);
+        offerRefetch(item);
     };
     if (item.kind === 'video') {
         status('Загрузка видео…');

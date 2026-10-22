@@ -1,5 +1,5 @@
 // video-cache.js — временная копия роликов в Cache Storage браузера: скачали один раз, живёт час, потом удаляется.
-const CACHE_NAME = 'postmaker-videos-v1';
+const CACHE_NAME = 'posta-videos-v1';
 const TTL_MS = 60 * 60 * 1000;
 const SWEEP_MS = 5 * 60 * 1000;
 

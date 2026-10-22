@@ -38,7 +38,7 @@ function parse_dvach($board) {
 /** Канал или паблик каталога с учётом активности. [посты, обновлённая запись каталога|null, событие|null]. */
 function collect_catalog_source($platform, array $entry) {
     if (($id = ltrim(trim((string)($entry['id'] ?? '')), '@')) === '') return [[], null, null];
-    $label = $platform === PLATFORM_TELEGRAM ? "@$id" : $id;
+    $label = match ($platform) { PLATFORM_TELEGRAM => "@$id", PLATFORM_RSS => (string)parse_url($id, PHP_URL_HOST), default => $id };
     if (is_source_frozen($entry)) return [[], null, 'skipped_frozen'];   // заморожены неактивные: перепроверяются по своему расписанию
     $source = ['id' => $id, 'name' => source_display_name($platform, $entry['name'] ?? $id)];
     cli_echo("Парсинг {$platform} {$label}...");
@@ -51,6 +51,9 @@ function collect_catalog_source($platform, array $entry) {
             [$times, $subs] = [$facts['post_times'], $facts['subscribers']];
             $rate = source_view_rate($subs, $facts['post_views']);
             if (!str_contains($html, 'data-post="')) $gone = 'канала нет или он закрыт';
+        } elseif ($platform === PLATFORM_RSS) {
+            $posts = rss_fetch_posts($id, RSS_POSTS_PER_FEED, $source['name']);
+            [$times, $subs, $rate] = [array_column($posts, 'posted_at'), 0, null];
         } else {
             $posts = build_vk_preview_posts($source, VK_POSTS_PER_PUBLIC);
             [$times, $subs, $rate] = [array_column($posts, 'posted_at'), 0, null];
@@ -98,7 +101,7 @@ function dvach_boards_this_run(array $boards, $topic) {
 
 /** Посты всех источников темы по площадкам. */
 function collect_posts_by_platform(array $db, $topic) {
-    $by = [PLATFORM_TELEGRAM => [], PLATFORM_VK => [], PLATFORM_DVACH => []];
+    $by = [PLATFORM_TELEGRAM => [], PLATFORM_VK => [], PLATFORM_RSS => [], PLATFORM_DVACH => []];
     $stats = array_fill_keys(['other_topic', 'skipped_frozen', 'frozen', 'still_frozen', 'revived'], 0);
     $updates = [];
     if (!($boards = dvach_boards_for_topic($topic))) cli_echo('Подходящих теме досок Двача нет — Двач пропущен.');
@@ -301,7 +304,7 @@ function source_pass_rates(array $cache, $topic) {
 }
 
 /** Добавляет в кэш и оставляет $limit самых свежих записей. */
-function cache_merge($file, array $new, $limit) {
+function cache_merge(array $new, $limit) {
     if (!$new) return;
     db_tx(function () use ($new, $limit) {
         foreach ($new as $url => $data) {
@@ -462,6 +465,7 @@ function analyze_candidate($item, $poster, $history, $topic) {
         if (!PERSONAL_TASTE_ENABLED) $a['rating'] = null;
         $verdict = "соответствие теме {$a['relevance']}%" . ($a['rating'] !== null ? ", прогноз оценки {$a['rating']}%" : '');
         if ($a['relevance'] < RELEVANCE_THRESHOLD) { cli_echo("-> Отброшено по порогу: {$verdict}."); return false; }
+        if (!user_adult_allowed() && content_is_adult(array_merge($item, ['tags' => $a['tags'] ?? [], 'topic' => $topic]))) { cli_echo('-> Отклонено: 18+ или «Жесть».'); return false; }
         cli_echo("-> Принято: {$verdict}." . (($tags = content_tags_public($a['tags'] ?? [])) ? ' Метки: ' . implode(', ', array_column($tags, 'path')) . '.' : ''));
         if (search_topic_key() !== $topic) { cli_echo('-> Тема поиска сменилась — запись по старой теме не сохраняю.'); return false; }
         $item = ['description' => $a['description'] ?: 'Описание не получено', 'why_relevant' => $a['why_relevant'] ?: 'Нейросеть не сформулировала объяснение.',
@@ -580,7 +584,7 @@ function run_collector() {
         if ($restart = $stop !== null) break;
         parser_phase_with_topic('быстрая оценка', $topic);
         $passed = prescreen_batch($batch, $key, $ctx, $started + PARSER_MAX_SECONDS);
-        cache_merge(SCREENED_CACHE_FILE, $ctx['new_cache'], SCREENED_CACHE_LIMIT);
+        cache_merge($ctx['new_cache'], SCREENED_CACHE_LIMIT);
         $ctx['new_cache'] = [];
         parser_progress(['done' => $done += count($batch) - count($passed)]);   // отсеянные быстрой оценкой разобраны
         // Прошедшие быструю оценку копятся и уходят на полный анализ блоком: каждая смена модели — перезагрузка в видеопамять
@@ -595,7 +599,7 @@ function run_collector() {
         }
         $queue = [];
     }
-    cache_merge(SCREENED_CACHE_FILE, $ctx['new_cache'], SCREENED_CACHE_LIMIT);
+    cache_merge($ctx['new_cache'], SCREENED_CACHE_LIMIT);
     parser_progress(['done' => count($candidates)]);   // проверка окончена (в том числе по лимиту), дальше — только итоги и поиск источников
     if (!$restart) parser_expected_seconds(time() - $started);   // по ней оценивается время следующих проходов, пока нет своей скорости
     if ($stop) cli_echo($stop);

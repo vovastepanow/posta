@@ -12,7 +12,7 @@ const TOPIC_ADULT_WORDS = ['18+', 'nsfw', 'порно', 'порн', 'эрот', 
 function topic_own_sources_count(array $db, $topic) {
     if (topic_same(DEFAULT_TOPIC, $topic)) return PHP_INT_MAX;
     $count = count(array_intersect(array_keys(dvach_boards_by_tags($topic, array_keys(DVACH_BOARD_TAGS))), $db['dvach_topic_boards'][mb_strtolower($topic)] ?? []));
-    foreach (array_merge($db['telegram_channels'], $db['vk_publics']) as $e) if (!empty($e['topics']) && catalog_entry_matches_topic($e, $topic, true)) $count++;
+    foreach (array_merge($db['telegram_channels'], $db['vk_publics'], $db['rss_feeds']) as $e) if (!empty($e['topics']) && catalog_entry_matches_topic($e, $topic, true)) $count++;
     return $count;
 }
 
@@ -36,7 +36,9 @@ function discovery_known_ids(array $db, $topic) {
     foreach (array_merge($db['source_votes'], $db['source_suggestions']) as $e) if (empty($e['topic']) || topic_same((string)$e['topic'], $topic)) $known[(string)$e['source_id']] = true;
     $prefix = topic_norm($topic) . '|';
     $is_default = topic_same(DEFAULT_TOPIC, $topic);
-    foreach ($db['discovery']['checked'] ?? [] as $c) {
+    $fresh_after = time() - DISCOVERY_RECHECK_DAYS * 86400;
+    foreach ((array)($db['discovery']['checked_at'] ?? []) as $c => $at) {
+        if ($at < $fresh_after) continue;
         if (str_starts_with($c = (string)$c, $prefix)) $known[substr($c, strlen($prefix))] = true;
         elseif ($is_default && !str_contains($c, '|')) $known[$c] = true;
     }
@@ -77,6 +79,7 @@ function quick_source_text_score($title, $description, $topic, array $texts = []
 function evaluate_source(array $info, array $posts, $topic) {
     $text = quick_source_text_score($info['title'] ?? '', $info['description'] ?? '', $topic, array_column($posts, 'text'));
     if ($text !== null && $text < DISCOVERY_TEXT_REJECT_SCORE) return ['score' => $text, 'images' => [], 'text' => $text, 'text_only' => true];
+    $text_led = $text !== null && $text >= SOURCE_TEXT_TRUST_SCORE;   // тема в подписях: стоковое фото к посту о бизнесе — не повод отказать
     $scores = [];
     foreach ($posts as $post) {
         if (count($scores) >= SOURCE_SAMPLE_IMAGES) break;
@@ -84,11 +87,12 @@ function evaluate_source(array $info, array $posts, $topic) {
         try { validate_image_bytes($bytes); } catch (Throwable $e) { continue; }
         $quick = quick_relevance_score($bytes, ($post['text'] ?? '') === EMPTY_POST_TEXT ? '' : (string)($post['text'] ?? ''), $topic);
         if ($quick['score'] !== null) $scores[] = $quick['score'];
-        if (count($scores) === SOURCE_EARLY_REJECT_AFTER && array_sum($scores) / SOURCE_EARLY_REJECT_AFTER < SOURCE_EARLY_REJECT_SCORE) break;
+        if (!$text_led && count($scores) === SOURCE_EARLY_REJECT_AFTER && array_sum($scores) / SOURCE_EARLY_REJECT_AFTER < SOURCE_EARLY_REJECT_SCORE) break;
     }
     if (!$scores) return null;
     $avg = array_sum($scores) / count($scores);
-    return ['score' => (int)round($text === null ? $avg : (1 - SOURCE_TEXT_WEIGHT) * $avg + SOURCE_TEXT_WEIGHT * $text), 'images' => $scores, 'text' => $text, 'text_only' => false];
+    $weight = $text_led ? SOURCE_TEXT_LED_WEIGHT : SOURCE_TEXT_WEIGHT;
+    return ['score' => (int)round($text === null ? $avg : (1 - $weight) * $avg + $weight * $text), 'images' => $scores, 'text' => $text, 'text_only' => false];
 }
 
 // ---- Доски Двача под тему ----
@@ -104,12 +108,11 @@ function dvach_board_list() {
 
 /** Названия досок с кэшем на сутки. */
 function dvach_board_names() {
-    $file = USERS_DIR . '/.dvach-boards.json';
-    $cached = load_data($file, null);
-    if ($cached !== null && time() - (int)@filemtime($file) < DAY_SECONDS) return $cached;
-    if (!($boards = dvach_board_list())) return $cached ?? [];
-    users_ensure_root();
-    @file_put_contents($file, json_encode($names = array_map(fn($b) => ['name' => $b['name'], 'category' => $b['category']], $boards), JSON_UNESCAPED_UNICODE), LOCK_EX);
+    $cached = kv_get('dvach_board_names');
+    if (is_array($cached) && time() - (int)($cached['at'] ?? 0) < DAY_SECONDS) return $cached['boards'];
+    if (!($boards = dvach_board_list())) return $cached['boards'] ?? [];
+    $names = array_map(fn($b) => ['name' => $b['name'], 'category' => $b['category']], $boards);
+    kv_update('dvach_board_names', fn() => ['at' => time(), 'boards' => $names]);
     return $names;
 }
 
@@ -211,7 +214,9 @@ function store_discovered_source($platform, array $info, $evaluation, $topic, $o
     $source_id = source_id_for($platform, $info['id']);
     $result = $score >= SOURCE_AUTO_ADD_SCORE ? 'added' : ($score >= SOURCE_SUGGEST_SCORE ? 'suggested' : 'rejected');
     update_source_db(function ($db) use ($platform, $info, $score, $topic, $origin, $activity, $q, $source_id, $result) {
-        $db['discovery']['checked'] = array_slice(array_values(array_unique([...(array)($db['discovery']['checked'] ?? []), topic_norm($topic) . '|' . $source_id])), -DISCOVERY_CHECKED_LIMIT);
+        $checked = [topic_norm($topic) . '|' . $source_id => time()] + (array)($db['discovery']['checked_at'] ?? []);
+        $db['discovery']['checked_at'] = array_slice($checked, 0, DISCOVERY_CHECKED_LIMIT, true);
+        unset($db['discovery']['checked']);
         if ($result === 'added') {
             $db[CATALOG_KEYS[$platform]][] = array_filter(['id' => $info['id'], 'name' => $info['title'], 'topics' => [$topic], 'auto' => true, 'score' => $score,
                 'preview' => source_preview_images($info['posts'] ?? []), 'activity' => $activity,
@@ -235,9 +240,9 @@ function check_discovery_candidate(array $c, $topic, array &$stats) {
     $stats['checked']++;
     try {
         if ($platform === PLATFORM_TELEGRAM) {
-            if (!($info = telegram_channel_info($c['id'], 8))) {
-                cli_echo("-> {$label}: канала нет или он закрыт.");
-                store_discovered_source($platform, ['id' => $c['id'], 'title' => $c['id'], 'description' => '', 'subscribers' => 0], null, $topic, $c['origin']);
+            for ($try = 0; $try < 3 && !($info = telegram_channel_info($c['id'], 8)); $try++) sleep(2);   // t.me под нагрузкой отвечает через раз
+            if (!$info) {
+                cli_echo("-> {$label}: t.me не отдал страницу канала — проверю в следующий раз.");
                 return [];
             }
         } else {
@@ -362,7 +367,8 @@ function run_source_discovery_locked($topic) {
         foreach (($html = fetch_telegram_channel_page($seed)) ? telegram_linked_channels($html, $seed) : [] as $h) $linked[] = [PLATFORM_TELEGRAM, $h, "упомянут в @{$seed}"];
     }
     foreach (interleave($linked, array_map(fn($h) => [PLATFORM_TELEGRAM, $h, 'предложен моделью'], $plan['telegram'])) as $c) $enqueue(...$c);
-    cli_echo('-> Кандидатов на проверку: ' . count($queue) . ' (проверю до ' . SOURCE_DISCOVERY_MAX_CHECKS . ').');
+    cli_echo('-> Кандидатов на проверку: ' . count($queue) . ' (проверю до ' . SOURCE_DISCOVERY_MAX_CHECKS . ').'
+        . (!$queue && $searched ? ' Все найденные каналы уже проверялись за последние ' . DISCOVERY_RECHECK_DAYS . ' дней.' : ''));
 
     $stats = ['checked' => 0, 'added' => 0, 'suggested' => 0, 'rejected' => 0];
     $similar_calls = 0;

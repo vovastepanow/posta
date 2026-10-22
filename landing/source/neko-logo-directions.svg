@@ -46,17 +46,17 @@
   <!-- A -->
   <text x="30" y="40" font-size="20" font-family="Arial" font-weight="700" fill="#55595F">A. НАКЛЕЙКА</text>
   <use href="#logoA" x="30" y="60" width="170" height="152"/>
-  <text x="210" y="160" font-size="54" letter-spacing="-2">postmaker</text>
+  <text x="210" y="160" font-size="54" letter-spacing="-2">posta</text>
   <use href="#logoA" x="30" y="260" width="40" height="36"/><use href="#logoA" x="90" y="270" width="20" height="18"/>
   <!-- B -->
   <text x="630" y="40" font-size="20" font-family="Arial" font-weight="700" fill="#55595F">B. ЦЕННИК</text>
   <use href="#logoB" x="630" y="50" width="140" height="168"/>
-  <text x="790" y="160" font-size="54" letter-spacing="-2">postmaker</text>
+  <text x="790" y="160" font-size="54" letter-spacing="-2">posta</text>
   <use href="#logoB" x="630" y="250" width="34" height="41"/><use href="#logoB" x="684" y="262" width="17" height="20"/>
   <!-- C -->
   <text x="30" y="420" font-size="20" font-family="Arial" font-weight="700" fill="#55595F">C. ТЕЛЕМАГАЗИН</text>
   <use href="#logoC" x="30" y="440" width="170" height="170"/>
-  <text x="210" y="550" font-size="54" letter-spacing="-2">postmaker</text>
+  <text x="210" y="550" font-size="54" letter-spacing="-2">posta</text>
   <use href="#logoC" x="30" y="650" width="40" height="40"/><use href="#logoC" x="90" y="660" width="20" height="20"/>
   <!-- D -->
   <text x="630" y="420" font-size="20" font-family="Arial" font-weight="700" fill="#55595F">D. КОТ ВМЕСТО «О»</text>

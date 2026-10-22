@@ -1,5 +1,5 @@
 // tabs.js — вкладки «Предложка» (лайки и «не знаю»), «Дерево» (выбор и смена темы) и «Тест ИИ» (оценка одной картинки).
-import { $, DEBUG_MODE, NO_TEXT, VIDEO_ICON, api, el, hide, isTabActive, log, onTabOpen, renderTags, safeSourcePostUrl, setMessage, show } from './core.js';
+import { $, DEBUG_MODE, NO_TEXT, VIDEO_ICON, api, el, hide, isTabActive, log, onTabOpen, onTopicChange, renderTags, safeSourcePostUrl, setMessage, show } from './core.js';
 import { createProgress } from './progress.js';
 import { cachedVideoUrl, releaseVideoSource, storeVideo } from './video-cache.js';
 import { openViewerGallery } from './viewer.js';
@@ -47,7 +47,7 @@ const videoObserver = new IntersectionObserver(entries => {
     playVisibleVideos();
 }, { rootMargin: '100px' });
 
-function mediaTile(slide, onOpen, extra) {
+function mediaTile(slide, onOpen, extra, item) {
     const tile = el('button', { className: 'proposal-tile is-loading', type: 'button', title: 'Открыть', onclick: e => { e.stopPropagation(); onOpen(); } });   // глобальный обработчик просмотрщика не должен открыть картинку без галереи
     const settled = () => tile.classList.remove('is-loading');
     // У ролика картинка — только постер. Без постера браузер скачал бы весь видеофайл как изображение.
@@ -60,6 +60,26 @@ function mediaTile(slide, onOpen, extra) {
             image.hidden = true;
             settled();
             tile.classList.add('is-broken');
+            // Добавить кнопку загрузки для записей с источником
+            if (item && item.source_url) {
+                const label = el('span', { className: 'proposal-broken-text', textContent: proposals.refreshing ? 'Подгружается…' : 'Файл пропал' });
+                const refetch = el('button', { className: 'proposal-refetch', type: 'button', textContent: '↻ Загрузить заново', onclick: async e => {
+                    e.stopPropagation();
+                    refetch.disabled = true;
+                    label.textContent = 'Загружаю…';
+                    try {
+                        const result = await api('proposal_refetch', { body: { image: item.image } });
+                        if (result?.gone) { proposals.items = proposals.items.filter(o => o !== item); renderProposals(); }   // источник удалил пост — показывать нечего
+                        else await loadProposals();
+                    } catch (error) {
+                        log(`Не удалось загрузить медиа: ${error.message}`);
+                        label.textContent = error.message || 'Не удалось загрузить';
+                        refetch.disabled = false;
+                    }
+                }});
+                const overlay = el('div', { className: 'proposal-broken-overlay' }, label, refetch);
+                tile.append(overlay);
+            }
         };
         tile.append(image);
     }
@@ -72,6 +92,11 @@ function mediaTile(slide, onOpen, extra) {
             if (video.dataset.fallback && video.getAttribute('src') !== video.dataset.fallback) { releaseVideoSource(video.getAttribute('src')); video.src = video.dataset.fallback; return void video.play().catch(() => stopVideo(video)); }
             forgetVideo(video);
             video.remove();
+            const mosaic = tile.parentElement;
+            if (mosaic && mosaic.querySelectorAll('.proposal-tile').length > 1) {
+                tile.remove();
+                mosaic.className = mosaic.className.replace(/mosaic-\d+/, `mosaic-${Math.min(6, mosaic.querySelectorAll('.proposal-tile').length)}`);
+            }
         };
         tile.append(video, el('span', { className: 'video-mark', innerHTML: VIDEO_ICON }));
         videoObserver.observe(video);
@@ -83,8 +108,12 @@ function mediaTile(slide, onOpen, extra) {
 function proposalCard(item) {
     const slides = recordGallery(item).items;
     const shown = slides.slice(0, 6);
-    const open = i => { const g = recordGallery(item, i); openViewerGallery(g.items, i, g.onPost, g.postCheck); };
-    const media = el('div', { className: `proposal-media mosaic-${Math.max(1, shown.length)}` }, ...shown.map((s, i) => mediaTile(s, () => open(i), i === shown.length - 1 ? slides.length - shown.length : 0)),
+    const refetch = item.source_url ? async () => {
+        const result = await api('proposal_refetch', { body: { image: item.image } });
+        if (result?.gone) { proposals.items = proposals.items.filter(o => o !== item); renderProposals(); } else await loadProposals();
+    } : null;
+    const open = i => { const g = recordGallery(item, i); openViewerGallery(g.items.map(s => ({ ...s, refetch })), i, g.onPost, g.postCheck); };
+    const media = el('div', { className: `proposal-media mosaic-${Math.max(1, shown.length)}` }, ...shown.map((s, i) => mediaTile(s, () => open(i), i === shown.length - 1 ? slides.length - shown.length : 0, item)),
         slides.length > 1 ? el('span', { className: 'proposal-count', textContent: `${slides.length} ${slides.length < 5 ? 'файла' : 'файлов'}` }) : null);
     const link = safeSourcePostUrl(item);
     const post = el('button', { className: 'proposal-action', type: 'button', textContent: '🚀 Запостить', onclick: () => postItemToTelegram(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) });
@@ -108,7 +137,28 @@ function renderProposals() {
     $('proposals-count').textContent = proposals.items.length ? `${visible.length} из ${proposals.items.length}` : '';
     $('proposals-status').textContent = visible.length ? '' : proposals.items.length ? 'В этом разделе пусто.' : 'Пока пусто: сюда попадают записи, которые вы отметили «Нравится» или «Не знаю» на вкладке «Подбор».';
     $('proposals-grid').querySelectorAll('video').forEach(forgetVideo);
-    $('proposals-grid').replaceChildren(...visible.map(proposalCard));
+
+    // Посчитать записи с пропавшими файлами
+    const brokenCount = visible.filter(i => !i.display_image && !i.display_video).length;
+    const cards = visible.map(proposalCard);
+    const container = [];
+    if (brokenCount > 5) {
+        const repairBtn = el('button', { className: 'proposal-repair', type: 'button', textContent: 'Загрузить все заново', onclick: async () => {
+            repairBtn.disabled = true;
+            try {
+                await api('proposal_repair');
+                await loadProposals();
+            } catch (error) {
+                log(`Ошибка при загрузке медиа: ${error.message}`);
+                repairBtn.disabled = false;
+            }
+        }});
+        container.push(el('div', { className: 'proposal-repair-notice' },
+            el('p', { textContent: `У ${brokenCount} записей пропали файлы` }),
+            repairBtn));
+    }
+
+    $('proposals-grid').replaceChildren(...container, ...cards);
     document.querySelectorAll('[data-proposal-filter]').forEach(b => b.classList.toggle('active', b.dataset.proposalFilter === proposals.filter));
 }
 
@@ -189,6 +239,8 @@ async function loadProposals() {
         const elapsed = Date.now() - start;
 
         proposals.items = data.items || [];
+        proposals.refreshing = !!data.refreshing;   // пока идёт достройка, пропавшие файлы не «пропали», а ещё качаются
+        proposalsReloadedAt = Date.now();
         renderProposals();
 
         status.textContent = `${proposals.items.length} предложек${elapsed > 1000 ? ` (${(elapsed/1000).toFixed(1)}с)` : ''}`;
@@ -210,13 +262,16 @@ async function loadProposals() {
 }
 
 /** Пока сервер достраивает медиа, обновляет полосу раз в 250 мс (лёгкий запрос). По окончании перечитывает список один раз. */
+let proposalsReloadedAt = 0;
+
 async function pollProposalProgress() {
     clearTimeout(proposalsPollTimer);
     if (!isTabActive('proposals-tab')) return;
     try {
         const data = await api('proposals_progress');
         setProposalProgress(data.progress);
-        if (data.refreshing) proposalsPollTimer = setTimeout(pollProposalProgress, 250);
+        if (data.refreshing && Date.now() - proposalsReloadedAt > 8000) loadProposals();   // докачанные файлы появляются по ходу, а не в конце
+        else if (data.refreshing) proposalsPollTimer = setTimeout(pollProposalProgress, 250);
         else loadProposals();
     } catch { /* сеть моргнула — следующий опрос не нужен, список обновит кнопка «↻» */ }
 }
@@ -422,6 +477,8 @@ export function initializeTabs() {
     $('tree-refresh').addEventListener('click', loadTree);
     if (DEBUG_MODE) { hide('tree-form'); hide('tree-refresh'); }
     onTabOpen('tree-tab', loadTree);
+    // Тему сменили в шапке — открытые «Предложка» и «Дерево» перерисовываются под неё
+    onTopicChange(() => { if (isTabActive('proposals-tab')) loadProposals(); if (isTabActive('tree-tab')) loadTree(); });
 
     $('image-file').addEventListener('change', e => { if (e.target.files[0]) $('image-url').value = ''; setPreview(e.target.files[0] || null); hide('test-result'); });
     $('image-url').addEventListener('input', () => { if ($('image-url').value) { $('image-file').value = ''; setPreview(null); } });

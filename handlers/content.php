@@ -2,7 +2,9 @@
 // Вкладки «Подбор», «Предложка», «Дерево», «Тест ИИ», базы данных и демо-режим.
 
 function handle_get_current_item() {
-    if ($pool = pool_for_current_topic()) json_response(content_for_display($pool[0], array_slice($pool, 1, 3)));
+    // Тему 18+ выбрали раньше, до запрета: показываем пусто и не собираем, пока её не сменят
+    if (topic_save_denied(current_topic()) !== null) json_response(['status' => 'empty', 'message' => 'Тема «' . current_topic() . '» недоступна: выберите другую тему.']);
+    if ($pool = pool_without_lost_video(pool_for_current_topic())) json_response(content_for_display($pool[0], array_slice($pool, 1, 3)));
 
     // Проверяем статус парсера
     $parser_started = start_content_parser_if_needed();
@@ -37,8 +39,14 @@ function handle_get_current_item() {
 }
 
 /** Запись относится к теме поиска или к составной «первая + вторая»; записи без темы подходят всем. */
-function pool_item_in_topic($i, $topic, $key) {
+function pool_item_matches_topic($i, $topic, $key) {
     return ($i['topic'] ?? '') === '' || topic_same((string)$i['topic'], $topic) || topic_same((string)$i['topic'], $key);
+}
+
+/** Запись можно показать: подходит теме и не 18+ или «Жесть» (для пользователя без флага). */
+function pool_item_in_topic($i, $topic, $key) {
+    if (is_array($i) && !user_adult_allowed() && content_is_adult($i)) return false;   // страховка: 18+ и «Жесть» без флага не показываем
+    return pool_item_matches_topic($i, $topic, $key);
 }
 
 /** Позиции в пуле записей выбранной темы: по ним показываются и правятся записи в «Базах данных» и в кабинете. */
@@ -57,15 +65,16 @@ function frozen_source_labels() {
     return $labels;
 }
 
-/** Пул без записей другой темы и не подходящих под фильтры подборки (остаются, если тему сменили во время записи). */
+/** Пул без записей другой темы и не подходящих под фильтры подборки (остаются, если тему сменили во время записи). 18+ без флага из базы не удаляются, только не отдаются. */
 function pool_for_current_topic() {
     [$topic, $key, $f] = [current_topic(), search_topic_key(), content_filters()];
     $frozen = $f['active_sources_only'] ? frozen_source_labels() : [];
-    $keep = fn($i) => pool_item_in_topic($i, $topic, $key) && pool_item_is_fresh($i)
+    $keep = fn($i) => pool_item_matches_topic($i, $topic, $key) && pool_item_is_fresh($i)
         && (!$f['video_only'] || post_item_has_video($i)) && (!$f['fresh_only'] || !is_post_outdated($i['posted_at'] ?? 0, null, CONTENT_FRESH_MAX_AGE_DAYS))
         && !isset($frozen[mb_strtolower((string)($i['source'] ?? ''))]);
     $pool = pool_load();
-    return count(array_filter($pool, $keep)) === count($pool) ? $pool : pool_update(fn($p) => array_values(array_filter($p, $keep)));
+    $stored = count(array_filter($pool, $keep)) === count($pool) ? $pool : pool_update(fn($p) => array_values(array_filter($p, $keep)));
+    return array_values(array_filter($stored, fn($i) => pool_item_in_topic($i, $topic, $key)));
 }
 
 function handle_parser_status() {
@@ -99,11 +108,17 @@ function handle_topic_record() {
     json_response(['topic' => $entry, 'summary' => topic_public($entry, load_source_db())]);
 }
 
-function handle_topics() {
+/** Темы для меню, дерева и подсказок. Без флага 18+ и ветки «Для взрослых» и «Жесть» не отдаём: фильтр только на сервере. */
+function topics_public_list() {
     $db = load_source_db();
-    $topics = array_map(fn($e) => topic_public($e, $db), array_values(topic_registry()));
+    $entries = user_adult_allowed() ? topic_registry() : array_filter(topic_registry(), fn($e) => !topic_is_restricted($e['title']));
+    $topics = array_map(fn($e) => topic_public($e, $db), array_values($entries));
     usort($topics, fn($a, $b) => [$a['parent']['title'] ?? $a['title'], $a['parent'] ? 1 : 0, $a['title']] <=> [$b['parent']['title'] ?? $b['title'], $b['parent'] ? 1 : 0, $b['title']]);
-    json_response(['current' => topic_lookup(current_topic())['id'] ?? null, 'topics' => $topics]);
+    return $topics;
+}
+
+function handle_topics() {
+    json_response(['current' => topic_lookup(current_topic())['id'] ?? null, 'topics' => topics_public_list()]);
 }
 
 /**
@@ -112,10 +127,16 @@ function handle_topics() {
  */
 function handle_save_topic($in) {
     if (($typed = normalize_topic($in['topic'] ?? '')) === '') json_error('Тема поиска не может быть пустой.');
+    if ($denied = topic_save_denied($typed)) throw new DomainException($denied);
     $previous = current_topic();
     $previous_key = search_topic_key();
     $stopped = !topic_same($typed, $previous) && stop_content_parser();
     $resolved = topic_resolve($typed, !empty($in['force_new']));
+    // Введённое слово безобидное, а тема, к которой его отнесли, — из ветки 18+: отказ до сохранения настроек
+    if ($denied = topic_save_denied($resolved['topic']['title'])) {
+        if ($stopped) start_content_parser_if_needed(true);   // парсер прежней темы остановили ради модели — возвращаем
+        throw new DomainException($denied);
+    }
     save_settings(['topic' => $topic = $resolved['topic']['title']]);
     if ($lacks = topic_lacks_sources(load_source_db(), $topic)) request_source_discovery();
     $parser = 'unchanged';
@@ -130,7 +151,9 @@ function handle_save_topic($in) {
 
 /** Вторая тема (пусто — убрать): запись должна подходить под обе. Пул пересобирается. */
 function handle_save_second_topic($in) {
-    $topic2 = ($typed = normalize_topic($in['topic2'] ?? '')) === '' ? '' : topic_resolve($typed)['topic']['title'];
+    if ($denied = topic_save_denied($typed = normalize_topic($in['topic2'] ?? ''))) throw new DomainException($denied);
+    $topic2 = $typed === '' ? '' : topic_resolve($typed)['topic']['title'];
+    if ($denied = topic_save_denied($topic2)) throw new DomainException($denied);
     if ($topic2 !== '' && topic_same($topic2, current_topic())) json_error('Вторая тема совпадает с первой.');
     if (topic_norm($topic2) === topic_norm(current_topic2())) ok(['topic2' => $topic2, 'parser' => 'unchanged']);
     save_settings(['topic2' => $topic2]);
@@ -184,14 +207,20 @@ function apply_vote(array $pool, $image, $vote, $reason, callable $save) {
 
 // ---- «Предложка»: лайки и «не знаю» из истории ----
 
+/** Источник удалил пост, а своей копии файла нет: показывать нечего. */
+function proposal_media_lost(array $r): bool {
+    return !empty($r['media_gone']) && media_cache_existing($r['image_local'] ?? '') === '' && media_cache_existing($r['video_local'] ?? '') === '';
+}
+
 function proposal_items(array $history) {
     $items = [];
     $current_topic = current_topic();
+    $adult_allowed = user_adult_allowed();
     foreach (PROPOSAL_COLLECTIONS as $c) foreach ($history[$c] ?? [] as $r) {
-        if (is_array($r) && empty($r['proposal_hidden']) && content_image_key($r) !== '') {
+        if (is_array($r) && empty($r['proposal_hidden']) && !proposal_media_lost($r) && content_image_key($r) !== '' && ($adult_allowed || !content_is_adult($r))) {
             $item_topic = (string)($r['topic'] ?? '');
             if ($item_topic === '' || topic_same($item_topic, $current_topic)) {
-                $items[] = ['vote' => $c] + content_for_display($r);
+                $items[] = ['vote' => $c] + content_for_display($r, [], false);
             }
         }
     }
@@ -202,7 +231,7 @@ function proposal_items(array $history) {
 /** Лёгкий опрос прогресса: читает только файл прогресса и отметку блокировки, без истории. */
 function handle_proposals_progress() {
     $progress = proposal_progress_read();
-    $lock = sys_get_temp_dir() . '/postmaker-backfill-' . app_user_id() . '.lock';
+    $lock = sys_get_temp_dir() . '/posta-backfill-' . app_user_id() . '.lock';
     json_response(['refreshing' => !empty($progress['running']) && time() - (int)@filemtime($lock) < 180, 'progress' => $progress]);
 }
 
@@ -224,6 +253,55 @@ function handle_proposal_hide($in) {
     ok();
 }
 
+/** Загрузить медиа для одной записи заново. */
+function handle_proposal_refetch($in) {
+    if (($image = (string)($in['image'] ?? '')) === '') json_error('Не указана запись.');
+    $uid = app_user_id();
+    $refetch_limit_key = 'proposal_refetch:' . $uid . ':' . substr(sha1($image), 0, 12);   // лимит на запись: кнопки на разных карточках не мешают друг другу
+    if (time() - (int)kv_get($refetch_limit_key, 0) < 5) json_error('Эта запись уже загружается, подождите несколько секунд.', 429);
+    kv_update($refetch_limit_key, fn() => time());
+
+    $record = null;
+    foreach (PROPOSAL_COLLECTIONS as $c) {
+        foreach (load_history()[$c] ?? [] as $r) {
+            if (is_array($r) && content_image_key($r) === $image) {
+                $record = $r;
+                break 2;
+            }
+        }
+    }
+    if (!$record) json_error('Запись не найдена.', 404);
+
+    // Попробовать загрузить медиа
+    $m = proposal_fetch_media($record) ?? proposal_fetch_media($record);   // источник мог моргнуть: одна повторная попытка
+    if ($m === null) json_error('Источник не отвечает, попробуйте позже.', 503);
+    if ($m === 'gone') {
+        update_history_proposals(fn($r) => content_image_key($r) === $image ? ['media_gone' => true] + $r : null);   // из «Предложки» запись уйдёт сама
+        json_response(['gone' => true]);
+    }
+
+    // Сохранить загруженное медиа; без сохранённого файла запись не помечаем «загруженной»
+    $m = proposal_cache_media($record, $m);
+    if ($m['image_local'] === '' && $m['video_local'] === '' && media_cache_existing($record['image_local'] ?? '') === '' && media_cache_existing($record['video_local'] ?? '') === '') {
+        json_error('Не удалось скачать файл: источник не отдал его.', 502);
+    }
+    update_history_proposals(function ($r) use ($image, $m) {
+        if (content_image_key($r) !== $image) return null;
+        return ['video' => $m['video'] ?: (string)($r['video'] ?? ''), 'gallery' => $m['gallery'] ?: ($r['gallery'] ?? []),
+            'video_local' => $m['video_local'] ?: (string)($r['video_local'] ?? ''),
+            'image_local' => $m['image_local'] ?: (string)($r['image_local'] ?? ''), 'media_checked' => true, 'media_cached' => true] + $r;
+    });
+
+    json_response(content_for_display(array_filter(['video' => $m['video'], 'gallery' => $m['gallery'], 'video_local' => $m['video_local'], 'image_local' => $m['image_local']]) + $record));
+}
+
+/** Восстановить медиа для всех записей в Предложке. */
+/** «Загрузить все заново»: сначала пометить записи с пропавшими файлами (без этого загрузка их пропускает), потом скачать в фоне. */
+function handle_proposal_repair($in) {
+    $stats = media_repair_user(app_user_id());
+    ok(['refreshing' => proposal_backfill_async(), 'repair' => $stats]);
+}
+
 /** Меняет записи «Предложки»: $change(запись) → новая запись или null (не менять). */
 function update_history_proposals(callable $change, $uid = null) {
     $changed = 0;
@@ -237,8 +315,8 @@ function update_history_proposals(callable $change, $uid = null) {
 /** Записи «Предложки», не сверенные с источником, достраиваются в фоне (tools/cli.php backfill-proposals). true — идёт. */
 function proposal_backfill_async() {
     $pending = proposal_pending();
-    if (!$pending && time() - (int)@filemtime(user_dir() . '/proposals-checked') < POOL_LIVENESS_INTERVAL) return false;
-    $lock = sys_get_temp_dir() . '/postmaker-backfill-' . app_user_id() . '.lock';
+    if (!$pending && time() - user_checked_at('proposals') < POOL_LIVENESS_INTERVAL) return false;
+    $lock = sys_get_temp_dir() . '/posta-backfill-' . app_user_id() . '.lock';
     if (time() - (int)@filemtime($lock) < 180) return !empty(proposal_progress_read()['running']);   // недавно запущен: идёт ли он ещё
     @touch($lock);
     proposal_progress_write(['total' => count($pending), 'done' => 0, 'running' => true, 'updated_at' => time()]);
@@ -246,7 +324,7 @@ function proposal_backfill_async() {
     return true;
 }
 
-/** Медиа поста из источника для старой записи (видео, галерея, свежая ссылка на картинку). null — источник недоступен. */
+/** Медиа поста из источника для старой записи (видео, галерея, свежая ссылка на картинку). null — источник недоступен, 'gone' — пост удалён. */
 function proposal_fetch_media(array $r) {
     $image = content_image_key($r);
     if (preg_match('~^https://t\.me/([A-Za-z0-9_]{3,64})/(\d+)$~', (string)($r['source_url'] ?? ''), $m)) {
@@ -256,6 +334,7 @@ function proposal_fetch_media(array $r) {
             $pos = array_search($image, array_column((array)($r['gallery'] ?? []), 'image'), true);
             return ['video' => $p['video'], 'gallery' => $p['gallery'], 'image' => $pos !== false ? ($p['gallery'][$pos]['image'] ?? $p['image']) : $p['image']];
         }
+        return 'gone';   // Пост не найден на странице: удалён
     } elseif (!empty($r['board']) && !empty($r['thread_id']) && !empty($r['post_id'])) {
         if (!($data = fetch_2ch_json($r['board'], (string)$r['thread_id'], []))) return null;
         foreach (dvach_thread_posts($data) as $p) {
@@ -263,6 +342,7 @@ function proposal_fetch_media(array $r) {
             $files = dvach_post_media($r['board'], $p);
             return ['video' => array_column($files, 'video', 'image')[$image] ?? '', 'gallery' => count($files) > 1 ? $files : []];
         }
+        return 'gone';   // Пост не найден в треде: удалён (или тред удалён, но мы доступ получили)
     }
     return ['video' => '', 'gallery' => []];
 }
@@ -275,7 +355,7 @@ function proposal_cache_media(array $r, array $m) {
         $m['video_local'] = cache_downloaded_video($video, $file);
         @unlink($file);
     }
-    if (media_cache_existing($r['image_local'] ?? '') === '' && ($bytes = gallery_download_image($key) ?? ($m['image'] ? gallery_download_image($m['image']) : null))) {
+    if (media_cache_existing($r['image_local'] ?? '') === '' && ($bytes = ($m['image'] ? gallery_download_image($m['image']) : null) ?? gallery_download_image($key))) {
         $m['image_local'] = media_cache_store_image($key, gallery_prepare_image($bytes));
     }
     if (count($gallery = $m['gallery'] ?: ($r['gallery'] ?? [])) > 1) $m['gallery'] = gallery_cache_files($gallery, $key);
@@ -284,13 +364,12 @@ function proposal_cache_media(array $r, array $m) {
 
 /** Записи «Предложки», которые ещё не сверены с источником. */
 function proposal_pending(): array {
-    return array_filter(array_merge(...array_map(fn($c) => (array)(load_history()[$c] ?? []), PROPOSAL_COLLECTIONS)), fn($r) => is_array($r) && empty($r['media_cached']) && empty($r['proposal_hidden']));
+    return array_filter(array_merge(...array_map(fn($c) => (array)(load_history()[$c] ?? []), PROPOSAL_COLLECTIONS)), fn($r) => is_array($r) && empty($r['media_cached']) && empty($r['proposal_hidden']) && empty($r['media_gone']));
 }
 
 /** Прогресс достраивания для страницы: сколько записей проверено из скольких в текущем проходе. */
-function proposal_progress_file() { return user_dir() . '/proposals-backfill.json'; }
-function proposal_progress_read(): array { return load_data(proposal_progress_file(), []); }
-function proposal_progress_write(array $progress): void { save_data(proposal_progress_file(), $progress); }
+function proposal_progress_read(): array { return (array)kv_get('proposal_progress:' . app_user_id(), []); }
+function proposal_progress_write(array $progress): void { kv_update('proposal_progress:' . app_user_id(), fn() => $progress); }
 function proposal_progress_tick(): void {
     $progress = proposal_progress_read();
     $progress['done'] = (int)($progress['done'] ?? 0) + 1;
@@ -301,27 +380,40 @@ function proposal_progress_tick(): void {
 function proposal_backfill_media($limit = 6) {
     $todo = [];
     foreach (PROPOSAL_COLLECTIONS as $c) foreach (load_history()[$c] ?? [] as $r) {
-        if (is_array($r) && empty($r['media_cached']) && empty($r['proposal_hidden']) && count($todo) < $limit) $todo[content_image_key($r)] = $r;
+        if (is_array($r) && empty($r['media_cached']) && empty($r['proposal_hidden']) && empty($r['media_gone']) && count($todo) < $limit) $todo[content_image_key($r)] = $r;
     }
     if (!$todo) return 0;
     $found = [];
+    $gone = [];
     foreach ($todo as $key => $r) {
-        if (($m = proposal_fetch_media($r)) !== null) $found[$key] = proposal_cache_media($r, $m);
+        if (($m = proposal_fetch_media($r)) === 'gone') {
+            $gone[$key] = true;
+        } elseif ($m !== null) {
+            $cached = proposal_cache_media($r, $m);
+            if ($cached['image_local'] !== '' || $cached['video_local'] !== '' || media_cache_existing($r['image_local'] ?? '') !== '' || media_cache_existing($r['video_local'] ?? '') !== '' || ($r['image_local'] ?? '') === '') $found[$key] = $cached;
+        }
         proposal_progress_tick();   // считаем проверенной и ту запись, источник которой недоступен
     }
-    if (!$found) return 0;
-    return update_history_proposals(function ($r) use ($found) {
-        if (!isset($found[$k = content_image_key($r)]) || !empty($r['media_cached'])) return null;
-        $m = $found[$k];   // пустой ответ не затирает то, что запись уже знала
-        return ['video' => $m['video'] ?: (string)($r['video'] ?? ''), 'gallery' => $m['gallery'] ?: ($r['gallery'] ?? []), 'video_local' => $m['video_local'] ?: (string)($r['video_local'] ?? ''),
-            'image_local' => $m['image_local'] ?: (string)($r['image_local'] ?? ''), 'media_checked' => true, 'media_cached' => true] + $r;
-    });
+    $updated = 0;
+    if ($found) {
+        $updated += update_history_proposals(function ($r) use ($found) {
+            if (!isset($found[$k = content_image_key($r)]) || !empty($r['media_cached'])) return null;
+            $m = $found[$k];   // пустой ответ не затирает то, что запись уже знала
+            return ['video' => $m['video'] ?: (string)($r['video'] ?? ''), 'gallery' => $m['gallery'] ?: ($r['gallery'] ?? []), 'video_local' => $m['video_local'] ?: (string)($r['video_local'] ?? ''),
+                'image_local' => $m['image_local'] ?: (string)($r['image_local'] ?? ''), 'media_checked' => true, 'media_cached' => true] + $r;
+        });
+    }
+    if ($gone) {
+        $updated += update_history_proposals(function ($r) use ($gone) {
+            return isset($gone[content_image_key($r)]) ? ['media_gone' => true] + $r : null;
+        });
+    }
+    return $updated;
 }
 
 /** Прячет посты мёртвых тредов без своей копии картинки. */
 function proposal_prune_dead_threads($force = false) {
-    $marker = user_dir() . '/proposals-checked';
-    if (!$force && time() - (int)@filemtime($marker) < POOL_LIVENESS_INTERVAL) return 0;
+    if (!$force && time() - user_checked_at('proposals') < POOL_LIVENESS_INTERVAL) return 0;
     $threads = [];
     foreach (PROPOSAL_COLLECTIONS as $c) foreach (load_history()[$c] ?? [] as $r) {
         if (is_array($r) && empty($r['proposal_hidden']) && !empty($r['board']) && !empty($r['thread_id'])) $threads["{$r['board']}/{$r['thread_id']}"] = [$r['board'], $r['thread_id']];
@@ -329,20 +421,20 @@ function proposal_prune_dead_threads($force = false) {
     $states = dvach_threads_liveness(array_slice($threads, 0, POOL_LIVENESS_MAX_THREADS, true));
     $hidden = update_history_proposals(fn($r) => empty($r['proposal_hidden']) && dvach_item_gone($r, $states) && media_cache_existing($r['image_local'] ?? '') === ''
         ? ['proposal_hidden' => true, 'proposal_dead' => true] + $r : null);
-    @touch($marker);
+    user_proposals_checked();
     return $hidden;
 }
 
-// ---- Базы данных: просмотр и правка записей JSON-файлов ----
+// ---- Базы данных: просмотр и правка записей ----
 
 function database_definitions() {
     static $defs = null;
     if ($defs !== null) return $defs;
 
     $defs = [
-        'content_pool' => ['label' => 'Пул контента', 'file' => null, 'collections' => ['items' => 'Записи'], 'hidden' => true],
-        'content_history' => ['label' => 'История оценок', 'file' => null, 'collections' => ['liked' => 'Лайки', 'disliked' => 'Дизлайки', 'undecided' => 'Без решения', 'complaints' => 'Жалобы'], 'hidden' => true],
-        'sources_db' => ['label' => 'Каталог источников', 'file' => null, 'collections' => ['2ch_boards' => 'Доски 2ch', 'vk_publics' => 'Паблики ВКонтакте', 'telegram_channels' => 'Каналы Telegram', 'source_votes' => 'Оценки источников'], 'hidden' => true]
+        'content_pool' => ['label' => 'Пул контента', 'collections' => ['items' => 'Записи'], 'by_topic' => true],
+        'content_history' => ['label' => 'История оценок', 'collections' => ['liked' => 'Лайки', 'disliked' => 'Дизлайки', 'undecided' => 'Без решения', 'complaints' => 'Жалобы'], 'by_topic' => true],
+        'sources_db' => ['label' => 'Каталог источников', 'collections' => ['2ch_boards' => 'Доски 2ch', 'vk_publics' => 'Паблики ВКонтакте', 'telegram_channels' => 'Каналы Telegram', 'rss_feeds' => 'Ленты RSS', 'source_votes' => 'Оценки источников']]
     ];
 
     // Добавляем все таблицы SQLite
@@ -362,14 +454,17 @@ function database_definitions() {
             'source_suggestions' => 'Рекомендации источников',
             'source_votes' => 'Оценки источников (SQL)',
             'topics' => 'Темы поиска',
-            'users' => 'Пользователи'
+            'users' => 'Ваш профиль',
+            'ledger' => 'Баланс: операции',
+            'subscriptions' => 'Тариф',
+            'post_usage' => 'Учёт постов'
         ];
 
         foreach ($tables as $table) {
+            if (in_array($table, DATABASE_SQL_COVERED, true)) continue;   // их показывают и правят базы выше — с темой и только свои записи
             if (!isset($defs[$table])) {
                 $defs[$table] = [
                     'label' => $tableLabels[$table] ?? ucfirst(str_replace('_', ' ', $table)),
-                    'file' => null,
                     'collections' => ['all' => 'Все записи'],
                     'is_sql_table' => true
                 ];
@@ -389,11 +484,15 @@ function database_open($database, $collection) {
 
     // Если это SQL таблица
     if ($def['is_sql_table'] ?? false) {
-        $pdo = db();
-        $stmt = $pdo->prepare("SELECT * FROM " . $database . " ORDER BY rowid");
-        $stmt->execute();
+        // Таблицы с user_id — только записи текущего пользователя: чужие пулы выглядели как дубли, а профили других — это чужие данные
+        $columns = array_column(db_all("PRAGMA table_info($database)"), 'name');
+        $own = in_array('user_id', $columns, true) ? 'user_id' : ($database === 'users' ? 'id' : null);
+        $rows = db_all("SELECT * FROM $database" . ($own ? " WHERE $own = ?" : '') . ' ORDER BY rowid', $own ? [app_user_id()] : []);
+        // kv: секреты сайта не показываем, ключи вида «имя:id» — только свои
+        if ($database === 'kv') $rows = array_filter($rows, fn($r) => !in_array($r['key'], KV_HIDDEN_KEYS, true) && (!str_contains($r['key'], ':') || str_ends_with($r['key'], ':' . app_user_id())));
         $items = [];
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        foreach ($rows as $row) {
+            unset($row['connections']);   // токены соцсетей (пусть и зашифрованные) в просмотрщик не отдаём
             // Парсим JSON поля
             $item = [];
             foreach ($row as $k => $v) {
@@ -419,13 +518,16 @@ function database_open($database, $collection) {
         return [$def, null, $items];
     }
 
-    // Пул хранится в SQLite: показываем записи выбранной темы
-    // Пул показывается целиком, все темы: таблица выводит все записи, а тема — отдельным столбцом
-    if ($database === 'content_pool') return [$def, null, array_values(pool_load())];
-    // История и каталог источников тоже в базе
-    $items = $database === 'content_history' ? (history_load()[$collection] ?? []) : (load_source_db()[$collection] ?? []);
-    return [$def, null, array_values($items)];
+    $all = array_values(match ($database) { 'content_pool' => pool_load(), 'content_history' => history_load()[$collection] ?? [], default => load_source_db()[$collection] ?? [] });
+    // Пул и история — только записи темы, выбранной во вкладках (одна настройка topic на всё приложение)
+    $visible = ($def['by_topic'] ?? false) ? pool_topic_positions($all) : array_keys($all);
+    return [$def, $visible, array_values(array_intersect_key($all, array_flip($visible)))];
 }
+
+const KV_HIDDEN_KEYS = ['telegram_app_keys', 'vk_tokens', 'telegram_login_bot'];
+
+/** Таблицы SQLite, у которых есть свой просмотр выше (content_pool, content_history, sources_db). */
+const DATABASE_SQL_COVERED = ['pool_items', 'history_items', 'catalog_sources', 'source_votes'];
 
 function database_validate($database, $collection, $r) {
     // SQL таблицы: минимальная валидация или её отсутствие
@@ -448,7 +550,7 @@ function database_validate($database, $collection, $r) {
 }
 
 function handle_database_options() {
-    json_response(['databases' => array_map(fn($id, $d) => ['id' => $id, 'label' => $d['label'], 'is_sql_table' => $d['is_sql_table'] ?? false, 'hidden' => $d['hidden'] ?? false, 'collections' => array_map(fn($cid, $l) => ['id' => $cid, 'label' => $l], array_keys($d['collections']), $d['collections'])],
+    json_response(['databases' => array_map(fn($id, $d) => ['id' => $id, 'label' => $d['label'], 'is_sql_table' => $d['is_sql_table'] ?? false, 'by_topic' => $d['by_topic'] ?? false, 'collections' => array_map(fn($cid, $l) => ['id' => $cid, 'label' => $l], array_keys($d['collections']), $d['collections'])],
         array_keys(database_definitions()), database_definitions())]);
 }
 
@@ -474,13 +576,15 @@ function database_media_missing(array $items) {
 
 function handle_database_read() {
     [$def, , $items] = database_open($db = $_GET['database'] ?? '', $c = $_GET['collection'] ?? '');
-    json_response(['database_label' => $def['label'], 'collection_label' => $def['collections'][$c], 'columns' => database_columns($items), 'items' => $items,
+    json_response(['database_label' => $def['label'], 'collection_label' => $def['collections'][$c], 'topic' => ($def['by_topic'] ?? false) ? search_topic_key() : '',
+        'columns' => database_columns($items), 'items' => $items,
         'media_missing' => database_media_missing($items)]);
 }
 
-/** Правка коллекции в памяти. $all — все записи файла или базы. Номер в списке пула — позиция среди записей выбранной темы, поэтому переводим его в позицию в $all. */
+/** Правка коллекции в памяти. $all — все записи коллекции. Номер в списке — позиция среди записей выбранной темы, поэтому переводим его в позицию в $all. */
 function database_edit(array $all, $database, $collection, $in, $action): array {
-    $visible = array_keys($all);   // таблица показывает все записи коллекции, номер строки — позиция в коллекции
+    $all = array_values($all);
+    $visible = in_array($database, ['content_pool', 'content_history'], true) ? pool_topic_positions($all) : array_keys($all);
     $items = $all;
     if ($action !== 'database_delete' && !array_key_exists('record', $in)) throw new InvalidArgumentException('Не переданы данные записи.');
     if ($action === 'database_add') {
@@ -551,8 +655,8 @@ function demo_initial_state() {
 
 function demo_route($action, array $in): never {
     if (session_status() === PHP_SESSION_NONE) session_start();
-    if ($action === 'debug_reset' || !is_array($_SESSION['postmaker_debug'] ?? null)) $_SESSION['postmaker_debug'] = demo_initial_state();
-    $s = &$_SESSION['postmaker_debug'];
+    if ($action === 'debug_reset' || !is_array($_SESSION['posta_debug'] ?? null)) $_SESSION['posta_debug'] = demo_initial_state();
+    $s = &$_SESSION['posta_debug'];
     $debug = ['status' => 'success', 'debug' => true];
     if ($action === 'vote') $s['pool'] = apply_vote($s['pool'], (string)($in['image'] ?? ''), (string)($in['vote'] ?? 'postpone'), null, function ($r, $c) use (&$s) { $s['history'][$c][] = $r; }) ?? $s['pool'];
     match ($action) {
@@ -575,116 +679,6 @@ function demo_route($action, array $in): never {
         default => json_error('В демо-режиме это действие недоступно.', 403)
     };
     json_response($debug);
-}
-
-// ========== TELEGRAM LEADS (УМНЫЙ РАДАР ЛИДОВ) ==========
-
-function handle_telegram_leads() {
-    require_once __DIR__ . '/../lib/ollama_classifier.php';
-
-    $limit = min((int)($_GET['limit'] ?? 20), 100);
-    $offset = (int)($_GET['offset'] ?? 0);
-    $status = $_GET['status'] ?? 'new';
-
-    $pdo = db();
-
-    // Получаем лиды с фильтром по статусу
-    $stmt = $pdo->prepare("
-        SELECT id, user_id, message, chat_id, message_id, lead_status,
-               telegram_username, telegram_profile_url, created_at
-        FROM telegram_leads
-        WHERE lead_status = ?
-        ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-    ");
-    $stmt->execute([$status, $limit, $offset]);
-    $leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Считаем всего для пагинации
-    $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM telegram_leads WHERE lead_status = ?");
-    $countStmt->execute([$status]);
-    $total = (int)$countStmt->fetch(PDO::FETCH_ASSOC)['total'];
-
-    json_response([
-        'leads' => $leads,
-        'total' => $total,
-        'limit' => $limit,
-        'offset' => $offset
-    ]);
-}
-
-function handle_update_telegram_lead() {
-    require_once __DIR__ . '/../lib/ollama_classifier.php';
-
-    if (($_SERVER['HTTP_X_POSTMAKER'] ?? '') !== '1') {
-        json_error('CSRF token missing', 403);
-    }
-
-    $input = json_decode(file_get_contents('php://input'), true) ?? [];
-
-    $leadId = (int)($input['lead_id'] ?? 0);
-    $status = $input['status'] ?? '';
-
-    if (!$leadId) {
-        json_error('Invalid lead_id');
-    }
-
-    // Маппинг действий фронтенда на статусы БД
-    $statusMap = [
-        'replied' => 'replied',
-        'interested' => 'interested',
-        'spam' => 'spam',
-        'ignored' => 'ignored'
-    ];
-
-    if (!isset($statusMap[$status])) {
-        json_error('Invalid status');
-    }
-
-    $pdo = db();
-
-    // Обновляем статус
-    $stmt = $pdo->prepare("
-        UPDATE telegram_leads
-        SET lead_status = ?, updated_at = NOW()
-        WHERE id = ?
-    ");
-
-    if ($stmt->execute([$statusMap[$status], $leadId])) {
-        ok([
-            'lead_id' => $leadId,
-            'new_status' => $statusMap[$status]
-        ]);
-    } else {
-        json_error('Database error', 500);
-    }
-}
-
-function handle_telegram_leads_stats() {
-    require_once __DIR__ . '/../lib/ollama_classifier.php';
-
-    $pdo = db();
-
-    // Количество в каждом статусе
-    $stmt = $pdo->query("
-        SELECT lead_status, COUNT(*) as count
-        FROM telegram_leads
-        GROUP BY lead_status
-    ");
-    $statuses = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-    // Количество в очереди ожидания
-    $pendingStmt = $pdo->query("SELECT COUNT(*) as cnt FROM telegram_lead_queue WHERE status = 'pending'");
-    $pendingCount = (int)$pendingStmt->fetch()['cnt'];
-
-    json_response([
-        'new' => (int)($statuses['new'] ?? 0),
-        'replied' => (int)($statuses['replied'] ?? 0),
-        'interested' => (int)($statuses['interested'] ?? 0),
-        'spam' => (int)($statuses['spam'] ?? 0),
-        'ignored' => (int)($statuses['ignored'] ?? 0),
-        'pending_in_queue' => $pendingCount
-    ]);
 }
 
 function handle_debug_reset() { json_error('Сброс доступен только в демо-режиме.', 403); }

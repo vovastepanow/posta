@@ -3,24 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Postmaker</title>
-<link rel="icon" href="img/logo.svg" type="image/svg+xml">
-<link rel="icon" href="img/favicon-32.png" sizes="32x32" type="image/png">
-<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
-<meta name="theme-color" content="#0b0b0c">
-<link rel="preload" href="fonts/GolosText-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+<title>Postä</title>
+<link rel="icon" href="img/posta-favicon-16.png" sizes="16x16" type="image/png">
+<link rel="icon" href="img/posta-favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="img/posta-favicon-180.png">
+<meta name="theme-color" content="#FFF4D6">
+<script>try{var t=localStorage.getItem('postaTheme');if(t!=='day'&&t!=='night'){var h=new Date().getHours();t=(h>=19||h<7)?'night':'day'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='day'}</script>
+<link rel="preload" href="fonts/Rubik-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/app.css">
-<link rel="stylesheet" href="css/telegram_leads.css">
-<link rel="stylesheet" href="css/telegram_leads_panel.css">
 <script type="module" src="js/main.js"></script>
-<script src="js/telegram_leads.js" defer></script>
 <script>setTimeout(() => document.getElementById('app-loading')?.classList.add('is-done'), 20000);</script>
 </head>
 <body>
 <div id="app-loading" class="app-loading" role="status" aria-label="Загрузка приложения"><span class="spinner spinner-lg"></span></div>
+<div class="air-ticker" aria-hidden="true">
+  <span class="air-ticker-tag air-day">Дневной выпуск</span><span class="air-ticker-tag air-night">● Вечерний эфир</span>
+  <span class="air-ticker-text air-day">Тренд живёт пару часов — ловим его за вас ★ Звоните прямо сейчас!* ★ *звонить не нужно</span>
+  <span class="air-ticker-text air-night">Пока вы отдыхаете — подбор работает ★ Не переключайтесь!</span>
+</div>
 
 <section id="activity-console" class="activity-console" aria-label="Журнал приложения">
-  <div class="activity-console-header"><span class="console-indicator"></span><span id="activity-console-status">ничего не делается</span><button id="debug-toggle" class="debug-toggle" type="button" aria-pressed="false">🐞 Демо</button><button id="activity-console-follow" class="activity-console-follow" type="button" hidden>К концу ↓</button></div>
+  <div class="activity-console-header"><span class="console-indicator"></span><span class="console-title">Сводка</span><span id="activity-console-status">ничего не делается</span><button id="debug-toggle" class="debug-toggle" type="button" aria-pressed="false">🐞 Демо</button><button id="activity-console-follow" class="activity-console-follow" type="button" hidden>К концу ↓</button></div>
   <div id="activity-track" class="activity-console-output" role="log" aria-live="polite"></div>
   <details id="model-panel" class="model-panel">
     <summary><span class="model-panel-title">Модель</span><span id="model-summary">…</span></summary>
@@ -46,16 +49,18 @@
 <main class="app-main">
 <div class="app-top">
   <header class="app-brand">
-    <img class="app-brand-logo" src="img/logo-mark.svg" alt="" width="38" height="44">
-    <span class="app-brand-name">Postmaker</span>
+    <span class="app-brand-plate" aria-label="Postä">postä</span>
   </header>
+  <div class="theme-switch" role="group" aria-label="Оформление">
+    <button type="button" data-theme-set="day" aria-pressed="true">День</button>
+    <button type="button" data-theme-set="night" aria-pressed="false">Эфир</button>
+  </div>
   <nav class="tabs" role="tablist">
     <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="content-tab">Подбор</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="proposals-tab">Предложка</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="source-tab">Источники</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab">🌳 Дерево</button>
+    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab">Дерево</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="test-tab">Тест ИИ</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="telegram-leads-tab">🎯 Радар лидов</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="account-tab">Личный кабинет</button>
     <div id="topic-tabs" class="topic-switch"></div>
   </nav>
@@ -135,18 +140,7 @@
           </div>
         </div>
         <div class="rocket-wrap">
-          <button id="item-rocket" class="btn btn-mini" type="button" aria-label="Запостить в свой канал или паблик" title="Запостить" aria-haspopup="dialog" aria-expanded="false"><span class="btn-icon" aria-hidden="true">🚀</span></button>
-          <form id="post-panel" class="post-panel" role="dialog" aria-label="Публикация" hidden>
-            <label class="post-field"><span>Куда постим</span>
-              <select id="post-target">
-                <option value="" disabled selected>Выберите источник…</option>
-                <optgroup label="Telegram"><option value="tg:main">Мой канал в Telegram</option></optgroup>
-                <optgroup label="VK"><option value="vk:main">Мой паблик VK</option></optgroup>
-              </select>
-            </label>
-            <div class="post-field"><span id="post-when-label">Когда опубликовать</span><button type="button" id="post-when" class="post-when" aria-haspopup="dialog" aria-labelledby="post-when-label post-when">Сразу</button></div>
-            <button type="submit" class="post-submit">Запостить</button>
-          </form>
+          <button id="item-rocket" class="btn btn-mini" type="button" aria-label="Запостить в свой канал или паблик" title="Запостить"><span class="btn-icon" aria-hidden="true">🚀</span></button>
         </div>
       </div>
       <div class="controls-row controls-management">
@@ -237,6 +231,16 @@
     </div>
   </div>
 
+  <section class="source-add" aria-labelledby="source-add-title">
+    <h2 id="source-add-title" class="section-title">Добавить источник</h2>
+    <form id="source-add-form" class="source-add-form">
+      <input id="source-add-link" type="text" maxlength="300" autocomplete="off" placeholder="Ссылка на канал, паблик или сайт" aria-label="Ссылка на канал, паблик или сайт" aria-describedby="source-add-hint">
+      <button id="source-add-button" class="primary-button" type="submit">Добавить</button>
+    </form>
+    <p id="source-add-hint" class="source-add-hint">Telegram: t.me/канал · VK: vk.com/паблик · Сайт или блог: адрес страницы, найдём RSS сами</p>
+    <div id="source-add-status" class="proposals-status" role="status"></div>
+  </section>
+
   <section class="topic-sources" aria-labelledby="topic-sources-title">
     <div class="proposals-toolbar">
       <h2 id="topic-sources-title" class="section-title">Источники темы</h2>
@@ -244,6 +248,7 @@
         <button type="button" class="proposals-filter active" data-topic-source-filter="all">Все</button>
         <button type="button" class="proposals-filter" data-topic-source-filter="Telegram">Telegram</button>
         <button type="button" class="proposals-filter" data-topic-source-filter="ВКонтакте">ВКонтакте</button>
+        <button type="button" class="proposals-filter" data-topic-source-filter="RSS">RSS</button>
         <button type="button" class="proposals-filter" data-topic-source-filter="Двач">Двач</button>
       </div>
       <span id="topic-sources-count" class="proposals-count"></span>
@@ -306,6 +311,7 @@
   <div id="account-exposure" class="account-card account-warning" role="alert" hidden></div>
   <nav class="account-nav" aria-label="Разделы кабинета">
     <button type="button" data-account-section="profile" class="is-active">Профиль</button>
+    <button type="button" data-account-section="billing">Тариф и баланс</button>
     <button type="button" data-account-section="social">Соцсети</button>
     <button type="button" data-account-section="privacy">Мои данные и куки</button>
     <button type="button" data-account-section="databases">Базы данных</button>
@@ -320,14 +326,17 @@
     </div>
     <div class="account-card">
       <div class="social-head"><span class="social-logo" aria-hidden="true">TG</span><div><h3>Telegram</h3><p class="account-muted">Публикация постов в ваш Telegram-канал прямо из приложения. Для этого нужен бот: он отправляет посты в канал. Токен бота хранится на сервере в зашифрованном виде.</p></div></div>
-      <div id="telegram-connected" class="telegram-connected" hidden><div id="telegram-summary" class="telegram-summary"></div><button id="telegram-disconnect" class="account-secondary" type="button">Отключить</button></div>
+      <div id="telegram-channels" class="channel-list" hidden></div>
+      <div id="telegram-channels-limit" class="account-muted channel-limit" role="status" hidden></div>
+      <div id="sched-panel" class="sched-panel" hidden></div>
       <form id="telegram-form" class="telegram-form">
         <ol class="telegram-steps account-muted">
           <li><b>Создайте бота.</b> Откройте <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a> в Telegram, отправьте ему <code>/newbot</code>, придумайте имя и ник (ник должен заканчиваться на <code>bot</code>). В ответ BotFather пришлёт <b>токен</b> — длинную строку вида <code>123456789:AA…</code>. Скопируйте её. Подробнее: <a href="https://core.telegram.org/bots#how-do-i-create-a-bot" target="_blank" rel="noopener noreferrer">инструкция Telegram</a>.</li>
           <li><b>Добавьте бота в канал.</b> Откройте свой канал → название канала вверху → «Управление каналом» (значок карандаша) → «Администраторы» → «Добавить администратора» → найдите своего бота по нику. В правах оставьте включённым «Публикация сообщений». Бот должен быть именно администратором, иначе он не сможет писать в канал. Если канала ещё нет: <a href="https://telegram.org/faq_channels#q-how-do-i-create-a-channel" target="_blank" rel="noopener noreferrer">как создать канал</a>.</li>
           <li><b>Подключите здесь.</b> Вставьте токен и адрес канала: <code>@имя_канала</code> или ссылку <code>t.me/имя_канала</code>. У закрытого канала без имени укажите числовой id вида <code>-1001234567890</code> (его покажет <a href="https://t.me/getidsbot" target="_blank" rel="noopener noreferrer">@getidsbot</a>, если переслать ему любой пост из канала). Приложение проверит бота и права и подключит канал.</li>
         </ol>
-        <label><span>Токен бота — из ответа @BotFather</span><input id="telegram-token" type="password" autocomplete="off" placeholder="Вставьте токен от @BotFather" required></label>
+        <label id="telegram-bot-row" hidden><span>Бот</span><select id="telegram-bot"></select></label>
+        <label id="telegram-token-row"><span>Токен бота — из ответа @BotFather</span><input id="telegram-token" type="password" autocomplete="off" placeholder="Вставьте токен от @BotFather" required></label>
         <label><span>Канал, куда постить</span><input id="telegram-channel" type="text" autocomplete="off" placeholder="@имя_канала или ссылка на канал" required></label>
         <button id="telegram-connect" class="primary-button" type="submit">Проверить и подключить</button>
         <div id="telegram-status" class="account-muted" role="status"></div>
@@ -342,8 +351,8 @@
             <li><b>Войдите в аккаунт.</b> Введите ключи и номер телефона владельца канала и нажмите «Получить код»: код придёт в Telegram (чат «Telegram»). Если код не приходит — «Войти по QR-коду»: Telegram на телефоне → Настройки → Устройства → Подключить устройство.</li>
           </ol>
           <div id="tgu-keys" class="tgu-keys">
-            <label><span>api_id</span><input id="tgu-api-id" type="text" inputmode="numeric" autocomplete="off" placeholder="Число из my.telegram.org" required></label>
-            <label><span>api_hash</span><input id="tgu-api-hash" type="password" autocomplete="off" placeholder="Длинная строка из my.telegram.org" required></label>
+            <label><span>api_id</span><input id="tgu-api-id" type="text" inputmode="numeric" autocomplete="off" data-lpignore="true" data-1p-ignore placeholder="Число из my.telegram.org" required></label>
+            <label><span>api_hash</span><input id="tgu-api-hash" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore placeholder="Длинная строка из my.telegram.org" required></label>
           </div>
           <label><span>Телефон</span><input id="tgu-phone" type="tel" autocomplete="tel" placeholder="Номер с кодом страны" required></label>
           <div class="tgu-actions"><button class="primary-button" type="submit">Получить код</button><button id="tgu-qr-button" class="account-secondary" type="button" title="Если код не приходит">Войти по QR-коду</button></div>
@@ -366,6 +375,40 @@
       </div>
       <div id="telegram-queue" class="telegram-queue" hidden></div>
     </div>
+  </section>
+
+  <section class="account-section" data-section="billing" hidden>
+    <div class="account-card">
+      <h3>Баланс и тариф</h3>
+      <div id="billing-summary" class="account-stats"></div>
+      <p id="billing-plan-note" class="account-muted"></p>
+      <p class="account-muted">Баланс — в рублях: 1 ₽ на балансе = 1 ₽. Тратится только на тарифы Postä, вывести его нельзя. Приём оплаты картой подключается — пока пополнить баланс можно через администратора: назовите ему ID из «Профиля».</p>
+    </div>
+    <div class="account-card">
+      <h3>Готовые тарифы</h3>
+      <div id="billing-plans" class="billing-plans"></div>
+    </div>
+    <div class="account-card">
+      <h3>Свой тариф</h3>
+      <p class="account-muted">Нужен один канал, но много постов, или пара каналов вместо пяти? Соберите тариф под себя и платите только за нужное.</p>
+      <form id="billing-custom" class="billing-custom">
+        <label><span>Каналов: <output id="billing-channels-out"></output></span><input id="billing-channels" type="range" min="1" max="10" step="1" value="2"></label>
+        <label><span>Постов в день: <output id="billing-posts-out"></output></span><input id="billing-posts" type="range" min="10" max="100" step="10" value="20"></label>
+        <div class="billing-quote"><strong id="billing-custom-price"></strong><span id="billing-custom-hint" class="account-muted"></span></div>
+        <button class="primary-button" type="submit">Купить свой тариф</button>
+      </form>
+    </div>
+    <div class="account-card">
+      <h3>Пригласить друга</h3>
+      <p id="billing-ref-about" class="account-muted"></p>
+      <div class="billing-ref"><code id="billing-ref-link" class="account-command"></code><button id="billing-ref-copy" class="account-secondary" type="button">Скопировать</button></div>
+      <div id="billing-ref-stats" class="account-stats"></div>
+    </div>
+    <div class="account-card">
+      <h3>Операции</h3>
+      <div id="billing-ledger" class="privacy-table-wrap"></div>
+    </div>
+    <div id="billing-status" class="account-muted" role="status"></div>
   </section>
 
   <section class="account-section" data-section="privacy" hidden>
@@ -418,50 +461,6 @@
     </dialog>
   </section>
 
-<!-- ВКЛАДКА: РАДАР ЛИДОВ ИЗ TELEGRAM -->
-<div id="telegram-leads-tab" class="view-panel wide-panel" hidden>
-  <div class="telegram-leads-panel">
-    <div class="telegram-leads-header">
-      <h2>🎯 Умный радар лидов из Telegram</h2>
-      <p class="telegram-leads-subtitle">Автоматическое обнаружение потенциальных клиентов, ищущих решение для автопостинга контента</p>
-    </div>
-
-    <!-- Статистика -->
-    <div class="telegram-leads-section">
-      <h3>Статистика</h3>
-      <div id="telegram-leads-stats" role="status" aria-live="polite"></div>
-    </div>
-
-    <!-- Фильтры -->
-    <div class="telegram-leads-section">
-      <h3>Статус</h3>
-      <div class="tg-leads-filters">
-        <button class="tg-leads-filter-btn tg-active" data-status="new">🆕 Новые</button>
-        <button class="tg-leads-filter-btn" data-status="interested">⭐ Интересные</button>
-        <button class="tg-leads-filter-btn" data-status="replied">✓ Ответил</button>
-        <button class="tg-leads-filter-btn" data-status="spam">🚫 Спам</button>
-        <button class="tg-leads-filter-btn" data-status="ignored">— Игнорированы</button>
-      </div>
-    </div>
-
-    <!-- Контейнер с лидами -->
-    <div class="telegram-leads-section">
-      <h3>Лиды</h3>
-      <div id="telegram-leads-container" role="feed" aria-label="Список потенциальных клиентов">
-        <div class="status-msg is-loading">Загрузка лидов...</div>
-      </div>
-    </div>
-
-    <!-- Отдельная консоль для радара -->
-    <div class="telegram-leads-section">
-      <h3>📋 Лог обработки</h3>
-      <div id="telegram-leads-console" class="telegram-leads-console" role="log" aria-live="polite">
-        <div class="tg-console-line tg-console-info">Ожидание первого опроса...</div>
-      </div>
-    </div>
-  </div>
-</div>
-
 </div>
 </main>
 
@@ -493,7 +492,7 @@
         <div id="vc-volume" class="vc-slider vc-volume" role="slider" tabindex="0" aria-label="Громкость" aria-valuemin="0" aria-valuemax="100" aria-valuenow="33"><div class="vc-track"><div id="vc-volume-fill" class="vc-fill"></div></div></div>
         <button id="vc-fullscreen" class="vc-btn" type="button" aria-label="Во весь экран"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       </div>
-      <div id="image-viewer-status" class="image-viewer-status" role="status" hidden><span id="image-viewer-status-text"></span><a id="image-viewer-source" target="_blank" rel="noopener noreferrer" hidden>Открыть исходный пост ↗</a></div>
+      <div id="image-viewer-status" class="image-viewer-status" role="status" hidden><span id="image-viewer-status-text"></span><a id="image-viewer-source" target="_blank" rel="noopener noreferrer" hidden>Открыть исходный пост ↗</a><button id="image-viewer-refetch" class="proposal-refetch" type="button" hidden>↻ Загрузить заново</button></div>
     </div>
   </div>
 </div>
