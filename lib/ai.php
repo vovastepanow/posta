@@ -388,7 +388,7 @@ function content_analysis_schema($query = '') {
     // relevance и tags — первыми: если ответ обрежется по лимиту токенов, главное уже есть (salvage_analysis_json)
     $p = ['relevance' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 100]];
     if ($query !== '') $p['query_match'] = ['type' => 'integer', 'minimum' => 0, 'maximum' => 100];   // только при уточнении (TOPIC_QUERY_PROMPT.md, часть 4)
-    $p += ['tags' => content_tags_schema(), 'description' => ['type' => 'string'],
+    $p += ['ukraine' => ['type' => 'boolean'], 'tags' => content_tags_schema(), 'description' => ['type' => 'string'],   // ukraine — UA_FILTER_PROMPT.md, B2
         'format' => ['type' => 'string', 'enum' => array_keys(CONTENT_FORMATS)], 'entity' => ['type' => 'string'], 'evidence' => ['type' => 'string']];
     return ['type' => 'object', 'properties' => $p, 'required' => array_keys($p)];
 }
@@ -409,6 +409,7 @@ function content_analysis_prompt($topic, $caption, $history, $video, $context = 
         . "format: форма поста, одно из: " . implode('; ', array_map(fn($k, $v) => "$k — $v", array_keys(CONTENT_FORMATS), CONTENT_FORMATS)) . ". Для одной картинки не выбирай video.\n"
         . content_entity_rule()
         . "evidence: короткая цитата из надписи или примета на картинке, относящаяся к теме, до " . ANALYSIS_EVIDENCE_MAX . " символов: почему запись подходит или не подходит. Ничего такого нет — пустая строка.\n"
+        . "ukraine: true — если запись явно из украинского источника: украинский язык, водяной знак или логотип украинского СМИ/канала, подпись «Слава Україні», украинская символика как подпись автора. Упоминание Украины в новостях — не повод.\n"
         . "Пиши по-русски, без иероглифов.\n\n"
         . "Тема подборки: " . topic_prompt_context($topic) . "." . topic_profile_hint($topic) . "\n";
     if ($complaint_texts = topic_complaint_texts(topic_complaints($topic, $history), TOPIC_COMPLAINT_EXAMPLES)) {
@@ -560,7 +561,7 @@ function analyze_content_with_vision($images, $caption, $history, $topic, $video
                 }
                 // why_relevant в схеме больше нет: объяснение «почему подходит» — цитата (записи и карточка читают why_relevant)
                 return ['description' => mb_substr(strip_cjk($a['description'] ?? ''), 0, ANALYSIS_DESCRIPTION_MAX), 'why_relevant' => $evidence, 'format' => $format, 'tags' => content_tags_clean($a['tags'] ?? []),
-                    'entity' => content_entity_clean($a['entity'] ?? ''), 'evidence' => $evidence, 'joke' => '', 'relevance' => $relevance, 'rating' => null,
+                    'entity' => content_entity_clean($a['entity'] ?? ''), 'evidence' => $evidence, 'joke' => '', 'relevance' => $relevance, 'rating' => null, 'ukraine' => ($a['ukraine'] ?? false) === true,
                     'subtopic' => $subtopic['winner'] ?? null, 'subtopic_p' => $subtopic['target_p'] ?? null];
             }
             $error = new RuntimeException('Модель вернула некорректный JSON-анализ.');
@@ -703,7 +704,7 @@ function is_spam_content($caption, $description) {
 function text_batch_schema($query = '') {
     $props = ['index' => ['type' => 'integer'], 'relevance' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 100]];
     if ($query !== '') $props['query_match'] = ['type' => 'integer', 'minimum' => 0, 'maximum' => 100];   // только при уточнении (TOPIC_QUERY_PROMPT.md, часть 4)
-    $props += ['tags' => content_tags_schema(), 'description' => ['type' => 'string'], 'format' => ['type' => 'string', 'enum' => array_keys(CONTENT_FORMATS)],
+    $props += ['ukraine' => ['type' => 'boolean'], 'tags' => content_tags_schema(), 'description' => ['type' => 'string'], 'format' => ['type' => 'string', 'enum' => array_keys(CONTENT_FORMATS)],
         'entity' => ['type' => 'string'], 'evidence' => ['type' => 'string'], 'joke' => ['type' => 'string']];
     $item = ['type' => 'object', 'properties' => $props, 'required' => array_keys($props)];
     return ['type' => 'object', 'properties' => ['items' => ['type' => 'array', 'items' => $item]], 'required' => ['items']];
@@ -721,6 +722,7 @@ function text_batch_prompt($topic, array $texts) {
         . "format: форма поста, одно из: " . implode('; ', array_map(fn($k, $v) => "$k — $v", array_keys(CONTENT_FORMATS), CONTENT_FORMATS)) . ". Для текста обычно text.\n"
         . content_entity_rule()
         . "evidence: короткая цитата из текста, относящаяся к теме, до " . ANALYSIS_EVIDENCE_MAX . " символов: почему подходит или не подходит. Ничего такого нет — пустая строка.\n"
+        . "ukraine: true — если запись явно из украинского источника: украинский язык, водяной знак или логотип украинского СМИ/канала, подпись «Слава Україні», украинская символика как подпись автора. Упоминание Украины в новостях — не повод.\n"
         . "joke: в чём шутка, одним предложением. Пусто, если шутки нет.\n"
         . "Пиши по-русски, без иероглифов.\n\n"
         . "Тема подборки: " . topic_prompt_context($topic) . "." . topic_profile_hint($topic) . "\n\nЗаписи:\n";
@@ -747,7 +749,7 @@ function analyze_text_batch(array $texts, $topic) {
         if ($evidence === '' || (topic_is_humor($topic) && subtopic_options($topic) === null && $joke === '')) $relevance = min($relevance, QUALITY_NO_EVIDENCE_CAP);
         $format = array_key_exists((string)($r['format'] ?? ''), CONTENT_FORMATS) ? (string)$r['format'] : 'text';
         $out[$i] = ['description' => mb_substr(strip_cjk($r['description'] ?? ''), 0, ANALYSIS_DESCRIPTION_MAX), 'why_relevant' => $evidence, 'format' => $format,
-            'tags' => content_tags_clean($r['tags'] ?? []), 'entity' => content_entity_clean($r['entity'] ?? ''), 'evidence' => $evidence, 'joke' => $joke, 'relevance' => $relevance, 'rating' => null];
+            'tags' => content_tags_clean($r['tags'] ?? []), 'entity' => content_entity_clean($r['entity'] ?? ''), 'evidence' => $evidence, 'joke' => $joke, 'ukraine' => ($r['ukraine'] ?? false) === true, 'relevance' => $relevance, 'rating' => null];
     }
     return $out;
 }

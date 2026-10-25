@@ -94,7 +94,7 @@ function user_is_empty($id) {
         && db_one("SELECT 1 FROM users WHERE id = ? AND settings IN ('', '{}') AND connections IN ('', '{}')", [$id]) !== null;
 }
 
-/** Удаляет профили без заходов дольше USER_RETENTION_DAYS и пустые — через EMPTY_USER_RETENTION_HOURS. Чистит сессии и login_requests. */
+/** Удаляет профили без заходов дольше USER_RETENTION_DAYS и пустые — через EMPTY_USER_RETENTION_HOURS; профили без входа (логин или Telegram) не трогает. Чистит сессии и login_requests. */
 function users_gc($keep = '', $dry_run = false) {
     $now = time();
     if (!$dry_run) {
@@ -106,7 +106,7 @@ function users_gc($keep = '', $dry_run = false) {
     }
     $removed = 0;
     foreach (db_all('SELECT id, last_seen, created_at FROM users') as $row) {
-        if ($row['id'] === $keep || db_value('SELECT 1 FROM ledger WHERE user_id = ? LIMIT 1', [$row['id']])) continue;
+        if ($row['id'] === $keep || user_has_identity($row['id']) || db_value('SELECT 1 FROM ledger WHERE user_id = ? LIMIT 1', [$row['id']])) continue;
         $idle = $now - (int)($row['last_seen'] ?: $row['created_at'] ?: $now);
         if ($idle < USER_RETENTION_DAYS * DAY_SECONDS && ($idle < EMPTY_USER_RETENTION_HOURS * 3600 || !user_is_empty($row['id']))) continue;
         $removed++;

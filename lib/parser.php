@@ -182,7 +182,7 @@ function collect_posts_by_platform(array $db, $topic) {
     $GLOBALS['news_enrich_left'] = NEWS_ENRICH_PER_PASS;   // бюджет страниц статей на проход
     $by = [PLATFORM_TELEGRAM => [], PLATFORM_VK => [], PLATFORM_RSS => [], PLATFORM_OK => [], PLATFORM_TIKTOK => [], PLATFORM_DVACH => [], PLATFORM_4CHAN => []];
     fourchan_begin_pass();
-    $stats = array_fill_keys(['other_topic', 'skipped_frozen', 'frozen', 'still_frozen', 'revived'], 0);
+    $stats = array_fill_keys(['other_topic', 'skipped_frozen', 'frozen', 'still_frozen', 'revived', 'ukraine_source'], 0);
     $updates = [];
     $rep = platform_report_init();   // итог по площадкам для журнала
     if (!($boards = dvach_boards_for_topic($topic))) cli_echo('Подходящих теме досок Двача нет — Двач пропущен.');
@@ -230,6 +230,7 @@ function collect_posts_by_platform(array $db, $topic) {
         if ($platform === PLATFORM_VK && !$vk) continue;
         foreach ($db[$key] as $entry) {
             if (!catalog_entry_matches_topic($entry, $topic)) { $stats['other_topic']++; continue; }
+            if (ua_source_blocked(source_id_for($platform, (string)$entry['id']), ['title' => (string)($entry['name'] ?? '')]) !== null) { $stats['ukraine_source']++; continue; }   // украинский источник не собираем (UA_FILTER_PROMPT.md, B1)
             $label = platform_label($platform, $entry);
             $rep[$label]['sources']++;
             $pkey = $platform . '|' . strtolower((string)$entry['id']);
@@ -288,11 +289,11 @@ function collect_posts_by_platform(array $db, $topic) {
     }
     // Поиск постов встроенными поисками (POST_SEARCH_PROMPT.md): идёт рядом с источниками, в пределах бюджета прохода
     $search = post_search_collect($topic, app_user_bind() !== '' ? app_user_id() : null);
-    array_push($by[PLATFORM_RSS], ...$search['by'][PLATFORM_RSS]);
-    array_push($by[PLATFORM_TELEGRAM], ...$search['by'][PLATFORM_TELEGRAM]);
+    foreach ([PLATFORM_RSS, PLATFORM_TELEGRAM, PLATFORM_VK] as $platform) array_push($by[$platform], ...$search['by'][$platform]);
     cli_echo('Поиск постов: YouTube ' . count($search['by'][PLATFORM_RSS]) . ' (запросов ' . $search['done']['youtube'] . '), Telegram '
-        . count($search['by'][PLATFORM_TELEGRAM]) . ' (запросов ' . $search['done']['telegram'] . ') — после фильтра по словам.');
-    $labels = ['other_topic' => 'другой темы', 'skipped_frozen' => 'заморожено (ждут перепроверки)', 'frozen' => 'заморожено сейчас', 'revived' => 'ожило'];
+        . count($search['by'][PLATFORM_TELEGRAM]) . ' (запросов ' . $search['done']['telegram'] . '), VK ' . count($search['by'][PLATFORM_VK])
+        . ' (запросов ' . $search['done']['vk'] . ') — после фильтра по словам.');
+    $labels = ['other_topic' => 'другой темы', 'skipped_frozen' => 'заморожено (ждут перепроверки)', 'frozen' => 'заморожено сейчас', 'revived' => 'ожило', 'ukraine_source' => 'украинских источников не собираем'];
     $notes = array_map(fn($k) => "{$labels[$k]}: {$stats[$k]}", array_keys(array_filter(array_intersect_key($stats, $labels))));
     if ($notes) cli_echo('Источники: ' . implode(', ', $notes) . '.');
     cli_echo(platform_summary_line($rep, $vk));
@@ -432,11 +433,19 @@ function post_item_video_promote(array &$item) {
 
 /** Очередь: без виденных, устаревших, отсеянных раньше и отключённых источников; лучшие источники первыми, площадки чередуются. До 500. */
 function build_candidate_queue($by_platform, $seen, array $rejected = [], array $rates = [], array &$skipped = [], array $blocked = [], ?array $format = null, array $filters = []) {
-    $skipped = ['outdated' => 0, 'rejected_before' => 0, 'disabled_sources' => 0, 'blocked_platform' => 0, 'format' => 0, 'filter' => 0];
+    $skipped = ['outdated' => 0, 'rejected_before' => 0, 'disabled_sources' => 0, 'blocked_platform' => 0, 'format' => 0, 'filter' => 0, 'ukraine' => 0, 'ukraine_sources' => 0];
     $unique = [];
     $sampled = [];   // площадки, которые пользователь режет по теме: в полный анализ 1 из QUALITY_PLATFORM_SAMPLE
+    $ua_hits = $ua_names = $ua_all = [];   // украинские посты по источникам: за проход UA_SOURCE_POSTS_MAX и больше — источник запоминается
     foreach ($by_platform as $posts) foreach (expand_post_images($posts) as $item) {
         if (!content_passes_media_filters($item, $filters)) { $skipped['filter']++; continue; }   // фильтры пользователя «Только с медиа» / «Только медиа»: в анализ не идут
+        if (($ua = ua_item_blocked($item)) !== null) {   // украинский пост — не в очередь (UA_FILTER_PROMPT.md, B1)
+            $skipped['ukraine']++;
+            $src = content_source_key($item);
+            $ua_all[$src] = true;
+            if (!str_starts_with($ua, 'источник:')) { $ua_hits[$src] = ($ua_hits[$src] ?? 0) + 1; $ua_names[$src] = (string)($item['source'] ?? $src); }
+            continue;
+        }
         $ukey = ($item['image'] ?? '') !== '' ? $item['image'] : candidate_text_key($item);   // текстовый пост — по ключу текста
         if ($ukey === '') { if ($format !== null && ($item['image'] ?? '') === '') $skipped['format']++; continue; }   // без картинки и без текста нужной длины
         if (candidate_is_known($item, $seen) || isset($unique[$ukey])) continue;
@@ -451,6 +460,9 @@ function build_candidate_queue($by_platform, $seen, array $rejected = [], array 
         };
         if ($reason) $skipped[$reason]++; else $unique[$ukey] = $item;
     }
+    $skipped['ukraine_sources'] = count($ua_all);
+    foreach ($ua_hits as $src => $n) if ($n >= UA_SOURCE_POSTS_MAX) ua_block_source($src, $ua_names[$src], "за проход украинских постов: {$n}");
+    ua_count_skipped($skipped['ukraine']);
     // Сначала каналы, где запись по теме реально проходит в пул (итог полного анализа); холодные каналы — в конец.
     // Внутри канала — самые горячие по реакциям и просмотрам, при равенстве — свежие
     $all = array_values($unique);
@@ -465,9 +477,9 @@ function build_candidate_queue($by_platform, $seen, array $rejected = [], array 
     usort($all, function ($a, $b) use ($chance, $named) {
         [$cold_a, $rate_a] = $chance($a);
         [$cold_b, $rate_b] = $chance($b);
-        return ($named($b) <=> $named($a)) ?: (!empty($b['thread_trust']) <=> !empty($a['thread_trust'])) ?: ($cold_a <=> $cold_b) ?: ($rate_b <=> $rate_a) ?: content_hotness($b) <=> content_hotness($a) ?: ($b['posted_at'] ?? 0) <=> ($a['posted_at'] ?? 0);
+        return ($named($b) <=> $named($a)) ?: (!empty($b['thread_trust']) <=> !empty($a['thread_trust'])) ?: ($cold_a <=> $cold_b) ?: ($rate_b <=> $rate_a) ?: ($b['posted_at'] ?? 0) <=> ($a['posted_at'] ?? 0);
     });
-    return array_slice(interleave_by_source($all), 0, 500);
+    return array_slice(hot_shortlist($all, $rates), 0, 500);   // горячие первыми; остальные — по кругу источников (HOT_FIRST_PROMPT.md, B3)
 }
 
 /**
@@ -485,6 +497,192 @@ function interleave_by_source(array $items): array {
         }
     }
     return $out;
+}
+
+/** Площадка поста для горячих: Telegram, Двач, 4chan, YouTube, TikTok, ВКонтакте, ОК или other. */
+function hot_platform(array $item): string {
+    $e = is_array($item['engagement'] ?? null) ? $item['engagement'] : [];
+    $src = (string)($item['source'] ?? '');
+    if (($e['source'] ?? '') === '4chan' || str_starts_with($src, PLATFORM_4CHAN)) return '4chan';
+    if (isset($e['thread_posts']) || str_starts_with($src, PLATFORM_DVACH)) return 'Двач';
+    if (($e['source'] ?? '') === 'telegram') return 'Telegram';
+    if (str_starts_with($src, PLATFORM_TIKTOK)) return 'TikTok';
+    if (str_starts_with($src, PLATFORM_VK)) return 'ВКонтакте';
+    if (str_starts_with($src, PLATFORM_OK)) return 'ОК';
+    if (isset($item['views'])) return 'YouTube';
+    return 'other';
+}
+
+/**
+ * Горячесть поста за час жизни (HOT_FIRST_PROMPT.md, B1): показатель площадки / (часов + 2).
+ * Нет данных площадки — null. Telegram: просмотры + 5·реакции + 10·пересылки; Двач: посты в треде; 4chan: ответы + картинки треда;
+ * YouTube: просмотры; TikTok и ВКонтакте — если их отдаёт yt-dlp или ключ; ОК и RSS — null.
+ */
+function post_heat(array $item): ?float {
+    $e = is_array($item['engagement'] ?? null) ? $item['engagement'] : [];
+    switch (hot_platform($item)) {
+        case 'Telegram':
+            $views = $e['views'] ?? $item['post_views'] ?? null;
+            $value = $views === null ? null : (int)$views + 5 * array_sum((array)($e['reactions'] ?? [])) + 10 * (int)($e['forwards'] ?? 0);
+            break;
+        case 'Двач':
+            $value = isset($e['thread_posts']) ? (int)$e['thread_posts'] : null;
+            break;
+        case '4chan':
+            $value = isset($e['replies']) || isset($e['images']) ? (int)($e['replies'] ?? 0) + (int)($e['images'] ?? 0) : null;
+            break;
+        case 'YouTube':
+            $value = (int)$item['views'];
+            break;
+        case 'TikTok':
+            $value = isset($e['view_count']) || isset($e['like_count']) ? (int)($e['view_count'] ?? 0) + 5 * (int)($e['like_count'] ?? 0) : null;
+            break;
+        case 'ВКонтакте':
+            $value = isset($e['likes']) || isset($e['views']) ? (int)($e['views'] ?? 0) + 5 * (int)($e['likes'] ?? 0) + 10 * (int)($e['reposts'] ?? 0) : null;
+            break;
+        default:
+            $value = null;
+    }
+    if ($value === null) return null;
+    $hours = max(1, (time() - (int)($item['posted_at'] ?? 0)) / 3600);
+    return $value / ($hours + 2);
+}
+
+/**
+ * Относительная горячесть (B2): горячесть поста / медиана постов его источника с данными (при трёх и меньше — медиана площадки).
+ * Нет данных — 1.0: такие посты нейтральны и внутри источника идут по свежести. Ключи — как во входном списке.
+ */
+function hot_relative_heat(array $items): array {
+    $heat = array_map('post_heat', $items);
+    $by_source = $by_platform = [];
+    foreach ($items as $i => $item) if ($heat[$i] !== null) {
+        $by_source[content_source_key($item)][] = $heat[$i];
+        $by_platform[hot_platform($item)][] = $heat[$i];
+    }
+    $out = [];
+    foreach ($items as $i => $item) {
+        if ($heat[$i] === null) { $out[$i] = 1.0; continue; }
+        $source = $by_source[content_source_key($item)] ?? [];
+        $base = count($source) >= 3 ? median($source) : median($by_platform[hot_platform($item)] ?? []);
+        $out[$i] = $base > 0 ? $heat[$i] / $base : 1.0;
+    }
+    return $out;
+}
+
+/** Слова для текстового отбора: от 4 букв, из описания профиля или ключевых слов. */
+function hot_words(string $text): array {
+    $words = array_filter(preg_split('~[^\p{L}\d]+~u', mb_strtolower($text)) ?: [], fn($w) => mb_strlen($w) >= 4);
+    return array_values(array_unique($words));
+}
+
+/** Есть ли в тексте хотя бы одно из слов (подстрока, без учёта регистра). */
+function hot_has_word(string $text, array $words): bool {
+    $text = mb_strtolower($text);
+    foreach ($words as $w) if (str_contains($text, $w)) return true;
+    return false;
+}
+
+/**
+ * Шортлист горячих (HOT_FIRST_PROMPT.md, B3 и C1; CONTENT_FLOW_PROMPT.md, A–B).
+ * Уточнение — первыми, но не больше HOT_SHORTLIST / 2; лишние уточнения и посты доверенных тредов — в общий отбор (с бонусом).
+ * В общем отборе — не больше HOT_PER_SOURCE с источника, по горячести × доля принятых 9B × бонусы;
+ * одна площадка — не больше HOT_PLATFORM_SHARE × HOT_SHORTLIST мест.
+ * Двач и 4chan — только с признаками темы: доверенный тред или слово темы в заголовке, OP или подписи; в родных темах (IMAGEBOARD_NATIVE_TOPIC_KEYS) — без проверки.
+ * Остальные имиджборды — в хвост. Слова exclude из профиля в подписи или заголовке — отброс.
+ * Итог — в $GLOBALS['hot_stats'] для журнала.
+ */
+function hot_shortlist(array $all, array $rates, ?string $topic = null, ?array $keywords = null): array {
+    $topic ??= app_user_bind() === '' ? '' : search_topic_key();
+    $query = current_query();
+    $profile = $topic === '' ? [] : topic_profile_for_prompts($topic);   // без модели
+    $keywords ??= (array)($profile['keywords'] ?? []);
+    $exclude = hot_words((string)($profile['exclude'] ?? ''));
+    $native = imageboard_native_topic($topic);
+    $first = $rest = $boost = [];
+    $excluded = 0;
+    foreach ($all as $item) {
+        $text = (string)($item['text'] ?? '') . ' ' . (string)($item['thread_title'] ?? '');
+        if ($exclude && hot_has_word($text, $exclude)) { $excluded++; continue; }
+        $named = $query !== '' && query_text_hit((string)($item['text'] ?? ''), $query);
+        if ($named && count($first) < intdiv(HOT_SHORTLIST, 2)) { $first[] = $item; continue; }
+        $boost[count($rest)] = ($named ? HOT_QUERY_BOOST : 1.0) * (empty($item['thread_trust']) ? 1.0 : HOT_TRUST_BOOST);
+        $rest[] = $item;
+    }
+    $heat = hot_relative_heat($rest);
+    $score = $imageboard_tail = [];
+    foreach ($rest as $i => $item) {
+        $board = in_array(hot_platform($item), [PLATFORM_DVACH, PLATFORM_4CHAN], true);
+        $text = (string)($item['text'] ?? '') . ' ' . (string)($item['thread_title'] ?? '') . ' ' . (string)($item['thread_op'] ?? '');
+        if ($board && !$native && empty($item['thread_trust']) && !topic_words_hit($text, $keywords)) { $imageboard_tail[$i] = true; continue; }
+        [$p, $t] = $rates[content_source_key($item)] ?? [0, 0];
+        $rate = ($p + 1) / ($t + 2);   // сглаживание: без данных — нейтрально
+        $mult = $t >= SOURCE_VERDICT_MIN && $rate < SOURCE_VERDICT_LOW ? 0.5 : min(1.5, max(0.5, 0.5 + $rate));
+        $kw = topic_words_hit($text, $keywords) ? HOT_KEYWORD_BOOST : 1.0;
+        $score[$i] = $heat[$i] * $mult * $kw * $boost[$i];
+    }
+    $by_source = [];
+    foreach (array_keys($score) as $i) $by_source[content_source_key($rest[$i])][] = $i;
+    $pool = [];
+    foreach ($by_source as $idx) {
+        usort($idx, fn($a, $b) => $score[$b] <=> $score[$a]);
+        array_push($pool, ...array_slice($idx, 0, HOT_PER_SOURCE));
+    }
+    usort($pool, fn($a, $b) => $score[$b] <=> $score[$a]);
+    $room = max(0, HOT_SHORTLIST - count($first));
+    $cap = (int)floor(HOT_PLATFORM_SHARE * HOT_SHORTLIST);
+    $picked = $per = [];
+    foreach ($pool as $i) {
+        if (count($picked) >= $room) break;
+        $platform = hot_platform($rest[$i]);
+        if (($per[$platform] ?? 0) >= $cap) continue;
+        $per[$platform] = ($per[$platform] ?? 0) + 1;
+        $picked[] = $i;
+    }
+    $top = null;
+    foreach ($picked as $i) if ($top === null || $heat[$i] > $heat[$top]) $top = $i;
+    $trusted = count(array_filter($picked, fn($i) => !empty($rest[$i]['thread_trust'])));
+    $GLOBALS['hot_stats'] = ['total' => count($all), 'short' => count($picked) + count($first), 'per' => $per, 'excluded' => $excluded,
+        'trusted' => $trusted, 'imageboard_tail' => count($imageboard_tail),
+        'top' => $top === null ? null : ['source' => (string)($rest[$top]['source'] ?? ''), 'times' => round($heat[$top], 1)]];
+    usort($picked, fn($a, $b) => $score[$b] <=> $score[$a]);
+    $hot = interleave_by_source(array_map(fn($i) => $rest[$i], $picked));   // по горячести, но без двух постов одного источника подряд
+    $tail = array_values(array_diff_key($rest, array_flip($picked)));
+    return array_merge($first, $hot, interleave_by_source($tail));
+}
+
+/** Имиджборды — родная площадка темы (IMAGEBOARD_NATIVE_TOPIC_KEYS): там правило «только с признаками темы» не действует. */
+function imageboard_native_topic(string $topic): bool {
+    if ($topic === '') return false;
+    $key = (string)(topic_lookup(topic_parts($topic)[0] ?? $topic)['key'] ?? '');
+    if ($key === '') return false;
+    foreach (IMAGEBOARD_NATIVE_TOPIC_KEYS as $native) if ($key === $native || str_starts_with($key, "$native.")) return true;
+    return false;
+}
+
+/**
+ * Пакетная проверка подписей 9B (HOT_FIRST_PROMPT.md, C2): только для тем с judge = text или both и подписей от HOT_TEXT_MIN_CHARS.
+ * Подпись ниже HOT_TEXT_REJECT_SCORE: при text — отброс, при both — в конец шортлиста.
+ */
+function hot_text_judge(array $items, $topic): array {
+    if (!in_array((topic_format($topic)['judge'] ?? ''), ['text', 'both'], true)) return $items;
+    $judge = topic_format($topic)['judge'];
+    $idx = $texts = [];
+    foreach ($items as $i => $item) {
+        $text = trim((string)($item['text'] ?? ''));
+        if (mb_strlen($text) >= HOT_TEXT_MIN_CHARS) { $idx[] = $i; $texts[] = $text; }
+    }
+    $drop = $late = [];
+    for ($off = 0; $off < count($texts); $off += HOT_TEXT_BATCH) {
+        $res = analyze_text_batch(array_slice($texts, $off, HOT_TEXT_BATCH), $topic);
+        foreach ($res as $k => $r) {
+            if ($r === null || $r['relevance'] >= HOT_TEXT_REJECT_SCORE) continue;
+            if ($judge === 'text') $drop[$idx[$off + $k]] = true; else $late[$idx[$off + $k]] = true;
+        }
+    }
+    $kept = array_values(array_filter($items, fn($i) => empty($drop[$i]) && empty($late[$i]), ARRAY_FILTER_USE_KEY));
+    $tail = array_values(array_filter($items, fn($i) => !empty($late[$i]) && empty($drop[$i]), ARRAY_FILTER_USE_KEY));
+    cli_echo('Проверка подписей 9B: отброшено ' . count($drop) . ', в конец шортлиста ' . count($late) . '.');
+    return array_merge($kept, $tail);
 }
 
 /** Горячесть поста: просмотры, реакции и ответы на час жизни. Нет данных — 0. */
@@ -713,8 +911,10 @@ function analyze_text_candidate($item, $history, $topic) {
         source_miss_note(content_source_key($item), $passed_analysis);
         if ($reason = pool_admission($a, $item, $topic)) { cli_echo("-> Отброшено: {$reason} ({$verdict})."); return false; }
         if (content_adult_blocked(array_merge($item, ['tags' => $a['tags'] ?? []]), $topic)) { cli_echo('-> Отклонено: 18+ или «Жесть» не по теме.'); return false; }
+        if (!empty($a['ukraine']) && ua_filter_on()) { cli_echo('-> Отклонено: украинский контент.'); return false; }   // модель сочла запись украинской (UA_FILTER_PROMPT.md, B2)
         if (search_topic_key() !== $topic) { cli_echo('-> Тема поиска сменилась — запись по старой теме не сохраняю.'); return false; }
         cli_echo("-> Принято: {$verdict}.");
+        post_search_suggest($item, $topic);
         $record = ['description' => $a['description'] ?: 'Описание не получено', 'why_relevant' => $a['why_relevant'] ?: 'Нейросеть не сформулировала объяснение.',
             'relevance' => $a['relevance'], 'rating' => null, 'format' => $a['format'] ?? 'text', 'tags' => $a['tags'] ?? [], 'entity' => $a['entity'] ?? '', 'source_hashtags' => post_source_hashtags($item), 'topic' => $topic,
             'image_local' => '', 'phash' => ''] + $item;
@@ -765,8 +965,10 @@ function analyze_candidate($item, $poster, $history, $topic) {
         source_miss_note(content_source_key($item), $passed_analysis);
         if ($reason = pool_admission($a, $item, $topic)) { cli_echo("-> Отброшено: {$reason} ({$verdict})."); return false; }
         if (content_adult_blocked(array_merge($item, ['tags' => $a['tags'] ?? []]), $topic)) { cli_echo('-> Отклонено: 18+ или «Жесть» не по теме.'); return false; }
+        if (!empty($a['ukraine']) && ua_filter_on()) { cli_echo('-> Отклонено: украинский контент.'); return false; }   // модель сочла запись украинской (UA_FILTER_PROMPT.md, B2)
         cli_echo("-> Принято: {$verdict}." . (($tags = content_tags_public($a['tags'] ?? [])) ? ' Метки: ' . implode(', ', array_column($tags, 'path')) . '.' : ''));
         if (search_topic_key() !== $topic) { cli_echo('-> Тема поиска сменилась — запись по старой теме не сохраняю.'); return false; }
+        post_search_suggest($item, $topic);
         $item = ['description' => $a['description'] ?: 'Описание не получено', 'why_relevant' => $a['why_relevant'] ?: 'Нейросеть не сформулировала объяснение.',
             'relevance' => $a['relevance'], 'rating' => null, 'format' => $a['format'] ?? '', 'tags' => $a['tags'] ?? [], 'entity' => $a['entity'] ?? '', 'source_hashtags' => post_source_hashtags($item), 'topic' => $topic, 'image_local' => media_cache_store_image($item['image'], $poster), 'phash' => image_phash($poster) ?? ''] + $item;
         if ($is_video) {
@@ -836,14 +1038,24 @@ function run_collector() {
     topic_classify_pending(1, $topic);
     topic_profile_ensure($topic);
     dvach_boards_for_topic($topic);
-    $due = source_discovery_due(load_source_db(), $topic);
+    $db = load_source_db();
+    $due = source_discovery_due($db, $topic);
     $discovered = false;
-    if ($due && topic_lacks_sources(load_source_db(), $topic)) {
-        $own = topic_own_sources_count(load_source_db(), $topic);
-        cli_echo("У темы «{$topic}» " . ($own ? "всего {$own} своих источника" : 'пока нет своих источников') . ' — сначала ищу новые.');
-        run_source_discovery($topic);
-        [$due, $discovered] = [false, true];
-        if (current_topic() !== $topic) return true;
+    $t_discovery = 0;   // секунды автоподбора в этом проходе — в итоге
+    // Источников мало — сначала автоподбор, потом сбор (HOT_FIRST_PROMPT.md, A); не чаще DISCOVERY_SHORTAGE_INTERVAL, если не заказан
+    $usable = topic_usable_sources($db, $topic);
+    if ($usable < CONTENT_MIN_SOURCES) {
+        $last = discovery_last_run($db, $topic);
+        if (!empty($db['discovery']['requested']) || time() - $last >= DISCOVERY_SHORTAGE_INTERVAL) {
+            cli_echo("Источников по теме {$usable} из " . CONTENT_MIN_SOURCES . ' — сначала ищу новые (до ' . intdiv(DISCOVERY_BLOCKING_SECONDS, 60) . ' мин).');
+            $t0 = time();
+            run_source_discovery($topic, DISCOVERY_BLOCKING_SECONDS);
+            $t_discovery += time() - $t0;
+            [$due, $discovered] = [false, true];
+            if (current_topic() !== $topic) return true;
+        } else {
+            cli_echo("Источников по теме {$usable} из " . CONTENT_MIN_SOURCES . ' — автоподбор уже был в ' . date('H:i', $last) . ' — собираю из того, что есть.');
+        }
     }
     if ($reason = collector_stop_reason($started, 0, 0)) {
         cli_echo($reason);
@@ -863,9 +1075,17 @@ function run_collector() {
     $blocked = [];   // площадки по жалобам не режем (Двач в мемах и т. п.): контент берётся отовсюду, отбирает проверка по теме
     $candidates = build_candidate_queue(collect_posts_by_platform(load_source_db(), $key), $seen, array_filter($scores, fn($s) => $s >= PRESCREEN_JUNK_P * 100),
         topic_verdict_stats($key), $skipped, $blocked, topic_format($key), content_filters());
+    if ($hs = $GLOBALS['hot_stats'] ?? null) {
+        $per = implode(', ', array_map(fn($p, $n) => "$p $n", array_keys($hs['per']), $hs['per']));
+        cli_echo("Горячие: {$hs['short']} из {$hs['total']}" . ($per ? " ({$per})" : '') . ($hs['top'] ? "; самый горячий — {$hs['top']['source']} ×{$hs['top']['times']} к обычному" : '')
+            . ($hs['excluded'] ? ". Отброшено по словам «не подходит»: {$hs['excluded']}" : '')
+            . ", из доверенных тредов {$hs['trusted']}; имиджборд без признаков темы — в хвост: {$hs['imageboard_tail']}" . '.');
+    }
+    $candidates = hot_text_judge($candidates, $key);
     cli_echo("📌 Тема: «{$topic}». Кандидатов к проверке: " . count($candidates) . '.'
         . ($skipped['rejected_before'] ? " Уже отсеяны в прошлых запусках: {$skipped['rejected_before']}." : '')
         . ($skipped['outdated'] ? " Устаревших: {$skipped['outdated']}." : '')
+        . ($skipped['ukraine'] ? " Украинский контент отсеян: {$skipped['ukraine']} (источников: {$skipped['ukraine_sources']})." : '')
         . ($skipped['disabled_sources'] ? " Пропущено из источников, которые пользователи оценивают плохо: {$skipped['disabled_sources']}." : '')
         . ($skipped['format'] ? " Отсеяно форматом темы: {$skipped['format']}." : '')
         . ($skipped['filter'] ? " Отсеяно фильтрами «Только с медиа» / «Только медиа»: {$skipped['filter']}." : '')
@@ -873,6 +1093,7 @@ function run_collector() {
         . ' Быстрая оценка по картинке ' . PRESCREEN_MAX_SIDE . ' px: отсев мусора при уверенности от ' . (int)round(PRESCREEN_JUNK_P * 100) . '%, тему не проверяет.');
     $ctx = ['stats' => ['prescreened' => 0, 'rejected' => 0, 'source_skipped' => 0, 'duplicates' => 0], 'cached' => $scores, 'new_cache' => [], 'known_hashes' => collect_known_hashes(), 'screened_hashes' => $screened_hashes];
     [$analyzed, $added, $stop, $restart, $queue, $done] = [0, 0, null, false, [], 0];
+    $t_analyze = 0.0;   // секунды полного анализа в этом проходе — в итоге
     // Полоса прогресса на сайте: сбор кончится, когда разобрана очередь или набран лимит записей (столько не хватает пулу)
     parser_progress(['total' => count($candidates), 'queue_at' => time(), 'need' => max(1, min(CONTENT_ADDED_PER_RUN, CONTENT_POOL_TARGET - pool_topic_count($key)))]);
     $last_progress = time();
@@ -910,7 +1131,9 @@ function run_collector() {
         foreach ($queue as $c) {
             if ($stop = collector_stop_reason($started, $analyzed, $added)) break 2;
             $analyzed++;
+            $t0 = microtime(true);
             if (analyze_candidate($c['item'], $c['poster'], $history = load_history(), $key)) $added++;
+            $t_analyze += microtime(true) - $t0;
             parser_progress(['done' => ++$done, 'analyzed' => $analyzed, 'added' => $added]);
         }
         $queue = [];
@@ -931,6 +1154,8 @@ function run_collector() {
     cli_echo('║ Отклонено: ' . str_pad($s['rejected'] . ' (по релевантности)', 50) . ' ║');
     cli_echo('║ Повторов пропущено: ' . str_pad($s['duplicates'] ?? 0, 48) . ' ║');
     cli_echo('╚════════════════════════════════════════════════════════════════════════╝');
+    $t_total = time() - $started;
+    cli_echo('Время прохода: автоподбор ' . round($t_discovery / 60, 1) . ' мин, сбор ' . round(max(0, $t_total - $t_discovery - $t_analyze) / 60, 1) . ' мин, анализ ' . round($t_analyze / 60, 1) . ' мин.');
     cli_echo('');
     // Поиск постов закончился, а пул темы не наполнен: ищем новые источники (не чаще DISCOVERY_SHORTAGE_INTERVAL) и, если нашлись, собираем заново
     if (!$restart && !$discovered && !$added && pool_topic_count($key) < CONTENT_POOL_TARGET && parser_session_alive() && current_topic() === $topic && !topic_same(DEFAULT_TOPIC, $topic)

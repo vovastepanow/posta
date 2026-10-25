@@ -82,8 +82,7 @@ function renderProfile(info) {
         el('div', { className: 'account-stats' }, stat(info.pool, `${pluralRu(info.pool, 'запись', 'записи', 'записей')} ждёт оценки`), stat(votes, pluralRu(votes, 'оценка', 'оценки', 'оценок')),
             ...Object.entries(COLLECTIONS).map(([k, label]) => stat(counts[k] ?? 0, label))),
         renderAuth(info.auth || {}),
-        el('p', { className: 'account-muted', textContent: info.auth?.logged_in ? `Профили без заходов дольше ${info.retention_days} дней удаляются.`
-            : `Пока профиль держится на куке в этом браузере: в другом браузере сайт заведёт новый. Профили без заходов дольше ${info.retention_days} дней удаляются.` }));
+        ...(info.auth?.logged_in ? [] : [el('p', { className: 'account-muted', textContent: `Пока профиль держится на куке в этом браузере: в другом браузере сайт заведёт новый. Профили без заходов дольше ${info.retention_days} дней удаляются.` })]));
 }
 
 // ---- Вход: свои логин и пароль, Telegram ----

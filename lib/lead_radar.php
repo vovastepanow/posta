@@ -208,6 +208,13 @@ function lead_radar_run($uid, ?callable $log = null) {
             try {
                 $pdo->prepare("UPDATE telegram_lead_queue SET status = 'processing' WHERE id = ?")->execute([$item['id']]);
 
+                if (ua_filter_on() && text_is_ukrainian((string)$item['message'])) {   // украинский текст — до модели не отдаём (UA_FILTER_PROMPT.md, B9)
+                    $pdo->prepare("UPDATE telegram_lead_queue SET status = 'processed', ollama_result = ?, ollama_reason = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?")
+                        ->execute([0, 'украинский текст: фильтр Украины', $item['id']]);
+                    $say("Пропуск: украинский текст — «{$preview}»");
+                    continue;
+                }
+
                 $started = microtime(true);
                 $clf = lead_classify($item['message']);
                 $seconds = (int)round(microtime(true) - $started);

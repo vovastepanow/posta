@@ -4,8 +4,8 @@
 
 require_once __DIR__ . '/lead_radar.php';
 
-const ADMIN_GET = ['accounts', 'settings', 'scan_log', 'leads', 'stats', 'rejected', 'models'];
-const ADMIN_POST = ['account_select', 'settings_save', 'chats_search', 'scan_start', 'lead_status', 'rejected_retry', 'models_save'];
+const ADMIN_GET = ['accounts', 'settings', 'scan_log', 'leads', 'stats', 'rejected', 'models', 'ua_filter'];
+const ADMIN_POST = ['account_select', 'settings_save', 'chats_search', 'scan_start', 'lead_status', 'rejected_retry', 'models_save', 'ua_filter_save', 'ua_unblock'];
 const ADMIN_LEAD_STATUSES = ['new', 'interested', 'replied', 'spam', 'ignored'];
 const ADMIN_MIN_MEMBERS = 50;
 const ADMIN_DEFAULT_QUERIES = ['автопостинг', 'чат админов телеграм', 'админы каналов', 'smm чат', 'продвижение телеграм канала',
@@ -212,6 +212,27 @@ function admin_api_models($in) {
     $on = fast_only_mode() && $fast !== '';
     return ['fast_only' => fast_only_mode(), 'fast_model' => $fast ?: PRESCREEN_MODELS[0], 'fast_installed' => $fast !== '', 'main_model' => ANALYSIS_MODEL,
         'analysis' => $on ? $fast : ANALYSIS_MODEL, 'smart' => $on ? $fast : SMART_MODEL];
+}
+
+/** Украинский контент: переключатель, список блокировки, заблокированные источники и число отсеянных за сутки (UA_FILTER_PROMPT.md, C). */
+function admin_api_ua_filter($in) {
+    $state = ua_state();
+    $blocked = [];
+    foreach ($state['blocked'] as $sid => $e) $blocked[] = ['id' => (string)$sid, 'name' => (string)($e['name'] ?? $sid), 'reason' => (string)($e['reason'] ?? ''), 'at' => (int)($e['at'] ?? 0)];
+    return ['on' => $state['on'], 'blocked_sources' => $blocked, 'blocklist' => $state['blocklist'], 'stats' => ua_skipped_last_day()];
+}
+
+function admin_api_ua_filter_save($in) {
+    if (array_key_exists('on', $in)) ua_filter_set(!empty($in['on']));
+    if (isset($in['blocklist']) && is_array($in['blocklist'])) ua_blocklist_save($in['blocklist']);
+    return admin_api_ua_filter([]);
+}
+
+function admin_api_ua_unblock($in) {
+    $id = trim((string)($in['id'] ?? ''));
+    if ($id === '') throw new RuntimeException('Не указан источник для разблокировки.');
+    ua_unblock_source($id);
+    return admin_api_ua_filter([]);
 }
 
 function admin_api_models_save($in) {

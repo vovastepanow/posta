@@ -77,6 +77,9 @@ function source_add_manual(string $input, string $topic): array {
     ['platform' => $platform, 'id' => $id] = $src;
     $key = CATALOG_KEYS[$platform];
     $sid = source_id_for($platform, $id);
+    if (ua_source_blocked($sid, ['title' => (string)$name]) !== null || count(array_filter($posts, fn($p) => ua_item_blocked($p) !== null)) >= 2) {
+        throw new RuntimeException('Украинские источники в Posta недоступны.');   // UA_FILTER_PROMPT.md, B5
+    }
     $added = false;
     update_source_db(function ($db) use ($platform, $id, $name, $posts, $topic, $key, $sid, &$added) {
         $found = false;

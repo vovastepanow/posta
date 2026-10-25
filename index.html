@@ -500,6 +500,18 @@
       <p class="account-muted">Все задачи модели — отбор постов, профили тем, автоподбор, подписи, радар — идут на маленькую быструю модель вместо основной. Быстрее, но отбор хуже. Действует на весь сервер.</p>
       <p id="admin-models-state" class="account-muted" role="status"></p>
     </div>
+    <div class="account-card">
+      <h3>Украинский контент</h3>
+      <label class="check-chip"><input id="admin-ua-on" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Фильтровать украинский контент</span></label>
+      <p class="account-muted">Источники из Украины и посты на украинском не попадают в сбор, автоподбор, «Подбор», публикацию и Keep or Skip. Действует на весь сервер. Выключение ничего не удаляет — скрытое снова появится.</p>
+      <p id="admin-ua-state" class="account-muted" role="status"></p>
+      <label><span>Домены (по одному в строке)</span><textarea id="admin-ua-domains" rows="6"></textarea></label>
+      <label><span>Источники (по одному в строке, как telegram:имя)</span><textarea id="admin-ua-sources" rows="3"></textarea></label>
+      <div class="admin-action"><button id="admin-ua-save" class="primary-button" type="button">Сохранить список</button></div>
+      <h3>Заблокированные источники</h3>
+      <div id="admin-ua-blocked" class="account-muted"></div>
+      <p id="admin-ua-note" class="account-muted" role="status"></p>
+    </div>
   </section>
 
   <section class="admin-section radar-panel" data-admin-section="radar" hidden>

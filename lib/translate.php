@@ -111,6 +111,7 @@ function translate_to_russian(string $text, float $budget = 6.0): ?array {
     $text = mb_substr(trim($text), 0, TRANSLATE_MAX_CHARS);
     $guess = text_language_guess($text);
     if ($text === '' || $guess === null || $guess === 'ru') return null;
+    if ($guess === 'uk' && ua_filter_on()) return null;   // украинский не переводим и не пускаем дальше (UA_FILTER_PROMPT.md, B10)
     $key = 'translate:' . md5(translate_normalize($text));
     $hit = kv_get($key);
     if (is_array($hit)) {

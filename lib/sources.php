@@ -497,12 +497,12 @@ function vk_search_groups($query, $count = 15) {
         if ((int)($g['is_closed'] ?? 1) === 0 && ($g['type'] ?? '') !== 'event') $ids[] = (int)$g['id'];
     }
     if (!$ids) return [];
-    $details = vk_api_request('groups.getById', ['group_ids' => implode(',', $ids), 'fields' => 'members_count,description'], true);
+    $details = vk_api_request('groups.getById', ['group_ids' => implode(',', $ids), 'fields' => 'members_count,description,country'], true);   // country — для фильтра Украины (UA_FILTER_PROMPT.md, A)
     $groups = [];
     foreach ($details['groups'] ?? $details as $g) {
         $name = is_array($g) ? (string)($g['screen_name'] ?? 'club' . (int)($g['id'] ?? 0)) : '';
         if (!is_valid_vk_domain($name)) continue;
-        $groups[] = ['id' => $name, 'title' => clean_html_text($g['name'] ?? $name), 'description' => mb_substr(clean_html_text($g['description'] ?? ''), 0, 500), 'subscribers' => (int)($g['members_count'] ?? 0)];
+        $groups[] = ['id' => $name, 'title' => clean_html_text($g['name'] ?? $name), 'description' => mb_substr(clean_html_text($g['description'] ?? ''), 0, 500), 'subscribers' => (int)($g['members_count'] ?? 0), 'country' => $g['country'] ?? null];
     }
     usort($groups, fn($a, $b) => $b['subscribers'] <=> $a['subscribers']);
     return $groups;

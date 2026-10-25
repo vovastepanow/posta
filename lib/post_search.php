@@ -7,7 +7,7 @@
 // | YouTube | да | yt-dlp: results?search_query=… (без sp-фильтра: с sp=EgIIAw%3D%3D выдача пустая), hashtag/<тег>/shorts | даты в выдаче нет — отдельно, по одной ссылке |
 // | Telegram | да (личный аккаунт, Telethon 1.45 в tools/tg-lib) | channels.SearchPostsRequest: хэштег бесплатно; по словам — если CheckSearchPostsFloodRequest разрешает | не больше TG_SEARCH_PER_HOUR поисков в час на аккаунт; FloodWait — стоп до конца часа |
 // | VK | нет сейчас | newsfeed.search — только при подключённом VK (vk_is_connected) | VK не подключён — пропуск с записью в журнал |
-// | TikTok | не сделано | tiktok_search_videos возвращает только авторов, а нужны видео — отдельный вариант | — |
+// | TikTok | частично | авторы свежих роликов с поиска (tiktok_search_videos), их последние ролики — посты | сами ролики поиска без миниатюр не разбираем: поиск отдаёт только ссылки на авторов |
 // | Двач, 4chan | поиска нет | — | фильтр каталога по словам не сделан |
 // | Pinterest, Tumblr | не проверено | — | — |
 
@@ -18,6 +18,7 @@ const POST_SEARCH_DATE_LOOKUPS = 3;        // дат роликов на зап�
 const POST_SEARCH_CACHE_SECONDS = 3600;    // ответ площадки на (площадка, запрос) кэшируется на час
 const TG_SEARCH_PER_HOUR = 5;              // поисков постов в час на личный аккаунт Telegram
 const TG_SEARCH_CHANNEL_PAGES = 5;         // страниц каналов за проход: пост берём со страницы канала (картинка как у обычного поста)
+const TIKTOK_SEARCH_AUTHORS = 2;           // авторов поиска TikTok за запрос: по их последним роликам берём посты
 
 /** Ответ площадки из kv на CACHE_SECONDS. fetch возвращает null, если поиска не было (лимит, пауза) — такой пропуск не кэшируется. Сбой — пусто и строка в журнал. */
 function post_search_cached(string $platform, string $query, callable $fetch): array {
@@ -35,17 +36,24 @@ function post_search_cached(string $platform, string $query, callable $fetch): a
     return $posts;
 }
 
-/** Запросы для прохода: уточнение пользователя первым, слова темы и запросы профиля (без вызова модели). Ротация — по номеру прохода. */
-function post_search_queries($topic): array {
+/** Все запросы темы для поиска постов, без ротации: уточнение, хэштеги слов и имён персонажей, запросы профиля. */
+function post_search_candidates($topic): array {
     $queries = [];
     if (($query = current_query()) !== '') $queries[] = $query;
     $profile = topic_lookup($topic)['profile'] ?? [];
     if (($first = trim((string)($profile['keywords'][0] ?? ''))) !== '') $queries[] = '#' . preg_replace('/\s+/u', '', $first);   // хэштег — для Telegram и YouTube
+    // Имена персонажей — хэштегами по одному слову: поиск по словам в Telegram платный, а #литвинков работает
+    foreach (topic_entity_words(topic_lookup($topic)['entities'] ?? []) as $word) $queries[] = '#' . $word;
     foreach (array_merge($profile['keywords'] ?? [], $profile['queries'] ?? []) as $q) {
         $q = discovery_clean_query($q);
         if ($q !== '') $queries[] = $q;
     }
-    $queries = array_values(array_unique(array_filter(array_map('trim', $queries), 'strlen')));
+    return array_values(array_unique(array_filter(array_map('trim', $queries), 'strlen')));
+}
+
+/** Запросы для прохода (без вызова модели). Ротация — по номеру прохода: за проход берутся POST_SEARCH_QUERIES из списка. */
+function post_search_queries($topic): array {
+    $queries = post_search_candidates($topic);
     $pass = (int)kv_get('post_search:pass', 0);
     kv_update('post_search:pass', fn() => $pass + 1);
     return array_slice(discovery_rotate($queries, $pass), 0, POST_SEARCH_QUERIES);
@@ -55,7 +63,10 @@ function post_search_queries($topic): array {
 function post_search_matches($topic, array $post): bool {
     $words = discovery_topic_keywords($topic);
     if (($query = current_query()) !== '') $words[] = $query;
-    $text = mb_strtolower(preg_replace('/#\S+/u', ' ', (string)($post['text'] ?? '')) ?? '');   // #мем в спаме — не попадание по теме
+    $raw = mb_strtolower((string)($post['text'] ?? ''));
+    preg_match_all('/#(\p{L}[\p{L}\p{N}_]*)/u', $raw, $found);
+    if (array_intersect($found[1], topic_entity_words(topic_lookup($topic)['entities'] ?? []))) return true;   // #литвинков — имя персонажа, это попадание
+    $text = preg_replace('/#\S+/u', ' ', $raw) ?? '';   // #мем в спаме — не попадание по теме
     foreach ($words as $word) {
         $word = mb_strtolower(trim((string)$word));
         $stem = mb_substr($word, 0, max(3, mb_strlen($word) - 2));
@@ -167,15 +178,77 @@ function post_search_telegram(string $query, int $limit, $uid): array {
     });
 }
 
+/** Пост VK из поиска новостей: тот же разбор, что у стены паблика; адрес автора — club/id, как его читает wall.get. Без подключения VK — пусто. */
+function post_search_vk(string $query, int $limit): array {
+    if (!vk_is_connected()) {
+        cli_echo("Поиск постов VK «{$query}»: VK не подключён (нужен вход в VK) — пропуск.");
+        return [];
+    }
+    return post_search_cached('vk', $query, function () use ($query, $limit) {
+        $posts = [];
+        foreach (vk_api_request('newsfeed.search', ['q' => $query, 'count' => max(1, min(100, $limit)), 'extended' => 0])['items'] ?? [] as $item) {
+            if (!((int)($item['owner_id'] ?? 0)) || !($post = vk_wall_post($item, '', '', false))) continue;
+            $owner = (int)$item['owner_id'];
+            $domain = $owner < 0 ? 'club' . abs($owner) : 'id' . $owner;
+            $posts[] = $post + ['source_key' => source_id_for(PLATFORM_VK, $domain), 'source_url' => "https://vk.com/$domain", 'found_by' => "поиск VK «{$query}»"];
+        }
+        return $posts;
+    });
+}
+
+/** Посты TikTok: авторы свежих роликов по запросу (tiktok_search_videos) и их последние ролики. Пауза поиска — не кэшируем, пропуск. */
+function post_search_tiktok(string $query, int $limit): array {
+    if (tiktok_search_paused()) return [];
+    return post_search_cached('tiktok', $query, function () use ($query, $limit) {
+        $posts = [];
+        foreach (array_slice(tiktok_search_videos(ltrim($query, '#')), 0, TIKTOK_SEARCH_AUTHORS) as $user) {
+            foreach (tiktok_fetch_posts($user, min($limit, 8)) as $post) {
+                $posts[] = $post + ['source_key' => source_id_for(PLATFORM_TIKTOK, $user), 'source_url' => "https://www.tiktok.com/@$user", 'found_by' => "поиск TikTok «{$query}»"];
+            }
+        }
+        return $posts;
+    });
+}
+
+/** Автор поста по адресу источника: канал Telegram, канал YouTube (лента), аккаунт TikTok, сообщество или страница VK. null — автора не понять. */
+function post_search_author(array $post): ?array {
+    $url = (string)($post['source_url'] ?? '');
+    if (preg_match('~^https://t\.me/([A-Za-z0-9_]+)$~', $url, $m)) return ['platform' => PLATFORM_TELEGRAM, 'id' => $m[1]];
+    if (preg_match('~^https://www\.youtube\.com/channel/(UC[A-Za-z0-9_-]{22})$~', $url, $m)) return ['platform' => PLATFORM_RSS, 'id' => youtube_channel_feed_url($m[1])];
+    if (preg_match('~^https://www\.tiktok\.com/@([A-Za-z0-9_.]{2,24})$~', $url, $m)) return ['platform' => PLATFORM_TIKTOK, 'id' => $m[1]];
+    if (preg_match('~^https://vk\.com/((?:club|id)\d+)$~', $url, $m)) return ['platform' => PLATFORM_VK, 'id' => $m[1]];
+    return null;
+}
+
 /**
- * Все поиски постов за проход в пределах бюджета POST_SEARCH_SECONDS: YouTube и Telegram по каждому запросу.
- * Возвращает посты по площадкам (как в collect_posts_by_platform) и число запросов по каждой.
+ * Пост прошёл полный анализ и найден поиском: его автор, если он ещё не известен (каталог, решения, предложения, проверки), — в отложенные
+ * подбора темы: следующий прогон проверит его полной проверкой и решит каталог или предложения (DISCOVERY_PLATFORMS_FIX_PROMPT.md, E1).
+ */
+function post_search_suggest(array $item, $topic): void {
+    if (empty($item['found_by']) || !($author = post_search_author($item))) return;
+    $sid = source_id_for($author['platform'], $author['id']);
+    if (post_search_source_known(load_source_db(), $sid)) return;
+    discovery_defer($topic, ['platform' => $author['platform'], 'id' => $author['id'], 'origin' => "пост прошёл отбор: " . ($item['url'] ?? $item['source_url'] ?? ''), 'depth' => 0],
+        'пост прошёл отбор — проверю в следующем подборе');
+}
+
+/** Источник уже известен: в каталоге любой темы, в решениях, предложениях или проверках. */
+function post_search_source_known(array $db, string $sid): bool {
+    foreach (CATALOG_KEYS as $platform => $key) foreach ((array)$db[$key] as $e) if (source_id_for($platform, (string)($e['id'] ?? '')) === $sid) return true;
+    foreach (array_merge((array)$db['source_votes'], (array)$db['source_suggestions']) as $e) if (($e['source_id'] ?? '') === $sid) return true;
+    foreach (array_keys((array)($db['discovery']['checked_at'] ?? [])) as $c) if ($c === $sid || str_ends_with((string)$c, '|' . $sid)) return true;
+    return false;
+}
+
+/**
+ * Все поиски постов за проход в пределах бюджета POST_SEARCH_SECONDS: YouTube, Telegram и VK по каждому запросу.
+ * TikTok сюда не входит: Chrome дорог, его запускает подбор источников (discovery_find_posts). Возвращает посты по площадкам и число запросов.
  */
 function post_search_collect($topic, $uid): array {
     $deadline = time() + POST_SEARCH_SECONDS;
-    $by = [PLATFORM_TELEGRAM => [], PLATFORM_RSS => []];
+    $by = [PLATFORM_TELEGRAM => [], PLATFORM_RSS => [], PLATFORM_VK => []];
     $queries = post_search_queries($topic);
-    $done = ['youtube' => 0, 'telegram' => 0];
+    $done = ['youtube' => 0, 'telegram' => 0, 'vk' => 0];
     foreach ($queries as $query) {
         if (time() >= $deadline) break;
         $done['youtube']++;
@@ -183,9 +256,11 @@ function post_search_collect($topic, $uid): array {
         if (time() >= $deadline) break;
         $done['telegram']++;
         array_push($by[PLATFORM_TELEGRAM], ...post_search_telegram($query, POST_SEARCH_LIMIT, $uid));
+        if (time() >= $deadline) break;
+        $done['vk']++;
+        array_push($by[PLATFORM_VK], ...post_search_vk($query, POST_SEARCH_LIMIT));
     }
-    $keep = fn($p) => !post_search_is_ad($p) && post_search_matches($topic, $p);
-    $by[PLATFORM_RSS] = array_values(array_filter($by[PLATFORM_RSS], $keep));
-    $by[PLATFORM_TELEGRAM] = array_values(array_filter($by[PLATFORM_TELEGRAM], $keep));
+    $keep = fn($p) => !post_search_is_ad($p) && post_search_matches($topic, $p) && ua_item_blocked($p) === null;   // украинское — не берём (UA_FILTER_PROMPT.md, B4)
+    foreach ($by as $platform => $posts) $by[$platform] = array_values(array_filter($posts, $keep));
     return ['by' => $by, 'done' => $done, 'queries' => $queries];
 }

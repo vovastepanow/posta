@@ -671,10 +671,12 @@ function topic_save_denied($topic) {
 
 /** Отказ опубликовать медиа (текст) или null. Свои файлы (upload) и ссылки не из записей пользователя не проверяем: за них отвечает сам пользователь. */
 function publish_media_denied(array $items) {
-    if (user_adult_allowed()) return null;
+    $adult_ok = user_adult_allowed();
     foreach ($items as $item) {
         if (($item['upload'] ?? '') !== '' || ($src = (string)($item['src'] ?? '')) === '') continue;
-        if (($r = content_record_by_media($src)) && content_is_adult($r)) return 'В посте есть материал 18+ или «Жесть» — такое через Posta публиковать нельзя.';
+        if (!($r = content_record_by_media($src))) continue;
+        if (ua_record_hidden($r)) return 'В посте есть украинский материал — публиковать нельзя.';   // UA_FILTER_PROMPT.md, B7
+        if (!$adult_ok && content_is_adult($r)) return 'В посте есть материал 18+ или «Жесть» — такое через Posta публиковать нельзя.';
     }
     return null;
 }

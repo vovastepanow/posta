@@ -105,12 +105,14 @@ function mirror_delete($uid, $id): void {
 
 /** Новые посты источника зеркала (за два дня), от старых к новым. */
 function mirror_fetch_posts(array $m): array {
+    if (ua_source_blocked(source_id_for($m['platform'], (string)$m['source_id'])) !== null) return [];   // украинский источник не зеркалим (UA_FILTER_PROMPT.md, B5)
     $posts = match ($m['platform']) {
         PLATFORM_TELEGRAM => best_posts_from_telegram($m['source_id'], 2),
         PLATFORM_VK => best_posts_from_vk($m['source_id'], 2),
         PLATFORM_OK => best_posts_from_ok($m['source_id']),
         default => best_posts_from_feed($m['source_id']),
     };
+    $posts = ua_filter_posts($posts);   // украинские посты не зеркалим (UA_FILTER_PROMPT.md, B5)
     usort($posts, fn($a, $b) => $a['posted_at'] <=> $b['posted_at']);
     return $posts;
 }

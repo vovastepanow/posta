@@ -151,15 +151,24 @@ function best_posts_quota_take($uid): void {
 }
 
 /** Поиск с кэшем на 15 минут (ключ — пользователь и параметры). Возвращает результат с ключом кэша 'key'. */
+/** Украинские посты из результата поиска — убираем; если все посты украинские — понятная ошибка (UA_FILTER_PROMPT.md, B4). */
+function ua_best_posts_result(array $result): array {
+    $posts = (array)($result['posts'] ?? []);
+    $kept = ua_filter_posts($posts);
+    if ($posts && !$kept && ua_filter_on()) throw new RuntimeException('Источник украинский — в Posta недоступен.');
+    $result['posts'] = $kept;
+    return $result;
+}
+
 function best_posts_search(string $link, int $days, string $sort, string $type = 'any', string $phrase = ''): array {
     $uid = app_user_id();
     $key = 'best:' . $uid . ':' . sha1(implode('|', [trim($link), $days, $sort, $type, $phrase]));
     $hit = kv_get($key);
-    if (is_array($hit) && time() - (int)($hit['at'] ?? 0) < BEST_POSTS_CACHE_SECONDS) return ['key' => $key] + $hit['result'];
+    if (is_array($hit) && time() - (int)($hit['at'] ?? 0) < BEST_POSTS_CACHE_SECONDS) return ['key' => $key] + ua_best_posts_result($hit['result']);
     best_posts_quota_take($uid);
     $result = best_posts(trim($link), $days, $sort, $type, $phrase);
     kv_update($key, fn() => ['at' => time(), 'result' => $result]);
-    return ['key' => $key] + $result;
+    return ['key' => $key] + ua_best_posts_result($result);
 }
 
 /** Выдача для страницы: без полного текста и адреса ролика (только признак видео). */

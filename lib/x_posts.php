@@ -92,7 +92,9 @@ function x_import_links(array $links): array {
     foreach ($links as $link) {
         try {
             $id = x_status_id($link) ?? throw new RuntimeException('не похоже на ссылку на твит: x.com/имя/status/номер');
-            $items[] = x_post_item($link, x_fetch_post($id));
+            $item = x_post_item($link, x_fetch_post($id));
+            if (ua_item_blocked($item) !== null) throw new RuntimeException('украинский твит — в Posta не принимаем');   // UA_FILTER_PROMPT.md, B5
+            $items[] = $item;
         } catch (RuntimeException $e) {
             $errors[] = [$link, $e->getMessage()];
         }

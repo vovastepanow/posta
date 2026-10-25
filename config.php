@@ -118,6 +118,21 @@ const PRESCREEN_BATCH = 10;
 const ANALYZE_BLOCK = 8;                                  // прошедшие быструю оценку копятся до стольких и уходят на полный анализ разом: меньше смен модели
 const PRESCREEN_SOURCE_MISS_LIMIT = 6;                    // промахов подряд — источник пропускается до конца запуска
 
+// ---- Горячие посты первыми (HOT_FIRST_PROMPT.md) ----
+const CONTENT_MIN_SOURCES = 8;                            // меньше своих источников темы (с высокими предложениями) — сначала автоподбор, потом сбор
+const DISCOVERY_BLOCKING_SECONDS = 600;                   // автоподбор перед сбором: не дольше стольких секунд; остаток — в конце прохода
+const HOT_PER_SOURCE = 3;                                 // в шортлист — не больше стольких горячих постов с одного источника
+const HOT_SHORTLIST = 60;                                 // ≈ 2 × реальная ёмкость полного анализа за проход
+const HOT_PLATFORM_SHARE = 0.4;                           // доля одной площадки в шортлисте (Двач не забивает список)
+const HOT_KEYWORD_BOOST = 1.3;                            // пост со словом из keywords профиля темы поднимается в шортлисте
+const HOT_TRUST_BOOST = 1.5;                              // пост из доверенного треда (thread_trust) — в общем отборе с этим множителем (CONTENT_FLOW_PROMPT.md, A2)
+const HOT_QUERY_BOOST = 1.5;                              // уточнение сверх HOT_SHORTLIST / 2 — в общем отборе с этим множителем (CONTENT_FLOW_PROMPT.md, A1)
+const IMAGEBOARD_NATIVE_TOPIC_KEYS = ['memes', 'internet'];   // темы, где имиджборды — родная площадка: посты без признаков темы в шортлист (CONTENT_FLOW_PROMPT.md, B2)
+const HOT_TEXT_MIN_CHARS = 40;                            // подписи короче — без пакетной проверки по тексту
+const HOT_TEXT_BATCH = 15;                                // подписей в одном вызове 9B
+const HOT_TEXT_REJECT_SCORE = 20;                         // тема «текст»: подпись ниже этого балла — отброс
+const HOT_COLLAGE_CHECK = false;                          // коллаж 3×2 для 9B: включать только после замера (см. отчёт HOT_FIRST_PROMPT.md, C3)
+
 const PHASH_SAME_DISTANCE = 20;   // из 256 бит: ближе — та же картинка (пережатая, уменьшенная); подбирается командой phash-report
 
 // ---- Автоподбор источников ----
@@ -134,6 +149,7 @@ const DVACH_BOARDS_PER_RUN = 20;
 const DVACH_ALWAYS_BOARDS = ['b'];   // доски, которые берутся под любую тему: контент из «плохих» источников не отсекаем, а проверяем по теме
 const DISCOVERY_CHECKED_LIMIT = 1000;
 const DISCOVERY_SNOWBALL_SEEDS = 8;
+const DISCOVERY_SIMILAR_SEEDS = 6;              // сидов для «похожих каналов» Telegram за прогон: свои каналы темы и высокие предложения, по кругу (HOT_FIRST_PROMPT.md, D1.1)
 const DISCOVERY_DEEP_EXTRA_SCORE = 10;          // на глубине 2 порог принятия выше на столько пунктов (DISCOVERY_FIX_PROMPT.md, часть E)
 const DISCOVERY_DEFER_MAX = 20;                 // отложенных кандидатов t.me на тему (часть D)
 const DISCOVERY_DEFER_DAYS = 3;
@@ -144,7 +160,8 @@ const DISCOVERY_TEXT_REJECT_SCORE = 20;
 const DISCOVERY_MIN_SUBSCRIBERS = 30;
 const DISCOVERY_MIN_OWN_SOURCES = 3;
 const DISCOVERY_SHORTAGE_INTERVAL = 1800;
-const DISCOVERY_NAMES_PER_RUN = 8;               // названий от модели за прогон: по кругу, по одному списку на тему (DISCOVERY_NAMES_PROMPT.md, часть B)
+const DISCOVERY_NAMES_PER_RUN = 0;               // названий от модели за прогон: 0 — выключено (HOT_FIRST_PROMPT.md, часть D1.4: дают бренды и несуществующие адреса); код не удалён (DISCOVERY_NAMES_PROMPT.md, часть B)
+const DISCOVERY_NAMES_IF_SEARCH_BELOW = 15;      // названия от модели ищем, только если поиск по запросам дал меньше стольких каналов Telegram
 const DISCOVERY_NAMES_REBUILD_STEP = 5;          // одобренных стало на столько больше — названия от модели пересоздаются
 const DISCOVERY_NAMES_MAX_DAYS = 14;             // старше этого — тоже пересоздаются
 const DISCOVERY_REF_BONUS = 5;                   // балл предложения за каждую повторную находку (не больше 4)

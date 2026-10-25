@@ -26,6 +26,13 @@ function topic_title_case($text) {
     return $text === '' ? '' : mb_strtoupper(mb_substr($text, 0, 1)) . mb_substr($text, 1);
 }
 
+/** Список коротких строк без пустых и повторов, не длиннее $limit. */
+function topic_short_list($list, int $limit): array {
+    $out = [];
+    foreach ((array)$list as $v) if (($v = mb_substr(trim((string)$v), 0, 60)) !== '') $out[topic_norm($v)] ??= $v;   // первое написание остаётся
+    return array_slice(array_values($out), 0, $limit);
+}
+
 function topic_normalize_entry($e) {
     if (!is_array($e) || trim((string)($e['title'] ?? '')) === '') return null;
     $title = mb_substr(topic_title_case($e['title']), 0, TOPIC_TITLE_MAX);
@@ -50,6 +57,8 @@ function topic_normalize_entry($e) {
         'nsfw' => !empty($e['nsfw']),         // ветка 18+ или шок (частные наследуют; частная может переопределить)
         'group' => mb_substr(trim((string)($e['group'] ?? '')), 0, 60),   // подзаголовок внутри ветки (для интерфейса)
         'hint' => mb_substr(trim((string)($e['hint'] ?? '')), 0, 120),   // «не путать с …» для двусмысленных
+        'entities' => topic_short_list($e['entities'] ?? [], 30),   // персонажи, бренды темы, которых модель может не знать (из дерева)
+        'queries' => topic_short_list($e['queries'] ?? [], 20),     // готовые поисковые запросы из дерева: идут в подбор первыми
     ];
 }
 
@@ -270,7 +279,8 @@ function topic_prompt_context($topic) {
     if (count($parts = topic_parts($topic)) > 1) return implode(' и ', array_map('topic_prompt_context', $parts));
     if (($e = topic_lookup($topic)) === null) return "«{$topic}»";
     $notes = array_filter([rtrim($e['about'], '.'), ($p = topic_parent($e)) ? "часть темы «{$p['title']}»" : '',
-        $e['aliases'] ? 'ещё называют: ' . implode(', ', array_slice($e['aliases'], 0, 4)) : '']);
+        $e['aliases'] ? 'ещё называют: ' . implode(', ', array_slice($e['aliases'], 0, 4)) : '',
+        $e['entities'] ? 'например: ' . implode(', ', array_slice($e['entities'], 0, 12)) : '']);
     return "«{$e['title']}»" . ($notes ? ' (' . implode('; ', $notes) . ')' : '');
 }
 
@@ -342,6 +352,7 @@ function topic_tree_seed(): array {
             $e['nsfw'] = $nsfw;
             $e['group'] = $node['group'] ?? ($e['group'] ?? '');
             $e['hint'] = $node['hint'] ?? ($e['hint'] ?? '');
+            [$e['entities'], $e['queries']] = [$node['entities'] ?? [], $node['queries'] ?? []];
             $e['aliases'] = array_values(array_filter(array_merge($e['aliases'] ?? [], $node['aliases']), fn($a) => ($owner[topic_norm($a)] ?? $node['key']) === $node['key']));   // синоним другой темы дерева — не наш
             if (!$existing || !$e['smart'] || trim((string)$e['about']) === '' || !empty($existing['seed'])) $e['about'] = $node['about'];   // описание ведёт дерево, а не модель (кроме ручных правок — они выше)
             if (!empty($e['manual'])) {
@@ -357,6 +368,11 @@ function topic_tree_seed(): array {
                 }
             }
             $e = topic_normalize_entry($e);
+            // Описание, персонажи или запросы в дереве поменялись — профиль темы и названия от модели пишутся заново
+            if ($existing && [$existing['about'] ?? '', $existing['entities'] ?? [], $existing['queries'] ?? []] !== [$e['about'], $e['entities'], $e['queries']]) {
+                $e['profile'] = [];
+                db_exec('DELETE FROM kv WHERE key = ?', ['discovery_names:' . topic_norm($e['title'])]);
+            }
             if (!$existing) {
                 $topics[] = $e;
                 $counts['created']++;
@@ -575,7 +591,65 @@ function topic_profile_clean($p) {
         'telegram' => array_slice(array_values(array_filter(array_map('strval', (array)($p['telegram'] ?? [])), 'is_valid_telegram_channel')), 0, 20),
         'v' => (int)($p['v'] ?? 0), 'smart' => !empty($p['smart']), 'at' => (int)($p['at'] ?? 0),
         'complaints' => (int)($p['complaints'] ?? 0),
-        'keywords' => array_slice(array_values(array_unique(array_filter(array_map(fn($k) => mb_strtolower(trim((string)$k)), (array)($p['keywords'] ?? [])), fn($k) => mb_strlen($k) >= 3))), 0, 20)];
+        'keywords' => array_slice(array_values(array_unique(array_filter(array_map(fn($k) => mb_strtolower(trim((string)$k)), (array)($p['keywords'] ?? [])), fn($k) => mb_strlen($k) >= 3))), 0, 40)];
+}
+
+/** Общие имена и слова, которые не берём из имён персонажей: «Никита» найдётся в любом тексте, «Литвинков» — нет. */
+const TOPIC_ENTITY_COMMON_WORDS = ['влад', 'даша', 'никита', 'николай', 'олег', 'гена', 'руки', 'vlad', 'dasha', 'nikita', 'nikolay', 'nikolai', 'oleg', 'gena'];
+
+/**
+ * Ключевые слова профиля: слова имён персонажей из дерева (от 4 букв, без общих имён), первыми; затем слова модели.
+ * Полное имя «никита литвинков» в подписи «Литвинков дал интервью» не находится, поэтому берём каждое слово отдельно.
+ */
+function topic_profile_keywords(array $entities, array $model_keywords): array {
+    return array_values(array_unique([...topic_entity_words($entities), ...array_map('mb_strtolower', $model_keywords)]));
+}
+
+/** Окончания русских слов для основы (CONTENT_FLOW_PROMPT.md, C1): отрезается одно самое длинное. */
+const TOPIC_WORD_ENDINGS = ['ами', 'ями', 'ого', 'его', 'ому', 'ему', 'ыми', 'ими', 'ых', 'их', 'ой', 'ей', 'ий', 'ый', 'ая', 'яя', 'ое', 'ее',
+    'ую', 'юю', 'ов', 'ев', 'ам', 'ям', 'ах', 'ях', 'ом', 'ем', 'а', 'я', 'о', 'е', 'и', 'ы', 'у', 'ю', 'ь'];
+
+/** Основа слова для сравнения с текстом: нижний регистр, ё → е, одно самое длинное окончание; основа не короче 4 букв. Латиница — только нижний регистр. */
+function topic_word_stem(string $word): string {
+    $word = str_replace('ё', 'е', mb_strtolower(trim($word)));
+    if (!preg_match('/\p{Cyrillic}/u', $word)) return $word;
+    $endings = TOPIC_WORD_ENDINGS;
+    usort($endings, fn($a, $b) => mb_strlen($b) <=> mb_strlen($a));
+    foreach ($endings as $ending) {
+        if (!str_ends_with($word, $ending)) continue;
+        $stem = mb_substr($word, 0, -mb_strlen($ending));
+        return mb_strlen($stem) >= 4 ? $stem : $word;   // короче 4 букв — окончание не отрезаем
+    }
+    return $word;
+}
+
+/**
+ * Есть ли в тексте слово или фраза из списка (CONTENT_FLOW_PROMPT.md, C2): основа каждого слова фразы — подстрока текста.
+ * «архитектура» находит «Архитектурные излишества», «здания» — «зданий». Слова короче 4 букв не учитываются.
+ */
+function topic_words_hit(string $text, array $words): bool {
+    $text = str_replace('ё', 'е', mb_strtolower($text));
+    foreach ($words as $phrase) {
+        $stems = [];
+        foreach (preg_split('~[^\p{L}\d]+~u', (string)$phrase, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
+            if (mb_strlen($word) >= 4) $stems[] = topic_word_stem($word);
+        }
+        if ($stems) {
+            $hit = true;
+            foreach ($stems as $stem) if (!str_contains($text, $stem)) { $hit = false; break; }
+            if ($hit) return true;
+        }
+    }
+    return false;
+}
+
+/** Слова имён персонажей темы (от 4 букв, без общих имён) по порядку из дерева. */
+function topic_entity_words(array $entities): array {
+    $words = [];
+    foreach ($entities as $name) foreach (preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower((string)$name), -1, PREG_SPLIT_NO_EMPTY) as $word) {
+        if (mb_strlen($word) >= 4 && !in_array($word, TOPIC_ENTITY_COMMON_WORDS, true)) $words[] = $word;
+    }
+    return array_values(array_unique($words));
 }
 
 /** Родитель и соседние подтемы с описаниями: профиль темы знает, чем она не является (SUBTOPIC_PROMPT.md, часть D). Пусто — тема не частная. */
@@ -617,7 +691,9 @@ function topic_profile_build(array $e, array $complaints = []) {
         if (!is_array($a) || trim((string)($a['criteria'] ?? '')) === '') continue;
         $question = trim((string)($a['question'] ?? ''));
         $keywords = array_values(array_unique(array_filter(array_map(fn($k) => mb_strtolower(trim((string)$k)), (array)($a['keywords'] ?? [])), fn($k) => mb_strlen($k) >= 3)));
+        $keywords = topic_profile_keywords($e['entities'], $keywords);   // имена из дерева модель не выдумает
         $queries = [];
+        foreach ($e['queries'] as $q) if (($q = discovery_clean_query($q)) !== '') $queries[topic_norm($q)] = $q;
         foreach (array_merge((array)($a['queries'] ?? []), (array)($a['queries_en'] ?? [])) as $q) {
             // Запрос — только с годом или без слова темы — уводит в сторону («Новости Москвы» по «выборы 2024»)
             if (preg_match('/\b(19|20)\d{2}\b/u', (string)$q) || ($keywords && !array_filter($keywords, fn($k) => mb_stripos((string)$q, $k) !== false))) continue;

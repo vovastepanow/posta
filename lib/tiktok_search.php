@@ -1,12 +1,11 @@
 <?php
 // Поиск аккаунтов TikTok по теме для автоподбора. yt-dlp поиска не умеет, поэтому страница поиска открывается
-// headless Chrome, а разбор — по ссылкам «/@имя». Одновременно — один Chrome, не больше двух поисков за прогон,
-// после трёх пустых ответов подряд (обычно капча) поиск ставится на паузу на сутки.
+// headless Chrome, а разбор — по ссылкам «/@имя». Одновременно — один Chrome, не больше двух поисков за прогон.
+// Пустой ответ (обычно капча) ставит поиск на паузу, и каждый следующий пустой ответ — на более долгую: 1 ч, 6 ч, потом сутки.
 
 const TIKTOK_SEARCH_TIMEOUT = 60;   // холодный старт Chrome с профилем занимает 30–37 с
 const TIKTOK_SEARCH_MAX_USERS = 10;
-const TIKTOK_SEARCH_EMPTY_LIMIT = 3;
-const TIKTOK_SEARCH_PAUSE_SECONDS = 86400;
+const TIKTOK_SEARCH_PAUSE_STEPS = [3600, 6 * 3600, 86400];   // пауза по числу пустых ответов подряд; дальше — сутки (DISCOVERY_PLATFORMS_FIX_PROMPT.md, E3)
 const TIKTOK_SEARCH_BROWSER = 'google-chrome';
 const TIKTOK_SEARCH_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
@@ -24,22 +23,34 @@ function tiktok_search_names(string $html): array {
     return array_slice($names, 0, TIKTOK_SEARCH_MAX_USERS);
 }
 
-/** Пауза после серии пустых ответов: поиск не запускается до времени из kv. */
+/** Состояние паузы в kv: ['until' => время, до которого пауза, 'level' => пустых ответов подряд]. Пусто — паузы нет. */
+function tiktok_search_pause_state(): array {
+    $state = kv_get('tiktok_search_pause', []);
+    return is_array($state) ? $state : [];
+}
+
+/** Пауза после пустых ответов: поиск не запускается до времени из kv. */
 function tiktok_search_paused(): bool {
-    $until = (int)kv_get('tiktok_search_pause', 0);
+    $until = (int)(tiktok_search_pause_state()['until'] ?? 0);
     if ($until > time()) cli_echo('-> TikTok: поиск на паузе после пустых ответов (капча?) — до ' . date('d.m H:i', $until) . '.');
     return $until > time();
 }
 
-/** Учёт пустых ответов: три подряд — пауза на сутки; непустой ответ сбрасывает счётчик. */
+/** Строка для сводки: пауза и её срок; null — паузы нет. */
+function tiktok_search_pause_note(): ?string {
+    $state = tiktok_search_pause_state();
+    if ((int)($state['until'] ?? 0) <= time()) return null;
+    return 'пауза до ' . date('d.m H:i', (int)$state['until']) . ', пустых ответов подряд: ' . (int)($state['level'] ?? 0);
+}
+
+/** Учёт ответов: пустой — пауза 1 ч, при повторе 6 ч, потом сутки; непустой ответ снимает паузу и счётчик. */
 function tiktok_search_note(bool $found): void {
-    if ($found) { kv_update('tiktok_search_empty', fn() => 0); return; }
-    $empty = kv_update('tiktok_search_empty', fn($n) => (int)$n + 1, 0);
-    if ($empty >= TIKTOK_SEARCH_EMPTY_LIMIT) {
-        kv_update('tiktok_search_pause', fn() => time() + TIKTOK_SEARCH_PAUSE_SECONDS);
-        kv_update('tiktok_search_empty', fn() => 0);
-        cli_echo('-> TikTok: ' . TIKTOK_SEARCH_EMPTY_LIMIT . ' пустых ответа подряд — поиск на сутки на паузе.');
-    }
+    if ($found) { kv_update('tiktok_search_pause', fn() => []); return; }
+    $state = kv_update('tiktok_search_pause', function ($s) {
+        $level = (int)(is_array($s) ? ($s['level'] ?? 0) : 0) + 1;
+        return ['level' => $level, 'until' => time() + TIKTOK_SEARCH_PAUSE_STEPS[min($level, count(TIKTOK_SEARCH_PAUSE_STEPS)) - 1]];
+    }, []);
+    cli_echo('-> TikTok: пустой ответ — поиск на паузе до ' . date('d.m H:i', $state['until']) . ' (пустых подряд: ' . $state['level'] . ').');
 }
 
 /**

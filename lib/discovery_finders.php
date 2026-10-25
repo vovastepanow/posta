@@ -41,14 +41,36 @@ function source_linked_sources(string $text): array {
     foreach ($m[1] as $g) $add(PLATFORM_OK, $g);
     preg_match_all('~youtube\.com/@([A-Za-z0-9_.-]{3,30})~i', $text, $m);
     foreach ($m[1] as $h) $add(PLATFORM_RSS, 'https://www.youtube.com/@' . $h);
-    preg_match_all('~youtube\.com/channel/(UC[A-Za-z0-9_-]{22})~', $text, $m);
-    foreach ($m[1] as $c) $add(PLATFORM_RSS, 'https://www.youtube.com/channel/' . $c);
+    preg_match_all('~youtube\.com/channel/(UC[A-Za-z0-9_-]{22})~', $text, $m);   // в ленту канала: тот же адрес, что у поиска, иначе один канал проверяется дважды
+    foreach ($m[1] as $c) $add(PLATFORM_RSS, youtube_channel_feed_url($c));
     preg_match_all('~pinterest\.(?:com|ru)/([A-Za-z0-9_.-]{2,64})/~i', $text, $m);
     foreach ($m[1] as $u) if (!in_array(strtolower($u), DISCOVERY_PINTEREST_RESERVED, true)) $add(PLATFORM_RSS, "https://www.pinterest.com/$u/");
     preg_match_all('~(?<![\w-])([a-z0-9-]{1,32})\.tumblr\.com~i', $text, $m);
     foreach ($m[1] as $t) if (strtolower($t) !== 'www') $add(PLATFORM_RSS, 'https://' . strtolower($t) . '.tumblr.com/');
     return array_values($found);
 }
+
+/** Лента канала YouTube по его id (UC…): общий адрес для поиска, ссылок из постов и проверки. */
+function youtube_channel_feed_url(string $cid): string {
+    return 'https://www.youtube.com/feeds/videos.xml?channel_id=' . $cid;
+}
+
+/**
+ * Язык названия или описания — не тот (DISCOVERY_PLATFORMS_FIX_PROMPT.md, A1): латиница с явно индонезийскими, польскими, итальянскими,
+ * испанскими, португальскими или немецкими словами. Кириллица — язык не проверяем (пропуск). Только распознавание, сети нет.
+ */
+function discovery_language_reject(string $text): bool {
+    $text = mb_strtolower($text);
+    if (preg_match('/\p{Cyrillic}/u', $text)) return false;
+    $tokens = preg_split('/[^\p{L}]+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    if (array_intersect($tokens, DISCOVERY_FOREIGN_WORDS_STRONG)) return true;
+    return count(array_intersect($tokens, DISCOVERY_FOREIGN_WORDS_WEAK)) >= 2;   // «la», «di», «los» бывают и в английских названиях: одного мало
+}
+
+/** Слова, по которым язык ясен сразу: ни в английских названиях, ни в именах не встречаются. */
+const DISCOVERY_FOREIGN_WORDS_STRONG = ['terbaru', 'yang', 'untuk', 'nie', 'jest', 'smieszne', 'filmy', 'nowe', 'sono', 'und', 'che'];
+/** Слова, которые бывают и в английских названиях: отказ — только если их два и больше. */
+const DISCOVERY_FOREIGN_WORDS_WEAK = ['dan', 'del', 'la', 'il', 'di', 'el', 'los', 'las', 'por', 'para', 'der'];
 
 /** Картинка для оценки: из кэша медиа сайта (относительный адрес) или по https через fetch_public. Не получилось — ''. */
 function discovery_image_bytes(string $url): string {
@@ -115,9 +137,27 @@ function discovery_queue_next(array &$queue): ?array {
     return null;
 }
 
-/** Из группы — кандидат с наименьшим приоритетом: отложенный, затем меньшая глубина, затем раньше добавленный. */
+/**
+ * Приоритет внутри групп (DISCOVERY_PLATFORMS_FIX_PROMPT.md, A2): слово темы в названии, два и больше повтора, найден по постам,
+ * свежий ролик YouTube — выше; латиница без слов темы — в конец группы (не выбрасываем: англоязычные мемы бывают хорошими).
+ */
+function discovery_queue_prioritize(array &$queue, array $topic_words, array $refs): void {
+    foreach ($queue['groups'] as &$list) {
+        foreach ($list as &$c) {
+            $name = mb_strtolower((string)$c['id'] . ' ' . (string)($c['info']['title'] ?? ''));
+            $hit = (bool)array_filter($topic_words, fn($w) => mb_stripos($name, $w) !== false);
+            $sid = source_id_for($c['platform'], (string)$c['id']);
+            $c['priority'] = ($hit ? 2 : 0) + (count($refs[$sid] ?? []) >= 1 ? 2 : 0) + ($c['origin_kind'] === 'post_search' ? 1 : 0) + (!empty($c['info']['fresh']) ? 3 : 0);
+            $c['tail'] = !$hit && !preg_match('/\p{Cyrillic}/u', $name) ? 1 : 0;
+        }
+        unset($c);
+    }
+    unset($list);
+}
+
+/** Из группы — кандидат с наименьшим приоритетом: отложенный, затем не в конце, затем с большим приоритетом, затем меньшая глубина, затем раньше добавленный. */
 function discovery_pop_first(array &$list): array {
-    $rank = fn($c) => (empty($c['deferred']) ? 10 : 0) + (int)($c['depth'] ?? 0);
+    $rank = fn($c) => [empty($c['deferred']) ? 10 : 0, (int)($c['tail'] ?? 0), -(int)($c['priority'] ?? 0), (int)($c['depth'] ?? 0)];
     $best = 0;
     foreach ($list as $i => $c) if ($rank($c) < $rank($list[$best])) $best = $i;
     return array_splice($list, $best, 1)[0];
@@ -130,17 +170,60 @@ function discovery_rotate(array $items, int $offset): array {
     return [...array_slice($items, $offset), ...array_slice($items, 0, $offset)];
 }
 
-/** Строки сводки по площадкам: найдено, проверено, принято, отказ, не загрузилось. VK без подключения — отдельной строкой. */
-function discovery_summary_lines(array $report, bool $vk_connected): array {
+/**
+ * Строки сводки по площадкам: найдено, проверено, принято, отказ, не загрузилось. $reasons — почему площадка или поиск пропущены или урезаны
+ * (ключ — группа очереди или иное имя): к строке группы или отдельной строкой (DISCOVERY_PLATFORMS_FIX_PROMPT.md, часть F).
+ */
+function discovery_summary_lines(array $report, array $reasons): array {
     $lines = [];
     foreach (DISCOVERY_GROUP_ORDER as $group) {
         $name = DISCOVERY_GROUP_NAMES[$group];
-        if ($group === 'vk' && !$vk_connected) { $lines[] = "{$name}: не подключён"; continue; }
         $r = ($report[$group] ?? []) + ['found' => 0, 'checked' => 0, 'accepted' => 0, 'rejected' => 0, 'failed' => 0, 'known' => 0];   // нет счётчика — 0, без Warning
-        $lines[] = "{$name}: найдено {$r['found']}, проверено {$r['checked']}, принято {$r['accepted']}, отказ {$r['rejected']}, не загрузилось {$r['failed']}, известных пропущено {$r['known']}";
+        $cheap = $GLOBALS['discovery_cheap'][$group] ?? [];   // отказы без модели: «12 мёртвых, 3 не на том языке»
+        $lines[] = "{$name}: найдено {$r['found']}, проверено {$r['checked']}, принято {$r['accepted']}, отказ {$r['rejected']}, не загрузилось {$r['failed']}, известных пропущено {$r['known']}"
+            . ($cheap ? ', без модели: ' . implode(', ', array_map(fn($k, $v) => "$v $k", array_keys($cheap), $cheap)) : '')
+            . (isset($reasons[$group]) ? " ({$reasons[$group]})" : '');
     }
+    foreach ($reasons as $key => $text) if (!in_array($key, DISCOVERY_GROUP_ORDER, true)) $lines[] = DISCOVERY_SOURCE_NAMES[$key] . ": {$text}";
     return $lines;
 }
+
+const DISCOVERY_SOURCE_NAMES = ['post_search' => 'Поиск постов', 'pinterest' => 'Pinterest'];
+
+/** Поиск постов → авторы кандидатами (DISCOVERY_PLATFORMS_FIX_PROMPT.md, E1): посты по запросам плана, автор с ≥2 постами — в начало своей группы. */
+function discovery_find_posts(array $queries, string $topic, $uid): array {
+    $authors = [];
+    $take = function (array $posts) use (&$authors, $topic) {
+        foreach ($posts as $p) {
+            if (post_search_is_ad($p) || !post_search_matches($topic, $p) || !($a = post_search_author($p))) continue;
+            $key = $a['platform'] . '|' . $a['id'];
+            $authors[$key] ??= ['platform' => $a['platform'], 'id' => $a['id'], 'origin' => "нашёлся по постам «{$p['found_by']}»", 'origin_kind' => 'post_search', 'n' => 0];
+            $authors[$key]['n']++;
+        }
+    };
+    foreach (array_slice($queries, 0, POST_SEARCH_QUERIES) as $q) $take([...post_search_youtube($q, POST_SEARCH_LIMIT), ...post_search_telegram($q, POST_SEARCH_LIMIT, $uid), ...post_search_vk($q, POST_SEARCH_LIMIT)]);
+    if ($queries) $take(post_search_tiktok($queries[0], POST_SEARCH_LIMIT));   // TikTok — Chrome дорог: один запрос за прогон подбора
+    $out = [];
+    foreach ($authors as $a) $out[] = ['platform' => $a['platform'], 'id' => $a['id'], 'origin' => $a['origin'], 'origin_kind' => 'post_search', 'front' => $a['n'] >= 2];
+    cli_echo('-> Поиск постов по запросам плана: авторов ' . count($out) . ' (с двумя и больше постами: ' . count(array_filter($out, fn($c) => $c['front'])) . ').');
+    return $out;
+}
+
+/** Tumblr: блоги с постами по тегу (страница тега отдаёт адреса блогов без JS). Не больше двух тегов за прогон. */
+function discovery_find_tumblr(array $queries): array {
+    $out = [];
+    foreach (array_slice($queries, 0, 2) as $q) {
+        $r = rss_get('https://www.tumblr.com/tagged/' . rawurlencode(str_replace(' ', '-', mb_strtolower(trim($q)))), 3 * 1024 * 1024, 15, BROWSER_UA);
+        if (!$r['ok']) { cli_echo("-> Tumblr «{$q}»: страница тега не ответила."); continue; }
+        preg_match_all('~(?<![\w-])([a-z0-9-]{1,32})\.tumblr\.com~i', $r['bytes'], $m);
+        $blogs = array_values(array_diff(array_unique(array_map('strtolower', $m[1])), DISCOVERY_TUMBLR_RESERVED));
+        cli_echo("-> Поиск Tumblr «{$q}»: блогов: " . count($blogs) . '.');
+        foreach (array_slice($blogs, 0, 5) as $b) $out[] = ['platform' => PLATFORM_RSS, 'id' => "https://$b.tumblr.com/", 'origin' => "поиск Tumblr «{$q}»", 'info' => null];
+    }
+    return $out;
+}
+
+const DISCOVERY_TUMBLR_RESERVED = ['www', 'media', 'assets', 'static', 'srvcs', 'secure', 'cdn', 'col', 'buttons', 'api', 'px', 'vt', 'staff', 'new', 'tumblr'];   // служебные хосты Tumblr: в живом прогоне static и srvcs прошли фильтр
 
 /** Telegram: поиск каналов через аккаунт пользователя по запросам и «похожие» на лучшие каналы темы. */
 function discovery_find_telegram(array $plan, array $seed_ids): array {
@@ -151,7 +234,7 @@ function discovery_find_telegram(array $plan, array $seed_ids): array {
     cli_echo(app_user_bind() !== '' && telegram_user_connection() !== null ? '-> Поиск Telegram через аккаунт: найдено каналов: ' . count($searched) . '.'
         : '-> Аккаунт Telegram не подключён — поиск каналов внутри Telegram пропущен (подключается в «Личном кабинете»).');
     foreach (interleave(...array_values($groups)) as $ch) $out[] = ['platform' => PLATFORM_TELEGRAM, 'id' => $ch['username'], 'origin' => "поиск Telegram «{$ch['origin']}»", 'origin_kind' => 'tg_search', 'info' => null];
-    $similar = array_slice($seed_ids, 0, 4);
+    $similar = array_slice($seed_ids, 0, DISCOVERY_SIMILAR_SEEDS);
     foreach ($similar ? discovery_telegram_account_channels([], $similar) : [] as $ch) $out[] = ['platform' => PLATFORM_TELEGRAM, 'id' => $ch['username'], 'origin' => "похож на @{$ch['origin']}", 'origin_kind' => 'similar', 'info' => null];
     return $out;
 }
@@ -179,14 +262,18 @@ function discovery_find_youtube(array $queries): array {
     foreach (array_slice($queries, 0, 3) as $q) {
         if (time() > $until) return $out;
         $results = 'https://www.youtube.com/results?search_query=' . rawurlencode($q) . '&sp=EgIQAg%3D%3D';
-        $rows = array_merge(discovery_youtube_rows(ytdlp_check_url($results)), discovery_youtube_rows('ytsearch10:' . $q . ' shorts'));
-        cli_echo("-> Поиск YouTube «{$q}»: каналов в ответе: " . count($rows) . '.');
+        // Авторы роликов за неделю — первыми: их канал живой (DISCOVERY_PLATFORMS_FIX_PROMPT.md, C); «только каналы» и шортсы — как было
+        $fresh = [];
+        foreach (discovery_youtube_rows(ytdlp_check_url('https://www.youtube.com/results?search_query=' . rawurlencode($q) . '&sp=EgIIAw%3D%3D')) as [$cid, $name]) $fresh[$cid] = $name;
+        $rows = array_merge(array_map(fn($cid, $name) => [$cid, $name], array_keys($fresh), $fresh), discovery_youtube_rows(ytdlp_check_url($results)), discovery_youtube_rows('ytsearch10:' . $q . ' shorts'));
+        cli_echo("-> Поиск YouTube «{$q}»: авторов свежих роликов: " . count($fresh) . ', каналов в ответе: ' . count($rows) . '.');
         foreach ($rows as [$cid, $name]) {
             if (time() > $until) { cli_echo('-> YouTube: время поиска (' . DISCOVERY_YOUTUBE_SECONDS . ' с) вышло.'); return $out; }
             if (isset($seen[$cid]) || count($out) >= DISCOVERY_YOUTUBE_MAX) continue;
             $seen[$cid] = true;
             // Проверку канала (шортсы, ролики) делает discovery_probe при очереди: поиск только собирает кандидатов
-            $out[] = ['platform' => PLATFORM_RSS, 'id' => 'https://www.youtube.com/feeds/videos.xml?channel_id=' . $cid, 'origin' => "поиск YouTube «{$q}»", 'info' => ['title' => $name]];
+            $info = ['title' => $name] + (isset($fresh[$cid]) ? ['fresh' => true] : []);
+            $out[] = ['platform' => PLATFORM_RSS, 'id' => youtube_channel_feed_url($cid), 'origin' => "поиск YouTube «{$q}»", 'info' => $info];
         }
     }
     return $out;
@@ -238,6 +325,7 @@ function discovery_find_ok(array $queries, string $topic): array {
     // Основы слов (без окончания): «вязание» находит «вязания» в записях
     $words = array_values(array_unique(array_map(fn($w) => mb_substr($w, 0, max(4, mb_strlen($w) - 2)),
         array_filter(array_map('mb_strtolower', preg_split('/[\s,;:!?.()\/|«»"]+/u', implode(' ', [$topic, ...$queries])) ?: []), fn($w) => mb_strlen($w) >= 3))));
+    $hits = [];   // группа => записей со словом темы в лентах
     $groups = [];
     foreach (OK_DISCOVERY_FEEDS as $name) {
         $url = "https://ok.ru/atom-feed/$name";
@@ -247,12 +335,15 @@ function discovery_find_ok(array $queries, string $topic): array {
             $posts = rss_parse($r['bytes'], 100, PLATFORM_OK, $url);
         } catch (Throwable $e) { cli_echo("-> ОК: лента «{$name}»: " . $e->getMessage()); continue; }
         foreach ($posts as $p) {
-            if (!preg_match('~ok\.ru/group/(\d{10,20})~', (string)$p['url'], $m) || isset($groups[$m[1]])) continue;
+            if (!preg_match('~ok\.ru/group/(\d{10,20})~', (string)$p['url'], $m)) continue;
             if (!$words || !array_filter($words, fn($w) => mb_stripos((string)$p['text'], $w) !== false)) continue;
-            $groups[$m[1]] = "лента ОК «{$name}»";
+            $hits[$m[1]] = ($hits[$m[1]] ?? 0) + 1;
+            $groups[$m[1]] ??= "лента ОК «{$name}»";
         }
     }
-    cli_echo('-> Одноклассники: групп по теме в лентах разделов: ' . count($groups) . '.');
+    // Группа — только если слово темы в двух и больше записях ленты: одна запись — случайность (DISCOVERY_PLATFORMS_FIX_PROMPT.md, D)
+    $groups = array_intersect_key($groups, array_filter($hits, fn($n) => $n >= 2));
+    cli_echo('-> Одноклассники: групп по теме в лентах разделов (слово темы в двух записях и больше): ' . count($groups) . '.');
     $out = [];
     foreach (array_slice($groups, 0, DISCOVERY_OK_MAX, true) as $gid => $origin) $out[] = ['platform' => PLATFORM_OK, 'id' => (string)$gid, 'origin' => $origin, 'info' => null];
     return $out;
@@ -336,6 +427,10 @@ function discovery_finish_probe(array $info, array $pairs = []): array {
 /** Посты-источники для ссылок из найденных каналов темы: Telegram-страницы, по которым ищутся ссылки. */
 function discovery_topic_seeds(array $db, string $topic): array {
     $seeds = array_values(array_filter($db['telegram_channels'], fn($e) => !empty($e['topics']) && catalog_entry_matches_topic($e, $topic, true)));
+    // Высокие предложения темы тоже сиды «похожих» (HOT_FIRST_PROMPT.md, D1.1)
+    foreach ((array)$db['source_suggestions'] as $s) {
+        if (($s['platform'] ?? '') === PLATFORM_TELEGRAM && topic_same((string)($s['topic'] ?? ''), $topic) && (int)($s['score'] ?? 0) >= SOURCE_SUGGEST_SCORE) $seeds[] = $s;
+    }
     usort($seeds, fn($a, $b) => (int)($b['score'] ?? 0) <=> (int)($a['score'] ?? 0));
-    return array_map(fn($s) => ltrim((string)($s['id'] ?? ''), '@'), $seeds);
+    return array_values(array_unique(array_map(fn($s) => ltrim((string)($s['id'] ?? ''), '@'), $seeds)));
 }

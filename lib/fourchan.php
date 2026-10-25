@@ -204,10 +204,11 @@ function fourchan_thread_media(string $board, array $t, int $cap = 200, array $e
         if (!($files = fourchan_post_media($board, $post))) continue;
         $text = fourchan_post_text($post);
         $id = (string)$post['no'];
-        $out[] = ['source_key' => "4chan:$board:$thread", 'posted_at' => (int)($post['time'] ?? 0), 'board' => $board, 'thread_id' => (string)$thread, 'post_id' => $id,
+        $flag = strtoupper((string)($post['country'] ?? '')) === 'UA' || strtoupper((string)($op['country'] ?? '')) === 'UA' ? 'UA' : '';   // флаг у поста или у ОП (тогда весь тред) — для фильтра Украины
+        $out[] = ['source_key' => "4chan:$board:$thread", 'posted_at' => (int)($post['time'] ?? 0), 'board' => $board, 'thread_id' => (string)$thread, 'post_id' => $id, 'country' => $flag,
             'source' => PLATFORM_4CHAN . " /$board/ · " . mb_substr($title ?: "#$thread", 0, 60),
             'source_url' => fourchan_post_url($board, $thread, (int)$id), 'image' => $files[0]['image'], 'images' => [$files[0]['image']],
-            'video' => $files[0]['video'], 'captions' => [$text], 'text' => $text, 'engagement' => null, 'url' => fourchan_post_url($board, $thread, (int)$id),
+            'video' => $files[0]['video'], 'captions' => [$text], 'text' => $text, 'engagement' => ['source' => '4chan', 'replies' => (int)($t['replies'] ?? 0), 'images' => (int)($t['images'] ?? 0)], 'url' => fourchan_post_url($board, $thread, (int)$id),
             'thread_title' => $title, 'thread_op' => (int)$id === $thread ? '' : $op_text, 'is_op' => (int)$id === $thread] + $extra;
         if (count($out) >= $cap) break;
     }

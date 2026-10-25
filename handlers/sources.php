@@ -49,6 +49,7 @@ function catalog_source_candidates(array $db, $platform, array $voted, $topic) {
     foreach ($db[CATALOG_KEYS[$platform]] as $e) {
         $id = ltrim(trim((string)($e['id'] ?? '')), '@');
         if (!catalog_entry_matches_topic($e, $topic) || !is_valid_source_id($platform, $id) || isset($voted[$sid = source_id_for($platform, $id)])) continue;
+        if (ua_source_blocked($sid, ['title' => (string)($e['name'] ?? '')]) !== null) continue;   // украинские — не показываем (UA_FILTER_PROMPT.md, B8)
         $out[] = source_candidate($sid, $platform, source_display_name($platform, $e['name'] ?? $id),
             match ($platform) { PLATFORM_TELEGRAM => 'Публичный Telegram-канал с недавними постами.', PLATFORM_RSS => 'Лента сайта или блога с картинками в записях.', PLATFORM_OK => 'Открытая группа в Одноклассниках с картинками в постах.', PLATFORM_TIKTOK => 'Аккаунт TikTok с короткими видео.', default => 'Публичное сообщество ВКонтакте с изображениями в постах.' },
             ['id' => $id] + ($platform === PLATFORM_RSS ? ['kind' => !empty($e['news']) ? news_site_kind($id) : rss_feed_kind($id)] : []));
@@ -59,7 +60,8 @@ function catalog_source_candidates(array $db, $platform, array $voted, $topic) {
 /** Находки автоподбора по теме, лучшие первыми. */
 function suggestion_source_candidates(array $db, $platform, array $voted, $topic) {
     $list = array_filter($db['source_suggestions'], fn($s) => topics_are_equivalent((string)($s['topic'] ?? ''), $topic) && ($platform === null || $s['platform'] === $platform)
-        && !isset($voted[$s['source_id']]) && ($s['platform'] !== PLATFORM_VK || vk_can_read()));
+        && !isset($voted[$s['source_id']]) && ($s['platform'] !== PLATFORM_VK || vk_can_read())
+        && ua_source_blocked((string)$s['source_id'], ['title' => (string)($s['name'] ?? '')]) === null);   // украинские — не предлагаем (UA_FILTER_PROMPT.md, B8)
     // Ранг: балл, повторные находки и поправка по виду находки (решения пользователя прошлых прогонов)
     $bonus = [];
     $rank = function ($s) use (&$bonus, $db, $topic) {
@@ -236,7 +238,7 @@ function handle_suggest_sources($in) {
         $wants(PLATFORM_OK) ? catalog_source_candidates($db, PLATFORM_OK, $voted, $topic) : [], $wants(PLATFORM_TIKTOK) ? catalog_source_candidates($db, PLATFORM_TIKTOK, $voted, $topic) : []);
     $candidates = array_values(array_filter($candidates, $kind_ok));
     if ($platform === PLATFORM_TIKTOK && !$candidates && !$suggested) {   // каталог TikTok пуст — ищем сразу, а не отсылаем к автоподбору
-        if ((int)kv_get('tiktok_search_pause', 0) > time()) json_response(['discovered' => null, 'message' => 'TikTok не отдаёт поиск (похоже, капча): повторим завтра. Пока добавьте аккаунт ссылкой в «Добавить источник» выше.', 'action' => 'add_link']);
+        if (tiktok_search_paused()) json_response(['discovered' => null, 'message' => 'TikTok не отдаёт поиск (похоже, капча): повторим завтра. Пока добавьте аккаунт ссылкой в «Добавить источник» выше.', 'action' => 'add_link']);
         if (!($candidates = tiktok_live_candidates($voted, $topic)) && !empty($GLOBALS['tiktok_search_error'])) json_response(['discovered' => null, 'message' => 'Не удалось запустить поиск в TikTok (' . $GLOBALS['tiktok_search_error'] . '). Подробности — в журнале ошибок Apache; пока добавьте аккаунт ссылкой в «Добавить источник» выше.', 'action' => 'add_link']);
         if (!$candidates) json_response(['discovered' => null, 'message' => 'TikTok по этой теме аккаунтов не нашёл. Добавьте аккаунт ссылкой в «Добавить источник» выше.', 'action' => 'add_link']);
     }
@@ -364,7 +366,7 @@ function handle_topic_sources() {
     $mutes = source_user_mutes(history_load(), $topic);   // выключено по оценкам пользователя (часть F)
     $overrides = db_load_settings()['source_overrides'][topic_norm($topic)] ?? [];
     foreach (CATALOG_KEYS as $platform => $key) foreach ($db[$key] as $e) {
-        if (!catalog_entry_matches_topic($e, $topic)) continue;
+        if (!catalog_entry_matches_topic($e, $topic) || ua_source_blocked(source_id_for($platform, ltrim((string)($e['id'] ?? ''), '@')), ['title' => (string)($e['name'] ?? '')]) !== null) continue;
         $id = ltrim((string)($e['id'] ?? ''), '@');
         $subs = (int)($e['audience']['subscribers'] ?? 0);
         $rss = $platform === PLATFORM_RSS;

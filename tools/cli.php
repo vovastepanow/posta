@@ -10,6 +10,8 @@
 //   seed-topics                    — засеять готовое дерево тем (lib/topic_tree.php), повторный запуск ничего не меняет
 //   topic-merge <откуда> <куда>    — слить тему в другую: названия и запросы переходят, дочерние темы — к ней, исходная удаляется
 //   discovery-origins [тема]       — откуда берутся предложения источников и как их решают: по виду находки, доля «да»
+//   ua-filter on|off               — фильтр украинского контента (по умолчанию включён; то же — в админке «Управление»)
+//   ua-scan [--apply]              — пройти пулы, историю и каталог: украинские записи и источники. --apply — пометить и запомнить
 //   discovery-run <тема> <id>      — прогон автоподбора одной темы от имени пользователя; тему в его настройках не меняет
 //   tag-content [N] [--dry-run]    — метки (темы дерева) записям без меток, по описанию ИИ; N запросов к модели (20)
 //   phash-backfill [--dry-run]     — для записей пула и истории без phash считает отпечаток по локальному файлу
@@ -230,6 +232,49 @@ case 'adult-allow':
     printf("%s: 18+ %s\n", $short($uid), $mode === 'on' ? 'разрешено' : 'запрещено');
     break;
 
+case 'ua-filter':
+    $mode = $args[0] ?? '';
+    if (!in_array($mode, ['on', 'off'], true)) exit("Укажите on или off: ua-filter on|off\n");
+    ua_filter_set($mode === 'on');
+    printf("Фильтр украинского контента: %s\n", $mode === 'on' ? 'включён' : 'выключен (скрытое снова видно, ничего не удалено)');
+    break;
+
+case 'ua-scan':
+    $apply = in_array('--apply', $args, true);
+    if (!ua_filter_on()) echo "Фильтр выключен: отчёт покажет только то, что не зависит от переключателя — включите его перед сканом.\n";
+    $sources = [];   // [id, название, причина]
+    $db = load_source_db();
+    foreach (CATALOG_KEYS as $platform => $key) foreach ($db[$key] as $e) {
+        $sid = source_id_for($platform, (string)($e['id'] ?? ''));
+        if (($reason = ua_source_blocked($sid, ['title' => (string)($e['name'] ?? '')])) !== null) $sources[] = [$sid, (string)($e['name'] ?? $sid), $reason];
+    }
+    $records = 0;
+    $samples = [];
+    foreach (db_all('SELECT id FROM users') as $row) {
+        $uid = $row['id'];
+        $hit = fn($r) => is_array($r) && ($reason = ua_item_blocked($r)) !== null ? $reason : null;
+        foreach (pool_load($uid) as $r) if ($hit($r)) { $records++; if (count($samples) < 20) $samples[] = [$short($uid), 'пул', (string)($r['source'] ?? ''), $hit($r)]; }
+        foreach (history_load($uid) as $list) foreach ((array)$list as $r) if ($hit($r)) { $records++; if (count($samples) < 20) $samples[] = [$short($uid), 'история', (string)($r['source'] ?? ''), $hit($r)]; }
+        if ($apply) {
+            pool_update(function ($pool) { foreach ($pool as $i => $r) if (is_array($r) && ($reason = ua_item_blocked($r)) !== null) $pool[$i]['ua_blocked'] = $reason; return $pool; }, $uid);
+            history_update(function ($h) {
+                foreach ($h as $c => $list) foreach ((array)$list as $i => $r) if (is_array($r) && ($reason = ua_item_blocked($r)) !== null) $h[$c][$i]['ua_blocked'] = $reason;
+                return $h;
+            }, $uid);
+        }
+    }
+    printf("Украинских источников в каталоге: %d\n", count($sources));
+    foreach ($sources as [$sid, $name, $reason]) printf("  %s — %s (%s)\n", $sid, $name, $reason);
+    printf("Украинских записей в пулах и истории: %d\n", $records);
+    foreach ($samples as [$who, $where, $source, $reason]) printf("  [%s] %s: %s — %s\n", $who, $where, $source, $reason);
+    if ($apply) {
+        foreach ($sources as [$sid, $name, $reason]) ua_block_source($sid, $name, $reason);
+        echo "Применено: записи помечены ua_blocked, источники запомнены как заблокированные. Ничего не удалено.\n";
+    } else {
+        echo "Только отчёт. Чтобы пометить и запомнить: ua-scan --apply\n";
+    }
+    break;
+
 case 'balance-add':
     [$uid, $rub] = [$args[0] ?? '', (float)($args[1] ?? 0)];
     if (!is_valid_user_id($uid) || !db_value('SELECT 1 FROM users WHERE id = ?', [$uid])) exit("Нет такого пользователя: $uid\n");
@@ -330,7 +375,13 @@ case 'users-merge':
     printf("%s → %s%s:\n  оценок у второго: %d, добавится: %d (у первого %d, остальные — повторы)\n  операций баланса: %d, опубликованных: %d, в очереди: %d\n",
         $short($from), $short($to), $flag('dry-run') ? ' (--dry-run, без изменений)' : '', $count('history_items', $to), $added, $count('history_items', $from),
         $count('ledger', $from), $count('published', $from), $count('outbox', $from));
-    if ($flag('dry-run')) break;
+    if ($flag('dry-run')) {
+        $login_from = db_value('SELECT login FROM users WHERE id = ?', [$from]);
+        $login_to = db_value('SELECT login FROM users WHERE id = ?', [$to]);
+        if ($login_from && !$login_to) echo "Логин $login_from перейдёт в {$short($to)}\n";
+        elseif ($login_from && $login_to) echo "Логин $login_from будет потерян: у {$short($to)} уже есть $login_to\n";
+        break;
+    }
     user_merge($from, $to);
     printf("Готово: у %s теперь %d оценок, профиль %s удалён.\n", $short($to), $count('history_items', $to), $short($from));
     break;

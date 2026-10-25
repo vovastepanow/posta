@@ -95,8 +95,8 @@ $check('в первых 16 проверках есть все три площа�
 $check('ОК не отстаёт: в первых 16 не меньше ' . DISCOVERY_MIN_CHECKS_PER_PLATFORM . ' проверок', count(array_filter($head, fn($c) => $c['platform'] === PLATFORM_OK)) >= DISCOVERY_MIN_CHECKS_PER_PLATFORM);
 $check('снежный ком из Telegram не попадает в первые 16 раньше ОК', !in_array('sn0', array_column($head, 'id'), true));
 $check('группы площадок — по порядку круга, ссылки на YouTube в свою группу', discovery_group_of(PLATFORM_RSS, 'https://www.youtube.com/feeds/videos.xml?channel_id=UCy1') === 'youtube' && discovery_group_of(PLATFORM_RSS, 'https://pinterest.com/x/') === 'links');
-$lines = discovery_summary_lines(['telegram' => ['found' => 48, 'checked' => 12, 'accepted' => 4, 'rejected' => 6, 'failed' => 2]], false);
-$check('сводка: строка по площадке и «не подключён» для VK', str_starts_with($lines[0], 'Telegram: найдено 48, проверено 12, принято 4, отказ 6, не загрузилось 2, известных пропущено ') && in_array('ВКонтакте: не подключён', $lines, true));
+$lines = discovery_summary_lines(['telegram' => ['found' => 48, 'checked' => 12, 'accepted' => 4, 'rejected' => 6, 'failed' => 2]], ['vk' => 'поиска сообществ нет']);
+$check('сводка: строка по площадке и причина пропуска VK', str_starts_with($lines[0], 'Telegram: найдено 48, проверено 12, принято 4, отказ 6, не загрузилось 2, известных пропущено ') && str_contains(implode("\n", $lines), 'ВКонтакте: найдено 0') && str_contains(implode("\n", $lines), '(поиска сообществ нет)'));
 
 echo "D. Отложенные кандидаты t.me (kv, тестовая тема):\n";
 $pq = discovery_queue_new();

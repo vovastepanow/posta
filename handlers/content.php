@@ -56,6 +56,7 @@ function pool_item_matches_topic($i, $topic, $key) {
 
 /** Запись можно показать: подходит теме и не 18+ или «Жесть» (для пользователя без флага). */
 function pool_item_in_topic($i, $topic, $key) {
+    if (is_array($i) && ua_record_hidden($i)) return false;   // украинский контент скрыт, пока включён фильтр (UA_FILTER_PROMPT.md, B6)
     if (is_array($i) && !user_adult_allowed() && content_is_adult($i)) return false;   // страховка: 18+ и «Жесть» без флага не показываем
     return pool_item_matches_topic($i, $topic, $key);
 }
@@ -258,7 +259,7 @@ function proposal_items(array $history) {
     $current_topic = current_topic();
     $adult_allowed = user_adult_allowed();
     foreach (PROPOSAL_COLLECTIONS as $c) foreach ($history[$c] ?? [] as $r) {
-        if (is_array($r) && empty($r['proposal_hidden']) && !proposal_media_lost($r) && content_image_key($r) !== '' && ($adult_allowed || !content_is_adult($r))) {
+        if (is_array($r) && empty($r['proposal_hidden']) && !ua_record_hidden($r) && !proposal_media_lost($r) && content_image_key($r) !== '' && ($adult_allowed || !content_is_adult($r))) {
             $item_topic = (string)($r['topic'] ?? '');
             if ($item_topic === '' || topic_same($item_topic, $current_topic)) {
                 $items[] = ['vote' => $c] + content_for_display($r, [], false);
