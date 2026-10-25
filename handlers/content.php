@@ -1,10 +1,21 @@
 <?php
 // Вкладки «Подбор», «Предложка», «Дерево», «Тест ИИ», базы данных и демо-режим.
 
+/** ?image=: состояние ролика записи подборки для карточки «Видео загружается…» — без проверок публикации (они ходят в сеть). */
+function handle_get_item_video() {
+    $image = (string)($_GET['image'] ?? '');
+    $item = array_values(array_filter(pool_load(), fn($i) => is_array($i) && content_image_key($i) === $image))[0] ?? null;
+    if (!$item) json_error('Записи уже нет в подборке.', 404);
+    $video = (string)($item['video'] ?? '');
+    $local = (string)($item['video_local'] ?? '');
+    json_response(['video' => $video, 'video_local' => $local, 'display_video' => $video === '' ? '' : (media_cache_existing($local) ?: $video),
+        'video_unavailable' => !empty($item['video_unavailable']), 'progress' => $video === '' ? ytdlp_progress_public(app_user_id(), $image) : null]);
+}
+
 function handle_get_current_item() {
     // Тему 18+ выбрали раньше, до запрета: показываем пусто и не собираем, пока её не сменят
     if (topic_save_denied(current_topic()) !== null) json_response(['status' => 'empty', 'message' => 'Тема «' . current_topic() . '» недоступна: выберите другую тему.']);
-    if ($pool = pool_without_lost_video(pool_for_current_topic())) json_response(content_for_display($pool[0], array_slice($pool, 1, 3)));
+    if ($pool = pool_without_lost_video(pool_for_current_topic())) json_response(translate_display(content_for_display($pool[0], array_slice($pool, 1, 3))));
 
     // Проверяем статус парсера
     $parser_started = start_content_parser_if_needed();
@@ -25,7 +36,7 @@ function handle_get_current_item() {
         $archive = array_values(array_filter($all_archive, fn($i) => pool_item_in_topic($i, $topic, $key)));
 
         if ($archive) {
-            $response = content_for_display($archive[0], array_slice($archive, 1, 3));
+            $response = translate_display(content_for_display($archive[0], array_slice($archive, 1, 3)));
             $response['archive'] = true;
             $response['fire_warning'] = "🔥 Пост скоро исчезнет";
             $response['parser_runtime'] = $runtime;
@@ -74,7 +85,8 @@ function pool_for_current_topic() {
         && !isset($frozen[mb_strtolower((string)($i['source'] ?? ''))]);
     $pool = pool_load();
     $stored = count(array_filter($pool, $keep)) === count($pool) ? $pool : pool_update(fn($p) => array_values(array_filter($p, $keep)));
-    return array_values(array_filter($stored, fn($i) => pool_item_in_topic($i, $topic, $key)));
+    $shown = array_values(array_filter($stored, fn($i) => pool_item_in_topic($i, $topic, $key) && content_passes_media_filters($i, $f)));   // фильтры медиа прячут при выдаче, в пуле записи остаются
+    return pool_order($shown);   // порядок показа: свежесть и чередование источников (FRESH_ORDER_POLITE_FETCH_PROMPT.md, часть A)
 }
 
 function handle_parser_status() {
@@ -98,7 +110,7 @@ function handle_refresh_content() {
 
 function handle_settings() {
     $entry = topic_ensure($topic = current_topic());
-    json_response(['topic' => $topic, 'topic2' => current_topic2(), 'topic_info' => $entry ? topic_public($entry) : null, 'filters' => content_filters()]);
+    json_response(['topic' => $topic, 'topic2' => current_topic2(), 'query' => current_query(), 'topic_info' => $entry ? topic_public($entry) : null, 'filters' => content_filters(), 'adult_allowed' => user_adult_allowed()]);
 }
 
 /** Полная запись темы из базы, все поля как есть, для панели «Дерево». */
@@ -161,12 +173,36 @@ function handle_save_second_topic($in) {
     ok(['topic2' => $topic2, 'parser' => start_content_parser_if_needed(true)]);
 }
 
+/** Уточнение к теме: новый ключ поиска — свой пул; возврат к старому запросу — старый пул (TOPIC_QUERY_PROMPT.md). */
+function handle_save_query($in) {
+    $query = normalize_query($in['query'] ?? '');
+    if ($denied = topic_save_denied($query)) throw new DomainException($denied);
+    if (topic_norm($query) === topic_norm(current_query())) ok(['query' => $query, 'parser' => 'unchanged']);
+    save_settings(['query' => $query]);
+    ok(['query' => $query, 'parser' => start_content_parser_if_needed(true)]);
+}
+
 function handle_save_filters($in) {
     $before = content_filters();
     save_settings(array_map(fn($v) => filter_var($v, FILTER_VALIDATE_BOOLEAN), array_intersect_key($in, $before)));
-    if (($filters = content_filters()) === $before) ok(['filters' => $filters, 'parser' => 'unchanged']);
+    // Перевод — способ показа: смена только галочки «Автоперевод» парсер не перезапускает и пул не чистит
+    $selection = fn($f) => array_diff_key($f, ['auto_translate' => true]);
+    if ($selection(($filters = content_filters())) === $selection($before)) ok(['filters' => $filters, 'parser' => 'unchanged']);
     pool_for_current_topic();
     ok(['filters' => $filters, 'parser' => start_content_parser_if_needed(true)]);
+}
+
+/** {allowed}: галочка «Показывать чувствительный и 18+ контент». Выключили, а текущая тема из 18+ — возвращаемся к теме по умолчанию. */
+function handle_adult_allow($in) {
+    $allowed = filter_var($in['allowed'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    db_exec('UPDATE users SET adult_allowed = ? WHERE id = ?', [$allowed ? 1 : 0, app_user_id()]);
+    user_adult_allowed(null, true);
+    $reset = !$allowed && topic_is_restricted(current_topic());
+    if ($reset) {
+        stop_content_parser();
+        save_settings(['topic' => DEFAULT_TOPIC]);
+    }
+    ok(['adult_allowed' => $allowed, 'topic_reset' => $reset]);
 }
 
 function handle_topic_reprofile($in) {
@@ -176,6 +212,11 @@ function handle_topic_reprofile($in) {
 
 function handle_topic_parent($in) {
     $entry = topic_set_parent((string)($in['id'] ?? ''), (string)($in['parent'] ?? ''));
+    ok(['topic_info' => topic_public($entry)]);
+}
+
+function handle_topic_rubric($in) {
+    $entry = topic_set_rubric((string)($in['id'] ?? ''), (string)($in['rubric'] ?? ''));
     ok(['topic_info' => topic_public($entry)]);
 }
 
@@ -200,7 +241,7 @@ function handle_vote($in) {
 /** Новый пул после голоса или null (записи уже нет). $save($record, $collection) — до удаления записи. */
 function apply_vote(array $pool, $image, $vote, $reason, callable $save) {
     if (($item = pool_find_item($pool, $image)) === null) return null;
-    if ($vote === 'postpone') return [...pool_without_image($pool, $image), $item];
+    if ($vote === 'postpone') return [...pool_without_image($pool, $image), ['postponed_at' => microtime(true)] + $item];
     $save(content_history_record($item, $reason), CONTENT_VOTE_COLLECTIONS[$vote]);
     return pool_without_image($pool, $image);
 }
@@ -434,7 +475,7 @@ function database_definitions() {
     $defs = [
         'content_pool' => ['label' => 'Пул контента', 'collections' => ['items' => 'Записи'], 'by_topic' => true],
         'content_history' => ['label' => 'История оценок', 'collections' => ['liked' => 'Лайки', 'disliked' => 'Дизлайки', 'undecided' => 'Без решения', 'complaints' => 'Жалобы'], 'by_topic' => true],
-        'sources_db' => ['label' => 'Каталог источников', 'collections' => ['2ch_boards' => 'Доски 2ch', 'vk_publics' => 'Паблики ВКонтакте', 'telegram_channels' => 'Каналы Telegram', 'rss_feeds' => 'Ленты RSS', 'source_votes' => 'Оценки источников']]
+        'sources_db' => ['label' => 'Каталог источников', 'collections' => ['2ch_boards' => 'Доски 2ch', 'vk_publics' => 'Паблики ВКонтакте', 'telegram_channels' => 'Каналы Telegram', 'rss_feeds' => 'Ленты RSS', 'ok_groups' => 'Группы Одноклассников', 'tiktok_accounts' => 'Аккаунты TikTok', 'source_votes' => 'Оценки источников']]
     ];
 
     // Добавляем все таблицы SQLite
@@ -661,7 +702,7 @@ function demo_route($action, array $in): never {
     if ($action === 'vote') $s['pool'] = apply_vote($s['pool'], (string)($in['image'] ?? ''), (string)($in['vote'] ?? 'postpone'), null, function ($r, $c) use (&$s) { $s['history'][$c][] = $r; }) ?? $s['pool'];
     match ($action) {
         'get_current_item' => $s['pool'] ? json_response(content_for_display($s['pool'][0], array_slice($s['pool'], 1, 3))) : json_response(['status' => 'empty', 'message' => 'Демо-пул пуст: нажмите «Сбросить демо».']),
-        'settings' => json_response(['topic' => $s['topic'], 'topic2' => '', 'topic_info' => null, 'filters' => default_settings()]),
+        'settings' => json_response(['topic' => $s['topic'], 'topic2' => '', 'query' => '', 'topic_info' => null, 'filters' => default_settings()]),
         'save_topic' => json_response($debug + ['topic' => $s['topic'] = normalize_topic($in['topic'] ?? '') ?: DEFAULT_TOPIC]),
         'topics' => json_response(['current' => null, 'topics' => []]),
         'proposals' => json_response(['items' => proposal_items($s['history']), 'refreshing' => false]),
@@ -671,6 +712,7 @@ function demo_route($action, array $in): never {
         'suggest_sources' => json_response(['discovered' => null, 'message' => 'В демо-режиме источники не подбираются.']),
         'account_info' => json_response(['debug' => true]),
         'telegram_queue' => json_response(['connected' => false, 'scheduled' => [], 'published' => []]),
+        'calendar' => json_response(['connected' => false, 'now' => time(), 'channels' => [], 'posts' => []]),
         'vk_oauth_status' => json_response(['configured' => false, 'connected' => false, 'user_id' => null]),
         'model_status' => handle_model_status(),
         'analyze_image' => json_response(analyze_image_local(read_request_image($in), $s['history'], $s['topic'])),
@@ -682,3 +724,41 @@ function demo_route($action, array $in): never {
 }
 
 function handle_debug_reset() { json_error('Сброс доступен только в демо-режиме.', 403); }
+
+/** Формат текущей темы для строки «Ищем: …»: формат, правка пользователя, родитель и частные темы (чипы «Уточнить»). */
+function handle_topic_info() {
+    $topic = current_topic();
+    $entry = topic_lookup($topic);
+    $own = topic_format_override($topic);
+    $children = $entry ? array_slice(array_map(fn($c) => ['title' => $c['title'], 'key' => $c['key']], topic_children($entry)), 0, 12) : [];
+    $parent = $entry ? topic_parent($entry) : null;
+    json_response(['topic' => $topic, 'format' => topic_format($topic), 'overridden' => $own !== null,
+        'children' => $children, 'children_total' => $entry ? count(topic_children($entry)) : 0,
+        'parent' => $parent ? ['title' => $parent['title']] : null]);
+}
+
+/** Правка формата темы этим пользователем: media, text, judge (пусто — вернуть формат темы по умолчанию). */
+function handle_topic_format_save($in) {
+    $topic = topic_norm(current_topic());
+    $settings = db_load_settings();
+    $format = topic_format_clean(['media' => $in['media'] ?? '', 'text' => $in['text'] ?? '', 'judge' => $in['judge'] ?? '']);
+    if (!empty($in['reset']) || $format === null) unset($settings['topic_formats'][$topic]);
+    else $settings['topic_formats'][$topic] = $format;
+    db_save_settings($settings);
+    ok(['format' => topic_format(current_topic())]);
+}
+
+/** Адрес — из записей пользователя (пул или история), не произвольный: читалка не открывает чужие страницы. */
+function article_url_is_own(string $url): bool {
+    if (!str_starts_with($url, 'https://')) return false;
+    foreach (array_merge(pool_load(), history_records()) as $item) if (is_array($item) && ($item['url'] ?? '') === $url) return true;
+    return false;
+}
+
+/** Читалка: блоки статьи по адресу записи пользователя. Только чтение; загрузка страницы — не чаще раза в секунду на хост. */
+function handle_article_read() {
+    $url = trim((string)($_GET['url'] ?? ''));
+    if (!article_url_is_own($url)) json_error('Статья не из ваших записей.', 403);
+    if (($article = article_blocks_for($url)) === null) json_error('Статья не открылась или на странице нет текста.', 404);
+    json_response(['url' => $url, 'article' => $article]);
+}

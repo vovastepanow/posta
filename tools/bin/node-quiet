@@ -1,0 +1,4 @@
+#!/bin/bash
+# Node для yt-dlp: служба Apache запрещает JIT, поэтому Node идёт с --jitless (NODE_OPTIONS в ytdlp_exec), а в этом режиме
+# он печатает «Warning: disabling flag --expose_wasm…» — yt-dlp принимает это за сбой разгадывания. Глушим только эту строку, код выхода — от Node.
+/usr/bin/node "$@" 2> >(grep -v '^Warning: disabling flag --expose_wasm due to conflicting flags$' >&2)

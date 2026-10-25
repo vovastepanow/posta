@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
 <title>Postä</title>
 <link rel="icon" href="img/posta-favicon-16.png" sizes="16x16" type="image/png">
 <link rel="icon" href="img/posta-favicon-32.png" sizes="32x32" type="image/png">
@@ -15,7 +16,7 @@
 <script>setTimeout(() => document.getElementById('app-loading')?.classList.add('is-done'), 20000);</script>
 </head>
 <body>
-<div id="app-loading" class="app-loading" role="status" aria-label="Загрузка приложения"><span class="spinner spinner-lg"></span></div>
+<div id="app-loading" class="app-loading" role="status" aria-label="Загрузка приложения"><span class="spinner spinner-lg"></span><span class="app-loading-text">Эфир начинается…</span></div>
 <div class="air-ticker" aria-hidden="true">
   <span class="air-ticker-tag air-day">Дневной выпуск</span><span class="air-ticker-tag air-night">● Вечерний эфир</span>
   <span class="air-ticker-text air-day">Тренд живёт пару часов — ловим его за вас ★ Звоните прямо сейчас!* ★ *звонить не нужно</span>
@@ -23,7 +24,7 @@
 </div>
 
 <section id="activity-console" class="activity-console" aria-label="Журнал приложения">
-  <div class="activity-console-header"><span class="console-indicator"></span><span class="console-title">Сводка</span><span id="activity-console-status">ничего не делается</span><button id="debug-toggle" class="debug-toggle" type="button" aria-pressed="false">🐞 Демо</button><button id="activity-console-follow" class="activity-console-follow" type="button" hidden>К концу ↓</button></div>
+  <div class="activity-console-header"><span class="console-indicator"></span><span class="console-title">Сводка</span><span id="activity-console-status">ничего не делается</span><button id="debug-toggle" class="debug-toggle" type="button" aria-pressed="false">🐞 Демо</button><button id="activity-console-follow" class="activity-console-follow" type="button" hidden>К концу ↓</button><button id="console-toggle" class="console-toggle" type="button" aria-expanded="true" aria-label="Свернуть журнал" title="Свернуть журнал">—</button></div>
   <div id="activity-track" class="activity-console-output" role="log" aria-live="polite"></div>
   <details id="model-panel" class="model-panel">
     <summary><span class="model-panel-title">Модель</span><span id="model-summary">…</span></summary>
@@ -46,25 +47,30 @@
   <button id="tab-inactive-reload" type="button">Работать здесь</button>
 </div>
 
-<main class="app-main">
 <div class="app-top">
   <header class="app-brand">
     <span class="app-brand-plate" aria-label="Postä">postä</span>
   </header>
-  <div class="theme-switch" role="group" aria-label="Оформление">
-    <button type="button" data-theme-set="day" aria-pressed="true">День</button>
-    <button type="button" data-theme-set="night" aria-pressed="false">Эфир</button>
-  </div>
   <nav class="tabs" role="tablist">
     <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="content-tab">Подбор</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="proposals-tab">Предложка</button>
+    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="calendar-tab">Календарь</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="source-tab">Источники</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab">Дерево</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="test-tab">Тест ИИ</button>
     <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="account-tab">Личный кабинет</button>
-    <div id="topic-tabs" class="topic-switch"></div>
+    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="admin-tab" hidden>Админка</button>
   </nav>
+  <div class="app-top-end">
+    <div id="topic-tabs" class="topic-switch"></div>
+    <button id="console-mini" class="console-mini" type="button" aria-label="Журнал" title="Журнал"><span class="console-indicator" aria-hidden="true"></span><span class="console-mini-title">Сводка</span><span id="console-mini-status" class="console-mini-status"></span><span class="console-mini-open" aria-hidden="true">⌄</span></button>
+    <div class="theme-switch" role="group" aria-label="Оформление">
+      <button type="button" data-theme-set="day" aria-pressed="true">День</button>
+      <button type="button" data-theme-set="night" aria-pressed="false">Эфир</button>
+    </div>
+  </div>
 </div>
+<main class="app-main">
 
 <div id="debug-banner" class="debug-banner" hidden>
   <span>ДЕМО-РЕЖИМ: данные хранятся только в этой сессии и не сохраняются в файлы проекта</span>
@@ -81,16 +87,37 @@
       <datalist id="topic-options"></datalist>
       <button id="topic-save" type="submit">Сохранить</button>
     </div>
+    <div id="topic-mode-box" class="topic-mode-box" hidden>
+      <p id="topic-mode" class="topic-mode" role="status"></p>
+      <button id="topic-mode-edit" class="topic-link" type="button">Изменить</button>
+      <div id="topic-mode-editor" class="topic-mode-editor" hidden>
+        <label class="check-chip"><input id="mode-media" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Картинка или видео обязательны</span></label>
+        <label class="check-chip"><input id="mode-text" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Текст поста обязателен</span></label>
+        <label class="topic-mode-judge">Судить по <select id="mode-judge"><option value="both">картинке и подписи</option><option value="image">картинке</option><option value="text">тексту поста</option></select></label>
+        <button id="mode-save" class="secondary-button" type="button">Сохранить</button>
+        <button id="mode-reset" class="topic-link" type="button">Вернуть как у темы</button>
+      </div>
+    </div>
+    <div id="topic-children" class="topic-children" hidden></div>
     <div id="topic2-field" class="topic2-field">
       <span class="topic2-plus" aria-hidden="true">+</span>
       <input id="topic2-input" type="text" maxlength="200" list="topic-options" placeholder="вторая тема: поиск по двум сразу" autocomplete="off" readonly aria-label="Вторая тема: контент ищется по обеим темам">
+    </div>
+    <div id="query-field" class="topic2-field query-field">
+      <span class="topic2-plus" aria-hidden="true">🔍</span>
+      <input id="query-input" type="text" maxlength="60" placeholder="уточнение: город, команда, персонаж, бренд…" autocomplete="off" readonly aria-label="Уточнение: подбор только про это">
     </div>
     <div id="topic-notice" class="topic-notice" role="status" hidden><span id="topic-notice-text"></span><button id="topic-force-new" class="topic-link" type="button">Нет, это другая тема</button></div>
     <div class="filter-row" role="group" aria-label="Фильтры подбора">
       <label class="check-chip" title="Только посты за последние сутки"><input id="filter-fresh" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Только новый контент</span></label>
       <label class="check-chip" title="Только живые паблики, каналы и треды: пропускать те, где давно или редко публикуют"><input id="filter-active" type="checkbox" checked><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Только актуальные источники</span></label>
       <label class="check-chip" title="Показывать посты, в которых есть хотя бы одно видео"><input id="filter-video" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Только с видео</span></label>
+      <label class="check-chip" title="Не показывать посты без картинки и видео"><input id="filter-media" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Только с медиа</span></label>
+      <label class="check-chip" title="Только картинки и видео без подписи: хэштеги и эмодзи не считаются текстом"><input id="filter-media-no-text" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Только медиа</span></label>
+      <label class="check-chip" title="Тексты постов на других языках показывать по-русски"><input id="filter-translate" type="checkbox" checked><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Автоперевод на русский</span></label>
+      <label class="check-chip" title="Откройте темы и источники 18+ и «Жесть»: по умолчанию они скрыты. Отвечаете за такой контент и его публикацию вы"><input id="filter-adult" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Показывать чувствительный и 18+ контент</span></label>
     </div>
+    <p id="media-format-hint" class="filter-hint" role="status" hidden>„Только медиа“ не сочетается с „Текст поста обязателен“ в формате темы</p>
   </form>
 
   <div id="item-loading" class="status-msg is-loading">Загрузка…</div>
@@ -108,19 +135,25 @@
 
   <div id="item-card-wrapper" class="item-card-wrapper" hidden>
     <div class="card">
-      <div class="media-shell" id="item-media-grid">
-        <!-- Медиа элементы будут добавлены здесь JavaScript-ом -->
-      </div>
+      <div id="item-post" class="item-post"></div>
+      <div id="item-translate" class="item-translate" hidden></div>
       <div class="info">
         <span id="item-rating" class="badge">0%</span>
-        <div id="item-source" class="source-text">Источник: —</div>
-        <div id="item-date" class="source-text" hidden></div>
-        <div id="item-engagement" class="engagement-row" aria-label="Активность у источника" hidden></div>
+        <div class="card-head">
+          <div id="item-source" class="source-text">Источник: —</div>
+          <div id="item-date" class="source-text" hidden></div>
+        </div>
+        <div class="card-chips">
+          <div id="item-engagement" class="engagement-row" aria-label="Активность у источника" hidden></div>
+          <span id="item-relevance" class="relevance-badge">По теме: —</span>
+          <div id="item-tags" class="tag-row" aria-label="Метки ИИ: о чём запись" hidden></div>
+        </div>
         <a id="item-source-link" class="source-post-link" target="_blank" rel="noopener noreferrer" hidden>Открыть исходный пост ↗</a>
-        <span id="item-relevance" class="relevance-badge">По теме: —</span>
-        <div id="item-tags" class="tag-row" aria-label="Метки ИИ: о чём запись" hidden></div>
-        <div class="item-ai-note"><strong>Почему по теме:</strong> <span id="item-why-text"></span></div>
-        <div id="item-desc" class="desc-text"><strong>Описание ИИ:</strong> —</div>
+        <details id="item-ai" class="card-ai">
+          <summary>Почему ИИ выбрал</summary>
+          <div class="item-ai-note"><strong>Почему по теме:</strong> <span id="item-why-text"></span></div>
+          <div id="item-desc" class="desc-text"><strong>Описание ИИ:</strong> —</div>
+        </details>
       </div>
     </div>
     <div class="controls" role="group" aria-label="Оценка записи">
@@ -143,13 +176,10 @@
           <button id="item-rocket" class="btn btn-mini" type="button" aria-label="Запостить в свой канал или паблик" title="Запостить"><span class="btn-icon" aria-hidden="true">🚀</span></button>
         </div>
       </div>
-      <div class="controls-row controls-management">
-        <button id="card-control-search" class="btn btn-mini" type="button" aria-label="Искать контент" title="Искать контент"><span class="btn-icon" aria-hidden="true">🔍</span><span class="btn-label">Поиск</span></button>
-        <button id="card-control-sources" class="btn btn-mini" type="button" aria-label="Обновить источники" title="Обновить источники"><span class="btn-icon" aria-hidden="true">📚</span><span class="btn-label">Источники</span></button>
-        <button id="card-control-stop" class="btn btn-mini btn-danger" type="button" aria-label="Остановить приложение" title="Остановить приложение"><span class="btn-icon" aria-hidden="true">🛑</span><span class="btn-label">Стоп</span></button>
-      </div>
     </div>
   </div>
+
+
 
   <div id="item-empty" class="status-msg item-empty" hidden>
     <span id="item-empty-message">Пул контента пуст.</span>
@@ -182,26 +212,33 @@
     <button id="discovery-button" class="primary-button" type="button">Подобрать источники</button>
   </section>
   <label class="source-platform-filter" for="source-platform"><span>Платформа</span>
-    <select id="source-platform"><option value="any">Все источники</option><option value="telegram">Telegram</option><option value="vk">ВКонтакте</option><option value="dvach">Двач</option></select>
+    <select id="source-platform"><option value="any">Все источники</option><option value="telegram">Telegram</option><option value="vk">ВКонтакте</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="shorts">YouTube Shorts</option><option value="ok">Одноклассники</option><option value="pinterest">Pinterest</option><option value="tumblr">Tumblr</option><option value="rss">Сайты и блоги</option><option value="fourchan">4chan</option><option value="dvach">Двач</option></select>
   </label>
   <div id="source-loading" class="status-msg is-loading" role="status">Ищу источники…</div>
   <div id="source-error" class="status-msg error-msg" role="alert" hidden></div>
 
   <div id="source-card-wrapper" class="item-card-wrapper" hidden>
-    <div class="card">
-      <div class="media-shell">
-        <div id="source-grid" class="source-grid" aria-label="Свежие посты источника"></div>
-        <div id="source-media-fallback" class="media-fallback" hidden>Картинки источника недоступны.</div>
-      </div>
-      <div class="info">
+    <div class="card source-card">
+      <div class="info source-head">
         <span id="source-score" class="badge" title="Оценка автоподбора: по теме, аудитория, доля просмотров" hidden></span>
         <div id="source-name" class="source-text">Источник: —</div>
         <div id="source-platform-label" class="source-text"></div>
         <div id="source-stats" class="engagement-row" aria-label="Аудитория и активность источника" hidden></div>
         <a id="source-link" class="source-post-link" target="_blank" rel="noopener noreferrer" hidden>Открыть источник ↗</a>
+      </div>
+      <div class="source-feed-box">
+        <div id="source-posts" class="source-posts" aria-label="Посты источника"></div>
+        <p id="source-media-fallback" class="source-empty-note" hidden></p>
+        <div class="source-feed-foot">
+          <button id="source-posts-more" class="source-posts-more" type="button" hidden></button>
+          <p id="source-coverage" class="source-coverage" hidden></p>
+        </div>
+      </div>
+      <details class="source-about">
+        <summary>Почему показан и описание</summary>
         <div class="item-ai-note"><strong>Почему показан:</strong> <span id="source-why"></span></div>
         <div id="source-desc" class="desc-text" hidden></div>
-      </div>
+      </details>
     </div>
     <div class="controls" role="group" aria-label="Решение по источнику">
       <div class="controls-row">
@@ -226,7 +263,9 @@
   <div id="source-empty" class="status-msg item-empty" hidden>
     <span id="source-empty-message">Новых источников пока нет.</span>
     <div class="item-empty-actions">
-      <button id="source-empty-discover" class="primary-button" type="button">Подобрать источники</button>
+      <button id="source-empty-discover" class="primary-button" type="button" hidden>Подобрать источники</button>
+      <button id="source-empty-vk" class="primary-button" type="button" hidden>Подключить VK</button>
+      <button id="source-empty-add" class="primary-button" type="button" hidden>Добавить ссылку</button>
       <button id="source-empty-retry" class="primary-button" type="button">Проверить ещё раз</button>
     </div>
   </div>
@@ -237,8 +276,85 @@
       <input id="source-add-link" type="text" maxlength="300" autocomplete="off" placeholder="Ссылка на канал, паблик или сайт" aria-label="Ссылка на канал, паблик или сайт" aria-describedby="source-add-hint">
       <button id="source-add-button" class="primary-button" type="submit">Добавить</button>
     </form>
-    <p id="source-add-hint" class="source-add-hint">Telegram: t.me/канал · VK: vk.com/паблик · Сайт или блог: адрес страницы, найдём RSS сами</p>
+    <p id="source-add-hint" class="source-add-hint">Telegram: t.me/канал · VK: vk.com/паблик · Сайт или блог: адрес страницы, найдём RSS сами · YouTube, Pinterest, Tumblr: ссылка на канал, доску или блог · YouTube Shorts: ссылка вида youtube.com/@канал/shorts · TikTok: tiktok.com/@аккаунт · Одноклассники: ok.ru/group/номер</p>
     <div id="source-add-status" class="proposals-status" role="status"></div>
+  </section>
+
+  <section class="own-content" aria-labelledby="own-content-title">
+    <h2 id="own-content-title" class="section-title">Свой контент</h2>
+    <p class="source-add-hint">Ваши картинки и таблицы сразу попадают в вашу подборку, первыми. Файлы — до 2 МБ. Видео добавляйте через редактор поста.</p>
+    <div class="own-content-actions">
+      <input id="own-files" type="file" accept="image/*" multiple hidden>
+      <input id="own-csv" type="file" accept=".csv,text/csv" hidden>
+      <input id="own-text" type="text" maxlength="1000" autocomplete="off" placeholder="Подпись к картинкам (необязательно)" aria-label="Подпись к картинкам">
+      <label class="own-album"><input id="own-album" type="checkbox"> Одним постом</label>
+      <button id="own-upload-button" class="primary-button" type="button">Загрузить картинки</button>
+      <button id="own-csv-button" class="primary-button" type="button">Импорт из CSV</button>
+      <a id="own-csv-sample" class="own-csv-sample" href="#">Пример CSV</a>
+    </div>
+    <div class="own-content-actions">
+      <input id="own-folder" type="file" webkitdirectory multiple hidden>
+      <button id="own-folder-button" class="primary-button" type="button">Выбрать папку</button>
+      <button id="own-folder-stop" type="button" hidden>Остановить</button>
+      <input id="own-yadisk-url" type="text" maxlength="300" autocomplete="off" placeholder="Публичная ссылка на папку Яндекс Диска" aria-label="Публичная ссылка на папку Яндекс Диска">
+      <button id="own-yadisk-button" class="primary-button" type="button">Импорт с Яндекс Диска</button>
+    </div>
+    <div class="own-content-actions own-x">
+      <textarea id="own-x-links" rows="3" maxlength="4000" placeholder="Ссылки на посты X (Twitter), до 20, по одной в строке" aria-label="Ссылки на посты X (Twitter)"></textarea>
+      <button id="own-x-button" class="primary-button" type="button">Импорт из X (Twitter)</button>
+    </div>
+    <div id="own-content-status" class="proposals-status" role="status"></div>
+    <ul id="own-content-errors" class="own-content-errors"></ul>
+  </section>
+
+  <section class="own-content best-posts" aria-labelledby="best-posts-title">
+    <h2 id="best-posts-title" class="section-title">Лучшие посты источника</h2>
+    <p class="source-add-hint">Вставьте канал, паблик или группу: покажем самые заметные посты за период. Отметьте нужные и заберите в подборку.</p>
+    <form id="best-posts-form" class="own-content-actions">
+      <input id="best-posts-link" type="text" maxlength="300" autocomplete="off" placeholder="Ссылка на канал, паблик или группу" aria-label="Ссылка на источник">
+      <select id="best-posts-days" aria-label="Период"><option value="1">День</option><option value="7" selected>Неделя</option><option value="30">Месяц</option></select>
+      <select id="best-posts-sort" aria-label="Сортировка"><option value="date">по дате</option></select>
+      <select id="best-posts-type" aria-label="Тип постов"><option value="any">Все типы</option><option value="photo">Фото</option><option value="album">Альбомы</option><option value="video">Видео</option></select>
+      <input id="best-posts-phrase" type="text" maxlength="100" autocomplete="off" placeholder="Фраза в тексте" aria-label="Фраза в тексте">
+      <button id="best-posts-button" class="primary-button" type="submit">Найти</button>
+    </form>
+    <div id="best-posts-status" class="proposals-status" role="status"></div>
+    <div id="best-posts-actions" class="own-content-actions" hidden>
+      <button id="best-posts-select-all" type="button">Выбрать все</button>
+      <button id="best-posts-take" class="primary-button" type="button">Забрать в подборку (0)</button>
+    </div>
+    <div id="best-posts-grid" class="proposals-grid topic-sources-grid"></div>
+  </section>
+
+  <section class="own-content mirror" aria-labelledby="mirror-title">
+    <h2 id="mirror-title" class="section-title">Зеркало источника</h2>
+    <p class="source-add-hint">Каждый новый пост вашего источника — без оценки моделью: в подборку или сразу в очередь канала. Проверка раз в 15 минут.</p>
+    <ul id="mirror-list" class="mirror-list"></ul>
+    <form id="mirror-form" class="mirror-form">
+      <div class="own-content-actions">
+        <input id="mirror-link" type="text" maxlength="300" autocomplete="off" placeholder="Ссылка на канал, паблик или группу" aria-label="Ссылка на источник">
+        <select id="mirror-mode" aria-label="Режим"><option value="pool">В подборку</option><option value="queue">Сразу в очередь канала</option></select>
+        <select id="mirror-channel" aria-label="Канал для очереди" hidden></select>
+      </div>
+      <div class="own-content-actions">
+        <input id="mirror-include" type="text" maxlength="500" autocomplete="off" placeholder="Только с словами (через запятую)" aria-label="Только с словами">
+        <input id="mirror-exclude" type="text" maxlength="500" autocomplete="off" placeholder="Без слов (через запятую)" aria-label="Без слов">
+      </div>
+      <div class="own-content-actions">
+        <textarea id="mirror-replace" rows="2" maxlength="2000" placeholder="Замены: одна на строку, «что → на что»" aria-label="Замены"></textarea>
+        <label><input id="mirror-regex" type="checkbox"> регулярное выражение</label>
+      </div>
+      <div class="own-content-actions">
+        <label><input id="mirror-strip-links" type="checkbox"> убрать ссылки</label>
+        <label><input id="mirror-strip-mentions" type="checkbox"> убрать @упоминания</label>
+        <label><input id="mirror-strip-hashtags" type="checkbox"> убрать #хэштеги</label>
+        <input id="mirror-append" type="text" maxlength="500" autocomplete="off" placeholder="Добавить в конец поста" aria-label="Добавить в конец">
+      </div>
+      <div class="own-content-actions">
+        <button id="mirror-button" class="primary-button" type="submit">Добавить зеркало</button>
+      </div>
+    </form>
+    <div id="mirror-status" class="proposals-status" role="status"></div>
   </section>
 
   <section class="topic-sources" aria-labelledby="topic-sources-title">
@@ -249,6 +365,8 @@
         <button type="button" class="proposals-filter" data-topic-source-filter="Telegram">Telegram</button>
         <button type="button" class="proposals-filter" data-topic-source-filter="ВКонтакте">ВКонтакте</button>
         <button type="button" class="proposals-filter" data-topic-source-filter="RSS">RSS</button>
+        <button type="button" class="proposals-filter" data-topic-source-filter="Одноклассники">Одноклассники</button>
+        <button type="button" class="proposals-filter" data-topic-source-filter="TikTok">TikTok</button>
         <button type="button" class="proposals-filter" data-topic-source-filter="Двач">Двач</button>
       </div>
       <span id="topic-sources-count" class="proposals-count"></span>
@@ -260,23 +378,27 @@
 </div>
 
 <!-- ДЕРЕВО ТЕМ -->
-<div id="tree-tab" class="view-panel wide-panel">
+<div id="tree-tab" class="view-panel wide-panel" data-width="narrow">
   <div class="tree-head">
     <div class="tree-head-text"><h2 class="section-title">Темы поиска</h2><p class="tree-current">Сейчас: <strong id="tree-current-name">—</strong></p></div>
     <button id="tree-refresh" class="refresh-button" type="button" aria-label="Обновить дерево">↻</button>
   </div>
   <form id="tree-form" class="topic-form">
-    <label for="tree-input">Новая тема или переход к существующей</label>
+    <label for="tree-input">Поиск по дереву, #хэштег или новая тема</label>
     <div class="topic-row">
-      <input id="tree-input" type="text" maxlength="200" list="tree-options" placeholder="Например: котики, космос, ретро-автомобили" autocomplete="off">
+      <input id="tree-input" type="search" maxlength="200" list="tree-options" placeholder="сюр, #cursed, котики — или новая тема" autocomplete="off">
       <datalist id="tree-options"></datalist>
-      <button id="tree-save" type="submit">Выбрать</button>
+      <button id="tree-save" type="submit" title="Enter: перейти к теме или создать новую">Выбрать</button>
     </div>
     <div id="tree-notice" class="topic-notice" role="status" hidden><span id="tree-notice-text"></span><button id="tree-force-new" class="topic-link" type="button">Нет, это другая тема</button></div>
   </form>
-  <p class="tree-legend"><span>📍 текущая тема</span><span>число — свои источники</span><span>нажмите тему, чтобы открыть её справа</span></p>
   <div id="tree-status" class="proposals-status" role="status"></div>
-  <div class="tree-layout"><div id="tree-root" class="tree-groups"></div><aside id="tree-detail" class="tree-detail" aria-live="polite"></aside></div>
+  <div id="tree-layout" class="tree-layout">
+    <nav id="tree-rubrics" class="tree-rubrics" aria-label="Рубрики"></nav>
+    <section id="tree-cards" class="tree-cards" aria-label="Темы рубрики"></section>
+    <aside id="tree-detail" class="tree-detail" aria-live="polite"></aside>
+  </div>
+  <div id="tree-backdrop" class="tree-backdrop" hidden></div>
 </div>
 
 <!-- ТЕСТ ИИ -->
@@ -306,20 +428,207 @@
   </section>
 </div>
 
+<!-- КАЛЕНДАРЬ: график «каналы × время» -->
+<div id="calendar-tab" class="view-panel wide-panel calendar-panel">
+  <div class="cal-bar">
+    <div class="cal-nav">
+      <button id="cal-prev" type="button" class="account-secondary" aria-label="Назад">‹</button>
+      <h3 id="cal-title" class="cal-title" aria-live="polite"></h3>
+      <button id="cal-next" type="button" class="account-secondary" aria-label="Вперёд">›</button>
+      <button id="cal-today" type="button" class="account-secondary">Сегодня</button>
+    </div>
+    <div class="cal-tools" role="group" aria-label="Вид: день, неделя, месяц">
+      <button type="button" data-cal-zoom="3">3 дня</button>
+      <button type="button" data-cal-zoom="7">Неделя</button>
+      <button type="button" data-cal-zoom="31">Месяц</button>
+    </div>
+    <div class="cal-zoom" role="group" aria-label="Масштаб: сколько дней на экране">
+      <button id="cal-out" type="button" class="account-secondary" aria-label="Отдалить">−</button>
+      <span id="cal-zoom-label" class="cal-zoom-label" aria-live="polite"></span>
+      <button id="cal-in" type="button" class="account-secondary" aria-label="Приблизить">+</button>
+      <span class="cal-wheel-hint">колесо мыши — масштаб</span>
+    </div>
+    <div class="cal-tools" role="group" aria-label="Список, сутки и подсказка">
+      <button type="button" data-cal-view="list">Список</button>
+      <button id="cal-full" type="button" aria-pressed="false">Круглые сутки</button>
+      <button id="cal-axis" type="button" aria-pressed="false" title="Дни колонками или дни строками">Дни ↔ часы</button>
+      <button id="cal-help" type="button" class="cal-help" aria-label="Как пользоваться календарём">?</button>
+    </div>
+  </div>
+  <p id="cal-status" class="cal-status" role="status" aria-live="polite" hidden></p>
+  <p id="cal-empty" class="account-muted" hidden>Подключите Telegram-канал в «Личный кабинет» → «Соцсети», и здесь появится календарь.</p>
+  <div id="cal-main" class="cal-main" hidden>
+    <div class="cal-stage">
+      <aside id="cal-pool-col" class="cal-pool-col" aria-label="Предложка"></aside>
+      <div id="cal-body" class="cal-body" tabindex="0" aria-label="Календарь публикаций"></div>
+      <aside id="cal-panel" class="cal-panel" tabindex="-1" aria-label="Подробности"></aside>
+    </div>
+  </div>
+  <div id="cal-hint" class="cal-hint-layer" hidden>
+    <section class="cal-hint" role="dialog" aria-modal="true" aria-labelledby="cal-hint-title">
+      <h4 id="cal-hint-title" class="cal-hint-title">Как пользоваться календарём</h4>
+      <ul id="cal-hint-lines" class="cal-hint-lines"></ul>
+      <button id="cal-hint-ok" type="button" class="primary-button">Понятно</button>
+    </section>
+  </div>
+</div>
+
 <!-- ЛИЧНЫЙ КАБИНЕТ -->
+<!-- АДМИНКА (только владелец) -->
+<div id="admin-tab" class="view-panel account-panel">
+  <nav class="account-nav" aria-label="Разделы админки">
+    <button type="button" data-admin-nav="control" class="is-active">Управление</button>
+    <button type="button" data-admin-nav="radar">Радар</button>
+    <button type="button" data-admin-nav="databases">Базы данных</button>
+    <button type="button" data-admin-nav="privacy">Куки и данные</button>
+  </nav>
+
+  <section class="admin-section" data-admin-section="control">
+    <div class="account-card">
+      <h3>Запуск и остановка</h3>
+      <div class="admin-action"><button id="admin-run-search" class="primary-button" type="button">🔍 Найти новый контент</button>
+        <span class="account-muted">Запускает сборщик по вашей текущей теме: обходит её источники, модель отбирает посты, подходящие появятся в «Подборе». Если сборщик уже работает — ничего не меняется.</span></div>
+      <div class="admin-action"><button id="admin-run-discovery" class="secondary-button" type="button">📚 Подобрать новые источники</button>
+        <span class="account-muted">Ищет новые каналы, паблики и аккаунты по текущей теме на всех площадках и проверяет их моделью. Идёт до 15 минут, ход — в журнале; найденные — во вкладке «Источники».</span></div>
+      <div class="admin-action"><button id="admin-stop-all" class="danger-button" type="button">🛑 Остановить всё на сервере</button>
+        <span class="account-muted">Завершает сборщики контента всех пользователей и помощник Telegram, выгружает модели из видеопамяти. Чтобы снова работать, обновите страницу.</span></div>
+      <p id="admin-control-note" class="account-muted" role="status"></p>
+    </div>
+    <div class="account-card">
+      <h3>Модели</h3>
+      <label class="check-chip"><input id="admin-fast-only" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span id="admin-fast-only-label">Только быстрая модель</span></label>
+      <p class="account-muted">Все задачи модели — отбор постов, профили тем, автоподбор, подписи, радар — идут на маленькую быструю модель вместо основной. Быстрее, но отбор хуже. Действует на весь сервер.</p>
+      <p id="admin-models-state" class="account-muted" role="status"></p>
+    </div>
+  </section>
+
+  <section class="admin-section radar-panel" data-admin-section="radar" hidden>
+  <div class="account-card">
+    <h3>Радар лидов</h3>
+    <p class="account-muted">Ищет в Telegram-чатах людей, которым нужен Posta: «где брать контент для канала», «посоветуйте автопостинг».</p>
+    <p id="radar-flash" class="radar-error" role="alert"></p>
+  </div>
+
+  <div class="account-card">
+    <h3>Аккаунт</h3>
+    <p id="radar-account-empty" class="account-muted" hidden>Нет аккаунта Telegram: подключите его в «Личный кабинет» → «Соцсети» → личный аккаунт.</p>
+    <div id="radar-account-body" class="radar-stack">
+      <label class="radar-field"><span>Аккаунт Telegram, через который радар читает чаты</span><select id="radar-account"></select></label>
+      <label class="check-chip"><input id="radar-enabled" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Радар включён: проверка раз в 10 минут, пока открыто приложение</span></label>
+      <p id="radar-state" class="account-muted"></p>
+    </div>
+  </div>
+
+  <div class="account-card">
+    <h3>Чаты</h3>
+    <p id="radar-chats-empty" class="account-muted" hidden>Чатов пока нет: нажмите «Найти чаты».</p>
+    <ul id="radar-chats" class="radar-list"></ul>
+    <form id="radar-chat-add" class="radar-row">
+      <input id="radar-chat-ref" type="text" placeholder="@чат или t.me/чат" maxlength="60" aria-label="Добавить чат">
+      <button type="submit" class="secondary-button">Добавить</button>
+    </form>
+    <div class="radar-row"><button id="radar-find-toggle" type="button" class="primary-button">Найти чаты</button></div>
+    <div id="radar-find" class="radar-stack" hidden>
+      <label class="radar-field"><span>Запросы поиска групп в Telegram — по одному в строке</span><textarea id="radar-queries" rows="6"></textarea></label>
+      <div class="radar-row"><button id="radar-find-run" type="button" class="secondary-button">Искать</button><span id="radar-find-state" class="account-muted" role="status"></span></div>
+      <ul id="radar-found" class="radar-list"></ul>
+      <div class="radar-row"><button id="radar-found-add" type="button" class="primary-button" hidden>Добавить отмеченные</button></div>
+    </div>
+  </div>
+
+  <div class="account-card">
+    <h3>Проверка</h3>
+    <div class="radar-row"><button id="radar-scan" type="button" class="primary-button">Проверить сейчас</button><span class="account-muted">Модель думает 10–60 с над каждым сообщением, до 15 сообщений за проход.</span></div>
+    <pre id="radar-log" class="radar-log" aria-live="polite"></pre>
+  </div>
+
+  <div class="account-card">
+    <h3>Лиды</h3>
+    <p id="radar-stats" class="account-muted"></p>
+    <div id="radar-filters" class="radar-row radar-wrap"></div>
+    <p id="radar-leads-empty" class="account-muted" hidden></p>
+    <div id="radar-leads" class="radar-stack"></div>
+    <div class="radar-row"><button id="radar-leads-more" type="button" class="secondary-button" hidden>Показать ещё</button></div>
+  </div>
+
+  <details class="account-card">
+    <summary><h3 class="radar-summary">Отсеяно моделью</h3></summary>
+    <p class="account-muted">Последние сообщения, которые модель не сочла лидами. Если среди них есть нужные — нажмите «Переоценить».</p>
+    <p id="radar-rejected-empty" class="account-muted" hidden>Пока ничего не отсеяно.</p>
+    <div id="radar-rejected" class="radar-stack"></div>
+  </details>
+  </section>
+
+  <section class="admin-section" data-admin-section="privacy" hidden>
+    <div class="account-card"><h3>Куки</h3><p class="account-muted">Всё, что браузер отправляет этому сайту. Куки с пометкой HttpOnly скрипты страницы прочитать не могут — их показывает сервер.</p><div id="privacy-cookies" class="privacy-table-wrap"></div></div>
+    <div class="account-card"><h3>Хранилище браузера</h3><p class="account-muted">localStorage и sessionStorage этого сайта — живут только в вашем браузере.</p><div id="privacy-storage" class="privacy-table-wrap"></div></div>
+    <div class="account-card"><h3>На сервере</h3><p id="privacy-server-note" class="account-muted"></p><div id="privacy-files" class="privacy-table-wrap"></div></div>
+  </section>
+
+  <section class="admin-section" data-admin-section="databases" hidden>
+    <div class="database-layout">
+      <div class="database-sidebar">
+        <div class="database-toolbar">
+          <label><span>База</span><select id="database-select"></select></label>
+          <label><span>Коллекция</span><select id="database-collection-select"></select></label>
+          <button id="database-refresh" class="refresh-button" type="button" aria-label="Обновить список">↻</button>
+        </div>
+        <div id="database-list" class="database-list" role="listbox"></div>
+      </div>
+      <div class="database-main">
+        <div id="database-status" class="database-status" role="status">Выберите базу для просмотра записей.</div>
+        <div id="database-browser" class="database-browser" hidden>
+          <div class="database-header">
+            <div class="database-breadcrumb" id="database-breadcrumb"></div>
+            <button id="database-add" class="primary-button" type="button">＋ Добавить</button>
+          </div>
+          <div class="database-viewer">
+            <button id="database-prev" class="database-nav-btn" type="button" aria-label="Предыдущая запись">‹</button>
+            <div id="database-record-view" class="database-record-view"></div>
+            <button id="database-next" class="database-nav-btn" type="button" aria-label="Следующая запись">›</button>
+          </div>
+          <div class="database-record-actions">
+            <button id="database-edit" class="secondary-button" type="button">Редактировать</button>
+            <button id="database-delete" class="danger-button" type="button">Удалить</button>
+          </div>
+        </div>
+        <div id="database-records" class="database-records"></div>
+      </div>
+    </div>
+    <div class="database-danger-zone">
+      <span>Очистить ваши данные: пул и история станут пустыми и сразу начнётся поиск контента по текущей теме. Общий каталог источников не меняется.</span>
+      <button id="database-reset" class="danger-button" type="button">Очистить мои данные</button>
+    </div>
+    <dialog id="database-edit-dialog" class="database-edit-dialog">
+      <form id="database-edit-form">
+        <h2 id="database-dialog-title">Редактировать запись</h2>
+        <label for="database-record-json">Данные записи (JSON)</label>
+        <textarea id="database-record-json" spellcheck="false" required></textarea>
+        <div class="dialog-actions"><button class="secondary-button" type="button" id="database-cancel">Отмена</button><button class="primary-button" type="submit">Сохранить</button></div>
+      </form>
+    </dialog>
+  </section>
+</div>
+
 <div id="account-tab" class="view-panel account-panel">
   <div id="account-exposure" class="account-card account-warning" role="alert" hidden></div>
   <nav class="account-nav" aria-label="Разделы кабинета">
     <button type="button" data-account-section="profile" class="is-active">Профиль</button>
     <button type="button" data-account-section="billing">Тариф и баланс</button>
     <button type="button" data-account-section="social">Соцсети</button>
-    <button type="button" data-account-section="privacy">Мои данные и куки</button>
-    <button type="button" data-account-section="databases">Базы данных</button>
+    <button type="button" data-account-section="api">Автоматизация (API)</button>
   </nav>
 
   <section class="account-section" data-section="profile"><div id="account-profile-body" class="account-card status-msg is-loading">Загрузка…</div></section>
 
   <section class="account-section" data-section="social" hidden>
+    <div class="account-card" id="networks-card">
+      <h3>Другие соцсети</h3>
+      <p class="account-muted">Автопостинг кроме Telegram. Токены и пароли хранятся на сервере зашифрованно и после сохранения не показываются.</p>
+      <div id="networks-list" class="channel-list"></div>
+      <form id="networks-form" class="telegram-form" hidden></form>
+      <p id="networks-status" class="account-muted" role="status"></p>
+    </div>
     <div class="account-card">
       <div class="social-head"><span class="social-logo" aria-hidden="true">VK</span><div><h3>ВКонтакте</h3><p class="account-muted">Одно подключение на весь сайт: через него парсер ищет и читает паблики.</p></div></div>
       <div class="vk-auth-actions"><button id="vk-oauth-button" class="secondary-button" type="button">Подключить VK</button><span id="vk-oauth-status" role="status">Проверяю подключение VK...</span></div>
@@ -355,6 +664,7 @@
             <label><span>api_hash</span><input id="tgu-api-hash" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore placeholder="Длинная строка из my.telegram.org" required></label>
           </div>
           <label><span>Телефон</span><input id="tgu-phone" type="tel" autocomplete="tel" placeholder="Номер с кодом страны" required></label>
+          <p class="account-muted">Если код не приходит или вход по коду не получается — попробуйте «Войти по QR-коду».</p>
           <div class="tgu-actions"><button class="primary-button" type="submit">Получить код</button><button id="tgu-qr-button" class="account-secondary" type="button" title="Если код не приходит">Войти по QR-коду</button></div>
         </form>
         <div id="tgu-qr" class="tgu-qr" hidden>
@@ -411,55 +721,25 @@
     <div id="billing-status" class="account-muted" role="status"></div>
   </section>
 
-  <section class="account-section" data-section="privacy" hidden>
-    <div class="account-card"><h3>Куки</h3><p class="account-muted">Всё, что браузер отправляет этому сайту. Куки с пометкой HttpOnly скрипты страницы прочитать не могут — их показывает сервер.</p><div id="privacy-cookies" class="privacy-table-wrap"></div></div>
-    <div class="account-card"><h3>Хранилище браузера</h3><p class="account-muted">localStorage и sessionStorage этого сайта — живут только в вашем браузере.</p><div id="privacy-storage" class="privacy-table-wrap"></div></div>
-    <div class="account-card"><h3>На сервере</h3><p id="privacy-server-note" class="account-muted"></p><div id="privacy-files" class="privacy-table-wrap"></div></div>
+  <section class="account-section" data-section="api" hidden>
+    <div class="account-card">
+      <h3>Автоматическая отправка постов в Posta</h3>
+      <p class="account-muted"><b>Что это.</b> Способ добавлять посты в вашу подборку не вручную, а из других программ и сервисов: Make, n8n, Zapier или вашего скрипта. Это нужно только если вы что-то автоматизируете. Если нет — эту вкладку можно пропустить.</p>
+      <p class="account-muted"><b>Пример.</b> В Make настроено: «появилась новая картинка в папке → отправить её в Posta». Картинка с подписью сама окажется первой в вашей подборке, а дальше вы лайкаете, ставите в календарь и публикуете её как обычный пост.</p>
+      <ol class="account-muted">
+        <li><b>Создайте токен</b> — это пароль для вашей программы. Он показывается один раз: скопируйте его сразу. Потеряли — создайте новый, старый перестанет работать.</li>
+        <li><b>Вставьте токен</b> в сервис или скрипт и настройте отправку запроса по примеру ниже: подпись в поле <code>text</code>, ссылка на картинку в <code>image_url</code>.</li>
+        <li><b>Готово:</b> каждый запрос добавляет один пост. Не больше 60 запросов в час.</li>
+      </ol>
+      <p id="api-token-state" class="account-muted"></p>
+      <div class="api-token-actions"><button id="api-token-create" class="primary-button" type="button">Создать токен API</button> <button id="api-token-revoke" class="secondary-button" type="button" hidden>Отозвать токен</button></div>
+      <div id="api-token-box" class="api-token-box" hidden><p class="account-muted">Ваш токен — сохраните его сейчас, потом он не покажется. Никому его не передавайте: с ним можно добавлять посты от вашего имени.</p><code id="api-token-value" class="api-token-value"></code></div>
+      <p class="account-muted"><b>Пример запроса</b> (для разработчиков; в Make и n8n то же самое настраивается в модуле «HTTP»):</p>
+      <pre id="api-curl" class="api-curl"></pre>
+    </div>
   </section>
 
-  <section class="account-section" data-section="databases" hidden>
-    <div class="database-layout">
-      <div class="database-sidebar">
-        <div class="database-toolbar">
-          <label><span>База</span><select id="database-select"></select></label>
-          <label><span>Коллекция</span><select id="database-collection-select"></select></label>
-          <button id="database-refresh" class="refresh-button" type="button" aria-label="Обновить список">↻</button>
-        </div>
-        <div id="database-list" class="database-list" role="listbox"></div>
-      </div>
-      <div class="database-main">
-        <div id="database-status" class="database-status" role="status">Выберите базу для просмотра записей.</div>
-        <div id="database-browser" class="database-browser" hidden>
-          <div class="database-header">
-            <div class="database-breadcrumb" id="database-breadcrumb"></div>
-            <button id="database-add" class="primary-button" type="button">＋ Добавить</button>
-          </div>
-          <div class="database-viewer">
-            <button id="database-prev" class="database-nav-btn" type="button" aria-label="Предыдущая запись">‹</button>
-            <div id="database-record-view" class="database-record-view"></div>
-            <button id="database-next" class="database-nav-btn" type="button" aria-label="Следующая запись">›</button>
-          </div>
-          <div class="database-record-actions">
-            <button id="database-edit" class="secondary-button" type="button">Редактировать</button>
-            <button id="database-delete" class="danger-button" type="button">Удалить</button>
-          </div>
-        </div>
-        <div id="database-records" class="database-records"></div>
-      </div>
-    </div>
-    <div class="database-danger-zone">
-      <span>Очистить ваши данные: пул и история станут пустыми и сразу начнётся поиск контента по текущей теме. Общий каталог источников не меняется.</span>
-      <button id="database-reset" class="danger-button" type="button">Очистить мои данные</button>
-    </div>
-    <dialog id="database-edit-dialog" class="database-edit-dialog">
-      <form id="database-edit-form">
-        <h2 id="database-dialog-title">Редактировать запись</h2>
-        <label for="database-record-json">Данные записи (JSON)</label>
-        <textarea id="database-record-json" spellcheck="false" required></textarea>
-        <div class="dialog-actions"><button class="secondary-button" type="button" id="database-cancel">Отмена</button><button class="primary-button" type="submit">Сохранить</button></div>
-      </form>
-    </dialog>
-  </section>
+
 
 </div>
 </main>
@@ -470,14 +750,12 @@
       <a id="image-viewer-file" class="image-viewer-file" target="_blank" rel="noopener noreferrer">Изображение</a>
       <span id="image-viewer-position" class="image-viewer-position" hidden></span>
       <a id="image-viewer-post" class="image-viewer-post" target="_blank" rel="noopener noreferrer" hidden>Пост ↗</a>
-      <button id="image-viewer-rocket" class="image-viewer-rocket" type="button" aria-label="Запостить" title="Запостить в Telegram (закрыть окно — Esc или клик по фону)">🚀</button>
+      <button id="image-viewer-rocket" class="image-viewer-rocket" type="button" aria-label="Запостить" title="Запостить в Telegram (закрыть окно — Esc, клик по картинке или по тёмной области возле неё)">🚀</button>
     </header>
     <div id="image-viewer-stage" class="image-viewer-stage">
       <img id="image-viewer-image" alt="" draggable="false">
       <video id="image-viewer-video" playsinline loop hidden></video>
       <div class="image-viewer-video-hit"></div>
-      <button id="image-viewer-prev" class="image-viewer-nav is-prev" type="button" aria-label="Предыдущая" title="Предыдущая" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 4 7 12 15 20"/></svg></button>
-      <button id="image-viewer-next" class="image-viewer-nav is-next" type="button" aria-label="Следующая" title="Следующая" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 4 17 12 9 20"/></svg></button>
       <div id="video-controls" class="video-controls">
         <button id="vc-play" class="vc-btn" type="button" aria-label="Пауза">
           <svg class="vc-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>
@@ -492,9 +770,26 @@
         <div id="vc-volume" class="vc-slider vc-volume" role="slider" tabindex="0" aria-label="Громкость" aria-valuemin="0" aria-valuemax="100" aria-valuenow="33"><div class="vc-track"><div id="vc-volume-fill" class="vc-fill"></div></div></div>
         <button id="vc-fullscreen" class="vc-btn" type="button" aria-label="Во весь экран"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       </div>
-      <div id="image-viewer-status" class="image-viewer-status" role="status" hidden><span id="image-viewer-status-text"></span><a id="image-viewer-source" target="_blank" rel="noopener noreferrer" hidden>Открыть исходный пост ↗</a><button id="image-viewer-refetch" class="proposal-refetch" type="button" hidden>↻ Загрузить заново</button></div>
+      <div id="image-viewer-status" class="image-viewer-status" role="status" hidden><span id="image-viewer-status-text"></span><a id="image-viewer-source" target="_blank" rel="noopener noreferrer" hidden>Открыть исходный пост ↗</a><button id="image-viewer-refetch" class="proposal-refetch" type="button" hidden>↻ Загрузить заново</button><button id="image-viewer-tgu" class="proposal-refetch" type="button" hidden>Скачать через мой Telegram</button><button id="image-viewer-account" class="proposal-refetch" type="button" hidden>Личный кабинет → Соцсети</button></div>
     </div>
   </div>
+  <button id="image-viewer-prev" class="image-viewer-nav is-prev" type="button" aria-label="Предыдущая" title="Предыдущая (←)" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 4 7 12 15 20"/></svg></button>
+  <button id="image-viewer-next" class="image-viewer-nav is-next" type="button" aria-label="Следующая" title="Следующая (→)" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 4 17 12 9 20"/></svg></button>
 </div>
+  <div id="article-reader" class="article-reader" role="dialog" aria-modal="true" aria-labelledby="article-reader-title" hidden>
+    <div class="article-reader-sheet">
+      <header class="article-reader-head">
+        <span id="article-reader-site" class="article-reader-site"></span>
+        <button id="article-reader-close" class="btn btn-mini" type="button" aria-label="Закрыть читалку" title="Закрыть"><span class="btn-icon" aria-hidden="true">✕</span></button>
+      </header>
+      <div id="article-reader-body" class="article-reader-body"></div>
+      <footer class="article-reader-foot">
+        <a id="article-reader-open" class="article-reader-link" target="_blank" rel="noopener noreferrer">Открыть на сайте ↗</a>
+        <button id="article-reader-post" class="btn btn-main" type="button">🚀 Запостить</button>
+      </footer>
+    </div>
+  </div>
+
+
 </body>
 </html>

@@ -131,11 +131,29 @@ function history_append($collection, array $record, $uid = null): void {
         $pos = db_value('SELECT COALESCE(MAX(position), -1) + 1 FROM history_items WHERE user_id = ? AND collection = ?',
                        [$uid, $collection]) ?? 0;
         $key = content_image_key($record);
+        // Картинка уже есть в истории (повторный голос, гонка двух вкладок): остаётся только последняя оценка
+        if ($key !== '') db_exec('DELETE FROM history_items WHERE user_id = ? AND image_key = ?', [$uid, $key]);
         $hidden = (!empty($record['proposal_hidden']) ? 1 : 0);
         db_exec('INSERT INTO history_items (user_id, collection, position, image_key, proposal_hidden, data)
                 VALUES (?, ?, ?, ?, ?, ?)',
                [$uid, $collection, $pos, $key, $hidden, db_json($record)]);
     });
+}
+
+/** Убрать из истории повторы одной картинки (по image_key): остаётся запись с самой поздней оценкой (timestamp, затем id). Возвращает число удалённых. */
+function history_dedupe($uid = null, bool $dry_run = false): int {
+    $uid = $uid ?: app_user_id();
+    $best = [];
+    $drop = [];
+    foreach (db_all("SELECT id, image_key, COALESCE(json_extract(data, '$.timestamp'), 0) AS ts FROM history_items WHERE user_id = ? AND image_key <> ''", [$uid]) as $r) {
+        $keep = $best[$r['image_key']] ?? null;
+        if ($keep === null) { $best[$r['image_key']] = $r; continue; }
+        $newer = [(int)$r['ts'], (int)$r['id']] > [(int)$keep['ts'], (int)$keep['id']];
+        $drop[] = ($newer ? $keep : $r)['id'];
+        if ($newer) $best[$r['image_key']] = $r;
+    }
+    if (!$dry_run) foreach (array_chunk($drop, 200) as $chunk) db_exec('DELETE FROM history_items WHERE id IN (' . implode(',', array_map('intval', $chunk)) . ')');
+    return count($drop);
 }
 
 /** Для редактора баз и отбора: все записи пула и скрытые в истории по всем пользователям. */
@@ -182,13 +200,66 @@ function connections_update(callable $fn, $uid = null): array {
 
 // ---- Каналы (несколько Telegram-каналов на пользователя) ----
 
-/** Строка таблицы channels → канал: токен расшифрован в поле 'token' (без token_enc). Битый токен — канал без 'token'. */
+/**
+ * Секреты ресурса: расшифрованный JSON из secrets_enc; у строк до миграции 16 — токен из token_enc.
+ * Битые или пустые секреты — пустой массив.
+ */
+function channel_secrets_from_row(array $row): array {
+    $aad = fn($field) => channel_secret_aad($row['user_id'] ?? '', $row['id'] ?? '', $row['platform'] ?? 'telegram', $field);
+    if (($row['secrets_enc'] ?? '') !== '' && is_string($plain = secret_decrypt($row['secrets_enc'], $aad('secrets'))) && is_array($json = json_decode($plain, true))) return $json;
+    $token = secret_decrypt($row['token_enc'] ?? '', $aad('token'));
+    return $token !== null && $token !== '' ? ['token' => $token] : [];
+}
+
+/** Миграция 16: токен Telegram из token_enc — в secrets_enc (зашифрованный JSON). Вызывается из db_migrate внутри её транзакции. */
+function channels_backfill_secrets(PDO $pdo): void {
+    foreach ($pdo->query("SELECT id, token_enc FROM channels WHERE secrets_enc = '' AND token_enc <> ''")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $token = secret_decrypt($row['token_enc']);
+        if ($token === null || $token === '') continue;
+        $pdo->prepare('UPDATE channels SET secrets_enc = ? WHERE id = ?')->execute([secret_encrypt(json_encode(['token' => $token])), $row['id']]);
+    }
+}
+
+/**
+ * Перешифровать секреты ресурсов в формат с привязкой (AAD) — для существующих строк, расшифровавшихся по-старому.
+ * Сухой прогон ($apply = false) только считает. Возвращает число перешифрованных строк. Живой базе — только по решению владельца.
+ */
+function channels_reseal_secrets(bool $apply = false): int {
+    $n = 0;
+    foreach (db_all("SELECT id, user_id, platform, secrets_enc, token_enc FROM channels") as $row) {
+        $set = [];
+        foreach (['secrets_enc' => 'secrets', 'token_enc' => 'token'] as $col => $field) {
+            if ($row[$col] === '' || str_starts_with($row[$col], '2.') || ($plain = secret_decrypt($row[$col])) === null) continue;
+            $set[$col] = secret_encrypt($plain, channel_secret_aad($row['user_id'], $row['id'], $row['platform'], $field));
+        }
+        if (!$set) continue;
+        $n++;
+        if ($apply) db_exec('UPDATE channels SET ' . implode(', ', array_map(fn($k) => "$k = ?", array_keys($set))) . ' WHERE id = ?', [...array_values($set), $row['id']]);
+    }
+    return $n;
+}
+
+/** Передать ресурс другому пользователю (слияние профилей): секреты перешифровываются под нового владельца. */
+function channel_move_to_user(string $channel_id, string $from, string $into, int $position): void {
+    $row = db_one('SELECT id, user_id, platform, secrets_enc, token_enc FROM channels WHERE id = ? AND user_id = ?', [$channel_id, $from]);
+    if (!$row) return;
+    $set = ['user_id' => $into, 'position' => $position];
+    foreach (['secrets_enc' => 'secrets', 'token_enc' => 'token'] as $col => $field) {
+        if ($row[$col] === '') continue;
+        $plain = secret_decrypt($row[$col], channel_secret_aad($from, $channel_id, $row['platform'], $field));
+        if ($plain !== null) $set[$col] = secret_encrypt($plain, channel_secret_aad($into, $channel_id, $row['platform'], $field));
+    }
+    db_exec('UPDATE channels SET ' . implode(', ', array_map(fn($k) => "$k = ?", array_keys($set))) . ' WHERE id = ?', [...array_values($set), $channel_id]);
+}
+
+/** Строка таблицы channels → канал: токен расшифрован в поле 'token'; secrets — все секреты ресурса (не отдавать наружу). */
 function channel_from_row(array $row): array {
-    $c = ['id' => $row['id'], 'platform' => $row['platform'], 'position' => (int)$row['position'], 'bot_id' => (int)$row['bot_id'], 'bot_username' => $row['bot_username'],
+    $c = ['id' => $row['id'], 'user_id' => $row['user_id'] ?? '', 'platform' => $row['platform'], 'ref' => (string)($row['ref'] ?? ''), 'meta' => db_unjson($row['meta'] ?? '', []), 'position' => (int)$row['position'], 'bot_id' => (int)$row['bot_id'], 'bot_username' => $row['bot_username'],
         'chat_id' => (int)$row['chat_id'], 'chat_title' => $row['chat_title'], 'chat_username' => $row['chat_username'], 'chat_type' => $row['chat_type'], 'connected_at' => (int)$row['connected_at'],
-        'schedule' => db_unjson($row['schedule'] ?? '', [])];
-    $token = secret_decrypt($row['token_enc']);
-    if ($token !== null && $token !== '') $c['token'] = $token;
+        'schedule' => db_unjson($row['schedule'] ?? '', []), 'style' => db_unjson($row['style'] ?? '', []),
+        'hashtags' => in_array($row['hashtags'] ?? '', CHANNEL_HASHTAG_MODES, true) ? $row['hashtags'] : 'off'];
+    $c['secrets'] = channel_secrets_from_row($row);
+    if ($c['platform'] === 'telegram' && ($c['secrets']['token'] ?? '') !== '') $c['token'] = $c['secrets']['token'];
     return $c;
 }
 
@@ -197,6 +268,11 @@ function channels_load($uid = null): array {
     $uid = $uid ?: app_user_id();
     if (!db_value('SELECT 1 FROM channels WHERE user_id = ? LIMIT 1', [$uid])) channels_import_legacy($uid);
     return array_map('channel_from_row', db_all('SELECT * FROM channels WHERE user_id = ? ORDER BY position, connected_at', [$uid]));
+}
+
+/** Только каналы Telegram по position: остальные соцсети на эти функции не смотрят. */
+function telegram_channels_load($uid = null): array {
+    return array_values(array_filter(channels_load($uid), fn($c) => $c['platform'] === 'telegram'));
 }
 
 /** Канал пользователя по id или null (чужой id — тоже null). */
@@ -214,17 +290,24 @@ function channel_save(array $channel, $uid = null): string {
     $uid = $uid ?: app_user_id();
     return db_tx(function () use ($channel, $uid) {
         db_exec('INSERT OR IGNORE INTO users (id, created_at) VALUES (?, ?)', [$uid, time()]);
-        $fields = ['token_enc' => secret_encrypt((string)($channel['token'] ?? '')), 'bot_id' => (int)($channel['bot_id'] ?? 0), 'bot_username' => (string)($channel['bot_username'] ?? ''),
-            'chat_title' => (string)($channel['chat_title'] ?? ''), 'chat_username' => (string)($channel['chat_username'] ?? ''), 'chat_type' => (string)($channel['chat_type'] ?? ''),
+        $platform = (string)($channel['platform'] ?? 'telegram');
+        $ref = $platform === 'telegram' ? (string)(int)($channel['chat_id'] ?? 0) : (string)($channel['ref'] ?? '');
+        $secrets = $channel['secrets'] ?? (isset($channel['token']) ? ['token' => (string)$channel['token']] : []);
+        // id нужен до вставки: секреты привязаны к записи (AAD)
+        $existing = db_value('SELECT id FROM channels WHERE user_id = ? AND platform = ? AND ref = ?', [$uid, $platform, $ref]);
+        $id = $existing ?: 'c' . bin2hex(random_bytes(5));
+        $fields = ['platform' => $platform, 'ref' => $ref, 'secrets_enc' => secret_encrypt(json_encode($secrets, JSON_UNESCAPED_UNICODE), channel_secret_aad($uid, $id, $platform, 'secrets')),
+            'meta' => json_encode($channel['meta'] ?? [], JSON_UNESCAPED_UNICODE),
+            'token_enc' => secret_encrypt((string)($channel['token'] ?? ''), channel_secret_aad($uid, $id, $platform, 'token')), 'bot_id' => (int)($channel['bot_id'] ?? 0), 'bot_username' => (string)($channel['bot_username'] ?? ''),
+            'chat_id' => (int)($channel['chat_id'] ?? 0), 'chat_title' => (string)($channel['chat_title'] ?? ''), 'chat_username' => (string)($channel['chat_username'] ?? ''), 'chat_type' => (string)($channel['chat_type'] ?? ''),
             'connected_at' => (int)($channel['connected_at'] ?? time())];
-        if ($id = db_value('SELECT id FROM channels WHERE user_id = ? AND chat_id = ?', [$uid, (int)$channel['chat_id']])) {
+        if ($existing) {
             db_exec('UPDATE channels SET ' . implode(', ', array_map(fn($k) => "$k = ?", array_keys($fields))) . ' WHERE id = ?', [...array_values($fields), $id]);
             return $id;
         }
-        $id = 'c' . bin2hex(random_bytes(5));
         $position = isset($channel['position']) ? (int)$channel['position'] : (int)db_value('SELECT COALESCE(MAX(position), -1) + 1 FROM channels WHERE user_id = ?', [$uid]);
-        db_exec('INSERT INTO channels (id, user_id, position, chat_id, ' . implode(', ', array_keys($fields)) . ') VALUES (?, ?, ?, ?, ' . implode(', ', array_fill(0, count($fields), '?')) . ')',
-            [$id, $uid, $position, (int)$channel['chat_id'], ...array_values($fields)]);
+        db_exec('INSERT INTO channels (id, user_id, position, ' . implode(', ', array_keys($fields)) . ') VALUES (?, ?, ?, ' . implode(', ', array_fill(0, count($fields), '?')) . ')',
+            [$id, $uid, $position, ...array_values($fields)]);
         return $id;
     });
 }
@@ -438,5 +521,5 @@ function parser_state_update(array $state, $uid = null): void {
 
 /** Загрузить кэш отскриненных записей со скорингом. */
 function screened_cache_load(): array {
-    return db_all('SELECT url, topic, source, score, phash, at FROM screened_cache ORDER BY at DESC');
+    return db_all('SELECT url, topic, source, score, phash, at FROM screened_cache WHERE ver = ? ORDER BY at DESC', [SCREENED_CACHE_VERSION]);
 }

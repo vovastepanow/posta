@@ -3,7 +3,19 @@ import { $, DEBUG_MODE, NO_TEXT, VIDEO_ICON, api, el, hide, isTabActive, log, on
 import { createProgress } from './progress.js';
 import { cachedVideoUrl, releaseVideoSource, storeVideo } from './video-cache.js';
 import { openViewerGallery } from './viewer.js';
-import { TOPIC_CONFIRM, applyRocketCheck, loadCurrentItem, postItemToTelegram, recordGallery, refreshTopicLabel, saveTopic } from './content.js';
+import { articleCover, cardKind, shortText } from './card.js';
+import { openArticleReader } from './article.js';
+import { TOPIC_CONFIRM, applyRocketCheck, loadCurrentItem, postItemToTelegram, recordGallery, refreshTopicLabel, saveTopic, textPostBlock } from './content.js';
+
+/** Публикация из «Предложки»: успех отмечает запись лайком, и карточка уходит из списка сразу (как после «Убрать»). */
+function postFromProposal(item) {
+    return postItemToTelegram(item, { onDone: result => {
+        if (!result?.marked) return;
+        proposals.items = proposals.items.filter(o => o !== item);
+        renderProposals();
+    } }).catch(e => log(`Не удалось открыть редактор: ${e.message}`));
+}
+import { itemCheck, loadImage, videoProgress, watchVideo } from './video-pending.js';
 
 // ---- «Предложка» ----
 
@@ -47,13 +59,30 @@ const videoObserver = new IntersectionObserver(entries => {
     playVisibleVideos();
 }, { rootMargin: '100px' });
 
+/** Ролик ещё качается: по готовности подпись уходит, запись получает ролик — окно просмотра покажет его. */
+function watchProposalVideo(tile, item) {
+    const bar = videoProgress(tile);   // полная полоса со стадией: вместо пометки «Видео загружается…»
+    watchVideo(itemCheck(item.image), {
+        onProgress: p => bar.update(p),
+        onReady: r => { bar.stop(); item.video = r.video_local || r.video; item.display_video = r.video; tile.querySelector('.proposal-pending')?.remove(); },
+        onFail: () => { bar.stop(); tile.querySelector('.proposal-pending')?.replaceWith(el('span', { className: 'proposal-pending', textContent: 'Видео не скачалось' })); }
+    });
+}
+
 function mediaTile(slide, onOpen, extra, item) {
+    if (slide.kind === 'text') return el('div', { className: 'proposal-tile is-text' }, textPostBlock(slide.text));   // текст без картинки
     const tile = el('button', { className: 'proposal-tile is-loading', type: 'button', title: 'Открыть', onclick: e => { e.stopPropagation(); onOpen(); } });   // глобальный обработчик просмотрщика не должен открыть картинку без галереи
     const settled = () => tile.classList.remove('is-loading');
+    // Ролик TikTok/Shorts ещё качается в фоне: до этого показываем обложку с пометкой
+    if (['ytdlp', 'tgu'].includes(item?.video_via) && !item.video) {
+        tile.append(el('span', { className: 'proposal-pending', textContent: 'Видео загружается…' }));
+        if (item.image) watchProposalVideo(tile, item);
+    }
     // У ролика картинка — только постер. Без постера браузер скачал бы весь видеофайл как изображение.
     const poster = slide.kind === 'video' ? (slide.poster || '') : (slide.poster || slide.src || '');
     if (poster) {
-        const image = el('img', { src: poster, alt: '', loading: 'lazy', decoding: 'async', onload: settled });
+        const image = el('img', { alt: '', decoding: 'async', onload: settled });
+        loadImage(image, poster, tile, { compact: true });   // дольше двух секунд — полоса на плитке
         image.onerror = () => {
             const backup = slide.kind !== 'video' && slide.fallback;
             if (backup && image.getAttribute('src') !== backup) return void (image.src = backup);   // копия из кэша не открылась — исходная ссылка
@@ -105,8 +134,37 @@ function mediaTile(slide, onOpen, extra, item) {
     return tile;
 }
 
+/** Кнопки записи в предложке: «Запостить» (с проверкой ракеты) и «Убрать». */
+function proposalActions(item) {
+    const post = el('button', { className: 'proposal-action', type: 'button', textContent: '🚀 Запостить', onclick: () => postFromProposal(item) });
+    applyRocketCheck(post, item.post_check, '🚀 Запостить в Telegram');
+    const remove = el('button', { className: 'proposal-action proposal-hide', type: 'button', textContent: '✕ Убрать', title: 'Убрать из предложки (оценка в истории останется)' });
+    remove.onclick = async () => {
+        remove.disabled = true;
+        try { await api('proposal_hide', { body: { image: item.image } }); proposals.items = proposals.items.filter(o => o !== item); renderProposals(); }
+        catch (error) { remove.disabled = false; log(`Не удалось убрать запись: ${error.message}`); }
+    };
+    return el('div', { className: 'proposal-actions' }, post, remove);
+}
+
+/** Статья в предложке: обложка (или плашка), заголовок до двух строк, сайт · ⏱ N мин, анонс до трёх строк; клик — читалка. */
+function proposalArticleCard(item) {
+    const a = item.article || {};
+    const read = () => openArticleReader(item, { onPost: () => postFromProposal(item) });
+    const lead = shortText(a.lead || '', 200);
+    return el('article', { className: 'proposal-card proposal-article' },
+        el('div', { className: 'proposal-article-open', onclick: read }, articleCover(item)),
+        el('div', { className: 'proposal-meta' }, el('span', { className: `proposal-vote vote-${item.vote}`, textContent: { liked: '🗿 Нравится', undecided: '🤷 Не знаю' }[item.vote] || '' }),
+            el('span', { textContent: [a.site, a.minutes ? `⏱ ${a.minutes} мин` : ''].filter(Boolean).join(' · ') })),
+        el('h3', { className: 'proposal-article-title', textContent: a.title || shortText(item.text, 120) }),
+        lead ? el('p', { className: 'proposal-text', textContent: lead }) : null,
+        el('button', { type: 'button', className: 'proposal-article-read', textContent: 'Читать статью', onclick: read }),
+        proposalActions(item));
+}
+
 function proposalCard(item) {
-    const slides = recordGallery(item).items;
+    if (cardKind(item) === 'article') return proposalArticleCard(item);
+    const slides = item.text_post && !item.image && !item.display_image ? [{ kind: 'text', text: item.text || '', textPost: true }] : recordGallery(item).items;
     const shown = slides.slice(0, 6);
     const refetch = item.source_url ? async () => {
         const result = await api('proposal_refetch', { body: { image: item.image } });
@@ -116,20 +174,12 @@ function proposalCard(item) {
     const media = el('div', { className: `proposal-media mosaic-${Math.max(1, shown.length)}` }, ...shown.map((s, i) => mediaTile(s, () => open(i), i === shown.length - 1 ? slides.length - shown.length : 0, item)),
         slides.length > 1 ? el('span', { className: 'proposal-count', textContent: `${slides.length} ${slides.length < 5 ? 'файла' : 'файлов'}` }) : null);
     const link = safeSourcePostUrl(item);
-    const post = el('button', { className: 'proposal-action', type: 'button', textContent: '🚀 Запостить', onclick: () => postItemToTelegram(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) });
-    applyRocketCheck(post, item.post_check, '🚀 Запостить в Telegram');
-    const remove = el('button', { className: 'proposal-action proposal-hide', type: 'button', textContent: '✕ Убрать', title: 'Убрать из предложки (оценка в истории останется)' });
-    remove.onclick = async () => {
-        remove.disabled = true;
-        try { await api('proposal_hide', { body: { image: item.image } }); proposals.items = proposals.items.filter(o => o !== item); renderProposals(); }
-        catch (error) { remove.disabled = false; log(`Не удалось убрать запись: ${error.message}`); }
-    };
     const text = String(item.text || '').trim();
     return el('article', { className: 'proposal-card' }, media,
         el('div', { className: 'proposal-meta' }, el('span', { className: `proposal-vote vote-${item.vote}`, textContent: { liked: '🗿 Нравится', undecided: '🤷 Не знаю' }[item.vote] || '' }),
             link ? el('a', { href: link, target: '_blank', rel: 'noopener noreferrer', textContent: item.source || 'Источник' }) : el('span', { textContent: item.source || '' })),
-        text && !NO_TEXT.includes(text) ? el('p', { className: 'proposal-text', textContent: text.length > 220 ? text.slice(0, 217) + '…' : text }) : null,
-        el('div', { className: 'proposal-actions' }, post, remove));
+        text && !NO_TEXT.includes(text) ? el('p', { className: 'proposal-text', textContent: shortText(text, 220) }) : null,
+        proposalActions(item));
 }
 
 function renderProposals() {
@@ -168,7 +218,7 @@ let proposalsPollTimer = null;
 const proposalBar = createProgress({ className: 'proposals-progress' });
 /** Полоса закреплена внизу экрана, поэтому её появление не сдвигает верстку. */
 function setProposalProgress(progress) {
-    if (!progress?.total) return proposalBar.root.remove();
+    if (!progress?.total || progress.done >= progress.total || !isTabActive('proposals-tab')) return proposalBar.root.remove();   // закончено или вкладка не открыта — полосы нет
     proposalBar.set(progress.done || 0, progress.total);
     if (!proposalBar.root.isConnected) document.body.append(proposalBar.root);
 }
@@ -266,7 +316,7 @@ let proposalsReloadedAt = 0;
 
 async function pollProposalProgress() {
     clearTimeout(proposalsPollTimer);
-    if (!isTabActive('proposals-tab')) return;
+    if (!isTabActive('proposals-tab')) return proposalBar.root.remove();   // ушли с вкладки: полоса не остаётся поверх других
     try {
         const data = await api('proposals_progress');
         setProposalProgress(data.progress);
@@ -276,67 +326,243 @@ async function pollProposalProgress() {
     } catch { /* сеть моргнула — следующий опрос не нужен, список обновит кнопка «↻» */ }
 }
 
-// ---- «Дерево»: общие темы — корни, частные — внутри; справа — панель выбранной темы ----
+// ---- «Дерево»: рубрики (общие темы) слева, карточки частных тем по центру, паспорт выбранной темы справа ----
+// Раскладку выбирает ширина самой вкладки (data-width на #tree-tab): консоль занимает левую колонку, поэтому по окну не угадать.
 
-const tree = { topics: [], current: null, selected: null, busy: false, parentOpen: false };
+const tree = { topics: [], current: null, selected: null, rubric: null, query: '', busy: false, parentOpen: false, width: 'narrow', sheetOpen: false, tagsOpen: null };
+const RUBRIC_KEY = 'postaTreeRubric';
+const RUBRIC_ICONS = { adult: '🔞', shock: '💥', humor: '😂', internet: '🌐', animals: '🐾', people: '👥', games: '🎮', screen: '🎬', music: '🎵', celebs: '⭐', news: '📰', tech: '💻', money: '💰', expert: '🎓', science: '🔬', food: '🍔', travel: '✈️', style: '👗', cars: '🚗', hobby: '🎨', sport: '⚽', other: '📁' };
 
-/** Всё дерево развёрнуто сразу: общая тема — карточка, частные — кнопки внутри. Клик открывает тему в панели справа. */
-function selectTopic(id) {
-    Object.assign(tree, { selected: id, parentOpen: false });
+/** Поиск: строчные, ё → е, без «#», пробелы и дефисы → «_» — как hashtag_norm на сервере. */
+const treeNorm = s => String(s ?? '').toLowerCase().replace(/ё/g, 'е').replace(/#/g, '').trim().replace(/[\s-]+/g, '_');
+
+/** Дерево как индексы: ветки-рубрики, их частные темы, рубрика любой темы. */
+function treeModel() {
+    const ids = new Map(tree.topics.map(t => [t.id, t]));
+    const children = new Map();
+    const rubrics = [];
+    for (const t of tree.topics) {
+        if (t.parent?.id && ids.has(t.parent.id)) children.set(t.parent.id, [...(children.get(t.parent.id) || []), t]);
+        else rubrics.push(t);
+    }
+    const byTitle = (a, b) => a.title.localeCompare(b.title, 'ru');
+    rubrics.sort((a, b) => (b.scope === 'broad') - (a.scope === 'broad') || byTitle(a, b));
+    for (const list of children.values()) list.sort(byTitle);
+    const rubricOf = t => (t.parent?.id && ids.has(t.parent.id) ? ids.get(t.parent.id) : t);
+    return { ids, children, rubrics, rubricOf };
+}
+
+/** Хэштеги темы для показа: рубрика первой, потом имена. */
+const topicTags = t => [t.hashtags?.rubric, ...(t.hashtags?.entities || [])].filter(Boolean);
+
+/** Совпадение с запросом: название, синонимы, описание, хэштеги и их синонимы. Пустой запрос совпадает со всем. */
+function treeMatches(t, q) {
+    return !q || [t.title, ...(t.aliases || []), t.about, ...topicTags(t).map(h => `#${h}`), ...(t.hashtags?.synonyms || [])].some(text => treeNorm(text).includes(q));
+}
+
+/** Текст с подсветкой найденного: массив узлов и строк для el(). Совпадение ищем по строке без замен длины. */
+function treeHighlight(text, q) {
+    const raw = String(text ?? '');
+    const at = q ? raw.toLowerCase().replace(/ё/g, 'е').replace(/[\s-]/g, '_').indexOf(q) : -1;
+    return at < 0 ? [raw] : [raw.slice(0, at), el('mark', { textContent: raw.slice(at, at + q.length) }), raw.slice(at + q.length)];
+}
+
+function readRubric() { try { return localStorage.getItem(RUBRIC_KEY); } catch { return null; } }
+function rememberRubric(id) { try { localStorage.setItem(RUBRIC_KEY, id); } catch { /* приватный режим: просто не запомним */ } }
+
+function setTreeWidth(width) {
+    tree.width = width;
+    $('tree-tab').dataset.width = width;
+    updateTreeSheet();
+}
+
+/** Нижний лист на телефоне: открыт только в узкой раскладке и только после выбора карточки. */
+function updateTreeSheet() {
+    const open = tree.width === 'narrow' && tree.sheetOpen;
+    $('tree-detail').classList.toggle('is-open', open);
+    $('tree-backdrop').hidden = !open;
+    document.body.classList.toggle('tree-sheet-open', open);
+}
+
+function closeTreeSheet() { tree.sheetOpen = false; updateTreeSheet(); }
+
+function selectTopic(id, fromCard = false) {
+    const model = treeModel();
+    const t = model.ids.get(id);
+    if (!t) return;
+    Object.assign(tree, { selected: id, rubric: model.rubricOf(t).id, parentOpen: false });
+    rememberRubric(tree.rubric);
+    if (fromCard) tree.sheetOpen = tree.width === 'narrow';
+    renderTree();
+    renderDetail();
+    updateTreeSheet();
+}
+
+/** Рубрика: её карточки и она сама в паспорте. */
+function pickRubric(id) {
+    Object.assign(tree, { rubric: id, selected: id });
+    rememberRubric(id);
     renderTree();
     renderDetail();
 }
 
-function renderTree() {
-    const ids = new Set(tree.topics.map(t => t.id));
-    const children = new Map();
-    const broads = [];
-    for (const t of tree.topics) {
-        if (t.parent?.id && ids.has(t.parent.id)) children.set(t.parent.id, [...(children.get(t.parent.id) || []), t]);
-        else broads.push(t);
-    }
-    const byTitle = (a, b) => a.title.localeCompare(b.title, 'ru');
-    broads.sort((a, b) => (b.scope === 'broad') - (a.scope === 'broad') || byTitle(a, b));
-    const stateClass = t => ['', tree.current === t.id && 'is-current', tree.selected === t.id && 'is-selected'].filter(Boolean);
-    const chip = t => el('button', { type: 'button', className: ['tree-chip', ...stateClass(t)].join(' '), title: t.about || t.title, onclick: () => selectTopic(t.id) },
-        el('span', { className: 'tree-chip-name', textContent: t.title }),
-        t.own_sources ? el('span', { className: 'tree-count', textContent: String(t.own_sources), title: 'Свои источники темы' }) : null,
-        tree.current === t.id ? el('span', { className: 'tree-chip-mark', textContent: '📍', 'aria-hidden': 'true' }) : null);
-    const group = t => {
-        const kids = (children.get(t.id) || []).sort(byTitle);
-        return el('section', { className: ['tree-group', ...stateClass(t)].join(' ') },
-            el('button', { type: 'button', className: 'tree-group-head', title: t.about || t.title, onclick: () => selectTopic(t.id) },
-                el('span', { className: 'tree-group-name', textContent: t.title }),
-                t.own_sources ? el('span', { className: 'tree-count', textContent: String(t.own_sources), title: 'Свои источники темы' }) : null),
-            kids.length ? el('div', { className: 'tree-chips' }, ...kids.map(chip)) : el('p', { className: 'tree-group-empty', textContent: 'Частных тем пока нет' }));
-    };
-    $('tree-root').replaceChildren(...broads.map(group));
-    $('tree-current-name').textContent = tree.topics.find(t => t.id === tree.current)?.title || '—';
-    $('tree-status').textContent = tree.topics.length ? '' : 'Тем пока нет: введите первую тему выше.';
+function renderRubrics(model, q, rubricId, liveRubricId) {
+    const rubrics = model.rubrics.map(r => {
+        const kids = model.children.get(r.id) || [];
+        const found = q ? [r, ...kids].filter(t => treeMatches(t, q)) : kids;
+        return { r, found };
+    }).filter(({ found }) => !q || found.length);
+    $('tree-rubrics').replaceChildren(...rubrics.map(({ r, found }) => {
+        const live = r.id === liveRubricId;
+        return el('button', { type: 'button', className: ['tree-rubric', r.id === rubricId && 'is-active'].filter(Boolean).join(' '), title: r.about || r.title,
+                'aria-pressed': String(r.id === rubricId), onclick: () => pickRubric(r.id) },
+            el('span', { className: 'tree-rubric-icon', textContent: RUBRIC_ICONS[r.key] ?? '📁', 'aria-hidden': 'true' }),
+            el('span', { className: 'tree-rubric-name', textContent: r.title }),
+            el('span', { className: 'tree-rubric-count', textContent: String(found.length), title: q ? 'Найдено' : 'Частных тем' }),
+            live ? el('span', { className: 'tree-air', textContent: 'В ЭФИРЕ' }) : null);
+    }));
 }
 
+function treeCard(t, model, q) {
+    const rubric = model.rubricOf(t);
+    const whole = t.id === rubric.id;
+    const isCurrent = tree.current === t.id;
+    const nsfw = t.nsfw || rubric.nsfw;
+    const tags = topicTags(t);
+    const classes = ['tree-card', isCurrent && 'is-current', tree.selected === t.id && 'is-selected'].filter(Boolean).join(' ');
+    return el('button', { type: 'button', className: classes, title: t.about || t.title, 'aria-pressed': String(tree.selected === t.id), onclick: () => selectTopic(t.id, true) },
+        whole ? el('span', { className: 'tree-card-caption', textContent: 'Вся рубрика' }) : null,
+        el('span', { className: 'tree-card-head' },
+            el('span', { className: 'tree-card-name' }, ...treeHighlight(whole ? rubric.title : t.title, q)),
+            nsfw ? el('span', { className: 'tree-badge is-18', textContent: '18+' }) : null,
+            isCurrent ? el('span', { className: 'tree-air', textContent: '📍 В ЭФИРЕ' }) : null),
+        el('span', { className: 'tree-card-about' }, ...treeHighlight(t.about, q)),
+        tags.length ? el('span', { className: 'tree-card-tags' }, ...tags.slice(0, 3).map(tag => el('span', { className: 'tree-tag', textContent: `#${tag}` })),
+            tags.length > 3 ? el('span', { className: 'tree-tag is-more', textContent: `+${tags.length - 3}` }) : null) : null,
+        el('span', { className: t.own_sources ? 'tree-card-src' : 'tree-card-src is-muted', textContent: t.own_sources ? `📡 ${t.own_sources} своих` : 'источники рубрики',
+            title: t.own_sources ? 'Свои источники темы' : 'Своих нет: берутся источники общей темы' }));
+}
+
+/** Карточки: при поиске — совпадения по всем рубрикам с заголовками, без поиска — выбранная рубрика целиком. Возвращает число карточек. */
+function renderCards(model, q, rubricId) {
+    const grid = (items) => el('div', { className: 'tree-grid' }, ...items.map(t => treeCard(t, model, q)));
+    if (q) {
+        const blocks = model.rubrics.map(r => [r, [r, ...(model.children.get(r.id) || [])].filter(t => treeMatches(t, q))])
+            .filter(([, hits]) => hits.length)
+            .map(([r, hits]) => el('section', { className: 'tree-block-cards' }, el('h3', { className: 'tree-cards-group', textContent: `${r.title} · найдено ${hits.length}` }), grid(hits)));
+        $('tree-cards').replaceChildren(...blocks);
+        return blocks.length;
+    }
+    const rubric = model.ids.get(rubricId);
+    if (!rubric) { $('tree-cards').replaceChildren(); return 0; }
+    const kids = model.children.get(rubric.id) || [];
+    $('tree-cards').replaceChildren(
+        el('div', { className: 'tree-cards-head' }, el('h2', { className: 'tree-rubric-title', textContent: rubric.title }), rubric.about ? el('p', { className: 'tree-rubric-about', textContent: rubric.about }) : null),
+        grid([rubric, ...kids]));
+    return kids.length + 1;
+}
+
+function renderTree() {
+    const q = treeNorm(tree.query);
+    const model = treeModel();
+    if (!model.ids.has(tree.rubric)) tree.rubric = model.rubrics[0]?.id ?? null;
+    const current = model.ids.get(tree.current);
+    const liveRubric = current ? model.rubricOf(current).id : null;
+    renderRubrics(model, q, tree.rubric, liveRubric);
+    const cardCount = renderCards(model, q, tree.rubric);
+    $('tree-current-name').textContent = current?.title || '—';
+    if (!tree.topics.length) setMessage('tree-status', 'Тем пока нет: введите первую тему в поле выше.');
+    else if (q && !cardCount) setMessage('tree-status', `Ничего не найдено. Enter — перейти к теме или создать «${tree.query.trim()}».`);
+    else setMessage('tree-status', '');
+}
+
+/** Строка паспорта: подпись и значение, пустые строки не выводим. */
+const treeRow = (label, value) => value ? el('div', { className: 'tree-row' }, el('dt', { textContent: label }), el('dd', {}, value)) : null;
+
 function renderDetail() {
+    const close = el('button', { type: 'button', className: 'tree-sheet-close', textContent: '✕', title: 'Закрыть', 'aria-label': 'Закрыть паспорт темы', onclick: closeTreeSheet });
     const t = tree.topics.find(x => x.id === tree.selected);
-    if (!t) return $('tree-detail').replaceChildren(el('p', { className: 'tree-detail-empty', textContent: 'Выберите тему в дереве: здесь её описание, критерии отбора и действия.' }));
-    const row = (label, value) => value ? el('div', { className: 'tree-row' }, el('dt', { textContent: label }), el('dd', {}, value)) : null;
+    if (!t) return $('tree-detail').replaceChildren(close, el('p', { className: 'tree-detail-empty', textContent: 'Выберите тему: здесь её описание, хэштеги и действия.' }));
+    const model = treeModel();
+    const rubric = model.rubricOf(t);
+    const isCurrent = tree.current === t.id;
+    const children = model.children.get(t.id) || [];
+    const note = el('span', { className: 'tree-copied', role: 'status' });
     const sources = t.uses_parent_sources ? `${t.own_sources || 0} своих. Пока берутся источники общей темы «${t.parent.title}».`
         : t.own_sources ? `${t.own_sources} своих — по ним идёт сбор.` : 'Своих пока нет: автоподбор ищет их, как только тема становится текущей.';
+    const profile = t.profile ? `составлен ${t.profile.at ? new Date(t.profile.at * 1000).toLocaleString('ru-RU') : 'недавно'}, ${t.profile.smart ? 'умной моделью' : 'быстрой моделью'}` : 'ещё не составлен: напишется при следующем запуске сборщика.';
     const action = (className, textContent, onclick, title = '') => el('button', { className, type: 'button', textContent, onclick, title });
-    $('tree-detail').replaceChildren(el('h3', { className: 'tree-detail-title', textContent: t.title }),
-        el('p', { className: 'tree-detail-kind', textContent: (t.scope === 'broad' ? '🗂 общая тема' : `🔹 частная тема${t.parent ? ` в «${t.parent.title}»` : ''}`) + (t.id === tree.current ? ' · 📍 сейчас выбрана' : '') }),
-        el('dl', { className: 'tree-facts' }, row('О теме', t.about), row('Подходит', t.criteria), row('Не подходит', t.exclude), row('Вопрос к картинке', t.question),
-            row('Ещё называют', t.aliases?.join(', ')), row('Источники', sources), row('Частные темы', t.children?.join(', ')), t.profile ? null : row('Профиль', 'ещё не составлен: напишется при следующем запуске сборщика.')),
-        el('div', { className: 'tree-actions' }, t.id === tree.current ? null : action('primary-button', 'Сделать текущей', () => choose(t.title)),
-            action('secondary-button', 'Сменить общую тему', () => { tree.parentOpen = !tree.parentOpen; $('tree-parent-editor').hidden = !tree.parentOpen; if (tree.parentOpen) $('tree-parent-editor').querySelector('select').focus(); }),
-            action('secondary-button', 'Пересоставить профиль', async () => {
+    const copy = tag => { copyTreeText(`#${tag}`).then(() => note.textContent = `Скопировано: #${tag}`, () => note.textContent = 'Не удалось скопировать'); clearTimeout(note.timer); note.timer = setTimeout(() => { note.textContent = ''; }, 1500); };
+    $('tree-detail').replaceChildren(...[close,
+        el('nav', { className: 'tree-crumbs', 'aria-label': 'Путь к теме' }, t.parent
+            ? el('span', {}, el('button', { type: 'button', className: 'tree-crumb', textContent: t.parent.title, onclick: () => pickRubric(t.parent.id) }), ' › ', t.title)
+            : el('span', { textContent: 'Рубрика' })),
+        el('h3', { className: 'tree-detail-title', textContent: t.title }),
+        el('div', { className: 'tree-badges' },
+            el('span', { className: 'tree-badge', textContent: t.scope === 'broad' ? 'общая тема' : 'частная тема' }),
+            t.nsfw || rubric.nsfw ? el('span', { className: 'tree-badge is-18', textContent: '18+' }) : null,
+            isCurrent ? el('span', { className: 'tree-badge is-current', textContent: '📍 сейчас выбрана' }) : null),
+        isCurrent ? el('p', { className: 'tree-detail-empty', textContent: 'Эта тема сейчас в эфире: автоподбор ищет по ней.' })
+            : el('button', { className: 'primary-button tree-primary', type: 'button', textContent: 'Сделать текущей', onclick: () => choose(t.title) }),
+        t.about ? el('p', { className: 'tree-about', textContent: t.about }) : null,
+        hashtagBlock(t, copy, note),
+        t.aliases?.length ? el('div', { className: 'tree-block' }, el('h4', { className: 'tree-block-title', textContent: 'Другие названия' }),
+            el('div', { className: 'tree-tags' }, ...t.aliases.map(a => el('span', { className: 'tree-alias', textContent: a })))) : null,
+        children.length ? el('div', { className: 'tree-block' }, el('h4', { className: 'tree-block-title', textContent: 'Частные темы' }),
+            el('div', { className: 'tree-tags' }, ...children.map(c => el('button', { type: 'button', className: 'tree-alias is-button', textContent: c.title, onclick: () => selectTopic(c.id) })))) : null,
+        el('p', { className: 'tree-sources', textContent: sources }),
+        el('details', { className: 'tree-ai' }, el('summary', { textContent: 'Как ИИ отбирает' }),
+            el('dl', { className: 'tree-facts' }, treeRow('Подходит', t.criteria), treeRow('Не подходит', t.exclude), treeRow('Вопрос к картинке', t.question), treeRow('Профиль', profile))),
+        el('div', { className: 'tree-actions' },
+            action('secondary-button tree-small', 'Сменить общую тему', () => { tree.parentOpen = !tree.parentOpen; $('tree-parent-editor').hidden = !tree.parentOpen; if (tree.parentOpen) $('tree-parent-editor').querySelector('select').focus(); }),
+            action('secondary-button tree-small', 'Пересоставить профиль', async () => {
                 try { await api('topic_reprofile', { body: { id: t.id } }); log(`Профиль темы «${t.title}» пересоставится при следующем запуске сборщика.`); await loadTree(); }
                 catch (error) { setMessage('tree-status', `Профиль не сброшен: ${error.message}`); }
             }, 'Критерии и план поиска напишутся заново')),
-        parentEditor(t), el('div', { className: 'tree-record' }, el('p', { className: 'tree-detail-empty', textContent: 'Загружаю полную запись…' })));
-    loadTopicRecord(t.id);
+        parentEditor(t),
+        el('details', { className: 'tree-debug', ontoggle: e => { if (e.currentTarget.open) loadTopicRecord(t.id); } },
+            el('summary', { textContent: 'Для отладки: полная запись из базы' }),
+            el('div', { className: 'tree-record' }, el('p', { className: 'tree-detail-empty', textContent: 'Раскройте, чтобы загрузить запись.' })))].filter(Boolean));
 }
 
-const TOPIC_LABELS = { id: 'ID', title: 'Название', scope: 'Тип', parent: 'Общая тема', aliases: 'Ещё называют', about: 'Описание', classified: 'Классифицирована', smart: 'Классифицирована ИИ', manual: 'Создана вручную', created_at: 'Создана' };
+/** Хэштеги темы: рубрика (одна, её ставим в посты) и имена; клик копирует. «Изменить» — своя рубрика вместо словарной. */
+function hashtagBlock(t, copy, note) {
+    const h = t.hashtags || {};
+    const edit = tree.tagsOpen === t.id;
+    const save = async rubric => {
+        try {
+            await api('topic_rubric', { body: { id: t.id, rubric } });
+            tree.tagsOpen = null;
+            await loadTree();
+        } catch (error) { setMessage('tree-status', `Рубрика не сохранена: ${error.message}`); }
+    };
+    const chip = (tag, extra = '') => el('button', { type: 'button', className: `tree-tag is-button ${extra}`.trim(), textContent: `#${tag}`, title: `Скопировать #${tag}`, onclick: () => copy(tag) });
+    const toggle = h.rubric_default ? el('button', { type: 'button', className: 'tree-link', textContent: edit ? 'Отмена' : 'Изменить', onclick: () => { tree.tagsOpen = edit ? null : t.id; renderDetail(); } }) : null;
+    const title = el('h4', { className: 'tree-block-title' }, h.rubric ? 'Хэштеги · рубрика ставится в посты' : 'Хэштегов нет: рубрика есть у частных тем', ' ', toggle);
+    const synonyms = h.synonyms?.length ? el('details', { className: 'tree-tag-synonyms' }, el('summary', { textContent: `Узнаём ещё по ${h.synonyms.length} похожим тегам` }),
+        el('p', { textContent: h.synonyms.map(x => `#${x}`).join(' ') })) : null;
+    if (!edit) return el('div', { className: 'tree-block' }, title,
+        h.rubric ? el('div', { className: 'tree-tags' }, chip(h.rubric, 'is-rubric'), ...(h.entities || []).map(tag => chip(tag))) : null,
+        h.rubric && h.rubric !== h.rubric_default ? el('p', { className: 'tree-detail-empty', textContent: `Ваша рубрика. В словаре — #${h.rubric_default}.` }) : null, synonyms, note);
+    const input = el('input', { className: 'tree-tag-input', type: 'text', maxLength: 17, value: h.rubric || '', placeholder: 'рубрика одним словом', autocomplete: 'off', ariaLabel: 'Своя рубрика' });
+    const submit = () => { input.disabled = true; save(input.value.replace(/^#+/, '').trim()); };
+    input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } };
+    return el('div', { className: 'tree-block' }, title,
+        el('div', { className: 'tree-tag-add' }, input, el('button', { type: 'button', className: 'secondary-button tree-small', textContent: 'Сохранить', onclick: submit }),
+            h.rubric !== h.rubric_default ? el('button', { type: 'button', className: 'secondary-button tree-small', textContent: 'Вернуть из словаря', onclick: () => save('') }) : null));
+}
+
+async function copyTreeText(text) {
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+    const area = el('textarea', { value: text });
+    document.body.append(area);
+    area.select();
+    const copied = document.execCommand('copy');
+    area.remove();
+    if (!copied) throw new Error('буфер недоступен');
+}
+
+const TOPIC_LABELS = { id: 'ID', title: 'Название', scope: 'Тип', parent: 'Общая тема', aliases: 'Ещё называют', about: 'Описание', classified: 'Классифицирована', smart: 'Классифицирована ИИ', manual: 'Создана вручную', created_at: 'Создана', hashtags: 'Хэштеги' };
 const PROFILE_LABELS = { criteria: 'Подходит', exclude: 'Не подходит', question: 'Вопрос к картинке', queries: 'Поисковые запросы', telegram: 'Поиск в Telegram', v: 'Версия профиля', smart: 'Профиль составлен ИИ', at: 'Профиль составлен' };
 const TIME_FIELDS = ['created_at', 'at'];
 
@@ -366,6 +592,7 @@ function recordRows(topic) {
 
 async function loadTopicRecord(id) {
     const box = () => $('tree-detail').querySelector('.tree-record');
+    box()?.replaceChildren(el('p', { className: 'tree-detail-empty', textContent: 'Загружаю полную запись…' }));
     try {
         const { topic } = await api('topic_record', { params: { id } });
         if (tree.selected !== id) return;   // пока грузилось, выбрали другую тему
@@ -399,7 +626,7 @@ function parentEditor(t) {
 
 function setTreeBusy(busy, message = '') {
     tree.busy = $('tree-save').disabled = $('tree-input').disabled = busy;
-    $('tree-root').classList.toggle('is-busy', busy);
+    $('tree-layout').classList.toggle('is-busy', busy);
     setMessage('tree-status', message);
 }
 
@@ -412,20 +639,27 @@ async function choose(text, forceNew = false) {
     try {
         const data = await saveTopic(typed, forceNew, 'tree-notice');
         $('tree-input').value = '';
+        tree.query = '';
         tree.current = tree.selected = data.topic_info?.id ?? null;
-        await loadTree();
+        await loadTree({ reveal: true });
         await refreshTopicLabel();
         await loadCurrentItem();
     } catch (error) { setMessage('tree-status', `Тема не сохранена: ${error.message}`); }
     finally { setTreeBusy(false); }
 }
 
-async function loadTree() {
+/** reveal: открыли вкладку или сменили тему — показываем текущую тему и её рубрику; иначе сохраняем выбор. */
+async function loadTree({ reveal = false } = {}) {
     if (DEBUG_MODE) return setMessage('tree-status', 'В демо-режиме дерево тем не показывается.');
     try {
         const data = await api('topics');
         Object.assign(tree, { topics: data.topics || [], current: data.current ?? null });
-        if (!tree.topics.some(t => t.id === tree.selected)) tree.selected = tree.current;
+        if (reveal) {
+            const model = treeModel();
+            const current = model.ids.get(tree.current);
+            tree.selected = tree.current;
+            tree.rubric = current ? model.rubricOf(current).id : readRubric();
+        } else if (!tree.topics.some(t => t.id === tree.selected)) tree.selected = tree.current;
         $('tree-options').replaceChildren(...tree.topics.map(t => el('option', { value: t.title, label: t.path })));
         renderTree();
         renderDetail();
@@ -474,11 +708,17 @@ export function initializeTabs() {
 
     $('tree-form').addEventListener('submit', e => { e.preventDefault(); choose($('tree-input').value); });
     $('tree-force-new').addEventListener('click', e => choose(e.currentTarget.dataset.typed || $('tree-input').value, true));
-    $('tree-refresh').addEventListener('click', loadTree);
+    $('tree-refresh').addEventListener('click', () => loadTree());
     if (DEBUG_MODE) { hide('tree-form'); hide('tree-refresh'); }
-    onTabOpen('tree-tab', loadTree);
+    const search = $('tree-input');
+    search.addEventListener('input', () => { tree.query = search.value; renderTree(); });   // фильтр на лету: поле и фокус не трогаем
+    search.addEventListener('keydown', e => { if (e.key === 'Escape' && search.value) { e.preventDefault(); search.value = ''; tree.query = ''; renderTree(); } });
+    $('tree-backdrop').addEventListener('click', closeTreeSheet);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && tree.sheetOpen) closeTreeSheet(); });
+    new ResizeObserver(([entry]) => { const w = entry.contentRect.width; setTreeWidth(w >= 1000 ? 'wide' : w >= 700 ? 'mid' : 'narrow'); }).observe($('tree-tab'));
+    onTabOpen('tree-tab', () => loadTree({ reveal: true }));
     // Тему сменили в шапке — открытые «Предложка» и «Дерево» перерисовываются под неё
-    onTopicChange(() => { if (isTabActive('proposals-tab')) loadProposals(); if (isTabActive('tree-tab')) loadTree(); });
+    onTopicChange(() => { if (isTabActive('proposals-tab')) loadProposals(); if (isTabActive('tree-tab')) loadTree({ reveal: true }); });
 
     $('image-file').addEventListener('change', e => { if (e.target.files[0]) $('image-url').value = ''; setPreview(e.target.files[0] || null); hide('test-result'); });
     $('image-url').addEventListener('input', () => { if ($('image-url').value) { $('image-file').value = ''; setPreview(null); } });

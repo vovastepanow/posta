@@ -1,10 +1,9 @@
 <?php
 /**
  * Классификация сообщений из Telegram: являются ли они лидами для Postä
- * Использует локальную Ollama модель (SMART_MODEL) с JSON-схемой
+ * Использует локальную Ollama модель (smart_model()) с JSON-схемой
  */
 
-const LEAD_MODEL = SMART_MODEL;
 const LEAD_TIMEOUT = 120; // 120 секунд на ответ модели
 const LEAD_BATCH = 15;    // максимум 15 сообщений за проход
 
@@ -36,13 +35,13 @@ function lead_classify(string $text): array {
     $prompt = lead_classify_prompt($text);
 
     try {
-        $result = ollama_quick_json(LEAD_MODEL, $prompt, $format, 60, LEAD_TIMEOUT);
+        $result = ollama_quick_json(smart_model(), $prompt, $format, 60, LEAD_TIMEOUT);
         if (!is_array($result) || !isset($result['lead'])) {
             throw new RuntimeException('Модель не ответила корректным JSON');
         }
         return [
             'lead' => (int)$result['lead'],
-            'reason' => substr((string)($result['reason'] ?? ''), 0, 100)
+            'reason' => mb_substr((string)($result['reason'] ?? ''), 0, 100)
         ];
     } catch (Exception $e) {
         throw new RuntimeException('Модель не ответила: ' . $e->getMessage());
@@ -64,7 +63,7 @@ function lead_classify_direct(string $text): array {
     ];
 
     $payload = [
-        'model' => LEAD_MODEL,
+        'model' => smart_model(),
         'prompt' => $prompt,
         'format' => $format,
         'stream' => false,
@@ -104,7 +103,7 @@ function lead_classify_direct(string $text): array {
 
     return [
         'lead' => (int)$json['lead'],
-        'reason' => substr((string)($json['reason'] ?? ''), 0, 100)
+        'reason' => mb_substr((string)($json['reason'] ?? ''), 0, 100)
     ];
 }
 

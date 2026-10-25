@@ -1,0 +1,7 @@
+# тег<TAB>темы<TAB>kind (rubric — одна на тему, entity — имя, format — вид поста)<TAB>синонимы через |
+книги	culture.books	rubric	книга|что_почитать|литература|books
+стихи	culture.poetry	rubric	поэзия|стих|стихотворение
+искусство	culture.painting	rubric	живопись|картины|художники|музей
+театр	culture.theatre	rubric	балет|опера|спектакль
+вера	culture.religion	rubric	религия|православие|храм|молитва
+культура	culture.other	rubric	culture

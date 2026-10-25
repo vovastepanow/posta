@@ -26,7 +26,7 @@ $adult_cases = [
     [['tags' => ['adult.porn']], true],
     [['topic' => 'Порно'], true],
     [['board' => 'hc'], true],
-    [['tags' => ['humor.jokes'], 'topic' => 'Мемы и юмор'], false],
+    [['tags' => ['humor.jokes'], 'topic' => 'Мемы'], false],
     [[], false],
 ];
 echo "\n1. content_is_adult:\n";
@@ -37,7 +37,7 @@ echo "\n2. Выбор темы без флага и с флагом:\n";
 $set_flag(false);
 $check('«Порно» запрещено', topic_save_denied('Порно') !== null);
 $check('синоним «порнуха» запрещён', topic_save_denied('порнуха') !== null);
-$check('«Мемы и юмор» разрешено', topic_save_denied('Мемы и юмор') === null);
+$check('«Мемы» разрешено', topic_save_denied('Мемы') === null);
 $set_flag(true);
 $check('с флагом «Порно» разрешено', topic_save_denied('Порно') === null);
 
@@ -46,14 +46,14 @@ echo "\n4. Список тем:\n";
 $set_flag(false);
 $visible = topics_public_list();
 $check('без флага нет веток 18+ и «Жесть»', !array_filter($visible, fn($t) => $t['nsfw'] || in_array($t['key'], ['adult', 'shock'], true)));
-$check('без флага обычные темы на месте', (bool)array_filter($visible, fn($t) => $t['title'] === 'Мемы и юмор'));
+$check('без флага обычные темы на месте', (bool)array_filter($visible, fn($t) => $t['title'] === 'Мемы'));
 
 // 5. Пул: 18+ скрыта без флага, но из базы не удаляется
 echo "\n5. Пул и показ:\n";
-$normal = ['image' => 'https://example.com/normal.jpg', 'topic' => 'Мемы и юмор', 'tags' => ['humor.jokes'], 'source' => 'Тест', 'posted_at' => time()];
+$normal = ['image' => 'https://example.com/normal.jpg', 'topic' => 'Мемы', 'tags' => ['humor.jokes'], 'source' => 'Тест', 'posted_at' => time()];
 $adult_local = MEDIA_CACHE_URL . '/' . str_repeat('a', 32) . '.jpg';
-$adult = ['image' => 'https://example.com/adult.jpg', 'image_local' => $adult_local, 'topic' => 'Мемы и юмор', 'tags' => ['adult.porn'], 'source' => 'Тест', 'posted_at' => time()];
-save_settings(['topic' => 'Мемы и юмор']);
+$adult = ['image' => 'https://example.com/adult.jpg', 'image_local' => $adult_local, 'topic' => 'Мемы', 'tags' => ['adult.porn'], 'source' => 'Тест', 'posted_at' => time()];
+save_settings(['topic' => 'Мемы']);
 pool_update(fn() => [$normal, $adult]);
 $set_flag(false);
 $check('без флага видна одна запись', count(pool_topic_positions(pool_load())) === 1);

@@ -16,3 +16,8 @@ data/*.sqlite*
 __pycache__/
 *.pyc
 *.session
+# Профили Chrome (куки), кэш превью, pid парсера, yt-dlp (скачивает tools/update-yt-dlp.sh)
+data/chrome-*/
+data/thumbs/
+/pid
+tools/bin/yt-dlp

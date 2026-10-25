@@ -1,11 +1,13 @@
-// main.js — точка входа (ES-модуль, без сборки): вкладки, панель модели, кнопки управления, демо-режим.
-import { $, DEBUG_MODE, TAB_ID, api, el, hide, initializeCore, log, show, startTabSession, watchParser } from './core.js';
+// main.js — точка входа (ES-модуль, без сборки): вкладки, панель модели, демо-режим.
+import { $, DEBUG_MODE, api, el, hide, initializeCore, log, show, startTabSession, watchParser } from './core.js';
 import { initializeImageViewer } from './viewer.js';
 import { initializeContentTab, loadCurrentItem } from './content.js';
 import { clearDiscoveredSource, initializeSourceTab } from './sources.js';
 import { consumeReferralLink, consumeVkRedirectResult, initializeAccountTab, openAccountSection, openNewItemEditor } from './account.js';
 import { initializeTabs } from './tabs.js';
 import { initializeTheme } from './theme.js';
+import { initializeRadarTab } from './radar.js';
+import { initializeCalendarTab } from './calendar.js';
 
 // ---- Панель модели под журналом: что загружено в Ollama, загрузка и выгрузка ----
 
@@ -56,22 +58,6 @@ async function controlModel(body) {
     finally { model.busy = false; buttons.forEach(b => { b.disabled = false; }); refreshModel(); }
 }
 
-// ---- Кнопки управления справа: искать контент, обновить источники, остановить всё ----
-
-async function dockAction(button, action, done, body = null) {
-    document.querySelectorAll('.controls-management .btn').forEach(b => { b.disabled = b !== button; });
-    button.classList.add('is-busy');
-    try { done(await api(action, { body })); } catch (error) { log(`Ошибка: ${error.message}`); }
-    finally { document.querySelectorAll('.controls-management .btn').forEach(b => { b.disabled = false; }); button.classList.remove('is-busy'); }
-}
-
-function initializeDock() {
-    $('card-control-search').onclick = e => dockAction(e.currentTarget, 'control_search', d => { log(d.message || 'Запущен поиск контента.'); watchParser(); loadCurrentItem(); });
-    $('card-control-sources').onclick = e => dockAction(e.currentTarget, 'control_sources', d => { log(d.message || 'Запущено обновление базы источников.'); watchParser(); });
-    $('card-control-stop').onclick = e => confirm('Остановить приложение? Будут остановлены все процессы: сборщики контента (в том числе других пользователей), помощник Telegram и модели. Чтобы снова работать, обновите страницу.')
-        && dockAction(e.currentTarget, 'app_stop', d => log(`Приложение остановлено: процессов завершено ${d.stopped}. Обновите страницу, чтобы снова работать.`), { tab: TAB_ID });
-}
-
 // ---- Демо-режим (?debug=1): переключатель в шапке перезагружает страницу с параметром или без него ----
 
 function initializeDebugMode() {
@@ -95,10 +81,11 @@ initializeSourceTab();
 initializeAccountTab({ onDatabasesReset: loadCurrentItem });
 initializeTabs();
 initializeTheme();
+initializeRadarTab();
+try { initializeCalendarTab(); } catch (error) { log(`Календарь не запущен: ${error.message}`); }   // вкладка не должна ронять запуск всего приложения
 $('model-panel').addEventListener('toggle', refreshModel);
 document.querySelectorAll('#model-panel [data-model-op]').forEach(b => b.addEventListener('click', () => controlModel({ op: b.dataset.modelOp, role: b.dataset.role })));
 refreshModel();
-initializeDock();
 initializeDebugMode();
 
 log('Приложение запущено. Загружаю пул контента.');

@@ -1,12 +1,15 @@
 // content.js — вкладка «Подбор»: тема и вторая тема, фильтры, карточка записи (карусель, видео, активность), голоса, жалобы,
 // публикация в Telegram (панель 🚀 и редактор поста).
 import { $, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
-import { openViewerGallery, registerViewerGallery, registerViewerPoster } from './viewer.js';
+import { registerViewerGallery, registerViewerPoster, videoFields } from './viewer.js';
 import { formatWhen, openPostEditor } from './editor.js';
 import { openAccountSection } from './account.js';
+import { itemCheck, videoProgress, watchVideo } from './video-pending.js';
+import { articleBrief, articleCaption, cardKind, clampText } from './card.js';
+import { fromRecord, recordSlides } from './post-adapters.js';
+import { renderPostSheet } from './post-view.js';
 
 const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], channels: [], nativeAccount: false };
-const VIDEO_ERRORS = { 1: 'загрузка прервана', 2: 'сетевая ошибка', 3: 'файл не раскодировался', 4: 'формат не поддерживается или файл недоступен' };
 const TOPIC_CONFIRM = 'Сменить тему поиска? Неоценённые записи по старой теме будут убраны из пула, и поиск начнётся заново. История оценок сохранится.';
 export { TOPIC_CONFIRM };
 
@@ -16,7 +19,7 @@ function showArea(area, message = '') {
     show('item-empty', area === 'empty');
     setMessage('item-error', area === 'error' ? message : '');
     show('item-searching', area === 'searching');
-    if (area === 'searching') $('search-progress-topic').textContent = currentTopic().topic || 'контент';
+    if (area === 'searching') $('search-progress-topic').textContent = topicWithQuery(currentTopic()) || 'контент';
     if (area === 'empty') $('item-empty-message').textContent = message || 'Пул контента пуст.';
     hide('item-loading');
 }
@@ -43,102 +46,40 @@ function renderSearchProgress(data) {
 
 // ---- Слайды: у каждого основной адрес (копия из кэша) и запасной (исходная ссылка) ----
 
-function itemSlides(item) {
-    if (!item) return [];
-    const text = item.text || item.description || NO_TEXT[0];
-    if (item.gallery?.length > 1) return item.gallery.map(f => ({ image: f.display_image || f.image, fallbackImage: f.image, video: f.video ? f.display_video || f.video : '', fallbackVideo: f.video || '', text }));
-    if (item.video || item.display_video) return [{ image: item.display_image || item.image || '', fallbackImage: item.image || '', video: item.display_video || item.video, fallbackVideo: item.video || '', text }];
-    const images = item.images?.length ? item.images : [item.image].filter(Boolean);
-    return images.map((image, i) => ({ image: i === 0 ? item.display_image || image : image, fallbackImage: image, text: item.captions?.[i] || item.text || '' }));
-}
+/** Слайды записи: логика в post-adapters.js (общая с просмотрщиком постов). */
+const itemSlides = item => recordSlides(item, NO_TEXT[0]);
 
 /** Слайды записи как галерея просмотрщика. */
 export function recordGallery(item, index = 0) {
     const sourceUrl = safeSourcePostUrl(item);
     return { index, onPost: item ? () => postItemToTelegram(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) : null, postCheck: item?.post_check || null,
-        items: itemSlides(item).map(s => ({ kind: s.video ? 'video' : 'image', src: s.video || s.image, fallback: s.video ? s.fallbackVideo : s.fallbackImage, poster: s.image, sourceUrl, alt: 'Запись' })) };
+        items: itemSlides(item).filter(s => !s.textPost).map((s, i) => ({ kind: s.video ? 'video' : 'image', src: s.video || s.image, fallback: s.video ? s.fallbackVideo : s.fallbackImage, poster: s.image, sourceUrl, alt: 'Запись',
+            ...(i === 0 ? videoFields(item, sourceUrl) : {}) })) };
 }
 
 // Старые функции больше не используются, но оставляем для совместимости
 
-function renderSlide() {
-    const grid = $('item-media-grid');
-    grid.replaceChildren();
-
-    if (!state.slides.length) {
-        grid.appendChild(el('div', { className: 'media-item', style: 'grid-column: 1 / -1; padding: 24px;' },
-            el('div', { textContent: 'Нет медиа' })));
-        return;
-    }
-
-    // Отображаем ВСЕ медиа элементы в грид
-    for (const slide of state.slides) {
-        const container = el('div', { className: 'media-item' });
-
-        if (slide.video) {
-            const video = el('video', {
-                className: 'card-video',
-                muted: true,
-                loop: true,
-                autoplay: true,
-                playsinline: true,
-                preload: 'auto',
-                poster: slide.image || '',
-                'aria-label': 'Видео: нажмите, чтобы смотреть со звуком'
-            });
-
-            video.src = slide.video;
-            video.onerror = () => {
-                if (slide.fallbackVideo && video.src !== slide.fallbackVideo) {
-                    video.src = slide.fallbackVideo;
-                    return;
-                }
-                video.hidden = true;
-                // Постер ролика — мелкое размытое превью: в альбоме рядом обычно та же картинка в хорошем качестве
-                if (grid.children.length > 1) return void container.remove();
-                if (slide.image) {
-                    const img = el('img', { alt: 'Запись', src: slide.image });
-                    img.onerror = () => { img.hidden = true; };
-                    container.replaceChildren(img);
-                }
-            };
-
-            video.play().catch(() => {});
-            container.appendChild(video);
-
-            // Иконка видео
-            const videoMark = el('span', { className: 'video-mark', title: 'Видео: клик откроет со звуком' },
-                el('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' },
-                    el('rect', { x: '2', y: '6', width: '13', height: '12', rx: '3', fill: 'currentColor' }),
-                    el('path', { d: 'M16.5 10.2 21 7.6v8.8l-4.5-2.6z', fill: 'currentColor' })));
-            container.appendChild(videoMark);
-        } else if (slide.image) {
-            const img = el('img', { alt: 'Запись', src: slide.image });
-            img.onerror = () => {
-                if (slide.fallbackImage && img.src !== slide.fallbackImage) {
-                    img.src = slide.fallbackImage;
-                    return;
-                }
-                img.hidden = true;
-            };
-
-            Object.assign(img.dataset, {
-                gallery: 'card',
-                fallback: slide.fallbackImage || '',
-                sourceUrl: safeSourcePostUrl(state.item)
-            });
-
-            container.appendChild(img);
-        }
-
-        grid.appendChild(container);
-    }
+/** Текст поста без картинки: крупно, до 12 строк, «Показать полностью». */
+export function textPostBlock(text) {
+    return clampText(text, 12, 'text-post');   // общая обрезка с кнопкой «Показать полностью» (card.js)
 }
 
-function changeSlide(delta) {
-    // Больше не используется в режиме сетки, но оставляем для совместимости
-    if (!state.slides.length) return;
-    state.index = (state.index + delta + state.slides.length) % state.slides.length;
+const AI_OPEN_KEY = 'postaCardAiOpen';
+
+/** «Почему ИИ выбрал»: свёрнут по умолчанию, состояние запоминается (localStorage в try/catch). */
+function initializeCardAi() {
+    const box = $('item-ai');
+    try { box.open = localStorage.getItem(AI_OPEN_KEY) === '1'; } catch { /* приватный режим: по умолчанию свёрнут */ }
+    box.addEventListener('toggle', () => { try { localStorage.setItem(AI_OPEN_KEY, box.open ? '1' : '0'); } catch { /* не сохранилось — не страшно */ } });
+}
+
+/** Запись подбора — тем же листом, что в просмотрщике постов (post-view.js), без ‹ ›. Текст — перевод или оригинал (state.shownText).
+ *  Кнопки подбора (голоса, жалоба, 🚀) и блоки оценки стоят в карточке под листом, как раньше. */
+function renderPostView(item) {
+    renderPostSheet($('item-post'), fromRecord({ ...item, text: state.shownText ?? item.text }), {
+        zoom: { onPost: item ? () => postItemToTelegram(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) : null, postCheck: item.post_check || null },
+        watchPending: false, link: false, stats: false,
+    });
 }
 
 /** Активность у источника: просмотры и реакции в Telegram, ответы и размер треда на Дваче. */
@@ -155,6 +96,8 @@ function renderEngagement(e) {
             ...reactions.slice(0, 8).map(([emoji, n]) => el('span', { className: 'eng-chip eng-reaction', title: `Реакций ${emoji}: ${n}` }, el('span', { className: 'eng-emoji', textContent: emoji }), el('b', { textContent: COUNT.format(n) }))),
             reactions.length > 8 ? el('span', { className: 'eng-chip', textContent: `+${reactions.length - 8}` }) : null,
             reactions.length ? null : el('span', { className: 'eng-chip', textContent: 'реакций нет' }));
+    } else if (e?.source === 'osnova') {   // статья vc.ru / dtf.ru: комментарии и реакции со страницы
+        chips.push(chip('комментарии', COUNT.format(e.comments ?? 0), 'Комментарии к статье на сайте'), chip('реакции', COUNT.format(e.likes ?? 0), 'Реакции на статью на сайте'));
     } else if (e?.source === 'dvach' && Number.isFinite(e.thread_posts)) {
         const span = h => (h < 48 ? `${Math.max(1, Math.round(h))} ч` : `${Math.round(h / 24)} дн`);
         chips.push(e.is_op ? null : chip('ответы', COUNT.format(e.replies ?? 0), 'Сколько постов в треде ответили на этот пост (>>номер)'),   // у ОП-поста ответов почти как постов в треде
@@ -174,17 +117,41 @@ function formatPostedAt(seconds) {
     return minutes < 20160 ? `${Math.round(minutes / 1440)} дн назад` : new Date(seconds * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+/** Запись без ролика, который ещё качается: оверлей «Видео загружается…», карточка обновляется на месте; не вышло — следующая запись. */
+function watchItemVideo(item) {
+    state.videoWait?.stop();
+    state.videoWait = null;
+    if (!item.video_via || item.video || item.video_unavailable) return;
+    // Полоса — на плитке ролика в карточке (post-view помечает её .is-video-pending); плитку рисуют позже, поэтому ищем при каждом опросе
+    let bar = null;
+    const tile = () => document.querySelector('#item-post .is-video-pending');
+    const stop = () => { bar?.stop(); bar = null; };
+    state.videoWait = watchVideo(itemCheck(item.image), {
+        onProgress: p => {
+            if (bar && !bar.host?.isConnected) stop();
+            const host = tile();
+            if (!bar && host) bar = Object.assign(videoProgress(host), { host });
+            bar?.update(p);
+        },
+        onReady: r => { stop(); if (state.item?.image === item.image) renderCard({ ...state.item, video: r.video_local || r.video, video_local: r.video_local || '', display_video: r.video, video_unavailable: false }); },
+        onFail: () => { stop(); if (state.item?.image === item.image) loadCurrentItem(); }
+    });
+}
+
 function renderCard(item, archiveInfo = null) {
-    Object.assign(state, { item, slides: itemSlides(item), index: 0 });
-    renderSlide();
+    Object.assign(state, { item, index: 0, showOriginal: false });
+    watchItemVideo(item);
     applyRocketCheck($('item-rocket'), item.post_check);
     state.preloaded = (item.preload || []).map(src => Object.assign(new Image(), { decoding: 'async', src }));   // следующие записи грузятся заранее
     const [relevance, rating] = [Number(item.relevance ?? 0), item.rating == null ? null : Number(item.rating)];
     $('item-rating').textContent = rating === null ? '' : `${rating}%`;
     $('item-rating').hidden = rating === null;
     $('item-relevance').textContent = `По теме: ${relevance}%`;
-    renderTags($('item-tags'), item.tags_info);
-    $('item-source').textContent = `Источник: ${item.source || 'неизвестно'}`;
+    // Свой контент: подбора и оценки не было — жалобы на «ошибку подбора» и проценты не показываем
+    $('complaint-button').hidden = Boolean(item.own);
+    if (item.own) { $('item-rating').hidden = true; $('item-relevance').textContent = 'Свой контент'; }
+    renderTags($('item-tags'), item.tags_info, t => { if (confirm(`Искать по теме «${t.title}»? Тема подбора изменится.`)) saveTopic(t.title, false, 'topic-notice').then(() => refreshTopicLabel()).catch(error => log(`Не удалось сменить тему: ${error.message}`)); });
+    $('item-source').textContent = `Источник: ${item.source || 'неизвестно'}${item.found_by ? ` · ${item.found_by}` : ''}`;
     const posted = formatPostedAt(item.posted_at);
     setMessage('item-date', posted && `Опубликовано: ${posted}`);
     // «Свежак!»: пост опубликован меньше двух часов назад
@@ -193,6 +160,9 @@ function renderCard(item, archiveInfo = null) {
     const url = safeSourcePostUrl(item);
     if (url) $('item-source-link').href = url; else $('item-source-link').removeAttribute('href');
     $('item-source-link').hidden = !url;
+    // Текст поста под медиа; у текстового поста без картинки он уже показан вместо медиа
+    state.showOriginal = false;   // новая запись — сначала перевод (если галочка включена)
+    applyTextMode(item);
     $('item-why-text').textContent = item.why_relevant || 'Нет объяснения от ИИ';
     $('item-desc').replaceChildren(el('strong', { textContent: 'Описание ИИ:' }), ` ${item.description || 'Анализ отсутствует'}`);
 
@@ -231,7 +201,8 @@ export async function loadCurrentItem() {
             state.poll = setTimeout(loadCurrentItem, 3000);
             return;
         }
-        if (data.status === 'empty' || !data.image) {
+        // Без картинки запись всё же показываем, если это статья (текст и заголовок) или текстовый пост
+        if (data.status === 'empty' || (!data.image && !data.article && !data.text_post)) {
             Object.assign(state, { item: null, slides: [] });
             showArea('empty', data.message);
             log(data.message || 'Пул контента пуст.');
@@ -260,7 +231,7 @@ async function vote(type, details = {}) {
     state.voting = true;
     $('content-tab').classList.add('is-busy');
     try {
-        await api('vote', { body: { vote: type, image: state.item.image, ...details } });
+        await api('vote', { body: { vote: type, image: state.item.item_key || state.item.image, ...details } });
         if (type === 'wrong' && details.reason === 'match_error') {
             log('🚩 Жалоба учтена: ИИ увидит эту запись как пример «не по теме», источник теряет рейтинг, а каждые 5 жалоб уточняют профиль темы.');
         }
@@ -272,7 +243,57 @@ async function vote(type, details = {}) {
 
 // ---- Тема, вторая тема, фильтры ----
 
-const FILTERS = { fresh_only: 'filter-fresh', active_sources_only: 'filter-active', video_only: 'filter-video' };
+const FILTERS = { fresh_only: 'filter-fresh', active_sources_only: 'filter-active', video_only: 'filter-video', media_only: 'filter-media', media_no_text: 'filter-media-no-text', auto_translate: 'filter-translate' };
+let topicFormat = null;   // формат текущей темы (topic_info): нужен подсказке про «Текст поста обязателен»
+let mediaOnlyBeforeNoText = false;   // «Только с медиа» до того, как включили «Только медиа»: вернём при снятии
+
+/** «Только медиа» включает «Только с медиа»: та отмечена и неактивна. Подсказка — если формат темы требует текст. */
+function syncMediaFilters() {
+    const [only, noText] = [$('filter-media'), $('filter-media-no-text')];
+    if (noText.checked) only.checked = true;
+    only.disabled = noText.checked;
+    $('media-format-hint').hidden = !(noText.checked && topicFormat?.text === 'required');
+}
+
+/** Галочка «Только медиа»: запоминаем «Только с медиа» при включении и возвращаем при снятии. */
+function onMediaNoTextToggle() {
+    const [only, noText] = [$('filter-media'), $('filter-media-no-text')];
+    if (noText.checked) mediaOnlyBeforeNoText = only.checked;
+    else only.checked = mediaOnlyBeforeNoText;
+    syncMediaFilters();
+    saveFilters();
+}
+
+/** Строка «Ищем: …», её правка и чипы «Уточнить» для текущей темы (TOPICS_SEARCH_PROMPT.md, части B.6 и D.4). */
+function modeSentence(f) {
+    const what = f.media === 'required' ? (f.text === 'required' ? 'посты с картинкой или видео и текстом' : 'посты с картинкой или видео')
+        : (f.text === 'required' || f.judge === 'text' ? 'текстовые посты, картинка не обязательна' : 'посты с картинкой или видео, картинка не обязательна');
+    const judge = { both: 'судим по картинке и подписи', image: 'судим по картинке', text: 'судим по тексту' }[f.judge] || 'судим по картинке и подписи';
+    return `Ищем: ${what} · ${judge}`;
+}
+
+async function renderTopicInfo() {
+    const info = await api('topic_info');
+    const box = $('topic-mode-box');
+    box.hidden = false;
+    $('topic-mode').textContent = modeSentence(info.format) + (info.overridden ? ' (изменено вами)' : '');
+    $('mode-media').checked = info.format.media === 'required';
+    $('mode-text').checked = info.format.text === 'required';
+    $('mode-judge').value = info.format.judge;
+    topicFormat = info.format;
+    syncMediaFilters();
+    const chips = $('topic-children');
+    const parts = [];
+    if (info.parent) parts.push(el('button', { className: 'topic-link', type: 'button', textContent: `← вся тема «${info.parent.title}»`, onclick: () => saveTopic(info.parent.title, false, 'topic-notice').then(() => refreshTopicLabel()) }));
+    if (info.children.length) {
+        parts.push(el('span', { className: 'topic-children-label', textContent: 'Уточнить:' }));
+        parts.push(...info.children.map(c => el('button', { className: 'tag-chip is-topic-chip', type: 'button', textContent: c.title,
+            onclick: () => saveTopic(c.title, false, 'topic-notice').then(() => refreshTopicLabel()) })));
+        if (info.children_total > info.children.length) parts.push(el('span', { className: 'topic-children-more', textContent: `ещё ${info.children_total - info.children.length}…` }));
+    }
+    chips.replaceChildren(...parts);
+    chips.hidden = !parts.length;
+}
 
 export async function refreshTopicLabel() {
     try {
@@ -280,8 +301,12 @@ export async function refreshTopicLabel() {
         const topic = data.topic || '';
         $('topic-input').value = $('topic-input').dataset.saved = topic;
         $('topic2-input').value = $('topic2-input').dataset.saved = data.topic2 || '';
-        setCurrentTopic(topic, data.topic2 || '');
-        for (const [key, id] of Object.entries(FILTERS)) $(id).checked = key === 'active_sources_only' ? data.filters?.[key] !== false : Boolean(data.filters?.[key]);
+        $('query-input').value = $('query-input').dataset.saved = data.query || '';
+        setCurrentTopic(topic, data.topic2 || '', data.query || '');
+        renderTopicInfo().catch(() => { $('topic-mode-box').hidden = true; });
+        for (const [key, id] of Object.entries(FILTERS)) $(id).checked = ['active_sources_only', 'auto_translate'].includes(key) ? data.filters?.[key] !== false : Boolean(data.filters?.[key]);
+        syncMediaFilters();
+        $('filter-adult').checked = Boolean(data.adult_allowed);
 
         // Тема в заголовке: одна кнопка в стиле вкладки и выпадающий список всех тем
         try {
@@ -346,9 +371,14 @@ async function submitTopic(topic, forceNew = false) {
     } finally { buttonEl.disabled = input.disabled = false; }
 }
 
-/** Вторая тема: поле только для чтения, клик активирует, клик мимо или Enter сохраняет, Esc отменяет. */
-function initializeSecondTopic() {
-    const [field, input] = [$('topic2-field'), $('topic2-input')];
+/** Тема с уточнением для заголовков: «Города · тюмень». */
+export function topicWithQuery(t) { return t.query ? `${t.topic} · ${t.query}` : t.topic; }
+
+/**
+ * Поле «вторая тема» и «уточнение»: только для чтения, клик активирует, клик мимо или Enter сохраняет, Esc отменяет.
+ * save(value) — запрос к серверу, он возвращает ответ с сохранённым значением; applied(data) — перерисовка; label — для сообщения об ошибке.
+ */
+function initializeInlineField(field, input, save, applied, label) {
     const deactivate = async (cancel = false) => {
         if (!field.classList.contains('is-active')) return;
         input.readOnly = true;
@@ -357,15 +387,13 @@ function initializeSecondTopic() {
         if (value === input.dataset.saved) return;
         field.classList.add('is-busy');
         try {
-            const data = await api('save_second_topic', { body: { topic2: value } });
-            input.value = input.dataset.saved = data.topic2 || '';
-            setCurrentTopic(currentTopic().topic, data.topic2 || '');
-            log(data.topic2 ? `Вторая тема: «${data.topic2}» — контент ищется по обеим.` : 'Вторая тема убрана.');
-            watchParser();
+            const data = await save(value);
+            input.value = input.dataset.saved = data.value ?? '';
+            applied(data);
             await loadCurrentItem();
         } catch (error) {
             input.value = input.dataset.saved;
-            setMessage('item-error', `Вторая тема не сохранена: ${error.message}`);
+            setMessage('item-error', `${label} не сохранена: ${error.message}`);
         } finally { field.classList.remove('is-busy'); }
     };
     field.addEventListener('click', () => {
@@ -379,6 +407,60 @@ function initializeSecondTopic() {
     input.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); deactivate(e.key === 'Escape'); } });
 }
 
+/** Вторая тема: контент ищется по обеим темам. */
+function initializeSecondTopic() {
+    initializeInlineField($('topic2-field'), $('topic2-input'),
+        async value => { const data = await api('save_second_topic', { body: { topic2: value } }); return { value: data.topic2, data }; },
+        ({ data }) => {
+            setCurrentTopic(currentTopic().topic, data.topic2 || '', currentTopic().query);
+            log(data.topic2 ? `Вторая тема: «${data.topic2}» — контент ищется по обеим.` : 'Вторая тема убрана.');
+            watchParser();
+        }, 'Вторая тема');
+}
+
+/** Уточнение («Города» + «тюмень»): подбор только про это. */
+function initializeQueryField() {
+    initializeInlineField($('query-field'), $('query-input'),
+        async value => { const data = await api('save_query', { body: { query: value } }); return { value: data.query, data }; },
+        ({ data }) => {
+            setCurrentTopic(currentTopic().topic, currentTopic().topic2, data.query || '');
+            log(data.query ? `Уточнение: «${data.query}» — ищу в теме «${currentTopic().topic}» только про это.` : 'Уточнение убрано.');
+            watchParser();
+        }, 'Уточнение');
+}
+
+/** Галочка «Автоперевод»: сохраняем и перерисовываем текущую запись без перезапроса поиска. */
+/** Текст поста: перевод или оригинал по галочке «Автоперевод»; пометка «Переведено с …» и «Показать оригинал». */
+function applyTextMode(item) {
+    const on = $('filter-translate').checked;
+    const hasTranslation = Boolean(item.translated_note);
+    const showTranslation = on && hasTranslation && !state.showOriginal;
+    const shown = showTranslation ? String(item.text || '') : String(item.text_original ?? item.text ?? '');
+    state.shownText = shown.trim();
+    renderPostView(item);   // лист поста: медиа, текст и статья — в просмотрщике; текст — перевод или оригинал
+    const note = $('item-translate');
+    const blank = !state.shownText || NO_TEXT.includes(state.shownText);   // перевод заглушки «Пост без текста» — не показываем
+    note.hidden = !(on && hasTranslation) || blank;
+    if (note.hidden) { note.replaceChildren(); return; }
+    const toggle = el('button', { type: 'button', className: 'item-translate-toggle', textContent: state.showOriginal ? 'Показать перевод' : 'Показать оригинал',
+        onclick: () => { state.showOriginal = !state.showOriginal; applyTextMode(state.item); } });
+    note.replaceChildren(el('span', { textContent: `🌐 ${item.translated_note}` }), ' · ', toggle);
+}
+
+async function onTranslateToggle() {
+    const box = $('filter-translate');
+    box.disabled = true;
+    try {
+        await api('save_filters', { body: { auto_translate: box.checked } });
+        const item = state.item;
+        if (!item) return;
+        if (box.checked && !item.translated_note && item.translated_from === undefined) return loadCurrentItem();   // перевода в ответе не было — перезапросим
+        state.showOriginal = false;
+        applyTextMode(item);
+    } catch (error) { setMessage('item-error', `Настройка перевода не сохранена: ${error.message}`); }
+    finally { box.disabled = false; }
+}
+
 async function saveFilters() {
     const boxes = Object.values(FILTERS).map($);
     const filters = Object.fromEntries(Object.entries(FILTERS).map(([key, id]) => [key, $(id).checked]));
@@ -386,12 +468,28 @@ async function saveFilters() {
     try {
         const data = await api('save_filters', { body: filters });
         for (const [key, id] of Object.entries(FILTERS)) $(id).checked = Boolean(data.filters?.[key] ?? filters[key]);
-        const [fresh, active, video] = boxes.map(b => b.checked);
-        log(`Фильтры подбора: ${fresh ? 'только новый контент (за сутки)' : 'контент за последний месяц'}, ${active ? 'только живые паблики, каналы и треды' : 'все источники, включая неактивные'}${video ? ', только с видео' : ''}.`);
+        const [fresh, active, video, mediaOnly, noText] = boxes.map(b => b.checked);
+        log(`Фильтры подбора: ${fresh ? 'только новый контент (за сутки)' : 'контент за последний месяц'}, ${active ? 'только живые паблики, каналы и треды' : 'все источники, включая неактивные'}${video ? ', только с видео' : ''}${noText ? ', только медиа без подписи' : mediaOnly ? ', только с медиа' : ''}.`);
         watchParser();
         await loadCurrentItem();
     } catch (error) { setMessage('item-error', `Фильтры не сохранены: ${error.message}`); }
-    finally { boxes.forEach(b => { b.disabled = false; }); }
+    finally { boxes.forEach(b => { b.disabled = false; }); syncMediaFilters(); }
+}
+
+/** Галочка «Показывать чувствительный и 18+ контент»: включение — после подтверждения возраста; темы и пул пересобираются. */
+async function saveAdult() {
+    const box = $('filter-adult');
+    const allowed = box.checked;
+    if (allowed && !confirm('Показывать чувствительный контент и материалы 18+ («Для взрослых», «Жесть»)?\n\nВам должно быть 18 лет. Публикуя такие материалы в каналы, вы сами отвечаете за соблюдение правил Telegram, ВК и закона.')) { box.checked = false; return; }
+    box.disabled = true;
+    try {
+        const data = await api('adult_allow', { body: { allowed } });
+        log(data.adult_allowed ? 'Чувствительный контент и 18+ включены.' : `Чувствительный контент и 18+ скрыты${data.topic_reset ? ': тема возвращена к теме по умолчанию' : ''}.`);
+        await refreshTopicLabel();
+        watchParser();
+        await loadCurrentItem();
+    } catch (error) { box.checked = !allowed; setMessage('item-error', `Настройка не сохранена: ${error.message}`); }
+    finally { box.disabled = false; }
 }
 
 // ---- Публикация ----
@@ -413,12 +511,33 @@ function logPostCheck(check) {
 /** Цель поста канала: первый канал — tg:main (канал по умолчанию), остальные — tg:<id>. */
 function channelTarget(channel, index) {
     const name = channel.title || (channel.username ? '@' + channel.username : channel.id);
-    return { value: index === 0 ? 'tg:main' : `tg:${channel.id}`, label: `Канал «${name}»` + (index === 0 && state.channels.length > 1 ? ' (по умолчанию)' : '') };
+    return { value: index === 0 ? 'tg:main' : `tg:${channel.id}`, label: `Канал «${name}»` + (index === 0 && state.channels.length > 1 ? ' (по умолчанию)' : ''), hashtags: channel.hashtags || 'off' };
 }
 const telegramTargets = () => state.channels.map(channelTarget);
 
 /** Канал по цели поста: tg:main — первый, tg:<id> — конкретный. */
 const channelOfTarget = value => (value === 'tg:main' ? state.channels[0] : state.channels.find(c => c.id === value.slice(3)));
+
+/** ИИ-подпись и стиль канала для редактора: цель поста → запросы к серверу; стиль канала кэшируется в state.channels. */
+const channelParam = value => (value === 'tg:main' ? '' : value.slice(3));
+const keepStyle = (value, style) => { const c = channelOfTarget(value); if (c) c.style = style; return style; };
+const captionTools = () => ({
+    style: value => channelOfTarget(value)?.style || {},
+    generate: async (value, context) => (await api('ai_caption', { body: { channel: channelParam(value), ...context } })).text,
+    excerpt: async url => (await api('news_excerpt', { body: { url } })).text,
+    save: async (value, summary) => keepStyle(value, (await api('channel_style_save', { body: { channel: channelParam(value), summary } })).style),
+    /** Изучение идёт на сервере в фоне (минуты на CPU): запускаем и опрашиваем, пока не освободится. */
+    learn: async (value, onWait) => {
+        const channel = channelParam(value);
+        let style = keepStyle(value, (await api('channel_style_learn', { body: { channel } })).style);
+        while (style.busy) {
+            onWait?.();
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            style = keepStyle(value, (await api('channel_style', { params: { channel } })).style);
+        }
+        return style;
+    },
+});
 
 /** Что редактор умеет по расписанию: есть ли слоты у канала цели, есть ли личный аккаунт, запрос ближайшего слота. */
 const scheduleOptions = () => ({
@@ -480,10 +599,13 @@ function postFormWithUpload(action, form, onUpload) {
 async function publishToTelegram(post, onProgress = null) {
     const form = new FormData();
     form.append('text', post.text);
+    if (post.article) form.append('article', JSON.stringify(post.article));   // статья: признак уйдёт в очередь, календарь покажет заголовок
     form.append('channel', post.target === 'tg:main' ? '' : post.target.slice(3));   // пусто — канал по умолчанию
     form.append('mode', post.mode || (post.scheduledTs ? 'native' : 'now'));
     if (post.scheduledTs) form.append('scheduled_ts', String(post.scheduledTs));
     if (post.poll) form.append('poll', JSON.stringify(post.poll));
+    if (post.hashtags?.length) form.append('hashtags', JSON.stringify(post.hashtags));   // сервер оставит те, что разрешены каналу
+    if (post.record) form.append('record', JSON.stringify(post.record));   // поля записи: сервер отметит её лайком после публикации
     const files = [];
     form.append('media', JSON.stringify(post.media.map(m => (m.file ? { kind: m.kind, name: m.name, upload: files.push(m.file) - 1 } : { kind: m.kind, src: m.src, name: m.name }))));
     files.forEach(f => form.append('files[]', f, f.name));
@@ -495,15 +617,24 @@ async function publishToTelegram(post, onProgress = null) {
     const poll = onProgress && setInterval(() => {
         if (!uploading) api('telegram_publish_progress', { params: { id } }).then(p => p?.stage && report({ stage: p.stage, percent: p.percent ?? null })).catch(() => {});
     }, 700);
+    const send = () => uploading
+        ? postFormWithUpload('telegram_publish', form, percent => {
+            if (!uploading) return;
+            uploading = percent < 100;
+            report({ stage: 'Загрузка на сервер', percent });
+        })
+        : api('telegram_publish', { body: form });
     let result;
     try {
-        result = uploading
-            ? await postFormWithUpload('telegram_publish', form, percent => {
-                if (!uploading) return;
-                uploading = percent < 100;
-                report({ stage: 'Загрузка на сервер', percent });
-            })
-            : await api('telegram_publish', { body: form });
+        try {
+            result = await send();
+        } catch (error) {
+            // Соцсеть не примет часть файлов: сервер спрашивает, публиковать ли без них
+            if (!error.data?.confirm_skip || !confirm(error.message)) throw error;
+            form.set('confirm_skip', '1');
+            uploading = false;
+            result = await send();
+        }
     } finally {
         done = true;
         clearInterval(poll);
@@ -511,52 +642,82 @@ async function publishToTelegram(post, onProgress = null) {
     log(result.scheduled
         ? `🚀 ${targetName(post.target)}: пост запланирован на ${formatWhen(new Date(result.publish_at * 1000))}, ${result.native ? 'он в «Отложенных» Telegram' : 'он в очереди Posta и уйдёт сам'}.`
         : `🚀 ${targetName(post.target)}: пост опубликован${result.url ? `: [открыть в Telegram](${result.url})` : ''}.`);
+    if (result.marked === 'liked') log('Пост отмечен лайком и убран из «Предложки».');
+    return result;
 }
 
 /** Один пост во все отмеченные ресурсы по очереди: сбой одного не останавливает остальные. Если упали все — исключение (редактор останется открытым). */
 async function publishToTargets(post, onProgress = null) {
     const failed = [];
+    let marked = null;   // 'liked', если хоть один канал отметил запись сейчас; иначе 'already' при повторе
     for (const target of post.targets) {
         try {
-            await publishToTelegram({ ...post, target }, onProgress);
+            const result = await publishToTelegram({ ...post, target }, onProgress);
+            if (result?.marked === 'liked' || (result?.marked === 'already' && !marked)) marked = result.marked;
         } catch (e) {
             failed.push(e.message);
             log(`✖ ${targetName(target)}: ${e.message}`);
         }
     }
     if (failed.length === post.targets.length) throw new Error(failed.join('; '));
+    return { marked };
 }
 
+/** Поля записи, по которым сервер считает её ключ (тот же, что у пула и истории). */
+const recordOf = item => ({ image: item.image || '', url: item.url || '', source_url: item.source_url || '', source_key: item.source_key || '',
+    board: item.board || '', thread_id: item.thread_id || '', post_id: item.post_id || '', text: item.text || '', text_post: !!item.text_post });
+
 /** Единое окно публикации для всех кнопок «Запостить»: редактор поста; ресурсы выбираются в нём (по умолчанию — основной канал). */
-export async function postItemToTelegram(item) {
+/** Адрес источника новости (сайт или RSS-лента с записью): https или ''. */
+const newsSourceUrl = item => (String(item.source_key || '').startsWith('rss:') && String(item.source_url || '').startsWith('https://') ? item.source_url : '');
+
+/** Редактор поста. Необязательно: scheduledTs и channel (id канала) — время и канал уже выбраны (календарь, слот); onDone — после постановки/публикации. */
+export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', onDone = null } = {}) {
     logPostCheck(item.post_check);
     await refreshTelegramTarget();
     if (!state.channels.length) {
         log('Telegram не подключён: бот и канал подключаются в «Личном кабинете» → «Соцсети».');
         return openAccountSection('social');
     }
-    const original = String(item.text || '').trim();
+    // В редакторе — тот текст, который видно сейчас (перевод или оригинал после «Показать оригинал»)
+    const shownNow = item === state.item && state.shownText !== undefined ? state.shownText : item.text;
+    // Статья: подпись как при публикации новости — заголовок, выжимка и источник (card.js)
+    const original = cardKind(item) === 'article' ? articleCaption(item) : String(shownNow || '').trim();
+    // Новость с сайта: по умолчанию в тексте — заголовок, анонс и ссылка на источник
+    const sourceUrl = newsSourceUrl(item);
+    const withSource = original && !NO_TEXT.includes(original) ? original : '';
+    const sourceText = sourceUrl && withSource && !withSource.includes(sourceUrl) ? `${withSource}\n\nИсточник: ${sourceUrl}` : withSource;
+    // Цель канала: первый канал — tg:main (как в telegramTargets), остальные — tg:<id>
+    const target = !channel || state.channels[0]?.id === channel ? 'tg:main' : `tg:${channel}`;
     openPostEditor({
-        key: item.image || item.display_image || '', picked: ['tg:main'], targets: telegramTargets(), schedule: scheduleOptions(),
-        scheduledTs: 0, scheduledAt: '', description: item.description || '', original: original && !NO_TEXT.includes(original) ? original : '',
-        media: itemMedia(item),   // файлы, которые Telegram точно не примет, в редактор не попадают
-        onSubmit: (post, onProgress) => publishToTargets(post, onProgress)
+        key: item.image || item.display_image || '', picked: [target], targets: telegramTargets(), schedule: scheduleOptions(),
+        scheduledTs, scheduledAt: scheduledTs ? formatWhen(new Date(scheduledTs * 1000)) : '', description: item.description || '', original: sourceText,
+        media: itemMedia(item), hashtags: item.hashtags || [],   // файлы, которые Telegram точно не примет, в редактор не попадают
+        ai: captionTools(), newsUrl: sourceUrl || '',
+        onSubmit: (post, onProgress) => {
+            // Ссылку на источник новости не стираем молча: без неё — вопрос, по умолчанию «Да»
+            if (sourceUrl && !String(post.text || '').includes(sourceUrl) && confirm('Добавить ссылку на источник?')) post.text = `${post.text || ''}\n\nИсточник: ${sourceUrl}`.trim();
+            if (cardKind(item) === 'article') post.article = articleBrief(item);
+            post.record = recordOf(item);
+            return publishToTargets(post, onProgress).then(async result => {
+                // Опубликована текущая карточка «Подбора»: запись уже лайк, следующая — как после голоса (без второго запроса)
+                if (result?.marked && item === state.item) await loadCurrentItem();
+                onDone?.(result);
+                return result;
+            });
+        }
     });
 }
 
 export function initializeContentTab({ onAddItem }) {
+    initializeCardAi();
+    // Строка «Ищем: …»: правка формата темы для этого пользователя
+    $('topic-mode-edit').addEventListener('click', () => { $('topic-mode-editor').hidden = !$('topic-mode-editor').hidden; });
+    const saveMode = body => api('topic_format_save', { body }).then(() => renderTopicInfo()).catch(error => log(`Не удалось сохранить формат темы: ${error.message}`));
+    $('mode-save').addEventListener('click', () => saveMode({ media: $('mode-media').checked ? 'required' : 'optional', text: $('mode-text').checked ? 'required' : 'optional', judge: $('mode-judge').value }));
+    $('mode-reset').addEventListener('click', () => saveMode({ reset: true }));
     bindMenu($('complaint-button'), $('complaint-menu'), item => vote('wrong', { reason: item.dataset.reason }));
     const cardGallery = () => recordGallery(state.item);
-    // Обработка клика по видео/изображению в грид-контейнере
-    const mediaGrid = $('item-media-grid');
-    mediaGrid.addEventListener('click', e => {
-        const mediaEl = e.target.closest('img, video');
-        if (mediaEl) {
-            const g = cardGallery();
-            const index = Array.from(mediaGrid.querySelectorAll('img, video')).indexOf(mediaEl);
-            openViewerGallery(g.items, Math.max(0, index), g.onPost, g.postCheck);
-        }
-    });
     registerViewerGallery('card', cardGallery);
     registerViewerPoster(({ kind, src, poster }) => {
         const item = kind === 'video'
@@ -564,15 +725,6 @@ export function initializeContentTab({ onAddItem }) {
             : { image: src, display_image: src, text: '', post_check: null };
         return postItemToTelegram(item).catch(e => log(`Ошибка при публикации: ${e.message}`));
     });
-    // Видео не запустилось само (фоновая вкладка, запрет автозапуска) — возобновляем при возврате и первом нажатии
-    const resume = () => {
-        const videos = $('item-media-grid').querySelectorAll('video');
-        for (const v of videos) {
-            if (!v.hidden && v.paused && v.getAttribute('src')) v.play().catch(() => {});
-        }
-    };
-    document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && resume());
-    for (const type of ['pointerdown', 'keydown']) document.addEventListener(type, resume, { passive: true });
     $('item-rocket').addEventListener('click', () => state.item && postItemToTelegram(state.item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)));
     document.querySelectorAll('#content-tab [data-vote]').forEach(b => b.addEventListener('click', () => vote(b.dataset.vote)));
     $('item-search-button').addEventListener('click', searchForContent);
@@ -583,8 +735,10 @@ export function initializeContentTab({ onAddItem }) {
         if (topic && topic !== currentTopic().topic && confirm(TOPIC_CONFIRM)) submitTopic(topic);
     });
     $('topic-force-new').addEventListener('click', e => submitTopic(e.currentTarget.dataset.typed || $('topic-input').value.trim(), true));
-    Object.values(FILTERS).forEach(id => $(id).addEventListener('change', saveFilters));
+    Object.entries(FILTERS).forEach(([key, id]) => $(id).addEventListener('change', key === 'auto_translate' ? onTranslateToggle : key === 'media_no_text' ? onMediaNoTextToggle : saveFilters));
+    $('filter-adult').addEventListener('change', saveAdult);
     initializeSecondTopic();
+    initializeQueryField();
     onParserStateChange(running => { if (!running && !state.item) loadCurrentItem(); });
     onParserStatus(renderSearchProgress);
     if (DEBUG_MODE) { hide('item-search-button'); hide('item-add-button'); }

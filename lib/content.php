@@ -8,21 +8,57 @@ function content_image_key($item) {
     return is_string($key) ? $key : '';
 }
 
+/** Ключ записи для оценок: адрес картинки, а у поста без картинки (статья, текст) — ключ поста или текста. */
+function content_item_key($item) {
+    if (($key = content_image_key($item)) !== '' || !is_array($item)) return $key;
+    return candidate_post_key($item) ?: candidate_text_key($item);
+}
+
 function pool_find_item(array $pool, $image) {
-    foreach ($pool as $item) if (content_image_key($item) === $image) return $item;
+    foreach ($pool as $item) if (content_item_key($item) === $image) return $item;
     return null;
 }
 
-function pool_without_image(array $pool, $image) { return array_values(array_filter($pool, fn($i) => content_image_key($i) !== $image)); }
+function pool_without_image(array $pool, $image) { return array_values(array_filter($pool, fn($i) => content_item_key($i) !== $image)); }
 
 /** Убирает из пула записи, у которых пропал кэш видео: ссылки Telegram с истёкшим токеном не играют, карточка мигала бы. */
 function pool_without_lost_video(array $pool) {
     $lost = fn($i) => (bool)array_filter([$i, ...(array)($i['gallery'] ?? [])],
         fn($f) => is_array($f) && !empty($f['video']) && ($l = (string)($f['video_local'] ?? '')) !== '' && media_cache_existing($l) === '');
     $bad = array_map('content_image_key', array_filter($pool, $lost));
-    if (!$bad) return $pool;
-    pool_update(fn($all) => array_values(array_filter($all, fn($i) => !in_array(content_image_key($i), $bad, true))));
-    return array_values(array_filter($pool, fn($i) => !in_array(content_image_key($i), $bad, true)));
+    // Ролик TikTok и Shorts, который так и не скачался, — из показа (в пуле остаётся, на случай повтора)
+    $hidden = fn($i) => in_array($i['video_via'] ?? '', ['ytdlp'], true) && !empty($i['video_unavailable']);
+    if ($bad) pool_update(fn($all) => array_values(array_filter($all, fn($i) => !in_array(content_image_key($i), $bad, true))));
+    return array_values(array_filter($pool, fn($i) => !in_array(content_image_key($i), $bad, true) && !$hidden($i)));
+}
+
+/**
+ * Порядок показа пула: по свежести поста (нет даты — время попадания в пул), а подряд не больше одного поста одного источника,
+ * если в окне POOL_DIVERSITY_WINDOW есть другой. Темы не смешиваются: порядок тем — как в пуле, внутри темы — свой.
+ * Отложенные («✋») идут после остальных, раньше отложенный — раньше: иначе свежесть вернула бы их на первое место.
+ * card_score сюда не относится: он решает, что держать в пуле, а не порядок показа.
+ */
+function pool_order(array $pool): array {
+    $groups = [];
+    foreach (array_values($pool) as $i => $item) $groups[(string)($item['topic'] ?? '')][] = $item + ['_seq' => $i];
+    $out = [];
+    foreach ($groups as $group) {
+        usort($group, fn($a, $b) => (($a['postponed_at'] ?? 0) <=> ($b['postponed_at'] ?? 0)) ?: (($b['posted_at'] ?? $b['pooled_at'] ?? 0) <=> ($a['posted_at'] ?? $a['pooled_at'] ?? 0)) ?: $a['_seq'] <=> $b['_seq']);
+        $last = null;
+        while ($group) {
+            $pick = 0;
+            if ($last !== null && content_source_key($group[0]) === $last) {
+                foreach (array_slice($group, 1, POOL_DIVERSITY_WINDOW) as $k => $cand) {
+                    if (content_source_key($cand) !== $last && !empty($cand['postponed_at']) === !empty($group[0]['postponed_at'])) { $pick = $k + 1; break; }
+                }
+            }
+            $item = array_splice($group, $pick, 1)[0];
+            $last = content_source_key($item);
+            unset($item['_seq']);
+            $out[] = $item;
+        }
+    }
+    return $out;
 }
 
 function content_source_key($item) {
@@ -43,7 +79,8 @@ function content_gallery(array $item) {
 function content_history_record(array $item, $complaint_reason) {
     return ['image' => content_image_key($item), 'text' => (string)($item['text'] ?? ''), 'description' => $item['description'] ?? '',
         'why_relevant' => $item['why_relevant'] ?? '', 'relevance' => $item['relevance'] ?? null, 'rating_assigned' => $item['rating'] ?? null,
-        'format' => $item['format'] ?? '', 'tags' => content_tags_clean($item['tags'] ?? []), 'topic' => $item['topic'] ?? '', 'source' => $item['source'] ?? '', 'source_key' => content_source_key($item), 'board' => $item['board'] ?? '',
+        'format' => $item['format'] ?? '', 'tags' => content_tags_clean($item['tags'] ?? []), 'entity' => (string)($item['entity'] ?? ''),
+        'source_hashtags' => (array)($item['source_hashtags'] ?? []), 'topic' => $item['topic'] ?? '', 'source' => $item['source'] ?? '', 'source_key' => content_source_key($item), 'board' => $item['board'] ?? '',
         'thread_id' => $item['thread_id'] ?? '', 'post_id' => $item['post_id'] ?? '', 'source_url' => source_post_url($item), 'posted_at' => $item['posted_at'] ?? 0,
         'engagement' => $item['engagement'] ?? null, 'complaint_reason' => $complaint_reason, 'video' => (string)($item['video'] ?? ''),
         'image_local' => (string)($item['image_local'] ?? ''), 'video_local' => (string)($item['video_local'] ?? ''), 'phash' => (string)($item['phash'] ?? ''), 'gallery' => content_gallery($item), 'timestamp' => time()];
@@ -62,6 +99,31 @@ function post_item_has_video(array $item) {
     return trim((string)($item['video'] ?? '')) !== '' || array_filter(content_gallery($item), fn($f) => trim($f['video']) !== '');
 }
 
+/** Есть картинка или видео: главная картинка, список картинок, галерея, видео или ролик, который ещё качается (у него есть обложка). */
+function post_item_has_media(array $item): bool {
+    return trim((string)($item['image'] ?? '')) !== '' || array_filter((array)($item['images'] ?? []), fn($i) => is_string($i) && trim($i) !== '')
+        || trim((string)($item['video'] ?? '')) !== '' || (string)($item['video_via'] ?? '') !== '' || content_gallery($item) !== [];
+}
+
+/** Есть настоящий текст: хэштеги, ссылки, @упоминания, эмодзи и знаки не считаются; меньше двух букв — текста нет. Проверяются text и подпись. */
+function post_item_has_text(array $item): bool {
+    foreach ([$item['text'] ?? '', $item['captions'][0] ?? ''] as $raw) {
+        $text = (string)$raw;
+        if ($text === '' || $text === EMPTY_POST_TEXT) continue;
+        $text = preg_replace(['~(?:https?://|t\.me/)\S+~iu', '~#[\p{L}\p{N}_]+~u', '~@[\p{L}\p{N}_]+~u'], ' ', $text);
+        if (preg_match_all('~\p{L}~u', $text) >= 2) return true;
+    }
+    return false;
+}
+
+/** Фильтры подборки «Только с медиа» и «Только медиа»: нужна картинка или видео; «Только медиа» — ещё и без текста. Только проверка, запись не меняется. */
+function content_passes_media_filters(array $item, array $filters): bool {
+    if (!empty($filters['media_only']) || !empty($filters['media_no_text'])) {
+        if (!post_item_has_media($item)) return false;
+    }
+    return empty($filters['media_no_text']) || !post_item_has_text($item);
+}
+
 /** Запись для карточки: display_* — копия из кэша или исходная ссылка, preload — картинки следующих записей. */
 function content_for_display(array $item, array $upcoming = [], $remote_check = true) {
     $main = content_image_key($item);
@@ -71,9 +133,9 @@ function content_for_display(array $item, array $upcoming = [], $remote_check = 
     $gallery = array_map(fn($f) => $display($f['image'] === $main ? array_merge($f, array_intersect_key($own, ['image_local' => 1, 'video_local' => 1])) : $f), content_gallery($item));
     if ($gallery && !in_array($main, array_column($gallery, 'image'), true)) array_unshift($gallery, $display($own));
     $shown = $display($own);
-    return ['images' => [$main], 'captions' => [$item['captions'][0] ?? ($item['text'] ?? '')], 'source_url' => source_post_url($item), 'gallery' => $gallery,
+    return ['item_key' => content_item_key($item), 'images' => [$main], 'captions' => [$item['captions'][0] ?? ($item['text'] ?? '')], 'source_url' => source_post_url($item), 'found_by' => (string)($item['found_by'] ?? ''), 'gallery' => $gallery,
         'post_check' => !empty($item['video']) || $gallery ? telegram_preflight_item($item, $remote_check) : ['status' => 'ok', 'problems' => [], 'warnings' => [], 'bad' => []],
-        'display_image' => $shown['display_image'], 'display_video' => $shown['display_video'], 'tags_info' => content_tags_public($item['tags'] ?? []),
+        'display_image' => $shown['display_image'], 'display_video' => $shown['display_video'], 'tags_info' => content_tags_public($item['tags'] ?? []), 'hashtags' => post_hashtags($item),
         'preload' => array_values(array_filter(array_map(fn($i) => media_cache_existing($i['image_local'] ?? '') ?: content_image_key($i), $upcoming)))] + $item;
 }
 
@@ -125,10 +187,10 @@ function media_cache_store_image($url, $bytes) {
 }
 
 /** Видео в кэш: из уже скачанного файла или скачать заново. Перекодированное — всегда .mp4. */
-function media_cache_store_video($url, $file = null, $force_mp4 = false) {
+function media_cache_store_video($url, $file = null, $force_mp4 = false, array $headers = []) {
     $ext = strtolower(pathinfo((string)parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION));
     if ($force_mp4 || !in_array($ext, ['mp4', 'webm'], true)) $ext = 'mp4';
-    $tmp = $file === null || !is_file($file) ? download_video_temp($url) : null;
+    $tmp = $file === null || !is_file($file) ? download_video_temp($url, VIDEO_MAX_BYTES, $headers) : null;
     if ($tmp === null && ($file === null || !is_file($file))) return '';
     try {
         $bytes = file_get_contents($tmp ?? $file);
@@ -167,6 +229,7 @@ function media_cache_remove($url) {
 function media_cache_cleanup(array $pool, $include_fresh = false, $force = false) {
     $keep = [];
     foreach ($pool as $item) foreach (media_cache_item_urls($item) as $u) if ($p = media_cache_path($u)) $keep[basename($p)] = true;
+    $keep += video_preview_keep_names();   // большие видео, скачанные по кнопке, — сутки, даже без записи пула
     $all_files = [];
     foreach (is_dir(MEDIA_CACHE_DIR) ? scandir(MEDIA_CACHE_DIR) : [] as $name) {
         $path = MEDIA_CACHE_DIR . "/$name";
@@ -175,7 +238,7 @@ function media_cache_cleanup(array $pool, $include_fresh = false, $force = false
     }
     $to_remove = [];
     foreach ($all_files as $name => $path) {
-        if (isset($keep[$name]) || (!$include_fresh && time() - (int)@filemtime($path) < MEDIA_CACHE_GRACE_SECONDS)) continue;
+        if (isset($keep[$name]) || isset($GLOBALS['media_cache_protect'][$name]) || (!$include_fresh && time() - (int)@filemtime($path) < MEDIA_CACHE_GRACE_SECONDS)) continue;
         $to_remove[$name] = $path;
     }
 
@@ -370,11 +433,12 @@ function ffmpeg_run_progress($args, $out, $timeout, $duration, callable $on_prog
     return proc_close($proc) === 0 && is_file($out) && filesize($out) > 0;
 }
 
-function download_video_temp($url, $max_bytes = VIDEO_MAX_BYTES) {
+function download_video_temp($url, $max_bytes = VIDEO_MAX_BYTES, array $headers = []) {
+    if (str_starts_with((string)$url, FOURCHAN_IMG . '/')) { host_throttle('i.4cdn.org', FOURCHAN_MEDIA_GAP); $headers = $headers ?: fourchan_media_headers($url); }   // 4chan: заголовки браузера и пауза, иначе 429
     if (($path = tempnam(sys_get_temp_dir(), 'ct-video-')) === false || !($handle = @fopen($path, 'wb'))) { if ($path) @unlink($path); return null; }
     $size = 0;
     $ch = curl_init($url);
-    curl_setopt_array($ch, [CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => 90,
+    curl_setopt_array($ch, [CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => 90, CURLOPT_HTTPHEADER => $headers,
         CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_USERAGENT => HTTP_UA,
         CURLOPT_WRITEFUNCTION => function ($c, $chunk) use (&$size, $max_bytes, $handle) { return ($size += strlen($chunk)) > $max_bytes ? 0 : fwrite($handle, $chunk); }]);
     $ok = curl_exec($ch) !== false && (int)curl_getinfo($ch, CURLINFO_HTTP_CODE) === 200;
@@ -553,7 +617,7 @@ function phash_find($hash, array $known) {
 
 // ---- 18+ и «Жесть» ----
 
-/** Разрешён ли пользователю контент 18+ и «Жесть» (флаг ставит администратор: tools/cli.php adult-allow). */
+/** Разрешён ли пользователю контент 18+ и «Жесть» (галочка в «Подборе» или tools/cli.php adult-allow). */
 function user_adult_allowed($uid = null, $reset = false) {
     static $allowed = [];
     $uid ??= app_user_id();
@@ -573,6 +637,17 @@ function content_is_adult(array $r) {
     foreach ((array)($r['tags'] ?? []) as $key) if (content_tag_catalog()[$key]['nsfw'] ?? false) return true;
     if (topic_is_restricted($r['topic'] ?? '')) return true;
     return !empty($r['board']) && in_array(DVACH_ADULT_TAG, dvach_board_tags($r['board']), true);
+}
+
+const CONTENT_LEWD_HUMOR_TAG = 'adult.lewd_humor';   // пошлый юмор при включённом 18+ допускается в любой теме
+
+/** Не пускать в подбор: 18+ при выключенном 18+, а в теме не из 18+ и не «Жесть» — эротику, порно и жесть всегда (кроме пошлого юмора). */
+function content_adult_blocked(array $r, string $topic): bool {
+    if (!content_is_adult($r + ['topic' => $topic])) return false;
+    if (!user_adult_allowed()) return true;
+    if (topic_is_restricted($topic)) return false;
+    foreach ((array)($r['tags'] ?? []) as $key) if ($key !== CONTENT_LEWD_HUMOR_TAG && (content_tag_catalog()[$key]['nsfw'] ?? false)) return true;
+    return false;
 }
 
 /** Запись пользователя (пул или история), у которой этот адрес — картинка, видео или их локальная копия. null — не нашли. */
@@ -602,4 +677,78 @@ function publish_media_denied(array $items) {
         if (($r = content_record_by_media($src)) && content_is_adult($r)) return 'В посте есть материал 18+ или «Жесть» — такое через Posta публиковать нельзя.';
     }
     return null;
+}
+
+/**
+ * Ключ записи по её полям (из формы публикации): тот же, что у пула и истории (content_item_key). Пусто — ключа нет.
+ * $payload — поля записи: image, url, source_url, source_key, board, thread_id, post_id, text, text_post.
+ */
+function content_record_key($payload): string {
+    return is_array($payload) ? content_item_key($payload) : '';
+}
+
+/**
+ * Публикация или постановка в очередь = лайк (POSTED_IS_LIKED_PROMPT.md). Запись из пула уходит в «liked» как лайк;
+ * из истории — в «liked» (из «не знаю», «не понравилось», «жалобы»), у уже лайкнутой отмечается публикация.
+ * Во всех случаях запись скрыта из «Предложки» (proposal_hidden) и получает published_at. Файлы медиа не трогаем.
+ * Возвращает 'liked' — отметили сейчас, 'already' — отмечена раньше, null — такой записи нет. Повтор безопасен.
+ */
+function content_mark_posted(string $key, $uid = null): ?string {
+    if ($key === '') return null;
+    return db_tx(function () use ($key, $uid) {
+        $pool_item = null;
+        pool_update(function ($pool) use ($key, &$pool_item) {
+            $pool_item = pool_find_item($pool, $key);
+            return $pool_item === null ? null : pool_without_image($pool, $key);
+        }, $uid);
+        if ($pool_item !== null) {
+            history_append('liked', ['proposal_hidden' => true, 'published_at' => time()] + content_history_record($pool_item, null), $uid);
+            return 'liked';
+        }
+        $history = history_load($uid);
+        foreach (HISTORY_COLLECTIONS as $c) foreach ($history[$c] ?? [] as $r) {
+            if (!is_array($r) || content_item_key($r) !== $key) continue;
+            if ($c === 'liked') {
+                if (!empty($r['published_at'])) return 'already';
+                history_update(fn($h) => content_mark_in_liked($h, $key, time()), $uid);
+                return 'liked';
+            }
+            history_append('liked', ['proposal_hidden' => true, 'published_at' => time()] + $r, $uid);
+            return 'liked';
+        }
+        return null;
+    });
+}
+
+/** Отметить публикацию у записи в «liked» (только если ещё не отмечена). null — менять нечего. */
+function content_mark_in_liked(array $history, string $key, int $at): ?array {
+    $changed = false;
+    foreach ($history['liked'] ?? [] as $i => $r) {
+        if (!is_array($r) || content_item_key($r) !== $key || !empty($r['published_at'])) continue;
+        $history['liked'][$i] = ['proposal_hidden' => true, 'published_at' => $at] + $r;
+        $changed = true;
+    }
+    return $changed ? $history : null;
+}
+
+/**
+ * Пост из очереди снят до выхода (POSTED_IS_LIKED_PROMPT.md, часть 2.4): запись возвращается в «Предложку».
+ * Остаётся в «liked» (оценка лайк не отзывается). Ничего не отмечено — ничего не делаем.
+ */
+function content_unmark_posted(string $key, $uid = null): bool {
+    if ($key === '') return false;
+    $done = false;
+    history_update(function ($h) use ($key, &$done) {
+        $changed = false;
+        foreach ($h['liked'] ?? [] as $i => $r) {
+            if (!is_array($r) || content_item_key($r) !== $key || empty($r['published_at'])) continue;
+            unset($r['published_at']);
+            $r['proposal_hidden'] = false;
+            $h['liked'][$i] = $r;
+            $changed = true;
+        }
+        $done = $changed;
+        return $changed ? $h : null;
+    }, $uid);
+    return $done;
 }

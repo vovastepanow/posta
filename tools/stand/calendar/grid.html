@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Стенд сетки календаря</title>
+<link rel="stylesheet" href="../../../css/app.css">
+<style>
+  body { display: block; width: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); }
+  .stand { display: block; box-sizing: border-box; width: 100%; padding: 16px; max-width: 1440px; margin: 0 auto; }
+  html, body { overflow-x: hidden; }
+  @media (max-width: 700px) { .stand { padding: 0; } }   /* телефон: поля стенда не нужны */
+  #calendar-tab { display: flex; max-width: none; }
+  #calendar-tab.active { display: flex; }
+  #calendar-tab .cal-main { width: 100%; }
+</style>
+<script>
+// Стенд сетки календаря: настоящие css/app.css и js/calendar.js, а запросы к index.php подменены фикстурой
+// (tools/fixtures/calendar.json). К сайту и к парсеру стенд не обращается.
+// Параметры: ?theme=night|day  &axis=cols|rows  &zoom=7 (дней на экране)  &full=1 (круглые сутки)
+(() => {
+  const params = new URLSearchParams(location.search);
+  document.documentElement.dataset.theme = params.get('theme') === 'night' ? 'night' : 'day';
+  // вид задаётся параметрами каждый раз (без них — дни колонками, неделя, без круглых суток), иначе стенд помнит прошлый прогон
+  localStorage.setItem('postaCalendarAxis', JSON.stringify(params.get('axis') === 'rows' ? 'days-rows' : 'days-cols'));   // readStore читает JSON
+  localStorage.setItem('postaCalendarZoom', params.get('zoom') || '7');
+  localStorage.setItem('postaCalendarFullDay', params.get('full') === '1' ? 'true' : 'false');
+  const real = window.fetch.bind(window);
+  window.standRequests = [];
+
+  // Расписание и посты фикстуры: day — сдвиг от сегодня, time — локальное время браузера
+  const buildCalendar = async () => {
+    const fixture = await (await real('../../fixtures/calendar.json')).json();
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const at = (day, time) => {
+      const [h, m] = time.split(':').map(Number);
+      const d = new Date(today);
+      d.setDate(d.getDate() + day);
+      d.setHours(h, m, 0, 0);
+      return Math.floor(d / 1000);
+    };
+    return {
+      connected: true,
+      now: Math.floor(Date.now() / 1000),
+      channels: fixture.channels.map(c => ({ ...c, schedule: { ...c.schedule, tz: zone } })),
+      posts: fixture.posts.map(({ day, time, ...post }) => ({ ...post, at: at(day, time) })),
+      hints_seen: fixture.hints_seen,
+    };
+  };
+
+  window.fetch = async (url, options) => {
+    const text = String(url);
+    if (!text.includes('index.php')) return real(url, options);
+    window.standRequests.push(text);
+    const action = new URL(text, location.href).searchParams.get('action');
+    const body = action === 'calendar' ? await buildCalendar() : { items: [], posts: [], plan: [], ok: true };
+    return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+})();
+</script>
+</head>
+<body>
+<main class="stand">
+<!-- кнопка вкладки нужна switchTab (он запускает загрузку календаря); на экране её нет -->
+<div style="display: none"><button type="button" class="tab-btn" data-tab="calendar-tab">Календарь</button></div>
+<div id="activity-track" hidden></div>   <!-- журнал действий: log() пишет сюда, на стенде не показан -->
+<div id="console-mini" hidden></div>
+<!-- КАЛЕНДАРЬ: разметка совпадает с index.html (вкладка calendar-tab) -->
+<div id="calendar-tab" class="view-panel wide-panel calendar-panel">
+  <div class="cal-bar">
+    <div class="cal-nav">
+      <button id="cal-prev" type="button" class="account-secondary" aria-label="Назад">‹</button>
+      <h3 id="cal-title" class="cal-title" aria-live="polite"></h3>
+      <button id="cal-next" type="button" class="account-secondary" aria-label="Вперёд">›</button>
+      <button id="cal-today" type="button" class="account-secondary">Сегодня</button>
+    </div>
+    <div class="cal-tools" role="group" aria-label="Вид: день, неделя, месяц">
+      <button type="button" data-cal-zoom="3">3 дня</button>
+      <button type="button" data-cal-zoom="7">Неделя</button>
+      <button type="button" data-cal-zoom="31">Месяц</button>
+    </div>
+    <div class="cal-zoom" role="group" aria-label="Масштаб: сколько дней на экране">
+      <button id="cal-out" type="button" class="account-secondary" aria-label="Отдалить">−</button>
+      <span id="cal-zoom-label" class="cal-zoom-label" aria-live="polite"></span>
+      <button id="cal-in" type="button" class="account-secondary" aria-label="Приблизить">+</button>
+      <span class="cal-wheel-hint">колесо мыши — масштаб</span>
+    </div>
+    <div class="cal-tools" role="group" aria-label="Список, сутки и подсказка">
+      <button type="button" data-cal-view="list">Список</button>
+      <button id="cal-full" type="button" aria-pressed="false">Круглые сутки</button>
+      <button id="cal-axis" type="button" aria-pressed="false" title="Дни колонками или дни строками">Дни ↔ часы</button>
+      <button id="cal-help" type="button" class="cal-help" aria-label="Как пользоваться календарём">?</button>
+    </div>
+  </div>
+  <p id="cal-status" class="cal-status" role="status" aria-live="polite" hidden></p>
+  <p id="cal-empty" class="account-muted" hidden>Подключите Telegram-канал в «Личный кабинет» → «Соцсети», и здесь появится календарь.</p>
+  <div id="cal-main" class="cal-main" hidden>
+    <div class="cal-stage">
+      <aside id="cal-pool-col" class="cal-pool-col" aria-label="Предложка"></aside>
+      <div id="cal-body" class="cal-body" tabindex="0" aria-label="Календарь публикаций"></div>
+      <aside id="cal-panel" class="cal-panel" tabindex="-1" aria-label="Подробности"></aside>
+    </div>
+  </div>
+  <div id="cal-hint" class="cal-hint-layer" hidden>
+    <section class="cal-hint" role="dialog" aria-modal="true" aria-labelledby="cal-hint-title">
+      <h4 id="cal-hint-title" class="cal-hint-title">Как пользоваться календарём</h4>
+      <ul id="cal-hint-lines" class="cal-hint-lines"></ul>
+      <button id="cal-hint-ok" type="button" class="primary-button">Понятно</button>
+    </section>
+  </div>
+</div>
+</main>
+<script type="module">
+import { switchTab } from '../../../js/core.js';
+import { initializeCalendarTab } from '../../../js/calendar.js';
+initializeCalendarTab();
+switchTab('calendar-tab');   // запускает загрузку вкладки (onTabOpen), как при переходе по меню
+</script>
+</body>
+</html>

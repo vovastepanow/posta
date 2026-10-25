@@ -13,6 +13,7 @@ function db(): PDO {
         mkdir($db_dir, 0775, true);
     }
 
+    $old_umask = umask(0002);   // база и её -wal/-shm наследуют права: без группового write CLI (v0v4) и Apache (www-data) не уживаются — «readonly database»
     $pdo = new PDO('sqlite:' . $db_path, null, null, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -22,6 +23,7 @@ function db(): PDO {
     $pdo->exec('PRAGMA busy_timeout=' . DB_BUSY_TIMEOUT_MS);
     $pdo->exec('PRAGMA foreign_keys=ON');
     $pdo->exec('PRAGMA synchronous=NORMAL');
+    umask($old_umask);
 
     db_migrate($pdo);
     return $pdo;
@@ -287,6 +289,87 @@ ALTER TABLE telegram_leads ADD COLUMN reason TEXT;
         // Радар лидов: почему модель отсеяла сообщение (для вкладки «Отсеяно моделью» в админке)
         11 => "
 ALTER TABLE telegram_lead_queue ADD COLUMN ollama_reason TEXT;
+        ",
+        // Стиль канала для подписей от ИИ: описание манеры письма и образцы постов (JSON)
+        12 => "
+ALTER TABLE channels ADD COLUMN style TEXT NOT NULL DEFAULT '{}';
+        ",
+        // Зеркала источников: свой источник пользователя → подборка или очередь его канала без оценки моделью
+        13 => "
+CREATE TABLE IF NOT EXISTS mirrors (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  channel_id TEXT,
+  mode TEXT NOT NULL DEFAULT 'pool',
+  rules TEXT NOT NULL DEFAULT '{}',
+  last_post_key TEXT NOT NULL DEFAULT '[]',
+  last_checked_at INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS mirrors_user ON mirrors(user_id);
+        ",
+        14 => "
+CREATE TABLE IF NOT EXISTS source_verdicts (
+  topic TEXT NOT NULL,
+  source TEXT NOT NULL,
+  passed INTEGER NOT NULL DEFAULT 0,
+  total INTEGER NOT NULL DEFAULT 0,
+  at INTEGER NOT NULL,
+  PRIMARY KEY (topic, source)
+);
+        ",
+        // Хэштеги в постах канала: off | rubric | full (рубрика, имя, формат)
+        15 => "
+ALTER TABLE channels ADD COLUMN hashtags TEXT NOT NULL DEFAULT 'off';
+        ",
+        // Ресурсы соцсетей (AUTOPOST_NETWORKS_PROMPT.md, часть A): таблица пересобрана, т.к. UNIQUE (user_id, chat_id) не годится для других соцсетей.
+        // Telegram: ref = chat_id; токен переезжает в secrets_enc (channels_backfill_secrets). Старые столбцы Telegram остаются.
+        16 => "
+CREATE TABLE channels_v16 (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL DEFAULT 'telegram',
+  ref TEXT NOT NULL DEFAULT '',
+  secrets_enc TEXT NOT NULL DEFAULT '',
+  meta TEXT NOT NULL DEFAULT '{}',
+  position INTEGER NOT NULL DEFAULT 0,
+  token_enc TEXT NOT NULL DEFAULT '',
+  bot_id INTEGER NOT NULL DEFAULT 0,
+  bot_username TEXT NOT NULL DEFAULT '',
+  chat_id INTEGER NOT NULL DEFAULT 0,
+  chat_title TEXT NOT NULL DEFAULT '',
+  chat_username TEXT NOT NULL DEFAULT '',
+  chat_type TEXT NOT NULL DEFAULT '',
+  connected_at INTEGER NOT NULL,
+  schedule TEXT NOT NULL DEFAULT '{}',
+  style TEXT NOT NULL DEFAULT '{}',
+  hashtags TEXT NOT NULL DEFAULT 'off',
+  UNIQUE (user_id, platform, ref)
+);
+INSERT INTO channels_v16 (id, user_id, platform, ref, position, token_enc, bot_id, bot_username, chat_id, chat_title, chat_username, chat_type, connected_at, schedule, style, hashtags)
+    SELECT id, user_id, platform, CAST(chat_id AS TEXT), position, token_enc, bot_id, bot_username, chat_id, chat_title, chat_username, chat_type, connected_at, schedule, style, hashtags FROM channels;
+DROP TABLE channels;
+ALTER TABLE channels_v16 RENAME TO channels;
+CREATE INDEX channels_user ON channels(user_id, position);
+        ",
+        // Быстрая оценка по «мусор ли» (PRESCREEN_SOFTEN_PROMPT.md): старые оценки по теме помечаются версией 1 и не читаются
+        17 => "
+ALTER TABLE screened_cache ADD COLUMN ver INTEGER NOT NULL DEFAULT 1;
+        ",
+        // Свои учётные данные (запасной вход, если Telegram недоступен): логин — почта, телефон или ник; пароль — password_hash
+        18 => "
+ALTER TABLE users ADD COLUMN login TEXT;
+ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS users_login ON users(login) WHERE login IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS login_failures (
+  key TEXT NOT NULL,
+  at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS login_failures_key ON login_failures(key, at);
         "
     ];
 
@@ -295,6 +378,7 @@ ALTER TABLE telegram_lead_queue ADD COLUMN ollama_reason TEXT;
         $pdo->exec('BEGIN IMMEDIATE');
         try {
             $pdo->exec($migrations[$v]);
+            if ($v === 16 && function_exists('channels_backfill_secrets')) channels_backfill_secrets($pdo);
             $pdo->exec('PRAGMA user_version = ' . $v);
             $pdo->exec('COMMIT');
         } catch (Exception $e) {

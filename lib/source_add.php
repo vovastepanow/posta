@@ -20,8 +20,12 @@ function source_parse_link(string $input): array {
         if (!is_valid_vk_domain($m[1])) throw new RuntimeException('Не похоже на ссылку на паблик VK: нужна vk.com/имя.');
         return ['platform' => PLATFORM_VK, 'id' => $m[1]];
     }
+    // Ссылка на группу ОК никогда не уходит в rss_discover: у ОК своя площадка
+    if (preg_match('~^https?://(?:m\.)?ok\.ru(?:[/?#]|$)~i', $input)) return ['platform' => PLATFORM_OK, 'id' => ok_group_id($input)];
+    // TikTok — только ссылкой: голое «@имя» уже разбирается как канал Telegram
+    if (preg_match('~^https?://(?:(?:www|m|vm|vt)\.)?tiktok\.com(?:[/?#]|$)~i', $input)) return ['platform' => PLATFORM_TIKTOK, 'id' => tiktok_user_from_link($input)];
     if (preg_match('~^https?://~i', $input)) {
-        $feed = rss_discover($input);
+        $feed = rss_known_feed($input) ?? rss_discover($input);
         if (!is_valid_rss_url($feed)) throw new RuntimeException('Адрес ленты должен начинаться с https:// и быть не длиннее 500 символов.');
         return ['platform' => PLATFORM_RSS, 'id' => $feed];
     }
@@ -31,7 +35,7 @@ function source_parse_link(string $input): array {
 /** Название паблика VK по адресу; при сбое — сам адрес. */
 function source_vk_title(string $domain): string {
     try {
-        $r = vk_api_request('groups.getById', ['group_id' => $domain]);
+        $r = vk_api_request('groups.getById', ['group_id' => $domain], true);
         $g = $r['groups'][0] ?? $r[0] ?? [];
         return mb_substr(clean_html_text($g['name'] ?? ''), 0, 120) ?: $domain;
     } catch (Throwable $e) { return $domain; }
@@ -47,6 +51,11 @@ function source_probe(array $src): array {
         })(),
         PLATFORM_VK => [source_vk_title($id), build_vk_preview_posts(['id' => $id], 10)],
         PLATFORM_RSS => [rss_feed_title($id), rss_fetch_posts($id, RSS_POSTS_PER_FEED)],
+        PLATFORM_OK => (function () use ($id) {
+            $html = ok_group_html($id);   // одна загрузка страницы: и название, и посты
+            return [ok_title_from_html($html, $id), ok_parse_feed($html, $id, OK_POSTS_PER_GROUP)];
+        })(),
+        PLATFORM_TIKTOK => ['@' . $id, tiktok_fetch_posts($id, TIKTOK_POSTS_PER_ACCOUNT)],
     };
     return [$name, array_values(array_filter($posts, fn($p) => !empty($p['image']) && !is_post_outdated($p['posted_at'] ?? 0)))];
 }
@@ -61,7 +70,7 @@ function source_add_quota_take($uid): void {
 /** Добавляет источник в каталог с темой пользователя. ['platform', 'id', 'name', 'added' => новый для темы?, 'posts' => n]. */
 function source_add_manual(string $input, string $topic): array {
     $src = source_parse_link($input);
-    if ($src['platform'] === PLATFORM_VK && !vk_is_connected()) throw new RuntimeException('Сначала подключите VK на вкладке «Источники».');
+    if ($src['platform'] === PLATFORM_VK && !vk_can_read()) throw new RuntimeException('Сначала подключите VK на вкладке «Источники».');
     source_add_quota_take(app_user_id());
     [$name, $posts] = source_probe($src);
     if (!$posts) throw new RuntimeException('В источнике нет свежих постов с картинками.');

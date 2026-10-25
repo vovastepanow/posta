@@ -1,5 +1,5 @@
 // editor.js — окно выбора даты и времени и модальный редактор поста (порядок медиа, текст, отправка через onSubmit).
-import { el, pluralRu } from './core.js';
+import { VIDEO_ICON, api, el, pluralRu } from './core.js';
 
 // ---- Дата и время ----
 
@@ -92,6 +92,13 @@ function buildUi() {
         counter: el('span', { className: 'pe-counter' }), summary: el('span', { className: 'pe-summary' }), warning: el('p', { className: 'pe-warning', role: 'alert', hidden: true }),
         original: button('pe-chip-btn', 'Текст оригинала', () => setText(session.options.original)),
         description: button('pe-chip-btn', 'Описание ИИ', () => setText(session.options.description)),
+        aiButton: button('pe-chip-btn pe-chip-ai', '✨ Подпись от ИИ', aiCaption, { title: 'ИИ напишет подпись в стиле канала; если в поле уже есть ваш текст — улучшит его' }),
+        excerptButton: button('pe-chip-btn pe-chip-ai', '✂ Сделать выжимку', makeExcerpt, { title: 'Выжимка 2–3 предложения из статьи, своими словами; ссылка на источник добавится' }),
+        aiNote: el('p', { className: 'pe-ai-note', role: 'status' }),
+        tags: el('div', { className: 'pe-tags', hidden: true }),
+        styleText: el('textarea', { className: 'pe-style-text', rows: 5, maxLength: 1200, spellcheck: true,
+            placeholder: 'Опишите, как пишут в канале: тон, длина, эмодзи, хештеги… Или нажмите «Изучить по постам».' }),
+        styleNote: el('p', { className: 'pe-ai-note' }),
         progress: el('div', { className: 'pe-progress-wrap', hidden: true }, el('span', { className: 'pe-progress-label' }),
             el('div', { className: 'pe-progress-bar' }, el('div', { className: 'pe-progress-fill' })), el('span', { className: 'pe-progress-text' })),
         question: el('input', { type: 'text', className: 'pe-input', maxLength: 300, placeholder: 'Вопрос опроса' }),
@@ -101,14 +108,18 @@ function buildUi() {
     const reset = button('pe-btn pe-btn-ghost', 'Сбросить правки', () => {
         drafts.delete(session.options.key);
         session.media = session.options.media.map(m => ({ ...m }));
+        session.tags = [...(session.options.hashtags || [])];
         u.text.value = session.options.original || session.options.description || '';
         u.note.textContent = '';
         render();
     });
     u.mediaSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Медиа' }), u.count), u.grid,
         el('div', { className: 'pe-url-row' }, u.url, button('pe-btn pe-btn-ghost', 'Добавить по ссылке', addByUrl)), u.note, u.file);
+    u.learnButton = button('pe-chip-btn', 'Изучить по постам', learnStyle, { title: 'ИИ прочитает последние посты канала и опишет манеру письма (один раз, пара минут)' });
+    u.styleBox = el('details', { className: 'pe-style' }, el('summary', { textContent: 'Стиль канала' }), u.styleText,
+        el('div', { className: 'pe-chip-row' }, button('pe-chip-btn', 'Сохранить стиль', saveStyle), u.learnButton), u.styleNote);
     u.textSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Текст' }), u.counter), u.text,
-        el('div', { className: 'pe-chip-row' }, u.original, u.description, button('pe-chip-btn', 'Очистить', () => setText(''))));
+        el('div', { className: 'pe-chip-row' }, u.original, u.description, u.aiButton, u.excerptButton, button('pe-chip-btn', 'Очистить', () => setText(''))), u.aiNote, u.tags, u.styleBox);
     u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), u.question, u.pollOptions, u.addOption);
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
@@ -135,6 +146,94 @@ function buildUi() {
     u.form.addEventListener('submit', submit);
     document.body.append(u.overlay);
     return u;
+}
+
+// ---- Подпись от ИИ и стиль канала (сервер: lib/channel_style.php; options.ai задаёт content.js) ----
+
+const styleTarget = () => session.options.picked[0];
+
+/** Стиль канала первой выбранной цели → поля блока «Стиль канала». */
+function renderStyle() {
+    const ai = session.options.ai;
+    ui.aiButton.hidden = ui.styleBox.hidden = !ai;
+    ui.excerptButton.hidden = !(ai && session.options.newsUrl);   // выжимка — только для новости со ссылкой на источник
+    if (!ai) return;
+    const st = ai.style(styleTarget());
+    ui.styleText.value = st.summary || '';
+    ui.learnButton.hidden = !st.can_learn;
+    const when = st.updated_at ? new Date(st.updated_at * 1000).toLocaleDateString('ru-RU') : '';
+    ui.styleNote.textContent = st.busy ? 'Изучаю стиль канала…'
+        : st.summary ? (st.source === 'manual' ? 'Описано вручную' : `Изучено по постам канала ${when}${st.stale ? ' — давно не обновлялось, нажмите «Изучить по постам»' : ''}`)
+        : (st.error || 'Стиль не задан: подписи пишутся в нейтральной манере');
+}
+
+function setAiBusy(message) {
+    ui.aiBusy = Boolean(message);
+    ui.aiButton.disabled = ui.aiBusy;
+    ui.aiNote.textContent = message;
+}
+
+async function aiCaption() {
+    const o = session.options;
+    if (!o.ai || ui.aiBusy) return;
+    const target = styleTarget();
+    let warning = '';
+    try {
+        setAiBusy('ИИ пишет подпись…');
+        let st = o.ai.style(target);
+        if (!st.summary && st.can_learn && !st.error) {   // стиль ещё не изучен: один раз по постам канала, дальше он хранится в профиле
+            setAiBusy('Изучаю стиль канала по постам — это один раз, около двух минут…');
+            st = await o.ai.learn(target);
+            renderStyle();
+            if (!st.summary && st.error) warning = `Стиль изучить не вышло: ${st.error}`;
+            setAiBusy('ИИ пишет подпись…');
+        }
+        const typed = ui.text.value.trim();
+        const mine = typed && typed !== (o.original || '').trim() && typed !== (o.description || '').trim() ? typed : '';   // чужой текст по умолчанию черновиком не считаем
+        ui.text.value = await o.ai.generate(target, { description: o.description || '', original: o.original || '', current: mine });
+        render();
+        setAiBusy('');
+        ui.aiNote.textContent = warning ? `${warning} Подпись написана в нейтральной манере.` : '';
+    } catch (error) {
+        setAiBusy('');
+        ui.aiNote.textContent = error.message;
+    }
+}
+
+/** Выжимка из статьи новости: заголовок, 2–3 предложения и ссылка на источник; текст поля заменяется. */
+async function makeExcerpt() {
+    const o = session.options;
+    if (!o.ai || !o.newsUrl || ui.aiBusy) return;
+    try {
+        setAiBusy('Читаю статью и делаю выжимку…');
+        const excerpt = await o.ai.excerpt(o.newsUrl);
+        const title = (o.original || '').split('\n')[0].replace(/^\*\*|\*\*$/g, '').trim();
+        ui.text.value = [title, excerpt, `Источник: ${o.newsUrl}`].filter(Boolean).join('\n\n');
+        render();
+        setAiBusy('');
+        ui.aiNote.textContent = 'Выжимка вставлена в текст. Проверьте её перед публикацией.';
+    } catch (error) { setAiBusy(''); ui.aiNote.textContent = error.message; }
+}
+
+async function learnStyle() {
+    const o = session.options;
+    if (!o.ai || ui.aiBusy) return;
+    try {
+        setAiBusy('Изучаю стиль канала по постам — около двух минут…');
+        await o.ai.learn(styleTarget());
+        setAiBusy('');
+    } catch (error) { setAiBusy(''); ui.aiNote.textContent = error.message; }
+    renderStyle();
+}
+
+async function saveStyle() {
+    const o = session.options;
+    if (!o.ai || ui.aiBusy) return;
+    try {
+        await o.ai.save(styleTarget(), ui.styleText.value);
+        ui.aiNote.textContent = '';
+    } catch (error) { ui.aiNote.textContent = error.message; }
+    renderStyle();
 }
 
 function setText(value) { ui.text.value = value; render(); ui.text.focus(); }
@@ -167,7 +266,7 @@ function move(from, to) {
 function mediaCard(item, i, total) {
     const preview = item.kind === 'video' ? el('video', { src: item.src, poster: item.thumb || '', muted: true, preload: 'metadata', playsInline: true }) : el('img', { src: item.thumb || item.src, alt: '', draggable: false });
     const card = el('div', { className: 'pe-card', draggable: true }, preview, el('span', { className: 'pe-order', textContent: String(i + 1) }),
-        item.kind === 'video' ? el('span', { className: 'pe-play', textContent: '▶' }) : null,
+        item.kind === 'video' ? el('span', { className: 'video-mark', innerHTML: VIDEO_ICON }) : null,
         el('div', { className: 'pe-card-tools' }, button('pe-tool', '‹', () => move(i, i - 1), { ariaLabel: 'Сдвинуть влево', disabled: i === 0 }),
             button('pe-tool pe-tool-danger', '✕', () => { session.media.splice(i, 1); render(); }, { ariaLabel: 'Убрать из поста' }),
             button('pe-tool', '›', () => move(i, i + 1), { ariaLabel: 'Сдвинуть вправо', disabled: i === total - 1 })));
@@ -200,7 +299,46 @@ function render() {
     ui.summary.textContent = `${media.length} медиа · ${text.length} ${pluralRu(text.length, 'символ', 'символа', 'символов')} · ${options.picked.length} ${pluralRu(options.picked.length, 'ресурс', 'ресурса', 'ресурсов')}`;
     ui.original.disabled = !options.original;
     ui.description.disabled = !options.description;
-    drafts.set(options.key, { media: media.map(m => ({ ...m })), text });
+    drafts.set(options.key, { media: media.map(m => ({ ...m })), text, tags: [...session.tags] });
+    renderTags();
+}
+
+const HASHTAG_MODE_NOTE = { rubric: 'только рубрика', full: 'рубрика, имя и формат' };
+
+/** Режим хэштегов выбранных каналов: самый полный из них; off — строки нет. */
+const tagMode = o => (o.targets.some(t => o.picked.includes(t.value) && t.hashtags === 'full') ? 'full'
+    : o.targets.some(t => o.picked.includes(t.value) && t.hashtags === 'rubric') ? 'rubric' : 'off');
+
+/** Строка хэштегов под текстом: чипы с ✕ и поле «+ тег» с подсказками словаря. Теги допишет сервер последней строкой. */
+function renderTags() {
+    const mode = tagMode(session.options);
+    ui.tags.hidden = mode === 'off' || Boolean(session.poll);
+    if (ui.tags.hidden) return;
+    const input = el('input', { type: 'text', className: 'pe-tag-input', placeholder: '+ тег', maxLength: 17, autocomplete: 'off', ariaLabel: 'Добавить хэштег' });
+    const hints = el('div', { className: 'pe-tag-hints' });
+    const add = tag => {
+        const clean = `#${String(tag).replace(/^#+/, '').trim().toLowerCase().replaceAll('ё', 'е')}`;
+        if (clean.length > 1 && !session.tags.includes(clean) && session.tags.length < 3) session.tags.push(clean);
+        render();
+    };
+    let timer = 0;
+    input.oninput = () => {
+        clearTimeout(timer);
+        const q = input.value.replace(/^#+/, '').trim();
+        if (!q) { hints.replaceChildren(); return; }
+        timer = setTimeout(async () => {
+            try {
+                const { tags } = await api('hashtag_suggest', { params: { q } });
+                hints.replaceChildren(...tags.map(t => button('pe-tag-hint', `#${t.tag}`, () => add(t.tag))));
+            } catch { hints.replaceChildren(); }
+        }, 200);
+    };
+    input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); add(input.value); } };
+    ui.tags.replaceChildren(
+        el('span', { className: 'pe-tags-label', textContent: 'Хэштеги', title: `В канал: ${HASHTAG_MODE_NOTE[mode]}. Допишутся последней строкой; если подпись не влезает в лимит, лишние снимутся с конца.` }),
+        ...session.tags.map(tag => el('span', { className: 'pe-tag' }, tag,
+            button('pe-tag-del', '✕', () => { session.tags = session.tags.filter(t => t !== tag); render(); }, { ariaLabel: `Убрать ${tag}` }))),
+        session.tags.length < 3 ? input : null, hints);
 }
 
 /** Подпись выбранных ресурсов: имя одного или «N из M». */
@@ -235,6 +373,7 @@ function togglePicked(value, box) {
     o.picked = o.targets.map(t => t.value).filter(v => picked.includes(v));
     ui.targetLabel.textContent = `${targetLabel(o)} ▾`;
     render();
+    renderStyle();
 }
 
 /** Опрос вместо поста: медиа и текст скрываются, открываются вопрос и варианты. Через «Отложенные» Telegram опрос не ставится. */
@@ -368,7 +507,8 @@ async function submit(e) {
         const { poll } = session;
         const post = { targets: [...options.picked], mode: options.mode, scheduledAt: options.scheduledAt, scheduledTs: options.mode === 'now' ? 0 : options.scheduledTs || 0,
             media: poll ? [] : media.map(({ kind, src, name, file }) => ({ kind, src, name, file })), text: poll ? '' : ui.text.value.trim(),
-            poll: poll ? { question: poll.question.trim(), options: poll.options.map(v => v.trim()).filter(Boolean) } : null };
+            poll: poll ? { question: poll.question.trim(), options: poll.options.map(v => v.trim()).filter(Boolean) } : null,
+            hashtags: poll || ui.tags.hidden ? [] : [...session.tags] };
         await options.onSubmit(post, onProgress);
         drafts.delete(options.key);
         closeEditor();
@@ -389,21 +529,23 @@ function closeEditor() {
     session = null;
 }
 
-/** options: { key, targets: [{value, label}], picked: [value], scheduledAt, scheduledTs, media: [{kind, src, thumb, name}], original, description, schedule, onSubmit(post) → Promise }.
+/** options: { key, targets: [{value, label, hashtags}], picked: [value], hashtags: ['#рубрика', …], scheduledAt, scheduledTs, media: [{kind, src, thumb, name}], original, description, schedule, onSubmit(post) → Promise }.
  *  post.targets — значения выбранных ресурсов; post.poll — {question, options} вместо текста и медиа. */
 export function openPostEditor(options) {
     ui ||= buildUi();
     options.mode ??= options.scheduledTs ? (options.schedule?.native ? 'native' : 'queue') : 'now';
     options.picked = [...options.picked];
     const draft = drafts.get(options.key);
-    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: null, dragFrom: null };
+    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: null, dragFrom: null, tags: [...(draft?.tags || options.hashtags || [])] };
     renderPoll();
     renderWhen();
     ui.text.value = draft ? draft.text : (options.original || options.description || '');
     ui.note.textContent = ui.url.value = '';
+    ui.aiNote.textContent = '';
     ui.overlay.hidden = false;
     document.body.classList.add('post-editor-open');
     render();
+    renderStyle();
     ui.text.focus();
     ui.text.setSelectionRange(ui.text.value.length, ui.text.value.length);
 }

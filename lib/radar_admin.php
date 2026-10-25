@@ -1,86 +1,33 @@
 <?php
-// Админка радара лидов (admin/index.php): вход по паролю владельца, аккаунт радара, поиск чатов, проход и журнал, лиды.
-// Код админки не создаёт и не привязывает пользователей приложения: uid берётся из kv `admin:radar` и передаётся явно.
+// Вкладка «Радар» (только владелец): аккаунт радара, поиск чатов, проход и журнал, лиды; режим «только быстрая модель». Маршруты — handlers/radar.php.
+// Владелец — пользователи приложения из kv `admin:owners` (tools/cli.php radar-owner). Остальным вкладка не видна и API отвечает 404.
 
 require_once __DIR__ . '/lead_radar.php';
 
-const ADMIN_SESSION_TTL = 43200;      // 12 часов бездействия
-const ADMIN_LOGIN_FAILS = 5;          // неудачных входов за окно
-const ADMIN_LOGIN_WINDOW = 900;       // окно подсчёта и блокировки, секунд
-const ADMIN_GET = ['session', 'accounts', 'settings', 'scan_log', 'leads', 'stats', 'rejected'];
-const ADMIN_POST = ['login', 'logout', 'account_select', 'settings_save', 'chats_search', 'scan_start', 'lead_status', 'rejected_retry'];
+const ADMIN_GET = ['accounts', 'settings', 'scan_log', 'leads', 'stats', 'rejected', 'models'];
+const ADMIN_POST = ['account_select', 'settings_save', 'chats_search', 'scan_start', 'lead_status', 'rejected_retry', 'models_save'];
 const ADMIN_LEAD_STATUSES = ['new', 'interested', 'replied', 'spam', 'ignored'];
+const ADMIN_MIN_MEMBERS = 50;
 const ADMIN_DEFAULT_QUERIES = ['автопостинг', 'чат админов телеграм', 'админы каналов', 'smm чат', 'продвижение телеграм канала',
     'контент для канала', 'отложенный постинг', 'владельцы каналов', 'ведение телеграм канала', 'реклама в телеграм каналах'];
 
-// ---- Пароль и сессия ----
+// ---- Владелец ----
 
-function admin_password_set($password) {
-    if (mb_strlen((string)$password) < 10) throw new RuntimeException('Пароль короче 10 символов.');
-    kv_update('admin:password_hash', fn() => password_hash($password, PASSWORD_DEFAULT));
+function radar_owners(): array { return array_values(array_filter((array)kv_get('admin:owners', []), 'is_string')); }
+
+function radar_is_owner(?string $uid = null): bool {
+    $uid ??= app_user_bind();
+    return $uid !== '' && in_array($uid, radar_owners(), true);
 }
 
-function admin_password_hash(): ?string {
-    $hash = kv_get('admin:password_hash');
-    return is_string($hash) && $hash !== '' ? $hash : null;
+function radar_owner_set(string $uid, bool $on) {
+    if (!is_valid_user_id($uid) || !db_value('SELECT 1 FROM users WHERE id = ?', [$uid])) throw new RuntimeException('Нет такого пользователя.');
+    kv_update('admin:owners', fn($list) => array_values(array_unique($on ? [...(array)$list, $uid] : array_diff((array)$list, [$uid]))), []);
 }
 
-/** Своя PHP-сессия владельца: отдельное имя, cookie только для каталога админки. */
-function admin_session_start() {
-    $https = ($_SERVER['HTTPS'] ?? '') !== '' && $_SERVER['HTTPS'] !== 'off';
-    ini_set('session.gc_maxlifetime', (string)ADMIN_SESSION_TTL);
-    session_name('posta_admin');
-    session_set_cookie_params(['lifetime' => 0, 'path' => rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/admin/index.php'), '/') . '/',
-        'secure' => $https, 'httponly' => true, 'samesite' => 'Strict']);
-    session_start();
-    if (!empty($_SESSION['admin']) && time() - (int)($_SESSION['last'] ?? 0) > ADMIN_SESSION_TTL) $_SESSION = [];
-    if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
-    if (!empty($_SESSION['admin'])) $_SESSION['last'] = time();
-}
-
-function admin_is_logged(): bool { return !empty($_SESSION['admin']); }
-
-function admin_csrf_ok(): bool {
-    return hash_equals((string)($_SESSION['csrf'] ?? ''), (string)($_SERVER['HTTP_X_ADMIN_CSRF'] ?? ''));
-}
-
-/** Неудачные входы с одного IP за последние 15 минут. */
-function admin_fail_key(): string { return 'admin:fails:' . sha1((string)($_SERVER['REMOTE_ADDR'] ?? '')); }
-
-function admin_fails_recent(): array {
-    return array_values(array_filter((array)kv_get(admin_fail_key(), []), fn($t) => $t > time() - ADMIN_LOGIN_WINDOW));
-}
-
-function admin_login($password) {
-    if (count(admin_fails_recent()) >= ADMIN_LOGIN_FAILS) throw new AdminHttpError('Слишком много попыток, подождите 15 минут.', 429);
-    $hash = admin_password_hash() ?? throw new RuntimeException('Пароль не задан: php tools/cli.php admin-password');
-    if (!password_verify((string)$password, $hash)) {
-        kv_update(admin_fail_key(), fn() => [...admin_fails_recent(), time()]);
-        throw new AdminHttpError('Неверный пароль.', 401);
-    }
-    kv_update(admin_fail_key(), fn() => []);
-    session_regenerate_id(true);
-    $_SESSION = ['admin' => true, 'csrf' => bin2hex(random_bytes(16)), 'last' => time()];
-    return ['csrf' => $_SESSION['csrf']];
-}
-
-/** Ошибка админки с HTTP-кодом (401, 403, 404, 429). */
+/** Ошибка радара с HTTP-кодом (404). */
 class AdminHttpError extends RuntimeException {
     public function __construct(string $message, public int $status = 400) { parent::__construct($message); }
-}
-
-// ---- Действия API: функция admin_api_<действие>($input) возвращает массив ответа ----
-
-function admin_api_session($in) {
-    return ['admin' => admin_is_logged(), 'csrf' => $_SESSION['csrf'], 'configured' => admin_password_hash() !== null];
-}
-
-function admin_api_login($in) { return admin_login($in['password'] ?? ''); }
-
-function admin_api_logout($in) {
-    $_SESSION = [];
-    session_destroy();
-    return [];
 }
 
 // ---- Аккаунт радара и настройки ----
@@ -95,9 +42,10 @@ function admin_account_uid(): ?string {
     $uid = kv_get('admin:radar', [])['account_uid'] ?? null;
     $connected = admin_connected_uids();
     if ($uid !== null && in_array($uid, $connected, true)) return $uid;
-    if (count($connected) !== 1) return null;
-    kv_update('admin:radar', fn($c) => ['account_uid' => $connected[0]] + (array)$c);
-    return $connected[0];
+    $mine = app_user_bind();
+    $pick = in_array($mine, $connected, true) ? $mine : (count($connected) === 1 ? $connected[0] : null);
+    if ($pick !== null) kv_update('admin:radar', fn($c) => ['account_uid' => $pick] + (array)$c);
+    return $pick;
 }
 
 function admin_account_required(): string {
@@ -171,7 +119,7 @@ function admin_api_chats_search($in) {
     $queries = admin_validate_queries($in['queries'] ?? []);
     if (!$queries) throw new RuntimeException('Введите хотя бы один запрос.');
     $added = array_map('strtolower', lead_radar_settings($uid)['chats'] ?? []);
-    $found = array_filter(telegram_user_find_chats($queries, $uid), fn($c) => (int)$c['members'] >= 50 && !in_array('@' . strtolower($c['username']), $added, true));
+    $found = array_filter(telegram_user_find_chats($queries, $uid), fn($c) => (int)$c['members'] >= ADMIN_MIN_MEMBERS && !in_array('@' . strtolower($c['username']), $added, true));
     usort($found, fn($a, $b) => $b['members'] <=> $a['members']);
     return ['chats' => array_map(fn($c) => ['ref' => '@' . $c['username'], 'title' => (string)$c['title'], 'members' => (int)$c['members'], 'query' => (string)$c['query']], $found)];
 }
@@ -254,4 +202,21 @@ function admin_api_rejected_retry($in) {
         WHERE id = ? AND user_id = ? AND status = 'processed'", [(int)($in['id'] ?? 0), $uid]);
     if (!$changed) throw new AdminHttpError('Сообщение не найдено.', 404);
     return [];
+}
+
+// ---- Модели: режим «только быстрая модель» ----
+
+/** Без пробного запроса к модели (как панель модели): первая установленная из PRESCREEN_MODELS. */
+function admin_api_models($in) {
+    $fast = array_values(array_filter(PRESCREEN_MODELS, 'model_installed'))[0] ?? '';
+    $on = fast_only_mode() && $fast !== '';
+    return ['fast_only' => fast_only_mode(), 'fast_model' => $fast ?: PRESCREEN_MODELS[0], 'fast_installed' => $fast !== '', 'main_model' => ANALYSIS_MODEL,
+        'analysis' => $on ? $fast : ANALYSIS_MODEL, 'smart' => $on ? $fast : SMART_MODEL];
+}
+
+function admin_api_models_save($in) {
+    $on = !empty($in['fast_only']);
+    if ($on && !array_filter(PRESCREEN_MODELS, 'model_installed')) throw new RuntimeException('Быстрая модель не установлена: ollama pull ' . PRESCREEN_MODELS[0]);
+    fast_only_set($on);
+    return admin_api_models([]);
 }

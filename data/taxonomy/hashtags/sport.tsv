@@ -1,0 +1,9 @@
+# тег<TAB>темы<TAB>kind (rubric — одна на тему, entity — имя, format — вид поста)<TAB>синонимы через |
+футбол	sport.football	rubric	football|футболисты|футболист|футбольный|матч|матчи|голы|гол|goal|трансфер|трансферы|футбольный_клуб|клуб_футбол|лига|лиги|премьер_лига
+единоборства	sport.fight	rubric	бои|бойцы|бокс|боксер|mma|мма|mma_бои|борьба|борец|борцы|кикбоксинг|кик_бокс
+спорт	sport.other	rubric	sport
+ufc	sport.fight	entity	юфс
+хоккей	sport.hockey	rubric	кхл|nhl|нхл
+баскетбол	sport.basketball	rubric	nba|нба
+автоспорт	sport.motorsport	rubric	формула1|f1|ралли
+экстрим	sport.extreme	rubric	скейт|паркур|сноуборд|bmx

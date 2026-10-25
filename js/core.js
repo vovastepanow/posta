@@ -19,20 +19,43 @@ export const COUNT = new Intl.NumberFormat('ru-RU', { notation: 'compact', maxim
 export const chip = (label, value, title = '', className = '') => el('span', { className: `eng-chip ${className}`.trim(), title }, `${label} `, el('b', { textContent: value }));
 
 /** Метки записи от ИИ (tags_info с сервера) в контейнер; нет меток — контейнер скрыт. */
-export function renderTags(container, tags) {
-    container.replaceChildren(...(tags || []).map(t => el('span', { className: `tag-chip${t.nsfw ? ' is-nsfw' : ''}`, title: t.path, textContent: t.title })));
+export function renderTags(container, tags, onPick = null) {
+    // Метки записи — как хэштеги; onPick(метка) — клик «искать по теме #…»
+    container.replaceChildren(...(tags || []).map(t => el('span', { className: `tag-chip${t.nsfw ? ' is-nsfw' : ''}${onPick ? ' is-hashtag' : ''}`, title: onPick ? `Искать по теме «${t.title}»` : t.path,
+        textContent: onPick ? t.title.replace(/\s+/g, '_') : t.title, onclick: onPick ? () => onPick(t) : null })));
     container.hidden = !tags?.length;
 }
 export const VIDEO_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="13" height="12" rx="3" fill="currentColor"/><path d="M16.5 10.2 21 7.6v8.8l-4.5-2.6z" fill="currentColor"/></svg>';
 export const NO_TEXT = ['Текст к посту отсутствует', 'Пост без текста'];
+export const PHOTO_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="1.8" fill="currentColor"/><path d="M4 17l5-5 4 4 2-2 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+
+/** Подпись для отправки: заглушки «Пост без текста» и т.п. не уходят (как post_caption_clean на сервере). */
+export function cleanCaption(text) { return NO_TEXT.includes(String(text || '').trim()) ? '' : String(text || ''); }
+
+/** Тип содержимого вместо пустой подписи в карточке: «видео 0:42», «альбом · 4», «фото», «опрос». */
+export function postTypeLabel(post) {
+    if (post.poll) return 'опрос';
+    if (post.media > 1) return `альбом · ${post.media}`;
+    if (post.kind === 'video') return post.duration ? `видео ${Math.floor(post.duration / 60)}:${String(post.duration % 60).padStart(2, '0')}` : 'видео';
+    if (post.kind === 'photo') return 'фото';
+    if (post.kind === 'animation') return 'гифка';
+    return post.media > 0 ? 'медиа' : 'без подписи';
+}
 
 /** Ссылка на исходный пост — только HTTPS и известные площадки (та же проверка, что на сервере). */
+/** Адрес ролика для кнопки «Загрузить видео»: пост Telegram, видео TikTok или YouTube (Shorts и обычные ролики); иначе ''. Общий помощник для всех мест галереи. */
+export function videoPageFor(url) {
+    const s = String(url || '');
+    return /^https:\/\/t\.me\/[A-Za-z0-9_]{4,32}\/\d+$/.test(s) || /^https:\/\/www\.tiktok\.com\/@[A-Za-z0-9_.]{2,24}\/video\/\d{5,25}$/.test(s)
+        || /^https:\/\/www\.youtube\.com\/(shorts\/|watch\?v=)[A-Za-z0-9_-]{11}$/.test(s) ? s : '';
+}
+
 export function safeSourcePostUrl(record) {
     try {
         const url = new URL(record?.source_url);
         if (url.protocol !== 'https:') return '';
         // RSS: адрес уже проверен сервером (source_post_url) — хост совпадает с хостом ленты
-        return String(record?.source_key || '').startsWith('rss:') || ['2ch.hk', 't.me', 'vk.com'].includes(url.hostname) ? url.href : '';
+        return String(record?.source_key || '').startsWith('rss:') || ['2ch.hk', 't.me', 'vk.com', 'ok.ru', 'www.tiktok.com', 'x.com', 'boards.4chan.org'].includes(url.hostname) ? url.href : '';
     } catch { return ''; }
 }
 
@@ -66,14 +89,14 @@ export function bindMenu(button, menu, onPick) {
 // ---- Текущая тема поиска: одно место на всё приложение ----
 // Сама настройка живёт на сервере (settings.topic); здесь — её последняя копия. Записывает только refreshTopicLabel,
 // остальные (подбор, «Предложка», «Дерево», «Базы данных») читают currentTopic() и перерисовываются по onTopicChange.
-const topicState = { topic: '', topic2: '' };
+const topicState = { topic: '', topic2: '', query: '' };
 const topicListeners = new Set();
 export const currentTopic = () => ({ ...topicState });
 export const onTopicChange = fn => topicListeners.add(fn);
-export function setCurrentTopic(topic, topic2 = '') {
-    if (topic === topicState.topic && topic2 === topicState.topic2) return;
+export function setCurrentTopic(topic, topic2 = '', query = '') {
+    if (topic === topicState.topic && topic2 === topicState.topic2 && query === topicState.query) return;
     const first = topicState.topic === '';
-    Object.assign(topicState, { topic, topic2 });
+    Object.assign(topicState, { topic, topic2, query });
     if (!first) topicListeners.forEach(fn => fn(currentTopic()));   // первая загрузка — не смена
 }
 
@@ -90,7 +113,7 @@ const LINK = new RegExp([
     String.raw`(?<vkPrefix>Парсинг ВКонтакте )(?<vk>[A-Za-z0-9_.]{2,64}?)(?=\.\.\.|[\s,]|$)`,
     String.raw`(?<=^|[\s,(:])\/(?<boardOnly>[a-z0-9]{1,10})\/(?=[\s,.;)]|$)`
 ].join('|'), 'gu');
-const console_ = { lines: 0, parserLines: [], waitingShown: false, followsTail: true, live: null };
+const console_ = { box: null, lines: 0, parserLines: [], waitingShown: false, followsTail: true, live: null };
 
 const logLink = (href, textContent) => el('a', { className: 'console-link', href, textContent, target: '_blank', rel: 'noopener noreferrer', onclick: e => e.stopPropagation() });
 
@@ -126,7 +149,33 @@ function appendConsole(entry) {
     if (console_.followsTail) track.scrollTop = track.scrollHeight;
 }
 
+/** Плашка вместо псевдографики: строки «╔═╗ / ║ … ║ / ╚═╝» от парсера собираются в одну карточку (заголовок и пары «подпись — значение»). */
+const BOX_TOP = /^\s*╔/, BOX_BOTTOM = /^\s*╚/, BOX_ROW = /^\s*║(.*?)\s*║?\s*$/;
+function boxLine(message) {
+    if (BOX_TOP.test(message)) {
+        const body = el('div', { className: 'console-box-body' });
+        console_.box = { body, rows: 0 };
+        appendConsole(el('div', { className: 'activity-console-line console-box' }, body));
+        return true;
+    }
+    if (!console_.box) return false;
+    if (BOX_BOTTOM.test(message)) { console_.box = null; return true; }
+    const row = BOX_ROW.exec(message);
+    if (!row) { console_.box = null; return false; }
+    const text = row[1].trim();
+    if (!text) return true;
+    if (!console_.box.rows++) console_.box.body.append(el('div', { className: 'console-box-title', textContent: text }));
+    else {
+        const [, label, value] = /^([^:«]{1,40}):\s*(.*)$/.exec(text) || [, '', text];
+        console_.box.body.append(el('div', { className: 'console-box-row' }, label ? el('span', { className: 'console-box-key', textContent: label }) : null,
+            el('span', { className: 'console-box-value', textContent: value.replace(/^«/, '').replace(/»$/, '').trim() })));
+    }
+    if (console_.followsTail) $('activity-track').scrollTop = $('activity-track').scrollHeight;
+    return true;
+}
+
 export function log(message) {
+    if (!String(message ?? '').trim() || boxLine(String(message))) return;
     const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const ai = AI_LINE.exec(message);
     if (!ai) return appendConsole(el('p', { className: 'activity-console-line' }, el('span', { className: 'console-time', textContent: time }), ' ', ...linkify(message)));
@@ -237,6 +286,9 @@ async function pollParser() {
     }
     $('activity-console-status').textContent = statusText;
     $('activity-console').classList.toggle('is-active', running);
+    $('console-mini-status').textContent = statusText;   // свёрнутый журнал повторяет статус
+    $('console-mini-status').title = statusText;
+    $('console-mini').classList.toggle('is-active', running);
     parser.busy = false;
     parser.timer = setTimeout(pollParser, running ? 2000 : 15000);
 }
@@ -257,6 +309,38 @@ export function switchTab(tab) {
     document.querySelectorAll('.view-panel').forEach(panel => panel.classList.toggle('active', panel.id === tab));
     document.querySelectorAll('.tab-btn[data-tab]').forEach(b => { b.classList.toggle('active', b === button); b.setAttribute('aria-selected', String(b === button)); });
     tabHandlers[tab]?.forEach(handler => handler());
+    applyConsoleState();
+}
+
+// Журнал — всплывающая панель поверх страницы, вёрстка от неё не зависит: одно состояние на приложение, в localStorage. По умолчанию — свёрнут.
+// Кнопка #console-mini в шапке видна всегда и открывает/закрывает панель. Ошибки хранилища не мешают работе.
+const CONSOLE_KEY = 'postaConsoleCollapsed';
+const consoleCollapsedPref = () => { try { return localStorage.getItem(CONSOLE_KEY) !== '0'; } catch (e) { return true; } };
+
+function applyConsoleState() {
+    const collapsed = consoleCollapsedPref();
+    document.body.classList.toggle('console-collapsed', collapsed);
+    const toggle = $('console-toggle');   // на страницах без журнала кнопки нет
+    if (toggle) {
+        toggle.textContent = collapsed ? '+' : '—';
+        toggle.title = collapsed ? 'Развернуть журнал' : 'Свернуть журнал';
+        toggle.setAttribute('aria-label', toggle.title);
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+    }
+    $('console-mini').setAttribute('aria-expanded', String(!collapsed));
+    placeConsole();
+    window.dispatchEvent(new Event('resize'));   // высота календаря пересчитывается под новую ширину
+}
+
+// Панель журнала — под шапкой с вкладками; при прокрутке шапка уходит, панель поднимается к краю окна.
+function placeConsole() {
+    const top = document.querySelector('.app-top')?.getBoundingClientRect().bottom ?? 0;
+    document.documentElement.style.setProperty('--console-top', `${Math.max(12, Math.round(top) + 8)}px`);
+}
+
+function toggleConsole() {
+    try { localStorage.setItem(CONSOLE_KEY, consoleCollapsedPref() ? '0' : '1'); } catch (e) { /* без хранилища состояние на сессию не сохраняется */ }
+    applyConsoleState();
 }
 
 // ---- Сессия вкладки: открытие занимает её (парсер не прерывается, а продолжает работу), сигнал раз в 5 с, закрытие освобождает ----
@@ -295,4 +379,10 @@ export async function startTabSession() {
 export function initializeCore() {
     initializeConsole();
     document.querySelectorAll('.tab-btn[data-tab]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
+    $('console-toggle').addEventListener('click', toggleConsole);
+    $('console-mini').addEventListener('click', toggleConsole);
+    placeConsole();
+    window.addEventListener('scroll', placeConsole, { passive: true });
+    window.addEventListener('resize', placeConsole);
+    applyConsoleState();   // состояние журнала восстанавливаем после загрузки страницы
 }

@@ -10,6 +10,7 @@ const ROOT = __DIR__;
 
 // ---- Данные ----
 const USERS_DIR = ROOT . '/users';                        // users/<id>/: только журнал и ход работы парсера (данные — в базе)
+const SECRET_KEY_VERSION = 1;                            // версия ключа в формате секретов (lib/core.php, secret_encrypt)
 const USER_COOKIE = 'ct_uid';
 const SESSION_COOKIE = 'pm_sid';
 const USER_COOKIE_DAYS = 365;
@@ -18,7 +19,7 @@ const SESSION_TOUCH_SECONDS = 600;
 const USER_RETENTION_DAYS = 60;                           // профили без заходов дольше удаляются
 const EMPTY_USER_RETENTION_HOURS = 24;                   // пустые профили (зашёл без куки и ничего не сделал) удаляются быстрее
 const MAX_PARALLEL_PARSERS = 4;  // Увеличено для лучшей GPU загрузки (от 6% до 70%+)
-const DB_FILE = ROOT . '/data/posta.sqlite';             // вся база: пользователи, пулы, история, каталог, кэши
+define('DB_FILE', getenv('POSTA_DB_FILE') ?: ROOT . '/data/posta.sqlite');   // POSTA_DB_FILE — копия базы для тестов             // вся база: пользователи, пулы, история, каталог, кэши
 const DB_BUSY_TIMEOUT_MS = 15000;
 const ANALYSIS_CACHE_LIMIT = 2000;
 const ANALYSIS_CACHE_DAYS = 14;
@@ -31,7 +32,7 @@ define('MEDIA_CACHE_DIR', getenv('POSTA_MEDIA_CACHE_DIR') ?: ($local['MEDIA_CACH
 define('MEDIA_CACHE_URL', $local['MEDIA_CACHE_URL'] ?? 'media_cache');
 const MEDIA_CACHE_GRACE_SECONDS = 600;                    // свежие файлы кэша не трогаем: парсер мог ещё не записать запись
 const MEDIA_CACHE_CLEANUP_MAX_SHARE = 0.3;               // если удалится больше доли файлов от всех, кэш признаётся повреждённым
-const DEFAULT_TOPIC = 'мемы и юмор';
+const DEFAULT_TOPIC = 'мемы';
 const TOPIC_MAX_LENGTH = 200;
 const DAY_SECONDS = 86400;
 
@@ -53,14 +54,19 @@ const OLLAMA_TIMEOUT = 180;
 const OLLAMA_THINKING_TIMEOUT = 420;
 const PARSER_THINKING = false;                            // размышления в парсере — в разы дольше; во «Тесте ИИ» включены всегда
 const ANALYSIS_MAX_TOKENS = 450;
-const PERSONAL_TASTE_ENABLED = false;                     // прогноз вкуса по прошлым голосам (выключен: AUC 0.60)
-const TASTE_EXAMPLES = 10;
-const TASTE_EXAMPLE_CHARS = 140;
+const ANALYSIS_DESCRIPTION_MAX = 120;                     // описание — одна фраза до стольких символов (обрезается в PHP)
+const ANALYSIS_EVIDENCE_MAX = 80;                         // цитата или примета — до стольких символов; она же — объяснение «почему подходит»
+const COMPLAINT_EXAMPLE_CHARS = 140;                      // жалобы в промпте обрезаются до стольких символов
 const ANALYSIS_IMAGE_MAX_SIDE = 768;
 const FIXED_COST_IMAGE_MAX_SIDE = 1024;                   // малые qwen3-vl берут ~1040 токенов за картинку любого размера
 
 // ---- Парсер ----
 const CONTENT_POOL_TARGET = 50;                        // записей в пуле на тему
+const SOURCE_POLL_MIN = 1200;                          // опрос источника реже, чем раз в 20 минут, не бывает (сек., FRESH_ORDER_POLITE_FETCH_PROMPT.md, часть B)
+const SOURCE_POLL_MAX = 21600;                         // и не реже, чем раз в 6 часов (сек.)
+const SOURCE_FETCHES_PER_PASS = 10;                    // источников в сеть за проход; остальные — из кэша
+const BOARD_POLL_MIN = 600;                            // каталог доски Двача/4chan — не чаще раза в 10 минут (сек.)
+const POOL_DIVERSITY_WINDOW = 6;                       // порядок показа: если подряд тот же источник, ищем другой в следующих стольких записях (FRESH_ORDER_POLITE_FETCH_PROMPT.md, часть A)
 const POOL_MAX_AGE_SECONDS = 3600;                     // запись старше часа просрочена: не показывается и не считается; удаляется только когда пул полон и нужна новая
 const HOT_TOPICS_LIMIT = 7;                            // сколько горячих тем сервер подбирает всего (меньше, если меньше горячих)
 const HOT_TOPICS_WINDOW_DAYS = 7;                      // окно активности: голоса и заходы за неделю
@@ -71,14 +77,46 @@ const CONTENT_ANALYZE_PER_RUN = 80;
 const PARSER_MAX_SECONDS = 2400;
 const PARSER_COOLDOWN_SECONDS = 600;
 const PARSER_SLOW_THRESHOLD_SECONDS = 30;                // через сколько сек показываем архивные посты с 🔥 если парсер ещё работает
-const RELEVANCE_THRESHOLD = 61;                           // порог «по теме» для попадания в пул
+const RELEVANCE_THRESHOLD = 80;                           // порог «по теме» для попадания в пул: при 80 жалоб 34% против 58–78% у оценок 60–75 (QUALITY_PROMPT.md, часть A)
 const PRESCREEN_MAX_SIDE = 768;
-const PRESCREEN_THRESHOLD = RELEVANCE_THRESHOLD;           // тот же порог, что и для пула: записи 40–60 не тратят полный анализ зря
+// ---- Качество подбора (QUALITY_PROMPT.md; цифры — история оценок мемов, 2026-10-23, 610 карточек) ----
+const ANALYSIS_HEDGE_RE = '/может|возможн|если |вероятно|потенциальн|можно использовать|подойти для/iu';   // оговорки в why_relevant: 56 карточек, 0% лайков, 85% жалоб
+const ANALYSIS_PROMPT_VERSION = 3;               // версия промпта оценки: входит в ключ кэша анализа, старые оценки не подмешиваются (QUALITY_PROMPT.md, часть C)
+const TOPIC_TAG_MISS_PENALTY = 15;        // частная тема подбора, а меток записи её нет — оценка −15 (TOPICS_SEARCH_PROMPT.md, часть D)
+const TRANSLATE_EMAIL = '';                // почта для MyMemory (лимит ~50 000 символов в сутки вместо ~5 000); пусто — без почты. Вписывает владелец
+const TEXT_POSTS_ENABLED = true;          // текстовые посты (без картинки) для тем, где медиа необязательно (TOPICS_SEARCH_PROMPT.md, часть E); false — как раньше
+const TEXT_ANALYSES_PER_PASS = 12;        // полных анализов текстовых записей (без картинки) за проход парсера; остальные — в следующий
+const JOKE_YES_MIN = 50;                    // вопрос «есть ли шутка»: вероятность «да» (0–100) ниже этого — шутки нет (часть B)
+const JOKE_NO_CAP = 40;                     // оценка записи юмора без шутки не выше этого
+const SUBTOPIC_LOST_CAP = 40;               // частная тема проиграла соседней подтеме (выбор среди соседей, SUBTOPIC_PROMPT.md, часть A): оценка не выше
+const SUBTOPIC_OFF_CAP = 20;                // выбор «не юмор / не по теме»: оценка не выше
+const SOURCE_VERDICT_WINDOW = 30;            // итоги полного анализа по каналу и теме: окно последних записей (SUBTOPIC_PROMPT.md, часть F)
+const SOURCE_VERDICT_MIN = 8;               // меньше стольких оценок по каналу — порядок по умолчанию
+const SOURCE_VERDICT_LOW = 0.12;            // доля прошедших в пул ниже этой (при достаточных оценках) — канал в конец очереди
+const SUBTOPIC_CACHE_TOPICS = ['абсурдный юмор', 'абсурд и шитпост', 'чёрный юмор'];   // темы, где кэш анализа сброшен после правок части A–B (SUBTOPIC_PROMPT.md, часть G)
+const SUBTOPIC_JOKE_KEEP = ['humor.jokes', 'humor.other', 'humor.fails', 'humor.funny_videos', 'memes.other'];   // подтемы, где проверка «есть ли шутка» остаётся (общие темы «Мемы» и «Юмор» — тоже)
+const ANALYSIS_SEED = 7;                    // фиксированный seed: одна и та же запись — одна и та же оценка
+const QUALITY_NO_EVIDENCE_CAP = 40;         // без цитаты/предмета или без шутки в юморе оценка не выше этого: модель додумывала (часть C)
+const QUALITY_VIEWS_MIN_RATIO = 0.7;        // просмотры / медиана канала: ниже — 31% лайков против 62–68% при ≥1,3×
+const QUALITY_CARD_MIN_RATINGS = 5;         // оценок источника по теме, с которых его доля лайков входит в балл карточки (часть D)
+const QUALITY_SOURCE_NEUTRAL_SHARE = 0.4;   // доля лайков, при которой источник не двигает балл
+const QUALITY_SOURCE_WEIGHT = 30;           // (доля − 0,4) × 30, ограничено ±15
+const QUALITY_SOURCE_CAP = 15;
+const QUALITY_TAG_MIN_RATINGS = 8;         // оценок по первой метке, с которых её вкус входит в балл (часть E)
+const QUALITY_TAG_WEIGHT = 0;               // часть E: выключено — честная проверка не дала выигрыша (разрыв верх−низ 52 против 53 без неё). Значение 40 — вариант из промпта
+const QUALITY_TAG_CAP = 15;
+const QUALITY_PLATFORM_MIN_RATINGS = 30;    // оценок площадки по теме, с которых её судим (меньше — шума много)
+const QUALITY_PLATFORM_COMPLAINT_SHARE = 0.5; // доля жалоб, с которой площадка по теме режется (Двач в мемах — 63%)
+const QUALITY_PLATFORM_SAMPLE = 10;         // такие площадки идут в полный анализ 1 из 10 кандидатов (модель не тратится впустую)
+const PRESCREEN_JUNK_P = 0.8;                             // быстрая оценка 2B — только «мусор ли» (реклама, пустая картинка, скриншот): с такой уверенностью — отброс; тему 2B не видит (PRESCREEN_SOFTEN_PROMPT.md)
+const TOPIC_QUERY_MAX_LEN = 60;                          // уточнение к теме (TOPIC_QUERY_PROMPT.md)
+const TOPIC_QUERY_MIN_SOURCES = 3;                        // своих источников у пары «тема + запрос» меньше — подбор источников по запросу
+const TOPIC_QUERY_DISCOVERY_PER_DAY = 10;                 // новых запросов с подбором источников на пользователя в сутки
+const TOPIC_QUERY_CHANNELS_PER_RUN = 12;                  // каналов из поиска по уточнению, которые проверяем за прогон
+const SCREENED_CACHE_VERSION = 2;                         // версия записей screened_cache: ver 1 — оценки по теме (до PRESCREEN_SOFTEN), не читаются
 const PRESCREEN_BATCH = 10;
 const ANALYZE_BLOCK = 8;                                  // прошедшие быструю оценку копятся до стольких и уходят на полный анализ разом: меньше смен модели
 const PRESCREEN_SOURCE_MISS_LIMIT = 6;                    // промахов подряд — источник пропускается до конца запуска
-const PRESCREEN_RELATIVE_PICK = 0;                        // 0 — выключено: ниже порога на полный анализ не идёт никто
-const PRESCREEN_RELATIVE_FLOOR = 10;
 
 const PHASH_SAME_DISTANCE = 20;   // из 256 бит: ближе — та же картинка (пережатая, уменьшенная); подбирается командой phash-report
 
@@ -89,21 +127,29 @@ const SOURCE_DISCOVERY_MAX_SECONDS = 900;
 const SOURCE_DISCOVERY_MAX_CHECKS = 40;
 const SOURCE_AUTO_ADD_SCORE = 101;                        // >100: автодобавление выключено, всё решает пользователь
 const SOURCE_SUGGEST_SCORE = 55;
-const SOURCE_SAMPLE_IMAGES = 6;
-const SOURCE_EARLY_REJECT_AFTER = 3;
-const SOURCE_EARLY_REJECT_SCORE = 45;
-const SOURCE_TEXT_WEIGHT = 0.15;
-const SOURCE_TEXT_TRUST_SCORE = 70;                      // канал явно по теме по тексту: картинки — лишь иллюстрации (бизнес, новости)
-const SOURCE_TEXT_LED_WEIGHT = 0.7;
+const SOURCE_REVIEW_CAPTIONS = 10;                    // подписи последних постов канала в проверке умной моделью (PRESCREEN_SOFTEN_PROMPT.md, часть 4)
 const DISCOVERY_RECHECK_DAYS = 30;                       // отклонённый канал перепроверяется через месяц
 const DVACH_BOARDS_PER_TOPIC = 4;
 const DVACH_BOARDS_PER_RUN = 20;
+const DVACH_ALWAYS_BOARDS = ['b'];   // доски, которые берутся под любую тему: контент из «плохих» источников не отсекаем, а проверяем по теме
 const DISCOVERY_CHECKED_LIMIT = 1000;
 const DISCOVERY_SNOWBALL_SEEDS = 8;
+const DISCOVERY_DEEP_EXTRA_SCORE = 10;          // на глубине 2 порог принятия выше на столько пунктов (DISCOVERY_FIX_PROMPT.md, часть E)
+const DISCOVERY_DEFER_MAX = 20;                 // отложенных кандидатов t.me на тему (часть D)
+const DISCOVERY_DEFER_DAYS = 3;
+const DISCOVERY_SNOWBALL_MAX_DEPTH = 2;        // «похож на» и «упомянут в» — не глубже 2 шагов от поиска (TOPICS_SEARCH_PROMPT.md, часть C)
+const DISCOVERY_KEYWORD_RECENT = 8;            // последние подписи канала, по которым ищем слова темы
+const DISCOVERY_KEYWORD_MIN_TEXTS = 2;         // столько подписей со словом темы — канал проходит фильтр
 const DISCOVERY_TEXT_REJECT_SCORE = 20;
 const DISCOVERY_MIN_SUBSCRIBERS = 30;
 const DISCOVERY_MIN_OWN_SOURCES = 3;
 const DISCOVERY_SHORTAGE_INTERVAL = 1800;
+const DISCOVERY_NAMES_PER_RUN = 8;               // названий от модели за прогон: по кругу, по одному списку на тему (DISCOVERY_NAMES_PROMPT.md, часть B)
+const DISCOVERY_NAMES_REBUILD_STEP = 5;          // одобренных стало на столько больше — названия от модели пересоздаются
+const DISCOVERY_NAMES_MAX_DAYS = 14;             // старше этого — тоже пересоздаются
+const DISCOVERY_REF_BONUS = 5;                   // балл предложения за каждую повторную находку (не больше 4)
+const DISCOVERY_REFS_MAX = 10;                   // повторных находок, которые помним за предложением
+const DISCOVERY_ORIGIN_MIN_VOTES = 8;            // решений одного вида, чтобы учесть его при порядке предложений
 
 // ---- Свежесть, активность и качество источников ----
 const CONTENT_MAX_AGE_DAYS = 30;
@@ -117,18 +163,25 @@ const SOURCE_WEIGHT_CONTENT = 0.45;                       // итог = по т�
 const SOURCE_WEIGHT_AUDIENCE = 0.25;
 const SOURCE_WEIGHT_VIEW_RATE = 0.30;
 const SOURCE_MIN_CONTENT_SCORE = 68;
-const SOURCE_UNKNOWN_AUDIENCE_SCORE = 30;
-const SOURCE_UNKNOWN_VIEW_RATE_SCORE = 40;
 const SOURCE_DEAD_VIEW_RATE = 0.015;
 const SOURCE_MIN_SUBSCRIBERS_FOR_RATE = 300;
 const SOURCE_FEEDBACK_MIN_VOTES = 3;
 const SOURCE_FEEDBACK_BAN_VOTES = 8;
 const SOURCE_FEEDBACK_BAN_SCORE = 0.2;
+const SOURCE_MUTE_MIN_RATINGS = 10;        // оценок источника по теме, с которых его выключаем у пользователя (TOPICS_SEARCH_PROMPT.md, часть F)
+const SOURCE_MUTE_LIKE_SHARE = 0.25;       // доля лайков ниже — выключаем; жалоба «не по теме» считается как дизлайк ×2
+const SOURCE_MUTE_COMPLAINT_WEIGHT = 2;
 const DVACH_THREAD_MIN_POSTS = 5;
 const POOL_LIVENESS_INTERVAL = 7200;
 const POOL_LIVENESS_MAX_THREADS = 40;
 const DVACH_THREADS_PER_BOARD = 8;
 const DVACH_THREAD_TITLE_MAX = 36;
+const THREAD_TOPIC_SKIP = 20;                    // тред имиджборды с оценкой по теме ниже — посты не берём (IMAGEBOARD_CONTEXT_HASHTAGS_PROMPT.md, часть A)
+const THREAD_TOPIC_TRUST = 70;                   // выше — посты треда идут в анализ первыми
+const THREAD_TRUST_PRESCREEN_BONUS = 10;         // для таких тредов порог «мусор» быстрой оценки выше на столько: доверенный тред отбрасывают реже
+const THREAD_TOPIC_CACHE_SECONDS = 86400;        // оценка треда по теме держится сутки
+const THREAD_TITLE_MAX = 120;                    // название треда в записи, символов
+const THREAD_OP_MAX = 400;                       // шапка треда (текст ОП-поста) в записи, символов
 const DVACH_POSTS_PER_THREAD = 60;
 const TELEGRAM_POSTS_PER_CHANNEL = 40;
 const VK_POSTS_PER_PUBLIC = 60;
@@ -171,6 +224,8 @@ const TELEGRAM_UPLOAD_MAX_BYTES = 64 * 1024 * 1024;
 const TELEGRAM_LIMIT_DEFAULTS = ['bot' => 50 * 1024 * 1024, 'account' => 2000 * 1024 * 1024];
 const TELEGRAM_USER_PYTHON = '/usr/bin/python3';
 const TELEGRAM_USER_TIMEOUT = 300;
+const TGU_VIDEO_MAX_BYTES = 150 * 1024 * 1024;   // большое видео поста Telegram, которое скачивает личный аккаунт пользователя
+const TGU_VIDEO_TIMEOUT = 900;
 const TELEGRAM_USER_PENDING_TTL = 900;
 
 // ---- Тарифы, баланс и приглашения ----

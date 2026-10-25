@@ -1,0 +1,12 @@
+# тег<TAB>темы<TAB>kind (rubric — одна на тему, entity — имя, format — вид поста)<TAB>синонимы через |
+фильмы	screen.movies	rubric	фильм|movies|кадры_из_фильма|кадр_из_фильма|кадр|постер|постеры|киноплакат|киноцитата|цитата_из_фильма|цитаты_из_фильмов|голливуд|hollywood|актеры_кино|актеры_фильмов
+сериалы	screen.series	rubric	сериал|series|сериальчик|кадры_из_сериала|сериальный_кадр|сезон|сезоны|финал_сезона|финал_сериала|сериальные_герои|герои_сериалов
+аниме	screen.anime	rubric	anime|аниме_кадр|манга|манга_адаптация|мульт|анимация|анимешка|анимешный|опенинг|опенинги|opening
+кино	screen.other	rubric	cinema|синема
+гибли	screen.anime	entity	ghibli|студия_гибли
+марвел	screen.movies	entity	marvel
+нетфликс	screen.series	entity	netflix
+хбо	screen.series	entity	hbo
+мультфильмы	screen.cartoons	rubric	мультики|мультфильм|мультсериалы|cartoons|дисней|pixar
+дорамы	screen.dorama	rubric	дорама|kdrama|корейские_сериалы
+чтопосмотреть	screen.reviews	rubric	что_посмотреть|рецензия|рецензии|обзор_фильма

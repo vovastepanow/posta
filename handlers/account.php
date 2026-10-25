@@ -45,9 +45,9 @@ function account_telegram_public() {
 /** Каналы Telegram для интерфейса: без токенов; первый в списке — канал по умолчанию. */
 function channels_public($uid = null) {
     $public = [];
-    foreach (channels_load($uid) as $i => $c) {
+    foreach (telegram_channels_load($uid) as $i => $c) {
         $public[] = ['id' => $c['id'], 'title' => $c['chat_title'], 'username' => $c['chat_username'], 'bot_username' => $c['bot_username'],
-            'type' => $c['chat_type'], 'connected_at' => $c['connected_at'], 'default' => $i === 0, 'schedule' => channel_schedule($c)];
+            'type' => $c['chat_type'], 'connected_at' => $c['connected_at'], 'default' => $i === 0, 'schedule' => channel_schedule($c), 'style' => channel_style_public($c), 'hashtags' => $c['hashtags']];
     }
     return $public;
 }
@@ -76,13 +76,11 @@ function handle_account_info() {
             'http_only' => $name === USER_COOKIE || $name === SESSION_COOKIE || ($name === session_name() && (bool)ini_get('session.cookie_httponly'))];
     }
     if (isset($_COOKIE[session_name()])) @session_start(['read_and_close' => true]);   // только ключи: в значениях служебные секреты входа VK
-    $logged_in = (bool)db_value('SELECT telegram_id FROM users WHERE id = ?', [app_user_id()]);
-    $user = db_one('SELECT tg_username, tg_name FROM users WHERE id = ?', [app_user_id()]);
     json_response(['user_id' => app_user_id(), 'topic' => current_topic(), 'last_seen' => (int)db_value('SELECT last_seen FROM users WHERE id = ?', [app_user_id()]), 'pool' => count(pool_topic_positions(pool_load())),
         'counts' => array_map('count', array_intersect_key($history, array_flip(HISTORY_COLLECTIONS))), 'files' => $files, 'cookies' => $cookies,
         'session_keys' => array_keys($_SESSION ?? []), 'retention_days' => USER_RETENTION_DAYS, 'exposed' => account_web_exposure(),
         'fix_command' => 'sudo sh ' . ROOT . '/tools/apache-setup.sh', 'telegram' => account_telegram_public(), 'channels' => channels_public(), 'telegram_user' => telegram_user_public(),
-        'auth' => ['logged_in' => $logged_in, 'tg_username' => $user['tg_username'] ?? '', 'tg_name' => $user['tg_name'] ?? '']]);
+        'auth' => auth_public(app_user_id())]);
 }
 
 // ---- VK ID (OAuth 2 + PKCE), одно подключение на сайт ----
@@ -307,20 +305,21 @@ function handle_telegram_user_disconnect() {
     ok(['telegram_user' => telegram_user_public()]);
 }
 
-// ---- Вход через Telegram ----
+// ---- Вход: Telegram и свои логин с паролем ----
 
 function handle_auth_status() {
-    $logged_in = (bool)db_value('SELECT telegram_id FROM users WHERE id = ?', [app_user_id()]);
-    $user = db_one('SELECT tg_username, tg_name FROM users WHERE id = ?', [app_user_id()]);
-    $session_count = (int)db_value('SELECT COUNT(*) FROM sessions WHERE user_id = ?', [app_user_id()]);
-    json_response([
-        'configured' => telegram_login_configured(),
-        'bot' => telegram_login_bot()['username'] ?? '',
-        'logged_in' => $logged_in,
-        'tg_username' => $user['tg_username'] ?? '',
-        'tg_name' => $user['tg_name'] ?? '',
-        'sessions' => $session_count
-    ]);
+    json_response(auth_public(app_user_id()) + ['configured' => telegram_login_configured(), 'bot' => telegram_login_bot()['username'] ?? '']);
+}
+
+/** Вход по логину и паролю. Ранний выход в index.php: до ensure_default_project_data, чтобы не заводить данные анонимному профилю. */
+function handle_password_login($in) {
+    credentials_login(app_user_id(), $_COOKIE[SESSION_COOKIE] ?? '', $in['login'] ?? '', $in['password'] ?? '');
+    ok();
+}
+
+function handle_credentials_save($in) {
+    $login = credentials_set(app_user_id(), $_COOKIE[SESSION_COOKIE] ?? '', $in['login'] ?? '', $in['password'] ?? '', $in['current'] ?? '');
+    ok(['login' => $login, 'auth' => auth_public(app_user_id())]);
 }
 
 function handle_login_start() {
@@ -333,7 +332,7 @@ function handle_login_start() {
 }
 
 function handle_login_status($in) {
-    $token = (string)($in['token'] ?? '');
+    $token = (string)($_GET['token'] ?? $in['token'] ?? '');   // GET: токен в адресе
     if (!preg_match('/^[a-f0-9]{32}$/', $token)) {
         json_response(['status' => 'expired']);
     } else {
@@ -347,33 +346,22 @@ function handle_login_status($in) {
     }
 }
 
-function handle_logout() {
+/** Выход: браузер получает новый анонимный профиль. $all — закрыть и остальные сессии профиля. */
+function auth_logout($all) {
     $uid = app_user_id();
-    $user = db_one('SELECT telegram_id FROM users WHERE id = ?', [$uid]);
-    if (!$user || !$user['telegram_id']) {
-        json_error('Вы не входили через Telegram: выход сотрёт ваш анонимный профиль');
+    if (!user_has_identity($uid)) {
+        json_error('Вы не вошли: выход сотрёт ваш анонимный профиль. Сначала задайте логин и пароль или войдите через Telegram.');
     }
-    session_delete($_COOKIE[SESSION_COOKIE] ?? '');
+    $all ? session_delete_all($uid) : session_delete($_COOKIE[SESSION_COOKIE] ?? '');
     $new_uid = bin2hex(random_bytes(16));
-    $new_sid = session_create($new_uid);
-    session_cookie_set($new_sid);
+    session_cookie_set(session_create($new_uid));
     app_user_bind($new_uid);
     ok();
 }
 
-function handle_logout_all() {
-    $uid = app_user_id();
-    $user = db_one('SELECT telegram_id FROM users WHERE id = ?', [$uid]);
-    if (!$user || !$user['telegram_id']) {
-        json_error('Вы не входили через Telegram: выход сотрёт ваш анонимный профиль');
-    }
-    session_delete_all($uid);
-    $new_uid = bin2hex(random_bytes(16));
-    $new_sid = session_create($new_uid);
-    session_cookie_set($new_sid);
-    app_user_bind($new_uid);
-    ok();
-}
+function handle_logout() { auth_logout(false); }
+
+function handle_logout_all() { auth_logout(true); }
 
 // ---- Публикация ----
 
@@ -400,7 +388,7 @@ function publish_poll_input($value) {
 }
 
 /** text, media (JSON [{kind, src, name, upload}]), scheduled_ts (пусто — сразу), files[], poll (JSON {question, options}, без медиа). Отложенный пост — в «Отложенные» через аккаунт. */
-function handle_telegram_publish($in) {
+function handle_publish($in) {
     // Запрос больше post_max_size: PHP молча отбрасывает и поля, и файлы
     if (!$_POST && !$_FILES && !$in && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > ini_parse_quantity((string)ini_get('post_max_size'))) {
         json_error('Файлы вместе весят больше лимита сервера (' . ini_get('post_max_size') . '). Уберите часть файлов или выполните tools/apache-setup.sh, чтобы поднять лимит.', 413);
@@ -410,7 +398,7 @@ function handle_telegram_publish($in) {
     $target = publish_channel_resolve((string)($fields['channel'] ?? $_POST['channel'] ?? ''));
     if (isset($target['error'])) json_error($target['error'], $target['status']);
     $bot = $target['channel'];
-    $text = trim((string)($fields['text'] ?? ''));
+    $text = post_caption_clean($fields['text'] ?? '');   // заглушка «Пост без текста» в подпись не уходит
     $items = is_string($items = $fields['media'] ?? []) ? json_decode($items, true) : $items;
     if (!is_array($items)) json_error('Некорректный список медиа.');
     $items = array_slice(array_values(array_filter($items, 'is_array')), 0, TELEGRAM_MAX_MEDIA + 1);
@@ -421,8 +409,23 @@ function handle_telegram_publish($in) {
     $mode = (string)($fields['mode'] ?? '') ?: ($at !== 0 ? 'native' : 'now');
     if (!in_array($mode, ['now', 'native', 'queue', 'slot'], true)) json_error('Неизвестный режим публикации.');
     $poll = publish_poll_input($fields['poll'] ?? null);
+    // Запись, из которой опубликовали: публикация = лайк (POSTED_IS_LIKED_PROMPT.md). Ключ считает сервер по полям записи
+    $record_raw = $fields['record'] ?? null;
+    $record_key = content_record_key(is_string($record_raw) ? json_decode($record_raw, true) : $record_raw);
     if ($poll !== null && $mode === 'native') json_error('Опросы ставятся в очередь Posta или публикуются сразу: через «Отложенные» Telegram опросы пока не ставятся.', 422);
     if ($poll !== null && $items) json_error('В опросе не бывает медиа: уберите файлы.', 422);
+    // Соцсети кроме Telegram: только сейчас и в очередь Posta; отложка средствами Telegram и опросы — только Telegram
+    $platform = (string)($bot['platform'] ?? 'telegram');
+    if ($platform !== 'telegram' && ($mode === 'native' || $poll !== null)) json_error(network_for($platform)['title'] . ': отложка средствами соцсети и опросы пока только в Telegram.', 422);
+    // До скачивания и биллинга: текст по лимиту ресурса и виды файлов; частичный пропуск — только с подтверждением
+    $pre_skipped = [];
+    if ($platform !== 'telegram') {
+        try { $pre = network_preflight($platform, $text, $items); } catch (RuntimeException $e) { json_error($e->getMessage(), 422); }
+        $pre_skipped = $pre['skipped'];
+        if ($pre_skipped && empty($fields['confirm_skip'])) {
+            json_response(['status' => 'error', 'confirm_skip' => true, 'skipped' => $pre_skipped, 'message' => 'Не все файлы уйдут в ' . network_for($platform)['title'] . ': ' . implode('; ', $pre_skipped) . '. Опубликовать без них?'], 409);
+        }
+    }
     if ($mode === 'now') $at = 0;
     if (in_array($mode, ['native', 'queue'], true) && $at === 0) json_error('Укажите время публикации.');
     $slot = null;
@@ -447,20 +450,25 @@ function handle_telegram_publish($in) {
             $poll = telegram_poll_check($poll);
             $text = $poll['question'];   // в очереди и журнале опрос виден по вопросу
         } else {
-            telegram_check_text($text, count($items));
+            $limit = $platform === 'telegram' ? ($items ? TELEGRAM_CAPTION_LIMIT : TELEGRAM_TEXT_LIMIT) : network_text_limit($platform, (bool)$items);
+            $text = text_with_hashtags($text, channel_hashtags($bot, publish_hashtags_input($fields['hashtags'] ?? null)), $limit);
+            if ($platform === 'telegram') telegram_check_text($text, count($items));
         }
         $prepared = telegram_prepare_media($items, publish_collect_uploads(), $work = telegram_work_dir(), $mode === 'native' ? 'account' : 'bot');
         if (in_array($mode, ['queue', 'slot'], true)) {
-            $response = outbox_queue_post(app_user_id(), $bot, $text, $prepared, $at, $slot['slot_at'] ?? null, $work, $poll);
+            $response = outbox_queue_post(app_user_id(), $bot, $text, $prepared, $at, $slot['slot_at'] ?? null, $work, $poll, publish_article_input($fields['article'] ?? null), null, $record_key);
+            if ($platform !== 'telegram') $response['skipped'] = $pre_skipped;
             $work = null;   // файлы уже в папке поста
         } elseif ($mode === 'native') {
             $ids = telegram_user_schedule(app_user_id(), $bot, $text, $prepared, $at);
             $response = ['scheduled' => true, 'id' => telegram_record_native_post(app_user_id(), $text, $prepared, $at, $ids, $bot['id']), 'publish_at' => $at, 'native' => true];
         } else {
-            $sent = $poll !== null ? telegram_publish_poll($bot, $poll) : telegram_publish_prepared($bot, $text, $prepared);
-            telegram_log_published(app_user_id(), telegram_post_summary($text, count($prepared)) + ['at' => time(), 'scheduled_for' => 0, 'url' => $sent['url'], 'status' => 'ok', 'error' => '',
-                'channel' => $bot['id'], 'channel_title' => $bot['chat_title']]);
-            $response = ['scheduled' => false, 'url' => $sent['url'], 'messages' => count($sent['message_ids'])];
+            if ($platform !== 'telegram') $sent = outbox_send_post(['text' => $text, 'media' => $prepared], $bot);   // адаптер соцсети: файлы, которые она не примет, отсеиваются
+            else $sent = $poll !== null ? telegram_publish_poll($bot, $poll) : telegram_publish_prepared($bot, $text, $prepared);
+            $shown = $sent['media_kept'] ?? $prepared;   // журнал и миниатюра — по отправленным файлам
+            telegram_log_published(app_user_id(), telegram_post_summary($text, count($shown)) + ['at' => time(), 'scheduled_for' => 0, 'url' => $sent['url'], 'status' => 'ok', 'error' => '', 'media_src' => media_sources($shown),
+                'channel' => $bot['id'], 'channel_title' => $bot['chat_title'], 'kind' => $shown[0]['kind'] ?? '', 'duration' => $shown[0]['duration'] ?? 0, 'thumb_id' => post_thumb_make($shown), 'skipped' => $sent['skipped'] ?? []]);
+            $response = ['scheduled' => false, 'url' => $sent['url'], 'messages' => count($sent['message_ids']), 'skipped' => $sent['skipped'] ?? $pre_skipped];
         }
         billing_post_used();
     } catch (RuntimeException $e) {
@@ -469,7 +477,13 @@ function handle_telegram_publish($in) {
         if ($work !== null) remove_dir($work);
         if ($GLOBALS['telegram_progress_file'] !== null) @unlink($GLOBALS['telegram_progress_file']);
     }
-    isset($failure) ? json_error($failure, 422) : ok($response);
+    if (isset($failure)) json_error($failure, 422);
+    // Успех (сейчас, в очередь или в «Отложенные»): запись отмечается лайком. Ошибка отметки публикацию не отменяет
+    if ($record_key !== '') {
+        try { $response['marked'] = content_mark_posted($record_key); }
+        catch (Throwable $e) { error_log('posta: отметка публикации: ' . $e->getMessage()); $response['marked'] = null; }
+    }
+    ok($response);
 }
 
 /** ?id=: этап и процент идущей отправки; stage null — файла нет (отправка ещё не началась или закончилась). */
@@ -485,24 +499,31 @@ function handle_telegram_retry($in) {
     $found ? ok() : json_error('Этого поста нет среди неудачных.', 404);
 }
 
-/** {id, publish_at | slot}: перенести пост нашей очереди, который ещё ждёт публикации, — на другое время или в ближайший слот. */
+/** {id, publish_at | slot}: перенести пост нашей очереди, который ещё ждёт публикации, — на другое время или в ближайший слот.
+ *  Пост из группы (один пост в нескольких ресурсах) переносится вместе со всей группой: каждый — на свой канал. */
 function handle_telegram_reschedule($in) {
     if (!preg_match('/^[a-f0-9]{12}$/', $id = (string)($in['id'] ?? ''))) json_error('Некорректный номер поста.');
     $post = array_values(array_filter(outbox_load(), fn($e) => ($e['id'] ?? '') === $id))[0] ?? json_error('Такого поста нет.', 404);
     if (($post['status'] ?? '') !== 'queued') json_error('Перенести можно только пост, который ждёт публикации.', 409);
-    $bot = telegram_connection(null, $post['channel'] ?? null) ?? json_error('Канал не найден: обновите страницу.', 404);
+    $group = (string)($post['group'] ?? '');
+    $members = array_filter(outbox_load(), fn($e) => $group !== '' ? ($e['group'] ?? '') === $group && ($e['status'] ?? '') === 'queued' : ($e['id'] ?? '') === $id);
     if (!empty($in['slot'])) {
-        $slot = channel_next_slot($bot, time(), outbox_load()) ?? json_error('В расписании канала нет свободного слота в ближайшие 60 дней.', 422);
-        [$at, $slot_at] = [$slot['publish_at'], $slot['slot_at']];
+        $plan = [];
+        foreach ($members as $m) {
+            $bot = telegram_connection(null, $m['channel'] ?? null) ?? json_error('Канал не найден: обновите страницу.', 404);
+            $slot = channel_next_slot($bot, time(), outbox_load()) ?? json_error('В расписании канала нет свободного слота в ближайшие 60 дней.', 422);
+            $plan[$m['id']] = [$slot['publish_at'], $slot['slot_at']];
+        }
     } else {
-        [$at, $slot_at] = [(int)($in['publish_at'] ?? 0), null];
+        $at = (int)($in['publish_at'] ?? 0);
         if ($at < time() + TELEGRAM_MIN_DELAY_SECONDS) json_error('Отложенный пост нужно назначить минимум на минуту вперёд.');
         if ($at > time() + TELEGRAM_MAX_DELAY_DAYS * DAY_SECONDS) json_error('Отложить пост можно не больше чем на ' . TELEGRAM_MAX_DELAY_DAYS . ' дней.');
+        $plan = array_fill_keys(array_column($members, 'id'), [$at, null]);
     }
     if ($denied = billing_post_denied(true)) json_error($denied, 429);
-    outbox_update(fn($q) => array_map(fn($e) => ($e['id'] ?? '') === $id && ($e['status'] ?? '') === 'queued'
-        ? ['publish_at' => $at, 'slot_at' => $slot_at, 'slot' => $slot_at !== null] + $e : $e, $q), app_user_id());
-    ok(['publish_at' => $at, 'slot' => $slot_at !== null]);
+    outbox_update(fn($q) => array_map(fn($e) => isset($plan[$e['id'] ?? '']) && ($e['status'] ?? '') === 'queued'
+        ? ['publish_at' => $plan[$e['id']][0], 'slot_at' => $plan[$e['id']][1], 'slot' => $plan[$e['id']][1] !== null] + $e : $e, $q), app_user_id());
+    ok(['publish_at' => $plan[$id][0], 'slot' => $plan[$id][1] !== null, 'moved' => count($plan)]);
 }
 
 /** ?channel=: ближайший свободный слот канала (или none, если расписания нет или слотов нет). */
@@ -518,6 +539,58 @@ function handle_channel_schedule_save($in) {
     if (!is_array($in['schedule'] ?? null)) json_error('Некорректное расписание.');
     channel_schedule_save((string)($in['channel'] ?? ''), $in['schedule'], app_user_id());
     ok(['channels' => channels_public()]);
+}
+
+/** {channel, mode}: хэштеги в постах канала — off, rubric (только рубрика) или full (рубрика, имя, формат). */
+function handle_channel_hashtags_save($in) {
+    $mode = (string)($in['mode'] ?? '');
+    if (!in_array($mode, CHANNEL_HASHTAG_MODES, true)) json_error('Неизвестный режим хэштегов.');
+    channel_get((string)($in['channel'] ?? '')) ?? json_error('Такого канала нет.');
+    db_exec('UPDATE channels SET hashtags = ? WHERE id = ? AND user_id = ?', [$mode, (string)$in['channel'], app_user_id()]);
+    ok(['channels' => channels_public()]);
+}
+
+/** ?q=: подсказки хэштегов из словаря (синоним ведёт к каноническому тегу). */
+function handle_hashtag_suggest() {
+    ok(['tags' => hashtag_suggest((string)($_GET['q'] ?? ''))]);
+}
+
+/** Канал по значению из интерфейса: пусто или main — канал по умолчанию. */
+function style_channel_id($value): string {
+    $value = (string)$value;
+    if ($value !== '' && $value !== 'main') return $value;
+    return telegram_channels_load()[0]['id'] ?? throw new DomainException('Telegram-канал не подключён.');
+}
+
+/** ?channel=: состояние стиля канала (для опроса, пока стиль изучается в фоне). */
+function handle_channel_style() {
+    $channel = channel_get(style_channel_id($_GET['channel'] ?? '')) ?? throw new DomainException('Такого канала нет.');
+    ok(['style' => channel_style_public($channel)]);
+}
+
+/** {channel}: изучить стиль по постам канала (в фоне, минуты). */
+function handle_channel_style_learn($in) {
+    $id = style_channel_id($in['channel'] ?? '');
+    $started = channel_style_learn_async($id);
+    ok(['started' => $started, 'style' => channel_style_public(channel_get($id))]);
+}
+
+/** {channel, summary}: описание стиля вручную (пусто — стереть). */
+function handle_channel_style_save($in) {
+    $id = style_channel_id($in['channel'] ?? '');
+    channel_style_save_manual($id, (string)($in['summary'] ?? ''));
+    ok(['style' => channel_style_public(channel_get($id))]);
+}
+
+/** {channel, description, original, current}: подпись от ИИ в стиле канала. */
+function handle_ai_caption($in) {
+    $id = style_channel_id($in['channel'] ?? '');
+    ok(['text' => channel_caption_generate($id, ['description' => $in['description'] ?? '', 'original' => $in['original'] ?? '', 'current' => $in['current'] ?? ''])]);
+}
+
+/** {url}: выжимка новости по статье (кнопка «Сделать выжимку» в редакторе). */
+function handle_news_excerpt($in) {
+    ok(['text' => news_excerpt(trim((string)($in['url'] ?? '')))]);
 }
 
 function handle_telegram_publish_progress() {
@@ -536,18 +609,153 @@ function handle_telegram_queue() {
         'scheduled' => $scheduled, 'published' => published_load(null, 10)]);
 }
 
-/** {id}: убрать отложенный пост из списка и из «Отложенных» того канала, куда он ставился. Пост нашей очереди — удаляется с файлами. */
-function handle_telegram_cancel($in) {
+/** ?from=&to= (unix): всё для календаря — каналы с расписанием, посты очереди и последние отправленные. */
+function handle_calendar() {
+    $bot = telegram_connection();
+    telegram_settle_native_posts(app_user_id());
+    $post = fn($e) => telegram_post_summary($e['text'] ?? '', count($e['media'] ?? [])) + telegram_channel_fields($e['channel'] ?? null) + ['id' => $e['id'] ?? '',
+        'status' => $e['status'] ?? 'pending', 'error' => (string)($e['error'] ?? ''), 'full_text' => mb_substr(trim((string)($e['text'] ?? '')), 0, 600),
+        'article' => $e['article'] ?? null, 'group' => (string)($e['group'] ?? ''), 'kind' => (string)($e['media'][0]['kind'] ?? ''), 'duration' => (int)($e['media'][0]['duration'] ?? 0),
+        'poll' => !empty($e['poll'])] + calendar_thumb_fields($e);
+    $published = calendar_published_recent(app_user_id());   // повторы очереди — против опубликованного за 60 дней
+    $channels = array_map(fn($c) => $c + ['reach' => channel_reach_cached($c)], channels_public());   // охват по часам — из кэша, без ожидания сети
+    $by_id = array_column($channels, null, 'id');
+    $queue = array_map(function ($e) use ($post, $published, $by_id) {
+        $ch = $by_id[$e['channel'] ?? ''] ?? null;
+        $forecast = $ch ? channel_forecast($ch['reach'], (int)$e['publish_at'], channel_schedule($ch)['tz']) : null;   // прогноз просмотров по часу канала
+        return $post($e) + ['at' => (int)$e['publish_at'], 'forecast' => $forecast, 'image_key' => (string)($e['media'][0]['src'] ?? ''),   // та же картинка, что у записи Предложки: пометка «в расписании»
+            'duplicate' => calendar_duplicate_of(['image' => (string)($e['media'][0]['src'] ?? ''), 'text' => (string)($e['text'] ?? '')], (string)($e['channel'] ?? ''), $published)];
+    }, outbox_load());
+    $sent = array_map(fn($e) => telegram_post_summary($e['text'] ?? '', (int)($e['media'] ?? 0)) + ['id' => '', 'at' => (int)($e['scheduled_for'] ?: $e['at']), 'status' => ($e['status'] ?? 'ok') === 'ok' ? 'sent' : 'failed',
+        'error' => (string)($e['error'] ?? ''), 'url' => (string)($e['url'] ?? ''), 'channel' => (string)($e['channel'] ?? ''), 'channel_title' => (string)($e['channel_title'] ?? ''), 'full_text' => (string)($e['text'] ?? ''),
+        'kind' => (string)($e['kind'] ?? ''), 'duration' => (int)($e['duration'] ?? 0), 'poll' => false] + calendar_thumb_fields($e), published_load(null, 200));
+    $history_pending = false;
+    $external = calendar_external_posts($channels, published_load(null, 500), $history_pending);   // посты канала, вышедшие мимо Posta, за всё прошлое календаря
+    json_response(['connected' => $bot !== null, 'now' => time(), 'channels' => $channels, 'posts' => [...$external, ...$sent, ...$queue], 'history_pending' => $history_pending, 'hints_seen' => hint_seen_times()['calendar_v3'] ?? null]);
+}
+
+/** Миниатюра карточки: маленькая миниатюра поста; у старых постов очереди без неё — первая картинка поста (полный файл). */
+function calendar_thumb_fields(array $e): array {
+    if (($e['thumb_id'] ?? '') !== '') return ['thumb' => true, 'thumb_url' => 'index.php?' . http_build_query(['action' => 'post_thumb', 'id' => $e['thumb_id']])];
+    $queued_photo = ($e['status'] ?? '') !== 'telegram' && ($e['id'] ?? '') !== '' && is_array($e['media'] ?? null) && ($e['media'][0]['kind'] ?? '') === 'photo';
+    return $queued_photo ? ['thumb' => true, 'thumb_url' => 'index.php?' . http_build_query(['action' => 'outbox_media', 'id' => $e['id']])] : ['thumb' => false, 'thumb_url' => ''];
+}
+
+/** {channels, from, to, include_rest}: план «Заполнить дыры» — пост из Предложки на каждый свободный слот. */
+function handle_calendar_fill_plan($in) {
+    $from = (int)($in['from'] ?? time());
+    $to = (int)($in['to'] ?? time() + 7 * DAY_SECONDS);
+    if ($to <= $from || $to - $from > 31 * DAY_SECONDS) json_error('Период плана — не больше 31 дня.');
+    $wanted = array_map('strval', (array)($in['channels'] ?? []));
+    $channels = array_values(array_filter(channels_public(), fn($c) => !$wanted || in_array((string)$c['id'], $wanted, true)));
+    ok(['plan' => calendar_fill_plan(app_user_id(), $channels, $from, $to, !empty($in['include_rest']), proposal_items(load_history()), outbox_load(), time())]);
+}
+
+/** {items: [{slot_at, channel, image, text}]}: поставить план в очередь той же подготовкой, что обычная публикация. */
+function handle_calendar_fill_apply($in) {
+    ok(calendar_fill_apply(app_user_id(), array_values(array_filter((array)($in['items'] ?? []), 'is_array'))));
+}
+
+/** {image, text, channel}: повтор для черновика Предложки — прошлая публикация в этом канале или null. */
+function handle_calendar_check($in) {
+    $dup = calendar_duplicate_of(['image' => (string)($in['image'] ?? ''), 'text' => (string)($in['text'] ?? '')], (string)($in['channel'] ?? ''),
+        calendar_history(app_user_id(), outbox_load()));
+    ok(['duplicate' => $dup]);
+}
+
+const HINT_NAMES = ['calendar_v3'];   // подсказки, которые показываются один раз: имя → время показа в настройках аккаунта
+
+/** Когда показаны подсказки: {имя: unix-время} из настроек аккаунта. */
+function hint_seen_times() {
+    $hints = load_settings()['hints'] ?? [];
+    return is_array($hints) ? $hints : [];
+}
+
+/** {name}: отметить подсказку показанной — запоминается в аккаунте, а не в браузере. */
+function handle_hint_seen($in) {
+    $name = (string)($in['name'] ?? '');
+    if (!in_array($name, HINT_NAMES, true)) json_error('Неизвестная подсказка.');
+    $hints = hint_seen_times();
+    $hints[$name] = time();
+    db_save_settings([...load_settings(), 'hints' => $hints]);
+    ok(['hints_seen' => $hints]);
+}
+
+/** {id, publish_at}: копия поста очереди на другое время (перетаскивание с зажатой клавишей). */
+function handle_telegram_duplicate($in) {
     if (!preg_match('/^[a-f0-9]{12}$/', $id = (string)($in['id'] ?? ''))) json_error('Некорректный номер поста.');
+    $at = (int)($in['publish_at'] ?? 0);
+    if ($at < time() + TELEGRAM_MIN_DELAY_SECONDS) json_error('Отложенный пост нужно назначить минимум на минуту вперёд.');
+    if ($at > time() + TELEGRAM_MAX_DELAY_DAYS * DAY_SECONDS) json_error('Отложить пост можно не больше чем на ' . TELEGRAM_MAX_DELAY_DAYS . ' дней.');
+    if ($denied = billing_post_denied(true)) json_error($denied, 429);
+    $copy = outbox_duplicate_post($id, $at) ?? json_error('Копировать можно только пост нашей очереди, который ждёт или не вышел.', 409);
+    ok(['id' => $copy['id'], 'publish_at' => $at]);
+}
+
+/** ?id=: миниатюра карточки (160 px), только своя — записана в очереди или журнале этого пользователя. */
+function handle_post_thumb() {
+    $id = (string)($_GET['id'] ?? '');
+    $file = thumb_file($id);
+    if (!thumb_owned($id, app_user_id()) || !is_file($file)) { http_response_code(404); exit; }
+    header('Content-Type: image/jpeg');
+    header('Cache-Control: private, max-age=86400');
+    header('X-Content-Type-Options: nosniff');
+    readfile($file);
+    exit;
+}
+
+/** ?id=&n=: первая картинка поста нашей очереди, полного размера (для просмотрщика). */
+function handle_outbox_media() {
+    $id = (string)($_GET['id'] ?? '');
+    $post = array_values(array_filter(outbox_load(), fn($e) => ($e['id'] ?? '') === $id && ($e['status'] ?? '') !== 'telegram'))[0] ?? null;
+    $file = $post && preg_match('/^[a-f0-9]{12}$/', $id) ? outbox_media_dir($id) . '/' . basename($post['media'][0]['path'] ?? '') : '';
+    if (!$post || ($post['media'][0]['kind'] ?? '') !== 'photo' || !is_file($file)) { http_response_code(404); exit; }
+    header('Content-Type: ' . (mime_content_type($file) ?: 'application/octet-stream'));
+    header('Cache-Control: private, max-age=300');
+    header('X-Content-Type-Options: nosniff');
+    readfile($file);
+    exit;
+}
+
+/** Снять одну копию с расписания: из очереди (queued, failed) или из «Отложенных» Telegram. Исключение — с кодом HTTP. */
+function telegram_cancel_one($id) {
     $queued = array_values(array_filter(outbox_load(), fn($e) => ($e['id'] ?? '') === $id))[0] ?? null;
-    if (($queued['status'] ?? '') === 'sending') json_error('Пост уже отправляется — отменить нельзя.', 409);
-    if (in_array($queued['status'] ?? '', ['queued', 'failed'], true)) outbox_remove_post($id) ? ok() : json_error('Этого поста уже нет в очереди.', 404);
+    if (($queued['status'] ?? '') === 'sending') throw new RuntimeException('Пост уже отправляется — отменить нельзя.', 409);
+    if (in_array($queued['status'] ?? '', ['queued', 'failed'], true)) {
+        if (!outbox_remove_post($id)) throw new RuntimeException('Этого поста уже нет в очереди.', 404);
+        return;
+    }
     foreach (outbox_load() as $e) {
         if (($e['id'] ?? '') !== $id || ($e['status'] ?? '') !== 'telegram' || !($bot = telegram_connection(null, $e['channel'] ?? null))) continue;
         try { telegram_user_cancel(app_user_id(), $bot, array_map('intval', $e['tg_ids'] ?? [])); }
-        catch (RuntimeException $err) { json_error('Не удалось убрать пост из отложенных в Telegram: ' . $err->getMessage() . ' Удалите его в канале вручную («Отложенные»).', 502); }
+        catch (RuntimeException $err) { throw new RuntimeException('Не удалось убрать пост из отложенных в Telegram: ' . $err->getMessage() . ' Удалите его в канале вручную («Отложенные»).', 502); }
     }
-    telegram_unqueue_post(app_user_id(), $id) ? ok() : json_error('Этого поста уже нет в очереди: возможно, он отправлен.', 404);
+    if (!telegram_unqueue_post(app_user_id(), $id)) throw new RuntimeException('Этого поста уже нет в очереди: возможно, он отправлен.', 404);
+}
+
+/** {id, only?}: убрать пост из расписания. Пост из группы — вся группа, если не only («только в этом канале»).
+ *  Частичный успех группы — не ошибка: в ответе errors по копиям, которые не сняли. */
+function handle_telegram_cancel($in) {
+    if (!preg_match('/^[a-f0-9]{12}$/', $id = (string)($in['id'] ?? ''))) json_error('Некорректный номер поста.');
+    $group = (string)((array_values(array_filter(outbox_load(), fn($e) => ($e['id'] ?? '') === $id))[0]['group'] ?? ''));
+    $ids = empty($in['only']) && $group !== '' ? array_column(array_filter(outbox_load(), fn($e) => ($e['group'] ?? '') === $group), 'id') : [$id];
+    $cancelled = 0;
+    $errors = [];
+    // Записи, из которых были эти посты: если в очереди их не осталось — запись возвращается в «Предложку» (часть 2.4)
+    $records = array_values(array_unique(array_filter(array_map(fn($e) => (string)($e['record'] ?? ''), array_filter(outbox_load(), fn($e) => in_array($e['id'] ?? '', $ids, true))))));
+    foreach ($ids as $one) {
+        try { telegram_cancel_one($one); $cancelled++; }
+        catch (RuntimeException $err) {
+            if ($one === $id) json_error($err->getMessage(), $err->getCode() ?: 400);
+            $errors[] = ['id' => $one, 'error' => $err->getMessage()];
+        }
+    }
+    foreach ($records as $key) {
+        if (array_filter(outbox_load(), fn($e) => ($e['record'] ?? '') === $key)) continue;   // другой пост этой записи ещё в очереди
+        try { content_unmark_posted($key); }
+        catch (Throwable $e) { error_log('posta: снятие отметки публикации: ' . $e->getMessage()); }
+    }
+    ok(['cancelled' => $cancelled, 'errors' => $errors]);
 }
 
 // ---- Панель модели ----
@@ -613,7 +821,9 @@ function app_process_list() {
     return $found;
 }
 
+/** Только владелец: останавливает процессы всех пользователей. */
 function handle_app_stop($in) {
+    if (!radar_is_owner()) json_error('Неизвестное действие API.', 404);
     tab_session_close(request_tab_id($in));   // вкладка больше не ведёт сессию: сборщик не перезапустится сам
     $kill = fn($sig) => array_map(fn($pid) => function_exists('posix_kill') ? @posix_kill($pid, $sig) : @exec("kill -$sig $pid"), array_keys(app_process_list()));
     $count = count($kill(15));
@@ -651,4 +861,23 @@ function handle_billing_buy($in) {
 function handle_referral_bind($in) {
     $reason = referral_bind(app_user_id(), (string)($in['code'] ?? ''));
     ok(['bound' => $reason === '', 'message' => $reason]);
+}
+
+// ---- Токен API: пост в подборку из внешних сервисов ----
+
+function handle_api_token_status() { json_response(['exists' => api_token_exists(app_user_id())]); }
+
+function handle_api_token_create() { ok(['token' => api_token_create(app_user_id())]); }
+
+function handle_api_token_revoke() { api_token_revoke(app_user_id()); ok(); }
+
+/** POST api_add_post: Authorization: Bearer <токен>, JSON {text, image_url | image_urls}. Без куки: сайт-пользователь не создаётся. */
+function handle_api_add_post(?string $body = null) {
+    $uid = api_token_user(api_bearer_token()) ?? json_error('Неверный токен.', 401);
+    app_user_bind($uid);
+    if (!api_rate_take($uid)) json_error('Слишком много запросов: не больше ' . API_RATE_PER_HOUR . ' в час.', 429);
+    $in = json_decode($body ?? (string)file_get_contents('php://input'), true);
+    if (!is_array($in)) json_error('Тело запроса должно быть JSON-объектом.');
+    set_time_limit(60);
+    ok(api_add_post($in));
 }

@@ -87,7 +87,7 @@ function user_touch() {
 
 /** Пустой профиль: ни оценок, ни подключений, ни постов, ни денег, ни приглашённых. Вошедший через Telegram — не пустой. */
 function user_is_empty($id) {
-    if (db_value('SELECT telegram_id FROM users WHERE id = ?', [$id])) return false;   // вошедший — не пустой
+    if (user_has_identity($id)) return false;   // вошедший — не пустой
     return !db_value('SELECT 1 FROM history_items WHERE user_id = ? LIMIT 1', [$id]) && !db_value('SELECT 1 FROM outbox WHERE user_id = ? LIMIT 1', [$id])
         && !db_value('SELECT 1 FROM published WHERE user_id = ? LIMIT 1', [$id]) && !db_value('SELECT 1 FROM ledger WHERE user_id = ? LIMIT 1', [$id])
         && !db_value('SELECT 1 FROM users WHERE referred_by = ? LIMIT 1', [$id])
@@ -102,6 +102,7 @@ function users_gc($keep = '', $dry_run = false) {
         db_exec('DELETE FROM sessions WHERE last_seen < ?', [$now - USER_COOKIE_DAYS * DAY_SECONDS]);
         // Удалить старые login_requests (старше суток)
         db_exec('DELETE FROM login_requests WHERE created_at < ?', [$now - DAY_SECONDS]);
+        db_exec('DELETE FROM login_failures WHERE at < ?', [$now - DAY_SECONDS]);
     }
     $removed = 0;
     foreach (db_all('SELECT id, last_seen, created_at FROM users') as $row) {
@@ -186,17 +187,18 @@ function public_url_resolve($url) {
     return ["$host:$port:{$addresses[0]}"];
 }
 
-/** Скачивает публичный файл без редиректов и не больше $max_bytes. $dest — путь (поток в файл) или null (вернуть байты). */
-function fetch_public($url, $max_bytes, $dest = null, $timeout = 20) {
+/** Скачивает публичный файл без редиректов и не больше $max_bytes. $dest — путь (поток в файл) или null (вернуть байты). $user_agent — для сайтов, которые отдают полную страницу только браузеру. */
+function fetch_public($url, $max_bytes, $dest = null, $timeout = 20, $user_agent = HTTP_UA, array $headers = []) {
     $resolve = public_url_resolve($url);
     $handle = $dest !== null ? (@fopen($dest, 'wb') ?: throw new RuntimeException('Не удалось сохранить файл во временную папку.')) : null;
     $bytes = '';
     $size = 0;
     $location = '';
+    $last_modified = '';
     $ch = curl_init($url);
-    curl_setopt_array($ch, [CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_HEADERFUNCTION => function ($c, $line) use (&$location) { if (stripos($line, 'location:') === 0) $location = trim(substr($line, 9)); return strlen($line); }, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => $timeout,
-        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_USERAGENT => HTTP_UA,
+    curl_setopt_array($ch, [CURLOPT_FOLLOWLOCATION => false, CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_HEADERFUNCTION => function ($c, $line) use (&$location, &$last_modified) { if (stripos($line, 'location:') === 0) $location = trim(substr($line, 9)); if (stripos($line, 'last-modified:') === 0) $last_modified = trim(substr($line, 14)); return strlen($line); }, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => $timeout,
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_USERAGENT => $user_agent,
         CURLOPT_WRITEFUNCTION => function ($c, $chunk) use (&$bytes, &$size, $max_bytes, $handle) {
             if (($size += strlen($chunk)) > $max_bytes) return 0;
             if ($handle) return fwrite($handle, $chunk);
@@ -212,7 +214,15 @@ function fetch_public($url, $max_bytes, $dest = null, $timeout = 20) {
     if ($handle) fclose($handle);
     $ok = $ok && $status >= 200 && $status < 300 && $size > 0;
     if (!$ok && $dest !== null) @unlink($dest);
-    return ['ok' => $ok, 'bytes' => $bytes, 'type' => $type, 'error' => $error, 'too_big' => $size > $max_bytes, 'status' => $status, 'location' => $location];
+    return ['ok' => $ok, 'bytes' => $bytes, 'type' => $type, 'error' => $error, 'too_big' => $size > $max_bytes, 'status' => $status, 'location' => $location, 'last_modified' => $last_modified];
+}
+
+/** Не чаще одного запроса за $gap секунд к одному хосту (между процессами — через kv): ждёт, если нужно. */
+function host_throttle(string $host, float $gap = 1.0): void {
+    $key = 'throttle:' . strtolower($host);
+    $wait = (float)kv_get($key, 0) + $gap - microtime(true);
+    if ($wait > 0) usleep((int)($wait * 1000000));
+    kv_update($key, fn() => microtime(true));
 }
 
 function fetch_public_image($url) {
@@ -279,29 +289,59 @@ function secret_key() {
     return $key = $decoded;
 }
 
-function secret_encrypt($plain) {
-    $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-    return base64_encode($nonce . sodium_crypto_secretbox((string)$plain, $nonce, secret_key()));
+/**
+ * Шифрование секрета. Формат 2: «2.<версия ключа>.<base64(nonce|шифртекст)>», XChaCha20-Poly1305 с привязкой (AAD):
+ * секрет, перенесённый в чужую запись, не расшифруется. Без привязки ($aad === '') и старые значения (secretbox) читаются как раньше.
+ */
+function secret_encrypt($plain, string $aad = '') {
+    if ($aad === '') {
+        $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+        return base64_encode($nonce . sodium_crypto_secretbox((string)$plain, $nonce, secret_key()));
+    }
+    $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
+    $ver = SECRET_KEY_VERSION;
+    $head = "2.$ver.";
+    return $head . base64_encode($nonce . sodium_crypto_aead_xchacha20poly1305_ietf_encrypt((string)$plain, $head . $aad, $nonce, secret_key()));
 }
 
-function secret_decrypt($encrypted) {
-    $raw = base64_decode((string)$encrypted, true);
+function secret_decrypt($encrypted, string $aad = '') {
+    $encrypted = (string)$encrypted;
+    if (str_starts_with($encrypted, '2.')) {
+        $parts = explode('.', $encrypted, 3);
+        $raw = count($parts) === 3 ? base64_decode($parts[2], true) : false;
+        $n = SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES;
+        if ($raw === false || strlen($raw) <= $n || (int)$parts[1] !== SECRET_KEY_VERSION || $aad === '') return null;
+        $plain = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(substr($raw, $n), "2.$parts[1]." . $aad, substr($raw, 0, $n), secret_key());
+        return $plain === false ? null : $plain;
+    }
+    $raw = base64_decode($encrypted, true);
     $n = SODIUM_CRYPTO_SECRETBOX_NONCEBYTES;
     if ($raw === false || strlen($raw) <= $n) return null;
     $plain = sodium_crypto_secretbox_open(substr($raw, $n), substr($raw, 0, $n), secret_key());
     return $plain === false ? null : $plain;
 }
 
+/** Привязка секрета ресурса к записи: пользователь, ресурс, сеть и назначение поля. */
+function channel_secret_aad($user_id, $channel_id, $platform, string $field = 'secrets'): string {
+    return implode('|', ['channel', $user_id, $channel_id, $platform, $field]);
+}
+
 // ---- Настройки пользователя: тема, вторая тема, фильтры ----
 
-const CONTENT_FILTERS = ['fresh_only', 'active_sources_only', 'video_only'];
+const CONTENT_FILTERS = ['fresh_only', 'active_sources_only', 'video_only', 'media_only', 'media_no_text', 'auto_translate'];   // auto_translate — способ показа, не отбор (AUTOTRANSLATE_PROMPT.md)
 
 function default_settings() {
-    return ['topic' => DEFAULT_TOPIC, 'topic2' => '', 'fresh_only' => false, 'active_sources_only' => true, 'video_only' => false];
+    return ['topic' => DEFAULT_TOPIC, 'topic2' => '', 'query' => '', 'fresh_only' => false, 'active_sources_only' => true, 'video_only' => false, 'media_only' => false, 'media_no_text' => false, 'auto_translate' => true];
 }
 
 function normalize_topic($topic) {
     return mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$topic) ?? ''), 0, TOPIC_MAX_LENGTH);
+}
+
+/** Уточнение к теме («Города» + «тюмень»): без кавычек и «+», пробелы схлопнуты, до TOPIC_QUERY_MAX_LEN символов. */
+function normalize_query($query) {
+    $clean = str_replace(['"', '«', '»', '+', '?'], ' ', (string)$query);
+    return mb_substr(trim(preg_replace('/\s+/u', ' ', $clean) ?? ''), 0, TOPIC_QUERY_MAX_LEN);
 }
 
 /** Загрузить настройки с нормализацией (обёртка над db_load_settings). */
@@ -311,6 +351,7 @@ function load_settings($uid = null) {
     $s['topic'] = normalize_topic($s['topic']) ?: DEFAULT_TOPIC;
     $s['topic2'] = normalize_topic($s['topic2']);
     if (topic_norm($s['topic2']) === topic_norm($s['topic'])) $s['topic2'] = '';
+    $s['query'] = normalize_query($s['query'] ?? '');
     foreach (CONTENT_FILTERS as $key) $s[$key] = (bool)$s[$key];
     return $s;
 }
@@ -321,12 +362,17 @@ function save_settings($changes, $uid = null) {
     db_save_settings(array_merge(default_settings(), $current, $changes), $uid);
 }
 
-/** Тема каноническим названием из реестра («мемы и юмор» → «Мемы и юмор»). */
+/** Тема каноническим названием из реестра («мемы» → «Мемы»). */
 function current_topic() { $t = load_settings()['topic']; return topic_lookup($t)['title'] ?? $t; }
 function current_topic2() { $t = load_settings()['topic2']; return $t === '' ? '' : (topic_lookup($t)['title'] ?? $t); }
+function current_query() { return app_user_bind() === '' ? '' : load_settings()['query']; }   // без пользователя (тесты, очередь вне запроса) — без уточнения
 
-/** Ключ оценок, пула и кэша: «первая + вторая» или одна тема. Источники — от первой. */
-function search_topic_key() { $second = current_topic2(); return current_topic() . ($second === '' ? '' : " + $second"); }
+/** Ключ оценок, пула и кэша: «первая + вторая», одна тема, и с уточнением — «тема ? запрос» (TOPIC_QUERY_PROMPT.md). Источники — от первой. */
+function search_topic_key() {
+    $second = current_topic2();
+    $query = current_query();
+    return current_topic() . ($second === '' ? '' : " + $second") . ($query === '' ? '' : " ? $query");
+}
 
 function content_filters() { return array_intersect_key(load_settings(), array_flip(CONTENT_FILTERS)); }
 

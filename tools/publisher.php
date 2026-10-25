@@ -9,5 +9,6 @@ $lock = try_lock(USERS_DIR . '/.publisher.lock');
 if (!$lock) exit;   // уже работает другой запуск
 $result = outbox_process_due(time(), 'outbox_send_post', time() + 50);
 if ($result['sent'] || $result['failed']) echo date('c') . " отправлено {$result['sent']}, ошибок {$result['failed']}\n";
+ytdlp_kick_worker();   // будильник очереди роликов (публикатор запускается регулярно)
 flock($lock, LOCK_UN);
 fclose($lock);

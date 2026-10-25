@@ -1,0 +1,13 @@
+# тег<TAB>темы<TAB>kind (rubric — одна на тему, entity — имя, format — вид поста)<TAB>синонимы через |
+гаджеты	tech.gadgets	rubric	gadgets|техника|гаджет|смартфон|смартфоны|телефон|ноутбук|ноутбуки|laptop|unboxing|анбоксинг|бытовая_техника
+нейросети	tech.ai	rubric	ии|ai|нейронки|искусственный_интеллект|нейросеть|нейронка|промпт|промты|prompt|генерация|генерации|сгенерировано
+айти	tech.code	rubric	it|программисты|разработка|программирование|программист|кодинг|код|кодить|кодер|баг|баги|джаваскрипт|javascript|js|айтишник|айтишники|сисадмин|сисадмины|админ
+технологии	tech.other	rubric	tech
+chatgpt	tech.ai	entity	чатгпт|чат_гпт|gpt
+midjourney	tech.ai	entity	миджорни|мидджорни
+айфон	tech.gadgets	entity	iphone
+apple	tech.gadgets	entity	эппл|эпл
+python	tech.code	entity	питон
+софт	tech.software	rubric	приложения|программы|apps|полезные_сервисы
+инфобез	tech.security	rubric	кибербезопасность|хакеры|взлом|утечки|cybersecurity
+железо	tech.hardware	rubric	видеокарты|сборка_пк|процессоры|пк_сборка

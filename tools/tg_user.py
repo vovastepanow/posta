@@ -44,7 +44,7 @@ def describe(error):
             return text
     if isinstance(error, errors.FloodWaitError):
         return 'Telegram просит подождать %d с и повторить.' % error.seconds
-    if isinstance(error, errors.ScheduledTooMuchError):
+    if isinstance(error, errors.ScheduleTooMuchError):
         return 'В канале уже слишком много отложенных постов (лимит Telegram — 100).'
     if isinstance(error, errors.ChatAdminRequiredError):
         return 'У вашего аккаунта нет права публиковать в этом канале.'
@@ -61,6 +61,20 @@ async def find_channel(client, ref):
     except ValueError:
         await client.get_dialogs()
         return await client.get_entity(int(ref))
+
+
+async def resolve_usernames(client, names):
+    """Проверка имён каналов пачкой (не больше 10): существует ли публичный канал или группа с таким именем."""
+    out = []
+    for name in names[:10]:
+        try:
+            entity = await client.get_entity('@' + name)
+            out.append({'username': name, 'exists': True, 'title': getattr(entity, 'title', '') or getattr(entity, 'first_name', '') or ''})
+        except (errors.UsernameNotOccupiedError, errors.UsernameInvalidError, ValueError):
+            out.append({'username': name, 'exists': False})   # имени нет или оно не подходит: канала точно нет
+        except Exception as error:   # сеть, лимиты: неизвестно — проверка не решает судьбу кандидата
+            out.append({'username': name, 'exists': None, 'error': describe(error)})
+    return out
 
 
 def code_info(sent):
@@ -116,7 +130,7 @@ async def read_chats(client, chats):
                 continue
 
             result_chat['chat_id'] = entity.id
-            result_chat['title'] = getattr(entity, 'title', '')
+            result_chat['title'] = getattr(entity, 'title', '') or ''
             result_chat['username'] = getattr(entity, 'username', '') or ''
 
             # Читаем сообщения
@@ -132,8 +146,8 @@ async def read_chats(client, chats):
                 sender_username = ''
 
                 if sender:
-                    first = getattr(sender, 'first_name', '')
-                    last = getattr(sender, 'last_name', '')
+                    first = getattr(sender, 'first_name', None) or ''   # у удалённых аккаунтов имя — None
+                    last = getattr(sender, 'last_name', None) or ''
                     sender_name = (first + (' ' + last if last else '')).strip()[:64]
                     sender_username = getattr(sender, 'username', '') or ''
 
@@ -197,6 +211,31 @@ async def search_chats(client, queries, limit):
             if info and info['username'].lower() not in found:
                 found[info['username'].lower()] = info
     return list(found.values())
+
+
+async def search_posts(client, hashtag, query, limit):
+    """Глобальный поиск публичных постов: по хэштегу бесплатно; по словам — только если Telegram говорит, что запрос бесплатный сейчас."""
+    if not hashtag:
+        try:
+            flood = await client(functions.channels.CheckSearchPostsFloodRequest(query=query))
+        except errors.FloodWaitError as e:
+            return {'posts': [], 'flood_wait': e.seconds}
+        if not flood.query_is_free:
+            return {'posts': [], 'paid': True}
+    try:
+        result = await client(functions.channels.SearchPostsRequest(offset_rate=0, offset_peer=types.InputPeerEmpty(), offset_id=0,
+                                                                    limit=min(limit, 100), hashtag=hashtag or None, query=None if hashtag else query))
+    except errors.FloodWaitError as e:
+        return {'posts': [], 'flood_wait': e.seconds}
+    chats = {chat.id: chat for chat in result.chats}
+    posts = []
+    for message in result.messages:
+        chat = chats.get(getattr(message.peer_id, 'channel_id', None))
+        if chat is None or not getattr(chat, 'username', None) or not message.id:
+            continue   # только публичные каналы: ссылка t.me/<username>/<номер> должна открываться
+        posts.append({'username': chat.username, 'id': message.id, 'date': int(message.date.timestamp()), 'text': message.message or '',
+                      'views': message.views or 0, 'has_media': bool(message.media)})
+    return {'posts': posts}
 
 
 async def similar_channels(client, refs):
@@ -272,6 +311,10 @@ async def run(request, client):
         return {'chats': await search_chats(client, request.get('queries') or [], int(request.get('limit') or 30))}
     if action == 'similar_channels':
         return {'channels': await similar_channels(client, request.get('channels') or [])}
+    if action == 'search_posts':
+        return await search_posts(client, request.get('hashtag') or '', request.get('query') or '', int(request.get('limit') or 30))
+    if action == 'resolve_usernames':
+        return {'results': await resolve_usernames(client, [str(n) for n in request.get('usernames') or []])}
     entity = await find_channel(client, request['channel'])
     if action == 'check_channel':
         me = await client.get_me()
@@ -289,6 +332,16 @@ async def run(request, client):
         can_post = role in ('владелец', 'администратор')
         return {'title': getattr(entity, 'title', ''), 'username': getattr(entity, 'username', '') or '', 'can_post': can_post,
                 'role': role, 'account': account}
+    if action == 'download_video':
+        # Видео поста канала (в веб-версии t.me большие не отдаются): скачиваем от имени аккаунта в каталог dest_dir
+        message = await client.get_messages(entity, ids=int(request['post_id']))
+        media = (message.video or message.gif or message.video_note) if message else None
+        if not media:
+            raise ValueError('В посте нет видео.')
+        if media.size and media.size > int(request['max_bytes']):
+            raise ValueError('Видео слишком большое: %d МБ.' % (media.size // 1048576))
+        path = await client.download_media(message, file=request['dest_dir'].rstrip('/') + '/')
+        return {'path': path, 'size': media.size or 0}
     if action == 'schedule':
         when = datetime.datetime.fromtimestamp(int(request['publish_at']), tz=datetime.timezone.utc)
         text = request.get('text') or ''
@@ -339,6 +392,18 @@ def current_run(path, token):
         return False
 
 
+async def qr_finished(client, qr):
+    """Ответ на обновление QR-токена — уже вход (LoginTokenSuccess), а не новый токен: завершаем вход, как это делает qr.wait."""
+    resp = qr._resp
+    if isinstance(resp, types.auth.LoginTokenMigrateTo):
+        await client._switch_dc(resp.dc_id)
+        resp = await client(functions.auth.ImportLoginTokenRequest(resp.token))
+    if not isinstance(resp, types.auth.LoginTokenSuccess):
+        return False
+    await client._on_login(resp.authorization.user)
+    return True
+
+
 async def qr_login(request_path):
     """Вход по QR: пользователь сканирует код в приложении Telegram (Настройки → Устройства → Подключить устройство)."""
     with open(request_path, encoding='utf-8') as handle:
@@ -364,7 +429,13 @@ async def qr_login(request_path):
                 if asyncio.get_event_loop().time() > deadline:
                     write_state(path, {'token': token, 'status': 'expired'})
                     return
-                await qr.recreate()
+                try:
+                    await qr.recreate()
+                    if await qr_finished(client, qr):
+                        break   # код отсканировали, пока wait не слушал: Telegram ответил входом, а не новым токеном
+                except errors.SessionPasswordNeededError:
+                    write_state(path, {'token': token, 'status': 'needs_password', 'session': client.session.save()})
+                    return
             except errors.SessionPasswordNeededError:
                 write_state(path, {'token': token, 'status': 'needs_password', 'session': client.session.save()})
                 return

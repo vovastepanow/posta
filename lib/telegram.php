@@ -61,8 +61,14 @@ function telegram_bot_request($token, $method, array $fields = [], array $files 
 
 /** Подключённый канал с расшифрованным токеном или null: канал $channel_id пользователя, без него — канал по умолчанию (первый). */
 function telegram_connection($uid = null, $channel_id = null) {
-    $c = ($channel_id ?? '') !== '' ? channel_get($channel_id, $uid) : (channels_load($uid)[0] ?? null);
+    $c = ($channel_id ?? '') !== '' ? channel_get($channel_id, $uid) : (telegram_channels_load($uid)[0] ?? null);
     return $c !== null && !empty($c['token']) ? $c : null;
+}
+
+/** Канал для отправки поста: любая соцсеть по id, без id — Telegram по умолчанию. Без секретов — null. */
+function channel_for_post($uid, $channel_id = null) {
+    $c = ($channel_id ?? '') !== '' ? channel_get($channel_id, $uid) : telegram_connection($uid);
+    return $c !== null && !empty($c['secrets']) ? $c : null;
 }
 
 /** Новый для пользователя канал сверх тарифа (канал с этим chat_id уже подключён — не считается). */
@@ -80,7 +86,7 @@ function channel_connect_denied($chat_id, $uid = null, $enforce = BILLING_ENFORC
 
 /** Текст отказа удалить канал: у него есть отложенные посты (в «Отложенных» Telegram или в нашей очереди). Посты без поля channel относятся к каналу по умолчанию. */
 function channel_delete_denied($channel_id, $uid = null) {
-    $default = channels_load($uid)[0]['id'] ?? null;
+    $default = telegram_channels_load($uid)[0]['id'] ?? null;
     foreach (outbox_load($uid) as $e) {
         if (in_array($e['status'] ?? '', ['telegram', 'queued', 'sending', 'failed'], true) && (($e['channel'] ?? '') ?: $default) === (string)$channel_id) return 'У канала есть отложенные посты: сначала отмените их в очереди.';
     }
@@ -94,7 +100,7 @@ function publish_channel_resolve($channel_id, $uid = null, $enforce = BILLING_EN
     }
     $list = channels_load($uid);
     $index = array_search((string)$channel_id, array_column($list, 'id'), true);
-    if ($index === false || empty($list[$index]['token'])) return ['error' => 'Канал не найден: обновите страницу.', 'status' => 404];
+    if ($index === false || empty($list[$index]['secrets'])) return ['error' => 'Канал не найден: обновите страницу.', 'status' => 404];
     if ($enforce && $index >= billing_limits($uid)['channels']) {
         return ['error' => 'Канал за пределами тарифа: на тарифе «' . billing_limits($uid)['title'] . '» публиковать можно в первые ' . billing_limits($uid)['channels'] . ' канала по порядку.', 'status' => 402];
     }
@@ -103,7 +109,7 @@ function publish_channel_resolve($channel_id, $uid = null, $enforce = BILLING_EN
 
 /** Поля канала для журнала и очереди: id и название (канал по умолчанию, если id не задан). */
 function telegram_channel_fields($channel_id, $uid = null) {
-    $c = $channel_id !== null && $channel_id !== '' ? channel_get($channel_id, $uid) : (channels_load($uid)[0] ?? null);
+    $c = $channel_id !== null && $channel_id !== '' ? channel_get($channel_id, $uid) : (telegram_channels_load($uid)[0] ?? null);
     return ['channel' => $c['id'] ?? '', 'channel_title' => $c['chat_title'] ?? ''];
 }
 
@@ -246,7 +252,7 @@ function telegram_prepare_media(array $items, array $uploads, $dir, $route = 'bo
             }
             else throw new RuntimeException('файл недоступен (ни в кэше сайта, ни по ссылке).');
             $mime = (new finfo(FILEINFO_MIME_TYPE))->file($path) ?: '';
-            $prepared[] = ['name' => $name] + match (true) {
+            $prepared[] = ['name' => $name, 'src' => $src] + match (true) {
                 $mime === 'image/gif' => ['kind' => 'animation', 'path' => $path, 'width' => 0, 'height' => 0, 'duration' => 0],
                 str_starts_with($mime, 'image/') => ['kind' => 'photo', 'duration' => 0] + telegram_prepare_photo($path, $dir, $i),
                 str_starts_with($mime, 'video/') => ['kind' => 'video'] + telegram_prepare_video($path, $dir, $i, $route),
@@ -293,6 +299,9 @@ function telegram_remote_size($url) {
 
 /** Можно ли запостить видео записи: status ok | partial | blocked, problems, warnings, bad (номера файлов). */
 function telegram_preflight_item(array $item, $remote = true) {
+    if (in_array($item['video_via'] ?? '', ['ytdlp', 'tgu'], true) && ($item['video'] ?? '') === '' && empty($item['video_unavailable'])) {   // ролик ещё скачивается: картинку вместо видео не публикуем
+        return ['status' => 'blocked', 'problems' => ['Видео ещё загружается, попробуйте через минуту'], 'warnings' => [], 'bad' => [0]];
+    }
     $gallery = (array)($item['gallery'] ?? []);
     $main = content_image_key($item);
     $files = count($gallery) > 1
@@ -391,6 +400,11 @@ function telegram_publish_poll(array $c, array $poll) {
 
 function telegram_post_summary($text, $media_count) { return ['text' => mb_substr(trim((string)$text), 0, 120), 'media' => (int)$media_count]; }
 
+/** Адреса источников медиа поста (кэш сайта или ссылка) — по ним повторы находятся и по картинке. */
+function media_sources(array $media): array {
+    return array_values(array_filter(array_map(fn($f) => (string)($f['src'] ?? ''), $media), fn($s) => $s !== ''));
+}
+
 function telegram_log_published($uid, array $entry) {
     published_add($entry, $uid);
 }
@@ -400,7 +414,7 @@ function telegram_record_native_post($uid, $text, array $prepared, $publish_at, 
     $id = bin2hex(random_bytes(6));
     outbox_update(fn($q) => [...$q, ['id' => $id, 'created_at' => time(), 'publish_at' => (int)$publish_at, 'text' => $text,
         'media' => array_map(fn($f) => ['kind' => $f['kind'], 'name' => $f['name'] ?? ''], $prepared), 'status' => 'telegram', 'tg_ids' => $ids, 'attempts' => 0, 'error' => '',
-        'channel' => (string)$channel_id]]);
+        'channel' => (string)$channel_id, 'thumb_id' => post_thumb_make($prepared)]]);   // файлы ещё во временной папке — миниатюра берётся сейчас
     return $id;
 }
 
@@ -413,7 +427,7 @@ function telegram_settle_native_posts($uid) {
         return $settled ? $kept : null;
     }, $uid);
     foreach ($settled as $e) telegram_log_published($uid, telegram_post_summary($e['text'], count($e['media'])) + telegram_channel_fields($e['channel'] ?? null, $uid)
-        + ['at' => (int)$e['publish_at'], 'scheduled_for' => (int)$e['publish_at'], 'url' => '', 'status' => 'ok', 'error' => '']);
+        + ['at' => (int)$e['publish_at'], 'scheduled_for' => (int)$e['publish_at'], 'url' => '', 'status' => 'ok', 'error' => '', 'media_src' => media_sources($e['media'] ?? []), 'thumb_id' => (string)($e['thumb_id'] ?? ''), 'kind' => (string)($e['media'][0]['kind'] ?? '')]);
 }
 
 function telegram_unqueue_post($uid, $post_id) {
@@ -473,6 +487,15 @@ function telegram_user_schedule($uid, array $bot, $text, array $prepared, $publi
         'progress_file' => (string)($GLOBALS['telegram_progress_file'] ?? '')])['ids'] ?? []);
 }
 
+/** Видео поста публичного канала через личный аккаунт пользователя: [канал, номер поста] → файл в $dest_dir. Возвращает путь. */
+function telegram_user_download_video($uid, $channel, $post_id, $dest_dir, $max_bytes = TGU_VIDEO_MAX_BYTES) {
+    if (!is_dir($dest_dir) && !@mkdir($dest_dir, 0775, true) && !is_dir($dest_dir)) throw new RuntimeException('Не удалось создать папку для видео.');
+    $r = telegram_user_call($uid, ['action' => 'download_video', 'channel' => '@' . ltrim((string)$channel, '@'), 'post_id' => (int)$post_id, 'dest_dir' => $dest_dir, 'max_bytes' => (int)$max_bytes], TGU_VIDEO_TIMEOUT);
+    $path = (string)($r['path'] ?? '');
+    if (!is_file($path)) throw new RuntimeException('Telegram не отдал файл видео.');
+    return $path;
+}
+
 function telegram_user_cancel($uid, array $bot, array $ids) {
     telegram_user_call($uid, ['action' => 'cancel', 'channel' => telegram_user_channel_ref($bot), 'ids' => $ids], 60);
 }
@@ -483,6 +506,20 @@ function telegram_user_find_channels(array $queries, array $similar_to = [], $ui
     if (telegram_user_connection($uid) === null || (!$queries && !$similar_to)) return [];
     $request = $queries ? ['action' => 'search_channels', 'queries' => array_values($queries), 'limit' => 30] : ['action' => 'similar_channels', 'channels' => array_values($similar_to)];
     return array_values(array_filter((array)(telegram_user_call($uid, $request, 120)['channels'] ?? []), fn($c) => is_valid_telegram_channel((string)($c['username'] ?? ''))));
+}
+
+/**
+ * Проверка имён каналов через аккаунт пользователя (не больше 10 за вызов): [имя => true|false|null]. null — не удалось проверить.
+ */
+function telegram_user_resolve_usernames(array $names, $uid = null): array {
+    $uid ??= app_user_id();
+    $names = array_slice(array_values(array_filter(array_map('strval', $names), 'is_valid_telegram_channel')), 0, 10);
+    if (!$names || telegram_user_connection($uid) === null) return [];
+    $out = [];
+    foreach ((array)(telegram_user_call($uid, ['action' => 'resolve_usernames', 'usernames' => $names], 60)['results'] ?? []) as $r) {
+        $out[(string)($r['username'] ?? '')] = array_key_exists('exists', $r) ? $r['exists'] : null;
+    }
+    return $out;
 }
 
 /** Поиск публичных групп-чатов (не каналов) по запросам: [['username', 'title', 'members', 'query']]. Для радара лидов. */
@@ -622,27 +659,52 @@ function outbox_media_dir($post_id) {
 
 /** Переносит готовые файлы из временной папки в папку поста; если переименование не вышло (другой раздел диска) — копирует. Возвращает медиа с новыми путями. */
 function outbox_media_move($from, $post_id, array $media) {
+    // Каждый файл поста — в папку поста: и из временной папки, и из кэша сайта (кэш общий и чистится сам, его не трогаем).
+    // Раньше из кэша файл не копировался, а путь переписывался — пост терял файл и не выходил (CALENDAR_MEDIA_FIX).
     $to = outbox_media_dir($post_id);
     if (!is_dir(dirname($to)) && !@mkdir(dirname($to), 0775, true) && !is_dir(dirname($to))) throw new RuntimeException('Не удалось создать папку очереди.');
-    if (!@rename($from, $to)) {
-        if (!@mkdir($to, 0775) && !is_dir($to)) throw new RuntimeException('Не удалось создать папку поста.');
-        foreach (scandir($from) as $name) {
-            if (is_file("$from/$name") && !copy("$from/$name", "$to/$name")) { remove_dir($to); throw new RuntimeException('Не удалось перенести файлы поста.'); }
+    if (!is_dir($to) && !@mkdir($to, 0775)) throw new RuntimeException('Не удалось создать папку поста.');
+    $out = [];
+    try {
+        foreach ($media as $i => $f) {
+            $src = (string)($f['path'] ?? '');
+            if ($src === '' || !is_file($src)) throw new RuntimeException('Не удалось сохранить файлы поста: файл пропал до постановки.');
+            $name = basename($src);
+            $dest = "$to/$name";
+            if (is_file($dest)) $dest = "$to/" . $i . '-' . $name;   // одинаковые имена у двух файлов поста
+            if (!copy($src, $dest)) throw new RuntimeException('Не удалось сохранить файлы поста.');
+            $out[] = ['path' => $dest] + $f;
         }
-        remove_dir($from);
+    } catch (Throwable $e) {
+        remove_dir($to);
+        throw $e;
     }
-    return array_map(fn($f) => ['path' => $to . '/' . basename($f['path'])] + $f, $media);   // новый путь важнее старого
+    if (is_dir($from) && str_starts_with(realpath($from) ?: '', realpath(sys_get_temp_dir()) ?: '\0')) remove_dir($from);   // временная папка — убираем; кэш сайта не трогаем
+    return $out;
 }
 
 /** Ставит пост в нашу очередь: файлы уже готовы во временной папке $work, переносятся в папку поста. */
-function outbox_queue_post($uid, array $channel, $text, array $prepared, $publish_at, $slot_at, $work, ?array $poll = null) {
+/** Признак статьи для записи очереди: только короткие строки без HTML; нет заголовка — null. */
+function publish_article_input($raw): ?array {
+    $in = is_string($raw) ? json_decode($raw, true) : $raw;
+    if (!is_array($in) || trim((string)($in['title'] ?? '')) === '') return null;
+    $field = fn($key, $max) => mb_substr(trim(strip_tags((string)($in[$key] ?? ''))), 0, $max);
+    return ['title' => $field('title', 300), 'lead' => $field('lead', 400), 'site' => $field('site', 100), 'rubric' => $field('rubric', 100), 'author' => $field('author', 100), 'minutes' => max(0, min(999, (int)($in['minutes'] ?? 0)))];
+}
+
+/** $group — общий id поста, отправленного сразу в несколько ресурсов; у одиночного поста его нет. */
+function outbox_queue_post($uid, array $channel, $text, array $prepared, $publish_at, $slot_at, $work, ?array $poll = null, ?array $article = null, ?string $group = null, ?string $record = null) {
     $id = bin2hex(random_bytes(6));
-    $media = outbox_media_move($work, $id, array_map(fn($f) => ['kind' => $f['kind'], 'name' => $f['name'] ?? '', 'path' => $f['path'],
+    $media = outbox_media_move($work, $id, array_map(fn($f) => ['kind' => $f['kind'], 'name' => $f['name'] ?? '', 'src' => $f['src'] ?? '', 'path' => $f['path'],
         'width' => $f['width'] ?? 0, 'height' => $f['height'] ?? 0, 'duration' => $f['duration'] ?? 0], $prepared));
     $post = ['id' => $id, 'created_at' => time(), 'publish_at' => (int)$publish_at, 'slot_at' => $slot_at, 'slot' => $slot_at !== null,
-        'channel' => $channel['id'], 'channel_title' => $channel['chat_title'] ?? '', 'text' => (string)$text, 'media' => $media,
-        'status' => 'queued', 'attempts' => 0, 'error' => '', 'next_try_at' => 0, 'source_key' => ''] + ($poll !== null ? ['poll' => $poll] : []);
+        'channel' => $channel['id'], 'channel_title' => $channel['chat_title'] ?? '', 'text' => post_caption_clean($text), 'media' => $media,
+        'status' => 'queued', 'attempts' => 0, 'error' => '', 'next_try_at' => 0, 'source_key' => ''] + ($poll !== null ? ['poll' => $poll] : []) + ($article !== null ? ['article' => $article] : [])
+        + ($group !== null ? ['group' => $group] : []) + ($record !== null && $record !== '' ? ['record' => $record] : []);   // запись «Подбора/Предложки»: публикация = лайк, при отмене вернётся в «Предложку»
     try {
+        // Файлы должны лежать в папке поста уже сейчас: иначе пост не выйдет с «Файлы поста не найдены» в момент публикации
+        if (!outbox_media_ready($post)) throw new RuntimeException('Не удалось сохранить файлы поста.');
+        $post['thumb_id'] = post_thumb_make($media);
         outbox_update(fn($q) => [...$q, $post], $uid);
     } catch (Throwable $e) {
         remove_dir(outbox_media_dir($id));
@@ -657,6 +719,24 @@ function outbox_remove_post($post_id, $uid = null): bool {
     if (db_exec('DELETE FROM outbox WHERE id = ? AND user_id = ? AND status IN (?, ?)', [(string)$post_id, $uid, 'queued', 'failed']) === 0) return false;
     remove_dir(outbox_media_dir($post_id));
     return true;
+}
+
+/** Копия поста нашей очереди (ждёт или не вышел) на другое время: файлы копируются в папку нового поста. Возвращает новый пост или null — исходного нет. */
+function outbox_duplicate_post($post_id, $publish_at, $uid = null): ?array {
+    $uid = $uid ?: app_user_id();
+    $src = array_values(array_filter(outbox_load($uid), fn($e) => ($e['id'] ?? '') === $post_id && in_array($e['status'] ?? '', ['queued', 'failed'], true)))[0] ?? null;
+    if ($src === null) return null;
+    $id = bin2hex(random_bytes(6));
+    [$from, $to] = [outbox_media_dir($post_id), outbox_media_dir($id)];
+    if (!is_dir($to) && !@mkdir($to, 0775, true)) throw new RuntimeException('Не удалось создать папку поста.');
+    foreach ($src['media'] ?? [] as $f) {
+        if (!is_file("$from/" . basename($f['path'] ?? '')) || !copy("$from/" . basename($f['path']), "$to/" . basename($f['path']))) { remove_dir($to); throw new RuntimeException('Не удалось скопировать файлы поста.'); }
+    }
+    $copy = ['id' => $id, 'created_at' => time(), 'publish_at' => (int)$publish_at, 'slot_at' => null, 'slot' => false, 'status' => 'queued', 'attempts' => 0, 'error' => '', 'next_try_at' => 0, 'group' => bin2hex(random_bytes(6)),
+        'media' => array_map(fn($f) => ['path' => "$to/" . basename($f['path'])] + $f, $src['media'] ?? [])] + $src;
+    try { outbox_update(fn($q) => [...$q, $copy], $uid); }
+    catch (Throwable $e) { remove_dir($to); throw $e; }
+    return $copy;
 }
 
 /** Записывает пост в строку (статус — и в колонке, и в данных). */
@@ -715,12 +795,14 @@ function outbox_retry_or_fail($post_id, $uid, array $post, $error, $now, $force 
 }
 
 /** Успех: пост уходит из очереди в журнал опубликованных, папка удаляется. */
-function outbox_finish_sent($post_id, $uid, array $post, array $channel, $url) {
-    db_tx(function () use ($post_id, $uid, $post, $channel, $url) {
+function outbox_finish_sent($post_id, $uid, array $post, array $channel, $url, array $sent = []) {
+    // Журнал — по отправленным файлам (для соцсетей без Telegram); пропущенные названы отдельно
+    $shown = $sent['media_kept'] ?? $post['media'] ?? [];
+    db_tx(function () use ($post_id, $uid, $post, $channel, $url, $sent, $shown) {
         db_exec('DELETE FROM outbox WHERE id = ?', [(string)$post_id]);
-        telegram_log_published($uid, telegram_post_summary($post['text'] ?? '', count($post['media'] ?? [])) + ['at' => time(),
+        telegram_log_published($uid, telegram_post_summary($post['text'] ?? '', count($shown)) + ['at' => time(),
             'scheduled_for' => (int)($post['publish_at'] ?? 0), 'url' => (string)$url, 'status' => 'ok', 'error' => '',
-            'channel' => $channel['id'], 'channel_title' => $channel['chat_title'] ?? '']);
+            'channel' => $channel['id'], 'channel_title' => $channel['chat_title'] ?? '', 'media_src' => media_sources($shown), 'skipped' => $sent['skipped'] ?? []]);
     });
     remove_dir(outbox_media_dir($post_id));
 }
@@ -743,15 +825,131 @@ function outbox_media_ready(array $post) {
     return true;
 }
 
+// ---- Миниатюры карточек календаря: маленькие JPEG отдельно от файлов поста, живут и после публикации ----
+
+const THUMB_SIDE = 160;
+const THUMB_KEEP_DAYS = 90;
+
+function thumb_dir() { return ROOT . '/data/thumbs'; }
+
+function thumb_file($id) { return thumb_dir() . '/' . $id . '.jpg'; }
+
+/** Миниатюра из первого файла поста: картинка — уменьшенная копия, видео — кадр. Возвращает id или '' (сделать нельзя — карточка без миниатюры). */
+function post_thumb_make(array $media): string {
+    $f = $media[0] ?? [];
+    $src = (string)($f['path'] ?? '');
+    if ($src === '' || !is_file($src)) return '';
+    try {
+        if (!is_dir(thumb_dir()) && !@mkdir(thumb_dir(), 0775, true) && !is_dir(thumb_dir())) return '';
+        $id = bin2hex(random_bytes(6));
+        $out = thumb_file($id);
+        $vf = escapeshellarg('scale=' . THUMB_SIDE . ':' . THUMB_SIDE . ':force_original_aspect_ratio=decrease');
+        if (($f['kind'] ?? '') === 'video') {
+            // кадр на секунде; у коротких роликов первой секунды может не быть — тогда с начала
+            $ok = ffmpeg_run('-ss 1 -i ' . escapeshellarg($src) . " -frames:v 1 -vf $vf -q:v 4 -f image2", $out, 60)
+                || ffmpeg_run('-i ' . escapeshellarg($src) . " -frames:v 1 -vf $vf -q:v 4 -f image2", $out, 60);
+            return $ok ? $id : '';
+        }
+        if (!function_exists('imagecreatefromstring')) return '';
+        $jpeg = image_shrink((string)file_get_contents($src), THUMB_SIDE, 80, true);
+        return $jpeg !== '' && file_put_contents($out, $jpeg) !== false ? $id : '';
+    } catch (Throwable $e) {
+        error_log('posta: миниатюра поста: ' . $e->getMessage());
+        return '';
+    }
+}
+
+/** Миниатюра записана в очереди или журнале этого пользователя (чужую не отдаём). */
+function thumb_owned($id, $uid) {
+    if (!preg_match('/^[a-f0-9]{12}$/', (string)$id)) return false;
+    $like = '%"thumb_id":"' . $id . '"%';
+    return (bool)db_value('SELECT 1 FROM outbox WHERE user_id = ? AND data LIKE ?', [$uid, $like]) || (bool)db_value('SELECT 1 FROM published WHERE user_id = ? AND data LIKE ?', [$uid, $like]);
+}
+
+/** Миниатюры старше THUMB_KEEP_DAYS, на которые уже никто не ссылается (очередь и журнал всех пользователей). Возвращает число удалённых. */
+function thumb_gc() {
+    $removed = 0;
+    foreach (is_dir(thumb_dir()) ? glob(thumb_dir() . '/*.jpg') : [] as $file) {
+        if (filemtime($file) > time() - THUMB_KEEP_DAYS * DAY_SECONDS) continue;
+        $like = '%"thumb_id":"' . basename($file, '.jpg') . '"%';
+        if (db_value('SELECT 1 FROM outbox WHERE data LIKE ?', [$like]) || db_value('SELECT 1 FROM published WHERE data LIKE ?', [$like])) continue;
+        @unlink($file);
+        $removed++;
+    }
+    return $removed;
+}
+
+/** Ремонт очереди (CLI outbox-repair). Файл поста, которого нет в папке поста, берётся из кэша сайта или скачивается по ссылке;
+ *  заглушка в подписи очищается; «Файлы поста не найдены» с ещё не прошедшим временем — снова в очередь.
+ *  Без $apply ничего не меняет: только показывает, что будет сделано. Возвращает строки отчёта. */
+function outbox_repair($apply = false, $only_uid = null): array {
+    $report = [];
+    $users = $only_uid !== null ? [$only_uid] : array_column(db_all('SELECT DISTINCT user_id FROM outbox'), 'user_id');
+    foreach ($users as $uid) {
+        $changed = [];
+        foreach (outbox_load($uid) as $post) {
+            $st = (string)($post['status'] ?? '');
+            if (!in_array($st, ['queued', 'failed'], true)) continue;
+            $id = (string)($post['id'] ?? '');
+            $when = date('H:i d.m', (int)($post['publish_at'] ?? 0));
+            $dir = outbox_media_dir($id);
+            $lines = [];
+            $ok = true;
+            foreach ($post['media'] ?? [] as $k => $f) {
+                $name = basename((string)($f['path'] ?? ''));
+                if ($name === '' || is_file("$dir/$name")) continue;
+                $src = (string)($f['src'] ?? '');
+                $cached = media_cache_path($src);
+                if ($cached !== null && is_file($cached)) {
+                    $lines[] = "файл " . ($k + 1) . ': найден в кэше' . ($apply ? '' : ' (будет скопирован)');
+                    if ($apply) { @mkdir($dir, 0775, true); if (!copy($cached, "$dir/$name")) { $ok = false; $lines[] = "файл " . ($k + 1) . ': не удалось скопировать'; } }
+                } elseif (preg_match('~^https?://~i', $src)) {
+                    $lines[] = "файл " . ($k + 1) . ': нет в кэше, ' . ($apply ? 'скачиваю по ссылке' : 'будет скачан по ссылке');
+                    if ($apply) {
+                        try { @mkdir($dir, 0775, true); fetch_public_media($src, "$dir/$name", TELEGRAM_UPLOAD_MAX_BYTES); }
+                        catch (RuntimeException $e) { $ok = false; $lines[] = "файл " . ($k + 1) . ': ' . $e->getMessage(); }
+                    }
+                } else {
+                    $ok = false;
+                    $lines[] = "файл " . ($k + 1) . ': не найден ни в кэше, ни по ссылке';
+                }
+            }
+            $new = $post;
+            $clean = post_caption_clean($post['text'] ?? '');
+            if ($clean !== (string)($post['text'] ?? '')) { $new['text'] = $clean; $lines[] = 'заглушка в подписи очищена'; }
+            if ($st === 'failed' && $ok && str_contains(mb_strtolower((string)($post['error'] ?? '')), 'файлы поста не найдены')) {
+                if ((int)($post['publish_at'] ?? 0) > time()) {
+                    $new = array_merge($new, ['status' => 'queued', 'error' => '', 'attempts' => 0, 'next_try_at' => 0]);
+                    $lines[] = 'снова в очередь' . ($apply ? '' : ' (будет)');
+                } else {
+                    $lines[] = 'время уже прошло — остаётся «не вышел»';
+                }
+            } elseif ($st === 'failed' && !$ok) {
+                $lines[] = 'файл не восстановить — останется «не вышел»';
+            } elseif ($st === 'queued' && !$ok) {
+                $lines[] = 'файл не восстановить — пост не выйдет';
+            }
+            if (!$lines) continue;
+            $report[] = substr($uid, 0, 8) . " · {$id} · {$when} · {$st}" . ($apply ? '' : ' · (dry-run)');
+            foreach ($lines as $line) $report[] = "    $line";
+            $changed[$id] = $new;
+        }
+        if ($apply && $changed) outbox_update(fn($q) => array_map(fn($e) => $changed[$e['id'] ?? ''] ?? $e, $q), $uid);
+    }
+    return $report ?: ['Проблем с очередью не найдено.'];
+}
+
 /** Настоящая отправка поста своим каналом (подменяется в тестах). */
 function outbox_send_post(array $post, array $channel): array {
-    if (!empty($post['poll'])) {
-        $sent = telegram_publish_poll($channel, $post['poll']);
-        return ['url' => $sent['url'], 'message_ids' => $sent['message_ids']];
-    }
-    $media =array_map(fn($f) => ['kind' => $f['kind'], 'path' => $f['path'], 'width' => $f['width'], 'height' => $f['height'], 'duration' => $f['duration']], $post['media'] ?? []);
-    $sent = telegram_publish_prepared($channel, (string)($post['text'] ?? ''), $media);
-    return ['url' => $sent['url'], 'message_ids' => $sent['message_ids']];
+    $platform = (string)($channel['platform'] ?? 'telegram');
+    $network = network_for($platform);
+    if ($platform === 'telegram') return $network['publish']($channel, $post);
+    $channel = network_refresh_channel($channel);   // токен, который скоро истечёт, обновляем до отправки
+    // Файлы, которые соцсеть не примет (вид, размер, количество), пропускаем; пост без файлов и текста — ошибка
+    [$post['media'], $skipped] = network_fit_media($network, $post['media'] ?? []);
+    if (!$post['media'] && trim((string)($post['text'] ?? '')) === '' && empty($post['poll'])) throw new NetworkRejectedError($network['title'] . ': в посте нет подходящих файлов и текста.');
+    // media_kept — файлы, которые реально ушли в соцсеть: по ним журнал и миниатюра, а не по исходному списку
+    return $network['publish']($channel, $post) + ['skipped' => $skipped, 'media_kept' => $post['media']];
 }
 
 /**
@@ -765,7 +963,7 @@ function outbox_process_due($now, callable $send, $deadline = null): array {
         $claim = outbox_claim($due['id'], $now);
         if ($claim === null) continue;
         [$uid, $post] = [$claim['user_id'], $claim['post']];
-        $channel = telegram_connection($uid, $post['channel'] ?? null);
+        $channel = channel_for_post($uid, $post['channel'] ?? null);
         if ($channel === null) {
             $result['failed'] += outbox_retry_or_fail($post['id'], $uid, $post, 'Канал отключён', $now, true) ? 1 : 0;
             continue;
@@ -773,10 +971,11 @@ function outbox_process_due($now, callable $send, $deadline = null): array {
         try {
             if (!outbox_media_ready($post)) throw new RuntimeException('Файлы поста не найдены.');
             $sent = $send($post, $channel);
-            outbox_finish_sent($post['id'], $uid, $post, $channel, $sent['url'] ?? '');
+            outbox_finish_sent($post['id'], $uid, $post, $channel, $sent['url'] ?? '', $sent);
             $result['sent']++;
         } catch (Throwable $e) {
-            $result['failed'] += outbox_retry_or_fail($post['id'], $uid, $post, $e->getMessage(), $now) ? 1 : 0;
+            // Отказ соцсети (NetworkRejectedError) повтор не исправит — сразу неудача
+            $result['failed'] += outbox_retry_or_fail($post['id'], $uid, $post, $e->getMessage(), $now, $e instanceof NetworkRejectedError) ? 1 : 0;
         }
     }
     return $result;

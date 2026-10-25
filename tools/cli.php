@@ -8,21 +8,30 @@
 //   engagement-report [файлы]      — угадывает ли активность голоса пользователей (AUC)
 //   rescore-sources [--catalog] [--apply] — переоценить найденные каналы по текущим правилам
 //   seed-topics                    — засеять готовое дерево тем (lib/topic_tree.php), повторный запуск ничего не меняет
+//   topic-merge <откуда> <куда>    — слить тему в другую: названия и запросы переходят, дочерние темы — к ней, исходная удаляется
+//   discovery-origins [тема]       — откуда берутся предложения источников и как их решают: по виду находки, доля «да»
+//   discovery-run <тема> <id>      — прогон автоподбора одной темы от имени пользователя; тему в его настройках не меняет
 //   tag-content [N] [--dry-run]    — метки (темы дерева) записям без меток, по описанию ИИ; N запросов к модели (20)
 //   phash-backfill [--dry-run]     — для записей пула и истории без phash считает отпечаток по локальному файлу
 //   phash-report [N]               — печатает N самых близких пар разных картинок (по умолчанию 30)
 //   migrate-json [--apply]         — остатки JSON (ключи Telegram, лимиты, горячие темы) в базу, старые JSON-файлы — в архив
 //   balance-add <id> <₽> [заметка] — пополнить баланс пользователя (пока нет приёма платежей)
-//   outbox-gc                      — удалить папки файлов отложенных постов, у которых уже нет поста в очереди
+//   outbox-gc                      — удалить папки файлов отложенных постов, у которых уже нет поста в очереди; миниатюры старше 90 дней без ссылок
+//   outbox-repair [--dry-run] [uid] — починить очередь: файлы поста из кэша или по ссылке, заглушка в подписи; --dry-run — только список
 //   channels-migrate [--dry-run]   — перенести старый канал пользователя (connections.telegram) в таблицу каналов
 //   login-bot-from-channel <id>    — подключить бот входа к токену бота канала пользователя
 //   users-gc [--dry-run]           — удалить пустые профили (заход без куки) и брошенные дольше USER_RETENTION_DAYS
 //   users-merge <из> <в> [--dry-run] — слить два профиля, один в другой
+//   user-password <id|логин> [логин] — новый пароль профиля (печатается); с логином — заодно задать/сменить логин
+//   ytdlp-queue [--clear-failed]   — очередь роликов (пользователь, страница, способ, попытки, когда повтор); --clear-failed снимает исчерпавшие попытки
 //   media-cleanup [--dry-run] [--force] — очистить кэш медиа (без файлов, на которые ссылаются записи)
 //   media-audit [id]                   — проверить состояние медиа (только чтение): файлы, старые пути, источники
 //   media-repair [id] [--dry-run]      — исправить пути, пометить записи на перезагрузку медиа
 //   leads-scan [<uid>|--all] [--log=<файл>] — проход радара лидов (один пользователь или всем с включённым), журнал в stdout и файл
-//   admin-password                     — задать пароль владельца для админки радара (admin/), дважды, без эха
+//   history-dedupe [--dry-run]     — убрать из истории оценок повторы одной картинки (остаётся последняя оценка)
+//   radar-owner [<uid>] [--remove]     — кто видит вкладку «Радар» (без uid — показать список)
+//   channel-style <id> <канал>         — изучить стиль канала по его постам (сайт запускает сам, в фоне)
+//   articles-refresh [id] [--limit=40] — перечитать старые записи новостей без статьи (статья, обложка, текст); без моделей
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Только из командной строки.'); }
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../handlers/content.php';
@@ -100,12 +109,71 @@ case 'hot-topics':
     foreach ($hot as $t) echo "  {$t['title']} — {$t['score']}\n";
     break;
 
+case 'taxonomy-check':   // проверка карты тем: без моделей и без записи в базу; код выхода 1 при ошибках
+    $check = taxonomy_check();
+    echo "Веток: {$check['summary']['веток']}, частных тем: {$check['summary']['частных тем']}\n";
+    foreach ($check['summary']['по веткам'] as $bkey => $n) echo "  {$bkey}: {$n}\n";
+    foreach ($check['errors'] as $line) echo "ОШИБКА: {$line}\n";
+    echo $check['errors'] ? "Проверка не пройдена.\n" : "Проверка пройдена.\n";
+    exit($check['errors'] ? 1 : 0);
+case 'discovery-run':
+    // Проверка автоподбора одной темы: флаг не даёт прогону бросить тему, если пользователь её сменил
+    if (($args[0] ?? '') === '' || !is_valid_user_id($args[1] ?? '')) exit("Укажите тему и id пользователя: discovery-run <тема> <id>\n");
+    app_user_bind($args[1]);
+    $GLOBALS['discovery_cli_fixed_topic'] = true;
+    run_source_discovery($args[0]);
+    break;
+
+case 'discovery-origins':
+    $topic = $args[0] ?? null;
+    $rows = discovery_origin_report(load_source_db(), $topic);
+    echo 'Тема: ' . ($topic ?? 'все') . "\n";
+    printf("%-22s %8s %6s %10s %6s %10s\n", 'Вид находки', 'найдено', 'да', 'может быть', 'нет', 'доля «да»');
+    foreach ($rows as $kind => $r) {
+        $decided = $r['approve'] + $r['maybe'] + $r['reject'];
+        printf("%-22s %8d %6d %10d %6d %10s\n", DISCOVERY_ORIGIN_LABELS[$kind] ?? $kind, $r['found'], $r['approve'], $r['maybe'], $r['reject'], $decided ? round(100 * $r['approve'] / $decided) . '%' : '—');
+    }
+    if (!$rows) echo "Предложений и решений по теме нет.\n";
+    break;
+
+case 'topic-merge':
+    $from = topic_lookup($args[0] ?? '');
+    $to = topic_lookup($args[1] ?? '');
+    if (!$from || !$to) exit("Тема не найдена: укажите название или синоним, например topic-merge «Фап контент» «Порно».\n");
+    $merged = topic_merge($from['id'], $to['id']);
+    echo "«{$from['title']}» слита в «{$merged['title']}»: синонимы — " . implode(', ', $merged['aliases']) . "\n";
+    break;
+
 case 'seed-topics':
     $c = topic_tree_seed();
     echo "Дерево тем: создано {$c['created']}, обновлено {$c['updated']}, перенесено {$c['moved']}, пропущено {$c['skipped']}\n";
-    foreach (TOPIC_TREE as $branch) {
+    foreach (topic_tree() as $branch) {
         echo $branch['title'] . ($branch['nsfw'] ? ' [18+]' : '') . "\n";
         foreach ($branch['children'] as $child) echo "  " . $child['title'] . ($branch['nsfw'] ? ' [18+]' : '') . "\n";
+    }
+    break;
+
+case 'channel-reach':   // фон календаря: охват канала по часам (t.me/s/<имя>), результат — в кэше на 12 часов
+    [$name, $tz] = [$args[0] ?? '', $args[1] ?? date_default_timezone_get()];
+    $reach = channel_reach_by_hour(['username' => $name, 'schedule' => ['tz' => $tz]]);
+    echo $reach ? "Охват {$name}: постов {$reach['posts']}, лучшие часы " . implode(', ', $reach['best']) . "\n" : "Охват {$name}: мало данных\n";
+    break;
+case 'channel-history':   // фон календаря: посты канала за неделю (t.me/s/<имя>), результат — в кэше на 15 минут
+    $name = $args[0] ?? '';
+    echo is_valid_telegram_channel($name) ? "История {$name}: постов " . channel_history_refresh($name) . "\n" : "История: неверное имя канала\n";
+    break;
+case 'seed-news-sites':
+    $c = news_sites_seed();
+    echo "Новостные сайты: добавлено {$c['added']}, обновлено {$c['updated']}, тем добавлено {$c['topics']}\n";
+    break;
+
+case 'articles-refresh':   // статьи: старые записи новостей без статьи перечитываются со страницы (без моделей; не больше --limit страниц)
+    $limit = 40;
+    foreach ($argv as $a) if (preg_match('~^--limit=(\d+)$~', $a, $m)) $limit = max(1, (int)$m[1]);
+    foreach ($args ? [$args[0]] : user_ids() as $uid) {
+        app_user_bind($uid);
+        $r = articles_refresh_user($limit);
+        echo $short($uid) . ": статей получено: {$r['updated']}, из них текстовых (без картинки): {$r['text']}\n";
     }
     break;
 
@@ -177,6 +245,27 @@ case 'outbox-gc':
         $removed++;
     }
     echo "Удалено папок без поста: $removed\n";
+    echo "Удалено миниатюр старше " . THUMB_KEEP_DAYS . " дней без ссылок: " . thumb_gc() . "\n";
+    break;
+
+case 'outbox-repair':
+    foreach (outbox_repair(!$flag('dry-run'), $args[0] ?? null) as $line) echo $line . "\n";
+    echo $flag('dry-run') ? "(--dry-run: ничего не изменено)\n" : "Готово.\n";
+    break;
+
+case 'ytdlp-queue':
+    $jobs = ytdlp_queue_list();
+    if (in_array('--clear-failed', array_slice($argv, 2), true)) {
+        $failed = array_filter($jobs, fn($j) => (int)$j['tries'] >= YTDLP_TRIES);
+        foreach ($failed as $job) ytdlp_drop_job($job);
+        echo 'Снято исчерпавших попытки: ' . count($failed) . "\n";
+        $jobs = ytdlp_queue_list();
+    }
+    echo count($jobs) . " задач в очереди\n";
+    foreach ($jobs as $job) {
+        printf("%s  %-40s  %-5s  попыток %d  повтор %s\n", substr((string)$job['uid'], 0, 8), mb_substr((string)$job['page'], 0, 40), ytdlp_job_via($job),
+            (int)$job['tries'], (int)$job['next_at'] > 0 ? date('H:i:s', (int)$job['next_at']) : 'сейчас');
+    }
     break;
 
 case 'channels-migrate':
@@ -208,6 +297,22 @@ case 'login-bot-from-channel':
     }
     break;
 
+case 'user-password':
+    $who = $args[0] ?? '';
+    try {
+        $uid = is_valid_user_id($who) ? $who : (string)db_value('SELECT id FROM users WHERE login = ?', [credentials_login_normalize($who)]);
+        if (!$uid || !db_value('SELECT 1 FROM users WHERE id = ?', [$uid])) exit("Нет такого профиля: $who\n");
+        $login = credentials_login_normalize($args[1] ?? (string)db_value('SELECT login FROM users WHERE id = ?', [$uid]) ?: exit("У профиля нет логина: укажите его вторым аргументом\n"));
+        if (db_value('SELECT 1 FROM users WHERE login = ? AND id <> ?', [$login, $uid])) exit("Логин $login занят другим профилем\n");
+    } catch (InvalidArgumentException $e) {
+        exit('Ошибка: ' . $e->getMessage() . "\n");
+    }
+    $password = substr(strtr(base64_encode(random_bytes(12)), '+/', 'xy'), 0, 14);
+    db_exec('UPDATE users SET login = ?, password_hash = ? WHERE id = ?', [$login, password_hash($password, PASSWORD_DEFAULT), $uid]);
+    session_delete_all($uid);
+    echo "Профиль $uid\nЛогин: $login\nПароль: $password\nВсе сессии профиля закрыты.\n";
+    break;
+
 case 'users-merge':
     [$from, $to] = [$args[0] ?? '', $args[1] ?? ''];
     if (!is_valid_user_id($from) || !is_valid_user_id($to)) exit("Некорректные id\n");
@@ -228,6 +333,20 @@ case 'users-merge':
     if ($flag('dry-run')) break;
     user_merge($from, $to);
     printf("Готово: у %s теперь %d оценок, профиль %s удалён.\n", $short($to), $count('history_items', $to), $short($from));
+    break;
+
+case 'channel-style':
+    [$uid, $channel_id] = [$args[0] ?? '', $args[1] ?? ''];
+    if (!is_valid_user_id($uid) || $channel_id === '') exit("Нужны id пользователя и id канала\n");
+    app_user_bind($uid);
+    try {
+        channel_style_learn($channel_id, $uid);
+        kv_update('channel_style_job:' . $channel_id, fn() => ['status' => 'done', 'at' => time()]);
+        echo "Стиль канала изучен.\n";
+    } catch (Throwable $e) {
+        kv_update('channel_style_job:' . $channel_id, fn() => ['status' => 'error', 'at' => time(), 'message' => $e->getMessage()]);
+        echo 'Не удалось: ' . $e->getMessage() . "\n";
+    }
     break;
 
 case 'users-gc':
@@ -407,7 +526,7 @@ case 'leads-scan':
         file_put_contents($log_file, '');
         $log = function ($line) use ($log_file) {
             echo $line . "\n";
-            file_put_contents($log_file, date('H:i:s') . ' ' . $line . "\n", FILE_APPEND);
+            file_put_contents($log_file, (new DateTime('now', radar_log_timezone()))->format('H:i:s') . ' ' . $line . "\n", FILE_APPEND);
         };
         try {
             $result = lead_radar_run($uid, $log);
@@ -418,18 +537,21 @@ case 'leads-scan':
     }
     break;
 
-case 'admin-password':
+case 'history-dedupe':
+    $dry = in_array('--dry-run', $argv, true);
+    $total = 0;
+    foreach (array_column(db_all('SELECT DISTINCT user_id FROM history_items'), 'user_id') as $uid) {
+        $n = history_dedupe($uid, $dry);
+        if ($n) echo "{$uid}: " . ($dry ? 'повторов' : 'удалено') . " {$n}\n";
+        $total += $n;
+    }
+    echo ($dry ? 'Повторов всего: ' : 'Удалено повторов: ') . $total . "\n";
+    break;
+
+case 'radar-owner':
     require_once __DIR__ . '/../lib/radar_admin.php';
-    $read = function ($prompt) {
-        echo $prompt;
-        @shell_exec("stty -echo 2>/dev/null");
-        try { $line = fgets(STDIN); } finally { @shell_exec("stty echo 2>/dev/null"); echo "\n"; }
-        return $line === false ? '' : rtrim($line, "\r\n");
-    };
-    $password = $read('Пароль (от 10 символов): ');
-    if ($password !== $read('Ещё раз: ')) exit("Пароли не совпадают.\n");
-    try { admin_password_set($password); } catch (RuntimeException $e) { exit($e->getMessage() . "\n"); }
-    echo "Пароль админки сохранён.\n";
+    if ($args) radar_owner_set($args[0], !$flag('remove'));
+    echo 'Владельцы (видят вкладку «Радар»): ' . (implode(', ', radar_owners()) ?: 'нет') . "\n";
     break;
 
 default:
@@ -568,7 +690,7 @@ function rescore_sources($with_catalog, $apply) {
         if ($why) { $results[] = $t + ['keep' => false]; echo $label . $why . "\n"; continue; }
         $q = source_quality_score($ev['score'], $info['subscribers'], $rate);
         $results[] = $t + ['keep' => $keep = $q['score'] >= SOURCE_SUGGEST_SCORE, 'score' => $q['score'], 'audience' => ['subscribers' => $info['subscribers'], 'view_rate' => $rate, 'checked_at' => time()]];
-        printf("%sпо теме %3d%% (картинки %s) %s → %3d%% — %s\n", $label, $q['content'], implode('/', $ev['images']), describe_source_audience($info['subscribers'], $rate), $q['score'], $keep ? 'оставить' : 'убрать');
+        printf("%sпо теме %3d%% (%s) %s → %3d%% — %s\n", $label, $q['content'], source_evaluation_basis($ev), describe_source_audience($info['subscribers'], $rate), $q['score'], $keep ? 'оставить' : 'убрать');
     }
     $removed = count(array_filter($results, fn($r) => !$r['keep']));
     printf("\nИтого: оставить %d, убрать %d.\n", count($results) - $removed, $removed);
@@ -582,4 +704,10 @@ function rescore_sources($with_catalog, $apply) {
         return $db;
     });
     echo "Применено.\n";
+}
+
+/** Часовой пояс сервера для журнала радара: в CLI PHP без date.timezone берёт UTC, а владелец смотрит на местные часы. */
+function radar_log_timezone(): DateTimeZone {
+    $name = trim((string)@file_get_contents('/etc/timezone'));
+    try { return new DateTimeZone($name !== '' ? $name : date_default_timezone_get()); } catch (Throwable) { return new DateTimeZone('UTC'); }
 }

@@ -1,0 +1,14 @@
+# тег<TAB>темы<TAB>kind (rubric — одна на тему, entity — имя, format — вид поста)<TAB>синонимы через |
+гейминг	games.pc	rubric	gaming|пк_игры|геймер|геймеры|пк_гейминг|pc_gaming|геймплей|gameplay|игровые_баги|баги_в_играх
+мобильныеигры	games.mobile	rubric	mobile_games|игры_на_телефон|мобилки|мобильные_игры|мобильная_игра|казуалки|казуальные_игры|гача|gacha|гачи|головоломки|головоломка|пазлы|андроид_игры|android_игры|ios_игры|айос_игры
+киберспорт	games.esports	rubric	esports|киберспортивный|турнир|турниры|чемпионат|про_игроки|про_игрок|профи|киберкоманда|киберкоманды
+игры	games.other	rubric	видеоигры|games
+дота	games.esports	entity	dota|dota2|дота2
+кс2	games.esports	entity	cs2|cs|кс|counter_strike|контра
+майнкрафт	games.pc	entity	minecraft|майн
+гта	games.pc	entity	gta|gta6|гта6
+steam	games.pc	entity	стим
+playstation	games.pc	entity	ps5|плейстейшн|консоли|консоль
+геншин	games.mobile	entity	genshin|genshin_impact
+ретроигры	games.retro	rubric	ретрогейминг|retrogaming|денди|сега|ретро_игры
+настолки	games.board	rubric	настольные_игры|boardgames|dnd|днд

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Стенд: дерево тем</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<!-- Служебные элементы, которые ждут модули приложения (стенд, не страница Posta) -->
+<nav class="tabs"><button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab">Дерево</button></nav>
+<div id="activity-track" hidden></div>
+<button id="activity-console-follow" type="button" hidden></button>
+<div id="console-mini" hidden><span id="console-mini-status"></span></div>
+<span id="activity-console-status"></span><div id="activity-console" hidden></div>
+<button id="proposals-refresh" type="button" hidden></button>
+<input id="image-file" type="file" hidden>
+<input id="image-url" type="text" hidden>
+<form id="analyze-form" hidden></form>
+<main class="app-main">
+<!-- ДЕРЕВО ТЕМ -->
+<div id="tree-tab" class="view-panel wide-panel" data-width="narrow">
+  <div class="tree-head">
+    <div class="tree-head-text"><h2 class="section-title">Темы поиска</h2><p class="tree-current">Сейчас: <strong id="tree-current-name">—</strong></p></div>
+    <button id="tree-refresh" class="refresh-button" type="button" aria-label="Обновить дерево">↻</button>
+  </div>
+  <form id="tree-form" class="topic-form">
+    <label for="tree-input">Поиск по дереву, #хэштег или новая тема</label>
+    <div class="topic-row">
+      <input id="tree-input" type="search" maxlength="200" list="tree-options" placeholder="сюр, #cursed, котики — или новая тема" autocomplete="off">
+      <datalist id="tree-options"></datalist>
+      <button id="tree-save" type="submit" title="Enter: перейти к теме или создать новую">Выбрать</button>
+    </div>
+    <div id="tree-notice" class="topic-notice" role="status" hidden><span id="tree-notice-text"></span><button id="tree-force-new" class="topic-link" type="button">Нет, это другая тема</button></div>
+  </form>
+  <div id="tree-status" class="proposals-status" role="status"></div>
+  <div id="tree-layout" class="tree-layout">
+    <nav id="tree-rubrics" class="tree-rubrics" aria-label="Рубрики"></nav>
+    <section id="tree-cards" class="tree-cards" aria-label="Темы рубрики"></section>
+    <aside id="tree-detail" class="tree-detail" aria-live="polite"></aside>
+  </div>
+  <div id="tree-backdrop" class="tree-backdrop" hidden></div>
+</div>
+
+
+</main>
+<script>
+// Стенд: тема оформления из ?theme=, сеть не трогаем — topics и save_topic отдаём из снимка, остальное пусто.
+document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') || 'day';
+window.__requests = [];
+window.__confirms = [];
+window.confirm = message => { window.__confirms.push(message); return true; };
+const reply = data => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
+const realFetch = window.fetch.bind(window);
+let fixture = null;
+window.fetch = async (url, options = {}) => {
+    const u = new URL(url, location.href);
+    if (!u.pathname.endsWith('/index.php')) return realFetch(url, options);
+    const action = u.searchParams.get('action');
+    const body = options.body ? JSON.parse(options.body) : null;
+    window.__requests.push({ action, body, id: u.searchParams.get('id') });
+    fixture ??= await (await realFetch('/tools/fixtures/topics_tree.json')).json();
+    if (action === 'topics') return reply(fixture);
+    if (action === 'topic_record') return reply({ topic: { ...fixture.topics.find(t => t.id === u.searchParams.get('id')), profile: null } });
+    if (action === 'save_topic') {
+        const t = fixture.topics.find(x => x.title === body.topic) || { id: 'new', title: body.topic, path: body.topic };
+        return reply({ matched: false, typed: body.topic, topic: t.title, topic_info: t, created: false });
+    }
+    return reply({});
+};
+</script>
+<script type="module">
+import { switchTab } from '/js/core.js';
+import { initializeTabs } from '/js/tabs.js';
+initializeTabs();
+switchTab('tree-tab');
+</script>
+</body>
+</html>
