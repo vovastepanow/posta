@@ -11,7 +11,7 @@ import { closePostView, openPostView } from './post-view.js';
 import { fromQueuePost, fromRecord } from './post-adapters.js';
 import { openAccountSection } from './account.js';
 
-const PALETTE = ['#FFDA1A', '#E1001A', '#1546C8', '#0B7A3B', '#8A2BE2', '#FF7A00'];
+const PALETTE = ['#7c5cff', '#4fd1ff', '#ff5a7a', '#3ddc97', '#ffd166', '#c86bff'];
 const STATUS = {
     queued: 'В очереди: уйдёт в свой срок', sending: 'Отправляется…', failed: 'Не вышел', telegram: 'В «Отложенных» Telegram: уйдёт само', sent: 'Опубликован'
 };
@@ -670,10 +670,10 @@ function cardNode(post, mode, rows = false) {
 /** Цвет буквы на фоне: тёмная на светлом (жёлтый канал), белая на тёмном. Порог — там, где контраст с обоими одинаковый. */
 function inkOn(hex) {
     const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
-    if (!m) return '#111111';
+    if (!m) return '#0b0d1a';
     const lin = c => { const v = parseInt(c, 16) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
     const [r, g, b] = [m[1].slice(0, 2), m[1].slice(2, 4), m[1].slice(4, 6)].map(lin);
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.179 ? '#111111' : '#FFFFFF';
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.179 ? '#0b0d1a' : '#FFFFFF';
 }
 
 /** Аватар канала: первая буква названия на его цвете (в узкой карточке — без буквы, только кружок). */
