@@ -76,6 +76,7 @@ WantedBy=multi-user.target
 UNIT
     systemctl daemon-reload
     systemctl enable --now posta-clickhouse >/dev/null
+    i=0; while [ $i -lt 60 ] && ! ss -ltn | grep -q "127.0.0.1:9000 "; do sleep 1; i=$((i+1)); done
     CH=127.0.0.1:9000
 else
     echo "ClickHouse не установлен (CLICKHOUSE_BIN не задан): аналитика писаться не будет."
