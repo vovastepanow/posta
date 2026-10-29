@@ -90,7 +90,7 @@ const (
 	QualityPlatformComplaintShare = 0.5
 	QualityPlatformSample        = 10
 	PrescreenJunkP               = 0.8 // быстрая оценка отбрасывает только «мусор» с такой уверенностью
-	TopicQueryMaxLen             = 60
+	TopicQueryMaxLen             = 80
 	TopicQueryMinSources         = 3
 	TopicQueryDiscoveryPerDay    = 10
 	TopicQueryChannelsPerRun     = 12

@@ -96,7 +96,7 @@ func xname(n xml.Name) string {
 func rssLoad(data []byte) *xnode {
 	d := xml.NewDecoder(bytes.NewReader(data))
 	d.Strict = false
-	d.AutoClose = xml.HTMLAutoClose
+	// HTMLAutoClose здесь не нужен: он закрывал <link> сразу после открытия, и лента RSS 2.0 обрывалась на первом же <link>
 	d.Entity = xml.HTMLEntity
 	d.CharsetReader = func(label string, input io.Reader) (io.Reader, error) { return input, nil }
 	root := &xnode{N: "#root"}

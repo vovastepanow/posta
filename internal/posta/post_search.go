@@ -291,8 +291,7 @@ const (
 	PostSearchLimit        = 30
 	postSearchDateLookups  = 3
 	postSearchCacheTTL     = time.Hour
-	tgSearchPerHour        = 5
-	tgSearchChannelPages   = 5
+	tgSearchChannelPages   = 15
 	tiktokSearchAuthors    = 2
 )
 
@@ -469,7 +468,7 @@ func (u *U) tgPostSearchAllowed() bool {
 		if now()-h.At >= 3600 {
 			h = hour{now(), 0}
 		}
-		if h.N >= tgSearchPerHour {
+		if h.N >= u.TInt("tg_post_search_per_hour") {
 			return &h
 		}
 		allowed = true

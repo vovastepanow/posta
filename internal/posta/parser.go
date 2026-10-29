@@ -301,7 +301,6 @@ func (u *U) dvachBoardsThisRun(boards []string, topic string) []string {
 	return chosen
 }
 
-const suggestionPostsMax = 12
 
 func platformLabel(platform string, entry jx.M) string {
 	if platform == PlatformRSS {
@@ -510,52 +509,50 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 		}
 		u.Log("Опрошено %d из %d источников, остальные из кэша%s.", fetched, len(poll), next)
 	}
-	// У новой темы мало своих источников: посты берутся и из находок подбора (поровну по площадкам)
-	if u.TopicLacksSources(u.Catalog(), topic) {
-		byPlat := map[string][]jx.M{}
-		for _, s := range u.Catalog().Suggestions {
-			p := jx.Str(s, "platform")
-			if CatalogKind(p) == "" || (p == PlatformVK && !vk) || !u.TopicSame(jx.Str(s, "topic"), topic) || int(jx.Int(s, "score")) < u.TInt("suggest_score") {
-				continue
-			}
-			byPlat[p] = append(byPlat[p], s)
+	// Находки автоподбора подмешиваются всегда: с каждой берём один лучший по горячести пост (поровну по площадкам, предел — suggestion_sources_per_run)
+	byPlat := map[string][]jx.M{}
+	for _, s := range u.Catalog().Suggestions {
+		p := jx.Str(s, "platform")
+		if CatalogKind(p) == "" || (p == PlatformVK && !vk) || !u.TopicSame(jx.Str(s, "topic"), topic) || int(jx.Int(s, "score")) < u.TInt("suggest_score") {
+			continue
 		}
-		var lists [][]jx.M
-		for _, c := range CatalogKinds {
-			l := byPlat[c.Platform]
-			if len(l) == 0 {
-				continue
-			}
-			sort.SliceStable(l, func(i, j int) bool { return jx.Int(l[i], "score") > jx.Int(l[j], "score") })
-			lists = append(lists, l)
+		byPlat[p] = append(byPlat[p], s)
+	}
+	var lists [][]jx.M
+	for _, c := range CatalogKinds {
+		l := byPlat[c.Platform]
+		if len(l) == 0 {
+			continue
 		}
-		picked := DiscoveryBalance(lists, suggestionPostsMax, 2)
-		byLabel := map[string]int{}
-		for _, s := range picked {
-			p := jx.Str(s, "platform")
-			name := regexp.MustCompile(`^(Telegram|ВКонтакте|RSS|Одноклассники|TikTok) \| `).ReplaceAllString(jx.Str(s, "name"), "")
-			if name == "" {
-				name = jx.Str(s, "id")
-			}
-			posts, _, _ := u.collectCatalogSource(p, jx.M{"id": jx.Str(s, "id"), "name": name, "topics": []any{topic}}, activeOnly)
-			label := platformLabel(p, jx.M{"id": jx.Str(s, "id")})
-			if len(posts) > 0 {
-				rep[label].With++
-			}
-			rep[label].Posts += len(posts)
-			byLabel[label]++
-			by[p] = append(by[p], posts...)
+		sort.SliceStable(l, func(i, j int) bool { return jx.Int(l[i], "score") > jx.Int(l[j], "score") })
+		lists = append(lists, l)
+	}
+	picked := DiscoveryBalance(lists, u.TInt("suggestion_sources_per_run"), 2)
+	byLabel := map[string]int{}
+	for _, s := range picked {
+		p := jx.Str(s, "platform")
+		name := regexp.MustCompile(`^(Telegram|ВКонтакте|RSS|Одноклассники|TikTok) \| `).ReplaceAllString(jx.Str(s, "name"), "")
+		if name == "" {
+			name = jx.Str(s, "id")
 		}
-		if len(picked) > 0 {
-			var names []string
-			for l, n := range byLabel {
-				names = append(names, fmt.Sprintf("%s %d", platformNames[l], n))
-			}
-			sort.Strings(names)
-			u.Log("Своих источников у темы мало — временно беру посты из %d находок автоподбора (%s; решение по ним — на вкладке «Источники»).", len(picked), strings.Join(names, ", "))
+		posts, _, _ := u.collectCatalogSource(p, jx.M{"id": jx.Str(s, "id"), "name": name, "topics": []any{topic}}, activeOnly)
+		label := platformLabel(p, jx.M{"id": jx.Str(s, "id")})
+		rep[label].Posts += len(posts)
+		byLabel[label]++
+		if best := bestHeatPost(posts); best != nil {
+			rep[label].With++
+			by[p] = append(by[p], best)
 		}
 	}
-	if u.TBool("post_search") {
+	if len(picked) > 0 {
+		var names []string
+		for l, n := range byLabel {
+			names = append(names, fmt.Sprintf("%s %d", platformNames[l], n))
+		}
+		sort.Strings(names)
+		u.Log("Из находок автоподбора взято по одному посту с каждой: %d (%s; решение по ним — на вкладке «Источники»).", len(picked), strings.Join(names, ", "))
+	}
+	if u.TBool("post_search") && u.CurrentQuery() == "" {
 		search := u.PostSearchCollect(topic)
 		for _, p := range []string{PlatformRSS, PlatformTelegram, PlatformVK} {
 			by[p] = append(by[p], search.By[p]...)
@@ -576,6 +573,22 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	}
 	u.Log("%s", platformSummaryLine(rep, vk))
 	return by
+}
+
+// bestHeatPost — пост с наибольшей горячестью; без данных о горячести — первый; пустой список — nil.
+func bestHeatPost(posts []jx.M) jx.M {
+	var best jx.M
+	var bestHeat float64 = -1
+	for _, p := range posts {
+		h := 0.0
+		if v := PostHeat(p); v != nil {
+			h = *v
+		}
+		if best == nil || h > bestHeat {
+			best, bestHeat = p, h
+		}
+	}
+	return best
 }
 
 // ---- Кандидаты ----
@@ -1787,7 +1800,7 @@ func (u *U) RunCollector() bool {
 	topic = u.CurrentTopic()
 	key := u.SearchTopicKey()
 	if q := u.CurrentQuery(); q != "" {
-		u.Log("Уточнение: «%s» — ищу в теме «%s» только про это.", q, topic)
+		u.Log("Поиск: «%s» — ищу посты по площадкам (тема «%s» — только для оценки).", q, topic)
 	}
 	u.Log("Модели: быстрая оценка — %s, полный анализ — %s.", u.LLM.ModelFor(u.Ctx, "prescreen"), u.LLM.ModelFor(u.Ctx, "analysis"))
 	u.TopicEnsure(u.Ctx, topic)
@@ -1820,9 +1833,6 @@ func (u *U) RunCollector() bool {
 		}
 		return false
 	}
-	if TopicQueryOf(key) != "" && QueryOwnSourcesCount(u.Catalog(), key) < config.TopicQueryMinSources && u.QueryDiscoveryQuotaTake(key) {
-		u.RunQueryDiscovery(key)
-	}
 	cache := u.screenedCacheLoad(key)
 	scores := map[string]int{}
 	screenedHashes := map[string]int{}
@@ -1838,7 +1848,13 @@ func (u *U) RunCollector() bool {
 	}
 	h := u.History()
 	format := u.TopicFormatOf(key)
-	candidates, skipped := u.buildCandidateQueue(u.collectPostsByPlatform(key), seen, rejected, u.TopicVerdictStats(key), &format, u.ContentFilterValues(), key)
+	var byPlatform map[string][]jx.M
+	if u.CurrentQuery() != "" {
+		byPlatform = u.QuerySearchCollect(key)   // поиск по запросу сам включает каталог темы
+	} else {
+		byPlatform = u.collectPostsByPlatform(key)
+	}
+	candidates, skipped := u.buildCandidateQueue(byPlatform, seen, rejected, u.TopicVerdictStats(key), &format, u.ContentFilterValues(), key)
 	if hs := u.run.HotStats; hs != nil {
 		var per []string
 		for p, n := range hs["per"].(map[string]int) {

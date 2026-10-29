@@ -424,9 +424,9 @@ function initializeQueryField() {
         async value => { const data = await api('save_query', { body: { query: value } }); return { value: data.query, data }; },
         ({ data }) => {
             setCurrentTopic(currentTopic().topic, currentTopic().topic2, data.query || '');
-            log(data.query ? `Уточнение: «${data.query}» — ищу в теме «${currentTopic().topic}» только про это.` : 'Уточнение убрано.');
+            log(data.query ? `Поиск: «${data.query}» — ищу посты по площадкам (тема «${currentTopic().topic}» — только для оценки).` : 'Поиск по запросу убран.');
             watchParser();
-        }, 'Уточнение');
+        }, 'Поиск');
 }
 
 /** Галочка «Автоперевод»: сохраняем и перерисовываем текущую запись без перезапроса поиска. */
