@@ -1,15 +1,17 @@
 #!/bin/sh
 # Развёртывание Posta на сервере (Ubuntu): Postgres, ClickHouse, служба systemd и обратный прокси Apache на /posta/.
+# Служба работает прямо из папки проекта: правки HTML/CSS/JS видны сразу, после правок Go —
+#   go build -o bin/posta ./cmd/posta && sudo systemctl restart posta
 # Запуск от root: sudo sh deploy/install.sh
-#   POSTA_SRC     — папка с исходниками (по умолчанию — эта), бинарник уже собран: bin/posta
+#   POSTA_SRC     — папка проекта (по умолчанию — эта), бинарник уже собран: bin/posta
 #   POSTA_SQLITE  — прежняя база SQLite для переноса (необязательно), POSTA_OWNER — id профиля владельца
 #   CLICKHOUSE_BIN — бинарник ClickHouse (один файл; https://clickhouse.com/docs/install)
 # Повторный запуск безопасен: база и ключи не пересоздаются, данные не переносятся второй раз.
 set -eu
 SRC="${POSTA_SRC:-$(cd "$(dirname "$0")/.." && pwd)}"
-APP=/opt/posta
+APP="$SRC"
 DATA=/var/lib/posta
-ENV="$APP/posta.env"
+ENV=/etc/posta/posta.env   # секреты сервера — вне папки проекта
 RUN_USER=www-data
 
 say() { printf '\n== %s\n' "$*"; }
@@ -21,6 +23,7 @@ say "Postgres"
 command -v psql >/dev/null || { apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql; }
 systemctl enable --now postgresql >/dev/null
 PGPASS=""
+[ ! -f "$ENV" ] && [ -f /opt/posta/posta.env ] && { install -d -m 0755 /etc/posta; cp -p /opt/posta/posta.env "$ENV"; }   # переезд с /opt/posta
 [ -f "$ENV" ] && PGPASS="$(sed -n 's#^POSTA_PG=postgres://posta:\([^@]*\)@.*#\1#p' "$ENV")"
 if [ -z "$PGPASS" ]; then
     PGPASS="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32)"
@@ -83,12 +86,12 @@ else
 fi
 
 say "Приложение в $APP"
-install -d -m 0755 "$APP" "$APP/bin"
-# Файлы сайта — из git (без локальных данных и секретов)
-(cd "$SRC" && git -c safe.directory="*" archive --format=tar HEAD) | tar -x -C "$APP"
-install -m 0755 "$SRC/bin/posta" "$APP/bin/posta"
-for tool in yt-dlp deno YT_DLP_VERSION; do
-    [ -e "$SRC/tools/bin/$tool" ] && install -m 0755 "$SRC/tools/bin/$tool" "$APP/tools/bin/$tool"
+# Служба (www-data) должна читать проект и запускать bin/posta и tools/bin/*
+chgrp "$RUN_USER" "$APP" "$APP/bin" "$APP/bin/posta"
+chmod g+rx,o+rx "$APP/bin" "$APP/bin/posta"
+chmod g+s "$APP/bin"
+for tool in yt-dlp deno; do
+    [ -e "$APP/tools/bin/$tool" ] && chmod a+rx "$APP/tools/bin/$tool"
 done
 install -d -o "$RUN_USER" -g "$RUN_USER" -m 2775 "$DATA" "$DATA/data" "$DATA/media" "$DATA/home"
 if [ ! -f "$DATA/secret.key" ]; then
@@ -103,6 +106,7 @@ OPENROUTER=""
 [ -f "$ENV" ] && OPENROUTER="$(sed -n 's/^OPENROUTER_API_KEY=//p' "$ENV")"
 [ -z "$OPENROUTER" ] && [ -f "$SRC/posta.env" ] && OPENROUTER="$(sed -n 's/^OPENROUTER_API_KEY=//p' "$SRC/posta.env")"
 umask 027
+install -d -m 0755 /etc/posta
 cat > "$ENV" <<EOF
 POSTA_ROOT=$APP
 POSTA_LISTEN=127.0.0.1:8090
@@ -120,13 +124,14 @@ chown root:"$RUN_USER" "$ENV"; chmod 0640 "$ENV"
 umask 022
 
 say "Схема базы"
-su -s /bin/sh "$RUN_USER" -c "POSTA_ROOT=$APP $APP/bin/posta migrate"
+RUN_ENV="set -a; . $ENV; set +a;"   # секреты для разовых команд — из того же файла, что у службы
+su -s /bin/sh "$RUN_USER" -c "$RUN_ENV $APP/bin/posta migrate"
 
 if [ -n "${POSTA_SQLITE:-}" ] && [ -n "${POSTA_OWNER:-}" ]; then
     say "Перенос данных из $POSTA_SQLITE"
     COPY="$DATA/data/import.sqlite"
     sqlite3 "$POSTA_SQLITE" ".backup $COPY" && chown "$RUN_USER" "$COPY"
-    if su -s /bin/sh "$RUN_USER" -c "POSTA_ROOT=$APP $APP/bin/posta import-sqlite $COPY $POSTA_OWNER"; then rm -f "$COPY"; else
+    if su -s /bin/sh "$RUN_USER" -c "$RUN_ENV $APP/bin/posta import-sqlite $COPY $POSTA_OWNER"; then rm -f "$COPY"; else
         echo "Перенос пропущен (база уже заполнена или ошибка выше)."; rm -f "$COPY"; fi
 fi
 
@@ -141,6 +146,7 @@ Wants=network-online.target
 User=$RUN_USER
 Group=$RUN_USER
 WorkingDirectory=$APP
+EnvironmentFile=$ENV
 Environment=POSTA_ROOT=$APP
 Environment=HOME=$DATA/home
 ExecStart=$APP/bin/posta serve
@@ -154,6 +160,12 @@ UNIT
 systemctl daemon-reload
 systemctl enable posta >/dev/null
 systemctl restart posta
+# перезапуск после пересборки — без пароля, только эта команда
+if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ]; then
+    echo "$SUDO_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart posta" > /etc/sudoers.d/posta-restart
+    chmod 0440 /etc/sudoers.d/posta-restart
+    visudo -cqf /etc/sudoers.d/posta-restart || rm -f /etc/sudoers.d/posta-restart
+fi
 
 say "Apache: /posta/ → 127.0.0.1:8090"
 a2enmod -q proxy proxy_http headers >/dev/null
@@ -175,5 +187,7 @@ systemctl reload apache2
 
 sleep 2
 systemctl --no-pager --lines=5 status posta | head -12
-curl -fsS -o /dev/null -w "Ответ /posta/: %{http_code}\n" http://127.0.0.1/posta/ || true
+if curl -fsS -o /dev/null -w "Ответ /posta/: %{http_code}\n" http://127.0.0.1/posta/; then
+    rm -rf /opt/posta   # прежняя копия сайта: служба теперь работает из папки проекта
+fi
 echo "Готово."

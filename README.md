@@ -121,7 +121,8 @@ Posta — один сервер на Go (`posta`):
 Нужны: Go 1.26, Postgres 16+, ClickHouse (по желанию), Ollama и/или ключ OpenRouter, `ffmpeg`, Google Chrome.
 Внешние программы для видео — `sh tools/update-tools.sh` (yt-dlp и deno в `tools/bin`).
 
-Настройки и секреты — в `posta.env` рядом с бинарником (права 600):
+Настройки и секреты — в `posta.env` в корне проекта (права 600; для разработки) или в файле из `EnvironmentFile` службы
+(на сервере — `/etc/posta/posta.env`, его пишет `deploy/install.sh`):
 
 ```
 POSTA_LISTEN=127.0.0.1:8090
@@ -142,6 +143,9 @@ bin/posta serve        # сайт, сборщики, публикатор, ра�
 ```
 
 Сервер целиком (Postgres, ClickHouse, служба systemd, обратный прокси Apache) — `sudo sh deploy/install.sh`.
+Служба работает прямо из папки проекта: правки HTML/CSS/JS видны на сайте сразу (браузер переспрашивает файлы
+при каждой загрузке), правки Go — после `go build -o bin/posta ./cmd/posta && sudo systemctl restart posta`
+(перезапуск без пароля разрешает `/etc/sudoers.d/posta-restart`).
 
 ## Команды
 

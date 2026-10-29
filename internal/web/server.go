@@ -130,11 +130,8 @@ func staticSite(root string) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		if strings.HasSuffix(clean, ".html") {
-			w.Header().Set("Cache-Control", "no-cache")
-		} else {
-			w.Header().Set("Cache-Control", "public, max-age=300")
-		}
+		// no-cache: браузер переспрашивает каждый раз (ответ 304, если файл не менялся) — правки интерфейса видны сразу
+		w.Header().Set("Cache-Control", "no-cache")
 		if strings.HasSuffix(clean, "/index.html") {
 			// FileServer перенаправляет index.html на папку: отдаём сами
 			f, err := os.Open(filepath.Join(root, clean))
