@@ -478,6 +478,8 @@
 <div id="admin-tab" class="view-panel account-panel">
   <nav class="account-nav" aria-label="Разделы админки">
     <button type="button" data-admin-nav="control" class="is-active">Управление</button>
+    <button type="button" data-admin-nav="models">Модели</button>
+    <button type="button" data-admin-nav="behavior">Поведение</button>
     <button type="button" data-admin-nav="radar">Радар</button>
     <button type="button" data-admin-nav="databases">Базы данных</button>
     <button type="button" data-admin-nav="privacy">Куки и данные</button>
@@ -495,12 +497,6 @@
       <p id="admin-control-note" class="account-muted" role="status"></p>
     </div>
     <div class="account-card">
-      <h3>Модели</h3>
-      <label class="check-chip"><input id="admin-fast-only" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span id="admin-fast-only-label">Только быстрая модель</span></label>
-      <p class="account-muted">Все задачи модели — отбор постов, профили тем, автоподбор, подписи, радар — идут на маленькую быструю модель вместо основной. Быстрее, но отбор хуже. Действует на весь сервер.</p>
-      <p id="admin-models-state" class="account-muted" role="status"></p>
-    </div>
-    <div class="account-card">
       <h3>Украинский контент</h3>
       <label class="check-chip"><input id="admin-ua-on" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Фильтровать украинский контент</span></label>
       <p class="account-muted">Источники из Украины и посты на украинском не попадают в сбор, автоподбор, «Подбор», публикацию и Keep or Skip. Действует на весь сервер. Выключение ничего не удаляет — скрытое снова появится.</p>
@@ -511,6 +507,33 @@
       <h3>Заблокированные источники</h3>
       <div id="admin-ua-blocked" class="account-muted"></div>
       <p id="admin-ua-note" class="account-muted" role="status"></p>
+    </div>
+  </section>
+
+  <section class="admin-section" data-admin-section="models" hidden>
+    <div class="account-card">
+      <h3>Модели ИИ</h3>
+      <p class="account-muted">Где выполняется каждая задача: на своём компьютере (Ollama) или в OpenRouter. Резерв включается, когда основная модель не ответила, исчерпан лимит или бюджет. Платные модели не вызываются, пока дневной бюджет 0.</p>
+      <div id="admin-llm-presets" class="admin-action"></div>
+      <p id="admin-llm-preset-note" class="account-muted"></p>
+      <p id="admin-llm-state" class="account-muted" role="status"></p>
+      <label class="check-chip"><input id="admin-llm-fast-only" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Только быстрая локальная модель (слабая видеокарта, без облака)</span></label>
+      <label class="check-chip"><input id="admin-llm-free-only" type="checkbox" checked><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Показывать только бесплатные модели OpenRouter</span></label>
+      <div id="admin-llm-roles" class="llm-roles"></div>
+      <label><span>Дневной бюджет на платные модели, $</span><input id="admin-llm-budget" type="number" min="0" max="50" step="0.01"></label>
+      <label><span>Бесплатных запросов OpenRouter в сутки</span><input id="admin-llm-free-limit" type="number" min="0" max="100000"></label>
+      <div class="admin-action"><button id="admin-llm-save" class="primary-button" type="button">Сохранить модели</button></div>
+      <p id="admin-llm-note" class="account-muted" role="status"></p>
+    </div>
+  </section>
+
+  <section class="admin-section" data-admin-section="behavior" hidden>
+    <div class="account-card">
+      <h3>Поведение приложения</h3>
+      <p class="account-muted">Параметры действуют сразу для всех пользователей, без перезапуска. Изменённые подсвечены, их можно сбросить к значению по умолчанию.</p>
+      <div id="admin-tunables" class="tunables"></div>
+      <div class="admin-action"><button id="admin-tunables-save" class="primary-button" type="button">Сохранить параметры</button></div>
+      <p id="admin-tunables-note" class="account-muted" role="status"></p>
     </div>
   </section>
 

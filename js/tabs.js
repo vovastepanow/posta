@@ -1,5 +1,5 @@
 // tabs.js — вкладки «Предложка» (лайки и «не знаю»), «Дерево» (выбор и смена темы) и «Тест ИИ» (оценка одной картинки).
-import { $, DEBUG_MODE, NO_TEXT, VIDEO_ICON, api, el, hide, isTabActive, log, onTabOpen, onTopicChange, renderTags, safeSourcePostUrl, setMessage, show } from './core.js';
+import { $, ask, DEBUG_MODE, NO_TEXT, VIDEO_ICON, api, el, hide, isTabActive, log, onTabOpen, onTopicChange, renderTags, safeSourcePostUrl, setMessage, show } from './core.js';
 import { createProgress } from './progress.js';
 import { cachedVideoUrl, releaseVideoSource, storeVideo } from './video-cache.js';
 import { openViewerGallery } from './viewer.js';
@@ -633,7 +633,7 @@ function setTreeBusy(busy, message = '') {
 async function choose(text, forceNew = false) {
     const typed = text.trim();
     const current = tree.topics.find(t => t.id === tree.current);
-    if (!typed || tree.busy || (!forceNew && current?.title.toLowerCase() === typed.toLowerCase()) || !confirm(TOPIC_CONFIRM)) return;
+    if (!typed || tree.busy || (!forceNew && current?.title.toLowerCase() === typed.toLowerCase()) || !(await ask(TOPIC_CONFIRM, { ok: 'Сменить тему' }))) return;
     hide('tree-notice');
     setTreeBusy(true, 'Нейросеть определяет тему: название и общую тему (до минуты)…');
     try {

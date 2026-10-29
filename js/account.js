@@ -1,6 +1,6 @@
 // account.js — личный кабинет: профиль, соцсети (VK на весь сайт, бот и аккаунт Telegram), «Мои данные и куки», базы данных.
 import { initializeNetworks, loadNetworks } from './networks.js';
-import { $, DEBUG_MODE, api, apiUrl, el, log, onTabOpen, onTopicChange, pluralRu, switchTab, watchParser, safeSourcePostUrl } from './core.js';
+import { $, ask, DEBUG_MODE, api, apiUrl, el, log, onTabOpen, onTopicChange, pluralRu, switchTab, watchParser, safeSourcePostUrl } from './core.js';
 import { openViewerGallery, videoFields } from './viewer.js';
 import { pickDateTime } from './editor.js';
 
@@ -147,7 +147,7 @@ function telegramLoginButton(label) {
 
 function logoutButton(label, action, question) {
     const button = el('button', { type: 'button', className: 'account-secondary', textContent: label });
-    button.onclick = () => confirm(question) && busy(button, 'auth-status', async () => { await api(action, { body: null }); location.reload(); });
+    button.onclick = async () => (await ask(question)) && busy(button, 'auth-status', async () => { await api(action, { body: null }); location.reload(); });
     return button;
 }
 
@@ -318,8 +318,8 @@ function renderTelegram(channels) {
 
 function channelButton(text, action, channel, done) {
     const button = el('button', { type: 'button', className: 'account-secondary', textContent: text });
-    button.onclick = () => {
-        if (action === 'telegram_disconnect' && !confirm(`Отключить канал «${channel.title || channel.id}»? Бот и уже отправленные посты не затрагиваются.`)) return;
+    button.onclick = async () => {
+        if (action === 'telegram_disconnect' && !(await ask('Бот и уже отправленные посты не затрагиваются.', { title: `Отключить канал «${channel.title || channel.id}»?`, ok: 'Отключить', danger: true }))) return;
         busy(button, 'telegram-status', async () => {
             const d = await api(action, { body: { channel: channel.id } });
             renderTelegram(d.channels);
@@ -944,7 +944,7 @@ function recordsTable(items, columns, missing = new Set()) {
         return el('tr', {}, el('td', { className: 'db-num', textContent: String(i + 1) }), el('td', { className: 'db-picture' }, picture),
             ...shown.map(c => el('td', {}, dbCell(c, object[c]))),
             el('td', { className: 'db-actions' }, button('database-edit-button', 'Ред.', () => openDialog('Редактировать запись', r, i)),
-                button('database-delete-button', 'Удалить', () => confirm(`Удалить запись #${i + 1}? Это действие нельзя отменить.`) && change('database_delete', { index: i, expected: r })),
+                button('database-delete-button', 'Удалить', async () => (await ask('Это действие нельзя отменить.', { title: `Удалить запись #${i + 1}?`, ok: 'Удалить', danger: true })) && change('database_delete', { index: i, expected: r })),
                 link ? el('a', { className: 'database-source-link', href: link, target: '_blank', rel: 'noopener noreferrer', textContent: 'Пост ↗' }) : null));
     });
     return el('div', { className: 'db-table-wrap' }, el('table', { className: 'db-table' }, el('thead', {}, head), el('tbody', {}, ...rows)));
@@ -991,10 +991,10 @@ function initializeDatabases(onReset) {
     $('database-edit').addEventListener('click', () => {
         if (db.currentIndex !== null) openDialog('Редактировать запись', db.items[db.currentIndex], db.currentIndex);
     });
-    $('database-delete').addEventListener('click', () => {
+    $('database-delete').addEventListener('click', async () => {
         if (db.currentIndex !== null) {
             const idx = db.currentIndex;
-            if (confirm(`Удалить запись #${idx + 1}? Это действие нельзя отменить.`)) {
+            if (await ask('Это действие нельзя отменить.', { title: `Удалить запись #${idx + 1}?`, ok: 'Удалить', danger: true })) {
                 change('database_delete', { index: idx, expected: db.items[idx] });
             }
         }
@@ -1006,9 +1006,10 @@ function initializeDatabases(onReset) {
         try { record = JSON.parse($('database-record-json').value); } catch (error) { return dbStatus(`Некорректный JSON: ${error.message}`, true); }
         db.editing === null ? change('database_add', { record }) : change('database_update', { record, index: db.editing, expected: db.items[db.editing] });
     });
-    $('database-reset').addEventListener('click', e => {
-        if (!confirm('Очистить ваши данные? Пул контента и история оценок станут пустыми, сохранённые картинки удалятся. Тема поиска и общий каталог источников останутся. Это действие нельзя отменить.')) return;
-        busy(e.currentTarget, 'database-status', async () => {
+    $('database-reset').addEventListener('click', async e => {
+        const button = e.currentTarget;
+        if (!(await ask('Пул контента и история оценок станут пустыми, сохранённые картинки удалятся. Тема поиска и общий каталог источников останутся. Это действие нельзя отменить.', { title: 'Очистить ваши данные?', ok: 'Очистить', danger: true }))) return;
+        busy(button, 'database-status', async () => {
             const d = await api('database_reset', { body: null });
             log(`Базы очищены. Поиск контента: ${['started', 'running'].includes(d.parser) ? 'запущен' : 'не запустился'}.`);
             watchParser();
@@ -1111,7 +1112,7 @@ function renderCustomQuote() {
 
 async function buyPlan(button, body, title, price) {
     const balance = billing.info?.balance ?? 0;
-    if (!confirm(`Купить «${title}» за ${rub(price)} с баланса (сейчас ${rub(balance)})? Если сейчас действует другой тариф, неиспользованный остаток вернётся на баланс.`)) return;
+    if (!(await ask(`С баланса (сейчас ${rub(balance)}). Если сейчас действует другой тариф, неиспользованный остаток вернётся на баланс.`, { title: `Купить «${title}» за ${rub(price)}?`, ok: 'Купить' }))) return;
     await busy(button, 'billing-status', async () => {
         const d = await api('billing_buy', { body });
         status('billing-status', `Тариф «${d.plan.title}» действует до ${formatDate(d.plan.until)}. На балансе ${rub(d.balance)}.`);
@@ -1167,7 +1168,7 @@ async function loadApiToken() {
 
 function initializeApiToken() {
     $('api-token-create').addEventListener('click', async () => {
-        if (!$('api-token-revoke').hidden && !confirm('Старый токен перестанет работать. Создать новый?')) return;
+        if (!$('api-token-revoke').hidden && !(await ask('Старый токен перестанет работать.', { title: 'Создать новый токен?', ok: 'Создать' }))) return;
         try {
             const { token } = await api('api_token_create', { body: null });
             $('api-token-value').textContent = token;
@@ -1177,7 +1178,7 @@ function initializeApiToken() {
         } catch (error) { $('api-token-state').textContent = error.message; }
     });
     $('api-token-revoke').addEventListener('click', async () => {
-        if (!confirm('Отозвать токен? Скрипты с ним перестанут работать.')) return;
+        if (!(await ask('Скрипты с ним перестанут работать.', { title: 'Отозвать токен?', ok: 'Отозвать', danger: true }))) return;
         try { await api('api_token_revoke', { body: null }); $('api-token-box').hidden = true; await loadApiToken(); } catch (error) { $('api-token-state').textContent = error.message; }
     });
 }

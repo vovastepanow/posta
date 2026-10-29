@@ -1,6 +1,6 @@
 // sources.js — вкладка «Источники»: кандидат карточкой (мозаика свежих медиа, сводка, панель решений), автоподбор
 // и уже добавленные источники темы карточками в стиле «Предложки».
-import { $, COUNT, DEBUG_MODE, VIDEO_ICON, api, bindMenu, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, pluralRu, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
+import { $, ask, COUNT, DEBUG_MODE, VIDEO_ICON, api, bindMenu, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, pluralRu, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
 import { BIG_VIDEO_NOTE, closePostView, openPostView, shownText } from './post-view.js';
 import { fromSourcePost } from './post-adapters.js';
 import { videoPageFor } from './viewer.js';
@@ -392,7 +392,7 @@ function topicSourceCard(source) {
         } }));
     }
     if (!DEBUG_MODE && source.own) actions.append(el('button', { className: 'proposal-action proposal-hide', type: 'button', textContent: '✕ Убрать', title: `Убрать из темы «${topicSources.topic}»`, onclick: async () => {
-        if (!confirm(`Убрать «${source.name}» из темы «${topicSources.topic}»? Посты из него перестанут попадать в подбор по этой теме.`)) return;
+        if (!(await ask('Посты из него перестанут попадать в подбор по этой теме.', { title: `Убрать «${source.name}» из темы «${topicSources.topic}»?`, ok: 'Убрать', danger: true }))) return;
         card.classList.add('is-removing');
         try {
             await api('remove_topic_source', { body: { platform: source.platform, id: source.id, name: source.name } });

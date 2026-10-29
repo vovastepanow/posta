@@ -1,6 +1,6 @@
 // content.js — вкладка «Подбор»: тема и вторая тема, фильтры, карточка записи (карусель, видео, активность), голоса, жалобы,
 // публикация в Telegram (панель 🚀 и редактор поста).
-import { $, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
+import { $, ask, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
 import { registerViewerGallery, registerViewerPoster, videoFields } from './viewer.js';
 import { formatWhen, openPostEditor } from './editor.js';
 import { openAccountSection } from './account.js';
@@ -150,7 +150,7 @@ function renderCard(item, archiveInfo = null) {
     // Свой контент: подбора и оценки не было — жалобы на «ошибку подбора» и проценты не показываем
     $('complaint-button').hidden = Boolean(item.own);
     if (item.own) { $('item-rating').hidden = true; $('item-relevance').textContent = 'Свой контент'; }
-    renderTags($('item-tags'), item.tags_info, t => { if (confirm(`Искать по теме «${t.title}»? Тема подбора изменится.`)) saveTopic(t.title, false, 'topic-notice').then(() => refreshTopicLabel()).catch(error => log(`Не удалось сменить тему: ${error.message}`)); });
+    renderTags($('item-tags'), item.tags_info, async t => { if (await ask('Тема подбора изменится.', { title: `Искать по теме «${t.title}»?`, ok: 'Искать' })) saveTopic(t.title, false, 'topic-notice').then(() => refreshTopicLabel()).catch(error => log(`Не удалось сменить тему: ${error.message}`)); });
     $('item-source').textContent = `Источник: ${item.source || 'неизвестно'}${item.found_by ? ` · ${item.found_by}` : ''}`;
     const posted = formatPostedAt(item.posted_at);
     setMessage('item-date', posted && `Опубликовано: ${posted}`);
@@ -480,7 +480,7 @@ async function saveFilters() {
 async function saveAdult() {
     const box = $('filter-adult');
     const allowed = box.checked;
-    if (allowed && !confirm('Показывать чувствительный контент и материалы 18+ («Для взрослых», «Жесть»)?\n\nВам должно быть 18 лет. Публикуя такие материалы в каналы, вы сами отвечаете за соблюдение правил Telegram, ВК и закона.')) { box.checked = false; return; }
+    if (allowed && !(await ask('Вам должно быть 18 лет. Публикуя такие материалы в каналы, вы сами отвечаете за соблюдение правил Telegram, ВК и закона.', { title: 'Показывать чувствительный контент и 18+?', ok: 'Мне есть 18, показывать' }))) { box.checked = false; return; }
     box.disabled = true;
     try {
         const data = await api('adult_allow', { body: { allowed } });
@@ -630,7 +630,7 @@ async function publishToTelegram(post, onProgress = null) {
             result = await send();
         } catch (error) {
             // Соцсеть не примет часть файлов: сервер спрашивает, публиковать ли без них
-            if (!error.data?.confirm_skip || !confirm(error.message)) throw error;
+            if (!error.data?.confirm_skip || !(await ask(error.message, { ok: 'Опубликовать без них' }))) throw error;
             form.set('confirm_skip', '1');
             uploading = false;
             result = await send();
@@ -694,9 +694,9 @@ export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', 
         scheduledTs, scheduledAt: scheduledTs ? formatWhen(new Date(scheduledTs * 1000)) : '', description: item.description || '', original: sourceText,
         media: itemMedia(item), hashtags: item.hashtags || [],   // файлы, которые Telegram точно не примет, в редактор не попадают
         ai: captionTools(), newsUrl: sourceUrl || '',
-        onSubmit: (post, onProgress) => {
+        onSubmit: async (post, onProgress) => {
             // Ссылку на источник новости не стираем молча: без неё — вопрос, по умолчанию «Да»
-            if (sourceUrl && !String(post.text || '').includes(sourceUrl) && confirm('Добавить ссылку на источник?')) post.text = `${post.text || ''}\n\nИсточник: ${sourceUrl}`.trim();
+            if (sourceUrl && !String(post.text || '').includes(sourceUrl) && await ask('В тексте поста нет ссылки на новость.', { title: 'Добавить ссылку на источник?', ok: 'Добавить', cancel: 'Без ссылки' })) post.text = `${post.text || ''}\n\nИсточник: ${sourceUrl}`.trim();
             if (cardKind(item) === 'article') post.article = articleBrief(item);
             post.record = recordOf(item);
             return publishToTargets(post, onProgress).then(async result => {
@@ -729,10 +729,10 @@ export function initializeContentTab({ onAddItem }) {
     document.querySelectorAll('#content-tab [data-vote]').forEach(b => b.addEventListener('click', () => vote(b.dataset.vote)));
     $('item-search-button').addEventListener('click', searchForContent);
     $('item-add-button').addEventListener('click', onAddItem);
-    $('topic-form').addEventListener('submit', e => {
+    $('topic-form').addEventListener('submit', async e => {
         e.preventDefault();
         const topic = $('topic-input').value.trim();
-        if (topic && topic !== currentTopic().topic && confirm(TOPIC_CONFIRM)) submitTopic(topic);
+        if (topic && topic !== currentTopic().topic && await ask(TOPIC_CONFIRM, { ok: 'Сменить тему' })) submitTopic(topic);
     });
     $('topic-force-new').addEventListener('click', e => submitTopic(e.currentTarget.dataset.typed || $('topic-input').value.trim(), true));
     Object.entries(FILTERS).forEach(([key, id]) => $(id).addEventListener('change', key === 'auto_translate' ? onTranslateToggle : key === 'media_no_text' ? onMediaNoTextToggle : saveFilters));

@@ -1,7 +1,7 @@
 // calendar.js — вкладка «Календарь»: сетка дней с масштабом (колесо — от трёх дней до месяца), карточки постов
 // с содержимым по ширине колонки, свободные слоты, список, панель подробностей, подсказка «один раз».
 // Перетаскивание и жесты фона — в calendar-drag.js, чистая модель — в calendar-model.js.
-import { $, api, apiUrl, cleanCaption, el, isTabActive, onTabOpen, PHOTO_ICON, postTypeLabel, switchTab, VIDEO_ICON } from './core.js';
+import { $, api, apiUrl, ask, cleanCaption, el, isTabActive, onTabOpen, PHOTO_ICON, postTypeLabel, switchTab, VIDEO_ICON } from './core.js';
 import { addDays, centeredHourShift, dayAgenda, easeView, freeSlots, hourSpan, hourWindow, layoutDay, layoutRow, shiftHourWindow, slotTimes, snapGestureDays, snapView, summary, viewGapPx, weekStart, wheelFactor, wheelPixels, zoomAround, zoomHoursAround, zoomLimitReached, ZOOM_DAYS_MAX, ZOOM_DAYS_MIN, DAY, HOUR, MIN } from './calendar-model.js';
 import { postItemToTelegram } from './content.js';
 import { isPhone, phoneView } from './calendar-phone.js';
@@ -1466,7 +1466,7 @@ async function pickTime(post) {
 }
 
 async function runAction(run, confirmText) {
-    if (confirmText && !confirm(confirmText)) return;
+    if (confirmText && !(await ask(confirmText))) return;
     closePanel();
     try {
         const message = await run();

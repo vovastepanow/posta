@@ -386,3 +386,28 @@ export function initializeCore() {
     window.addEventListener('resize', placeConsole);
     applyConsoleState();   // состояние журнала восстанавливаем после загрузки страницы
 }
+
+// ---- Подтверждение внутри страницы: вместо браузерного confirm() (он блокирует вкладку и выглядит чужеродно) ----
+
+/**
+ * Спросить пользователя. Возвращает Promise<boolean>: true — «Да», false — отмена (кнопка, Esc, щелчок по фону).
+ * options: ok — подпись кнопки подтверждения, cancel — отмены, danger — красная кнопка (удаление, необратимое).
+ */
+export function ask(text, { ok = 'Да', cancel = 'Отмена', danger = false, title = '' } = {}) {
+    return new Promise(resolve => {
+        const dialog = el('dialog', { className: 'ask-dialog' });
+        const done = value => { dialog.close(); dialog.remove(); resolve(value); };
+        const okButton = el('button', { type: 'button', className: danger ? 'ask-ok danger' : 'ask-ok', textContent: ok, onclick: () => done(true) });
+        const lines = String(text).split('\n').filter(Boolean).map(line => el('p', { textContent: line }));
+        dialog.append(
+            ...(title ? [el('h2', { textContent: title })] : []),
+            ...lines,
+            el('div', { className: 'dialog-actions' },
+                el('button', { type: 'button', className: 'ask-cancel', textContent: cancel, onclick: () => done(false) }), okButton));
+        dialog.addEventListener('cancel', event => { event.preventDefault(); done(false); });
+        dialog.addEventListener('click', event => { if (event.target === dialog) done(false); });
+        document.body.append(dialog);
+        dialog.showModal();
+        okButton.focus();
+    });
+}

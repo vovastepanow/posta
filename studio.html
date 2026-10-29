@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Posta Студия</title>
+<link rel="icon" href="img/posta-favicon-32.png">
+<link rel="stylesheet" href="css/studio.css">
+<script type="module" src="js/studio.js"></script>
+</head>
+<body>
+<div class="studio">
+  <aside class="side">
+    <a class="brand" href="studio.html">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span><b>Posta</b><small>ИИ-студия контента</small></span>
+    </a>
+    <nav class="side-nav">
+      <a class="is-active" href="studio.html"><i>⌂</i>Главная</a>
+      <a href="index.html#content"><i>✦</i>Подбор <em id="nav-pool"></em></a>
+      <a href="index.html#proposals"><i>▣</i>Мой контент <em id="nav-proposals"></em></a>
+      <a href="index.html#calendar"><i>▦</i>Календарь</a>
+      <a href="index.html#sources"><i>⟲</i>Источники</a>
+      <a href="index.html#account"><i>⚙</i>Настройки</a>
+    </nav>
+    <h4>Источники</h4>
+    <ul id="side-sources" class="side-list"><li class="muted">Загрузка…</li></ul>
+    <h4>Фильтры</h4>
+    <ul id="side-filters" class="side-list"></ul>
+    <a class="profile" href="index.html#account">
+      <span class="avatar" id="profile-avatar">P</span>
+      <span><b id="profile-name">Владелец</b><small id="profile-plan">Тариф</small></span>
+      <i>›</i>
+    </a>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Поиск по тексту, хэштегам и источникам"><kbd>/</kbd></label>
+      <div class="model-pill" id="model-pill"><span class="orb" aria-hidden="true"></span><span><b id="pill-model">Модели</b><small id="pill-state">—</small></span></div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-text">
+        <h1>Лучший контент —<br><span class="grad">в готовые посты</span></h1>
+        <p>Posta собирает свежие посты по вашей теме из Telegram, VK, имиджбордов и сайтов, отбирает их моделью и ставит в канал по расписанию.</p>
+        <div class="stats">
+          <div><b id="stat-total">—</b><small>в истории оценок</small></div>
+          <div><b id="stat-today">—</b><small>опубликовано за сутки</small></div>
+          <div><b id="stat-accuracy">—</b><small>доля лайков</small></div>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true"><span class="planet"></span><span class="card c1"></span><span class="card c2"></span><span class="card c3"></span></div>
+      <a class="cta" href="index.html#content">+ Начать подбор</a>
+    </section>
+
+    <div class="toolbar">
+      <div class="chips" id="chips"></div>
+      <select id="sort"><option value="new">Сначала новые</option><option value="rel">По оценке модели</option></select>
+    </div>
+    <div id="grid" class="grid"><p class="muted">Загрузка…</p></div>
+  </main>
+
+  <aside class="panel">
+    <section class="box">
+      <div class="box-head"><span class="ai-badge">ИИ</span><span><b>Работа модели</b><small id="ai-topic">—</small></span></div>
+      <p class="ai-phase" id="ai-phase">Ничего не делается</p>
+      <div class="bar"><span id="ai-bar"></span></div><span class="bar-pct" id="ai-pct"></span>
+      <ul class="steps" id="ai-steps"></ul>
+    </section>
+    <section class="box">
+      <h3>Быстрые действия</h3>
+      <button class="action" id="act-search" type="button"><i>✦</i><span><b>Найти контент</b><small>Сборщик пройдёт по источникам темы</small></span><em>›</em></button>
+      <a class="action" href="index.html#calendar"><i>▦</i><span><b>Запланировать</b><small>Календарь и расписание каналов</small></span><em>›</em></a>
+      <button class="action" id="act-discover" type="button"><i>⟲</i><span><b>Подобрать источники</b><small>Новые каналы и паблики по теме</small></span><em>›</em></button>
+      <p class="muted" id="act-note" role="status"></p>
+    </section>
+    <section class="box">
+      <h3>Последние события</h3>
+      <ul class="activity" id="activity"><li class="muted">—</li></ul>
+    </section>
+  </aside>
+</div>
+</body>
+</html>
