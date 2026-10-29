@@ -28,6 +28,7 @@ func init() {
 	get("get_item_video", getItemVideo)
 	get("get_current_item", getCurrentItem)
 	get("parser_status", parserStatus)
+	get("studio_live", studioLive)
 	post("tab_open", func(c *Ctx) (any, error) {
 		tab, err := tabID(c)
 		if err != nil {
@@ -238,6 +239,41 @@ func parserStatus(c *Ctx) (any, error) {
 		r["runtime"], r["progress"] = c.A.ParserRuntimeSeconds(c.U.ID), c.A.ParserProgressPublic(c.U.ID)
 	}
 	return r, nil
+}
+
+// studioLive — «смотровое окно» студии: последние отобранные посты пула (новые сверху) и ход сборщика одним запросом.
+func studioLive(c *Ctx) (any, error) {
+	u := c.U
+	pool := u.PoolWithoutLostVideo(u.PoolForCurrentTopic())
+	sorted := append([]jx.M{}, pool...)
+	sort.SliceStable(sorted, func(i, j int) bool { return jx.Int(sorted[i], "timestamp") > jx.Int(sorted[j], "timestamp") })
+	items := []jx.M{}
+	for _, it := range sorted[:min(30, len(sorted))] {
+		img := u.MediaExisting(jx.Str(it, "image_local"))
+		if img == "" {
+			img = jx.Str(it, "image")
+		}
+		vid := ""
+		if jx.Str(it, "video") != "" {
+			if vid = u.MediaExisting(jx.Str(it, "video_local")); vid == "" {
+				vid = jx.Str(it, "video")
+			}
+		}
+		items = append(items, jx.M{"key": posta.ContentImageKey(it), "display_image": img, "display_video": vid, "text": jx.Str(it, "text"),
+			"description": jx.Str(it, "description"), "why_relevant": jx.Str(it, "why_relevant"), "source": jx.Str(it, "source"),
+			"source_key": jx.Str(it, "source_key"), "source_url": jx.Str(it, "source_url"), "board": jx.Str(it, "board"),
+			"posted_at": jx.Int(it, "posted_at"), "timestamp": jx.Int(it, "timestamp"), "relevance": jx.Int(it, "relevance")})
+	}
+	r, err := parserStatus(c)
+	if err != nil {
+		return nil, err
+	}
+	st := r.(jx.M)
+	if a, _ := st["activity"].([]string); len(a) > 8 {
+		st["activity"] = a[len(a)-8:]
+	}
+	st["items"], st["pool"], st["topic"] = items, len(pool), u.CurrentTopic()
+	return st, nil
 }
 
 func settings(c *Ctx) (any, error) {

@@ -1,4 +1,7 @@
-// studio.js — главная «Студии»: лента контента, источники, работа модели, быстрые действия. Данные — тот же API, что у приложения.
+// studio.js — главная «Студии»: смотровое окно (глобус с только что отобранными постами), лента «Мой контент», источники, события.
+// Данные — тот же API, что у приложения.
+import { createGlobe } from './studio-globe.js';
+
 const $ = id => document.getElementById(id);
 const COUNT = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 });
 
@@ -26,6 +29,12 @@ async function api(action, { body } = {}) {
     return data;
 }
 
+/** Запрос к API; без входа — на страницу входа приложения. */
+async function apiOrLogin(action, opts) {
+    try { return await api(action, opts); }
+    catch (e) { if (e.status === 401) location.replace('index.html'); throw e; }
+}
+
 const PLATFORMS = { YouTube: '▶', Telegram: '✈', 'ВКонтакте': 'VK', RSS: '◉', 'Двач': '2ch', '4chan': '4ch', 'Одноклассники': 'OK', TikTok: '♪' };
 const state = { items: [], filter: 'all', sort: 'new', q: '' };
 
@@ -36,6 +45,47 @@ const platformOf = item => {
     const p = s.split(' | ')[0];
     return PLATFORMS[p] ? p : (s.includes('Двач') ? 'Двач' : 'Сайт');
 };
+
+const PLATFORM_COLORS = { Telegram: '#4fd1ff', YouTube: '#ff5a7a', 'ВКонтакте': '#6f9bff', 'Двач': '#ffd166', '4chan': '#9be15d', RSS: '#c86bff', 'Сайт': '#c86bff' };
+const colorOf = p => PLATFORM_COLORS[p] || '#e06bff';
+
+// Регион источника: точной геометки у постов нет, поэтому — по площадке и языку текста; город выбирается стабильно по источнику.
+const CITIES = {
+    ru: [['Москва', 55.75, 37.62], ['Санкт-Петербург', 59.94, 30.31], ['Казань', 55.79, 49.12], ['Екатеринбург', 56.84, 60.6], ['Новосибирск', 55.03, 82.92],
+        ['Краснодар', 45.04, 38.98], ['Нижний Новгород', 56.33, 44.0], ['Самара', 53.2, 50.15], ['Ростов-на-Дону', 47.23, 39.72], ['Владивосток', 43.12, 131.89],
+        ['Минск', 53.9, 27.56], ['Алматы', 43.24, 76.89], ['Красноярск', 56.01, 92.85], ['Пермь', 58.01, 56.25]],
+    boards: [['Москва', 55.75, 37.62], ['Санкт-Петербург', 59.94, 30.31]],
+    us: [['Нью-Йорк', 40.71, -74.0], ['Лос-Анджелес', 34.05, -118.24], ['Чикаго', 41.88, -87.63], ['Сиэтл', 47.6, -122.33], ['Остин', 30.27, -97.74], ['Майами', 25.76, -80.19]],
+    en: [['Нью-Йорк', 40.71, -74.0], ['Лос-Анджелес', 34.05, -118.24], ['Лондон', 51.5, -0.12], ['Торонто', 43.65, -79.38], ['Сидней', -33.87, 151.21], ['Дублин', 53.35, -6.26]],
+    eu: [['Берлин', 52.52, 13.4], ['Париж', 48.86, 2.35], ['Мадрид', 40.42, -3.7], ['Рим', 41.9, 12.5], ['Варшава', 52.23, 21.01], ['Амстердам', 52.37, 4.9]],
+    ja: [['Токио', 35.68, 139.69], ['Осака', 34.69, 135.5]],
+    zh: [['Шанхай', 31.23, 121.47], ['Тайбэй', 25.03, 121.56]],
+    ko: [['Сеул', 37.57, 126.98]],
+};
+const hash = s => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.codePointAt(0), 16777619); return h >>> 0; };
+
+function regionOf(item, platform) {
+    if (platform === '4chan') return 'us';
+    if (platform === 'Двач') return 'boards';
+    // ссылки и хэштеги (часто латиницей и у русских постов) язык не определяют
+    const t = `${item.text || ''} ${String(item.source || '').split(' | ').pop()}`.replace(/https?:\/\/\S+|[\w.-]+\.(com|ru|tv|to|me|be)\S*|#\S+|@\S+/gi, ' ');
+    if (/[\u3040-\u30ff]/.test(t)) return 'ja';
+    if (/[\uac00-\ud7af]/.test(t)) return 'ko';
+    if (/[\u4e00-\u9fff]/.test(t)) return 'zh';
+    const cyr = (t.match(/[а-яё]/gi) || []).length, lat = (t.match(/[a-z]/gi) || []).length;
+    if (cyr * 3 >= lat) return 'ru';
+    return /[äöüßéèàñçãõąęłśźż]/i.test(t) ? 'eu' : 'en';
+}
+
+function geoOf(item) {
+    const platform = platformOf(item);
+    const list = CITIES[regionOf(item, platform)];
+    const [city, lat, lon] = list[hash(item.source_key || item.source) % list.length];
+    const j = hash(item.key || item.display_image || item.text);   // небольшой разброс, чтобы посты одного города не слипались
+    return { city, lat: (lat + ((j & 255) / 255 - 0.5) * 1.2) * Math.PI / 180, lon: (lon + (((j >> 8) & 255) / 255 - 0.5) * 1.6) * Math.PI / 180, platform };
+}
+
+const firstLine = i => String(i.text || i.description || '').split('\n')[0].replace(/#\S+/g, '').trim().slice(0, 90) || 'Без подписи';
 
 const FILTERS = [
     ['all', 'Всё', () => true],
@@ -64,8 +114,8 @@ function card(i) {
         i.relevance ? el('span', { textContent: `★ ${i.relevance}`, title: 'Оценка модели: насколько пост по теме' }) : null,
         el('span', { className: 'vote', textContent: i.vote === 'liked' ? '♥' : '?', title: i.vote === 'liked' ? 'Лайк' : 'Без решения' }));
     const ago = i.timestamp ? formatAgo(i.timestamp) : '';
-    const title = String(i.text || i.description || '').split('\n')[0].slice(0, 90) || 'Без подписи';
-    return el('article', { className: 'tile' },
+    const title = firstLine(i);
+    return el('article', { className: 'tile', onclick: e => { if (!e.target.closest('a')) openPreview(i); } },
         el('div', { className: 'tile-media' }, media,
             el('span', { className: 'badge', textContent: `${PLATFORMS[platformOf(i)] || '◌'} ${platformOf(i)}` }),
             ago ? el('span', { className: 'ago', textContent: ago }) : null, stats),
@@ -73,6 +123,96 @@ function card(i) {
             el('b', { textContent: title }),
             el('small', { textContent: (i.hashtags || []).slice(0, 4).join(' ') || i.source || '' }),
             i.source_url ? el('a', { href: i.source_url, target: '_blank', rel: 'noopener', textContent: '↗', title: 'Открыть у источника' }) : null));
+}
+
+// ---- просмотр поста ----
+function openPreview(i) {
+    const dlg = $('preview');
+    const media = i.display_video
+        ? el('video', { src: i.display_video, poster: i.display_image || '', controls: true, autoplay: true, playsInline: true })
+        : i.display_image ? el('img', { src: i.display_image, alt: '' }) : null;
+    const p = platformOf(i);
+    dlg.replaceChildren(
+        el('button', { type: 'button', className: 'preview-close', textContent: '×', ariaLabel: 'Закрыть', onclick: () => dlg.close() }),
+        media ? el('div', { className: 'preview-media' }, media) : null,
+        el('div', { className: 'preview-body' },
+            el('p', { className: 'preview-meta' }, el('span', { className: 'badge-inline', style: `--c:${colorOf(p)}`, textContent: `${PLATFORMS[p] || '◌'} ${p}` }),
+                el('span', { textContent: String(i.source || '').split(' | ').pop() }),
+                i.relevance ? el('span', { textContent: `★ ${i.relevance}` }) : null,
+                i.timestamp ? el('span', { className: 'muted', textContent: formatAgo(i.timestamp) }) : null),
+            el('p', { className: 'preview-text', textContent: String(i.text || i.description || '').slice(0, 1200) }),
+            i.why_relevant ? el('p', { className: 'preview-why' }, el('b', { textContent: 'Почему отобран: ' }), i.why_relevant) : null,
+            el('div', { className: 'preview-actions' },
+                i.source_url ? el('a', { className: 'ghost', href: i.source_url, target: '_blank', rel: 'noopener', textContent: 'У источника ↗' }) : null,
+                el('a', { className: 'cta', href: 'index.html#content', textContent: 'Открыть в «Подборе»' }))));
+    dlg.onclose = () => dlg.querySelector('video')?.pause();
+    dlg.showModal();
+}
+
+// ---- смотровое окно ----
+const live = { keys: null, timer: 0, globe: null };
+
+function globeCard({ item, city, platform, color }) {
+    return el('article', { style: `--c:${color}` },
+        item.display_image ? el('img', { src: item.display_image, alt: '', loading: 'lazy' }) : el('p', { className: 'gc-text', textContent: firstLine(item) }),
+        el('div', { className: 'gc-body' },
+            el('b', { textContent: firstLine(item) }),
+            el('small', {}, el('i', { textContent: '◉' }), ` ≈ ${city} · ${platform}`, item.relevance ? ` · ★${item.relevance}` : '')));
+}
+
+function stripItem(i, isNew) {
+    const p = platformOf(i);
+    return el('button', { type: 'button', className: `strip-item${isNew ? ' is-new' : ''}`, style: `--c:${colorOf(p)}`, onclick: () => openPreview(i), title: firstLine(i) },
+        i.display_image ? el('img', { src: i.display_image, alt: '', loading: 'lazy' }) : el('span', { className: 'strip-text', textContent: firstLine(i) }),
+        i.display_video ? el('span', { className: 'strip-play', textContent: '▶' }) : null,
+        el('span', { className: 'strip-meta', textContent: `${PLATFORMS[p] || '◌'} ${i.timestamp ? formatAgo(i.timestamp) : ''}` }));
+}
+
+const STEPS = [['сбор', 'Сбор постов'], ['отсев', 'Быстрый отсев'], ['анализ', 'Анализ моделью'], ['подбор', 'Подбор источников']];
+const cleanLog = l => l.replace(/[╔╗╚╝║═─│┌┐└┘]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+async function loadLive() {
+    clearTimeout(live.timer);
+    let r;
+    try { r = await apiOrLogin('studio_live'); } catch { live.timer = setTimeout(loadLive, 15000); return; }
+    const items = r.items || [];
+    const isNew = live.keys ? k => !live.keys.has(k) : () => false;
+    const fresh = items.filter(i => isNew(i.key)).length;
+    live.keys = new Set(items.map(i => i.key));
+
+    $('win-topic').textContent = r.topic || 'Подбор контента';
+    $('live-dot').classList.toggle('on', !!r.running);
+    $('live-label').textContent = r.running ? 'В эфире · идёт подбор' : 'Смотровое окно';
+    $('ai-phase').textContent = r.running ? (r.phase || 'Работает') : (items.length ? 'Сборщик отдыхает — подборка ждёт ваших решений' : 'Сборщик отдыхает');
+    const share = r.progress?.share;
+    $('ai-bar').style.width = r.running ? `${Math.round(100 * (share ?? 0.08))}%` : '0%';
+    const phase = String(r.phase || '').toLowerCase();
+    const at = STEPS.findIndex(([k]) => phase.includes(k));
+    $('ai-steps').replaceChildren(...STEPS.map(([, label], i) => el('li', { className: r.running && i < at ? 'done' : r.running && i === Math.max(0, at) ? 'now' : '' }, label)));
+    $('stat-pool').textContent = String(r.pool ?? items.length);
+    $('stat-added').textContent = r.running ? String(r.progress?.added ?? 0) : '—';
+    const hour = items.filter(i => i.timestamp > Date.now() / 1000 - 3600).length;
+    $('stat-hour').textContent = hour >= items.length && items.length >= 30 ? '30+' : String(hour);
+    $('nav-pool').textContent = r.pool || '';
+    $('act-search').disabled = !!r.running;
+    $('act-search').textContent = r.running ? '✦ Идёт поиск…' : '✦ Найти контент';
+    $('model-pill').classList.toggle('is-busy', !!r.running);
+
+    const lines = (r.activity || []).map(cleanLog).filter(l => l.length > 3).slice(-3);
+    $('ticker').replaceChildren(...lines.map(l => el('li', { textContent: l })));
+
+    const pins = items.map(i => { const g = geoOf(i); return { key: i.key, lat: g.lat, lon: g.lon, color: colorOf(g.platform), city: g.city, platform: g.platform, item: i }; });
+    live.globe?.setItems(pins);
+    const empty = $('globe-empty');
+    empty.hidden = items.length > 0;
+    empty.textContent = r.running ? 'Сборщик ищет посты — первые появятся на глобусе.' : 'Подборка пуста. Нажмите «Найти контент» — найденные посты всплывут на глобусе.';
+    const used = [...new Set(pins.map(p => p.platform))];
+    $('globe-legend').replaceChildren(...used.map(p => el('span', { style: `--c:${colorOf(p)}` }, p)));
+
+    $('strip').replaceChildren(...(items.length ? items.map(i => stripItem(i, isNew(i.key)))
+        : [el('p', { className: 'muted', textContent: 'Пока ничего: подборка пуста.' })]));
+    if (fresh) $('strip').scrollTo({ left: 0, behavior: 'smooth' });
+    live.timer = setTimeout(loadLive, r.running ? 4000 : 15000);
 }
 
 function render() {
@@ -86,15 +226,9 @@ function render() {
 }
 
 async function loadContent() {
-    const [proposals, info] = await Promise.all([api('proposals'), api('account_info')]);
+    const [proposals, info] = await Promise.all([apiOrLogin('proposals'), api('account_info')]);
     state.items = proposals.items || [];
     $('nav-proposals').textContent = state.items.length || '';
-    $('nav-pool').textContent = info.pool || '';
-    const c = info.counts || {};
-    const total = Object.values(c).reduce((a, b) => a + b, 0);
-    $('stat-total').textContent = COUNT.format(total);
-    const voted = (c.liked || 0) + (c.disliked || 0) + (c.complaints || 0);
-    $('stat-accuracy').textContent = voted ? `${Math.round(100 * (c.liked || 0) / voted)}%` : '—';
     const channel = info.channels?.[0];
     $('profile-name').textContent = info.auth?.tg_name || info.auth?.login || channel?.title || 'Владелец';
     $('profile-avatar').textContent = ($('profile-name').textContent[0] || 'P').toUpperCase();
@@ -105,7 +239,6 @@ async function loadSources() {
     const r = await api('topic_sources');
     const counts = {};
     for (const s of r.sources || []) counts[s.platform] = (counts[s.platform] || 0) + 1;
-    $('ai-topic').textContent = `Тема: ${r.topic}`;
     $('side-sources').replaceChildren(...(Object.keys(counts).length ? Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([p, n]) =>
         el('li', {}, el('i', { textContent: PLATFORMS[p] || '◌' }), el('span', { textContent: p }), el('em', { textContent: String(n) })))
         : [el('li', { className: 'muted', textContent: 'Источников темы пока нет' })]));
@@ -113,8 +246,6 @@ async function loadSources() {
 
 async function loadQueue() {
     const q = await api('telegram_queue');
-    const day = Date.now() / 1000 - 86400;
-    $('stat-today').textContent = String((q.published || []).filter(p => (p.at || 0) > day).length);
     const events = [
         ...(q.scheduled || []).slice(0, 3).map(p => ({ at: p.publish_at, title: p.status === 'failed' ? 'Пост не вышел' : 'Запланирован пост', sub: p.channel_title || p.text, kind: p.status === 'failed' ? 'bad' : 'plan' })),
         ...(q.published || []).slice(0, 4).map(p => ({ at: p.at, title: p.status === 'ok' ? 'Опубликовано' : 'Ошибка публикации', sub: p.channel_title || p.text, kind: p.status === 'ok' ? 'ok' : 'bad', url: p.url })),
@@ -125,28 +256,15 @@ async function loadQueue() {
         e.url ? el('a', { href: e.url, target: '_blank', rel: 'noopener', textContent: '›' }) : null)) : [el('li', { className: 'muted', textContent: 'Событий пока нет' })]));
 }
 
-const STEPS = [['сбор', 'Сбор постов из источников'], ['отсев', 'Быстрый отсев'], ['анализ', 'Анализ моделью'], ['подбор', 'Подбор источников']];
-
-async function loadParser() {
-    const [p, m] = await Promise.all([api('parser_status'), api('model_status').catch(() => null)]);
-    const progress = p.progress || {};
-    const pct = progress.total ? Math.round(100 * (progress.done || 0) / progress.total) : (p.running ? 10 : 0);
-    $('ai-phase').textContent = p.running ? (p.phase || 'Работает') : 'Ничего не делается';
-    $('ai-bar').style.width = `${pct}%`;
-    $('ai-pct').textContent = p.running ? `${pct}%` : '';
-    const phase = String(p.phase || '').toLowerCase();
-    const at = STEPS.findIndex(([k]) => phase.includes(k));
-    $('ai-steps').replaceChildren(...STEPS.map(([, label], i) => el('li', { className: p.running && (at === -1 ? i === 0 : i < at) ? 'done' : p.running && i === at ? 'now' : '' }, label)));
-    if (m) {
-        $('pill-model').textContent = m.roles?.analysis?.split('/').pop() || 'Модели';
-        $('pill-state').textContent = p.running ? `${p.phase || 'работает'}${pct ? ` · ${pct}%` : ''}` : m.ollama ? `Ollama ${m.version || ''} · набор «${m.llm?.preset || ''}»` : 'Ollama не отвечает';
-        $('model-pill').classList.toggle('is-busy', !!p.running);
-    }
+async function loadModel() {
+    const m = await api('model_status');
+    $('pill-model').textContent = m.roles?.analysis?.split('/').pop() || 'Модели';
+    $('pill-state').textContent = m.ollama ? `Ollama ${m.version || ''} · набор «${m.llm?.preset || ''}»` : 'Ollama не отвечает';
 }
 
 async function action(name, done) {
     $('act-note').textContent = '…';
-    try { const r = await api(name, { body: {} }); $('act-note').textContent = r.message || done; loadParser(); }
+    try { const r = await api(name, { body: {} }); $('act-note').textContent = r.message || done; setTimeout(loadLive, 800); }
     catch (e) { $('act-note').textContent = `Ошибка: ${e.message}`; }
 }
 
@@ -160,9 +278,11 @@ function init() {
     loadContent().catch(fail);
     loadSources().catch(() => {});
     loadQueue().catch(() => {});
-    loadParser().catch(() => {});
+    live.globe = createGlobe($('globe'), { cardFor: globeCard, onOpen: openPreview });
+    loadLive();
+    loadModel().catch(() => {});
     api('billing_info').then(b => { $('profile-plan').textContent = `Тариф «${b.plan?.title || '—'}»`; }).catch(() => {});
-    setInterval(() => loadParser().catch(() => {}), 5000);
+    $('preview').addEventListener('click', e => { if (e.target === $('preview')) $('preview').close(); });
 }
 
 init();

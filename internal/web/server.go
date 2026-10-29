@@ -116,7 +116,7 @@ func staticSite(root string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
 		if p == "/" || p == "" {
-			p = "/index.html"
+			p = "/studio.html" // главная — студия; приложение целиком — index.html
 		}
 		clean := filepath.Clean(p)
 		for _, part := range strings.Split(clean, "/") {

@@ -1,5 +1,5 @@
 // main.js — точка входа (ES-модуль, без сборки): вкладки, панель модели, демо-режим.
-import { $, DEBUG_MODE, api, el, hide, initializeCore, log, show, startTabSession, watchParser } from './core.js';
+import { $, DEBUG_MODE, api, el, hide, initializeCore, log, show, startTabSession, switchTab, watchParser } from './core.js';
 import { initializeImageViewer } from './viewer.js';
 import { initializeContentTab, loadCurrentItem } from './content.js';
 import { clearDiscoveredSource, initializeSourceTab } from './sources.js';
@@ -91,6 +91,11 @@ initializeDebugMode();
 log('Приложение запущено. Загружаю пул контента.');
 if (consumeVkRedirectResult()) openAccountSection('social');
 await startTabSession();   // сначала сессия: запрос пула запускает парсер, привязанный к этой вкладке
+// Ссылки из студии (index.html#calendar и т. п.) открывают нужную вкладку
+const HASH_TABS = { content: 'content-tab', proposals: 'proposals-tab', calendar: 'calendar-tab', sources: 'source-tab', account: 'account-tab' };
+const openHashTab = () => { const tab = HASH_TABS[location.hash.slice(1)]; if (tab) switchTab(tab); };
+addEventListener('hashchange', openHashTab);
+openHashTab();
 consumeReferralLink();   // после первого запроса: у браузера уже есть кука, иначе два запроса без неё заведут двух пользователей
 const first = loadCurrentItem();
 watchParser();

@@ -40,20 +40,37 @@
       <div class="model-pill" id="model-pill"><span class="orb" aria-hidden="true"></span><span><b id="pill-model">Модели</b><small id="pill-state">—</small></span></div>
     </header>
 
-    <section class="hero">
-      <div class="hero-text">
-        <h1>Лучший контент —<br><span class="grad">в готовые посты</span></h1>
-        <p>Posta собирает свежие посты по вашей теме из Telegram, VK, имиджбордов и сайтов, отбирает их моделью и ставит в канал по расписанию.</p>
+    <section class="window" aria-label="Смотровое окно">
+      <div class="window-text">
+        <p class="kicker"><span class="live" id="live-dot"></span><span id="live-label">Смотровое окно</span></p>
+        <h1 id="win-topic">Подбор контента</h1>
+        <p class="win-phase" id="ai-phase">Загрузка…</p>
+        <div class="bar"><span id="ai-bar"></span></div>
+        <ol class="steps" id="ai-steps"></ol>
         <div class="stats">
-          <div><b id="stat-total">—</b><small>в истории оценок</small></div>
-          <div><b id="stat-today">—</b><small>опубликовано за сутки</small></div>
-          <div><b id="stat-accuracy">—</b><small>доля лайков</small></div>
+          <div><b id="stat-pool">—</b><small>ждут решения</small></div>
+          <div><b id="stat-added">—</b><small>добавлено за проход</small></div>
+          <div><b id="stat-hour">—</b><small>за последний час</small></div>
         </div>
+        <div class="win-actions">
+          <button class="cta" id="act-search" type="button">✦ Найти контент</button>
+          <a class="ghost" href="index.html#content">Разбирать подборку ›</a>
+        </div>
+        <ul class="ticker" id="ticker" aria-live="polite"></ul>
       </div>
-      <div class="hero-art" aria-hidden="true"><span class="planet"></span><span class="card c1"></span><span class="card c2"></span><span class="card c3"></span></div>
-      <a class="cta" href="index.html#content">+ Начать подбор</a>
+      <div class="globe" id="globe">
+        <p class="globe-empty" id="globe-empty" hidden></p>
+        <div class="globe-legend" id="globe-legend"></div>
+        <p class="globe-hint">Метка — примерный регион источника: по языку поста и площадке. Глобус можно крутить.</p>
+      </div>
     </section>
 
+    <section class="strip-wrap">
+      <div class="strip-head"><h2>Только что отобрано</h2><a href="index.html#content">Все в «Подборе» ›</a></div>
+      <div class="strip" id="strip"><p class="muted">Загрузка…</p></div>
+    </section>
+
+    <div class="section-head"><h2>Мой контент</h2><small>понравившиеся посты — готовы к публикации</small></div>
     <div class="toolbar">
       <div class="chips" id="chips"></div>
       <select id="sort"><option value="new">Сначала новые</option><option value="rel">По оценке модели</option></select>
@@ -63,14 +80,8 @@
 
   <aside class="panel">
     <section class="box">
-      <div class="box-head"><span class="ai-badge">ИИ</span><span><b>Работа модели</b><small id="ai-topic">—</small></span></div>
-      <p class="ai-phase" id="ai-phase">Ничего не делается</p>
-      <div class="bar"><span id="ai-bar"></span></div><span class="bar-pct" id="ai-pct"></span>
-      <ul class="steps" id="ai-steps"></ul>
-    </section>
-    <section class="box">
       <h3>Быстрые действия</h3>
-      <button class="action" id="act-search" type="button"><i>✦</i><span><b>Найти контент</b><small>Сборщик пройдёт по источникам темы</small></span><em>›</em></button>
+      <a class="action" href="index.html#content"><i>✦</i><span><b>Разобрать подборку</b><small>Лайк — в «Мой контент», дизлайк учит модель</small></span><em>›</em></a>
       <a class="action" href="index.html#calendar"><i>▦</i><span><b>Запланировать</b><small>Календарь и расписание каналов</small></span><em>›</em></a>
       <button class="action" id="act-discover" type="button"><i>⟲</i><span><b>Подобрать источники</b><small>Новые каналы и паблики по теме</small></span><em>›</em></button>
       <p class="muted" id="act-note" role="status"></p>
@@ -81,5 +92,6 @@
     </section>
   </aside>
 </div>
+<dialog class="preview" id="preview"></dialog>
 </body>
 </html>
