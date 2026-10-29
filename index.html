@@ -8,20 +8,44 @@
 <link rel="icon" href="img/posta-favicon-16.png" sizes="16x16" type="image/png">
 <link rel="icon" href="img/posta-favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="img/posta-favicon-180.png">
-<meta name="theme-color" content="#FFF4D6">
-<script>try{var t=localStorage.getItem('postaTheme');if(t!=='day'&&t!=='night'){var h=new Date().getHours();t=(h>=19||h<7)?'night':'day'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='day'}</script>
+<meta name="theme-color" content="#090b14">
 <link rel="preload" href="fonts/Rubik-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/shell.css">
 <link rel="stylesheet" href="css/app.css">
 <script type="module" src="js/main.js"></script>
 <script>setTimeout(() => document.getElementById('app-loading')?.classList.add('is-done'), 20000);</script>
 </head>
 <body>
-<div id="app-loading" class="app-loading" role="status" aria-label="Загрузка приложения"><span class="spinner spinner-lg"></span><span class="app-loading-text">Эфир начинается…</span></div>
-<div class="air-ticker" aria-hidden="true">
-  <span class="air-ticker-tag air-day">Дневной выпуск</span><span class="air-ticker-tag air-night">● Вечерний эфир</span>
-  <span class="air-ticker-text air-day">Тренд живёт пару часов — ловим его за вас ★ Звоните прямо сейчас!* ★ *звонить не нужно</span>
-  <span class="air-ticker-text air-night">Пока вы отдыхаете — подбор работает ★ Не переключайтесь!</span>
-</div>
+<div id="app-loading" class="app-loading" role="status" aria-label="Загрузка приложения"><span class="spinner spinner-lg"></span><span class="app-loading-text">Загрузка…</span></div>
+<div class="studio is-app">
+  <aside class="side">
+    <a class="brand" href="./">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span><b>Posta</b><small>ИИ-студия контента</small></span>
+    </a>
+    <nav class="side-nav" role="tablist" aria-label="Вкладки">
+      <a href="./"><i>⌂</i>Главная</a>
+      <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="content-tab"><i>✦</i>Подбор</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="proposals-tab"><i>▣</i>Предложка</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="calendar-tab"><i>▦</i>Календарь</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="source-tab"><i>⟲</i>Источники</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab"><i>❖</i>Дерево</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="test-tab"><i>◎</i>Тест ИИ</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="account-tab"><i>⚙</i>Личный кабинет</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="admin-tab" hidden><i>★</i>Админка</button>
+    </nav>
+    <a class="profile" href="#account">
+      <span class="avatar" id="profile-avatar">P</span>
+      <span><b id="profile-name">Владелец</b><small id="profile-plan">Тариф</small></span>
+      <i>›</i>
+    </a>
+  </aside>
+
+  <main class="main app-main">
+    <header class="top app-top">
+      <div id="topic-tabs" class="topic-switch"></div>
+      <button id="console-mini" class="console-mini model-pill" type="button" aria-label="Журнал" title="Журнал"><span class="console-indicator" aria-hidden="true"></span><span class="console-mini-title">Сводка</span><span id="console-mini-status" class="console-mini-status"></span><span class="console-mini-open" aria-hidden="true">⌄</span></button>
+    </header>
 
 <section id="activity-console" class="activity-console" aria-label="Журнал приложения">
   <div class="activity-console-header"><span class="console-indicator"></span><span class="console-title">Сводка</span><span id="activity-console-status">ничего не делается</span><button id="debug-toggle" class="debug-toggle" type="button" aria-pressed="false">🐞 Демо</button><button id="activity-console-follow" class="activity-console-follow" type="button" hidden>К концу ↓</button><button id="console-toggle" class="console-toggle" type="button" aria-expanded="true" aria-label="Свернуть журнал" title="Свернуть журнал">—</button></div>
@@ -42,35 +66,12 @@
   </details>
 </section>
 
+
 <div id="tab-inactive" class="tab-inactive-bar" role="alert" hidden>
   <span>Приложение открыто в другой вкладке: поиск и обновления идут там, эта вкладка неактивна.</span>
   <button id="tab-inactive-reload" type="button">Работать здесь</button>
 </div>
 
-<div class="app-top">
-  <header class="app-brand">
-    <a class="app-brand-plate" href="./" aria-label="Postä — студия" title="Студия">postä</a>
-  </header>
-  <nav class="tabs" role="tablist">
-    <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="content-tab">Подбор</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="proposals-tab">Предложка</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="calendar-tab">Календарь</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="source-tab">Источники</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab">Дерево</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="test-tab">Тест ИИ</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="account-tab">Личный кабинет</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="admin-tab" hidden>Админка</button>
-  </nav>
-  <div class="app-top-end">
-    <div id="topic-tabs" class="topic-switch"></div>
-    <button id="console-mini" class="console-mini" type="button" aria-label="Журнал" title="Журнал"><span class="console-indicator" aria-hidden="true"></span><span class="console-mini-title">Сводка</span><span id="console-mini-status" class="console-mini-status"></span><span class="console-mini-open" aria-hidden="true">⌄</span></button>
-    <div class="theme-switch" role="group" aria-label="Оформление">
-      <button type="button" data-theme-set="day" aria-pressed="true">День</button>
-      <button type="button" data-theme-set="night" aria-pressed="false">Эфир</button>
-    </div>
-  </div>
-</div>
-<main class="app-main">
 
 <div id="debug-banner" class="debug-banner" hidden>
   <span>ДЕМО-РЕЖИМ: данные хранятся только в этой сессии и не сохраняются в файлы проекта</span>
@@ -778,6 +779,7 @@
 
 </div>
 </main>
+</div>
 
 <div id="image-viewer" class="image-viewer" hidden>
   <div id="image-viewer-window" class="image-viewer-window" role="dialog" aria-modal="true" aria-labelledby="image-viewer-file">

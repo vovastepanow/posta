@@ -1,6 +1,7 @@
 // studio.js — главная «Студии»: смотровое окно (глобус с только что отобранными постами), лента «Мой контент», источники, события.
 // Данные — тот же API, что у приложения.
 import { createGlobe } from './studio-globe.js';
+import { showPlan, showProfile } from './profile.js';
 
 const $ = id => document.getElementById(id);
 const COUNT = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 });
@@ -229,9 +230,7 @@ async function loadContent() {
     const [proposals, info] = await Promise.all([apiOrLogin('proposals'), api('account_info')]);
     state.items = proposals.items || [];
     $('nav-proposals').textContent = state.items.length || '';
-    const channel = info.channels?.[0];
-    $('profile-name').textContent = info.auth?.tg_name || info.auth?.login || channel?.title || 'Владелец';
-    $('profile-avatar').textContent = ($('profile-name').textContent[0] || 'P').toUpperCase();
+    showProfile(info);
     render();
 }
 
@@ -281,7 +280,7 @@ function init() {
     live.globe = createGlobe($('globe'), { cardFor: globeCard, onOpen: openPreview });
     loadLive();
     loadModel().catch(() => {});
-    api('billing_info').then(b => { $('profile-plan').textContent = `Тариф «${b.plan?.title || '—'}»`; }).catch(() => {});
+    api('billing_info').then(showPlan).catch(() => {});
     $('preview').addEventListener('click', e => { if (e.target === $('preview')) $('preview').close(); });
 }
 

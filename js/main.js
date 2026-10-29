@@ -5,7 +5,7 @@ import { initializeContentTab, loadCurrentItem } from './content.js';
 import { clearDiscoveredSource, initializeSourceTab } from './sources.js';
 import { consumeReferralLink, consumeVkRedirectResult, initializeAccountTab, openAccountSection, openNewItemEditor } from './account.js';
 import { initializeTabs } from './tabs.js';
-import { initializeTheme } from './theme.js';
+import { showPlan, showProfile } from './profile.js';
 import { initializeRadarTab } from './radar.js';
 import { initializeCalendarTab } from './calendar.js';
 
@@ -80,7 +80,8 @@ initializeContentTab({ onAddItem: openNewItemEditor });
 initializeSourceTab();
 initializeAccountTab({ onDatabasesReset: loadCurrentItem });
 initializeTabs();
-initializeTheme();
+api('account_info').then(showProfile).catch(() => {});
+api('billing_info').then(showPlan).catch(() => {});
 initializeRadarTab();
 try { initializeCalendarTab(); } catch (error) { log(`Календарь не запущен: ${error.message}`); }   // вкладка не должна ронять запуск всего приложения
 $('model-panel').addEventListener('toggle', refreshModel);
