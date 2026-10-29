@@ -102,7 +102,7 @@ const (
 	// ---- Горячие посты первыми ----
 	ContentMinSources        = 8
 	DiscoveryBlockingSeconds = 600
-	HotPerSource             = 3
+	QueuePerSource           = 2 // в очереди проверки — лучший кандидат источника и запасной
 	HotShortlist             = 60
 	HotPlatformShare         = 0.4
 	HotKeywordBoost          = 1.3

@@ -766,6 +766,9 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 			return nil
 		}
 		topic := TopicNorm(jx.Str(item, "topic"))
+		if sourcePoolCount(pool, topic, ContentSourceKey(item)) >= u.TInt("per_source_pool") {
+			return nil
+		}
 		var same []int
 		for i, it := range pool {
 			if TopicNorm(jx.Str(it, "topic")) == topic {
@@ -808,6 +811,7 @@ type queueSkip map[string]int
 // buildCandidateQueue — без виденных, устаревших, отсеянных раньше; лучшие источники первыми, горячие — в шортлист. До 500.
 func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, rejected map[string]bool, rates map[string][2]int, format *TopicFormat, filters jx.M, topic string) ([]jx.M, queueSkip) {
 	skipped := queueSkip{}
+	busy := u.sourceBusy(topic)
 	unique := map[string]jx.M{}
 	var order []string
 	uaHits, uaNames, uaAll := map[string]int{}, map[string]string{}, map[string]bool{}
@@ -843,6 +847,10 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 				continue
 			}
 			src := ContentSourceKey(item)
+			if busy[src] {
+				skipped["source_busy"]++
+				continue
+			}
 			days := maxAge
 			if strings.HasPrefix(src, "dvach:") {
 				days = config.DvachMaxAgeDays
@@ -1153,7 +1161,7 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 	for _, k := range srcOrder {
 		idx := bySrc[k]
 		sort.SliceStable(idx, func(a, b int) bool { return score[idx[a]] > score[idx[b]] })
-		pool = append(pool, idx[:min(len(idx), config.HotPerSource)]...)
+		pool = append(pool, idx[:min(len(idx), config.QueuePerSource)]...)
 	}
 	sort.SliceStable(pool, func(a, b int) bool { return score[pool[a]] > score[pool[b]] })
 	room := max(0, shortN-len(first))
@@ -1769,6 +1777,9 @@ func (u *U) RunCollector() bool {
 	if n := u.prunePoolAlreadyRated(); n > 0 {
 		u.Log("Пул: убрано записей, пост которых уже оценён: %d.", n)
 	}
+	if n := u.PruneSourceDuplicates(); n > 0 {
+		u.Log("Пул: убрано лишних записей одного источника: %d.", n)
+	}
 	u.PoolStampLegacy()
 	u.CachePoolGalleries(4)
 	u.PruneDeadPoolItems(false, false, true)
@@ -1849,7 +1860,8 @@ func (u *U) RunCollector() bool {
 	candidates = u.hotTextJudge(candidates, key)
 	notes := fmt.Sprintf("📌 Тема: «%s». Кандидатов к проверке: %d.", topic, len(candidates))
 	for _, s := range []struct{ k, t string }{{"rejected_before", " Уже отсеяны в прошлых запусках: %d."}, {"outdated", " Устаревших: %d."},
-		{"ukraine", " Украинский контент отсеян: %d."}, {"format", " Отсеяно форматом темы: %d."}, {"filter", " Отсеяно фильтрами «Только с медиа» / «Только медиа»: %d."}} {
+		{"ukraine", " Украинский контент отсеян: %d."}, {"format", " Отсеяно форматом темы: %d."}, {"filter", " Отсеяно фильтрами «Только с медиа» / «Только медиа»: %d."},
+		{"source_busy", " Источники в ленте или на отдыхе: %d."}} {
 		if skipped[s.k] > 0 {
 			notes += fmt.Sprintf(s.t, skipped[s.k])
 		}
@@ -1866,9 +1878,10 @@ func (u *U) RunCollector() bool {
 	lastProgress := time.Now()
 	deadline := started.Add(time.Duration(u.TInt("parser_minutes")) * time.Minute)
 	nBatches := (len(candidates) + config.PrescreenBatch - 1) / config.PrescreenBatch
+	takenSrc := map[string]bool{}
 outer:
 	for bi := 0; bi < nBatches; bi++ {
-		batch := candidates[bi*config.PrescreenBatch : min(len(candidates), (bi+1)*config.PrescreenBatch)]
+		batch := dropTakenSources(candidates[bi*config.PrescreenBatch:min(len(candidates), (bi+1)*config.PrescreenBatch)], takenSrc)
 		if time.Since(lastProgress) >= 30*time.Second {
 			left := time.Until(deadline)
 			u.Log("⏳ Прогресс: %d%% (%d/%d пачек). Прошло: %.1f мин. Осталось до лимита: ≈ %dм %dс", (bi+1)*100/max(1, nBatches), bi, nBatches,
@@ -1915,10 +1928,17 @@ outer:
 			if stop = u.collectorStopReason(started, analyzed, added); stop != "" {
 				break outer
 			}
+			if takenSrc[ContentSourceKey(c.Item)] {
+				done++
+				continue
+			}
 			analyzed++
 			t0 := time.Now()
 			if u.analyzeCandidate(c.Item, c.Poster, u.History(), key) {
 				added++
+				if src := ContentSourceKey(c.Item); sourcePoolCount(u.Pool(), key, src) >= u.TInt("per_source_pool") {
+					takenSrc[src] = true
+				}
 			}
 			tAnalyze += time.Since(t0)
 			done++

@@ -502,6 +502,9 @@ func vote(c *Ctx) (any, error) {
 		u.HistoryAppend(s.c, s.r)
 		c.A.CH.Vote(posta.VoteEvent(u.ID, u.CurrentTopic(), v, reason, s.r))
 	}
+	if it := posta.PoolFindItem(before, image); it != nil && v != "postpone" {
+		u.MarkSourceRest(u.SearchTopicKey(), it)
+	}
 	if !contains(config.ProposalCollections, coll) {
 		c.A.MediaReleaseRemoved(c.R.Context(), before, after)
 	}
