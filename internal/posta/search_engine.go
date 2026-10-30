@@ -173,6 +173,7 @@ func (u *U) SearchTest(query, topic string) string {
 	plan := u.QuerySearchPlan(query, topic)
 	got, counts := u.SearchEngineRun(plan, 0, time.Duration(u.TInt("query_search_seconds"))*time.Second)
 	ranked := rankQuerySearch(got, plan, u.TInt("content_max_age"), func(it jx.M) bool { return u.UAItemBlocked(it) != "" })
+	ranked = u.queryRerank(query, plan, ranked)
 	var all []jx.M
 	for _, plat := range []string{PlatformTelegram, PlatformVK, PlatformRSS, PlatformTikTok, PlatformRutube, Platform9GAG, PlatformLemmy, PlatformMastodon, PlatformJoyreactor} {
 		all = append(all, ranked[plat]...)
