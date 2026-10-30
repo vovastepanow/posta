@@ -22,6 +22,10 @@
   --bg: #090b14; --bg2: #0e1120; --panel: #121527; --panel2: #171b31; --line: rgba(160, 170, 230, .12);
   --text: #eef0fb; --muted: #8b90b0; --accent: #7c5cff; --accent2: #c86bff; --cyan: #4fd1ff; --ok: #3ddc97; --bad: #ff5a7a;
   --grad: linear-gradient(90deg, #4fd1ff, #7c5cff 45%, #e06bff);
+  /* студия: город и тепловая карта */
+  --line2: rgba(160, 170, 230, .24); --panel3: #1d2140; --faint: #6c7194; --warm: #ffb84d;
+  --heat0: #1c2040; --heat1: #33307a; --heat2: #4a3bb8; --heat3: #6c50f0; --heat4: #a58bff;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }

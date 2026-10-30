@@ -7,6 +7,7 @@
 <link rel="icon" href="img/posta-favicon-32.png">
 <link rel="stylesheet" href="css/shell.css">
 <link rel="stylesheet" href="css/studio.css">
+<script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
 <script type="module" src="js/studio.js"></script>
 </head>
 <body>
@@ -42,33 +43,32 @@
     </header>
 
     <section class="window" aria-label="Смотровое окно">
-      <div class="window-text">
-        <p class="kicker"><span class="live" id="live-dot"></span><span id="live-label">Смотровое окно</span></p>
-        <h1 id="win-topic">Подбор контента</h1>
-        <p class="win-phase" id="ai-phase">Загрузка…</p>
-        <div class="bar"><span id="ai-bar"></span></div>
-        <ol class="steps" id="ai-steps"></ol>
+      <div class="wtext">
+        <p class="kicker" id="kicker"><span class="onair" id="live-dot"></span><span id="live-label">Сборщик отдыхает</span></p>
+        <h1>Подбор: <em id="win-topic">…</em></h1>
+        <p class="phase" id="ai-phase">Загрузка…</p>
         <div class="stats">
           <div><b id="stat-pool">—</b><small>ждут решения</small></div>
-          <div><b id="stat-added">—</b><small>добавлено за проход</small></div>
-          <div><b id="stat-hour">—</b><small>за последний час</small></div>
+          <div><b id="stat-added">—</b><small>за проход</small></div>
+          <div><b id="stat-hour">—</b><small>за час</small></div>
         </div>
-        <div class="win-actions">
-          <button class="cta" id="act-search" type="button">✦ Найти контент</button>
-          <a class="ghost" href="index.html#content">Разбирать подборку ›</a>
+        <button class="cta" id="act-search" type="button">✦ Найти контент</button>
+      </div>
+      <div class="jcol">
+        <div class="jhead"><span>журнал</span></div>
+        <div class="jbody"><div class="journal" id="journal" role="log" aria-live="off"></div></div>
+      </div>
+      <div class="citycol">
+        <div class="cityWrap">
+          <canvas class="sky" id="sky" aria-label="3D-город: год постов, один дом — один день. Тяни — крутить, правой — двигать, колесо — приблизить, двойной клик — сброс" title="Тяни — крутить · правой — двигать · колесо — к курсору · двойной клик — сброс"></canvas>
+          <div class="cityTip" id="cityTip" hidden></div>
+          <p class="glfail" id="glfail" hidden>3D недоступно в этом браузере</p>
         </div>
-        <ul class="ticker" id="ticker" aria-live="polite"></ul>
+        <div class="heatbox">
+          <div class="heat-top"><span id="heatTip"><b id="heatTotal">0</b> <span id="heatWhat">в пул</span> за год</span><span class="hright"><span class="streak">🔥 <b id="heatStreak">0</b> дн.</span><span class="datasrc" role="group" aria-label="Что считать"><button type="button" data-src="pool" aria-pressed="true">пул</button><button type="button" data-src="pub" aria-pressed="false">опубликовано</button></span></span></div>
+          <div class="heat" id="heat"></div>
+        </div>
       </div>
-      <div class="globe" id="globe">
-        <p class="globe-empty" id="globe-empty" hidden></p>
-        <div class="globe-legend" id="globe-legend"></div>
-        <p class="globe-hint">Метка — примерный регион источника: по языку поста и площадке. Глобус можно крутить.</p>
-      </div>
-    </section>
-
-    <section class="strip-wrap">
-      <div class="strip-head"><h2>Только что отобрано</h2><a href="index.html#content">Все в «Подборе» ›</a></div>
-      <div class="strip" id="strip"><p class="muted">Загрузка…</p></div>
     </section>
 
     <div class="section-head"><h2>Мой контент</h2><small>понравившиеся посты — готовы к публикации</small></div>
@@ -81,18 +81,23 @@
 
   <aside class="panel">
     <section class="box">
+      <h3>Только что отобрано</h3>
+      <ul class="feed" id="feed"><li class="muted">Загрузка…</li></ul>
+    </section>
+    <section class="box">
       <h3>Быстрые действия</h3>
       <a class="action" href="index.html#content"><i>✦</i><span><b>Разобрать подборку</b><small>Лайк — в «Мой контент», дизлайк учит модель</small></span><em>›</em></a>
       <a class="action" href="index.html#calendar"><i>▦</i><span><b>Запланировать</b><small>Календарь и расписание каналов</small></span><em>›</em></a>
       <button class="action" id="act-discover" type="button"><i>⟲</i><span><b>Подобрать источники</b><small>Новые каналы и паблики по теме</small></span><em>›</em></button>
       <p class="muted" id="act-note" role="status"></p>
     </section>
-    <section class="box">
-      <h3>Последние события</h3>
-      <ul class="activity" id="activity"><li class="muted">—</li></ul>
-    </section>
   </aside>
 </div>
+<svg class="fakecur" id="fakecur" viewBox="0 0 22 22" hidden aria-hidden="true">
+  <circle cx="11" cy="11" r="8" fill="rgba(124,92,255,.25)" stroke="#eef0fb" stroke-width="1.5"></circle>
+  <path d="M4 11h-3M21 11h-3M11 4V1M11 21v-3" stroke="#eef0fb" stroke-width="1.5"></path>
+  <circle cx="11" cy="11" r="1.6" fill="#eef0fb"></circle>
+</svg>
 <dialog class="preview" id="preview"></dialog>
 </body>
 </html>
