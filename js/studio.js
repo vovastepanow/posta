@@ -115,7 +115,7 @@ function openPreview(i) {
 }
 
 // ---- смотровое окно ----
-const live = { timer: 0, city: null };
+const live = { timer: 0 };
 
 // строка «Только что отобрано» в правой панели: миниатюра, первая строка текста, источник · балл
 function feedItem(i) {
@@ -131,6 +131,65 @@ const cleanLog = l => l.replace(/[╔╗╚╝║═─│┌┐└┘]+/g, ' ')
 /** Журнал: новые строки дописываются, перерисовки целиком нет (мигания не будет). */
 function renderJournal(lines) {
     $('journal').replaceChildren(...lines.map(t => el('div', { className: 'ln', textContent: t })));
+}
+
+// ---- город и тепловая карта (studio_city) ----
+const city = { view: null, src: 'pool', data: null, cells: [], hot: -1, idle: '', running: false };
+const dayFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
+const plural = v => v % 10 === 1 && v % 100 !== 11 ? 'пост' : v % 10 > 1 && v % 10 < 5 && (v % 100 < 10 || v % 100 > 20) ? 'поста' : 'постов';
+const level = v => v === 0 ? 0 : v < 3 ? 1 : v < 5 ? 2 : v < 7 ? 3 : 4;
+const valuesOf = () => (city.src === 'pub' ? city.data.published : city.data.pool);
+const dayText = k => {
+    const d = new Date(city.start.getFullYear(), city.start.getMonth(), city.start.getDate() + k), v = valuesOf()[k];
+    return `${dayFmt.format(d)} — ${v} ${plural(v)}`;
+};
+
+async function loadCity() {
+    let c;
+    try { c = await apiOrLogin('studio_city'); } catch { return; }
+    city.data = c;
+    const [y, m, d] = c.start.split('-').map(Number);
+    city.start = new Date(y, m - 1, d);
+    city.cells = c.pool.map((_, k) => {
+        const i = el('i', { onmouseenter: () => setHot(k) });
+        return i;
+    });
+    $('heat').replaceChildren(...city.cells);
+    $('heat').onmouseleave = () => setHot(-1);
+    city.view?.setData(c.pool, c.published);
+    paintHeat();
+}
+
+function paintHeat() {
+    if (!city.data) return;
+    const vals = valuesOf();
+    city.cells.forEach((c, k) => { c.style.background = `var(--heat${level(vals[k])})`; });
+    const total = vals.reduce((a, v) => a + v, 0).toLocaleString('ru-RU');
+    city.idle = `${total} ${city.src === 'pool' ? 'в пул' : 'опубликовано'} за год`;
+    let streak = 0;
+    for (let k = vals.length - 1; k >= 0 && vals[k] > 0; k--) streak++;
+    $('heatStreak').textContent = String(streak);
+    markHeat(city.hot);
+}
+
+/** Подсветка дня: клетка тепловой карты и подпись над ней. */
+function markHeat(k) {
+    city.hot = k;
+    city.cells.forEach((c, j) => c.classList.toggle('on', j === k));
+    $('heatTip').textContent = k >= 0 && city.data ? dayText(k) : city.idle;
+}
+
+/** Наведение на клетку подсвечивает дом в городе; и обратно — дом подсвечивает клетку. */
+function setHot(k) {
+    markHeat(k);
+    city.view?.highlight(k);
+}
+
+function onCityHover(k, x, y) {
+    const tip = $('cityTip');
+    markHeat(k);
+    tip.hidden = k < 0;
+    if (k >= 0) { tip.textContent = dayText(k); tip.style.left = `${x}px`; tip.style.top = `${y}px`; }
 }
 
 async function loadLive() {
@@ -151,6 +210,9 @@ async function loadLive() {
     $('act-search').disabled = !!r.running;
     $('act-search').textContent = r.running ? '✦ Идёт поиск…' : '✦ Найти контент';
     $('model-pill').classList.toggle('is-busy', !!r.running);
+    // проход закончился — город пересчитывается по новым постам
+    if (city.running && !r.running) loadCity();
+    city.running = !!r.running;
 
     renderJournal((r.activity || []).map(cleanLog).filter(l => l.length > 3).slice(-8));
     $('feed').replaceChildren(...(items.length ? items.slice(0, 5).map(feedItem)
@@ -206,8 +268,15 @@ function init() {
     const fail = e => { $('grid').replaceChildren(el('p', { className: 'muted', textContent: e.status === 401 ? 'Войдите в приложение, чтобы открыть студию.' : `Ошибка: ${e.message}` })); };
     loadContent().catch(fail);
     loadSources().catch(() => {});
-    live.city = createCity($('sky'), { onHover: () => {} });
-    if (!live.city) $('glfail').hidden = false;
+    city.view = createCity($('sky'), { onHover: onCityHover });
+    if (!city.view) $('glfail').hidden = false;
+    document.querySelectorAll('.datasrc button').forEach(b => b.addEventListener('click', () => {
+        document.querySelectorAll('.datasrc button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        city.src = b.dataset.src;
+        city.view?.setSource(city.src);
+        paintHeat();
+    }));
+    loadCity();
     loadLive();
     loadModel().catch(() => {});
     api('billing_info').then(showPlan).catch(() => {});

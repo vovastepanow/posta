@@ -29,6 +29,7 @@ func init() {
 	get("get_current_item", getCurrentItem)
 	get("parser_status", parserStatus)
 	get("studio_live", studioLive)
+	get("studio_city", studioCity)
 	post("tab_open", func(c *Ctx) (any, error) {
 		tab, err := tabID(c)
 		if err != nil {
@@ -274,6 +275,15 @@ func studioLive(c *Ctx) (any, error) {
 	}
 	st["items"], st["pool"], st["topic"] = items, len(pool), u.CurrentTopic()
 	return st, nil
+}
+
+// studioCity — «город» студии: по дням за год — пул по текущей теме и публикации.
+func studioCity(c *Ctx) (any, error) {
+	start, pool, published, err := c.U.StudioCity(time.Now())
+	if err != nil {
+		return nil, err
+	}
+	return jx.M{"start": start.Format("2006-01-02"), "days": len(pool), "pool": pool, "published": published, "topic": c.U.CurrentTopic()}, nil
 }
 
 func settings(c *Ctx) (any, error) {

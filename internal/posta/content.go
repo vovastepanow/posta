@@ -205,6 +205,9 @@ func (a *App) ContentHistoryRecord(item jx.M, complaintReason any) jx.M {
 		"source_url": SourcePostURL(item), "posted_at": item["posted_at"], "engagement": item["engagement"], "complaint_reason": complaintReason,
 		"video": jx.Str(item, "video"), "image_local": jx.Str(item, "image_local"), "video_local": jx.Str(item, "video_local"),
 		"phash": jx.Str(item, "phash"), "gallery": ContentGallery(item), "timestamp": now()}
+	if jx.Has(item, "pooled_at") {
+		rec["pooled_at"] = item["pooled_at"]   // когда попал в пул: по нему студия строит «город»
+	}
 	for _, k := range []string{"description", "why_relevant", "topic", "source", "board", "thread_id", "post_id"} {
 		if rec[k] == nil {
 			rec[k] = ""
