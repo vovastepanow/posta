@@ -730,9 +730,11 @@ func (u *U) storeDiscoveredSource(c DiscoveryCandidate, info jx.M, ev *sourceEva
 		return "failed"
 	}
 	if evicted != nil {
-		u.registryUpsert(registryWrite{SourceID: jx.Str(evicted, "source_id"), Platform: jx.Str(evicted, "platform"), Name: jx.Str(evicted, "name"),
+		if err := u.registryUpsert(registryWrite{SourceID: jx.Str(evicted, "source_id"), Platform: jx.Str(evicted, "platform"), Name: jx.Str(evicted, "name"),
 			Status: RegStatusRejected, Reason: "очередь предложений полна: уступил место лучшему по баллу", Topic: tn,
-			Result: &registryTopic{Score: int(jx.Int(evicted, "score")), Reason: "очередь предложений полна", At: now()}})
+			Result: &registryTopic{Score: int(jx.Int(evicted, "score")), Reason: "очередь предложений полна", At: now()}}); err != nil {
+			u.Log("Реестр источников: не сохранён вытесненный %s: %v", jx.Str(evicted, "source_id"), err)
+		}
 	}
 	reg := registryWrite{SourceID: sid, Platform: c.Platform, Name: title, URL: registryURL(c.Platform, c.ID), Status: RegStatusRejected, Checked: true,
 		Topic: tn, Result: &registryTopic{Score: score, Reason: rejectReason, At: now()}, Origin: jx.M{"kind": c.OriginKind, "detail": c.Origin},
@@ -1231,6 +1233,7 @@ func (u *U) discoveryTopicAbandoned(topic string) bool {
 
 // RunSourceDiscovery — подбор по теме; по одной теме — один прогон за раз (каталог общий).
 func (u *U) RunSourceDiscovery(topic string, maxSeconds int) {
+	u.ParserStage("discovery")
 	if maxSeconds <= 0 {
 		maxSeconds = u.TInt("discovery_minutes") * 60
 	}

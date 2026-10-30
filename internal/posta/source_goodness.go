@@ -154,18 +154,38 @@ func DiscoveryBudget(limit int, kinds map[string]int, report map[string]map[stri
 	if total == 0 || limit <= 0 {
 		return caps
 	}
+	// минимум — виды ниже floor фиксируются на нём, остаток делится между остальными пропорционально весам
 	shares := map[string]float64{}
-	var sum float64
-	for kind, w := range weights {
-		s := w / total
-		if s < floor {
-			s = floor
+	fixed := map[string]bool{}
+	for {
+		var restW float64
+		for kind, w := range weights {
+			if !fixed[kind] {
+				restW += w
+			}
 		}
-		shares[kind] = s
-		sum += s
+		left := 1 - floor*float64(len(fixed))
+		raised := false
+		for kind, w := range weights {
+			if fixed[kind] {
+				continue
+			}
+			if s := left * w / restW; s < floor {
+				fixed[kind], shares[kind] = true, floor
+				raised = true
+			}
+		}
+		if !raised {
+			for kind, w := range weights {
+				if !fixed[kind] {
+					shares[kind] = left * w / restW
+				}
+			}
+			break
+		}
 	}
 	for kind, s := range shares {
-		caps[kind] = max(1, int(float64(limit)*s/sum+0.5))
+		caps[kind] = max(1, int(float64(limit)*s+0.5))
 	}
 	return caps
 }

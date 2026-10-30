@@ -273,6 +273,11 @@ func studioLive(c *Ctx) (any, error) {
 	if a, _ := st["activity"].([]string); len(a) > 8 {
 		st["activity"] = a[len(a)-8:]
 	}
+	// журнал студии: 40 строк с шагом и временем; шаг текущего прохода и воронка последнего — вне работы
+	st["journal"], st["stage"] = c.A.ParserJournal(c.U.ID, 40), c.A.ParserStageOf(c.U.ID)
+	if running, _ := st["running"].(bool); !running {
+		st["last_pass"] = KV(c.A, c.R.Context(), parserLastPassKey(c.U.ID), jx.M(nil))
+	}
 	st["items"], st["pool"], st["topic"] = items, len(pool), u.CurrentTopic()
 	return st, nil
 }

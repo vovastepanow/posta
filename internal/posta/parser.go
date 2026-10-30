@@ -1814,6 +1814,7 @@ func (u *U) RunCollector() bool {
 	u.Log("")
 	u.Log("⏱️ Начинается подбор контента — тема «%s», не дольше %d мин.", topic, u.TInt("parser_minutes"))
 	u.Log("")
+	u.ParserStage("collect")
 	u.parserPhaseWithTopic("сбор постов", topic)
 	u.MirrorCollectUser()
 	if n := u.MediaCleanup(u.AllUsersPoolItems(u.Ctx), false, false); n > 0 {
@@ -1886,6 +1887,11 @@ func (u *U) RunCollector() bool {
 	} else {
 		byPlatform = u.collectPostsByPlatform(key)
 	}
+	collected := 0
+	for _, l := range byPlatform {
+		collected += len(l)
+	}
+	u.ParserStage("filter")
 	candidates, skipped := u.buildCandidateQueue(byPlatform, seen, rejected, u.TopicVerdictStats(key), &format, u.ContentFilterValues(), key)
 	if hs := u.run.HotStats; hs != nil {
 		var per []string
@@ -1922,12 +1928,13 @@ func (u *U) RunCollector() bool {
 	u.Log("%s Быстрая оценка по картинке %d px: отсев мусора при уверенности от %d%%, тему не проверяет.", notes, config.PrescreenMaxSide, u.TInt("prescreen_junk"))
 	pc := &prescreenCtx{stats: map[string]int{}, cached: scores, newCache: map[string]screenedEntry{}, knownHashes: u.collectKnownHashes(), screenedHashes: screenedHashes}
 	analyzed, added, done := 0, 0, 0
+	funnel := func() jx.M { return passFunnel(collected, len(candidates), skipped, pc.stats, analyzed, added) }
 	stop := ""
 	restart := false
 	var queue []prescreenRow
 	var tAnalyze time.Duration
 	need := max(1, min(u.TInt("added_per_run"), u.TInt("pool_target")-u.PoolTopicCount(key)))
-	u.ParserProgress(jx.M{"total": len(candidates), "queue_at": now(), "need": need}, false)
+	u.ParserProgress(jx.M{"total": len(candidates), "queue_at": now(), "need": need, "funnel": funnel()}, false)
 	lastProgress := time.Now()
 	deadline := started.Add(time.Duration(u.TInt("parser_minutes")) * time.Minute)
 	nBatches := (len(candidates) + config.PrescreenBatch - 1) / config.PrescreenBatch
@@ -1963,6 +1970,7 @@ outer:
 		for _, t := range u.textCandidatesPriority(texts, topic) {
 			queue = append(queue, prescreenRow{Item: t})
 		}
+		u.ParserStage("prescreen")
 		u.parserPhaseWithTopic("быстрая оценка", topic)
 		var passed []prescreenRow
 		if len(media) > 0 {
@@ -1971,11 +1979,12 @@ outer:
 		u.cacheMerge(pc.newCache)
 		pc.newCache = map[string]screenedEntry{}
 		done += len(batch) - len(passed) - len(texts)
-		u.ParserProgress(jx.M{"done": done}, false)
+		u.ParserProgress(jx.M{"done": done, "funnel": funnel()}, false)
 		queue = append(queue, passed...)
 		if len(queue) < config.AnalyzeBlock && bi < nBatches-1 {
 			continue
 		}
+		u.ParserStage("analysis")
 		u.parserPhaseWithTopic("полный анализ", topic)
 		for _, c := range queue {
 			if stop = u.collectorStopReason(started, analyzed, added); stop != "" {
@@ -1995,7 +2004,7 @@ outer:
 			}
 			tAnalyze += time.Since(t0)
 			done++
-			u.ParserProgress(jx.M{"done": done, "analyzed": analyzed, "added": added}, false)
+			u.ParserProgress(jx.M{"done": done, "analyzed": analyzed, "added": added, "funnel": funnel()}, false)
 		}
 		queue = nil
 	}
@@ -2007,6 +2016,8 @@ outer:
 	if stop != "" {
 		u.Log("%s", stop)
 	}
+	u.ParserStage("pool")
+	u.KVSet(u.Ctx, parserLastPassKey(u.ID), jx.M{"at": now(), "funnel": funnel()}, 0)   // воронка — для конвейера студии вне работы
 	u.Log("")
 	u.Log("✅ Подбор завершён за %.1f мин: добавлено %d, проанализировано %d, отсеяно быстрой оценкой %d, повторов %d.", time.Since(started).Minutes(), added, analyzed,
 		pc.stats["rejected"], pc.stats["duplicates"])
