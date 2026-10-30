@@ -120,6 +120,6 @@
 @media (max-width: 1100px) { .window { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
   .jcol { grid-column: 1 / -1; grid-row: 2; border-left: 0; border-top: 1px solid var(--line); padding: 12px 0 0; min-height: 160px; }
   .cityWrap { margin-right: -22px; } }
-@media (max-width: 640px) { .window { grid-template-columns: minmax(0, 1fr); padding: 16px; } .cityWrap { margin-top: 0; } .heat { gap: 1px; } .jcol { min-height: 120px; } }
+@media (max-width: 640px) { .window { grid-template-columns: minmax(0, 1fr); padding: 16px; } .cityWrap { margin: 0 -16px; } .heat { gap: 1px; } .jcol { min-height: 120px; } }
 @media (max-width: 760px) { .preview[open] { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .kicker.is-on .onair, .dot.run { animation: none; } }

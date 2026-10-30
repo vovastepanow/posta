@@ -115,7 +115,7 @@ function openPreview(i) {
 }
 
 // ---- смотровое окно ----
-const live = { timer: 0 };
+const live = { timer: 0, last: null, gen: 0 };
 
 // строка «Только что отобрано» в правой панели: миниатюра, первая строка текста, источник · балл
 function feedItem(i) {
@@ -128,9 +128,91 @@ function feedItem(i) {
 
 const cleanLog = l => l.replace(/[╔╗╚╝║═─│┌┐└┘]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-/** Журнал: новые строки дописываются, перерисовки целиком нет (мигания не будет). */
-function renderJournal(lines) {
-    $('journal').replaceChildren(...lines.map(t => el('div', { className: 'ln', textContent: t })));
+// ---- журнал: строки дописываются, без перерисовки всего списка; фильтр по шагу — скрытием строк ----
+const journal = { texts: [], filter: null, filterName: '', idle: false };
+const JOURNAL_ROWS = 200;
+
+/** Сервер присылает хвост журнала (40 строк): добавляем только новые — по перекрытию с прошлой порцией. */
+function appendJournal(rows) {
+    const incoming = rows.map(r => cleanLog(r.t || ''));
+    const box = $('journal');
+    let overlap = Math.min(journal.texts.length, incoming.length);
+    while (overlap > 0 && !journal.texts.slice(-overlap).every((t, i) => t === incoming[i])) overlap--;
+    // журнал начат заново (новый проход) или стояла строка «отдыхает» — перерисовываем один раз
+    if (journal.idle || (overlap === 0 && journal.texts.length)) box.replaceChildren();
+    journal.idle = false;
+    for (const r of rows.slice(overlap)) {
+        const text = cleanLog(r.t || '');
+        if (!text) continue;
+        const cls = text.includes('✓') ? 'ok' : text.includes('✗') ? 'no' : text.startsWith('⏳') ? 'prog' : '';
+        const row = el('div', { className: 'ln', hidden: !!journal.filter && r.s !== journal.filter },
+            r.at ? el('span', { className: 'ts', textContent: `${r.at} ` }) : null,
+            el('span', { className: cls, textContent: text }));
+        row.dataset.stage = r.s || '';
+        box.append(row);
+    }
+    while (box.childElementCount > JOURNAL_ROWS) box.firstElementChild.remove();
+    journal.texts = incoming;
+}
+
+/** Вне работы журнал пуст — одна серая строка про последний проход. */
+function idleJournal(last) {
+    const at = last?.at ? new Date(last.at * 1000).toTimeString().slice(0, 5) : '';
+    $('journal').replaceChildren(el('div', { className: 'ln ts', textContent: at ? `Сборщик отдыхает. Последний проход — ${at}` : 'Сборщик отдыхает.' }));
+    journal.texts = [];
+    journal.idle = true;
+}
+
+function setJournalFilter(stage, name) {
+    journal.filter = stage;
+    journal.filterName = name || '';
+    $('jfilter').hidden = !stage;
+    $('jfilterName').textContent = stage ? `только «${name}»` : '';
+    for (const row of $('journal').querySelectorAll('.ln[data-stage]')) row.hidden = !!stage && row.dataset.stage !== stage;
+    if (live.last) renderPipe(live.last);   // подсветка шага — по последнему ответу
+}
+$('jfilterOff').addEventListener('click', () => setJournalFilter(null));
+
+// ---- конвейер: шаги и числа воронки; клик по шагу фильтрует журнал ----
+// rank — порядок шагов сборщика; ПК-фильтр идёт в одном шаге с «Фильтрами» (stage filter)
+const RANK = { collect: 0, filter: 1, prescreen: 3, analysis: 4, pool: 5 };
+const PIPE_STEPS = [
+    { stage: 'collect', name: 'Сбор', rank: 0, num: f => f.collected },
+    { stage: 'filter', name: 'Фильтры', rank: 1, num: f => f.candidates, note: f => `отсеяно ${f.filtered}` },
+    { stage: 'filter', name: 'ПК-фильтр', rank: 1, num: f => f.filtered_by?.ukraine ?? 0 },
+    { stage: 'prescreen', name: 'Быстрая оценка', rank: 3, num: f => Math.max(0, f.candidates - f.prescreen_rejected - f.duplicates) },
+    { stage: 'analysis', name: 'Анализ моделью', rank: 4, num: f => f.analyzed },
+    { stage: 'pool', name: 'В пул', rank: 5, num: f => f.added },
+];
+const STAGE_NAME = { collect: 'Сбор постов', filter: 'Фильтры', prescreen: 'Быстрая оценка', analysis: 'Анализ моделью', pool: 'В пул', discovery: 'Автоподбор источников' };
+
+function renderPipe(r) {
+    const running = !!r.running;
+    const last = r.last_pass;
+    const funnel = running ? r.progress?.funnel : last?.funnel;
+    // перерисовываем только при изменении: опрос раз в 4 с не должен сбивать фокус и клики
+    const sig = JSON.stringify([running, r.stage, r.progress?.share, funnel, last?.at, journal.filter, journal.filterName]);
+    if (sig === renderPipe.sig) return;
+    renderPipe.sig = sig;
+    const cur = RANK[r.stage] ?? -1;
+    $('pipeTitle').textContent = running || !last ? 'Конвейер' : `Последний проход · ${new Date(last.at * 1000).toTimeString().slice(0, 5)}`;
+    const share = running ? r.progress?.share : null;
+    $('pipeNow').textContent = running ? (STAGE_NAME[r.stage] || 'Подбор') : (last ? 'Сборщик отдыхает' : 'Ещё не было проходов');
+    $('pipePct').textContent = share != null ? `${Math.round(share * 100)}%` : '';
+    $('pbar').style.width = share != null ? `${Math.round(share * 100)}%` : (last && !running ? '100%' : '0%');
+    $('pipe').replaceChildren(...PIPE_STEPS.map(step => {
+        const st = !funnel ? 'wait' : !running ? 'ok' : step.rank < cur ? 'ok' : step.rank === cur ? 'run' : 'wait';
+        const num = funnel && st !== 'wait' ? (Number(step.num(funnel)) || 0).toLocaleString('ru-RU') : '—';
+        const note = st === 'run' ? 'идёт…' : funnel && step.note && st !== 'wait' ? step.note(funnel) : '';
+        const open = journal.filter === step.stage && journal.filterName === step.name;
+        const btn = el('button', { type: 'button', className: `job ${st}${open ? ' open' : ''}`, title: 'Показать в журнале только этот шаг',
+            onclick: () => setJournalFilter(open ? null : step.stage, open ? '' : step.name) },
+            el('span', { className: `dot ${st}`, textContent: st === 'ok' ? '✓' : '' }),
+            el('span', {}, step.name, el('span', { className: 't', textContent: note })),
+            el('span', { className: 'n', textContent: num }));
+        btn.setAttribute('aria-pressed', String(open));
+        return btn;
+    }));
 }
 
 // ---- город и тепловая карта (studio_city) ----
@@ -147,7 +229,7 @@ const dayText = k => {
 async function loadCity() {
     let c;
     try { c = await apiOrLogin('studio_city'); } catch { return; }
-    city.data = c;
+    city.data = { ...c, published: c.published ?? c.pool.map(() => 0) };
     const [y, m, d] = c.start.split('-').map(Number);
     city.start = new Date(y, m - 1, d);
     city.cells = c.pool.map((_, k) => {
@@ -193,9 +275,16 @@ function onCityHover(k, x, y) {
 }
 
 async function loadLive() {
+    const gen = ++live.gen;   // один активный опрос: ответ старого запроса не планирует новый таймер
     clearTimeout(live.timer);
     let r;
-    try { r = await apiOrLogin('studio_live'); } catch { live.timer = setTimeout(loadLive, 15000); return; }
+    try { r = await apiOrLogin('studio_live'); } catch { if (gen === live.gen) live.timer = setTimeout(loadLive, 15000); return; }
+    try { renderLive(r); }
+    catch (e) { console.error('studio_live:', e); }   // ошибка отрисовки не должна останавливать опрос
+    finally { if (gen === live.gen) live.timer = setTimeout(loadLive, r.running ? 4000 : 15000); }
+}
+
+function renderLive(r) {
     const items = r.items || [];
 
     $('win-topic').textContent = r.topic || 'контент';
@@ -214,10 +303,12 @@ async function loadLive() {
     if (city.running && !r.running) loadCity();
     city.running = !!r.running;
 
-    renderJournal((r.activity || []).map(cleanLog).filter(l => l.length > 3).slice(-8));
+    live.last = r;
+    renderPipe(r);
+    if ((r.journal || []).length) appendJournal(r.journal);
+    else if (!r.running && !journal.idle) idleJournal(r.last_pass);
     $('feed').replaceChildren(...(items.length ? items.slice(0, 5).map(feedItem)
         : [el('li', { className: 'muted', textContent: 'Пока ничего: подборка пуста.' })]));
-    live.timer = setTimeout(loadLive, r.running ? 4000 : 15000);
 }
 
 function render() {
@@ -255,7 +346,7 @@ async function loadModel() {
 
 async function action(name, done) {
     $('act-note').textContent = '…';
-    try { const r = await api(name, { body: {} }); $('act-note').textContent = r.message || done; setTimeout(loadLive, 800); }
+    try { const r = await api(name, { body: {} }); $('act-note').textContent = r.message || done; clearTimeout(live.timer); live.timer = setTimeout(loadLive, 800); }
     catch (e) { $('act-note').textContent = `Ошибка: ${e.message}`; }
 }
 

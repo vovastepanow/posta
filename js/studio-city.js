@@ -23,6 +23,9 @@ export function createCity(canvas, { onHover = () => {} } = {}) {
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.NoToneMapping;
     renderer.setClearColor(0x000000, 0);
+    // потеря контекста GPU: не глушим канвас, после восстановления перерисуем
+    canvas.addEventListener('webglcontextlost', e => e.preventDefault());
+    canvas.addEventListener('webglcontextrestored', () => { colorsDirty = true; kick(); });
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(32, 2, .5, 400);
@@ -68,8 +71,7 @@ export function createCity(canvas, { onHover = () => {} } = {}) {
     let needsRender = true, loopOn = false, onScreen = true, prev = performance.now();
     const frame = now => {
         if (document.hidden || !onScreen) { loopOn = false; return; }
-        requestAnimationFrame(frame);
-        if (!canvas.clientWidth) return;
+        if (!canvas.clientWidth) { requestAnimationFrame(frame); return; }
         const dt = Math.min(50, now - prev) / 16.67; prev = now;
 
         if (!drag) {
@@ -97,11 +99,17 @@ export function createCity(canvas, { onHover = () => {} } = {}) {
             if (Math.abs(nv - shown[k]) > 1e-4) growing = true;
             shown[k] = nv;
         }
-        if (!(needsRender || colorsDirty || growing || gap > 1e-4)) return;   // ничего не меняется — GPU не трогаем
-        needsRender = false;
-        placeCamera();
-        if (growing || colorsDirty) updateBars();
-        renderer.render(scene, camera);
+        // ничего не меняется — GPU не трогаем, цикл стоит до следующего ввода или автовращения
+        if (needsRender || colorsDirty || growing || gap > 1e-4) {
+            needsRender = false;
+            placeCamera();
+            if (growing || colorsDirty) updateBars();
+            renderer.render(scene, camera);
+            requestAnimationFrame(frame);
+        } else {
+            loopOn = false;
+            if (!reduced) setTimeout(kick, 3600);   // автовращение начнётся через 3,5 с без ввода
+        }
     };
     const kick = () => {
         needsRender = true;
@@ -152,6 +160,7 @@ export function createCity(canvas, { onHover = () => {} } = {}) {
     document.addEventListener('pointerlockchange', () => {
         const locked = document.pointerLockElement === canvas;
         if (drag) drag.locked = locked;
+        if (drag && !locked && drag.mouse) endDrag();   // lock снят (Esc) — жест кончился
         if (fake) { fake.hidden = !locked; if (locked) fake.style.transform = `translate(${fx}px, ${fy}px)`; }
     });
     document.addEventListener('pointermove', e => {

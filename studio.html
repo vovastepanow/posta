@@ -55,7 +55,7 @@
         <button class="cta" id="act-search" type="button">✦ Найти контент</button>
       </div>
       <div class="jcol">
-        <div class="jhead"><span>журнал</span></div>
+        <div class="jhead"><span>журнал</span><span class="jfilter" id="jfilter" hidden><span id="jfilterName"></span><button type="button" id="jfilterOff" aria-label="Сбросить фильтр">✕</button></span></div>
         <div class="jbody"><div class="journal" id="journal" role="log" aria-live="off"></div></div>
       </div>
       <div class="citycol">
@@ -80,6 +80,12 @@
   </main>
 
   <aside class="panel">
+    <section class="box">
+      <h3 id="pipeTitle">Конвейер</h3>
+      <div class="pipeHead"><b id="pipeNow">—</b><small id="pipePct"></small></div>
+      <div class="pbar"><i id="pbar"></i></div>
+      <div class="pipe" id="pipe"></div>
+    </section>
     <section class="box">
       <h3>Только что отобрано</h3>
       <ul class="feed" id="feed"><li class="muted">Загрузка…</li></ul>
