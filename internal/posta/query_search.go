@@ -125,54 +125,22 @@ func (u *U) querySearchOffset(key string) int {
 func (u *U) QuerySearchCollect(key string) map[string][]jx.M {
 	query, topic := u.CurrentQuery(), u.CurrentTopic()
 	plan := u.QuerySearchPlan(query, topic)
+	u.Log("Поиск: «%s» — ищу посты по площадкам (тема «%s» — только для оценки).", query, topic)
 	off := u.querySearchOffset(key)
-	ru, en, tags := DiscoveryRotate(plan.RU, off), DiscoveryRotate(plan.EN, off), DiscoveryRotate(plan.Hashtags, off)
-	deadline := time.Now().Add(time.Duration(u.TInt("query_search_seconds")) * time.Second)
-	got := map[string][]jx.M{}
-	counts := map[string]int{}
-	// каждая площадка — отдельно: сбой или нехватка времени не роняют остальные
-	step := func(name, plat string, fetch func() []jx.M) {
-		if time.Now().After(deadline) || !u.Alive() {
-			return
-		}
-		defer func() {
-			if r := recover(); r != nil {
-				u.Log("Поиск «%s»: %s — ошибка, пропускаю: %v", query, name, r)
-			}
-		}()
-		posts := fetch()
-		got[plat] = append(got[plat], posts...)
-		counts[name] += len(posts)
+	ru := DiscoveryRotate(plan.RU, off)
+	// площадки — параллельно, в одной общей очереди на площадку (см. search_engine.go); бюджет — query_search_seconds
+	got, counts := u.SearchEngineRun(plan, off, time.Duration(u.TInt("query_search_seconds"))*time.Second)
+	// каналы Telegram по запросу — через аккаунт владельца, после опроса площадок (у аккаунта свой лимит)
+	if u.TBool("search_telegram") && len(ru) > 0 && u.Alive() {
+		chans := u.querySearchTelegramChannels(ru, plan.Must)
+		got[PlatformTelegram] = append(got[PlatformTelegram], chans...)
+		counts["Telegram каналы"] = len(chans)
 	}
-	if len(tags) > 0 {
-		step("Telegram", PlatformTelegram, func() []jx.M { return u.PostSearchTelegram(tags[0], PostSearchLimit) })
+	// каталог — дёшево: только посты, уже закэшированные опросом источников; сеть не трогаем
+	for p, posts := range u.catalogCachedPosts(topic) {
+		got[p] = append(got[p], posts...)
+		counts["каталог"] += len(posts)
 	}
-	if len(ru) > 0 {
-		step("Telegram", PlatformTelegram, func() []jx.M { return u.PostSearchTelegram(ru[0], PostSearchLimit) })
-		step("Telegram каналы", PlatformTelegram, func() []jx.M { return u.querySearchTelegramChannels(ru, plan.Must) })
-		step("YouTube", PlatformRSS, func() []jx.M { return u.PostSearchYouTube(ru[0], PostSearchLimit) })
-		step("Новости", PlatformRSS, func() []jx.M { return u.queryNewsRSS(ru[0]) })
-		step("vc/dtf", PlatformRSS, func() []jx.M { return u.queryOsnovaSearch(ru[0]) })
-		for _, q := range ru[:min(len(ru), 2)] {
-			q := q
-			step("VK", PlatformVK, func() []jx.M { return u.PostSearchVK(q, PostSearchLimit) })
-		}
-	}
-	if len(en) > 0 {
-		step("YouTube", PlatformRSS, func() []jx.M { return u.PostSearchYouTube(en[0], PostSearchLimit) })
-	}
-	if len(tags) > 0 {
-		step("TikTok", PlatformTikTok, func() []jx.M { return u.PostSearchTikTok(tags[0], PostSearchLimit) })
-	}
-	// каталог темы — одна из площадок; старый путь сборки, но без встроенных поисков (их заменяет этот сборщик)
-	if time.Now().Before(deadline) && u.Alive() {
-		for p, posts := range u.collectPostsByPlatform(key) {
-			got[p] = append(got[p], posts...)
-			counts["каталог"] += len(posts)
-		}
-	}
-	u.Log("Поиск «%s»: Telegram %d (каналов %d), VK %d, YouTube %d, Новости %d, vc/dtf %d, TikTok %d, каталог %d.",
-		query, counts["Telegram"], counts["Telegram каналы"], counts["VK"], counts["YouTube"], counts["Новости"], counts["vc/dtf"], counts["TikTok"], counts["каталог"])
 	ranked := rankQuerySearch(got, plan, u.TInt("content_max_age"), func(it jx.M) bool { return u.UAItemBlocked(it) != "" })
 	n := 0
 	for _, posts := range ranked {
@@ -444,6 +412,28 @@ func rankQuerySearch(by map[string][]jx.M, plan QueryPlan, maxAge int, skip func
 		per[c.plat]++
 		n++
 		out[c.plat] = append(out[c.plat], c.item)
+	}
+	return out
+}
+
+// catalogCachedPosts — посты источников каталога темы из кэша опроса (без сети); по словам запроса отбирает rankQuerySearch.
+func (u *U) catalogCachedPosts(topic string) map[string][]jx.M {
+	type cachedPosts struct {
+		At    int64  `json:"at"`
+		Posts []jx.M `json:"posts"`
+	}
+	out := map[string][]jx.M{}
+	d := u.Catalog()
+	for _, c := range CatalogKinds {
+		for _, e := range *d.List(c.Kind) {
+			if !u.CatalogEntryMatchesTopic(e, topic, false) {
+				continue
+			}
+			var cp cachedPosts
+			if u.CacheGet(u.Ctx, SourcePollCacheKey(c.Platform, jx.Str(e, "id")), &cp) {
+				out[c.Platform] = append(out[c.Platform], cp.Posts...)
+			}
+		}
 	}
 	return out
 }

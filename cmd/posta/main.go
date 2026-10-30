@@ -43,6 +43,7 @@ const usage = `posta — сервер и служебные команды Posta
   balance-add <id> <₽> [заметка]     пополнить баланс
   ua-filter on|off                   фильтр украинского контента
   discovery-run <id>                 прогон автоподбора источников по теме профиля
+  search-test <запрос> [тема]        проверка поиска по площадкам без записи в пул
   discovery-origins [тема]           откуда берутся предложения источников и как их решают
   leads-scan [id]                    проход радара лидов
   outbox-repair [--dry-run] [id]     починить очередь постов
@@ -278,6 +279,21 @@ func command(ctx context.Context, cfg config.Server, args []string) error {
 		u := a.User(ctx, args[1], print)
 		a.RequestSourceDiscovery()
 		u.RunSourceDiscovery(u.CurrentTopic(), a.TInt("discovery_minutes")*60)
+		return nil
+	case "search-test":
+		if err := need(args, 2, "search-test <запрос> [тема]"); err != nil {
+			return err
+		}
+		uid := a.RadarAccountUID(ctx)
+		if uid == "" {
+			return errors.New("нет аккаунта для проверки поиска")
+		}
+		u := a.User(ctx, uid, print)
+		topic := ""
+		if len(args) > 2 {
+			topic = strings.Join(args[2:], " ")
+		}
+		fmt.Print(u.SearchTest(args[1], topic))
 		return nil
 	case "discovery-origins":
 		topic := ""

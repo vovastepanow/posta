@@ -414,7 +414,8 @@ func saveQuery(c *Ctx) (any, error) {
 	if err := u.SaveSettings(jx.M{"query": q}); err != nil {
 		return nil, err
 	}
-	return ok(jx.M{"query": q, "parser": u.StartParser(true)}), nil
+	// новый запрос: текущий проход по старому останавливается (до 5 с) и сразу стартует новый, без паузы между проходами
+	return ok(jx.M{"query": q, "parser": u.RestartParser()}), nil
 }
 
 func saveFilters(c *Ctx) (any, error) {
