@@ -9,6 +9,7 @@ import { openAccountSection } from './account.js';
 import { mediaFileKey } from './media-dedupe.js';
 import { loadImage, pageCheck, videoProgress, watchVideo } from './video-pending.js';
 import { shortText } from './card.js';
+import { initRegistry, loadRegistry } from './registry.js';
 
 const REASONS = { off_topic: 'не по теме', dead: 'мёртвый', other: 'другое' };
 const state = { source: null, skipped: [], loading: false, voting: false, discovering: false, mosaic: null, poll: null, emptyAction: '' };
@@ -773,7 +774,8 @@ export function initializeSourceTab() {
     $('discovery-button').addEventListener('click', startDiscovery);
     document.querySelectorAll('[data-topic-source-filter]').forEach(b => b.addEventListener('click', () => { topicSources.filter = b.dataset.topicSourceFilter; renderTopicSources(); }));
     $('topic-sources-refresh').addEventListener('click', loadTopicSources);
-    onTabOpen('source-tab', () => { loadDiscoveryStatus(); loadTopicSources(); loadMirrors(); loadMirrorChannels(); if (!state.source && !state.loading) loadNextSource(); });
+    initRegistry();
+    onTabOpen('source-tab', () => { loadDiscoveryStatus(); loadTopicSources(); loadRegistry(); loadMirrors(); loadMirrorChannels(); if (!state.source && !state.loading) loadNextSource(); });
     onParserStateChange(running => {   // парсер закончил: подбор мог найти источники, сбор — обновить аудиторию
         if (running) return;
         state.discovering = false;

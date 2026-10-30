@@ -42,7 +42,7 @@ const usage = `posta — сервер и служебные команды Posta
   adult-allow <id> on|off            18+ для профиля
   balance-add <id> <₽> [заметка]     пополнить баланс
   ua-filter on|off                   фильтр украинского контента
-  discovery-run <id>                 прогон автоподбора источников по теме профиля
+  discovery-run <id> [тема]          прогон автоподбора источников: по теме профиля или по указанной
   search-test <запрос> [тема]        проверка поиска по площадкам без записи в пул
   discovery-origins [тема]           откуда берутся предложения источников и как их решают
   leads-scan [id]                    проход радара лидов
@@ -277,8 +277,12 @@ func command(ctx context.Context, cfg config.Server, args []string) error {
 			return err
 		}
 		u := a.User(ctx, args[1], print)
+		topic := u.CurrentTopic()
+		if len(args) > 2 {
+			topic = strings.Join(args[2:], " ")
+		}
 		a.RequestSourceDiscovery()
-		u.RunSourceDiscovery(u.CurrentTopic(), a.TInt("discovery_minutes")*60)
+		u.RunSourceDiscovery(topic, a.TInt("discovery_minutes")*60)
 		return nil
 	case "search-test":
 		if err := need(args, 2, "search-test <запрос> [тема]"); err != nil {

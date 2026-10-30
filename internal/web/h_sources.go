@@ -46,6 +46,34 @@ func init() {
 	post("discover_sources", discover)
 	post("control_sources", discover)
 	get("discovery_status", discoveryStatus)
+	// реестр проверенных источников: «Проверенные» на вкладке «Источники»
+	get("registry_list", func(c *Ctx) (any, error) {
+		topic := ""
+		if c.Q("only_topic") == "1" {
+			topic = c.U.CurrentTopic()
+		}
+		rows, counts, err := c.U.RegistryList(c.Q("status"), c.Q("platform"), topic, c.Q("q"))
+		if err != nil {
+			return nil, err
+		}
+		return jx.M{"rows": rows, "counts": counts, "topic": c.U.CurrentTopic()}, nil
+	})
+	registrySID := regexp.MustCompile(`^[a-z0-9]+:\S{1,600}$`)
+	post("registry_readd", func(c *Ctx) (any, error) {
+		if !registrySID.MatchString(c.Str("source_id")) {
+			return nil, fail(400, "Некорректный источник.")
+		}
+		if err := topicAvailable(c); err != nil {
+			return nil, err
+		}
+		return ok(nil), c.U.RegistryReadd(c.Str("source_id"))
+	})
+	post("registry_forget", func(c *Ctx) (any, error) {
+		if !registrySID.MatchString(c.Str("source_id")) {
+			return nil, fail(400, "Некорректный источник.")
+		}
+		return ok(nil), c.U.RegistryForget(c.Str("source_id"))
+	})
 	post("source_mute", func(c *Ctx) (any, error) {
 		sid := c.Str("source_id")
 		if !regexp.MustCompile(`^[a-z]+:\S{1,600}$`).MatchString(sid) {

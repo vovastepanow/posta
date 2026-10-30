@@ -376,6 +376,21 @@
     <div id="topic-sources-status" class="proposals-status" role="status"></div>
     <div id="topic-sources-grid" class="proposals-grid topic-sources-grid"></div>
   </section>
+
+  <section class="topic-sources registry" aria-labelledby="registry-title">
+    <div class="proposals-toolbar">
+      <h2 id="registry-title" class="section-title">Проверенные источники</h2>
+      <input id="registry-search" type="search" placeholder="Поиск по названию" aria-label="Поиск по названию">
+      <select id="registry-status" aria-label="Статус"><option value="">Все статусы</option></select>
+      <select id="registry-platform" aria-label="Площадка"><option value="">Все площадки</option></select>
+      <label class="registry-topic-toggle"><input id="registry-only-topic" type="checkbox"> только по этой теме</label>
+      <span id="registry-count" class="proposals-count"></span>
+      <button id="registry-refresh" class="refresh-button" type="button" aria-label="Обновить реестр">↻</button>
+    </div>
+    <div id="registry-counts" class="proposals-status"></div>
+    <div id="registry-status-line" class="proposals-status" role="status"></div>
+    <div id="registry-list" class="proposals-grid topic-sources-grid"></div>
+  </section>
 </div>
 
 <!-- ДЕРЕВО ТЕМ -->

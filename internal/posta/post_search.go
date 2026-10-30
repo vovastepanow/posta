@@ -235,6 +235,7 @@ func (u *U) SourceAddManual(input, topic string) (jx.M, error) {
 		}
 	}
 	if u.UASourceBlocked(sid, jx.M{"title": name}) != "" || uaPosts >= 2 {
+		u.registryUpsert(registryWrite{SourceID: sid, Platform: platform, Name: name, Status: RegStatusUkraine, Reason: "украинский источник"})
 		return nil, Bad("Украинские источники в Posta недоступны.")
 	}
 	kind := CatalogKind(platform)
@@ -275,6 +276,8 @@ func (u *U) SourceAddManual(input, topic string) (jx.M, error) {
 	if err != nil {
 		return nil, err
 	}
+	u.registryUpsert(registryWrite{SourceID: sid, Platform: platform, Name: name, URL: registryURL(platform, id), Status: RegStatusCatalog,
+		Reason: "добавлен вручную", Owner: true})
 	return jx.M{"platform": platform, "id": id, "name": name, "added": added, "posts": len(posts)}, nil
 }
 
@@ -663,7 +666,7 @@ func (u *U) PostSearchSuggest(item jx.M, topic string) {
 	if a == nil {
 		return
 	}
-	if PostSearchSourceKnown(u.Catalog(), SourceIDFor(a.Platform, a.ID)) {
+	if skip, _ := u.RegistrySkip(SourceIDFor(a.Platform, a.ID), topic); skip {
 		return
 	}
 	link := jx.Str(item, "url")
@@ -672,27 +675,6 @@ func (u *U) PostSearchSuggest(item jx.M, topic string) {
 	}
 	a.Origin = "пост прошёл отбор: " + link
 	u.DiscoveryDefer(topic, *a, "пост прошёл отбор — проверю в следующем подборе")
-}
-
-func PostSearchSourceKnown(d *SourceDB, sid string) bool {
-	for _, c := range CatalogKinds {
-		for _, e := range *d.List(c.Kind) {
-			if SourceIDFor(c.Platform, jx.Str(e, "id")) == sid {
-				return true
-			}
-		}
-	}
-	for _, e := range append(append([]jx.M{}, d.Votes...), d.Suggestions...) {
-		if jx.Str(e, "source_id") == sid {
-			return true
-		}
-	}
-	for c := range jx.Map(d.Discovery, "checked_at") {
-		if c == sid || strings.HasSuffix(c, "|"+sid) {
-			return true
-		}
-	}
-	return false
 }
 
 type PostSearchResult struct {

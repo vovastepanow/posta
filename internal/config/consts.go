@@ -123,10 +123,8 @@ const (
 	SourceAutoAddScore           = 101 // >100: автодобавление выключено, всё решает пользователь
 	SourceSuggestScore           = 55
 	SourceReviewCaptions         = 10
-	DiscoveryRecheckDays         = 30
 	DvachBoardsPerTopic          = 4
 	DvachBoardsPerRun            = 20
-	DiscoveryCheckedLimit        = 1000
 	DiscoverySnowballSeeds       = 8
 	DiscoverySimilarSeeds        = 6
 	DiscoveryDeepExtraScore      = 10
@@ -296,3 +294,6 @@ func PlanByKey(key string) (Plan, bool) {
 var BillingCustom = struct {
 	Base, Channel, PostsStep, PostsStepPrice, MaxChannels, MaxPostsPerDay int
 }{390, 150, 10, 60, 10, 100}
+
+// Годнота источника: веса компонентов в итоговом балле (см. posta/source_goodness.go). Без данных компонент не считается.
+var GoodnessWeights = map[string]float64{"отклик": 25, "жизнь": 20, "оригинальность": 20, "реклама": 15, "вкус": 20}

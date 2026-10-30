@@ -226,6 +226,11 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 	if prev := SourcePreviewImages(posts); len(prev) > 0 {
 		updated["preview"] = prev
 	}
+	if event == "frozen" || event == "revived" {
+		status := map[string]string{"frozen": RegStatusDead, "revived": RegStatusCatalog}[event]
+		u.registryUpsert(registryWrite{SourceID: SourceIDFor(platform, jx.Str(entry, "id")), Platform: platform, Status: status,
+			Reason: map[string]string{"frozen": "заморожен: " + jx.Str(updated, "frozen_reason"), "revived": "в каталоге"}[event]})
+	}
 	if event == "frozen" || event == "still_frozen" {
 		skip := activeOnly || gone != ""
 		what := "всё ещё не активен"

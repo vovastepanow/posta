@@ -104,6 +104,9 @@ func defaultCatalog() *SourceDB {
 // изменения сохраняются в Postgres построчно.
 type Catalog struct {
 	app *App
+	// wmu — записи по очереди (fn из UpdateCatalog); mu — только снимок и индексы, держится коротко,
+	// поэтому чтение тем (TopicSame и др.) внутри fn не блокирует сам себя
+	wmu sync.Mutex
 	mu  sync.Mutex
 	cur *SourceDB
 	// индексы реестра тем (пересобираются при каждом изменении)
@@ -202,18 +205,23 @@ func (a *App) LoadCatalog(ctx context.Context) error {
 // UpdateCatalog — изменить каталог: fn меняет копию и возвращает true, если есть что сохранять.
 func (a *App) UpdateCatalog(ctx context.Context, fn func(d *SourceDB) bool) (*SourceDB, error) {
 	c := a.catalog
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	next := c.cur.Clone()
+	cur := c.cur
+	c.mu.Unlock()
+	next := cur.Clone()
 	if !fn(next) {
-		return c.cur, nil
+		return cur, nil
 	}
 	next.Topics = topicRegistryFromDB(next)
-	if err := a.persistCatalog(ctx, c.cur, next); err != nil {
-		return c.cur, fmt.Errorf("каталог не сохранён: %w", err)
+	if err := a.persistCatalog(ctx, cur, next); err != nil {
+		return cur, fmt.Errorf("каталог не сохранён: %w", err)
 	}
+	c.mu.Lock()
 	c.cur = next
 	c.idx = buildTopicIndex(next.Topics)
+	c.mu.Unlock()
 	return next, nil
 }
 

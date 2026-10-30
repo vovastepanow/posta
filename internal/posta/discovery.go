@@ -116,33 +116,16 @@ func (a *App) RequestSourceDiscovery() {
 	a.UpdateCatalog(a.ctxOrBg(), func(d *SourceDB) bool { d.Discovery["requested"] = true; return true })
 }
 
-// discoveryKnownIDs — уже известные для темы: каталог, решения, предложения, проверенные недавно.
+// discoveryKnownIDs — уже известные: каталог и реестр проверенных (пропуск по решению реестра, без сетевых запросов).
 func (u *U) discoveryKnownIDs(d *SourceDB, topic string) map[string]bool {
 	known := map[string]bool{}
 	for _, c := range CatalogKinds {
 		for _, e := range *d.List(c.Kind) {
-			if u.CatalogEntryMatchesTopic(e, topic, true) {
-				known[SourceIDFor(c.Platform, jx.Str(e, "id"))] = true
-			}
+			known[SourceIDFor(c.Platform, jx.Str(e, "id"))] = true
 		}
 	}
-	for _, e := range append(append([]jx.M{}, d.Votes...), d.Suggestions...) {
-		if jx.Str(e, "topic") == "" || u.TopicSame(jx.Str(e, "topic"), topic) {
-			known[jx.Str(e, "source_id")] = true
-		}
-	}
-	prefix := TopicNorm(topic) + "|"
-	isDefault := u.TopicSame(config.DefaultTopic, topic)
-	freshAfter := now() - config.DiscoveryRecheckDays*86400
-	for c, at := range jx.Map(d.Discovery, "checked_at") {
-		if jx.ToInt(at) < freshAfter {
-			continue
-		}
-		if strings.HasPrefix(c, prefix) {
-			known[c[len(prefix):]] = true
-		} else if isDefault && !strings.Contains(c, "|") {
-			known[c] = true
-		}
+	for sid := range u.registryKnown(topic) {
+		known[sid] = true
 	}
 	return known
 }
@@ -373,6 +356,7 @@ type sourceEvaluation struct {
 	TextOnly bool
 	Reason   string
 	Quality  jx.M
+	Goodness *GoodnessResult
 }
 
 // evaluateSource — подписи есть — проверка по тексту; нет — коллаж картинок (по формату темы).
@@ -654,7 +638,8 @@ func (u *U) DvachBoardsForTopic(topic string, chooseIfMissing bool) []string {
 
 // ---- Проверка кандидатов ----
 
-// storeDiscoveredSource — итог проверки → каталог, предложения или проверенные: added | suggested | rejected.
+// storeDiscoveredSource — итог проверки → каталог, предложения или отказ: added | suggested | rejected | failed.
+// Предложение нужно и по теме, и по годноте; очередь предложений темы ограничена (сверх — лучшие по баллу). Итог пишется в реестр.
 func (u *U) storeDiscoveredSource(c DiscoveryCandidate, info jx.M, ev *sourceEvaluation, topic string, activity jx.M, extra int) string {
 	score := 0
 	var q jx.M
@@ -668,30 +653,19 @@ func (u *U) storeDiscoveredSource(c DiscoveryCandidate, info jx.M, ev *sourceEva
 	} else if score >= u.TInt("suggest_score")+extra {
 		result = "suggested"
 	}
-	u.UpdateCatalog(u.Ctx, func(d *SourceDB) bool {
-		checked := jx.Map(d.Discovery, "checked_at")
-		if checked == nil {
-			checked = jx.M{}
-		}
-		checked[TopicNorm(topic)+"|"+sid] = now()
-		if len(checked) > config.DiscoveryCheckedLimit {
-			type kv struct {
-				k  string
-				at int64
-			}
-			var all []kv
-			for k, v := range checked {
-				all = append(all, kv{k, jx.ToInt(v)})
-			}
-			sort.Slice(all, func(i, j int) bool { return all[i].at > all[j].at })
-			checked = jx.M{}
-			for _, x := range all[:config.DiscoveryCheckedLimit] {
-				checked[x.k] = x.at
-			}
-		}
-		d.Discovery["checked_at"] = checked
-		delete(d.Discovery, "checked")
-		title := jx.Str(info, "title")
+	rejectReason := ""
+	if ev != nil {
+		rejectReason = ev.Reason
+	}
+	if result != "rejected" && ev != nil && ev.Goodness != nil && ev.Goodness.Score < u.TInt("goodness_min") {
+		rejectReason = fmt.Sprintf("не годнота: %d%% (%s)", ev.Goodness.Score, ev.Goodness.Note)
+		result = "rejected"
+	}
+	title := jx.Str(info, "title")
+	tn := TopicNorm(topic)
+	pendingMax := u.TInt("suggestions_pending_max")
+	var evicted jx.M
+	_, err := u.UpdateCatalog(u.Ctx, func(d *SourceDB) bool {
 		switch result {
 		case "added":
 			e := jx.M{"id": info["id"], "name": title, "topics": []any{TopicBase(topic)}, "auto": true, "score": score, "preview": SourcePreviewImages(jx.Maps(info, "posts"))}
@@ -707,6 +681,27 @@ func (u *U) storeDiscoveredSource(c DiscoveryCandidate, info jx.M, ev *sourceEva
 			l := d.List(CatalogKind(c.Platform))
 			*l = append(*l, e)
 		case "suggested":
+			// очередь предложений темы: сверх лимита остаётся тот, у кого балл выше; худший уступает место
+			worst, pending := -1, 0
+			for i, s := range d.Suggestions {
+				if TopicNorm(jx.Str(s, "topic")) != tn {
+					continue
+				}
+				pending++
+				if worst < 0 || jx.Int(s, "score") < jx.Int(d.Suggestions[worst], "score") {
+					worst = i
+				}
+			}
+			if pending >= pendingMax {
+				if worst < 0 || int64(score) <= jx.Int(d.Suggestions[worst], "score") {
+					result, rejectReason = "rejected", "очередь предложений полна: балл ниже лучших"
+					return false
+				}
+				evicted = d.Suggestions[worst]
+				kept := make([]jx.M, 0, len(d.Suggestions)-1)
+				kept = append(kept, d.Suggestions[:worst]...)
+				d.Suggestions = append(kept, d.Suggestions[worst+1:]...)
+			}
 			reason := fmt.Sprintf("Найден автоподбором по теме «%s» (%s): оценка %d%%", topic, c.Origin, score)
 			if q != nil {
 				reason += fmt.Sprintf(" (по теме %d%%), ", jx.Int(q, "content")) + DescribeSourceAudience(jx.Int(q, "subscribers"), floatPtr(q["view_rate"]), q)
@@ -715,6 +710,9 @@ func (u *U) storeDiscoveredSource(c DiscoveryCandidate, info jx.M, ev *sourceEva
 			}
 			if activity != nil {
 				reason += ", " + DescribeSourceActivity(activity)
+			}
+			if ev != nil && ev.Goodness != nil {
+				reason += fmt.Sprintf(", годнота %d%% (%s)", ev.Goodness.Score, ev.Goodness.Note)
 			}
 			if desc := jx.Str(info, "description"); desc != "" {
 				reason += ". " + trimRunes(desc, 160)
@@ -726,6 +724,37 @@ func (u *U) storeDiscoveredSource(c DiscoveryCandidate, info jx.M, ev *sourceEva
 		}
 		return true
 	})
+	if err != nil {
+		// каталог не сохранён — и реестр не пишем: кандидат найдётся снова
+		u.Log("Каталог не сохранён, %s не записан: %v", sid, err)
+		return "failed"
+	}
+	if evicted != nil {
+		u.registryUpsert(registryWrite{SourceID: jx.Str(evicted, "source_id"), Platform: jx.Str(evicted, "platform"), Name: jx.Str(evicted, "name"),
+			Status: RegStatusRejected, Reason: "очередь предложений полна: уступил место лучшему по баллу", Topic: tn,
+			Result: &registryTopic{Score: int(jx.Int(evicted, "score")), Reason: "очередь предложений полна", At: now()}})
+	}
+	reg := registryWrite{SourceID: sid, Platform: c.Platform, Name: title, URL: registryURL(c.Platform, c.ID), Status: RegStatusRejected, Checked: true,
+		Topic: tn, Result: &registryTopic{Score: score, Reason: rejectReason, At: now()}, Origin: jx.M{"kind": c.OriginKind, "detail": c.Origin},
+		Sample: registrySample(jx.Maps(info, "posts"))}
+	switch result {
+	case "added":
+		reg.Status = RegStatusCatalog
+	case "suggested":
+		reg.Status = RegStatusSuggested
+	}
+	if q != nil {
+		reg.Metrics = jx.M{}
+		for k, v := range q {
+			reg.Metrics[k] = v
+		}
+		if activity != nil {
+			reg.Metrics["activity"] = activity
+		}
+	}
+	if err := u.registryUpsert(reg); err != nil {
+		u.Log("Реестр источников: не сохранён %s: %v", sid, err)
+	}
 	return result
 }
 
@@ -759,14 +788,25 @@ func (u *U) checkDiscoveryCandidate(c DiscoveryCandidate, topic string, stats ma
 	if c.Depth >= 2 {
 		extra = config.DiscoveryDeepExtraScore
 	}
+	sid := SourceIDFor(c.Platform, c.ID)
+	verdict, why, row := u.RegistryVerdict(sid, topic)
+	if verdict == regSkip {
+		u.discoveryCheapNote(c, "реестр: "+why)
+		return nil, false
+	}
+	if verdict == regSample {
+		u.registrySampleCheck(c, topic, row, stats)
+		return nil, false
+	}
 	stats["checked"]++
 	reject := func(info jx.M) {
 		stats["rejected"]++
 		u.storeDiscoveredSource(c, info, nil, topic, nil, 0)
 	}
-	if u.UASourceBlocked(SourceIDFor(c.Platform, c.ID), c.Info) != "" {
+	if u.UASourceBlocked(sid, c.Info) != "" {
 		u.Log("-> %s: украинский источник — пропуск.", label)
 		reject(rejectInfo(c))
+		u.registryUpsert(registryWrite{SourceID: sid, Platform: c.Platform, Status: RegStatusUkraine, Reason: "украинский источник"})
 		return nil, false
 	}
 	pre := ""
@@ -783,10 +823,13 @@ func (u *U) checkDiscoveryCandidate(c DiscoveryCandidate, topic string, stats ma
 		if errors.Is(err, ErrDiscoveryMissing) {
 			u.Log("-> %s: %s", label, strings.TrimPrefix(err.Error(), ErrDiscoveryMissing.Error()+": "))
 			reject(rejectInfo(c))
+			u.registryUpsert(registryWrite{SourceID: sid, Platform: c.Platform, Status: RegStatusDead, Reason: "пустой, закрытый или удалённый источник"})
 			return nil, false
 		}
 		stats["failed"]++
 		u.Log("-> %s: %s", label, err)
+		u.registryUpsert(registryWrite{SourceID: sid, Platform: c.Platform, Status: RegStatusFailed, Reason: err.Error(), Checked: true, Failed: true,
+			Topic: TopicNorm(topic), Result: &registryTopic{Reason: "не загрузилось", At: now()}})
 		return nil, true
 	}
 	if alt := jx.Str(info, "alt_id"); alt != "" {
@@ -866,9 +909,10 @@ func (u *U) checkDiscoveryCandidate(c DiscoveryCandidate, topic string, stats ma
 			uaPosts++
 		}
 	}
-	if u.UASourceBlocked(SourceIDFor(c.Platform, c.ID), info) != "" || uaPosts >= 2 {
+	if u.UASourceBlocked(sid, info) != "" || uaPosts >= 2 {
 		u.Log("-> %s: украинский источник — пропуск без проверки картинок.", title)
 		reject(info)
+		u.registryUpsert(registryWrite{SourceID: sid, Platform: c.Platform, Status: RegStatusUkraine, Reason: "украинский источник"})
 		return nil, false
 	}
 	var ev *sourceEvaluation
@@ -889,6 +933,8 @@ func (u *U) checkDiscoveryCandidate(c DiscoveryCandidate, topic string, stats ma
 	}
 	ev.Quality = q
 	ev.Score = int(jx.Int(q, "score"))
+	g := u.candidateGoodness(c, jx.Str(info, "title"), topic, posts, rate, activity, ev.Score >= u.TInt("suggest_score")+extra)
+	ev.Goodness = &g
 	result := u.storeDiscoveredSource(c, info, ev, topic, activity, extra)
 	stats[result]++
 	if ev.TextOnly {
@@ -901,7 +947,7 @@ func (u *U) checkDiscoveryCandidate(c DiscoveryCandidate, topic string, stats ma
 	}
 	u.Log("-> %s: по теме %d%% (%s%s), %s, %s, глубина %d → %d%% — %s.", title, jx.Int(q, "content"), sourceEvaluationBasis(ev), reason,
 		DescribeSourceAudience(subs, rate, q), DescribeSourceActivity(activity), c.Depth, ev.Score,
-		map[string]string{"added": "добавлен в каталог", "suggested": "в предложения", "rejected": "не подходит"}[result])
+		map[string]string{"added": "добавлен в каталог", "suggested": "в предложения", "rejected": "не подходит", "failed": "не сохранено"}[result])
 	return linked, false
 }
 
@@ -939,16 +985,10 @@ func linkedCandidates(info jx.M) []DiscoveryCandidate {
 	return out
 }
 
+// discoveryMarkChecked — альтернативный адрес того же источника отмечен проверенным по теме.
 func (u *U) discoveryMarkChecked(topic, platform, id string) {
-	u.UpdateCatalog(u.Ctx, func(d *SourceDB) bool {
-		checked := jx.Map(d.Discovery, "checked_at")
-		if checked == nil {
-			checked = jx.M{}
-		}
-		checked[TopicNorm(topic)+"|"+SourceIDFor(platform, id)] = now()
-		d.Discovery["checked_at"] = checked
-		return true
-	})
+	u.registryUpsert(registryWrite{SourceID: SourceIDFor(platform, id), Platform: platform, Status: RegStatusRejected, Checked: true,
+		Topic: TopicNorm(topic), Result: &registryTopic{Reason: "альтернативный адрес этого же источника", At: now()}})
 }
 
 // discoveryTelegramAccountChannels — каналы через аккаунт Telegram: поиск по запросам или похожие.
@@ -1376,10 +1416,24 @@ func (u *U) runSourceDiscoveryLocked(topic string, limit, maxSeconds int) {
 			add(c, false)
 		}
 	}
+	// бюджет проверок делится между видами находки по доле «да» владельца (минимум 10 % каждому виду)
+	caps := DiscoveryBudget(limit, queue.kindCounts(), u.DiscoveryOriginReport(d, topic))
+	u.Log("-> Бюджет проверок по видам находки (всего %d): %s.", limit, discoveryBudgetLines(caps, discoveryKindLabels))
+	used := map[string]int{}
+	var parked []DiscoveryCandidate
+	drained := false
 	for stats["checked"] < limit {
 		c := queue.next()
 		if c == nil {
-			break
+			if len(parked) == 0 {
+				break
+			}
+			// очередь кончилась, а бюджет ещё не выбран: отложенные кандидаты проверяются по второму кругу
+			for _, p := range parked {
+				queue.add(DiscoveryGroupOf(p.Platform, p.ID), p, false)
+			}
+			parked, drained = nil, true
+			continue
 		}
 		stop := ""
 		switch {
@@ -1394,6 +1448,11 @@ func (u *U) runSourceDiscoveryLocked(topic string, limit, maxSeconds int) {
 			u.Log("-> %s", stop)
 			break
 		}
+		if !drained && caps[c.OriginKind] > 0 && used[c.OriginKind] >= caps[c.OriginKind] {
+			parked = append(parked, *c)
+			continue
+		}
+		used[c.OriginKind]++
 		group := DiscoveryGroupOf(c.Platform, c.ID)
 		one := map[string]int{}
 		links, failed := u.checkDiscoveryCandidate(*c, topic, one)

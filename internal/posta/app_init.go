@@ -57,6 +57,9 @@ func New(ctx context.Context, cfg config.Server) (*App, error) {
 		a.Close()
 		return nil, fmt.Errorf("каталог: %w", err)
 	}
+	if err := a.MigrateSourceRegistry(ctx); err != nil {
+		log.Printf("Реестр источников: перенос не выполнен, повторится при следующем запуске: %v", err)
+	}
 	return a, nil
 }
 

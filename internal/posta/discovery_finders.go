@@ -194,6 +194,17 @@ func (q *discoveryQueue) add(group string, c DiscoveryCandidate, front bool) {
 	}
 }
 
+// kindCounts — кандидатов в очереди по видам находки.
+func (q *discoveryQueue) kindCounts() map[string]int {
+	out := map[string]int{}
+	for _, l := range q.groups {
+		for _, c := range l {
+			out[c.OriginKind]++
+		}
+	}
+	return out
+}
+
 func (q *discoveryQueue) counts() map[string]int {
 	out := map[string]int{}
 	for g, l := range q.groups {
@@ -745,6 +756,19 @@ func (u *U) discoveryTopicSeeds(d *SourceDB, topic string) []string {
 			seeds = append(seeds, seed{strings.TrimLeft(jx.Str(s, "id"), "@"), jx.Int(s, "score")})
 		}
 	}
+	liked, anti := u.telegramTastes()
+	kept := seeds[:0]
+	for _, s := range seeds {
+		key := strings.ToLower(s.id)
+		if anti[key] {
+			continue
+		}
+		if liked[key] {
+			s.score += 1 << 40
+		}
+		kept = append(kept, s)
+	}
+	seeds = kept
 	sort.SliceStable(seeds, func(i, j int) bool { return seeds[i].score > seeds[j].score })
 	var out []string
 	for _, s := range seeds {

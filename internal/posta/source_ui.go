@@ -697,6 +697,10 @@ func (u *U) SourceVote(vote string, source jx.M, reason string) error {
 		}
 		return true
 	})
+	if err == nil {
+		status := map[string]string{"approve": RegStatusOwnerYes, "reject": RegStatusOwnerNo, "maybe": RegStatusOwnerMaybe}[vote]
+		u.registrySetOwner(sid, jx.Str(record, "platform"), jx.Str(record, "name"), status, topic)
+	}
 	return err
 }
 
@@ -748,6 +752,9 @@ func (u *U) RemoveTopicSource(platform, id, name string) error {
 		u.removeRejectedSource(d, source, topic)
 		return true
 	})
+	if err == nil {
+		u.registrySetOwner(jx.Str(source, "source_id"), platform, name, RegStatusOwnerNo, topic)
+	}
 	return err
 }
 
