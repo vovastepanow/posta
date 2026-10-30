@@ -1,14 +1,14 @@
-// video-pending.js — ожидание ролика: опрос статуса раз в 3–4 с (пока качается — раз в секунду), не дольше 5 минут,
-// не больше трёх опросов сразу на страницу. Проверка — функция check(): {state: 'pending'|'ready'|'failed', video?, error?, progress?}.
+// video-pending.js — ожидание ролика: опрос статуса раз в 2 с (пока качается — раз в секунду), не дольше 5 минут,
+// не больше шести опросов сразу на страницу. Проверка — функция check(): {state: 'pending'|'ready'|'failed', video?, error?, progress?}.
 // Скрытая вкладка — опрос на паузе. videoProgress() — полоса загрузки поверх плитки, если ждать дольше двух секунд.
 import { api, el } from './core.js';
 
-const POLL_MS = 3500;
+const POLL_MS = 2000;
 const POLL_ACTIVE_MS = 1000;   // ролик уже качается: полоса должна двигаться
 const ACTIVE_STAGES = ['probe', 'download', 'merge', 'convert', 'telegram'];
 const SHOW_AFTER_MS = 2000;    // быстрая загрузка — без полосы
 const LIMIT_MS = 5 * 60 * 1000;
-const MAX_AT_ONCE = 3;
+const MAX_AT_ONCE = 6;
 let running = 0;
 const queue = [];
 
@@ -74,7 +74,7 @@ export function itemCheck(image) {
 
 /**
  * Полоса загрузки ролика поверх плитки host (у host должен быть position: relative): стадия, процент и полосатая полоса,
- * как у поиска. Появляется, только если ждать дольше двух секунд. compact — для маленьких миниатюр: без подписи.
+ * как у поиска. Появляется, только если ждать дольше двух секунд. compact — для маленьких миниатюр: без подписи, только процент.
  * Возвращает {update(progress), stop()}; progress — {label, percent|null} с сервера.
  */
 export function videoProgress(host, { compact = false, title = 'Видео загружается' } = {}) {
@@ -82,7 +82,7 @@ export function videoProgress(host, { compact = false, title = 'Видео за�
     const percent = el('span', { className: 'vp-percent' });
     const fill = el('span', { className: 'vp-fill' });
     const root = el('div', { className: `vp is-indeterminate${compact ? ' is-compact' : ''}`, role: 'progressbar', ariaLabel: 'Загрузка видео', hidden: true },
-        compact ? null : el('div', { className: 'vp-head' }, label, percent), el('div', { className: 'vp-track' }, fill));
+        el('div', { className: 'vp-head' }, compact ? null : label, percent), el('div', { className: 'vp-track' }, fill));
     host.append(root);
     let shown = false;
     const count = delta => {   // полос на плитке может быть две (обложка и ролик): класс снимается, когда скрыта последняя

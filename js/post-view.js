@@ -278,7 +278,7 @@ function posterTile(m, i, media, ctx) {
 function liveTile(m, i, media, ctx) {
     bindVisibility();
     const box = el('button', { type: 'button', className: 'pv-cell pv-cell-video', ariaLabel: `Видео ${i + 1} из ${media.length} — открыть со звуком` });
-    const video = el('video', { className: 'pv-cell-media', loop: true, playsInline: true, preload: 'metadata', poster: m.poster || '', muted: true, autoplay: true, disablePictureInPicture: true });
+    const video = el('video', { className: 'pv-cell-media', loop: true, playsInline: true, preload: 'auto', poster: m.poster || '', muted: true, autoplay: true, disablePictureInPicture: true });
     video.src = m.src;
     box._src = m.src;
     box._fallback = m.fallback || '';
@@ -409,6 +409,7 @@ function imageNode(m) {
 function posterNode(src) {
     if (!src) return null;
     const img = el('img', { src, alt: '', loading: 'lazy', decoding: 'async', referrerPolicy: 'no-referrer' });
+    img.dataset.noZoom = '1';   // постер ролика без файла — не картинка для просмотрщика
     img.addEventListener('error', () => img.remove());
     return img;
 }

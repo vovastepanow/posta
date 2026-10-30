@@ -411,3 +411,8 @@ export function ask(text, { ok = 'Да', cancel = 'Отмена', danger = false
         okButton.focus();
     });
 }
+
+/** Индекс качества источника: «Качество 63 · 👍 5 👎 2»; оценок ещё не было — нейтральные 50. */
+export function qualityText(q) {
+    return q ? `Качество ${Math.round(q.quality)} · 👍 ${q.likes} 🤷 ${q.maybes || 0} 👎 ${q.dislikes}` : 'Качество 50 · оценок пока нет';
+}

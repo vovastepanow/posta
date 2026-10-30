@@ -1,0 +1,634 @@
+<title>Posta Студия: новая главная</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: studio shell (nav · main · panel). Window = head row across; journal column left; city stage right with its 2D heatmap directly under it (same data, one unit). Pipeline strip under the window. Single dark theme = shell.css tokens. */
+:root {
+  color-scheme: dark;
+  --bg: #090b14; --bg2: #0e1120; --panel: #121527; --panel2: #171b31; --panel3: #1d2140;
+  --line: rgba(160,170,230,.12); --line2: rgba(160,170,230,.24);
+  --text: #eef0fb; --muted: #8b90b0; --faint: #6c7194;
+  --accent: #7c5cff; --cyan: #4fd1ff; --ok: #3ddc97; --bad: #ff5a7a; --warm: #ffb84d;
+  --grad: linear-gradient(90deg, #4fd1ff, #7c5cff 45%, #e06bff);
+  --heat0: #1c2040; --heat1: #33307a; --heat2: #4a3bb8; --heat3: #6c50f0; --heat4: #a58bff;
+  --font: 'Rubik', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); }
+button { font: inherit; color: inherit; }
+.muted { color: var(--muted); }
+
+.studio { display: grid; grid-template-columns: 220px minmax(0, 1fr) 270px; min-height: 100vh; }
+.side { background: var(--bg2); border-right: 1px solid var(--line); padding: 20px 12px; display: flex; flex-direction: column; gap: 4px; }
+.brand { display: flex; gap: 12px; align-items: center; padding: 4px 8px 18px; }
+.brand-mark { width: 28px; height: 28px; border-radius: 9px; background: var(--grad); transform: rotate(45deg) scale(.82); box-shadow: 0 0 24px rgba(124,92,255,.6); }
+.brand b { display: block; font-size: 18px; } .brand small { color: var(--muted); font-size: 11px; }
+.nav button { display: flex; width: 100%; gap: 10px; align-items: center; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); text-align: left; cursor: pointer; }
+.nav button i { font-style: normal; width: 18px; text-align: center; }
+.nav button:hover { background: var(--panel); color: var(--text); }
+.nav button[aria-current="page"] { background: var(--panel2); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
+.nav .new { margin-left: auto; font: 600 10px var(--mono); padding: 1px 6px; border-radius: 99px; background: var(--accent); color: #fff; }
+.side .note { margin-top: auto; padding: 10px; border-radius: 10px; border: 1px dashed var(--line2); color: var(--faint); font-size: 12px; }
+
+.main { min-width: 0; padding-block: 18px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 14px; }
+.top { display: flex; gap: 12px; align-items: center; }
+.search { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: center; padding: 9px 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+kbd { font: 11px var(--mono); padding: 1px 6px; border-radius: 5px; background: var(--panel3); border: 1px solid var(--line2); color: var(--text); margin-left: auto; }
+.pill { display: flex; gap: 8px; align-items: center; padding: 7px 12px; border-radius: 12px; background: var(--panel); border: 1px solid rgba(124,92,255,.5); box-shadow: 0 0 22px rgba(124,92,255,.2); font: 12px var(--mono); white-space: nowrap; }
+.dotlive { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+
+/* ---- window: compact hero, three columns — text | city + heatmap | journal ---- */
+.window { position: relative; display: grid; grid-template-columns: minmax(210px, 240px) minmax(200px, 240px) minmax(0, 1fr); gap: 20px; padding: 20px 22px; border-radius: 20px; overflow: hidden; border: 1px solid var(--line);
+  background: radial-gradient(70% 120% at 55% 40%, rgba(124,92,255,.16), transparent 65%), linear-gradient(135deg, #12162b, #0a0c19); }
+.wtext { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.kicker { display: flex; gap: 8px; align-items: center; margin: 0; font: 600 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: #ff8da1; }
+.onair { width: 8px; height: 8px; border-radius: 50%; background: #ff3b5c; box-shadow: 0 0 8px #ff3b5c; animation: pulse 1.6s infinite; }
+.window h1 { margin: 0; font-size: 30px; font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-wrap: balance; }
+.window h1 em { font-style: normal; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.phase { margin: 0; color: #c4c8e4; font-size: 13px; min-height: 2.6em; }
+.stats { display: flex; gap: 6px; flex-wrap: wrap; }
+.stats div { display: grid; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,.05); border: 1px solid var(--line); }
+.stats b { font-size: 15px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stats small { color: var(--muted); font-size: 10.5px; line-height: 1.2; }
+.cta { align-self: start; margin-top: auto; padding: 9px 16px; border: 0; border-radius: 99px; background: var(--grad); color: #fff; font-weight: 600; cursor: pointer; box-shadow: 0 8px 24px rgba(124,92,255,.35); }
+
+.citycol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cityWrap { position: relative; flex: 1; min-height: 230px; margin: -20px -22px 0 -10px; }
+.sky { position: absolute; inset: 0; display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.sky.dragging { cursor: grabbing; }
+.cityTip { position: absolute; pointer-events: none; padding: 5px 9px; border-radius: 8px; background: rgba(9,11,20,.88); border: 1px solid var(--line2); font: 12px var(--mono); white-space: nowrap; transform: translate(-50%, calc(-100% - 14px)); z-index: 2; }
+.datasrc { display: inline-flex; border: 1px solid var(--line2); border-radius: 8px; overflow: hidden; background: rgba(9,11,20,.6); z-index: 1; }
+.datasrc button { border: 0; background: transparent; color: var(--muted); padding: 3px 8px; font-size: 11px; cursor: pointer; }
+.datasrc button[aria-pressed="true"] { background: var(--panel3); color: var(--text); }
+.glfail { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font: 13px var(--mono); }
+.heat-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font: 11px var(--mono); color: var(--muted); margin-bottom: 5px; }
+.heat-top b { color: var(--text); }
+.streak { color: var(--warm); }
+.hright { display: inline-flex; gap: 10px; align-items: center; }
+.heat-top { align-items: center; flex-wrap: nowrap; white-space: nowrap; }
+#heatTip { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.heatbox { width: min(100%, 380px); align-self: flex-end; }
+.heat { display: grid; grid-template-columns: repeat(53, minmax(0, 1fr)); grid-template-rows: repeat(7, auto); grid-auto-flow: column; gap: 1px; }
+.heat i { aspect-ratio: 1; max-width: 100%; border-radius: 1.5px; background: var(--heat0); cursor: pointer; }
+.heat i:hover, .heat i.on { outline: 1px solid var(--text); outline-offset: -1px; }
+
+.jcol { position: relative; min-width: 0; min-height: 250px; border-left: 1px solid var(--line); padding-left: 16px; display: flex; flex-direction: column; }
+.jhead { display: flex; gap: 8px; align-items: center; justify-content: space-between; font: 600 11px var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .1em; }
+.jfilter { display: inline-flex; gap: 4px; align-items: center; padding: 1px 2px 1px 8px; border-radius: 99px; border: 1px solid var(--line2); color: var(--text); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.jfilter button { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.jbody { position: relative; flex: 1; }
+.journal { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; font: 11px/1.65 var(--mono); color: var(--muted);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%); mask-image: linear-gradient(to bottom, transparent, #000 14%); }
+.journal .ln { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes lnin { from { opacity: 0; transform: translateY(6px); } }
+.journal .ts { color: var(--faint); } .journal .tag { color: var(--cyan); } .journal .ok { color: var(--ok); } .journal .no { color: var(--bad); } .journal .w { color: var(--warm); }
+.journal .prog { color: var(--text); }
+.cursor { display: inline-block; width: 6px; height: 11px; background: var(--ok); vertical-align: -1px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* content grid under the window (context only) */
+.chipsbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chipsbar span { padding: 7px 14px; border-radius: 99px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 13px; }
+.chipsbar span.on { background: var(--accent); color: #fff; border-color: transparent; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.card { border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
+.card .img { aspect-ratio: 4 / 3; max-width: 100%; position: relative; }
+.card .src { position: absolute; left: 8px; top: 8px; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(9,11,20,.7); }
+.card p { margin: 0; padding: 9px 11px 2px; font-size: 13px; font-weight: 500; }
+.card small { display: block; padding: 0 11px 10px; color: var(--faint); font: 11px var(--mono); }
+
+/* conveyor in the right panel */
+.pipeHead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.pipeHead b { font-size: 14px; }
+.pipeHead small { font: 11px var(--mono); color: var(--faint); }
+.pbar { height: 5px; border-radius: 5px; background: var(--panel3); overflow: hidden; margin: 6px 0 10px; }
+.pbar i { display: block; height: 100%; background: var(--grad); transition: width .6s ease; }
+.pipe { display: grid; gap: 2px; }
+.job { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 9px; align-items: center; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; text-align: left; font-size: 13px; }
+.job:hover { background: var(--panel2); }
+.job.open { background: var(--panel3); box-shadow: inset 2px 0 0 var(--accent); }
+.job:focus-visible { outline: 2px solid var(--accent); }
+.job.wait { color: var(--faint); }
+.job .n { font: 600 12px var(--mono); font-variant-numeric: tabular-nums; }
+.job .t { font: 10.5px var(--mono); color: var(--faint); margin-left: 6px; font-weight: 400; }
+.dot { width: 14px; height: 14px; border-radius: 4px; flex: none; display: grid; place-items: center; font-size: 10px; line-height: 1; color: var(--bg); font-weight: 700; }
+.dot.ok { background: var(--accent); color: #fff; } .dot.wait { border: 1.5px solid var(--line2); }
+.dot.run { border-radius: 50%; border: 2px solid var(--warm); border-top-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.fakecur { position: fixed; left: 0; top: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none; z-index: 100; }
+
+/* right panel */
+.panel { border-left: 1px solid var(--line); background: var(--bg2); padding: 18px 14px; display: flex; flex-direction: column; gap: 14px; }
+.panel h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.panel .box { padding: 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); }
+.feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.feed li { display: grid; grid-template-columns: 44px minmax(0,1fr); gap: 10px; align-items: center; font-size: 12.5px; }
+.feed .th { width: 44px; height: 44px; border-radius: 8px; }
+.feed small { display: block; color: var(--faint); font: 11px var(--mono); }
+.wasglobe { margin: 0; font-size: 12px; color: var(--faint); line-height: 1.5; }
+
+/* analytics */
+.two { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+svg text { font-family: var(--mono); }
+.scroll { overflow-x: auto; }
+.gnode { cursor: pointer; }
+.glink { fill: none; transition: opacity .2s; }
+.graph.hl .glink { opacity: .08; } .graph.hl .glink.on { opacity: .9; }
+.graph.hl .gnode { opacity: .35; } .graph.hl .gnode.on { opacity: 1; }
+.tip { min-height: 1.5em; font: 12px var(--mono); color: var(--muted); margin-top: 6px; }
+.btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.btn.done { background: var(--ok); color: var(--bg); }
+.sample { font: 11px var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .08em; text-align: center; }
+
+@media (max-width: 1240px) { .studio { grid-template-columns: 200px minmax(0, 1fr); } .panel { grid-column: 2; border-left: 0; border-top: 1px solid var(--line); } }
+@media (max-width: 1100px) { .window { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); } .jcol { grid-column: 1 / -1; grid-row: 2; border-left: 0; border-top: 1px solid var(--line); padding: 12px 0 0; min-height: 160px; } .cityWrap { margin-right: -22px; } }
+@media (max-width: 640px) { .window { grid-template-columns: minmax(0, 1fr); padding: 16px; } .cityWrap { min-height: 230px; margin-top: 0; } .heat { gap: 1px; } }
+@media (max-width: 760px) {
+  .studio { grid-template-columns: minmax(0, 1fr); }
+  .side { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); border-right: 0; border-bottom: 1px solid var(--line); }
+  .brand { padding: 0 8px 0 0; } .brand small, .side .note { display: none; }
+  .nav { display: flex; flex-wrap: wrap; gap: 4px; } .nav button { width: auto; }
+  .panel { grid-column: 1; }
+  .heat { gap: 1px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="studio">
+  <aside class="side">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span><b>Posta</b><small>ИИ-студия контента</small></span></div>
+    <nav class="nav">
+      <button type="button" data-tab="home" aria-current="page"><i>⌂</i>Главная</button>
+      <button type="button" data-tab="stats"><i>◔</i>Аналитика<span class="new">new</span></button>
+      <button type="button" data-tab="x"><i>✦</i>Подбор</button>
+      <button type="button" data-tab="x"><i>▣</i>Мой контент</button>
+      <button type="button" data-tab="x"><i>▦</i>Календарь</button>
+      <button type="button" data-tab="x"><i>⟲</i>Источники</button>
+    </nav>
+    <p class="note">Макет. Данные выдуманные, кнопки меню кроме «Главная» и «Аналитика» не работают.</p>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div class="search"><span aria-hidden="true">⌕</span><span>Поиск по тексту, хэштегам и источникам</span><kbd>/</kbd></div>
+      <div class="pill"><span class="dotlive"></span>Сводка · Vision 3/7</div>
+    </header>
+
+    <div id="tab-home" style="display:flex;flex-direction:column;gap:14px">
+      <section class="window" aria-label="Смотровое окно">
+        <div class="wtext">
+          <p class="kicker"><span class="onair"></span>В эфире · проход #318</p>
+          <h1>Подбор: <em>мемы и юмор</em></h1>
+          <p class="phase" id="phase">Vision смотрит картинки: 214 из 388</p>
+          <div class="stats">
+            <div><b>32</b><small>ждут решения</small></div>
+            <div><b>+12</b><small>за проход</small></div>
+            <div><b>41</b><small>за час</small></div>
+          </div>
+          <button class="cta" type="button">✦ Найти контент</button>
+        </div>
+        <div class="jcol">
+          <div class="jhead"><span>журнал</span><span class="jfilter" id="jfilter" hidden><span id="jfilterName"></span><button type="button" id="jfilterOff" aria-label="Сбросить фильтр">✕</button></span></div>
+          <div class="jbody"><div class="journal" id="journal" role="log" aria-live="off"></div></div>
+        </div>
+        <div class="citycol">
+          <div class="cityWrap">
+            <canvas class="sky" id="sky" aria-label="3D-город: год постов, один дом — один день. Тяни — крутить, правой — двигать, колесо — приблизить, двойной клик — сброс" title="Тяни — крутить · правой — двигать · колесо — к курсору · двойной клик — сброс"></canvas>
+            <div class="cityTip" id="cityTip" hidden></div>
+          </div>
+          <div class="heatbox">
+            <div class="heat-top"><span id="heatTip"><b id="heatTotal">0</b> <span id="heatWhat">в пул</span> за год</span><span class="hright"><span class="streak">🔥 <b id="heatStreak">0</b> дн.</span><span class="datasrc" role="group" aria-label="Что считать"><button type="button" data-src="pool" aria-pressed="true">пул</button><button type="button" data-src="pub" aria-pressed="false">опубликовано</button></span></span></div>
+            <div class="heat" id="heat"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="chipsbar"><span class="on">Все</span><span>Картинки</span><span>Видео</span><span>Текст</span><span>Telegram</span><span>VK</span><span>Двач</span></div>
+      <div class="cards" id="cards"></div>
+    </div>
+
+    <div id="tab-stats" class="two" hidden>
+      <section class="block">
+        <div class="bhead"><h2>Когда постить</h2><button class="btn" id="punchBtn" type="button">Поставить такое расписание</button></div>
+        <p class="muted" style="margin:0 0 8px">Лучшие посты выходили в будни 19–22 и в воскресенье утром</p>
+        <div class="scroll"><svg id="punch" width="560" height="196" viewBox="0 0 560 196" role="img" aria-label="Реакции по дням и часам"></svg></div>
+      </section>
+      <section class="block">
+        <div class="bhead"><h2>Граф источников</h2><small>за 30 дней</small></div>
+        <div class="scroll"><svg class="graph" id="graph" width="1000" height="300" viewBox="0 0 1000 300" role="img" aria-label="Источники, темы и каналы"></svg></div>
+        <div class="tip" id="graphTip">Наведи на источник или тему</div>
+      </section>
+    </div>
+    <p class="sample">макет · все цифры выдуманные</p>
+  </main>
+
+  <aside class="panel">
+    <section class="box">
+      <h3>Конвейер</h3>
+      <div class="pipeHead"><b id="pipeNow">Vision</b><small id="pipePct">57%</small></div>
+      <div class="pbar"><i id="pbar" style="width:57%"></i></div>
+      <div class="pipe" id="pipe"></div>
+    </section>
+    <section class="box">
+      <h3>Только что отобрано</h3>
+      <ul class="feed">
+        <li><span class="th" style="background:linear-gradient(160deg,#5a3fd6,#e0658f)"></span><span>Кот понял, что понедельник<small>vk.com/catsdaily · 0.91</small></span></li>
+        <li><span class="th" style="background:linear-gradient(160deg,#1f5d73,#3ddc97)"></span><span>Деплой в пятницу<small>t.me/itjokes · 0.84</small></span></li>
+        <li><span class="th" style="background:linear-gradient(160deg,#7a4b1f,#ffb84d)"></span><span>Когда начальник в отпуске<small>t.me/zhiza · 0.79</small></span></li>
+      </ul>
+    </section>
+  </aside>
+</div>
+
+<svg class="fakecur" id="fakecur" viewBox="0 0 22 22" hidden aria-hidden="true">
+  <circle cx="11" cy="11" r="8" fill="rgba(124,92,255,.25)" stroke="#eef0fb" stroke-width="1.5"></circle>
+  <path d="M4 11h-3M21 11h-3M11 4V1M11 21v-3" stroke="#eef0fb" stroke-width="1.5"></path>
+  <circle cx="11" cy="11" r="1.6" fill="#eef0fb"></circle>
+</svg>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const $ = id => document.getElementById(id);
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let seed = 44;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+/* tabs */
+document.querySelectorAll('.nav button[data-tab]').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.tab === 'x') return;
+  document.querySelectorAll('.nav button').forEach(x => x === b ? x.setAttribute('aria-current', 'page') : x.removeAttribute('aria-current'));
+  $('tab-home').style.display = b.dataset.tab === 'home' ? 'flex' : 'none';
+  $('tab-stats').hidden = b.dataset.tab !== 'stats';
+  if (b.dataset.tab === 'home') resize();
+}));
+
+/* data: pool (every day, grows) vs published (only since the 24 Oct wipe) */
+const today = new Date(2026, 9, 30);
+const start = new Date(today); start.setDate(start.getDate() - 52 * 7 - today.getDay());
+const base = [];
+for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) base.push(new Date(d));
+const pool = base.map(d => { const age = (today - d) / 864e5, ramp = Math.min(1, (365 - age) / 200 + .25);
+  let v = rnd() < .14 * (1.4 - ramp) ? 0 : Math.round(rnd() * 7 * ramp + (d.getDay() % 6 ? 1 : 0)); if (age < 23) v = Math.max(1, v); return v; });
+const pub = base.map(d => { const age = (today - d) / 864e5; return age <= 6 ? 2 + Math.round(rnd() * 4) : 0; });
+let src = 'pool', vals = pool, hot = -1;
+const lvl = v => v === 0 ? 0 : v < 3 ? 1 : v < 5 ? 2 : v < 7 ? 3 : 4;
+const fmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
+const plural = v => v % 10 === 1 && v % 100 !== 11 ? 'пост' : v % 10 > 1 && v % 10 < 5 && (v % 100 < 10 || v % 100 > 20) ? 'поста' : 'постов';
+const dayText = k => `${fmt.format(base[k])} — ${vals[k]} ${plural(vals[k])}`;
+
+/* heatmap */
+const heat = $('heat');
+let heatIdle = '';
+const cells = base.map((d, k) => { const i = document.createElement('i'); i.addEventListener('mouseenter', () => setHot(k, true)); heat.appendChild(i); return i; });
+heat.addEventListener('mouseleave', () => setHot(-1, true));
+function setHot(k, fromHeat) {
+  hot = k;
+  cells.forEach((c, j) => c.classList.toggle('on', j === k));
+  if (k < 0) $('heatTip').innerHTML = heatIdle; else $('heatTip').textContent = dayText(k);
+  if (fromHeat) $('cityTip').hidden = true;
+}
+const paintHeat = () => {
+  cells.forEach((c, k) => c.style.background = `var(--heat${lvl(vals[k])})`);
+  $('heatTotal').textContent = vals.reduce((s, v) => s + v, 0).toLocaleString('ru-RU');
+  $('heatWhat').textContent = src === 'pool' ? 'в пул' : 'опубликовано';
+  heatIdle = $('heatTip').innerHTML;
+  let s = 0; for (let k = vals.length - 1; k >= 0 && vals[k] > 0; k--) s++; $('heatStreak').textContent = s;
+};
+paintHeat();
+document.querySelectorAll('.datasrc button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.datasrc button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  src = b.dataset.src; vals = src === 'pool' ? pool : pub; paintHeat();
+}));
+
+/* ================= 3D city ================= */
+const cv = $('sky');
+const W = 53, D = 7, N = base.length;
+let renderer, scene, camera, bars, raycaster, resize = () => {};
+// same ramp as the 2D heatmap, so the city and the grid read as one thing
+const LV = ['#1c2040', '#33307a', '#4a3bb8', '#6c50f0', '#a58bff'].map(c => new THREE.Color(c));
+const HOT = new THREE.Color('#ffffff');
+const shown = new Float32Array(N);
+const cellPos = k => [(Math.floor(k / 7) - (W - 1) / 2) * 1.0, ((k % 7) - (D - 1) / 2) * 1.0];
+const height = v => .16 + v * 1.15;
+
+try {
+  renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.setClearColor(0x000000, 0);
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(32, 2, .5, 400);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 1.35));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(-22, 40, 26); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0005; sun.shadow.normalBias = .02;
+  Object.assign(sun.shadow.camera, { left: -34, right: 34, top: 14, bottom: -14, near: 10, far: 110 });
+  scene.add(sun);
+
+  // invisible floor that only catches shadows
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W + 6, D + 6), new THREE.ShadowMaterial({ opacity: .35 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+  const barGeo = new THREE.BoxGeometry(1, 1, 1); barGeo.translate(0, .5, 0);
+  bars = new THREE.InstancedMesh(barGeo, new THREE.MeshLambertMaterial(), N);
+  bars.castShadow = true; bars.receiveShadow = true;
+  for (let k = 0; k < N; k++) bars.setColorAt(k, LV[0]);
+  scene.add(bars);
+
+  raycaster = new THREE.Raycaster();
+
+  resize = () => {
+    const r = cv.getBoundingClientRect(); if (!r.width) return;
+    renderer.setSize(r.width, r.height, false);
+    camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+    // home distance = the whole year fits the canvas width, whatever the window size
+    const hf = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+    HOME.r = Math.max((W / 2 + 1) / Math.tan(hf / 2) * 1.0, 11 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+    R_MAX = HOME.r * 1.5; R_MIN = Math.min(18, HOME.r * .3);
+    if (!zoomed) { rig.tR = HOME.r; if (!resize.done) rig.r = HOME.r; }
+    resize.done = true;
+  };
+  new ResizeObserver(() => resize()).observe(cv);
+} catch (err) {
+  renderer = null;
+  const f = document.createElement('div'); f.className = 'glfail'; f.textContent = 'WebGL недоступен в этом браузере'; cv.parentNode.appendChild(f);
+}
+
+/* camera rig: target angles move with input, actual angles glide toward them */
+const HOME = { theta: -.16, phi: .9, r: 66 };
+const rig = { theta: HOME.theta, phi: HOME.phi, r: HOME.r, tTheta: HOME.theta, tPhi: HOME.phi, tR: HOME.r, vTheta: 0, vPhi: 0 };
+const LOOK0 = new THREE.Vector3(0, 4.6, 0), LOOK = LOOK0.clone(), tLook = LOOK0.clone();
+let R_MIN = 18, R_MAX = 120, zoomed = false;
+const clampLook = v => { v.x = Math.min(W / 2, Math.max(-W / 2, v.x)); v.z = Math.min(D / 2 + 2, Math.max(-D / 2 - 2, v.z)); v.y = LOOK0.y; return v; };
+let lastInput = -1e9, idle = 0, intro = 0;
+const PHI_MIN = .32, PHI_MAX = 1.42;
+const clampPhi = p => Math.min(PHI_MAX, Math.max(PHI_MIN, p));
+const placeCamera = () => {
+  const sp = Math.sin(rig.phi);
+  camera.position.set(LOOK.x + rig.r * sp * Math.sin(rig.theta), LOOK.y + rig.r * Math.cos(rig.phi), LOOK.z + rig.r * sp * Math.cos(rig.theta));
+  camera.lookAt(LOOK);
+};
+
+resize();
+
+/* input: drag with pointer lock + wrap-around cursor, wheel zoom, dblclick home, hover pick */
+const fake = $('fakecur');
+const ndc = new THREE.Vector2();
+let drag = null, fx = 0, fy = 0;
+const SENS = .0042;
+cv.addEventListener('pointerdown', e => {
+  if ((e.button !== 0 && e.button !== 2) || !renderer) return;
+  lastInput = performance.now();
+  drag = { x: e.clientX, y: e.clientY, mouse: e.pointerType === 'mouse', locked: false, samples: [], pan: e.button === 2 || e.shiftKey };
+  rig.vTheta = rig.vPhi = 0; fx = e.clientX; fy = e.clientY;
+  cv.classList.add('dragging'); $('cityTip').hidden = true;
+  if (!drag.mouse) cv.setPointerCapture(e.pointerId);
+  else { try { const p = cv.requestPointerLock({ unadjustedMovement: true }); p && p.catch && p.catch(() => { try { cv.requestPointerLock(); } catch (_) {} }); } catch (_) { try { cv.requestPointerLock(); } catch (_) {} } }
+});
+document.addEventListener('pointerlockchange', () => {
+  const locked = document.pointerLockElement === cv;
+  if (drag) drag.locked = locked;
+  fake.hidden = !locked;
+  if (locked) fake.style.transform = `translate(${fx}px, ${fy}px)`;
+});
+document.addEventListener('pointermove', e => {
+  if (!drag) return;
+  let dx, dy;
+  if (drag.locked) { dx = e.movementX; dy = e.movementY; }
+  else { dx = e.clientX - drag.x; dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; }
+  if (drag.pan) {
+    // pan along the ground, scaled so the city follows the cursor at any distance
+    const k = rig.r * .0016, c = Math.cos(rig.theta), s = Math.sin(rig.theta);
+    tLook.x -= (dx * c + dy * s) * k; tLook.z -= (-dx * s + dy * c) * k; clampLook(tLook);
+  } else { rig.tTheta -= dx * SENS; rig.tPhi = clampPhi(rig.tPhi - dy * SENS); }
+  const now = performance.now();
+  drag.samples.push([now, dx, dy]); while (drag.samples.length && now - drag.samples[0][0] > 90) drag.samples.shift();
+  lastInput = now;
+  if (drag.locked) {
+    const vw = innerWidth, vh = innerHeight;
+    fx = ((fx + dx) % vw + vw) % vw; fy = ((fy + dy) % vh + vh) % vh;
+    fake.style.transform = `translate(${fx}px, ${fy}px)`;
+  }
+});
+const endDrag = () => {
+  if (!drag) return;
+  // fling: average speed of the last ~90 ms
+  const s = drag.samples, now = performance.now();
+  if (!drag.pan && s.length && now - s[s.length - 1][0] < 60) {
+    const dt = Math.max(16, now - s[0][0]);
+    const sx = s.reduce((a, q) => a + q[1], 0), sy = s.reduce((a, q) => a + q[2], 0);
+    rig.vTheta = -sx * SENS / dt * 16.67; rig.vPhi = -sy * SENS / dt * 16.67;
+  }
+  drag = null; cv.classList.remove('dragging');
+  if (document.pointerLockElement === cv) document.exitPointerLock();
+  fake.hidden = true;
+};
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
+const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), -LOOK0.y), hitP = new THREE.Vector3();
+cv.addEventListener('wheel', e => {
+  e.preventDefault(); if (!renderer) return;
+  lastInput = performance.now();
+  // mouse wheel lines/pages -> pixels; trackpad pinch arrives as ctrl+wheel and is finer
+  let dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+  dy = Math.max(-120, Math.min(120, dy)) * (e.ctrlKey ? 2.2 : 1);
+  const nr = Math.min(R_MAX, Math.max(R_MIN, rig.tR * Math.exp(dy * .0016)));
+  const f = nr / rig.tR; if (f === 1) return;
+  // zoom toward the point under the cursor: that point stays put while the target slides to it
+  const r = cv.getBoundingClientRect();
+  ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  if (raycaster.ray.intersectPlane(ground, hitP)) tLook.sub(hitP).multiplyScalar(f).add(hitP);
+  // zooming out past the home distance drifts back to the city centre
+  if (f > 1) tLook.lerp(LOOK0, Math.min(1, Math.max(0, (nr - HOME.r * .8) / (R_MAX - HOME.r * .8))));
+  clampLook(tLook);
+  rig.tR = nr; zoomed = true;
+}, { passive: false });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('dblclick', () => {
+  lastInput = performance.now(); rig.vTheta = rig.vPhi = 0;
+  rig.tTheta = HOME.theta + Math.round((rig.theta - HOME.theta) / (2 * Math.PI)) * 2 * Math.PI; rig.tPhi = HOME.phi; rig.tR = HOME.r; tLook.copy(LOOK0); zoomed = false;
+});
+cv.addEventListener('mousemove', e => {
+  if (drag || !renderer) return;
+  const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  ndc.set(x / r.width * 2 - 1, -(y / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObject(bars, false)[0];
+  const k = hit ? hit.instanceId : -1;
+  if (k !== hot) setHot(k, false);
+  const tip = $('cityTip');
+  if (k >= 0) { tip.hidden = false; tip.textContent = dayText(k); tip.style.left = x + 'px'; tip.style.top = y + 'px'; } else tip.hidden = true;
+});
+cv.addEventListener('mouseleave', () => { if (!drag) { setHot(-1, false); $('cityTip').hidden = true; } });
+
+/* frame loop */
+const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pV = new THREE.Vector3(), sV = new THREE.Vector3();
+let prev = performance.now(), lastHot = -2, lastSrc = '';
+const frame = now => {
+  requestAnimationFrame(frame);
+  if (!renderer || !cv.clientWidth) return;
+  const dt = Math.min(50, now - prev) / 16.67; prev = now;
+
+  if (!drag) {
+    rig.tTheta += rig.vTheta * dt; rig.tPhi = clampPhi(rig.tPhi + rig.vPhi * dt);
+    const damp = Math.pow(.92, dt); rig.vTheta *= damp; rig.vPhi *= damp;
+    const since = now - lastInput;
+    const want = reduced || hot >= 0 ? 0 : since > 3500 ? Math.min(1, (since - 3500) / 3000) : 0;
+    idle += (want - idle) * .02 * dt;
+    rig.tTheta += .0012 * idle * dt;
+  }
+  const a = 1 - Math.pow(1 - .16, dt);   // glide factor
+  rig.theta += (rig.tTheta - rig.theta) * a;
+  rig.phi += (rig.tPhi - rig.phi) * a;
+  const zg = 1 - Math.pow(1 - .14, dt);
+  rig.r += (rig.tR - rig.r) * zg; LOOK.lerp(tLook, zg);
+  placeCamera();
+
+  // grow-in: buildings rise column by column on load and when data changes
+  intro = Math.min(1, intro + .012 * dt);
+  let dirty = hot !== lastHot || src !== lastSrc;
+  for (let k = 0; k < N; k++) {
+    const col = Math.floor(k / 7), gate = Math.min(1, Math.max(0, intro * 1.6 - col / W * .6));
+    const target = height(vals[k]) * (reduced ? 1 : gate);
+    const nv = shown[k] + (target - shown[k]) * (1 - Math.pow(1 - .14, dt));
+    if (Math.abs(nv - shown[k]) > 1e-4) dirty = true;
+    shown[k] = nv;
+  }
+  if (dirty) {
+    for (let k = 0; k < N; k++) {
+      const [x, z] = cellPos(k), h = Math.max(.02, shown[k]), L = lvl(vals[k]);
+      pV.set(x, 0, z); sV.set(.84, h, .84); m4.compose(pV, q, sV); bars.setMatrixAt(k, m4);
+      bars.setColorAt(k, k === hot ? HOT : LV[L]);
+    }
+    bars.instanceMatrix.needsUpdate = true; bars.instanceColor.needsUpdate = true;
+    lastHot = hot; lastSrc = src;
+  }
+  renderer.render(scene, camera);
+};
+requestAnimationFrame(frame);
+
+/* ================= journal ================= */
+const srcs = ['t.me/memhub', 'vk.com/catsdaily', 't.me/itjokes', '2ch.hk/b', 'vc.ru/rss', 't.me/zhiza', 'dtf.ru/memes'];
+const pickOne = arr => arr[Math.floor(rnd() * arr.length)];
+const T = () => new Date().toTimeString().slice(0, 5);
+const id4 = () => 1000 + Math.floor(rnd() * 9000);
+const gens = {
+  fetch: () => `<span class="tag">fetch</span> ${pickOne(srcs)} +${Math.ceil(rnd() * 24)} <span class="w">${(rnd() * 3).toFixed(1)}s</span>`,
+  filter: () => `<span class="tag">filter</span> ${pickOne(srcs)} «${pickOne(['реклама', 'розыгрыш', 'скидка'])}» <span class="no">✗</span>`,
+  pc: () => `<span class="tag">pc</span> ${pickOne(srcs)} пк-фильтр <span class="no">✗</span>`,
+  vision: () => { const tp = pickOne(['мемы 0.91', 'животные 0.84', 'айти 0.77', 'жиза 0.69', 'не по теме 0.21']), ok = !/не по/.test(tp); return `<span class="tag">vision</span> #${id4()} → ${tp} <span class="${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'}</span>`; },
+  topic: () => `<span class="tag">topic</span> #${id4()} «${pickOne(['животные', 'офис', 'айти'])}» <span class="ok">✓</span>`,
+  dedup: () => { const i = id4(); return `<span class="tag">dedup</span> #${i} ~ #${i - 311} <span class="no">✗</span>`; },
+  queue: () => `<span class="tag">pool</span> #${id4()} → «Подбор» <span class="ok">✓</span>`,
+};
+const weights = [['fetch', .2], ['filter', .14], ['pc', .05], ['vision', .38], ['topic', .1], ['dedup', .08], ['queue', .05]];
+const genLine = forced => {
+  let tag = forced;
+  if (!tag) { let r = rnd(); for (const [t, w] of weights) { if ((r -= w) <= 0) { tag = t; break; } } tag = tag || 'vision'; }
+  if (!forced && rnd() < .05) return { tag: 'prog', html: `<span class="prog">⏳ ${Math.round(40 + rnd() * 50)}% · до лимита ≈ ${Math.round(rnd() * 20 + 5)} мин</span>` };
+  return { tag, html: `<span class="ts">${T()}</span> ${gens[tag]()}` };
+};
+const log = []; let jTag = null;
+const renderJournal = () => {
+  const rows = log.filter(l => !jTag || l.tag === jTag).slice(-18);
+  $('journal').innerHTML = rows.map(l => `<div class="ln">${l.html}</div>`).join('');
+};
+for (let k = 0; k < 18; k++) log.push(genLine());
+renderJournal();
+if (!reduced) setInterval(() => { log.push(genLine(jTag && rnd() < .6 ? jTag : null)); if (log.length > 300) log.shift(); renderJournal(); }, 850);
+
+/* ================= pipeline ================= */
+const jobs = [
+  ['Сбор', 552, '41s', 'fetch'], ['Фильтр слов', 411, '0.3s', 'filter'], ['ПК-фильтр', 388, '1.1s', 'pc'],
+  ['Vision', 120, '2m 14s', 'vision'], ['Тема', 64, '18s', 'topic'], ['Дубли', 41, '2.4s', 'dedup'], ['В пул', 32, '—', 'queue'],
+];
+const phases = ['Сборщик опрашивает 38 источников', 'Отсекаю рекламу и стоп-слова', 'Прогоняю через ПК-фильтр', 'Vision смотрит картинки: 214 из 388', 'Сверяю с подтемой канала', 'Ищу дубли среди вышедшего', 'Готово: 32 поста ждут решения'];
+let runAt = 3;
+const setFilter = tag => {
+  jTag = tag;
+  const j = jobs.find(x => x[3] === tag);
+  $('jfilter').hidden = !tag; $('jfilterName').textContent = j ? `только «${j[0]}»` : '';
+  renderPipe(); renderJournal();
+};
+$('jfilterOff').addEventListener('click', () => setFilter(null));
+function renderPipe() {
+  const pipe = $('pipe'); pipe.innerHTML = '';
+  jobs.forEach((j, k) => {
+    const st = k < runAt ? 'ok' : k === runAt ? 'run' : 'wait';
+    const b = document.createElement('button'); b.type = 'button'; b.className = `job ${st}` + (jTag === j[3] ? ' open' : '');
+    b.setAttribute('aria-pressed', String(jTag === j[3]));
+    b.innerHTML = `<span class="dot ${st}">${st === 'ok' ? '✓' : ''}</span><span>${j[0]}<span class="t">${k < runAt ? j[2] : k === runAt ? 'идёт…' : ''}</span></span><span class="n">${k <= runAt ? j[1] : '—'}</span>`;
+    b.title = 'Показать в журнале только этот шаг';
+    b.addEventListener('click', () => setFilter(jTag === j[3] ? null : j[3]));
+    pipe.appendChild(b);
+  });
+  const pct = Math.round((runAt + .5) / jobs.length * 100);
+  $('pipeNow').textContent = jobs[runAt][0]; $('pipePct').textContent = pct + '%'; $('pbar').style.width = pct + '%';
+  $('phase').textContent = phases[Math.min(runAt, phases.length - 1)];
+}
+renderPipe();
+if (!reduced) setInterval(() => { runAt = runAt >= jobs.length - 1 ? 0 : runAt + 1; renderPipe(); }, 2200);
+
+/* content cards under the window (context only) */
+const cardData = [['Кот понял, что понедельник', 'VK', '#животные #жиза', '#5a3fd6,#e0658f'], ['Деплой в пятницу', 'Telegram', '#айти #работа', '#1f5d73,#3ddc97'], ['Когда начальник в отпуске', 'Telegram', '#офис #жиза', '#7a4b1f,#ffb84d'], ['Собака против пылесоса', 'Двач', '#животные', '#3b2a9e,#4fd1ff'],
+  ['Понедельник, 9:00', 'VK', '#жиза', '#6b2a5e,#ff8da1'], ['Код ревью в 2 ночи', 'Telegram', '#айти', '#203a6b,#7c5cff'], ['Кот и коробка', 'Двач', '#животные', '#2f5d3a,#b4f5d8'], ['Зарплата пришла', 'Telegram', '#деньги #юмор', '#6b4a1f,#ffd27a']];
+$('cards').innerHTML = cardData.map(([t, src, tags, g]) => `<div class="card"><div class="img" style="background:linear-gradient(150deg,${g})"><span class="src">${src}</span></div><p>${t}</p><small>${tags}</small></div>`).join('');
+
+/* ================= analytics ================= */
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; };
+const P = $('punch');
+['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].forEach((n, d) => {
+  el('text', { x: 26, y: 22 + d * 24, 'text-anchor': 'end', fill: '#8b90b0', 'font-size': 11 }, P).textContent = n;
+  for (let h = 0; h < 24; h++) {
+    const v = Math.min(1, (Math.exp(-((h - 20.5) ** 2) / 6) * (d < 5 ? 1 : .55) + (d === 6 ? Math.exp(-((h - 10.5) ** 2) / 4) * .9 : 0) + Math.exp(-((h - 13) ** 2) / 3) * .3) * (.8 + rnd() * .35));
+    const c = el('circle', { cx: 44 + h * 21.5, cy: 18 + d * 24, r: Math.max(1.2, v * 9.5), fill: v > .6 ? '#a58bff' : v > .3 ? '#6a4fe6' : '#3a3470' }, P);
+    el('title', {}, c).textContent = `${n} ${h}:00 — ${Math.round(v * 100)}% от пика`;
+  }
+});
+for (let h = 0; h < 24; h += 3) el('text', { x: 44 + h * 21.5, y: 190, 'text-anchor': 'middle', fill: '#6c7194', 'font-size': 10 }, P).textContent = h;
+$('punchBtn').addEventListener('click', e => { e.target.textContent = 'Расписание: 19:30, 21:00, вс 10:30'; e.target.classList.add('done'); });
+
+const G = $('graph');
+const gS = [['t.me/memhub', 'A'], ['vk.com/catsdaily', 'B'], ['t.me/itjokes', 'C'], ['2ch.hk/b', 'D'], ['dtf.ru/memes', 'E'], ['vc.ru/rss', 'F'], ['t.me/old_jokes', 'G']];
+const gT = [['мемы', 'm'], ['животные', 'a'], ['айти', 'i'], ['бизнес', 'b']];
+const gC = [['Мемы без фильтра', 'X'], ['IT-курилка', 'Y']];
+const l1 = [['A','m',48],['A','a',9],['B','a',41],['B','m',12],['C','i',36],['C','m',14],['D','m',22],['E','m',19],['E','i',6],['F','b',17],['F','i',11],['G','m',1]];
+const l2 = [['m','X',96],['a','X',50],['i','Y',53],['m','Y',20],['b','Y',17]];
+const pos = {};
+gS.forEach((s, k) => pos[s[1]] = [180, 30 + k * 40]); gT.forEach((s, k) => pos[s[1]] = [520, 60 + k * 60]); gC.forEach((s, k) => pos[s[1]] = [820, 100 + k * 100]);
+const colors = { m: '#7c5cff', a: '#3ddc97', i: '#4fd1ff', b: '#ffb84d' };
+const links = [], nodes = [];
+const addLink = (a, b, w, c) => { const [x1, y1] = pos[a], [x2, y2] = pos[b], mx = (x1 + x2) / 2;
+  links.push({ a, b, w, p: el('path', { d: `M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`, class: 'glink', stroke: c, 'stroke-width': Math.max(1, w / 4), 'stroke-opacity': .55 }, G) }); };
+l1.forEach(([a, b, w]) => addLink(a, b, w, colors[b])); l2.forEach(([a, b, w]) => addLink(a, b, w, colors[a]));
+const total = id => links.filter(l => l.a === id || l.b === id).reduce((s, l) => s + l.w, 0);
+const addNode = (name, id, anchor, fillc) => {
+  const [x, y] = pos[id], g = el('g', { class: 'gnode', tabindex: 0 }, G);
+  el('circle', { cx: x, cy: y, r: id === 'G' ? 5 : 8, fill: fillc, stroke: '#090b14', 'stroke-width': 2 }, g);
+  el('text', { x: anchor === 'end' ? x - 14 : x + 14, y: y + 4, 'text-anchor': anchor, fill: id === 'G' ? '#6c7194' : '#eef0fb', 'font-size': 13 }, g).textContent = name;
+  nodes.push({ id, g });
+  const on = () => { G.classList.add('hl'); const rel = new Set([id]);
+    links.forEach(l => { const hit = l.a === id || l.b === id; l.p.classList.toggle('on', hit); if (hit) { rel.add(l.a); rel.add(l.b); } });
+    nodes.forEach(n => n.g.classList.toggle('on', rel.has(n.id)));
+    $('graphTip').textContent = id === 'G' ? `${name}: 1 пост за месяц — кандидат на отключение` : `${name}: ${total(id)} постов за месяц`; };
+  const off = () => { G.classList.remove('hl'); links.forEach(l => l.p.classList.remove('on')); nodes.forEach(n => n.g.classList.remove('on')); };
+  g.addEventListener('mouseenter', on); g.addEventListener('focus', on); g.addEventListener('mouseleave', off); g.addEventListener('blur', off);
+};
+gS.forEach(s => addNode(s[0], s[1], 'end', s[1] === 'G' ? '#6c7194' : '#8b90b0'));
+gT.forEach(s => addNode(s[0], s[1], 'start', colors[s[1]]));
+gC.forEach(s => addNode(s[0], s[1], 'start', '#eef0fb'));
+[['источники', 180, 'end'], ['темы', 520, 'start'], ['каналы', 820, 'start']].forEach(([t, x, a]) => el('text', { x: a === 'end' ? x - 14 : x + 14, y: 292, 'text-anchor': a, fill: '#6c7194', 'font-size': 11 }, G).textContent = t.toUpperCase());
+</script>

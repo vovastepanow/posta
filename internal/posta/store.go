@@ -321,7 +321,7 @@ func (u *U) HistoryAppend(collection string, record jx.M) error {
 	lock := u.userLock(u.ID)
 	lock.Lock()
 	defer lock.Unlock()
-	return u.DB.Tx(u.Ctx, func(tx pgx.Tx) error {
+	err := u.DB.Tx(u.Ctx, func(tx pgx.Tx) error {
 		if err := ensureUser(u.Ctx, tx, u.ID); err != nil {
 			return err
 		}
@@ -337,6 +337,11 @@ func (u *U) HistoryAppend(collection string, record jx.M) error {
 			u.ID, collection, pos, key, jx.Bool(record, "proposal_hidden"), db.JSON(record))
 		return err
 	})
+	// Лайк, «не знаю» (пол-лайка), дизлайк и жалоба «ошибка подбора» сдвигают индекс качества источника
+	if err == nil && (collection == "liked" || collection == "disliked" || collection == "undecided" || (collection == "complaints" && jx.Str(record, "complaint_reason") == "match_error")) {
+		u.SourceQualityUpdate(u.Ctx, record)
+	}
+	return err
 }
 
 // AllUsersPoolItems — записи пулов и историй всех пользователей: их медиа нельзя удалять при уборке кэша.

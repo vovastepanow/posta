@@ -208,7 +208,6 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 #test-loading { font-weight: 700; }
 
 /* ---- Поиск контента: тема, сколько осталось и радужная полоса; пока оценки нет — полоса бежит без процентов ---- */
-@keyframes search-flow { to { background-position: 34px 0; } }
 @keyframes search-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
 .search-progress { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; box-sizing: border-box; width: min(100%, 280px); margin-top: 20px; padding: 10px 14px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .search-progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; }
@@ -216,12 +215,12 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .search-progress-title b { color: var(--text); font-weight: 600; }
 .search-progress-percent { flex: none; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .search-progress-eta { margin-top: -2px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.search-progress-track { height: 2px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.search-progress-track { height: 6px; overflow: hidden; border-radius: 999px; background: var(--line); }
 .search-progress-fill {
     width: 0; height: 100%; border-radius: inherit;
-    background: repeating-linear-gradient(-45deg, var(--text) 0 12px, var(--muted) 12px 24px); animation: search-flow 1s linear infinite; transition: width 0.8s ease;
+    background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.8s ease;
 }
-.search-progress.is-indeterminate .search-progress-fill { width: 35%; transition: none; animation: search-flow 4s linear infinite, search-slide 1.6s ease-in-out infinite; }
+.search-progress.is-indeterminate .search-progress-fill { width: 35%; transition: none; animation: search-slide 1.6s ease-in-out infinite; }
 
 /* ---- Карточка записи и источника ---- */
 .item-card-wrapper { width: 100%; }
@@ -405,7 +404,7 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
     #item-card-wrapper > .controls { grid-column: 3; grid-row: 1; justify-self: start; width: 330px; top: 20px; bottom: auto; margin-top: 0; }   /* кнопки решения липнут к верху окна при прокрутке ленты */
     .item-card-wrapper .complaint-menu { top: calc(100% + 10px); bottom: auto; }
     #source-tab { max-width: 100%; }
-    #source-card-wrapper { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 640px) 330px; column-gap: 20px; align-items: start; }
+    #source-card-wrapper { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 640px) 330px minmax(0, 1fr); column-gap: 20px; align-items: start; }   /* карточка и панель — кластером по центру */
     #source-card-wrapper > .card { grid-column: 2; }
     #source-card-wrapper > .controls { grid-column: 3; justify-self: start; width: 330px; }
 }
@@ -1350,12 +1349,12 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 /* Та же радужная полоса, что у поиска контента (.search-progress-*) */
 .pe-progress-wrap { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
 .pe-progress-label { flex: none; max-width: 55%; overflow: hidden; font-size: 12px; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
-.pe-progress-bar { flex: 1; height: 2px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.pe-progress-bar { flex: 1; height: 6px; overflow: hidden; border-radius: 999px; background: var(--line); }
 .pe-progress-fill {
     width: 0; height: 100%; border-radius: inherit;
-    background: repeating-linear-gradient(-45deg, var(--text) 0 12px, var(--muted) 12px 24px); animation: search-flow 1s linear infinite; transition: width 0.8s ease;
+    background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.8s ease;
 }
-.pe-progress-wrap.is-indeterminate .pe-progress-fill { width: 35%; transition: none; animation: search-flow 4s linear infinite, search-slide 1.6s ease-in-out infinite; }
+.pe-progress-wrap.is-indeterminate .pe-progress-fill { width: 35%; transition: none; animation: search-slide 1.6s ease-in-out infinite; }
 .pe-progress-text { min-width: 28px; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
 @media (max-width: 720px) { .pe-window { gap: 12px; padding: 16px; } .pe-body { grid-template-columns: 1fr; } .pe-actions { width: 100%; } .pe-actions .pe-btn { flex: 1; } }
 
@@ -1504,7 +1503,7 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .cal-was { position: fixed; z-index: 84; box-sizing: border-box; border: 2px dashed #b9ae90; border-radius: 12px; background: repeating-linear-gradient(135deg, var(--surface-2) 0 8px, var(--surface) 8px 16px); pointer-events: none; }
 .cal-was span { position: absolute; left: 12px; top: 8px; font-size: 13px; color: var(--muted); }
 /* Карточка в руке: рамка 3 px, тень 8 px, наклон −1.5° (задаёт calendar-drag.js) */
-.cal-drag-card { position: fixed !important; left: 0; top: 0; z-index: 89; margin: 0; border: 3px solid var(--line-strong); box-shadow: 0 8px 8px 18px rgba(5, 6, 14, .45); opacity: 1 !important; pointer-events: none; }
+.cal-drag-card { position: fixed !important; left: 0; top: 0; z-index: 89; margin: 0; border: 1px solid var(--line-strong); box-shadow: var(--shadow-card); opacity: 1 !important; pointer-events: none; }
 /* Плашка сдвига: 30 px на тёмном, тень 4 px красная */
 .cal-ghost { position: fixed; left: 0; top: 0; z-index: 90; display: grid; gap: 2px; min-width: 150px; padding: 8px 12px; border: 2px solid var(--line-strong); border-radius: 10px; background: var(--line-strong); color: var(--surface); box-shadow: 0 4px 4px 18px rgba(5, 6, 14, .45); pointer-events: none; white-space: nowrap; }
 .cal-ghost.is-bad { border-color: var(--danger); }
@@ -1577,7 +1576,7 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 
 /* Телефон (< 700 px): экран дня из calendar-phone.js вместо сетки; шапка, неделя, список, шторка */
 .cal-phone { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--surface); color: var(--text); }
-.cal-phone-head { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 10px; background: var(--accent); color: var(--accent-text); border-bottom: 3px solid var(--line-strong); }
+.cal-phone-head { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 10px; background: var(--accent); color: var(--accent-text); border-bottom: 1px solid var(--line); }
 .cal-phone-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cal-phone-top h1 { margin: 0; font-family: var(--font-ui); font-size: 24px; font-weight: 600; }
 .cal-phone-top span { font-size: 13px; font-weight: 700; }
@@ -1604,7 +1603,7 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .cal-phone-slot { display: flex; align-items: center; gap: 8px; width: 100%; height: 48px; padding: 0 12px; box-sizing: border-box; border: 2px dashed var(--line-strong); border-radius: 10px; background: var(--surface-2); color: var(--text); font-size: 13px; text-align: left; }
 .cal-phone-slot.is-best { background: var(--gap-bg); }
 .cal-phone-plus { margin-left: auto; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; border: 1.5px solid var(--line-strong); border-radius: 50%; background: var(--accent); color: var(--accent-text); font-weight: 700; }
-.cal-phone-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 10px; padding: 10px 16px 18px; background: var(--surface); border-top: 3px solid var(--line-strong); border-radius: 18px 18px 0 0; }
+.cal-phone-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 10px; padding: 10px 16px 18px; background: var(--surface); border-top: 1px solid var(--line); border-radius: 18px 18px 0 0; }
 .cal-phone-pool { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--text); font-family: var(--font-ui); font-size: 18px; font-weight: 600; text-align: left; }
 .cal-phone-fill { height: 44px; padding: 0 14px; border: 2px solid var(--line-strong); border-radius: 10px; background: var(--red); color: var(--on-bright); font-weight: 700; box-shadow: 0 3px 3px 18px rgba(5, 6, 14, .45); }
 
@@ -1633,12 +1632,14 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .vp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12px; }
 .vp-label { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .vp-percent { flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
-.vp-track { height: 3px; overflow: hidden; border-radius: 999px; background: var(--line); }
-.vp-fill { display: block; width: 3%; height: 100%; border-radius: inherit; background: repeating-linear-gradient(-45deg, var(--text) 0 12px, var(--muted) 12px 24px); animation: search-flow 1s linear infinite; transition: width 0.8s ease; }
-.vp.is-indeterminate .vp-fill { width: 35%; transition: none; animation: search-flow 4s linear infinite, search-slide 1.6s ease-in-out infinite; }
-.vp.is-compact { left: 5px; right: 5px; bottom: 5px; padding: 4px 5px; border-radius: 6px; }
+.vp-track { height: 6px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.vp-fill { display: block; width: 3%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.8s ease; }
+.vp.is-indeterminate .vp-fill { width: 35%; transition: none; animation: search-slide 1.6s ease-in-out infinite; }
+.vp.is-compact { left: 5px; right: 5px; bottom: 5px; gap: 3px; padding: 4px 5px; border-radius: 6px; }
+.vp.is-compact .vp-head { justify-content: center; font-size: 10px; }
+.vp.is-compact .vp-head:has(.vp-percent:empty) { display: none; }   /* стадия без процента (разбор, очередь) — одна полоса */
 .has-vp > .pv-cell-plate, .has-vp > .sp-plate, .has-vp > .proposal-pending { visibility: hidden; }   /* подпись «Видео загружается…» заменила полоса */
-@media (prefers-reduced-motion: reduce) { .vp-fill, .vp.is-indeterminate .vp-fill { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .vp-fill, .vp.is-indeterminate .vp-fill, .search-progress-fill, .pe-progress-fill { animation: none; } }
 
 /* ---- Ролик TikTok/Shorts ещё загружается (js/tabs.js) ---- */
 .proposal-pending { position: absolute; left: 6px; bottom: 6px; padding: 2px 8px; border: 1.5px solid var(--line-strong); border-radius: 999px; background: var(--accent); color: var(--accent-text); font-size: 11px; font-weight: 700; pointer-events: none; }
@@ -1825,7 +1826,7 @@ body.is-reading { overflow: hidden; }
 .ar-p, .ar-list li { margin: 0; font-size: 16px; line-height: 1.6; overflow-wrap: anywhere; }
 .ar-p a, .ar-list a { color: var(--link); }
 .ar-list { display: grid; gap: 6px; margin: 0; padding-left: 20px; }
-.ar-quote { margin: 4px 0; padding: 8px 14px; border-left: 4px solid var(--line-strong); background: var(--surface-2); font-size: 16px; font-style: italic; overflow-wrap: anywhere; }
+.ar-quote { margin: 4px 0; padding: 8px 14px; border-left: 3px solid var(--accent); background: var(--surface-2); font-size: 16px; font-style: italic; overflow-wrap: anywhere; }
 .ar-figure { display: grid; gap: 6px; margin: 0; }
 .ar-image { padding: 0; border: 0; background: none; cursor: zoom-in; }
 .ar-image img { display: block; width: 100%; height: auto; border-radius: var(--radius); }

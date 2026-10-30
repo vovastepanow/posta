@@ -85,7 +85,7 @@ func (a *App) Close() {
 // StartBackground — фоновые задачи сервера (бывшие cron-скрипты).
 func (a *App) StartBackground() {
 	a.Go("publisher", a.RunPublisher)
-	a.Go("video-worker", func(ctx context.Context) { a.KickVideoWorker() })
+	a.Go("video-worker", a.RunVideoWorker)
 	a.Every("cache-gc", time.Hour, func(ctx context.Context) {
 		a.CacheGC(ctx)
 		a.ThumbGC(ctx)

@@ -205,6 +205,9 @@ func (a *App) ContentHistoryRecord(item jx.M, complaintReason any) jx.M {
 		"source_url": SourcePostURL(item), "posted_at": item["posted_at"], "engagement": item["engagement"], "complaint_reason": complaintReason,
 		"video": jx.Str(item, "video"), "image_local": jx.Str(item, "image_local"), "video_local": jx.Str(item, "video_local"),
 		"phash": jx.Str(item, "phash"), "gallery": ContentGallery(item), "timestamp": now()}
+	if g := GeoClean(item["geo"]); g != nil {
+		rec["geo"] = g
+	}
 	if jx.Has(item, "pooled_at") {
 		rec["pooled_at"] = item["pooled_at"]   // когда попал в пул: по нему студия строит «город»
 	}
@@ -361,7 +364,7 @@ func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M
 	out := jx.Copy(item)
 	for k, v := range (jx.M{"item_key": ContentItemKey(item), "images": []string{main}, "captions": []string{caption}, "source_url": SourcePostURL(item),
 		"found_by": jx.Str(item, "found_by"), "gallery": gallery, "post_check": check, "display_image": shown["display_image"],
-		"display_video": shown["display_video"], "tags_info": u.ContentTagsPublic(item["tags"]), "hashtags": u.PostHashtags(item), "preload": preload}) {
+		"display_video": shown["display_video"], "source_quality": u.SourceQualityOf(u.Ctx, ContentSourceKey(item)), "tags_info": u.ContentTagsPublic(item["tags"]), "hashtags": u.PostHashtags(item), "preload": preload}) {
 		out[k] = v
 	}
 	return out

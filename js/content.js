@@ -1,6 +1,6 @@
 // content.js — вкладка «Подбор»: тема и вторая тема, фильтры, карточка записи (карусель, видео, активность), голоса, жалобы,
 // публикация в Telegram (панель 🚀 и редактор поста).
-import { $, ask, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
+import { $, ask, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, qualityText, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
 import { registerViewerGallery, registerViewerPoster, videoFields } from './viewer.js';
 import { formatWhen, openPostEditor } from './editor.js';
 import { openAccountSection } from './account.js';
@@ -151,9 +151,10 @@ function renderCard(item, archiveInfo = null) {
     $('complaint-button').hidden = Boolean(item.own);
     if (item.own) { $('item-rating').hidden = true; $('item-relevance').textContent = 'Свой контент'; }
     renderTags($('item-tags'), item.tags_info, async t => { if (await ask('Тема подбора изменится.', { title: `Искать по теме «${t.title}»?`, ok: 'Искать' })) saveTopic(t.title, false, 'topic-notice').then(() => refreshTopicLabel()).catch(error => log(`Не удалось сменить тему: ${error.message}`)); });
-    $('item-source').textContent = `Источник: ${item.source || 'неизвестно'}${item.found_by ? ` · ${item.found_by}` : ''}`;
+    $('item-source').textContent = `Источник: ${item.source || 'неизвестно'}${item.found_by ? ` · ${item.found_by}` : ''} · ${qualityText(item.source_quality)}`;
     const posted = formatPostedAt(item.posted_at);
     setMessage('item-date', posted && `Опубликовано: ${posted}`);
+    setMessage('item-geo', item.geo?.name ? `📍 ${item.geo.name}` : '');   // метки нет — строки нет
     // «Свежак!»: пост опубликован меньше двух часов назад
     document.querySelector('#item-card-wrapper .card')?.classList.toggle('is-fresh', Number(item.posted_at) > 0 && Date.now() / 1000 - Number(item.posted_at) < 2 * 3600);
     renderEngagement(item.engagement);

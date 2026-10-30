@@ -183,6 +183,12 @@ func getItemVideo(c *Ctx) (any, error) {
 	}
 	var progress any
 	if video == "" {
+		// Запись открыта на экране и ждёт ролик: он идёт первым, а не после роликов заранее поставленных соседних записей.
+		// Обычный ролик YouTube заранее не качается — только здесь, когда его ждут на экране.
+		via, page := jx.Str(item, "video_via"), jx.Str(item, "video_page")
+		if (via == "ytdlp" || via == "tgu") && page != "" && !jx.Bool(item, "video_unavailable") {
+			c.A.VideoEnqueue(c.R.Context(), c.U.ID, image, page, via, true)
+		}
 		progress = c.A.VideoProgressPublic(c.R.Context(), c.U.ID, image)
 	}
 	return jx.M{"video": video, "video_local": local, "display_video": display, "video_unavailable": jx.Bool(item, "video_unavailable"), "progress": progress}, nil

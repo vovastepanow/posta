@@ -1643,6 +1643,12 @@ func analysisRecord(a, item jx.M, topic, defFormat string) jx.M {
 		"entity": jx.Str(a, "entity"), "source_hashtags": PostSourceHashtags(item), "topic": topic, "analysis_model": jx.Str(a, "model")}) {
 		rec[k] = v
 	}
+	// Метка — по содержанию поста (place от модели); нет места — поля geo в записи нет
+	if g := GeoClean(a["geo"]); g != nil {
+		rec["geo"] = g
+	} else {
+		delete(rec, "geo")
+	}
 	return rec
 }
 
@@ -1685,6 +1691,7 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 	u.Log("-> Принято: %s.", verdict)
 	u.PostSearchSuggest(item, topic)
 	rec := analysisRecord(a, item, topic, "text")
+	u.GeoFill(rec)
 	rec["image_local"], rec["phash"], rec["image"], rec["images"], rec["captions"] = "", "", "", []any{}, []any{text}
 	return u.AddItemToPoolSafely(rec)
 }
@@ -1749,6 +1756,7 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 	u.Log("-> Принято: %s.%s", verdict, tagNote)
 	u.PostSearchSuggest(item, topic)
 	rec := analysisRecord(a, item, topic, "")
+	u.GeoFill(rec)
 	rec["image_local"] = u.MediaStoreImage(jx.Str(item, "image"), poster)
 	rec["phash"] = ImagePhash(poster)
 	if isVideo {

@@ -236,7 +236,7 @@ function open(item, gallery = null) {
     $('image-viewer').hidden = false;
     document.body.classList.add('image-viewer-open');
     center();
-    if (item.kind === 'video') video.play().catch(() => {});
+    if (item.kind === 'video') video.play().catch(() => { video.muted = true; video.play().catch(() => {}); });   // браузер не дал играть со звуком — без звука
     else { image.src = item.src; if (image.complete && image.naturalWidth) setMediaSize(image.naturalWidth, image.naturalHeight); }
 }
 
@@ -360,7 +360,7 @@ export function initializeImageViewer() {
     // Клик по любой картинке страницы: галерея (data-gallery), видео (data-video), внешняя ссылка (data-external) или картинка
     document.addEventListener('click', e => {
         const img = e.target.closest('img');
-        if (!img || img.closest('#image-viewer') || !(img.currentSrc || img.src)) return;
+        if (!img || img.dataset.noZoom || img.closest('#image-viewer') || !(img.currentSrc || img.src)) return;
         e.preventDefault();
         const d = img.dataset;
         if (d.external) return void open_(d.external);

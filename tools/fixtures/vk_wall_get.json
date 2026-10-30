@@ -1,0 +1,33 @@
+{
+  "_note": "Синтетический образец ответа wall.get по формату документации VK API (response.items). Для проверки разбора без сети; живой ответ — при подключённом сервисном ключе.",
+  "response": {
+    "count": 3,
+    "items": [
+      {
+        "id": 4411, "owner_id": -123456, "from_id": -123456, "date": 1792700000,
+        "text": "Кот, который пытается открыть дверь лапой и каждый раз сдаётся — лучшее, что вы увидите сегодня.",
+        "post_type": "post",
+        "attachments": [
+          {"type": "photo", "photo": {"id": 1, "owner_id": -123456, "sizes": [
+            {"type": "m", "url": "https://sun9.userapi.com/m.jpg", "width": 130, "height": 97},
+            {"type": "x", "url": "https://sun9.userapi.com/x.jpg", "width": 604, "height": 453},
+            {"type": "w", "url": "https://sun9.userapi.com/w.jpg", "width": 1280, "height": 960}
+          ]}}
+        ],
+        "likes": {"count": 812}, "reposts": {"count": 40}, "comments": {"count": 19}, "views": {"count": 15230}
+      },
+      {
+        "id": 4410, "owner_id": -123456, "date": 1792690000,
+        "text": "Короткий текст без картинки.",
+        "attachments": [],
+        "likes": {"count": 3}, "reposts": {"count": 0}, "comments": {"count": 0}, "views": {"count": 210}
+      },
+      {
+        "id": 4409, "owner_id": -123456, "date": 1792680000,
+        "text": "Видео без фото в вложениях.",
+        "attachments": [{"type": "video", "video": {"id": 9, "owner_id": -123456, "duration": 42}}],
+        "likes": {"count": 55}, "reposts": {"count": 2}, "comments": {"count": 4}, "views": {"count": 3100}
+      }
+    ]
+  }
+}

@@ -47,6 +47,9 @@ func ContentAnalysisSchema(query string) jx.M {
 	props["description"] = jx.M{"type": "string"}
 	props["format"] = jx.M{"type": "string", "enum": contentFormatKeys()}
 	props["entity"] = jx.M{"type": "string"}
+	props["place"] = jx.M{"type": "string"}
+	props["place_lat"] = jx.M{"type": "number"}
+	props["place_lon"] = jx.M{"type": "number"}
 	props["evidence"] = jx.M{"type": "string"}
 	req = append(req, "ukraine", "tags", "description", "format", "entity", "evidence")
 	return jx.M{"type": "object", "properties": props, "required": req}
@@ -70,6 +73,7 @@ func (u *U) ContentAnalysisPrompt(topic, caption string, h History, video *Story
 	b.WriteString(fmt.Sprintf("description: одна фраза по-русски, до %d символов: что изображено или происходит и о чём надписи. Только то, что видно.\n", config.AnalysisDescriptionMax))
 	b.WriteString("format: форма поста, одно из: " + contentFormatsLine() + ". Для одной картинки не выбирай video.\n")
 	b.WriteString(ContentEntityRule())
+	b.WriteString(ContentPlaceRule())
 	b.WriteString(fmt.Sprintf("evidence: короткая цитата из надписи или примета на картинке, относящаяся к теме, до %d символов: почему запись подходит или не подходит. Ничего такого нет — пустая строка.\n", config.AnalysisEvidenceMax))
 	b.WriteString(ukraineRule)
 	b.WriteString("Пиши по-русски, без иероглифов.\n\n")
@@ -338,7 +342,7 @@ func (u *U) finishAnalysis(a jx.M, topic, query string, isVideo bool, firstImage
 		rel = min(rel, config.JokeNoCap)
 	}
 	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(a, "description")), config.AnalysisDescriptionMax), "why_relevant": evidence, "format": format,
-		"tags": u.ContentTagsClean(a["tags"]), "entity": ContentEntityClean(a["entity"]), "evidence": evidence, "joke": "", "relevance": rel, "rating": nil,
+		"tags": u.ContentTagsClean(a["tags"]), "entity": ContentEntityClean(a["entity"]), "geo": GeoFromAnalysis(a), "evidence": evidence, "joke": "", "relevance": rel, "rating": nil,
 		"ukraine": a["ukraine"] == true, "subtopic": subtopic, "subtopic_p": subtopicP, "model": model}
 }
 
@@ -522,6 +526,9 @@ func TextBatchSchema(query string) jx.M {
 	props["description"] = jx.M{"type": "string"}
 	props["format"] = jx.M{"type": "string", "enum": contentFormatKeys()}
 	props["entity"] = jx.M{"type": "string"}
+	props["place"] = jx.M{"type": "string"}
+	props["place_lat"] = jx.M{"type": "number"}
+	props["place_lon"] = jx.M{"type": "number"}
 	props["evidence"] = jx.M{"type": "string"}
 	props["joke"] = jx.M{"type": "string"}
 	req = append(req, "ukraine", "tags", "description", "format", "entity", "evidence", "joke")
@@ -542,6 +549,7 @@ func (u *U) TextBatchPrompt(topic string, texts []string) string {
 	b.WriteString(fmt.Sprintf("description: одна фраза по-русски, до %d символов, о чём текст. Только то, что написано.\n", config.AnalysisDescriptionMax))
 	b.WriteString("format: форма поста, одно из: " + contentFormatsLine() + ". Для текста обычно text.\n")
 	b.WriteString(ContentEntityRule())
+	b.WriteString(ContentPlaceRule())
 	b.WriteString(fmt.Sprintf("evidence: короткая цитата из текста, относящаяся к теме, до %d символов: почему подходит или не подходит. Ничего такого нет — пустая строка.\n", config.AnalysisEvidenceMax))
 	b.WriteString(ukraineRule)
 	b.WriteString("joke: в чём шутка, одним предложением. Пусто, если шутки нет.\nПиши по-русски, без иероглифов.\n\n")
@@ -582,7 +590,7 @@ func (u *U) AnalyzeTextBatch(texts []string, topic string) ([]Analysis, error) {
 			format = "text"
 		}
 		out[i] = jx.M{"description": trimRunes(llm.StripCJK(jx.Str(it, "description")), config.AnalysisDescriptionMax), "why_relevant": evidence, "format": format,
-			"tags": u.ContentTagsClean(it["tags"]), "entity": ContentEntityClean(it["entity"]), "evidence": evidence, "joke": joke,
+			"tags": u.ContentTagsClean(it["tags"]), "entity": ContentEntityClean(it["entity"]), "geo": GeoFromAnalysis(it), "evidence": evidence, "joke": joke,
 			"ukraine": it["ukraine"] == true, "relevance": rel, "rating": nil}
 	}
 	return out, nil

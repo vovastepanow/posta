@@ -534,6 +534,7 @@ func (u *U) SuggestSources(in jx.M) (jx.M, int, error) {
 		ordered = append(ordered, l...)
 	}
 	if f := u.firstPreviewable(ordered); f != nil {
+		f["quality"] = u.SourceQualityOf(u.Ctx, jx.Str(f, "source_id"))
 		return jx.M{"discovered": f}, 200, nil
 	}
 	return jx.M{"discovered": nil, "message": "Не удалось получить посты с изображениями ни из одного кандидата. Для VK подключите аккаунт, Telegram-каналы должны быть публичными."}, 502, nil

@@ -78,6 +78,13 @@ export function fromRecord(item) {
         return media('video', { src: s.video, poster: s.image, fallback: s.fallbackVideo, pending, unavailable,
             page: unavailable ? url : first && pending ? item.video_page || '' : '' });
     });
+    // Ролик ещё не скачан (или недоступен): у записи только постер, но плитка должна быть видео — иначе постер откроется как картинка
+    const waiting = Boolean(item.video_via) && !item.video && !item.video_unavailable;
+    if ((waiting || item.video_unavailable) && items.length && !items.some(m => m.kind === 'video')) {
+        const [cover] = items;
+        items[0] = media('video', { poster: cover.src, fallback: cover.fallback, pending: waiting, unavailable: Boolean(item.video_unavailable),
+            page: item.video_unavailable ? url : item.video_page || '' });
+    }
     const e = item?.engagement || {};
     const reactions = Object.entries(e.reactions || {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
     const stats = { views: e.source === 'telegram' && Number.isFinite(e.views) ? e.views : null, comments: e.source === 'osnova' ? e.comments ?? 0 : null,

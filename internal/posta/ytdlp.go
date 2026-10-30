@@ -35,6 +35,7 @@ const (
 	ytdlpWatchMaxHeight  = 720
 	ytdlpShortsMaxHeight = 854
 	ytdlpWatchMaxSeconds = 600
+	ytdlpWatchClipSeconds = 60 // длинный ролик YouTube: берётся только начало
 	ytdlpQueueKey        = "ytdlp_queue"
 	ytdlpQueueMax        = 500
 	ytdlpTries           = 3
@@ -192,13 +193,11 @@ func (a *App) YtdlpList(ctx context.Context, u string, count int) ([]jx.M, error
 // ErrVideoTooLong — ролик длиннее лимита: повторять бессмысленно.
 var ErrVideoTooLong = errors.New("ролик слишком длинный")
 
-var downloadMu sync.Mutex
-
 var watchURLRe = regexp.MustCompile(`^https://www\.youtube\.com/watch\?v=[A-Za-z0-9_-]{11}$`)
 
 func YtdlpIsWatchURL(u string) bool { return watchURLRe.MatchString(u) }
 
-// YtdlpDownload — скачать ролик в destDir (не больше одного скачивания одновременно); путь к файлу.
+// YtdlpDownload — скачать ролик в destDir; путь к файлу. Сколько скачиваний идёт сразу, решает очередь (videoWorkers).
 func (a *App) YtdlpDownload(ctx context.Context, u, format, destDir string, maxBytes int64, onProgress func(done, total int64, format string)) (string, error) {
 	u, err := YtdlpCheckURL(u)
 	if err != nil {
@@ -207,19 +206,21 @@ func (a *App) YtdlpDownload(ctx context.Context, u, format, destDir string, maxB
 	if err := os.MkdirAll(destDir, 0o775); err != nil {
 		return "", Bad("Не удалось создать папку для ролика.")
 	}
-	downloadMu.Lock()
 	watch := YtdlpIsWatchURL(u)
 	args := []string{"-f", format, "--merge-output-format", "mp4", "--max-filesize", strconv.FormatInt(max(1, maxBytes), 10), "--no-playlist"}
 	if watch {
 		args = append(args, "--match-filter", fmt.Sprintf("duration<=%d", ytdlpWatchMaxSeconds))
 	}
-	args = append(args, "--no-simulate", "--print", "after_move:filepath", "-o", destDir+"/%(id)s.%(ext)s", "--", u)
+	tail := []string{"--no-simulate", "--print", "after_move:filepath", "-o", destDir + "/%(id)s.%(ext)s", "--", u}
 	youtube := strings.Contains(u, "youtube.com/")
-	r := a.YtdlpRun(ctx, args, ytdlpDownloadTimeout, !youtube, onProgress)
-	if youtube && !r.OK {
-		r = a.YtdlpRun(ctx, args, ytdlpDownloadTimeout, true, onProgress)
+	run := func(args []string) ExecResult {
+		r := a.YtdlpRun(ctx, append(args, tail...), ytdlpDownloadTimeout, !youtube, onProgress)
+		if youtube && !r.OK {
+			r = a.YtdlpRun(ctx, append(args, tail...), ytdlpDownloadTimeout, true, onProgress)
+		}
+		return r
 	}
-	downloadMu.Unlock()
+	r := run(args)
 	var paths []string
 	for _, l := range strings.Split(r.Stdout, "\n") {
 		if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "PROG ") {
@@ -229,6 +230,21 @@ func (a *App) YtdlpDownload(ctx context.Context, u, format, destDir string, maxB
 	file := ""
 	if len(paths) > 0 {
 		file = paths[len(paths)-1]
+	}
+	if watch && r.OK && file == "" {
+		// Длинный ролик целиком не берём, но превью играет: первая минута
+		clip := []string{"-f", format, "--merge-output-format", "mp4", "--max-filesize", strconv.FormatInt(max(1, maxBytes), 10), "--no-playlist",
+			"--download-sections", fmt.Sprintf("*0-%d", ytdlpWatchClipSeconds), "--force-keyframes-at-cuts"}
+		r = run(clip)
+		paths = nil
+		for _, l := range strings.Split(r.Stdout, "\n") {
+			if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "PROG ") {
+				paths = append(paths, l)
+			}
+		}
+		if len(paths) > 0 {
+			file = paths[len(paths)-1]
+		}
 	}
 	if watch && r.OK && file == "" {
 		return "", fmt.Errorf("%w: Ролик длиннее %d минут — откройте его на YouTube", ErrVideoTooLong, ytdlpWatchMaxSeconds/60)
@@ -436,9 +452,20 @@ func progressTracker(j VideoJob) func(done, total int64, format string) {
 	}
 }
 
-// ---- Воркер очереди: горутина, будится при постановке задачи ----
+// ---- Воркер очереди: горутина, будится при постановке задачи и по окончании ролика ----
 
 var videoWake = make(chan struct{}, 1)
+
+// videoWorkers — сколько роликов качается сразу: yt-dlp — все ролики превью источника разом (videoPreviewLimits), у каждого своя полоса;
+// Telegram — по одному (аккаунт пользователя).
+var videoWorkers = map[string]int{"ytdlp": 12, "tgu": 1}
+
+// videoRunning — задачи, которые уже качаются (uid|key), и сколько их по способу.
+var videoRunning = struct {
+	sync.Mutex
+	jobs map[string]bool
+	via  map[string]int
+}{jobs: map[string]bool{}, via: map[string]int{}}
 
 func (a *App) KickVideoWorker() {
 	select {
@@ -447,20 +474,27 @@ func (a *App) KickVideoWorker() {
 	}
 }
 
-// RunVideoWorker — обработка очереди роликов до остановки процесса.
+// RunVideoWorker — обработка очереди роликов до остановки процесса: несколько роликов параллельно (videoWorkers).
 func (a *App) RunVideoWorker(ctx context.Context) {
 	t := time.NewTicker(20 * time.Second)
 	defer t.Stop()
+	var wg sync.WaitGroup
 	for {
-		for {
+		for ctx.Err() == nil {
 			job := a.nextVideoJob(ctx)
-			if job == nil || ctx.Err() != nil {
+			if job == nil {
 				break
 			}
-			a.runVideoJob(ctx, *job)
+			wg.Add(1)
+			go func(j VideoJob) {
+				defer wg.Done()
+				defer a.videoJobRelease(j)
+				a.runVideoJob(ctx, j)
+			}(*job)
 		}
 		select {
 		case <-ctx.Done():
+			wg.Wait()
 			return
 		case <-videoWake:
 		case <-t.C:
@@ -468,11 +502,14 @@ func (a *App) RunVideoWorker(ctx context.Context) {
 	}
 }
 
+// nextVideoJob — следующая задача, которая ещё не качается и для которой есть свободный слот; задача сразу помечается занятой.
 func (a *App) nextVideoJob(ctx context.Context) *VideoJob {
 	t := now()
 	var due []VideoJob
+	videoRunning.Lock()
+	defer videoRunning.Unlock()
 	for _, j := range a.videoQueue(ctx) {
-		if j.NextAt <= t {
+		if j.NextAt <= t && !videoRunning.jobs[progressKey(j.UID, j.Key)] && videoRunning.via[jobVia(j)] < videoWorkers[jobVia(j)] {
 			due = append(due, j)
 		}
 	}
@@ -486,7 +523,19 @@ func (a *App) nextVideoJob(ctx context.Context) *VideoJob {
 	if len(due) == 0 {
 		return nil
 	}
-	return &due[0]
+	j := due[0]
+	videoRunning.jobs[progressKey(j.UID, j.Key)] = true
+	videoRunning.via[jobVia(j)]++
+	return &j
+}
+
+// videoJobRelease — слот задачи свободен: воркер берёт следующую.
+func (a *App) videoJobRelease(j VideoJob) {
+	videoRunning.Lock()
+	delete(videoRunning.jobs, progressKey(j.UID, j.Key))
+	videoRunning.via[jobVia(j)]--
+	videoRunning.Unlock()
+	a.KickVideoWorker()
 }
 
 func (a *App) runVideoJob(ctx context.Context, j VideoJob) {
@@ -515,7 +564,9 @@ func (a *App) runVideoJob(ctx context.Context, j VideoJob) {
 		} else {
 			progressSave(j, "probe", nil)
 		}
-		dir := filepath.Join(a.ytdlpCacheDir(), "downloads")
+		// Своя папка у каждой задачи: один и тот же ролик могут качать сразу две задачи (превью и запись пула)
+		dir := filepath.Join(a.ytdlpCacheDir(), "downloads", sha1Short(j.UID+"|"+j.Key, 16))
+		defer os.RemoveAll(dir)
 		if err := stage("скачивание", func() error {
 			var err error
 			if tgu {
@@ -527,7 +578,6 @@ func (a *App) runVideoJob(ctx context.Context, j VideoJob) {
 		}); err != nil {
 			return err
 		}
-		defer os.Remove(file)
 		codec := a.YtdlpCodec(file)
 		name := "подготовка"
 		if codec != "h264" {
@@ -540,7 +590,12 @@ func (a *App) runVideoJob(ctx context.Context, j VideoJob) {
 			if err != nil {
 				return err
 			}
-			local = u.CacheDownloadedVideo(j.Page, h)
+			// Ролик yt-dlp уже H.264 до 720p с moov в начале — в кэш как есть: тяжёлое перекодирование только задержало бы показ
+			if !tgu && Mp4HasFastStart(h) {
+				local = u.MediaStoreVideo(j.Page, h, true, nil)
+			} else {
+				local = u.CacheDownloadedVideo(j.Page, h)
+			}
 			return nil
 		}); err != nil {
 			return err
@@ -643,9 +698,9 @@ func (a *App) videoJobFailed(ctx context.Context, u *U, j VideoJob, reason strin
 
 // ---- Ролик по кнопке и первые ролики превью ----
 
-var videoPreviewLimits = map[string]int{"tgu": 2, "ytdlp": 3}
+var videoPreviewLimits = map[string]int{"tgu": 2, "ytdlp": 12}
 
-const videoPreviewFirst = 3
+const videoPreviewFirst = 12
 
 var (
 	tmePostURLRe   = regexp.MustCompile(`^https://t\.me/[A-Za-z0-9_]{4,32}/\d+$`)
@@ -790,11 +845,13 @@ func (a *App) VideoPreviewApply(ctx context.Context, posts []jx.M) []jx.M {
 	return posts
 }
 
-// VideoPreviewPrepare — первые ролики превью кандидата ставятся в очередь сами.
+// VideoPreviewPrepare — первые ролики превью кандидата ставятся в очередь сами, впереди роликов прежних превью:
+// с конца и каждый в начало очереди, чтобы первый пост качался первым; лимит вытесняет ещё не начатые ролики прежних превью.
 func (a *App) VideoPreviewPrepare(ctx context.Context, posts []jx.M, uid string) []jx.M {
-	left := videoPreviewFirst
+	type want struct{ page, via string }
+	var wants []want
 	for _, p := range posts {
-		if left <= 0 {
+		if len(wants) >= videoPreviewFirst {
 			break
 		}
 		page := jx.Str(p, "video_page")
@@ -802,10 +859,10 @@ func (a *App) VideoPreviewPrepare(ctx context.Context, posts []jx.M, uid string)
 		if jx.Str(p, "video") != "" || page == "" || via == "" || jx.Str(a.VideoPreviewStatus(ctx, page), "status") == "done" {
 			continue
 		}
-		left--
-		if _, limited := a.VideoFetchEnqueue(ctx, page, via, uid, false); limited {
-			break
-		}
+		wants = append(wants, want{page, via})
+	}
+	for i := len(wants) - 1; i >= 0; i-- {
+		a.VideoFetchEnqueue(ctx, wants[i].page, wants[i].via, uid, true)
 	}
 	return a.VideoPreviewApply(ctx, posts)
 }
