@@ -57,6 +57,9 @@ type userParser struct {
 	phase     string
 	progress  jx.M
 	lines     []string
+	stage     string      // текущий шаг сборщика (ключ для журнала студии); задаёт ParserStage
+	lineStage []string    // шаг, который был текущим в момент записи строки (параллельно lines)
+	lineAt    []time.Time // время записи строки (параллельно lines)
 	file      *os.File
 }
 
@@ -98,8 +101,11 @@ func (a *App) ParserLogger(uid string) func(string) {
 		line = strings.TrimRight(line, "\n")
 		p.mu.Lock()
 		p.lines = append(p.lines, line)
+		p.lineStage = append(p.lineStage, p.stage)
+		p.lineAt = append(p.lineAt, time.Now())
 		if len(p.lines) > parserLogLines {
-			p.lines = p.lines[len(p.lines)-parserLogLines:]
+			cut := len(p.lines) - parserLogLines
+			p.lines, p.lineStage, p.lineAt = p.lines[cut:], p.lineStage[cut:], p.lineAt[cut:]
 		}
 		if p.file != nil {
 			p.file.WriteString(line + "\n")
@@ -133,6 +139,50 @@ func (a *App) ParserActivity(uid string) []string {
 		}
 	}
 	return out
+}
+
+// ParserStage — шаг сборщика для журнала студии: collect, filter, prescreen, analysis, pool, discovery.
+func (u *U) ParserStage(key string) {
+	p := u.parsers.user(u.ID)
+	p.mu.Lock()
+	p.stage = key
+	p.mu.Unlock()
+}
+
+// ParserJournal — последние n строк журнала с шагом и временем: {t — текст, s — шаг, at — HH:MM}.
+// Строки из файла после перезапуска сервера без шага и времени.
+func (a *App) ParserJournal(uid string, n int) []jx.M {
+	p := a.parsers.user(uid)
+	p.mu.Lock()
+	lines := append([]string{}, p.lines...)
+	stages := append([]string{}, p.lineStage...)
+	ats := append([]time.Time{}, p.lineAt...)
+	p.mu.Unlock()
+	if len(lines) == 0 { // после перезапуска сервера — из файла, без шага и времени
+		lines = a.ParserActivity(uid)
+		stages, ats = make([]string, len(lines)), make([]time.Time, len(lines))
+	}
+	out := []jx.M{}
+	for i, l := range lines {
+		l = strings.TrimSpace(logSpaceRe.ReplaceAllString(l, " "))
+		if l == "" {
+			continue
+		}
+		row := jx.M{"t": l, "s": stages[i], "at": ""}
+		if !ats[i].IsZero() {
+			row["at"] = ats[i].Format("15:04")
+		}
+		out = append(out, row)
+	}
+	return out[max(0, len(out)-n):]
+}
+
+// ParserStageOf — текущий шаг сборщика (пусто — сборщик не в работе или шаг не задан).
+func (a *App) ParserStageOf(uid string) string {
+	p := a.parsers.user(uid)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.stage
 }
 
 func (u *U) ParserPhase(text string) {
@@ -193,7 +243,7 @@ func (a *App) ParserProgressPublic(uid string) jx.M {
 		pr["deadline"] = started.Unix() + maxSec
 	}
 	if !jx.Bool(pr, "deadline") {
-		return jx.M{"share": nil, "eta": nil, "added": 0, "queued": jx.Bool(pr, "queued_at")}
+		return jx.M{"share": nil, "eta": nil, "added": 0, "queued": jx.Bool(pr, "queued_at"), "funnel": pr["funnel"]}
 	}
 	leftCap := max(0, jx.Int(pr, "deadline")-t)
 	var share float64
@@ -223,7 +273,7 @@ func (a *App) ParserProgressPublic(uid string) jx.M {
 		expected = max(expected, int64(float64(elapsed)/0.9))
 		share, eta = float64(elapsed)/float64(max(1, expected)), max(30, expected-elapsed)
 	}
-	return jx.M{"share": float64(int(share*1000+0.5)) / 1000, "eta": min(eta, leftCap), "added": jx.Int(pr, "added")}
+	return jx.M{"share": float64(int(share*1000+0.5)) / 1000, "eta": min(eta, leftCap), "added": jx.Int(pr, "added"), "funnel": pr["funnel"]}
 }
 
 // parserExpectedSeconds — медиана последних 5 проходов; finished > 0 — записать новый.
@@ -272,7 +322,7 @@ func (u *U) StartParser(force bool) string {
 	if p.file != nil {
 		p.file.Close()
 	}
-	p.lines = nil
+	p.lines, p.lineStage, p.lineAt, p.stage = nil, nil, nil, ""
 	p.file, _ = os.Create(filepath.Join(u.UserDir(u.ID), "parser-v3.log"))
 	uid := u.ID
 	u.App.Go("сборщик "+uid, func(context.Context) {

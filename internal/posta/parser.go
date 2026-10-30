@@ -1887,10 +1887,6 @@ func (u *U) RunCollector() bool {
 	} else {
 		byPlatform = u.collectPostsByPlatform(key)
 	}
-	collected := 0
-	for _, l := range byPlatform {
-		collected += len(l)
-	}
 	u.ParserStage("filter")
 	candidates, skipped := u.buildCandidateQueue(byPlatform, seen, rejected, u.TopicVerdictStats(key), &format, u.ContentFilterValues(), key)
 	if hs := u.run.HotStats; hs != nil {
