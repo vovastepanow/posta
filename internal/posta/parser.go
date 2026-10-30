@@ -40,47 +40,45 @@ func candidateLogLabel(item jx.M) string {
 // ---- Сбор постов ----
 
 // ParseDvach — посты свежих тредов доски; с темой — треды отбираются по ней.
+// Оценка идёт по каталогу (название и шапка уже там), тела тредов грузим только у выбранных.
 func (u *U) ParseDvach(board, topic string) []jx.M {
 	catalog := u.DvachJSONCached(board, "")
 	allThreads := jx.Maps(catalog, "threads")
-	var threads []jx.M
+	var pool []jx.M
 	for _, t := range allThreads {
-		if !jx.Bool(t, "sticky") && !jx.Bool(t, "endless") && !jx.Bool(t, "closed") {
-			threads = append(threads, t)
+		if !jx.Bool(t, "sticky") && !jx.Bool(t, "endless") && !jx.Bool(t, "closed") && IsValidDvachID(jx.Str(t, "num")) {
+			pool = append(pool, t)
 		}
 	}
+	pool = pool[:min(len(pool), config.DvachThreadPool)]
+	gates := map[string]*int{}
+	if topic != "" {
+		var infos []threadInfo
+		for _, t := range pool {
+			infos = append(infos, threadInfo{jx.Str(t, "num"), CleanHTMLText(jx.Str(t, "subject")), DvachPostText(t)})
+		}
+		gates = u.ImageboardThreadScores(topic, board, infos)
+		var skipped []jx.M
+		pool, skipped = DvachByTopic(pool, gates)
+		for _, t := range skipped {
+			id := jx.Str(t, "num")
+			u.Log("-> Двач /%s/: тред «%s» не по теме (%d) — пропуск.", board, DvachThreadTitle(jx.Str(t, "subject"), id), *gates[id])
+		}
+	}
+	pool = pool[:min(len(pool), config.DvachThreadsPerBoard)]
 	type batch struct {
 		thread, title string
 		subject       jx.M
 		posts         []jx.M
 	}
 	var batches []batch
-	for _, t := range threads[:min(len(threads), config.DvachThreadsPerBoard)] {
+	for _, t := range pool {
 		id := jx.Str(t, "num")
-		if !IsValidDvachID(id) {
-			continue
-		}
 		batches = append(batches, batch{id, DvachThreadTitle(jx.Str(t, "subject"), id), t, DvachThreadPosts(u.DvachJSONCached(board, id))})
-	}
-	gates := map[string]*int{}
-	if topic != "" {
-		var infos []threadInfo
-		for _, b := range batches {
-			op := ""
-			if len(b.posts) > 0 {
-				op = DvachPostText(b.posts[0])
-			}
-			infos = append(infos, threadInfo{b.thread, CleanHTMLText(jx.Str(b.subject, "subject")), op})
-		}
-		gates = u.ImageboardThreadScores(topic, board, infos)
 	}
 	var out []jx.M
 	for _, b := range batches {
 		gate := ImageboardThreadGate(gates[b.thread])
-		if gate == "skip" {
-			u.Log("-> Двач /%s/: тред «%s» не по теме (%d) — пропуск.", board, b.title, *gates[b.thread])
-			continue
-		}
 		opText := ""
 		if len(b.posts) > 0 {
 			opText = DvachPostText(b.posts[0])
@@ -115,6 +113,26 @@ func (u *U) ParseDvach(board, topic string) []jx.M {
 		}
 	}
 	return out
+}
+
+// DvachByTopic — треды доски по теме: ниже порога «не по теме» выкидываем, остальные — по убыванию оценки.
+// Тред без оценки (nil) считаем «непонятно» — 50, он остаётся в очереди.
+func DvachByTopic(pool []jx.M, gates map[string]*int) (keep, skipped []jx.M) {
+	for _, t := range pool {
+		if ImageboardThreadGate(gates[jx.Str(t, "num")]) == "skip" {
+			skipped = append(skipped, t)
+			continue
+		}
+		keep = append(keep, t)
+	}
+	score := func(t jx.M) int {
+		if s := gates[jx.Str(t, "num")]; s != nil {
+			return *s
+		}
+		return 50
+	}
+	sort.SliceStable(keep, func(i, j int) bool { return score(keep[i]) > score(keep[j]) })
+	return keep, skipped
 }
 
 // collectCatalogSource — сбор одного источника каталога: посты, обновлённая запись каталога, событие активности.
@@ -853,10 +871,17 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 			if ukey == "" {
 				if format != nil && jx.Str(item, "image") == "" {
 					skipped["format"]++
+				} else {
+					skipped["no_key"]++
 				}
 				continue
 			}
-			if candidateIsKnown(item, seen) || unique[ukey] != nil {
+			if candidateIsKnown(item, seen) {
+				skipped["seen"]++
+				continue
+			}
+			if unique[ukey] != nil {
+				skipped["duplicate"]++
 				continue
 			}
 			src := ContentSourceKey(item)
@@ -1176,6 +1201,7 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 		sort.SliceStable(idx, func(a, b int) bool { return score[idx[a]] > score[idx[b]] })
 		pool = append(pool, idx[:min(len(idx), config.QueuePerSource)]...)
 	}
+	perSourceCut := len(score) - len(pool)
 	sort.SliceStable(pool, func(a, b int) bool { return score[pool[a]] > score[pool[b]] })
 	room := max(0, shortN-len(first))
 	capN := int(math.Floor(config.HotPlatformShare * float64(shortN)))
@@ -1203,7 +1229,8 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 		}
 	}
 	if u.run != nil {
-		hs := jx.M{"total": len(all), "short": len(picked) + len(first), "per": per, "excluded": excluded, "trusted": trusted, "imageboard_tail": tail, "top": nil}
+		hs := jx.M{"total": len(all), "short": len(picked) + len(first), "per": per, "excluded": excluded, "trusted": trusted, "imageboard_tail": tail, "top": nil,
+			"per_source_cut": perSourceCut, "shortlist_cut": len(pool) - len(picked)}
 		if top >= 0 {
 			hs["top"] = jx.M{"source": jx.Str(rest[top], "source"), "times": math.Round(heat[top]*10) / 10}
 		}
@@ -1871,13 +1898,18 @@ func (u *U) RunCollector() bool {
 		if x := jx.Int(hs, "excluded"); x > 0 {
 			line += fmt.Sprintf(". Отброшено по словам «не подходит»: %d", x)
 		}
+		line += fmt.Sprintf(". Срез очереди на источник: %d, срез шортлиста: %d", jx.Int(hs, "per_source_cut"), jx.Int(hs, "shortlist_cut"))
 		u.Log("%s, из доверенных тредов %d; имиджборд без признаков темы — в хвост: %d.", line, jx.Int(hs, "trusted"), jx.Int(hs, "imageboard_tail"))
 	}
 	candidates = u.hotTextJudge(candidates, key)
-	notes := fmt.Sprintf("📌 Тема: «%s». Кандидатов к проверке: %d.", topic, len(candidates))
+	collected := 0
+	for _, posts := range byPlatform {
+		collected += len(posts)
+	}
+	notes := fmt.Sprintf("📌 Тема: «%s». Собрано постов: %d. Кандидатов к проверке: %d.", topic, collected, len(candidates))
 	for _, s := range []struct{ k, t string }{{"rejected_before", " Уже отсеяны в прошлых запусках: %d."}, {"outdated", " Устаревших: %d."},
 		{"ukraine", " Украинский контент отсеян: %d."}, {"format", " Отсеяно форматом темы: %d."}, {"filter", " Отсеяно фильтрами «Только с медиа» / «Только медиа»: %d."},
-		{"source_busy", " Источники в ленте или на отдыхе: %d."}} {
+		{"source_busy", " Источники в ленте или на отдыхе: %d."}, {"seen", " Уже видели: %d."}, {"duplicate", " Дубли: %d."}, {"no_key", " Без текста и картинки: %d."}} {
 		if skipped[s.k] > 0 {
 			notes += fmt.Sprintf(s.t, skipped[s.k])
 		}
@@ -1977,12 +2009,18 @@ outer:
 	u.Log("Время прохода: автоподбор %.1f мин, сбор %.1f мин, анализ %.1f мин.", tDiscovery.Minutes(), max(0, (total-tDiscovery-tAnalyze).Minutes()), tAnalyze.Minutes())
 	u.Log("")
 	_ = h
-	if !restart && !discovered && added == 0 && u.PoolTopicCount(key) < u.TInt("pool_target") && u.Alive() && u.CurrentTopic() == topic &&
+	if !restart && !discovered && (added == 0 || len(candidates) < u.TInt("pool_target")) && u.PoolTopicCount(key) < u.TInt("pool_target") && u.Alive() && u.CurrentTopic() == topic &&
 		!u.TopicSame(config.DefaultTopic, topic) && now()-DiscoveryLastRun(u.Catalog(), topic) >= config.DiscoveryShortageInterval && u.TBool("discovery") {
-		u.Log("Из источников темы нечего оценивать — ищу новые источники и соберу заново.")
-		before := u.TopicOwnSourcesCount(u.Catalog(), topic)
+		if added == 0 {
+			u.Log("Из источников темы нечего оценивать — ищу новые источники и соберу заново.")
+			before := u.TopicOwnSourcesCount(u.Catalog(), topic)
+			u.RunSourceDiscovery(topic, 0)
+			return u.TopicOwnSourcesCount(u.Catalog(), topic) > before
+		}
+		// Кандидатов мало — автоподбор в конце прохода, чтобы следующий проход был шире; сам проход не перезапускаем
+		u.Log("Кандидатов к проверке %d при цели ленты %d — ищу новые источники в конце прохода.", len(candidates), u.TInt("pool_target"))
 		u.RunSourceDiscovery(topic, 0)
-		return u.TopicOwnSourcesCount(u.Catalog(), topic) > before
+		due = false
 	}
 	if due && !restart && u.Alive() {
 		u.RunSourceDiscovery(topic, 0)

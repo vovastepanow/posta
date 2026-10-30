@@ -171,6 +171,7 @@ const (
 	PoolLivenessInterval        = 7200
 	PoolLivenessMaxThreads      = 40
 	DvachThreadsPerBoard        = 8
+	DvachThreadPool             = 30 // треды каталога, из которых выбираем по теме (посты грузим только у выбранных)
 	DvachThreadTitleMax         = 36
 	ThreadTopicSkip             = 20 // тред имиджборды с оценкой по теме ниже — посты не берём
 	ThreadTopicTrust            = 70 // выше — посты треда идут в анализ первыми
@@ -230,6 +231,9 @@ var SubtopicJokeKeep = []string{"humor.jokes", "humor.other", "humor.fails", "hu
 
 // Темы, где имиджборды — родная площадка: посты без признаков темы идут в шортлист.
 var ImageboardNativeTopicKeys = []string{"memes", "internet"}
+
+// PostSearchGenericWords — общие слова, по которым встроенный поиск по теме ничего про тему не находит.
+var PostSearchGenericWords = []string{"image", "images", "video", "videos", "photo", "photos", "post", "posts", "content", "picture", "pictures"}
 
 var DvachAlwaysBoards = []string{"b"}
 

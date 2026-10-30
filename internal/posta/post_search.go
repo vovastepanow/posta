@@ -6,10 +6,12 @@ import (
 	"math"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"posta/internal/config"
 	"posta/internal/jx"
@@ -287,7 +289,6 @@ func orEmptyList(l []jx.M) []jx.M {
 
 const (
 	postSearchSeconds      = 60
-	PostSearchQueries      = 3
 	PostSearchLimit        = 30
 	postSearchDateLookups  = 3
 	postSearchCacheTTL     = time.Hour
@@ -342,18 +343,24 @@ func (u *U) PostSearchCandidates(topic string) []string {
 	}
 	var out []string
 	for _, q := range qs {
-		if q = strings.TrimSpace(q); q != "" {
+		if q = strings.TrimSpace(q); q != "" && postSearchUseful(q) {
 			out = append(out, q)
 		}
 	}
 	return uniqueStrings(out)
 }
 
+// postSearchUseful — запрос годится для поиска по площадкам: не короче 3 букв и не общее слово вроде «image» (хэштег без # не в счёт).
+func postSearchUseful(q string) bool {
+	w := strings.ToLower(strings.TrimLeft(q, "#"))
+	return utf8.RuneCountInString(w) >= 3 && !slices.Contains(config.PostSearchGenericWords, w)
+}
+
 func (u *U) postSearchQueries(topic string) []string {
 	qs := u.PostSearchCandidates(topic)
 	pass, _ := KVUpdate(u.App, u.Ctx, "post_search:pass", 0, func(n int, _ bool) *int { n++; return &n })
 	r := DiscoveryRotate(qs, pass-1)
-	return r[:min(len(r), PostSearchQueries)]
+	return r[:min(len(r), u.TInt("post_search_queries"))]
 }
 
 var hashtagWordRe = regexp.MustCompile(`#(\p{L}[\p{L}\p{N}_]*)`)
@@ -446,6 +453,7 @@ func (u *U) PostSearchYouTube(query string, limit int) []jx.M {
 			at, _ := strconv.ParseInt(inf[0], 10, 64)
 			views, _ := strconv.ParseInt(r[3], 10, 64)
 			p := YouTubePost(r[0], title, r[4], at, views, short(r))
+			markYouTubeLong(p, r[2])
 			p["source_key"] = SourceIDFor(PlatformRSS, YouTubeChannelFeedURL(inf[1]))
 			p["source_url"] = "https://www.youtube.com/channel/" + inf[1]
 			p["found_by"] = "поиск YouTube «" + query + "»"

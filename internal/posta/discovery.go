@@ -1338,7 +1338,7 @@ func (u *U) runSourceDiscoveryLocked(topic string, limit, maxSeconds int) {
 	for _, c := range u.discoveryFindTumblr(plan.Queries) {
 		add(c, false)
 	}
-	reasons := map[string]string{"post_search": fmt.Sprintf("запросов %d, авторов %d", min(len(plan.Queries), PostSearchQueries), len(postAuthors)),
+	reasons := map[string]string{"post_search": fmt.Sprintf("запросов %d, авторов %d", min(len(plan.Queries), u.TInt("post_search_queries")), len(postAuthors)),
 		"pinterest": "без JS в HTML поиска нет авторов — пропущен"}
 	if !u.VKIsConnected(u.Ctx) {
 		if u.VKCanRead(u.Ctx) {

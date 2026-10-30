@@ -52,7 +52,7 @@ func (u *U) youtubeListPosts(cid, tab string) ([]jx.M, error) {
 	url, _ := YtdlpCheckURL("https://www.youtube.com/channel/" + cid + "/" + tab)
 	count := strconv.Itoa(YouTubeListCount)
 	rows, err := u.youtubeListRows([]string{"--flat-playlist", "--playlist-end", count, "--extractor-args", "youtube:lang=ru",
-		"--print", "%(id)s|%(view_count)s|%(thumbnails.-1.url)s|%(title)s", "--", url}, 4)
+		"--print", "%(id)s|%(duration)s|%(view_count)s|%(thumbnails.-1.url)s|%(title)s", "--", url}, 5)
 	if err != nil {
 		return nil, err
 	}
@@ -88,10 +88,19 @@ func (u *U) youtubeListPosts(cid, tab string) ([]jx.M, error) {
 			at = prev // без даты — не новее предыдущего (вкладка идёт от новых к старым)
 		}
 		prev = at
-		views, _ := strconv.ParseInt(r[1], 10, 64)
-		posts = append(posts, YouTubePost(r[0], r[3], r[2], at, views, tab == "shorts"))
+		views, _ := strconv.ParseInt(r[2], 10, 64)
+		p := YouTubePost(r[0], r[4], r[3], at, views, tab == "shorts")
+		markYouTubeLong(p, r[1])
+		posts = append(posts, p)
 	}
 	return posts, nil
+}
+
+// markYouTubeLong — ролик длиннее лимита скачивания: в очередь превью не ставим (повторять бессмысленно), ссылка на YouTube остаётся.
+func markYouTubeLong(p jx.M, duration string) {
+	if d, err := strconv.Atoi(duration); err == nil && d > ytdlpWatchMaxSeconds {
+		p["video_page"], p["video_unavailable"] = "", true
+	}
 }
 
 func youtubeDatesMap(rows [][]string) map[string]int64 {

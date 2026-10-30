@@ -343,7 +343,7 @@ func (u *U) discoveryFindPosts(queries []string, topic string) []DiscoveryCandid
 			authors[key].n++
 		}
 	}
-	for _, q := range queries[:min(len(queries), PostSearchQueries)] {
+	for _, q := range queries[:min(len(queries), u.TInt("post_search_queries"))] {
 		take(u.PostSearchYouTube(q, PostSearchLimit))
 		take(u.PostSearchTelegram(q, PostSearchLimit))
 		take(u.PostSearchVK(q, PostSearchLimit))
