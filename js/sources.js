@@ -1,6 +1,6 @@
 // sources.js — вкладка «Источники»: кандидат карточкой (мозаика свежих медиа, сводка, панель решений), автоподбор
 // и уже добавленные источники темы карточками в стиле «Предложки».
-import { $, COUNT, DEBUG_MODE, VIDEO_ICON, api, bindMenu, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, pluralRu, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
+import { $, ask, COUNT, DEBUG_MODE, VIDEO_ICON, api, bindMenu, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, pluralRu, qualityText, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
 import { BIG_VIDEO_NOTE, closePostView, openPostView, shownText } from './post-view.js';
 import { fromSourcePost } from './post-adapters.js';
 import { videoPageFor } from './viewer.js';
@@ -9,6 +9,7 @@ import { openAccountSection } from './account.js';
 import { mediaFileKey } from './media-dedupe.js';
 import { loadImage, pageCheck, videoProgress, watchVideo } from './video-pending.js';
 import { shortText } from './card.js';
+import { initRegistry, loadRegistry } from './registry.js';
 
 const REASONS = { off_topic: 'не по теме', dead: 'мёртвый', other: 'другое' };
 const state = { source: null, skipped: [], loading: false, voting: false, discovering: false, mosaic: null, poll: null, emptyAction: '' };
@@ -53,7 +54,10 @@ function postThumb(media) {
     const box = el('div', { className: 'sp-thumb' });
     if (media.length > 1) box.append(el('span', { className: 'sp-count', textContent: `1/${media.length}` }));
     const src = first.kind === 'video' ? first.poster : first.src;
-    if (src) box.append(thumbImage(src, box));
+    if (src) {
+        box.append(thumbImage(src, box));
+        if (first.kind === 'video' && first.pending && first.page) watchFeedVideo(box, first);   // ролик качается: по готовности пост откроется сразу с видео
+    }
     else if (first.kind === 'video' && first.src) {   // без постера — первый кадр, без воспроизведения
         const video = el('video', { src: first.src, muted: true, playsInline: true, preload: 'metadata' });
         video.addEventListener('error', () => video.replaceWith(thumbPlate('—', 'Видео недоступно')));
@@ -68,14 +72,15 @@ function postThumb(media) {
     return box;
 }
 
-/** Ролик, который докачивается: по готовности миниатюра становится постером. */
+/** Ролик, который докачивается: по готовности пост получает файл (просмотрщик сразу играет его), миниатюра без постера — плашка «Видео готово». */
 function watchFeedVideo(box, m) {
     const bar = videoProgress(box, { compact: true });
     const watch = watchVideo(pageCheck(videoPageFor(m.page) || m.page), {
         onProgress: p => bar.update(p),
         onReady: result => {
             bar.stop();
-            if (!box.isConnected) return;
+            Object.assign(m, { src: result.video, pending: false });
+            if (!box.isConnected || box.querySelector('img')) return;
             box.replaceChildren(thumbPlate('', 'Видео готово'), videoMark());
             box.dataset.page = m.page;
         },
@@ -196,7 +201,7 @@ function renderSource(source) {
     const s = source.stats || {};
     const url = safeSourcePostUrl({ source_url: s.url });
     $('source-name').replaceChildren('Источник: ', url ? el('a', { className: 'source-name-link', href: url, target: '_blank', rel: 'noopener noreferrer', textContent: source.name }) : source.name);
-    $('source-platform-label').textContent = (source.kind || source.platform) + (source.suggested ? ' · найден автоподбором' : '');
+    $('source-platform-label').textContent = (source.kind || source.platform) + (source.suggested ? ' · найден автоподбором' : '') + ' · ' + qualityText(source.quality);
     setMessage('source-score', source.score != null ? `${source.score}%` : '');
     renderStats(s);
     renderCoverage(source);
@@ -392,7 +397,7 @@ function topicSourceCard(source) {
         } }));
     }
     if (!DEBUG_MODE && source.own) actions.append(el('button', { className: 'proposal-action proposal-hide', type: 'button', textContent: '✕ Убрать', title: `Убрать из темы «${topicSources.topic}»`, onclick: async () => {
-        if (!confirm(`Убрать «${source.name}» из темы «${topicSources.topic}»? Посты из него перестанут попадать в подбор по этой теме.`)) return;
+        if (!(await ask('Посты из него перестанут попадать в подбор по этой теме.', { title: `Убрать «${source.name}» из темы «${topicSources.topic}»?`, ok: 'Убрать', danger: true }))) return;
         card.classList.add('is-removing');
         try {
             await api('remove_topic_source', { body: { platform: source.platform, id: source.id, name: source.name } });
@@ -773,7 +778,8 @@ export function initializeSourceTab() {
     $('discovery-button').addEventListener('click', startDiscovery);
     document.querySelectorAll('[data-topic-source-filter]').forEach(b => b.addEventListener('click', () => { topicSources.filter = b.dataset.topicSourceFilter; renderTopicSources(); }));
     $('topic-sources-refresh').addEventListener('click', loadTopicSources);
-    onTabOpen('source-tab', () => { loadDiscoveryStatus(); loadTopicSources(); loadMirrors(); loadMirrorChannels(); if (!state.source && !state.loading) loadNextSource(); });
+    initRegistry();
+    onTabOpen('source-tab', () => { loadDiscoveryStatus(); loadTopicSources(); loadRegistry(); loadMirrors(); loadMirrorChannels(); if (!state.source && !state.loading) loadNextSource(); });
     onParserStateChange(running => {   // парсер закончил: подбор мог найти источники, сбор — обновить аудиторию
         if (running) return;
         state.discovering = false;

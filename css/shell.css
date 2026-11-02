@@ -1,0 +1,136 @@
+@font-face { font-family: 'Rubik'; font-weight: 400 900; font-display: swap; src: url('../fonts/Rubik-cyrillic.woff2') format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Rubik'; font-weight: 400 900; font-display: swap; src: url('../fonts/Rubik-cyrillic-ext.woff2') format('woff2'); unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F; }
+@font-face { font-family: 'Rubik'; font-weight: 400 900; font-display: swap; src: url('../fonts/Rubik-latin.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Rubik'; font-weight: 400 900; font-display: swap; src: url('../fonts/Rubik-latin-ext.woff2') format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+/* Эмодзи: Noto Color Emoji (SIL OFL 1.1, fonts/NotoColorEmoji-*.woff2, см. fonts/NotoColorEmoji-OFL.txt); на Apple сначала берётся системный Apple Color Emoji */
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-0.woff2') format('woff2'); unicode-range: U+1f1e6-1f1ff; }
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-1.woff2') format('woff2'); unicode-range: U+200d, U+2620, U+26a7, U+fe0f, U+1f308, U+1f38c, U+1f3c1, U+1f3f3-1f3f4, U+1f6a9, U+e0062-e0063, U+e0065, U+e0067, U+e006c, U+e006e, U+e0073-e0074, U+e0077, U+e007f; }
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-2.woff2') format('woff2'); unicode-range: U+23, U+2a, U+30-39, U+a9, U+ae, U+200d, U+203c, U+2049, U+20e3, U+2122, U+2139, U+2194-2199, U+21a9-21aa, U+23cf, U+23e9-23ef, U+23f8-23fa, U+24c2, U+25aa-25ab, U+25b6, U+25c0, U+25fb-25fe, U+2611, U+2622-2623, U+2626, U+262a, U+262e-262f, U+2638, U+2640, U+2642, U+2648-2653, U+2660, U+2663, U+2665-2666, U+2668, U+267b, U+267e-267f, U+2695, U+269b-269c, U+26a0, U+26a7, U+26aa-26ab, U+26ce, U+26d4, U+2705, U+2714, U+2716, U+271d, U+2721, U+2733-2734, U+2747, U+274c, U+274e, U+2753-2755, U+2757, U+2764, U+2795-2797, U+27a1, U+27b0, U+27bf, U+2934-2935, U+2b05-2b07, U+2b1b-2b1c, U+2b55, U+3030, U+303d, U+3297, U+3299, U+fe0f, U+1f170-1f171, U+1f17e-1f17f, U+1f18e, U+1f191-1f19a, U+1f201-1f202, U+1f21a, U+1f22f, U+1f232-1f23a, U+1f250-1f251, U+1f310, U+1f3a6, U+1f3b5-1f3b6, U+1f3bc, U+1f3e7, U+1f441, U+1f499-1f49c, U+1f49f-1f4a0, U+1f4ac-1f4ad, U+1f4b1-1f4b2, U+1f4b9, U+1f4db, U+1f4f2-1f4f6, U+1f500-1f507, U+1f515, U+1f518-1f524, U+1f52f-1f53d, U+1f549, U+1f54e, U+1f5a4, U+1f5e8, U+1f5ef, U+1f6ab, U+1f6ad-1f6b1, U+1f6b3, U+1f6b7-1f6bc, U+1f6be, U+1f6c2-1f6c5, U+1f6d0-1f6d1, U+1f6d7, U+1f6dc, U+1f7e0-1f7eb, U+1f7f0, U+1f90d-1f90e, U+1f9d1-1f9d2, U+1f9e1, U+1fa75-1fa77, U+1faaf; }
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-3.woff2') format('woff2'); unicode-range: U+200d, U+231a-231b, U+2328, U+23f0-23f3, U+2602, U+260e, U+2692, U+2694, U+2696-2697, U+2699, U+26b0-26b1, U+26cf, U+26d1, U+26d3, U+2702, U+2709, U+270f, U+2712, U+fe0f, U+1f302, U+1f321, U+1f392-1f393, U+1f3a9, U+1f3bd, U+1f3ee, U+1f3f7, U+1f3fa, U+1f451-1f462, U+1f484, U+1f489-1f48a, U+1f48c-1f48e, U+1f4a1, U+1f4a3, U+1f4a5, U+1f4b0, U+1f4b3-1f4b8, U+1f4bb-1f4da, U+1f4dc-1f4f1, U+1f4ff, U+1f508-1f514, U+1f516-1f517, U+1f526-1f529, U+1f52c-1f52e, U+1f550-1f567, U+1f56f-1f570, U+1f576, U+1f587, U+1f58a-1f58d, U+1f5a5, U+1f5a8, U+1f5b1-1f5b2, U+1f5c2-1f5c4, U+1f5d1-1f5d3, U+1f5dc-1f5de, U+1f5e1, U+1f5f3, U+1f6aa, U+1f6ac, U+1f6bd, U+1f6bf, U+1f6c1, U+1f6cb, U+1f6cd-1f6cf, U+1f6d2, U+1f6e0-1f6e1, U+1f6f0, U+1f97b-1f97f, U+1f9af, U+1f9ba, U+1f9e2-1f9e6, U+1f9ea-1f9ec, U+1f9ee-1f9f4, U+1f9f7-1f9ff, U+1fa71-1fa74, U+1fa79-1fa7b, U+1fa86, U+1fa8e-1fa8f, U+1fa91-1fa93, U+1fa96, U+1fa99-1faa0, U+1faa2-1faa7, U+1faaa-1faae; }
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-4.woff2') format('woff2'); unicode-range: U+265f, U+26bd-26be, U+26f3, U+26f8, U+fe0f, U+1f004, U+1f0cf, U+1f380-1f384, U+1f386-1f38b, U+1f38d-1f391, U+1f396-1f397, U+1f399-1f39b, U+1f39e-1f39f, U+1f3a3-1f3a5, U+1f3a7-1f3a9, U+1f3ab-1f3b4, U+1f3b7-1f3bb, U+1f3bd-1f3c0, U+1f3c5-1f3c6, U+1f3c8-1f3c9, U+1f3cf-1f3d3, U+1f3f8-1f3f9, U+1f47e, U+1f4e2, U+1f4f7-1f4fd, U+1f52b, U+1f579, U+1f58c-1f58d, U+1f5bc, U+1f6f7, U+1f6f9, U+1f6fc, U+1f93f, U+1f941, U+1f945, U+1f947-1f94f, U+1f9e7-1f9e9, U+1f9f5-1f9f6, U+1fa70-1fa71, U+1fa80-1fa81, U+1fa83-1fa85, U+1fa87-1fa8a, U+1fa94-1fa95, U+1fa97-1fa98, U+1faa1, U+1faa9, U+1fadf; }
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-5.woff2') format('woff2'); unicode-range: U+2693, U+26e9-26ea, U+26f1-26f2, U+26f4-26f5, U+26fa, U+26fd, U+2708, U+fe0f, U+1f301, U+1f303, U+1f306-1f307, U+1f309, U+1f310, U+1f3a0-1f3a2, U+1f3aa, U+1f3cd-1f3ce, U+1f3d5, U+1f3d7-1f3db, U+1f3df-1f3e6, U+1f3e8-1f3ed, U+1f3ef-1f3f0, U+1f488, U+1f492, U+1f4ba, U+1f54b-1f54d, U+1f5fa-1f5ff, U+1f680-1f6a2, U+1f6a4-1f6a8, U+1f6b2, U+1f6d1, U+1f6d5-1f6d6, U+1f6dd-1f6df, U+1f6e2-1f6e5, U+1f6e9, U+1f6eb-1f6ec, U+1f6f3-1f6f6, U+1f6f8, U+1f6fa-1f6fb, U+1f9bc-1f9bd, U+1f9ed, U+1f9f3, U+1fa7c; }
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-6.woff2') format('woff2'); unicode-range: U+200d, U+2615, U+fe0f, U+1f32d-1f330, U+1f336, U+1f33d, U+1f344-1f37f, U+1f382, U+1f52a, U+1f7e9, U+1f7eb, U+1f942-1f944, U+1f950-1f96f, U+1f99e, U+1f9aa, U+1f9c0-1f9cb, U+1fad0-1fadc; }
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-7.woff2') format('woff2'); unicode-range: U+200d, U+2600-2601, U+2603-2604, U+2614, U+2618, U+26a1, U+26c4-26c5, U+26c8, U+26f0, U+2728, U+2744, U+2b1b, U+2b50, U+fe0f, U+1f300, U+1f304-1f305, U+1f308, U+1f30a-1f30f, U+1f311-1f321, U+1f324-1f32c, U+1f331-1f335, U+1f337-1f33c, U+1f33e-1f344, U+1f3d4, U+1f3d6, U+1f3dc-1f3de, U+1f3f5, U+1f400-1f43f, U+1f490, U+1f4a7, U+1f4ae, U+1f525, U+1f54a, U+1f573, U+1f577-1f578, U+1f648-1f64a, U+1f6d8, U+1f940, U+1f980-1f9ae, U+1f9ba, U+1fa90, U+1faa8, U+1fab0-1fabf, U+1facd-1facf, U+1fae7; }
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-8.woff2') format('woff2'); unicode-range: U+200d, U+2640, U+2642, U+2695-2696, U+26f7, U+26f9, U+2708, U+2764, U+27a1, U+fe0f, U+1f33e, U+1f373, U+1f37c, U+1f384-1f385, U+1f393, U+1f3a4, U+1f3a8, U+1f3c2-1f3c4, U+1f3c7, U+1f3ca-1f3cc, U+1f3eb, U+1f3ed, U+1f3fb-1f3ff, U+1f430, U+1f466-1f469, U+1f46b-1f478, U+1f47c, U+1f481-1f483, U+1f486-1f487, U+1f48b, U+1f48f, U+1f491, U+1f4bb-1f4bc, U+1f527, U+1f52c, U+1f574-1f575, U+1f57a, U+1f645-1f647, U+1f64b, U+1f64d-1f64e, U+1f680, U+1f692, U+1f6a3, U+1f6b4-1f6b6, U+1f6c0, U+1f6cc, U+1f91d, U+1f926, U+1f930-1f931, U+1f934-1f93a, U+1f93c-1f93e, U+1f977, U+1f9af-1f9b3, U+1f9b8-1f9b9, U+1f9bc-1f9bd, U+1f9cc-1f9cf, U+1f9d1-1f9df, U+1fa70, U+1fa82, U+1fac3-1fac5, U+1fac8, U+1faef; }
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-9.woff2') format('woff2'); unicode-range: U+200d, U+2194-2195, U+2603, U+261d, U+2620, U+2639-263a, U+2665, U+26a1, U+26c4, U+270a-270d, U+2728, U+2763-2764, U+2b50, U+fe0f, U+1f31a-1f31f, U+1f32b, U+1f389-1f38a, U+1f3fb-1f3ff, U+1f440-1f450, U+1f463-1f465, U+1f479-1f47b, U+1f47d-1f480, U+1f485, U+1f48b-1f48c, U+1f493-1f49f, U+1f4a2, U+1f4a4-1f4a6, U+1f4a8-1f4ab, U+1f4af, U+1f525, U+1f573, U+1f590, U+1f595-1f596, U+1f5a4, U+1f5e3, U+1f600-1f644, U+1f648-1f64a, U+1f64c, U+1f64f, U+1f90c-1f925, U+1f927-1f92f, U+1f932-1f933, U+1f970-1f976, U+1f978-1f97a, U+1f9a0, U+1f9b4-1f9b7, U+1f9bb, U+1f9be-1f9bf, U+1f9d0, U+1f9e0-1f9e1, U+1fa75-1fa79, U+1fac0-1fac2, U+1fac6, U+1fae0-1fae6, U+1fae8-1faea, U+1faef-1fafa; }
+@font-face { font-family: 'Noto Color Emoji'; font-weight: 400; font-display: swap; src: url('../fonts/NotoColorEmoji-10.woff2') format('woff2'); unicode-range: U+1f6d9, U+1fa8b-1fa8d, U+1facc, U+1fadd, U+1faeb; }
+
+/* Общая оболочка Posta: студия и приложение — один продукт. Токены, левое меню, шапка, панели, кнопки. */
+
+:root {
+  --bg: #090b14; --bg2: #0e1120; --panel: #121527; --panel2: #171b31; --line: rgba(160, 170, 230, .12);
+  --text: #eef0fb; --muted: #8b90b0; --accent: #7c5cff; --accent2: #c86bff; --cyan: #4fd1ff; --ok: #3ddc97; --bad: #ff5a7a;
+  --grad: linear-gradient(90deg, #4fd1ff, #7c5cff 45%, #e06bff);
+  /* студия: город и тепловая карта */
+  --line2: rgba(160, 170, 230, .24); --panel3: #1d2140; --faint: #6c7194; --warm: #ffb84d;
+  --heat0: #1c2040; --heat1: #33307a; --heat2: #4a3bb8; --heat3: #6c50f0; --heat4: #a58bff;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 Rubik, system-ui, sans-serif; }
+a { color: inherit; text-decoration: none; }
+button, input, select { font: inherit; color: inherit; }
+.muted { color: var(--muted); }
+
+.studio { display: grid; grid-template-columns: 250px minmax(0, 1fr) 300px; min-height: 100vh; }
+
+/* Левое меню */
+.side { background: var(--bg2); border-right: 1px solid var(--line); padding: 20px 14px; display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh; overflow: auto; }
+.brand { display: flex; gap: 12px; align-items: center; padding: 4px 8px 18px; }
+.brand-mark { width: 30px; height: 30px; border-radius: 9px; background: var(--grad); transform: rotate(45deg) scale(.82); box-shadow: 0 0 24px rgba(124, 92, 255, .6); }
+.brand b { display: block; font-size: 18px; }
+.brand small, .side h4 { color: var(--muted); }
+.side h4 { margin: 18px 10px 6px; font-size: 13px; font-weight: 500; }
+.side-nav a, .side-nav .tab-btn, .side-list li { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 10px; cursor: pointer; }
+.side-nav a i, .side-nav .tab-btn i, .side-list li i { width: 22px; text-align: center; font-style: normal; color: var(--muted); font-size: 13px; }
+.side-nav .tab-btn { width: 100%; border: 0; background: none; text-align: left; }
+.side-nav a:hover, .side-nav .tab-btn:hover, .side-list li:hover { background: rgba(255, 255, 255, .04); }
+.side-nav a.is-active, .side-nav .tab-btn.active, .side-list li.is-active { background: linear-gradient(90deg, rgba(124, 92, 255, .35), rgba(124, 92, 255, .08)); }
+.side-nav em, .side-list em { margin-left: auto; font-style: normal; font-size: 11px; padding: 1px 7px; border-radius: 8px; background: rgba(255, 255, 255, .07); color: var(--muted); }
+.side-nav a.is-active em { background: var(--accent); color: #fff; }
+.side-nav em:empty { display: none; }
+.side-list { list-style: none; margin: 0; padding: 0; }
+.profile { margin-top: auto; display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.profile b { display: block; }
+.profile small { color: var(--muted); }
+.profile i { margin-left: auto; color: var(--muted); font-style: normal; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--grad); font-weight: 700; }
+
+/* Центр */
+.main { padding: 16px 22px 40px; min-width: 0; }
+.top { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; }
+.search { flex: 1; display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; max-width: 560px; }
+.search input { flex: 1; background: none; border: 0; outline: none; }
+.search kbd { color: var(--muted); font-size: 12px; border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; }
+.model-pill { margin-left: auto; display: flex; gap: 10px; align-items: center; padding: 8px 16px 8px 8px; border-radius: 16px; background: var(--panel); border: 1px solid rgba(124, 92, 255, .5); box-shadow: 0 0 22px rgba(124, 92, 255, .25); }
+.model-pill b { display: block; font-size: 13px; }
+.model-pill small { color: var(--muted); font-size: 11px; }
+.orb { width: 32px; height: 32px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff, #4fd1ff 30%, #7c5cff 60%, #e06bff); }
+.model-pill.is-busy .orb { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(.85); filter: brightness(1.4); } }
+
+.cta { display: inline-block; border: 0; cursor: pointer; padding: 11px 18px; border-radius: 14px; font-weight: 600; background: linear-gradient(90deg, #7c5cff, #c86bff); box-shadow: 0 8px 26px rgba(124, 92, 255, .45); }
+.cta:disabled { cursor: default; opacity: .65; box-shadow: none; }
+.ghost { padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255, 255, 255, .03); }
+.ghost:hover { border-color: rgba(124, 92, 255, .5); }
+
+.chips { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+.chips button { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 8px 14px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.chips button em { font-style: normal; color: var(--muted); font-size: 11px; }
+.chips button.is-active { background: linear-gradient(90deg, #7c5cff, #b06bff); border-color: transparent; }
+.chips button.is-active em { color: #fff; }
+
+.panel { padding: 16px 16px 30px 0; display: flex; flex-direction: column; gap: 16px; }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+.box h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+.box-head { display: flex; gap: 12px; align-items: center; }
+.box-head b { display: block; }
+.box-head small { color: var(--muted); }
+.ai-badge { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 12px; }
+.ai-phase { margin: 16px 0 10px; font-weight: 600; font-size: 15px; }
+.bar { height: 6px; border-radius: 4px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.bar span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #7c5cff, #e06bff); transition: width .4s; }
+.bar-pct { float: right; font-size: 12px; margin-top: 4px; }
+.steps { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 9px; }
+.steps li { display: flex; gap: 10px; align-items: center; color: var(--muted); }
+.steps li::before { content: ''; width: 16px; height: 16px; border-radius: 5px; border: 1px solid var(--line); flex: none; }
+.steps li.done { color: var(--text); }
+.steps li.done::before { background: var(--accent); border-color: var(--accent); }
+.steps li.now { color: var(--text); }
+.steps li.now::before { border-color: var(--accent); box-shadow: inset 0 0 0 4px var(--panel), inset 0 0 0 8px var(--accent); }
+.action { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; padding: 12px; margin-bottom: 8px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel2); cursor: pointer; }
+.action:hover { border-color: rgba(124, 92, 255, .5); }
+.action i { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-style: normal; background: rgba(124, 92, 255, .18); }
+.action b { display: block; font-weight: 500; }
+.action small { color: var(--muted); font-size: 11px; }
+.action em { margin-left: auto; font-style: normal; color: var(--muted); }
+.activity { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.activity li { display: flex; gap: 12px; align-items: center; }
+.activity li i { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-style: normal; flex: none; background: rgba(79, 209, 255, .14); color: var(--cyan); }
+.activity li.ok i { background: rgba(61, 220, 151, .14); color: var(--ok); }
+.activity li.bad i { background: rgba(255, 90, 122, .14); color: var(--bad); }
+.activity b { display: block; font-weight: 500; }
+.activity small { color: var(--muted); font-size: 11px; display: block; max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.activity a { margin-left: auto; color: var(--muted); }
+
+/* Приложение: меню слева, без правой панели; на узком экране — полоса сверху */
+.studio.is-app { grid-template-columns: 250px minmax(0, 1fr); }
+@media (max-width: 760px) { .studio.is-app { grid-template-columns: 1fr; } }
+
+/* Адаптив оболочки */
+@media (max-width: 1200px) { .studio { grid-template-columns: 220px minmax(0, 1fr); } .panel { grid-column: 2; padding: 0 22px 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); } }
+@media (max-width: 760px) {
+  .studio { grid-template-columns: 1fr; }
+  .side { position: sticky; z-index: 5; height: auto; flex-direction: row; align-items: center; gap: 4px; padding: 8px 10px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+  .side .brand { padding: 0 6px 0 2px; }
+  .side .brand > span:last-child, .side h4, .side-list, .profile { display: none; }
+  .side-nav { display: flex; gap: 2px; }
+  .side-nav a, .side-nav .tab-btn { padding: 8px 10px; gap: 6px; white-space: nowrap; }
+  .side-nav a i, .side-nav .tab-btn i { width: auto; }
+  .panel { grid-column: 1; padding: 0 16px 30px; }
+  .main { padding: 14px 16px 24px; }
+  .model-pill { display: none; }
+}

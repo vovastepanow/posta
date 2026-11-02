@@ -1,23 +1,20 @@
 # Секреты
+posta.env
 config.local.php
+secret.key
 secret.key.php
-# Данные: пользователи, каталог, кэши, медиа, БД (создаются приложением)
+# Сборка
+/bin/
+/posta
+# Данные (создаются приложением)
 users/
 media_cache/
-data/*.sqlite*
-*.json
-!package.json
-# Блокировки, журналы, временные файлы, байт-код Python
-*.lock
+data/
 *.log
-*.backup
+*.lock
 *.bak
-.posta-*
-__pycache__/
-*.pyc
-*.session
-# Профили Chrome (куки), кэш превью, pid парсера, yt-dlp (скачивает tools/update-yt-dlp.sh)
-data/chrome-*/
-data/thumbs/
-/pid
+*.backup
+# Внешние программы (tools/update-tools.sh)
 tools/bin/yt-dlp
+tools/bin/deno
+tools/bin/YT_DLP_VERSION

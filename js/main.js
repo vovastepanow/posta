@@ -1,11 +1,11 @@
 // main.js — точка входа (ES-модуль, без сборки): вкладки, панель модели, демо-режим.
-import { $, DEBUG_MODE, api, el, hide, initializeCore, log, show, startTabSession, watchParser } from './core.js';
+import { $, DEBUG_MODE, api, el, hide, initializeCore, log, show, startTabSession, switchTab, watchParser } from './core.js';
 import { initializeImageViewer } from './viewer.js';
 import { initializeContentTab, loadCurrentItem } from './content.js';
 import { clearDiscoveredSource, initializeSourceTab } from './sources.js';
 import { consumeReferralLink, consumeVkRedirectResult, initializeAccountTab, openAccountSection, openNewItemEditor } from './account.js';
 import { initializeTabs } from './tabs.js';
-import { initializeTheme } from './theme.js';
+import { showPlan, showProfile } from './profile.js';
 import { initializeRadarTab } from './radar.js';
 import { initializeCalendarTab } from './calendar.js';
 
@@ -80,7 +80,8 @@ initializeContentTab({ onAddItem: openNewItemEditor });
 initializeSourceTab();
 initializeAccountTab({ onDatabasesReset: loadCurrentItem });
 initializeTabs();
-initializeTheme();
+api('account_info').then(showProfile).catch(() => {});
+api('billing_info').then(showPlan).catch(() => {});
 initializeRadarTab();
 try { initializeCalendarTab(); } catch (error) { log(`Календарь не запущен: ${error.message}`); }   // вкладка не должна ронять запуск всего приложения
 $('model-panel').addEventListener('toggle', refreshModel);
@@ -91,6 +92,11 @@ initializeDebugMode();
 log('Приложение запущено. Загружаю пул контента.');
 if (consumeVkRedirectResult()) openAccountSection('social');
 await startTabSession();   // сначала сессия: запрос пула запускает парсер, привязанный к этой вкладке
+// Хеш-ссылки открывают нужную вкладку на единой странице приложения.
+const HASH_TABS = { home: 'home-tab', content: 'content-tab', proposals: 'proposals-tab', calendar: 'calendar-tab', sources: 'source-tab', account: 'account-tab' };
+const openHashTab = () => { const tab = HASH_TABS[location.hash.slice(1)]; if (tab) switchTab(tab); };
+addEventListener('hashchange', openHashTab);
+openHashTab();
 consumeReferralLink();   // после первого запроса: у браузера уже есть кука, иначе два запроса без неё заведут двух пользователей
 const first = loadCurrentItem();
 watchParser();

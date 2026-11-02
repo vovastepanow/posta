@@ -1,0 +1,27 @@
+{
+  "telegram_channels": [
+    {"id": "gorodad", "name": "Город", "topics": ["Города"]},
+    {"id": "memes_a", "name": "Мемы А", "topics": ["Мемы"]}
+  ],
+  "vk_publics": [],
+  "rss_feeds": [],
+  "ok_groups": [],
+  "tiktok_accounts": [],
+  "source_votes": [
+    {"source_id": "telegram:memes_b", "platform": "Telegram", "name": "Мемы Б", "vote": "reject", "topic": "Мемы", "reason": "off_topic"},
+    {"source_id": "telegram:memes_c", "platform": "Telegram", "name": "Мемы В", "vote": "maybe", "topic": "Мемы"},
+    {"name": "без ключа", "platform": "Telegram", "vote": "approve", "topic": "Мемы"},
+    {"source_id": "telegram:gorodad", "platform": "Telegram", "name": "Город", "vote": "approve", "topic": "Города"}
+  ],
+  "source_suggestions": [
+    {"source_id": "telegram:memes_d", "platform": "Telegram", "id": "memes_d", "name": "Мемы Г", "score": 62, "topic": "Мемы", "timestamp": 1790000000, "reason": "оценка 62%"}
+  ],
+  "discovery": {
+    "checked_at": {
+      "мемы|telegram:memes_e": 1790000100,
+      "telegram:memes_b": 1790000200,
+      "мемы|telegram:memes_a": 1790000300,
+      "|telegram:x": 1790000400
+    }
+  }
+}

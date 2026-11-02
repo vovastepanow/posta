@@ -1,0 +1,8 @@
+{
+  "cases": [
+    {"name": "живой оригинальный канал", "in": {"view_rate": 0.35, "view_median": 0.2, "last_post_age_days": 0.1, "per_week": 20, "ad_share": 0, "link_share": 0.05, "has_posts": true, "taste": 80}, "min": 75},
+    {"name": "агрегатор с рекламой", "in": {"view_rate": 0.05, "view_median": 0.2, "last_post_age_days": 0.1, "per_week": 300, "ad_share": 0.45, "link_share": 0.6, "has_posts": true, "taste": 70}, "max": 40},
+    {"name": "мёртвый канал", "in": {"view_rate": 0.02, "view_median": 0.2, "last_post_age_days": 365, "per_week": 0.2, "ad_share": 0, "link_share": 0, "has_posts": true}, "max": 40},
+    {"name": "перезаливщик (одни ссылки)", "in": {"view_rate": 0.1, "view_median": 0.2, "last_post_age_days": 0.5, "per_week": 15, "ad_share": 0, "link_share": 0.9, "has_posts": true}, "max": 55}
+  ]
+}

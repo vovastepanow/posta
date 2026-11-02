@@ -8,20 +8,53 @@
 <link rel="icon" href="img/posta-favicon-16.png" sizes="16x16" type="image/png">
 <link rel="icon" href="img/posta-favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="img/posta-favicon-180.png">
-<meta name="theme-color" content="#FFF4D6">
-<script>try{var t=localStorage.getItem('postaTheme');if(t!=='day'&&t!=='night'){var h=new Date().getHours();t=(h>=19||h<7)?'night':'day'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='day'}</script>
+<meta name="theme-color" content="#f5f1e6">
 <link rel="preload" href="fonts/Rubik-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@700;800;900&display=swap">
+<link rel="stylesheet" href="css/shell.css?v=warm-paper-1">
+<link rel="stylesheet" href="css/app.css?v=warm-paper-1">
+<link rel="stylesheet" href="css/studio.css?v=warm-paper-1">
+<script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
 <script type="module" src="js/main.js"></script>
+<script type="module" src="js/studio.js"></script>
 <script>setTimeout(() => document.getElementById('app-loading')?.classList.add('is-done'), 20000);</script>
 </head>
 <body>
-<div id="app-loading" class="app-loading" role="status" aria-label="Загрузка приложения"><span class="spinner spinner-lg"></span><span class="app-loading-text">Эфир начинается…</span></div>
-<div class="air-ticker" aria-hidden="true">
-  <span class="air-ticker-tag air-day">Дневной выпуск</span><span class="air-ticker-tag air-night">● Вечерний эфир</span>
-  <span class="air-ticker-text air-day">Тренд живёт пару часов — ловим его за вас ★ Звоните прямо сейчас!* ★ *звонить не нужно</span>
-  <span class="air-ticker-text air-night">Пока вы отдыхаете — подбор работает ★ Не переключайтесь!</span>
-</div>
+<div id="app-loading" class="app-loading" role="status" aria-label="Загрузка приложения"><span class="spinner spinner-lg"></span><span class="app-loading-text">Загрузка…</span></div>
+<div class="studio is-app">
+  <aside class="side">
+    <a class="brand" href="#home">
+      <span class="brand-logo" aria-label="Posta">posta<sup>,–</sup></span>
+    </a>
+    <nav class="side-nav" role="tablist" aria-label="Вкладки">
+      <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="home-tab"><i>⌂</i>Главная</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="content-tab"><i>✦</i>Подбор<em id="nav-pool"></em></button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="proposals-tab"><i>▣</i>Предложка<em id="nav-proposals"></em></button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="calendar-tab"><i>▦</i>Календарь</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="source-tab"><i>⟲</i>Источники</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab"><i>❖</i>Дерево</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="test-tab"><i>◎</i>Тест ИИ</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="account-tab"><i>⚙</i>Личный кабинет</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="admin-tab" hidden><i>★</i>Админка</button>
+    </nav>
+    <h4>Источники</h4>
+    <ul id="side-sources" class="side-list"><li class="muted">Загрузка…</li></ul>
+    <h4>Фильтры</h4>
+    <ul id="side-filters" class="side-list"></ul>
+    <a class="profile" href="#account">
+      <span class="avatar" id="profile-avatar">P</span>
+      <span><b id="profile-name">Владелец</b><small id="profile-plan">Тариф</small></span>
+      <i>›</i>
+    </a>
+  </aside>
+
+  <main class="main app-main">
+    <header class="top app-top">
+      <div id="topic-tabs" class="topic-switch"></div>
+      <button id="console-mini" class="console-mini model-pill" type="button" aria-label="Журнал" title="Журнал"><span class="console-indicator" aria-hidden="true"></span><span class="console-mini-title">Сводка</span><span id="console-mini-status" class="console-mini-status"></span><span class="console-mini-open" aria-hidden="true">⌄</span></button>
+    </header>
 
 <section id="activity-console" class="activity-console" aria-label="Журнал приложения">
   <div class="activity-console-header"><span class="console-indicator"></span><span class="console-title">Сводка</span><span id="activity-console-status">ничего не делается</span><button id="debug-toggle" class="debug-toggle" type="button" aria-pressed="false">🐞 Демо</button><button id="activity-console-follow" class="activity-console-follow" type="button" hidden>К концу ↓</button><button id="console-toggle" class="console-toggle" type="button" aria-expanded="true" aria-label="Свернуть журнал" title="Свернуть журнал">—</button></div>
@@ -42,44 +75,93 @@
   </details>
 </section>
 
+
 <div id="tab-inactive" class="tab-inactive-bar" role="alert" hidden>
   <span>Приложение открыто в другой вкладке: поиск и обновления идут там, эта вкладка неактивна.</span>
   <button id="tab-inactive-reload" type="button">Работать здесь</button>
 </div>
 
-<div class="app-top">
-  <header class="app-brand">
-    <span class="app-brand-plate" aria-label="Postä">postä</span>
-  </header>
-  <nav class="tabs" role="tablist">
-    <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="content-tab">Подбор</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="proposals-tab">Предложка</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="calendar-tab">Календарь</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="source-tab">Источники</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab">Дерево</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="test-tab">Тест ИИ</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="account-tab">Личный кабинет</button>
-    <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="admin-tab" hidden>Админка</button>
-  </nav>
-  <div class="app-top-end">
-    <div id="topic-tabs" class="topic-switch"></div>
-    <button id="console-mini" class="console-mini" type="button" aria-label="Журнал" title="Журнал"><span class="console-indicator" aria-hidden="true"></span><span class="console-mini-title">Сводка</span><span id="console-mini-status" class="console-mini-status"></span><span class="console-mini-open" aria-hidden="true">⌄</span></button>
-    <div class="theme-switch" role="group" aria-label="Оформление">
-      <button type="button" data-theme-set="day" aria-pressed="true">День</button>
-      <button type="button" data-theme-set="night" aria-pressed="false">Эфир</button>
-    </div>
-  </div>
-</div>
-<main class="app-main">
 
 <div id="debug-banner" class="debug-banner" hidden>
   <span>ДЕМО-РЕЖИМ: данные хранятся только в этой сессии и не сохраняются в файлы проекта</span>
   <button id="debug-reset-button" type="button">Сбросить демо</button>
 </div>
 
-<!-- Панель управления: справа на всех вкладках -->
-<!-- ПОДБОР -->
-<div id="content-tab" class="view-panel active">
+<!-- Главная: сводка студии и быстрые действия -->
+<div id="home-tab" class="view-panel wide-panel home-tab active">
+  <div class="studio-dashboard">
+    <div class="studio-home-main">
+    <header class="top">
+      <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Поиск по тексту, хэштегам и источникам"><kbd>/</kbd></label>
+      <div class="model-pill" id="model-pill"><span class="orb" aria-hidden="true"></span><span><b id="pill-model">Модели</b><small id="pill-state">—</small></span></div>
+    </header>
+
+    <section class="window" aria-label="Смотровое окно">
+      <div class="wtext">
+        <p class="kicker" id="kicker"><span class="onair" id="live-dot"></span><span id="live-label">Сборщик отдыхает</span></p>
+        <h1>Подбор: <em id="win-topic">…</em></h1>
+        <p class="phase" id="ai-phase">Загрузка…</p>
+        <div class="stats">
+          <div><b id="stat-pool">—</b><small>ждут решения</small></div>
+          <div><b id="stat-added">—</b><small>за проход</small></div>
+          <div><b id="stat-hour">—</b><small>за час</small></div>
+        </div>
+        <button class="cta" id="act-search" type="button">✦ Найти контент</button>
+      </div>
+      <div class="jcol">
+        <div class="jhead"><span>журнал</span><span class="jfilter" id="jfilter" hidden><span id="jfilterName"></span><button type="button" id="jfilterOff" aria-label="Сбросить фильтр">✕</button></span></div>
+        <div class="jbody"><div class="journal" id="journal" role="log" aria-live="off"></div></div>
+      </div>
+      <div class="citycol">
+        <div class="cityWrap">
+          <canvas class="sky" id="sky" aria-label="3D-город: год постов, один дом — один день. Тяни — крутить, правой — двигать, колесо — приблизить, двойной клик — сброс" title="Тяни — крутить · правой — двигать · колесо — к курсору · двойной клик — сброс"></canvas>
+          <div class="cityTip" id="cityTip" hidden></div>
+          <p class="glfail" id="glfail" hidden>3D недоступно в этом браузере</p>
+        </div>
+        <div class="heatbox">
+          <div class="heat-top"><span id="heatTip">0 в пул за год</span><span class="hright"><span class="streak">🔥 <b id="heatStreak">0</b> дн.</span><span class="datasrc" role="group" aria-label="Что считать"><button type="button" data-src="pool" aria-pressed="true">пул</button><button type="button" data-src="pub" aria-pressed="false">опубликовано</button></span></span></div>
+          <div class="heat" id="heat"></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-head"><h2>Мой контент</h2><small>понравившиеся посты — готовы к публикации</small></div>
+    <div class="toolbar">
+      <div class="chips" id="chips"></div>
+      <select id="sort"><option value="new">Сначала новые</option><option value="rel">По оценке модели</option></select>
+    </div>
+    <div id="grid" class="grid"><p class="muted">Загрузка…</p></div>
+
+    </div>
+    <aside class="panel">
+    <section class="box">
+      <h3 id="pipeTitle">Конвейер</h3>
+      <div class="pipeHead"><b id="pipeNow">—</b><small id="pipePct"></small></div>
+      <div class="pbar"><i id="pbar"></i></div>
+      <div class="pipe" id="pipe"></div>
+    </section>
+    <section class="box">
+      <h3>Только что отобрано</h3>
+      <ul class="feed" id="feed"><li class="muted">Загрузка…</li></ul>
+    </section>
+    <section class="box">
+      <h3>Быстрые действия</h3>
+      <a class="action" href="index.html#content"><i>✦</i><span><b>Разобрать подборку</b><small>Лайк — в «Мой контент», дизлайк учит модель</small></span><em>›</em></a>
+      <a class="action" href="index.html#calendar"><i>▦</i><span><b>Запланировать</b><small>Календарь и расписание каналов</small></span><em>›</em></a>
+      <button class="action" id="act-discover" type="button"><i>⟲</i><span><b>Подобрать источники</b><small>Новые каналы и паблики по теме</small></span><em>›</em></button>
+      <p class="muted" id="act-note" role="status"></p>
+    </section>
+
+    </aside>
+  </div>
+</div>
+<svg class="fakecur" id="fakecur" viewBox="0 0 22 22" hidden aria-hidden="true">
+  <circle cx="11" cy="11" r="8" fill="rgba(124,92,255,.25)" stroke="#eef0fb" stroke-width="1.5"></circle>
+  <path d="M4 11h-3M21 11h-3M11 4V1M11 21v-3" stroke="#eef0fb" stroke-width="1.5"></path>
+  <circle cx="11" cy="11" r="1.6" fill="#eef0fb"></circle>
+</svg>
+<dialog class="preview" id="preview"></dialog>
+<div id="content-tab" class="view-panel">
   <form id="topic-form" class="topic-form">
     <label for="topic-input">Тема поиска</label>
     <div class="topic-row">
@@ -105,7 +187,7 @@
     </div>
     <div id="query-field" class="topic2-field query-field">
       <span class="topic2-plus" aria-hidden="true">🔍</span>
-      <input id="query-input" type="text" maxlength="60" placeholder="уточнение: город, команда, персонаж, бренд…" autocomplete="off" readonly aria-label="Уточнение: подбор только про это">
+      <input id="query-input" type="text" maxlength="80" placeholder="что найти: событие, персонаж, бренд, город…" autocomplete="off" readonly aria-label="Поиск: что найти, подбор только про это">
     </div>
     <div id="topic-notice" class="topic-notice" role="status" hidden><span id="topic-notice-text"></span><button id="topic-force-new" class="topic-link" type="button">Нет, это другая тема</button></div>
     <div class="filter-row" role="group" aria-label="Фильтры подбора">
@@ -142,6 +224,7 @@
         <div class="card-head">
           <div id="item-source" class="source-text">Источник: —</div>
           <div id="item-date" class="source-text" hidden></div>
+          <div id="item-geo" class="source-text" hidden></div>
         </div>
         <div class="card-chips">
           <div id="item-engagement" class="engagement-row" aria-label="Активность у источника" hidden></div>
@@ -375,6 +458,21 @@
     <div id="topic-sources-status" class="proposals-status" role="status"></div>
     <div id="topic-sources-grid" class="proposals-grid topic-sources-grid"></div>
   </section>
+
+  <section class="topic-sources registry" aria-labelledby="registry-title">
+    <div class="proposals-toolbar">
+      <h2 id="registry-title" class="section-title">Проверенные источники</h2>
+      <input id="registry-search" type="search" placeholder="Поиск по названию" aria-label="Поиск по названию">
+      <select id="registry-status" aria-label="Статус"><option value="">Все статусы</option></select>
+      <select id="registry-platform" aria-label="Площадка"><option value="">Все площадки</option></select>
+      <label class="registry-topic-toggle"><input id="registry-only-topic" type="checkbox"> только по этой теме</label>
+      <span id="registry-count" class="proposals-count"></span>
+      <button id="registry-refresh" class="refresh-button" type="button" aria-label="Обновить реестр">↻</button>
+    </div>
+    <div id="registry-counts" class="proposals-status"></div>
+    <div id="registry-status-line" class="proposals-status" role="status"></div>
+    <div id="registry-list" class="proposals-grid topic-sources-grid"></div>
+  </section>
 </div>
 
 <!-- ДЕРЕВО ТЕМ -->
@@ -478,6 +576,8 @@
 <div id="admin-tab" class="view-panel account-panel">
   <nav class="account-nav" aria-label="Разделы админки">
     <button type="button" data-admin-nav="control" class="is-active">Управление</button>
+    <button type="button" data-admin-nav="models">Модели</button>
+    <button type="button" data-admin-nav="behavior">Поведение</button>
     <button type="button" data-admin-nav="radar">Радар</button>
     <button type="button" data-admin-nav="databases">Базы данных</button>
     <button type="button" data-admin-nav="privacy">Куки и данные</button>
@@ -495,12 +595,6 @@
       <p id="admin-control-note" class="account-muted" role="status"></p>
     </div>
     <div class="account-card">
-      <h3>Модели</h3>
-      <label class="check-chip"><input id="admin-fast-only" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span id="admin-fast-only-label">Только быстрая модель</span></label>
-      <p class="account-muted">Все задачи модели — отбор постов, профили тем, автоподбор, подписи, радар — идут на маленькую быструю модель вместо основной. Быстрее, но отбор хуже. Действует на весь сервер.</p>
-      <p id="admin-models-state" class="account-muted" role="status"></p>
-    </div>
-    <div class="account-card">
       <h3>Украинский контент</h3>
       <label class="check-chip"><input id="admin-ua-on" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Фильтровать украинский контент</span></label>
       <p class="account-muted">Источники из Украины и посты на украинском не попадают в сбор, автоподбор, «Подбор», публикацию и Keep or Skip. Действует на весь сервер. Выключение ничего не удаляет — скрытое снова появится.</p>
@@ -511,6 +605,33 @@
       <h3>Заблокированные источники</h3>
       <div id="admin-ua-blocked" class="account-muted"></div>
       <p id="admin-ua-note" class="account-muted" role="status"></p>
+    </div>
+  </section>
+
+  <section class="admin-section" data-admin-section="models" hidden>
+    <div class="account-card">
+      <h3>Модели ИИ</h3>
+      <p class="account-muted">Где выполняется каждая задача: на своём компьютере (Ollama) или в OpenRouter. Резерв включается, когда основная модель не ответила, исчерпан лимит или бюджет. Платные модели не вызываются, пока дневной бюджет 0.</p>
+      <div id="admin-llm-presets" class="admin-action"></div>
+      <p id="admin-llm-preset-note" class="account-muted"></p>
+      <p id="admin-llm-state" class="account-muted" role="status"></p>
+      <label class="check-chip"><input id="admin-llm-fast-only" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Только быстрая локальная модель (слабая видеокарта, без облака)</span></label>
+      <label class="check-chip"><input id="admin-llm-free-only" type="checkbox" checked><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Показывать только бесплатные модели OpenRouter</span></label>
+      <div id="admin-llm-roles" class="llm-roles"></div>
+      <label><span>Дневной бюджет на платные модели, $</span><input id="admin-llm-budget" type="number" min="0" max="50" step="0.01"></label>
+      <label><span>Бесплатных запросов OpenRouter в сутки</span><input id="admin-llm-free-limit" type="number" min="0" max="100000"></label>
+      <div class="admin-action"><button id="admin-llm-save" class="primary-button" type="button">Сохранить модели</button></div>
+      <p id="admin-llm-note" class="account-muted" role="status"></p>
+    </div>
+  </section>
+
+  <section class="admin-section" data-admin-section="behavior" hidden>
+    <div class="account-card">
+      <h3>Поведение приложения</h3>
+      <p class="account-muted">Параметры действуют сразу для всех пользователей, без перезапуска. Изменённые подсвечены, их можно сбросить к значению по умолчанию.</p>
+      <div id="admin-tunables" class="tunables"></div>
+      <div class="admin-action"><button id="admin-tunables-save" class="primary-button" type="button">Сохранить параметры</button></div>
+      <p id="admin-tunables-note" class="account-muted" role="status"></p>
     </div>
   </section>
 
@@ -755,6 +876,7 @@
 
 </div>
 </main>
+</div>
 
 <div id="image-viewer" class="image-viewer" hidden>
   <div id="image-viewer-window" class="image-viewer-window" role="dialog" aria-modal="true" aria-labelledby="image-viewer-file">

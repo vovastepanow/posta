@@ -1,0 +1,4226 @@
+{
+    "current": "t8e6b3d4b",
+    "topics": [
+        {
+            "id": "t191a1b9b",
+            "key": "adult",
+            "nsfw": true,
+            "title": "Для взрослых 18+",
+            "scope": "broad",
+            "parent": null,
+            "path": "Для взрослых 18+",
+            "about": "Есть обнажённое тело или секс.",
+            "aliases": [
+                "nsfw",
+                "взрослое"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Эротика",
+                "Порно",
+                "Фап контент",
+                "Хентай",
+                "Прочее 18+",
+                "Пошлый юмор"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t5ba23c72",
+            "key": "adult.erotic",
+            "nsfw": true,
+            "title": "Эротика",
+            "scope": "private",
+            "parent": {
+                "id": "t191a1b9b",
+                "title": "Для взрослых 18+"
+            },
+            "path": "Для взрослых 18+ › Эротика",
+            "about": "Бельё, купальники, откровенные позы, гениталии не видны.",
+            "aliases": [
+                "ню",
+                "эротические фото"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "эротика",
+                "белье",
+                "купальник",
+                "соблазн",
+                "чувственность",
+                "будуар"
+            ]
+        },
+        {
+            "id": "tcf1e4489",
+            "key": "adult.porn",
+            "nsfw": true,
+            "title": "Порно",
+            "scope": "private",
+            "parent": {
+                "id": "t191a1b9b",
+                "title": "Для взрослых 18+"
+            },
+            "path": "Для взрослых 18+ › Порно",
+            "about": "Реальные люди, видны гениталии или секс.",
+            "aliases": [
+                "порнуха",
+                "xxx"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "18плюс",
+                "взрослый_контент",
+                "интим",
+                "взрослое_видео",
+                "для_взрослых",
+                "фотосессия_18"
+            ]
+        },
+        {
+            "id": "t0fe5642e",
+            "key": "adult.fap",
+            "nsfw": true,
+            "title": "Фап контент",
+            "scope": "private",
+            "parent": {
+                "id": "t191a1b9b",
+                "title": "Для взрослых 18+"
+            },
+            "path": "Для взрослых 18+ › Фап контент",
+            "about": "Откровенные фото и видео для возбуждения.",
+            "aliases": [
+                "фап"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "откровенно",
+                "секси",
+                "горячо",
+                "вызывающе",
+                "глэм",
+                "страсть"
+            ]
+        },
+        {
+            "id": "t03357adf",
+            "key": "adult.hentai",
+            "nsfw": true,
+            "title": "Хентай",
+            "scope": "private",
+            "parent": {
+                "id": "t191a1b9b",
+                "title": "Для взрослых 18+"
+            },
+            "path": "Для взрослых 18+ › Хентай",
+            "about": "Рисованное порно, аниме и арт с сексом или обнажёнкой.",
+            "aliases": [
+                "rule34",
+                "хентай арт"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "хентай",
+                "арт_18",
+                "аниме_18",
+                "эроарт",
+                "рисованное_18",
+                "фанарт"
+            ]
+        },
+        {
+            "id": "t5c326f67",
+            "key": "adult.other",
+            "nsfw": true,
+            "title": "Прочее 18+",
+            "scope": "private",
+            "parent": {
+                "id": "t191a1b9b",
+                "title": "Для взрослых 18+"
+            },
+            "path": "Для взрослых 18+ › Прочее 18+",
+            "about": "Откровенное по теме 18+, что не подошло ни к одной другой теме ветки.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "tc073b5c7",
+            "key": "adult.lewd_humor",
+            "nsfw": true,
+            "title": "Пошлый юмор",
+            "scope": "private",
+            "parent": {
+                "id": "t191a1b9b",
+                "title": "Для взрослых 18+"
+            },
+            "path": "Для взрослых 18+ › Пошлый юмор",
+            "about": "Шутки и мемы про секс без обнажённого тела.",
+            "aliases": [
+                "пошлые мемы"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "пошлый_юмор",
+                "пошлятина",
+                "двусмысленно",
+                "намек",
+                "пикантно",
+                "пошлый_мем"
+            ]
+        },
+        {
+            "id": "t9aecbb70",
+            "key": "shock",
+            "nsfw": true,
+            "title": "Жесть",
+            "scope": "broad",
+            "parent": null,
+            "path": "Жесть",
+            "about": "Неприятно смотреть: насилие, кровь, смерть, страшное.",
+            "aliases": [
+                "треш",
+                "шок контент"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Насилие",
+                "Аварии и катастрофы",
+                "Крипота",
+                "Прочая жесть"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t3b926a5e",
+            "key": "shock.violence",
+            "nsfw": true,
+            "title": "Насилие",
+            "scope": "private",
+            "parent": {
+                "id": "t9aecbb70",
+                "title": "Жесть"
+            },
+            "path": "Жесть › Насилие",
+            "about": "Драки, кровь, травмы, оружие в действии.",
+            "aliases": [
+                "драки",
+                "кровь"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "драка",
+                "уличная_драка",
+                "махач",
+                "разборка",
+                "травма",
+                "оружие",
+                "кровь"
+            ]
+        },
+        {
+            "id": "t4ac73f24",
+            "key": "shock.crashes",
+            "nsfw": true,
+            "title": "Аварии и катастрофы",
+            "scope": "private",
+            "parent": {
+                "id": "t9aecbb70",
+                "title": "Жесть"
+            },
+            "path": "Жесть › Аварии и катастрофы",
+            "about": "ДТП, пожары, обрушения, стихийные бедствия.",
+            "aliases": [
+                "дтп",
+                "аварии"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "авария",
+                "дтп",
+                "пожар",
+                "обрушение",
+                "стихия",
+                "катастрофа"
+            ]
+        },
+        {
+            "id": "t377cee8f",
+            "key": "shock.creepy",
+            "nsfw": true,
+            "title": "Крипота",
+            "scope": "private",
+            "parent": {
+                "id": "t9aecbb70",
+                "title": "Жесть"
+            },
+            "path": "Жесть › Крипота",
+            "about": "Страшные картинки, мистика, жуткие истории.",
+            "aliases": [
+                "страшное",
+                "мистика",
+                "хоррор"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "крипота",
+                "мистика",
+                "жуть",
+                "призраки",
+                "страшные_истории",
+                "паранормальное"
+            ]
+        },
+        {
+            "id": "t23130001",
+            "key": "shock.other",
+            "nsfw": true,
+            "title": "Прочая жесть",
+            "scope": "private",
+            "parent": {
+                "id": "t9aecbb70",
+                "title": "Жесть"
+            },
+            "path": "Жесть › Прочая жесть",
+            "about": "Другое неприятное, что не подходит выше.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t911dcb32",
+            "key": "humor",
+            "nsfw": false,
+            "title": "Мемы и юмор",
+            "scope": "broad",
+            "parent": null,
+            "path": "Мемы и юмор",
+            "about": "Картинки и видео, сделанные, чтобы рассмешить.",
+            "aliases": [
+                "юмор",
+                "приколы",
+                "мемы"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Шутки и анекдоты",
+                "Неудачи",
+                "Абсурдный юмор",
+                "Чёрный юмор",
+                "Прочий юмор"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t68bc38af",
+            "key": "humor.jokes",
+            "nsfw": false,
+            "title": "Шутки и анекдоты",
+            "scope": "private",
+            "parent": {
+                "id": "t911dcb32",
+                "title": "Мемы и юмор"
+            },
+            "path": "Мемы и юмор › Шутки и анекдоты",
+            "about": "Смешной текст или смешная подпись: анекдот, шутка в подписи, которая смешна сама по себе. Не сюрреалистичное, не бессмысленное и не фейл.",
+            "aliases": [
+                "анекдоты",
+                "шутки"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "анекдот",
+                "шутка",
+                "жиза",
+                "ирония",
+                "капшен",
+                "зачет",
+                "текстовый_мем",
+                "смешная_переписка"
+            ]
+        },
+        {
+            "id": "t8911ff2c",
+            "key": "humor.fails",
+            "nsfw": false,
+            "title": "Неудачи",
+            "scope": "private",
+            "parent": {
+                "id": "t911dcb32",
+                "title": "Мемы и юмор"
+            },
+            "path": "Мемы и юмор › Неудачи",
+            "about": "Люди падают, что-то ломают, ошибаются, попадают в неловкую ситуацию. Не шутка с подписью и не бессмыслица.",
+            "aliases": [
+                "фейлы",
+                "фэйлы"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "фейл",
+                "кринж",
+                "эпик_фейл",
+                "неловкость",
+                "неуклюжесть",
+                "случайно_сломал",
+                "ну_такое_себе",
+                "фейл_дня",
+                "падение"
+            ]
+        },
+        {
+            "id": "t8e6b3d4b",
+            "key": "humor.absurd",
+            "nsfw": false,
+            "title": "Абсурдный юмор",
+            "scope": "private",
+            "parent": {
+                "id": "t911dcb32",
+                "title": "Мемы и юмор"
+            },
+            "path": "Мемы и юмор › Абсурдный юмор",
+            "about": "Сюрреалистичное и бессмысленное: шитпост, странный монтаж, смешно без понятной шутки. Мем с понятной шуткой сюда не относится.",
+            "aliases": [
+                "шитпост",
+                "абсурд",
+                "сюр",
+                "сюрреалистичный юмор",
+                "мемы без смысла"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "сюр",
+                "абсурд",
+                "бессмыслица",
+                "бред_сивой_кобылы",
+                "странный_монтаж",
+                "дичь",
+                "мемы_без_смысла"
+            ]
+        },
+        {
+            "id": "t213633a5",
+            "key": "humor.dark",
+            "nsfw": false,
+            "title": "Чёрный юмор",
+            "scope": "private",
+            "parent": {
+                "id": "t911dcb32",
+                "title": "Мемы и юмор"
+            },
+            "path": "Мемы и юмор › Чёрный юмор",
+            "about": "Шутки про смерть, болезни и трагедии, где чёрный юмор — сама шутка. Бессмысленное и сюрреалистичное без трагедии сюда не относится.",
+            "aliases": [
+                "черный юмор"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "черный_юмор",
+                "мрачный_юмор",
+                "висельный_юмор",
+                "похоронный_юмор",
+                "чернуха",
+                "dark_meme"
+            ]
+        },
+        {
+            "id": "t4baa1a5a",
+            "key": "humor.other",
+            "nsfw": false,
+            "title": "Прочий юмор",
+            "scope": "private",
+            "parent": {
+                "id": "t911dcb32",
+                "title": "Мемы и юмор"
+            },
+            "path": "Мемы и юмор › Прочий юмор",
+            "about": "Обычный смешной пост, который не подходит ни к шуткам, ни к фейлам, ни к абсурду, ни к чёрному юмору.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t3bbf37a7",
+            "key": "internet",
+            "nsfw": false,
+            "title": "Интернет-культура",
+            "scope": "broad",
+            "parent": null,
+            "path": "Интернет-культура",
+            "about": "Мемы, тренды и субкультура современного интернета.",
+            "aliases": [
+                "интернет",
+                "мемы интернета",
+                "интернет мемы"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Нижний интернет",
+                "Брейнрот",
+                "Бессмысленный шитпост",
+                "ИИ-слоп и нейромемы",
+                "Cursed-картинки",
+                "Лиминальные пространства",
+                "Аналоговый хоррор и ARG",
+                "Скибиди и мемы поколения альфа",
+                "Мем-персонажи",
+                "Копипасты и пасты",
+                "Эдиты и фанкамы",
+                "POV-ролики",
+                "Стримерская культура",
+                "Тренды и челленджи TikTok",
+                "Интернет-типажи",
+                "Интернет-драмы",
+                "Ностальгия по интернету 2007–2015",
+                "Прочая интернет-культура"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t3bc6ba96",
+            "key": "internet.lower",
+            "nsfw": false,
+            "title": "Нижний интернет",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Нижний интернет",
+            "about": "Шакальные, пережатые, нелепые картинки и видео; странное ради странного, низкое качество, «для своих».",
+            "aliases": [
+                "нижний интернет",
+                "шакал",
+                "шакальный контент",
+                "low internet"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "нижний_интернет",
+                "шакалы",
+                "пережатое",
+                "нелепое",
+                "лоуфай",
+                "для_своих"
+            ]
+        },
+        {
+            "id": "tb74b20b9",
+            "key": "internet.brainrot",
+            "nsfw": false,
+            "title": "Брейнрот",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Брейнрот",
+            "about": "Нейросетевые персонажи-гибриды (животное с предметом), абсурдные ролики и песни, итальянский брейнрот.",
+            "aliases": [
+                "брейнрот",
+                "итальянский брейнрот",
+                "brainrot",
+                "тралалеро"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "брейнрот",
+                "тралалеро_тралала",
+                "бомбардиро_крокодило",
+                "шимпанзини_бананини",
+                "итальянский_брейнрот",
+                "нейроперсонажи",
+                "абсурдная_песня"
+            ]
+        },
+        {
+            "id": "tc3fcef2f",
+            "key": "internet.shitpost",
+            "nsfw": false,
+            "title": "Бессмысленный шитпост",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Бессмысленный шитпост",
+            "about": "Бессмысленные посты и картинки ради абсурда, без задачи «быть смешным».",
+            "aliases": [
+                "shitpost",
+                "шитпостинг"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "шитпост",
+                "рандом",
+                "хаос",
+                "бессмысленно",
+                "мемы_ради_мемов",
+                "абсурд_без_причины"
+            ]
+        },
+        {
+            "id": "tb630ec7d",
+            "key": "internet.ai_slop",
+            "nsfw": false,
+            "title": "ИИ-слоп и нейромемы",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › ИИ-слоп и нейромемы",
+            "about": "Контент, сгенерированный нейросетями без автора: странные картинки, ролики, тексты.",
+            "aliases": [
+                "слоп",
+                "ии слоп",
+                "нейрослоп",
+                "ai slop",
+                "нейромемы"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "слоп",
+                "нейромемы",
+                "ии_видео",
+                "ai_art",
+                "нейроабсурд",
+                "ии_мусор"
+            ]
+        },
+        {
+            "id": "t0f981c16",
+            "key": "internet.cursed",
+            "nsfw": false,
+            "title": "Cursed-картинки",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Cursed-картинки",
+            "about": "Жуткие или неправильные изображения: искажённые лица, странные предметы, «проклятые» кадры.",
+            "aliases": [
+                "cursed",
+                "проклятые картинки",
+                "курсед"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "cursed",
+                "проклятые_картинки",
+                "uncanny",
+                "искаженные_лица",
+                "странные_предметы",
+                "глитч"
+            ]
+        },
+        {
+            "id": "t300e4176",
+            "key": "internet.liminal",
+            "nsfw": false,
+            "title": "Лиминальные пространства",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Лиминальные пространства",
+            "about": "Пустые коридоры, торговые центры, парковки и другие безлюдные «переходные» места.",
+            "aliases": [
+                "лиминальные пространства",
+                "liminal spaces",
+                "лиминал",
+                "бэкрумс",
+                "backrooms"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "лиминальные_пространства",
+                "бэкрумс",
+                "торговый_центр",
+                "парковка",
+                "пустые_коридоры",
+                "заброшка"
+            ]
+        },
+        {
+            "id": "tf50ccb82",
+            "key": "internet.analog_horror",
+            "nsfw": false,
+            "title": "Аналоговый хоррор и ARG",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Аналоговый хоррор и ARG",
+            "about": "Пугающие записи с VHS-эстетикой, фейковые архивы, интерактивные загадки в сети.",
+            "aliases": [
+                "аналоговый хоррор",
+                "analog horror",
+                "арг",
+                "ARG"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "аналоговый_хоррор",
+                "vhs",
+                "арг",
+                "найденные_записи",
+                "архивы_интернета",
+                "загадка"
+            ]
+        },
+        {
+            "id": "t0ac9a71b",
+            "key": "internet.gen_alpha",
+            "nsfw": false,
+            "title": "Скибиди и мемы поколения альфа",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Скибиди и мемы поколения альфа",
+            "about": "Мемы и сленг детей 2010-х и позже: скибиди, сигма, ризз, туалеты скибиди.",
+            "aliases": [
+                "скибиди",
+                "skibidi",
+                "поколение альфа",
+                "gen alpha",
+                "ризз"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "скибиди",
+                "ризз",
+                "альфа",
+                "туалетный_мем",
+                "мемы_детей",
+                "сленг_поколения"
+            ]
+        },
+        {
+            "id": "tba3dd56b",
+            "key": "internet.characters",
+            "nsfw": false,
+            "title": "Мем-персонажи",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Мем-персонажи",
+            "about": "Узнаваемые мем-персонажи и типажи: сигма, NPC, «чилл гай», герои реакций.",
+            "aliases": [
+                "сигма",
+                "npc",
+                "чилл гай",
+                "мем персонаж"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "сигма",
+                "npc",
+                "чилл_гай",
+                "мем_персонаж",
+                "герой_реакции",
+                "реакционный_мем"
+            ]
+        },
+        {
+            "id": "t867b17f4",
+            "key": "internet.copypasta",
+            "nsfw": false,
+            "title": "Копипасты и пасты",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Копипасты и пасты",
+            "about": "Длинные тексты, которые копируют и переделывают: истории, паста-рассказы, шуточные манифесты.",
+            "aliases": [
+                "копипаста",
+                "копипасты",
+                "паста",
+                "copypasta"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "копипаста",
+                "паста_рассказ",
+                "манифест",
+                "переписанная_паста",
+                "длинный_текст",
+                "история_из_сети"
+            ]
+        },
+        {
+            "id": "t9344e3f9",
+            "key": "internet.edits",
+            "nsfw": false,
+            "title": "Эдиты и фанкамы",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Эдиты и фанкамы",
+            "about": "Монтажи под музыку, фанатские ролики и переозвучки по сценам фильмов, игр и аниме.",
+            "aliases": [
+                "эдит",
+                "эдиты",
+                "edit",
+                "фанкам",
+                "fancam"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "эдит",
+                "фанкам",
+                "монтаж",
+                "переозвучка",
+                "фанатский_ролик",
+                "аниме_эдит"
+            ]
+        },
+        {
+            "id": "t813906fd",
+            "key": "internet.pov",
+            "nsfw": false,
+            "title": "POV-ролики",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › POV-ролики",
+            "about": "Ролики от первого лица: «ты в ситуации», сценки с камерой перед лицом.",
+            "aliases": [
+                "пов",
+                "pov",
+                "pov ролик"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "пов",
+                "от_первого_лица",
+                "камера_у_лица",
+                "сценка",
+                "ты_в_ситуации",
+                "пов_мем"
+            ]
+        },
+        {
+            "id": "t691640fe",
+            "key": "internet.streamers",
+            "nsfw": false,
+            "title": "Стримерская культура",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Стримерская культура",
+            "about": "Клипы и моменты со стримов: реакции, вбросы, забавные ситуации в чатах.",
+            "aliases": [
+                "стример",
+                "клипы со стрима",
+                "стрим момент",
+                "стриммерский"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "стрим_момент",
+                "стрим_вброс",
+                "стрим_реакция",
+                "чат_стрима",
+                "стример_мем",
+                "стрим_рофл"
+            ]
+        },
+        {
+            "id": "td728169e",
+            "key": "internet.tiktok_trends",
+            "nsfw": false,
+            "title": "Тренды и челленджи TikTok",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Тренды и челленджи TikTok",
+            "about": "Повторяющиеся форматы и челленджи коротких видео: звук, танец, повтор движения.",
+            "aliases": [
+                "тренд тикток",
+                "челлендж",
+                "tiktok trend",
+                "тикток тренд"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "челлендж",
+                "тикток",
+                "тренд",
+                "тикток_звук",
+                "танец",
+                "ремикс"
+            ]
+        },
+        {
+            "id": "te20b0366",
+            "key": "internet.subcultures",
+            "nsfw": false,
+            "title": "Интернет-типажи",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Интернет-типажи",
+            "about": "Субкультурные типажи из сети: скуфы, альтушки, тюбики и подобные.",
+            "aliases": [
+                "скуф",
+                "альтушка",
+                "тюбик",
+                "типаж"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "скуф",
+                "альтушка",
+                "тюбик",
+                "интернет_типажи",
+                "субкультурный_мем",
+                "эмо"
+            ]
+        },
+        {
+            "id": "t6dd1f7b3",
+            "key": "internet.drama",
+            "nsfw": false,
+            "title": "Интернет-драмы",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Интернет-драмы",
+            "about": "Разборки блогеров, скандалы и конфликты в соцсетях, обсуждаемые как мем.",
+            "aliases": [
+                "драма блогеров",
+                "разборка",
+                "интернет драма",
+                "скандал блогера"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "интернет_драма",
+                "скандал_в_сети",
+                "блогерский_скандал",
+                "отмена",
+                "ссора_блогеров",
+                "спор_в_коммах"
+            ]
+        },
+        {
+            "id": "tbf51899a",
+            "key": "internet.nostalgia",
+            "nsfw": false,
+            "title": "Ностальгия по интернету 2007–2015",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Ностальгия по интернету 2007–2015",
+            "about": "Старые форумы, флеш-игры, ранние мемы и видео нулевых и десятых.",
+            "aliases": [
+                "олдскул интернет",
+                "ностальгия по интернету",
+                "2010 интернет",
+                "old internet"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "ностальгия_2010",
+                "флеш_игры",
+                "форумы",
+                "нулевые",
+                "ранний_ютуб",
+                "старый_интернет"
+            ]
+        },
+        {
+            "id": "t8c419905",
+            "key": "internet.other",
+            "nsfw": false,
+            "title": "Прочая интернет-культура",
+            "scope": "private",
+            "parent": {
+                "id": "t3bbf37a7",
+                "title": "Интернет-культура"
+            },
+            "path": "Интернет-культура › Прочая интернет-культура",
+            "about": "Интернет-культура, которая не подошла ни к одной теме ветки.",
+            "aliases": [
+                "интернет культура"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t0085afb7",
+            "key": "animals",
+            "nsfw": false,
+            "title": "Животные",
+            "scope": "broad",
+            "parent": null,
+            "path": "Животные",
+            "about": "Главное на картинке — животное.",
+            "aliases": [
+                "зверушки"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Кошки",
+                "Собаки",
+                "Дикие животные",
+                "Прочие животные"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t25a03485",
+            "key": "animals.cats",
+            "nsfw": false,
+            "title": "Кошки",
+            "scope": "private",
+            "parent": {
+                "id": "t0085afb7",
+                "title": "Животные"
+            },
+            "path": "Животные › Кошки",
+            "about": "На картинке кошка или котёнок.",
+            "aliases": [
+                "котики",
+                "коты"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "котики",
+                "кошки",
+                "котята",
+                "кототерапия",
+                "мурлыканье",
+                "кошачьи_будни",
+                "котомемы"
+            ]
+        },
+        {
+            "id": "t78c5b6ed",
+            "key": "animals.dogs",
+            "nsfw": false,
+            "title": "Собаки",
+            "scope": "private",
+            "parent": {
+                "id": "t0085afb7",
+                "title": "Животные"
+            },
+            "path": "Животные › Собаки",
+            "about": "На картинке собака или щенок.",
+            "aliases": [
+                "собачки",
+                "пёсики"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "собаки",
+                "щенки",
+                "хаски",
+                "корги",
+                "псина",
+                "собакотерапия",
+                "собакен"
+            ]
+        },
+        {
+            "id": "t97276236",
+            "key": "animals.wild",
+            "nsfw": false,
+            "title": "Дикие животные",
+            "scope": "private",
+            "parent": {
+                "id": "t0085afb7",
+                "title": "Животные"
+            },
+            "path": "Животные › Дикие животные",
+            "about": "Звери в природе, зоопарке, под водой.",
+            "aliases": [
+                "дикая природа"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "дикие_животные",
+                "медведи",
+                "птицы",
+                "зоопарк",
+                "подводный_мир",
+                "львы",
+                "лисы"
+            ]
+        },
+        {
+            "id": "tef173624",
+            "key": "animals.other",
+            "nsfw": false,
+            "title": "Прочие животные",
+            "scope": "private",
+            "parent": {
+                "id": "t0085afb7",
+                "title": "Животные"
+            },
+            "path": "Животные › Прочие животные",
+            "about": "Птицы, рыбы, грызуны и другие животные.",
+            "aliases": [
+                "птицы",
+                "хомяки"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t42ef95e9",
+            "key": "people",
+            "nsfw": false,
+            "title": "Люди и отношения",
+            "scope": "broad",
+            "parent": null,
+            "path": "Люди и отношения",
+            "about": "Обычные люди и их жизнь.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Отношения",
+                "Семья и дети",
+                "Работа и учёба",
+                "Быт",
+                "Прочее про людей"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t3d02bff1",
+            "key": "people.couples",
+            "nsfw": false,
+            "title": "Отношения",
+            "scope": "private",
+            "parent": {
+                "id": "t42ef95e9",
+                "title": "Люди и отношения"
+            },
+            "path": "Люди и отношения › Отношения",
+            "about": "Пары, свидания, любовь, расставания.",
+            "aliases": [
+                "любовь",
+                "пары"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "отношения",
+                "свидание",
+                "любовь",
+                "расставание",
+                "пары",
+                "ревность",
+                "бывшие"
+            ]
+        },
+        {
+            "id": "t68d7dae4",
+            "key": "people.family",
+            "nsfw": false,
+            "title": "Семья и дети",
+            "scope": "private",
+            "parent": {
+                "id": "t42ef95e9",
+                "title": "Люди и отношения"
+            },
+            "path": "Люди и отношения › Семья и дети",
+            "about": "Родители, дети, семейная жизнь.",
+            "aliases": [
+                "дети",
+                "родители"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "семья",
+                "дети",
+                "родители",
+                "мамы",
+                "папы",
+                "бабушки"
+            ]
+        },
+        {
+            "id": "t821ac54b",
+            "key": "people.work",
+            "nsfw": false,
+            "title": "Работа и учёба",
+            "scope": "private",
+            "parent": {
+                "id": "t42ef95e9",
+                "title": "Люди и отношения"
+            },
+            "path": "Люди и отношения › Работа и учёба",
+            "about": "Офис, начальник, коллеги, школа, вуз.",
+            "aliases": [
+                "работа",
+                "офис",
+                "учеба"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "работа",
+                "начальник",
+                "офис",
+                "коллеги",
+                "учеба",
+                "школа",
+                "универ"
+            ]
+        },
+        {
+            "id": "t11fd9f33",
+            "key": "people.life",
+            "nsfw": false,
+            "title": "Быт",
+            "scope": "private",
+            "parent": {
+                "id": "t42ef95e9",
+                "title": "Люди и отношения"
+            },
+            "path": "Люди и отношения › Быт",
+            "about": "Повседневная жизнь, дом, магазины, соседи.",
+            "aliases": [
+                "повседневность"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "бытовуха",
+                "соседи",
+                "магазин",
+                "квартира",
+                "будни",
+                "очередь"
+            ]
+        },
+        {
+            "id": "t0d1a8c10",
+            "key": "people.other",
+            "nsfw": false,
+            "title": "Прочее про людей",
+            "scope": "private",
+            "parent": {
+                "id": "t42ef95e9",
+                "title": "Люди и отношения"
+            },
+            "path": "Люди и отношения › Прочее про людей",
+            "about": "Другое про людей, что не подходит выше.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t6877baca",
+            "key": "games",
+            "nsfw": false,
+            "title": "Видеоигры",
+            "scope": "broad",
+            "parent": null,
+            "path": "Видеоигры",
+            "about": "На картинке игра, геймплей или игровой персонаж.",
+            "aliases": [
+                "игры",
+                "гейминг"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Игры на ПК и консолях",
+                "Мобильные игры",
+                "Киберспорт",
+                "Прочее про игры"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t752c3823",
+            "key": "games.pc",
+            "nsfw": false,
+            "title": "Игры на ПК и консолях",
+            "scope": "private",
+            "parent": {
+                "id": "t6877baca",
+                "title": "Видеоигры"
+            },
+            "path": "Видеоигры › Игры на ПК и консолях",
+            "about": "Компьютерные игры и игры для приставок.",
+            "aliases": [
+                "пк игры",
+                "консоли"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "гейминг",
+                "пк_гейминг",
+                "консоли",
+                "steam",
+                "геймплей",
+                "игровые_баги"
+            ]
+        },
+        {
+            "id": "ta162828c",
+            "key": "games.mobile",
+            "nsfw": false,
+            "title": "Мобильные игры",
+            "scope": "private",
+            "parent": {
+                "id": "t6877baca",
+                "title": "Видеоигры"
+            },
+            "path": "Видеоигры › Мобильные игры",
+            "about": "Игры на телефоне.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "мобилки",
+                "казуалки",
+                "гача",
+                "головоломки",
+                "андроид_игры",
+                "ios_игры"
+            ]
+        },
+        {
+            "id": "t390e25a7",
+            "key": "games.esports",
+            "nsfw": false,
+            "title": "Киберспорт",
+            "scope": "private",
+            "parent": {
+                "id": "t6877baca",
+                "title": "Видеоигры"
+            },
+            "path": "Видеоигры › Киберспорт",
+            "about": "Турниры, команды, профессиональные игроки.",
+            "aliases": [
+                "esports"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "киберспорт",
+                "турнир",
+                "про_игроки",
+                "киберкоманда",
+                "дота",
+                "кс2"
+            ]
+        },
+        {
+            "id": "t2715c913",
+            "key": "games.other",
+            "nsfw": false,
+            "title": "Прочее про игры",
+            "scope": "private",
+            "parent": {
+                "id": "t6877baca",
+                "title": "Видеоигры"
+            },
+            "path": "Видеоигры › Прочее про игры",
+            "about": "Другое про игры.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t542fdfc2",
+            "key": "screen",
+            "nsfw": false,
+            "title": "Кино и сериалы",
+            "scope": "broad",
+            "parent": null,
+            "path": "Кино и сериалы",
+            "about": "Кадр или персонаж из фильма, сериала или мультфильма.",
+            "aliases": [
+                "кино"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Фильмы",
+                "Сериалы",
+                "Аниме и мультфильмы",
+                "Прочее про кино"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t2bd50013",
+            "key": "screen.movies",
+            "nsfw": false,
+            "title": "Фильмы",
+            "scope": "private",
+            "parent": {
+                "id": "t542fdfc2",
+                "title": "Кино и сериалы"
+            },
+            "path": "Кино и сериалы › Фильмы",
+            "about": "Кадры, постеры, актёры в роли из фильмов.",
+            "aliases": [
+                "кинофильмы"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "фильмы",
+                "кадры_из_фильма",
+                "постер",
+                "киноцитата",
+                "голливуд",
+                "актеры_кино"
+            ]
+        },
+        {
+            "id": "t0d7aac60",
+            "key": "screen.series",
+            "nsfw": false,
+            "title": "Сериалы",
+            "scope": "private",
+            "parent": {
+                "id": "t542fdfc2",
+                "title": "Кино и сериалы"
+            },
+            "path": "Кино и сериалы › Сериалы",
+            "about": "Кадры и персонажи из сериалов.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "сериалы",
+                "кадры_из_сериала",
+                "сезон",
+                "финал_сезона",
+                "нетфликс",
+                "хбо",
+                "сериальные_герои"
+            ]
+        },
+        {
+            "id": "t38b97813",
+            "key": "screen.anime",
+            "nsfw": false,
+            "title": "Аниме и мультфильмы",
+            "scope": "private",
+            "parent": {
+                "id": "t542fdfc2",
+                "title": "Кино и сериалы"
+            },
+            "path": "Кино и сериалы › Аниме и мультфильмы",
+            "about": "Аниме, мультфильмы, мультсериалы.",
+            "aliases": [
+                "аниме",
+                "мультики"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "аниме",
+                "манга",
+                "мультфильмы",
+                "анимация",
+                "студия_гибли",
+                "опенинг"
+            ]
+        },
+        {
+            "id": "ta763e9e3",
+            "key": "screen.other",
+            "nsfw": false,
+            "title": "Прочее про кино",
+            "scope": "private",
+            "parent": {
+                "id": "t542fdfc2",
+                "title": "Кино и сериалы"
+            },
+            "path": "Кино и сериалы › Прочее про кино",
+            "about": "Другое про кино.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t5bd6ccf6",
+            "key": "music",
+            "nsfw": false,
+            "title": "Музыка",
+            "scope": "broad",
+            "parent": null,
+            "path": "Музыка",
+            "about": "Музыканты, песни, концерты.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Исполнители",
+                "Клипы и концерты",
+                "Прочее про музыку"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t4cfe6867",
+            "key": "music.artists",
+            "nsfw": false,
+            "title": "Исполнители",
+            "scope": "private",
+            "parent": {
+                "id": "t5bd6ccf6",
+                "title": "Музыка"
+            },
+            "path": "Музыка › Исполнители",
+            "about": "Певцы, рэперы, группы.",
+            "aliases": [
+                "группы",
+                "певцы"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "рэп",
+                "рок",
+                "поп",
+                "хип_хоп",
+                "вокалист",
+                "диджей"
+            ]
+        },
+        {
+            "id": "taa1ddee6",
+            "key": "music.clips",
+            "nsfw": false,
+            "title": "Клипы и концерты",
+            "scope": "private",
+            "parent": {
+                "id": "t5bd6ccf6",
+                "title": "Музыка"
+            },
+            "path": "Музыка › Клипы и концерты",
+            "about": "Кадры из клипов, выступления, концерты.",
+            "aliases": [
+                "концерты",
+                "клипы"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "клип",
+                "концерт",
+                "live",
+                "сцена",
+                "фестиваль",
+                "бэкстейдж"
+            ]
+        },
+        {
+            "id": "t036e0939",
+            "key": "music.other",
+            "nsfw": false,
+            "title": "Прочее про музыку",
+            "scope": "private",
+            "parent": {
+                "id": "t5bd6ccf6",
+                "title": "Музыка"
+            },
+            "path": "Музыка › Прочее про музыку",
+            "about": "Другое про музыку.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t356d11a5",
+            "key": "celebs",
+            "nsfw": false,
+            "title": "Знаменитости",
+            "scope": "broad",
+            "parent": null,
+            "path": "Знаменитости",
+            "about": "Главное на картинке — известный человек.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Звёзды",
+                "Блогеры и стримеры",
+                "Прочие известные люди"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "tebaba4f7",
+            "key": "celebs.stars",
+            "nsfw": false,
+            "title": "Звёзды",
+            "scope": "private",
+            "parent": {
+                "id": "t356d11a5",
+                "title": "Знаменитости"
+            },
+            "path": "Знаменитости › Звёзды",
+            "about": "Актёры, певцы, модели вне ролей.",
+            "aliases": [
+                "селебрити"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "звезды",
+                "папарацци",
+                "красная_дорожка",
+                "актрисы",
+                "светская_хроника",
+                "премьера"
+            ]
+        },
+        {
+            "id": "tb0bf5b6f",
+            "key": "celebs.bloggers",
+            "nsfw": false,
+            "title": "Блогеры и стримеры",
+            "scope": "private",
+            "parent": {
+                "id": "t356d11a5",
+                "title": "Знаменитости"
+            },
+            "path": "Знаменитости › Блогеры и стримеры",
+            "about": "Ютуберы, стримеры, тиктокеры.",
+            "aliases": [
+                "блогеры",
+                "стримеры"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "блогер",
+                "стример",
+                "тиктокер",
+                "влогер",
+                "инфлюенсер",
+                "подкастер"
+            ]
+        },
+        {
+            "id": "t9ee79b6b",
+            "key": "celebs.other",
+            "nsfw": false,
+            "title": "Прочие известные люди",
+            "scope": "private",
+            "parent": {
+                "id": "t356d11a5",
+                "title": "Знаменитости"
+            },
+            "path": "Знаменитости › Прочие известные люди",
+            "about": "Другие известные люди.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "tdd8d5503",
+            "key": "news",
+            "nsfw": false,
+            "title": "Новости и политика",
+            "scope": "broad",
+            "parent": null,
+            "path": "Новости и политика",
+            "about": "Реальное событие, есть дата, место или участники.",
+            "aliases": [
+                "новости"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Политика",
+                "Мировые события",
+                "Новости страны и города",
+                "Экономика",
+                "Прочие новости"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "td42e4f9f",
+            "key": "news.politics",
+            "nsfw": false,
+            "title": "Политика",
+            "scope": "private",
+            "parent": {
+                "id": "tdd8d5503",
+                "title": "Новости и политика"
+            },
+            "path": "Новости и политика › Политика",
+            "about": "Политики, выборы, война, протесты.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "политика",
+                "выборы",
+                "протесты",
+                "депутаты",
+                "госдума",
+                "правительство"
+            ]
+        },
+        {
+            "id": "te15a50cf",
+            "key": "news.world",
+            "nsfw": false,
+            "title": "Мировые события",
+            "scope": "private",
+            "parent": {
+                "id": "tdd8d5503",
+                "title": "Новости и политика"
+            },
+            "path": "Новости и политика › Мировые события",
+            "about": "События в других странах.",
+            "aliases": [
+                "в мире"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "мировые_новости",
+                "заграница",
+                "сша",
+                "европа",
+                "китай",
+                "япония"
+            ]
+        },
+        {
+            "id": "teaeb25f2",
+            "key": "news.local",
+            "nsfw": false,
+            "title": "Новости страны и города",
+            "scope": "private",
+            "parent": {
+                "id": "tdd8d5503",
+                "title": "Новости и политика"
+            },
+            "path": "Новости и политика › Новости страны и города",
+            "about": "События в своей стране или городе.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "местные_новости",
+                "жкх",
+                "дороги",
+                "погода",
+                "происшествия",
+                "благоустройство"
+            ]
+        },
+        {
+            "id": "t44bb39bf",
+            "key": "news.economy",
+            "nsfw": false,
+            "title": "Экономика",
+            "scope": "private",
+            "parent": {
+                "id": "tdd8d5503",
+                "title": "Новости и политика"
+            },
+            "path": "Новости и политика › Экономика",
+            "about": "Цены, курсы валют, зарплаты, кризис.",
+            "aliases": [
+                "цены",
+                "курс валют"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "экономика",
+                "курс_валют",
+                "цены",
+                "зарплаты",
+                "кризис",
+                "инфляция"
+            ]
+        },
+        {
+            "id": "t42804da2",
+            "key": "news.other",
+            "nsfw": false,
+            "title": "Прочие новости",
+            "scope": "private",
+            "parent": {
+                "id": "tdd8d5503",
+                "title": "Новости и политика"
+            },
+            "path": "Новости и политика › Прочие новости",
+            "about": "Другие новости.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t15cb3439",
+            "key": "tech",
+            "nsfw": false,
+            "title": "Технологии",
+            "scope": "broad",
+            "parent": null,
+            "path": "Технологии",
+            "about": "Техника, программы, интернет.",
+            "aliases": [
+                "технологии"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Гаджеты",
+                "Нейросети",
+                "Программирование",
+                "Прочие технологии"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t50a86d48",
+            "key": "tech.gadgets",
+            "nsfw": false,
+            "title": "Гаджеты",
+            "scope": "private",
+            "parent": {
+                "id": "t15cb3439",
+                "title": "Технологии"
+            },
+            "path": "Технологии › Гаджеты",
+            "about": "Телефоны, компьютеры, техника.",
+            "aliases": [
+                "смартфоны",
+                "компьютеры"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "гаджеты",
+                "смартфон",
+                "ноутбук",
+                "iphone",
+                "распаковка",
+                "техника"
+            ]
+        },
+        {
+            "id": "t51ece050",
+            "key": "tech.ai",
+            "nsfw": false,
+            "title": "Нейросети",
+            "scope": "private",
+            "parent": {
+                "id": "t15cb3439",
+                "title": "Технологии"
+            },
+            "path": "Технологии › Нейросети",
+            "about": "Искусственный интеллект и нейросети.",
+            "aliases": [
+                "ии",
+                "ai",
+                "нейронки"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "нейросети",
+                "ии",
+                "chatgpt",
+                "промпт",
+                "генерация",
+                "midjourney"
+            ]
+        },
+        {
+            "id": "tdd8a11f5",
+            "key": "tech.code",
+            "nsfw": false,
+            "title": "Программирование",
+            "scope": "private",
+            "parent": {
+                "id": "t15cb3439",
+                "title": "Технологии"
+            },
+            "path": "Технологии › Программирование",
+            "about": "Код, программисты, айти.",
+            "aliases": [
+                "айти",
+                "it",
+                "программисты"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "программирование",
+                "код",
+                "python",
+                "javascript",
+                "айти",
+                "сисадмин",
+                "баг"
+            ]
+        },
+        {
+            "id": "tf6aa0f27",
+            "key": "tech.other",
+            "nsfw": false,
+            "title": "Прочие технологии",
+            "scope": "private",
+            "parent": {
+                "id": "t15cb3439",
+                "title": "Технологии"
+            },
+            "path": "Технологии › Прочие технологии",
+            "about": "Другое про технику.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t83158c74",
+            "key": "money",
+            "nsfw": false,
+            "title": "Бизнес и деньги",
+            "scope": "broad",
+            "parent": null,
+            "path": "Бизнес и деньги",
+            "about": "Бизнес, деньги, заработок: как вести дело, получать и вкладывать деньги.",
+            "aliases": [
+                "финансы",
+                "деньги и заработок",
+                "бизнес и деньги"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Бизнес",
+                "Недвижимость",
+                "Строительство и ремонт",
+                "Дизайн интерьера",
+                "Криптовалюта",
+                "Инвестиции и трейдинг",
+                "Маркетинг и реклама",
+                "SMM и блогинг",
+                "Маркетплейсы и e-commerce",
+                "Финансы и налоги",
+                "Право и юристы",
+                "HR и карьера",
+                "Общепит и рестораны",
+                "Бьюти-бизнес",
+                "Автобизнес",
+                "Туризм и отели",
+                "Франшизы и стартапы",
+                "Фриланс и удалёнка",
+                "Прочее про деньги"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t5c31651a",
+            "key": "money.business",
+            "nsfw": false,
+            "title": "Бизнес",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Бизнес",
+            "about": "Свой бизнес, предпринимательство, заработок, стартапы.",
+            "aliases": [
+                "заработок",
+                "стартапы",
+                "предпринимательство"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "бизнес",
+                "стартап",
+                "заработок",
+                "предпринимательство",
+                "малый_бизнес",
+                "свой_бизнес"
+            ]
+        },
+        {
+            "id": "t64df2dca",
+            "key": "money.realty",
+            "nsfw": false,
+            "title": "Недвижимость",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Недвижимость",
+            "about": "Покупка, продажа, аренда и инвестиции в жильё и коммерческие помещения.",
+            "aliases": [
+                "недвижимость инвестиции",
+                "риелтор",
+                "квартиры инвестиции"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "недвижимость",
+                "ипотека",
+                "аренда_жилья",
+                "новостройки",
+                "вторичка",
+                "риэлтор"
+            ]
+        },
+        {
+            "id": "t1f1db834",
+            "key": "money.construction",
+            "nsfw": false,
+            "title": "Строительство и ремонт",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Строительство и ремонт",
+            "about": "Строительный бизнес, стройка, ремонт квартир, прорабы, бригады.",
+            "aliases": [
+                "строительный бизнес",
+                "ремонт квартир",
+                "стройка",
+                "ремонт"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "стройка",
+                "ремонт",
+                "прораб",
+                "бригада",
+                "фундамент",
+                "евроремонт"
+            ]
+        },
+        {
+            "id": "tc3df146b",
+            "key": "money.interior",
+            "nsfw": false,
+            "title": "Дизайн интерьера",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Дизайн интерьера",
+            "about": "Дизайн квартир и домов, проекты интерьера.",
+            "aliases": [
+                "интерьер",
+                "дизайн интерьера"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "интерьер",
+                "дизайн_интерьера",
+                "мебель",
+                "сканди",
+                "лофт",
+                "дизайнер_интерьера"
+            ]
+        },
+        {
+            "id": "tf91481a0",
+            "key": "money.crypto",
+            "nsfw": false,
+            "title": "Криптовалюта",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Криптовалюта",
+            "about": "Биткоин, крипта, биржи.",
+            "aliases": [
+                "крипта",
+                "биткоин"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "крипта",
+                "биткоин",
+                "эфириум",
+                "блокчейн",
+                "майнинг",
+                "криптобиржа"
+            ]
+        },
+        {
+            "id": "t907d0ccb",
+            "key": "money.invest",
+            "nsfw": false,
+            "title": "Инвестиции и трейдинг",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Инвестиции и трейдинг",
+            "about": "Акции, трейдинг, вклады, фонды.",
+            "aliases": [
+                "трейдинг",
+                "акции",
+                "инвестиции"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "инвестиции",
+                "акции",
+                "трейдинг",
+                "брокер",
+                "вклады",
+                "фонды"
+            ]
+        },
+        {
+            "id": "t3a3d42c0",
+            "key": "money.marketing",
+            "nsfw": false,
+            "title": "Маркетинг и реклама",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Маркетинг и реклама",
+            "about": "Маркетинг, реклама, продвижение бизнеса.",
+            "aliases": [
+                "маркетинг",
+                "реклама",
+                "таргет"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "маркетинг",
+                "реклама",
+                "таргет",
+                "продвижение",
+                "воронка",
+                "брендинг"
+            ]
+        },
+        {
+            "id": "t0931e12f",
+            "key": "money.smm",
+            "nsfw": false,
+            "title": "SMM и блогинг",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › SMM и блогинг",
+            "about": "Продвижение в соцсетях, ведение каналов, блогерство как бизнес.",
+            "aliases": [
+                "smm",
+                "смм",
+                "блогинг"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "смм",
+                "блогинг",
+                "контент_план",
+                "телеграм_канал",
+                "охват",
+                "сторис"
+            ]
+        },
+        {
+            "id": "t4dc066c3",
+            "key": "money.ecom",
+            "nsfw": false,
+            "title": "Маркетплейсы и e-commerce",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Маркетплейсы и e-commerce",
+            "about": "Wildberries, Ozon, интернет-магазины, продажи онлайн.",
+            "aliases": [
+                "маркетплейсы",
+                "вайлдберриз",
+                "озон продавцы"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "маркетплейсы",
+                "wildberries",
+                "ozon",
+                "интернет_магазин",
+                "продажи_онлайн",
+                "карточка_товара"
+            ]
+        },
+        {
+            "id": "tf9a89683",
+            "key": "money.finance",
+            "nsfw": false,
+            "title": "Финансы и налоги",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Финансы и налоги",
+            "about": "Бухгалтерия, налоги, отчётность, бюджет бизнеса.",
+            "aliases": [
+                "бухгалтерия",
+                "налоги",
+                "бухгалтер"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "бухгалтерия",
+                "налоги",
+                "отчетность",
+                "бюджет",
+                "усн",
+                "онлайн_касса"
+            ]
+        },
+        {
+            "id": "t7dcdbd4b",
+            "key": "money.legal",
+            "nsfw": false,
+            "title": "Право и юристы",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Право и юристы",
+            "about": "Юридические вопросы бизнеса и людей, договоры, юристы.",
+            "aliases": [
+                "юрист",
+                "право"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "юрист",
+                "договор",
+                "право",
+                "суд",
+                "трудовое_право",
+                "регистрация_бизнеса"
+            ]
+        },
+        {
+            "id": "t5379ad54",
+            "key": "money.hr",
+            "nsfw": false,
+            "title": "HR и карьера",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › HR и карьера",
+            "about": "Поиск работы и сотрудников, карьера, собеседования.",
+            "aliases": [
+                "hr",
+                "карьера",
+                "рекрутинг"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "вакансии",
+                "собеседование",
+                "резюме",
+                "карьера",
+                "hh",
+                "рекрутер"
+            ]
+        },
+        {
+            "id": "ta4e4bd3d",
+            "key": "money.food",
+            "nsfw": false,
+            "title": "Общепит и рестораны",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Общепит и рестораны",
+            "about": "Бизнес ресторанов, кафе, доставки еды.",
+            "aliases": [
+                "ресторанный бизнес",
+                "кафе бизнес"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "общепит",
+                "ресторанный_бизнес",
+                "кофейня",
+                "доставка_еды",
+                "фудтрак",
+                "кафе_бизнес"
+            ]
+        },
+        {
+            "id": "t896828bd",
+            "key": "money.beauty",
+            "nsfw": false,
+            "title": "Бьюти-бизнес",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Бьюти-бизнес",
+            "about": "Салоны, мастера, косметика как бизнес.",
+            "aliases": [
+                "салон красоты бизнес"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "бьюти_бизнес",
+                "салон_красоты",
+                "мастер_маникюра",
+                "косметология",
+                "барбершоп",
+                "косметика_продажи"
+            ]
+        },
+        {
+            "id": "tecbf428e",
+            "key": "money.auto",
+            "nsfw": false,
+            "title": "Автобизнес",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Автобизнес",
+            "about": "Перепродажа авто, автосервис, автосалоны.",
+            "aliases": [
+                "автосервис бизнес",
+                "перепродажа авто"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "перепродажа_авто",
+                "автосервис",
+                "автосалон",
+                "подбор_авто",
+                "авторынок",
+                "автобизнес"
+            ]
+        },
+        {
+            "id": "t4fbfd88c",
+            "key": "money.tourism",
+            "nsfw": false,
+            "title": "Туризм и отели",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Туризм и отели",
+            "about": "Туристический бизнес, гостиницы, турагентства.",
+            "aliases": [
+                "турбизнес",
+                "отель бизнес"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "туризм",
+                "отель",
+                "турагентство",
+                "гостиничный_бизнес",
+                "хостел",
+                "экскурсии"
+            ]
+        },
+        {
+            "id": "t2bedcf67",
+            "key": "money.franchise",
+            "nsfw": false,
+            "title": "Франшизы и стартапы",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Франшизы и стартапы",
+            "about": "Готовый бизнес, франшизы, стартап-проекты.",
+            "aliases": [
+                "франшиза",
+                "стартап"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "франшиза",
+                "готовый_бизнес",
+                "под_ключ",
+                "окупаемость",
+                "паушальный_взнос",
+                "стартап_проект"
+            ]
+        },
+        {
+            "id": "t20f6fd1f",
+            "key": "money.freelance",
+            "nsfw": false,
+            "title": "Фриланс и удалёнка",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Фриланс и удалёнка",
+            "about": "Подработка, фриланс, удалённая работа, заказы.",
+            "aliases": [
+                "фриланс",
+                "удаленка",
+                "удалённая работа"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "фриланс",
+                "удаленка",
+                "подработка",
+                "заказы",
+                "биржа_фриланса",
+                "дистанционка"
+            ]
+        },
+        {
+            "id": "tcf0e9556",
+            "key": "money.other",
+            "nsfw": false,
+            "title": "Прочее про деньги",
+            "scope": "private",
+            "parent": {
+                "id": "t83158c74",
+                "title": "Бизнес и деньги"
+            },
+            "path": "Бизнес и деньги › Прочее про деньги",
+            "about": "Другое про деньги и бизнес.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "te095dd3a",
+            "key": "expert",
+            "nsfw": false,
+            "title": "Профессии и экспертность",
+            "scope": "broad",
+            "parent": null,
+            "path": "Профессии и экспертность",
+            "about": "Посты специалистов: как устроена профессия, советы, разбор.",
+            "aliases": [
+                "профессии",
+                "экспертный контент"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Психология и коучинг",
+                "Медицина и здоровье",
+                "Образование и репетиторство",
+                "Эзотерика и астрология",
+                "Родительство и дети",
+                "Спорт и нутрициология",
+                "Прочее экспертное"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t0a36c043",
+            "key": "expert.psych",
+            "nsfw": false,
+            "title": "Психология и коучинг",
+            "scope": "private",
+            "parent": {
+                "id": "te095dd3a",
+                "title": "Профессии и экспертность"
+            },
+            "path": "Профессии и экспертность › Психология и коучинг",
+            "about": "Психолог, коуч, терапия, личностный рост как профессия.",
+            "aliases": [
+                "психолог",
+                "коучинг"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "психология",
+                "коучинг",
+                "терапия",
+                "личностный_рост",
+                "тревожность",
+                "выгорание"
+            ]
+        },
+        {
+            "id": "t67d194e1",
+            "key": "expert.medicine",
+            "nsfw": false,
+            "title": "Медицина и здоровье",
+            "scope": "private",
+            "parent": {
+                "id": "te095dd3a",
+                "title": "Профессии и экспертность"
+            },
+            "path": "Профессии и экспертность › Медицина и здоровье",
+            "about": "Медицина для специалистов и пациентов: врачи, диагнозы, лечение.",
+            "aliases": [
+                "врач",
+                "медицина"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "медицина",
+                "диагноз",
+                "лечение",
+                "больница",
+                "врач_отвечает",
+                "симптомы"
+            ]
+        },
+        {
+            "id": "t4e719e2f",
+            "key": "expert.education",
+            "nsfw": false,
+            "title": "Образование и репетиторство",
+            "scope": "private",
+            "parent": {
+                "id": "te095dd3a",
+                "title": "Профессии и экспертность"
+            },
+            "path": "Профессии и экспертность › Образование и репетиторство",
+            "about": "Учителя, репетиторы, курсы, как учиться.",
+            "aliases": [
+                "репетитор",
+                "образование",
+                "курсы"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "репетитор",
+                "курсы",
+                "учитель",
+                "егэ",
+                "обучение",
+                "как_учиться"
+            ]
+        },
+        {
+            "id": "t13c35ada",
+            "key": "expert.esoteric",
+            "nsfw": false,
+            "title": "Эзотерика и астрология",
+            "scope": "private",
+            "parent": {
+                "id": "te095dd3a",
+                "title": "Профессии и экспертность"
+            },
+            "path": "Профессии и экспертность › Эзотерика и астрология",
+            "about": "Астрология, таро, нумерология, эзотерические практики.",
+            "aliases": [
+                "астрология",
+                "таро"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "астрология",
+                "гороскоп",
+                "таро",
+                "нумерология",
+                "эзотерика",
+                "медитация"
+            ]
+        },
+        {
+            "id": "t6e8e956b",
+            "key": "expert.parenting",
+            "nsfw": false,
+            "title": "Родительство и дети",
+            "scope": "private",
+            "parent": {
+                "id": "te095dd3a",
+                "title": "Профессии и экспертность"
+            },
+            "path": "Профессии и экспертность › Родительство и дети",
+            "about": "Воспитание, уход за детьми, советы родителям.",
+            "aliases": [
+                "воспитание"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "воспитание",
+                "уход_за_ребенком",
+                "родительство",
+                "детский_сон",
+                "прикорм",
+                "детское_развитие"
+            ]
+        },
+        {
+            "id": "td2688bb8",
+            "key": "expert.coach",
+            "nsfw": false,
+            "title": "Спорт и нутрициология",
+            "scope": "private",
+            "parent": {
+                "id": "te095dd3a",
+                "title": "Профессии и экспертность"
+            },
+            "path": "Профессии и экспертность › Спорт и нутрициология",
+            "about": "Тренеры, нутрициологи, программы тренировок и питания.",
+            "aliases": [
+                "тренер",
+                "фитнес тренер",
+                "нутрициолог"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "тренер",
+                "нутрициолог",
+                "программа_тренировок",
+                "диета",
+                "протеин",
+                "зож"
+            ]
+        },
+        {
+            "id": "t5a527dcb",
+            "key": "expert.other",
+            "nsfw": false,
+            "title": "Прочее экспертное",
+            "scope": "private",
+            "parent": {
+                "id": "te095dd3a",
+                "title": "Профессии и экспертность"
+            },
+            "path": "Профессии и экспертность › Прочее экспертное",
+            "about": "Другие профессиональные советы и разборы.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "teb7f1b9e",
+            "key": "science",
+            "nsfw": false,
+            "title": "Наука и знания",
+            "scope": "broad",
+            "parent": null,
+            "path": "Наука и знания",
+            "about": "Пост объясняет или учит чему-то.",
+            "aliases": [
+                "наука",
+                "познавательное"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Космос",
+                "История",
+                "Здоровье",
+                "Интересные факты",
+                "Прочая наука"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t050bdc10",
+            "key": "science.space",
+            "nsfw": false,
+            "title": "Космос",
+            "scope": "private",
+            "parent": {
+                "id": "teb7f1b9e",
+                "title": "Наука и знания"
+            },
+            "path": "Наука и знания › Космос",
+            "about": "Планеты, звёзды, ракеты, космонавты.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "космос",
+                "астрономия",
+                "планеты",
+                "ракеты",
+                "космонавты",
+                "nasa"
+            ]
+        },
+        {
+            "id": "t9d4bd15d",
+            "key": "science.history",
+            "nsfw": false,
+            "title": "История",
+            "scope": "private",
+            "parent": {
+                "id": "teb7f1b9e",
+                "title": "Наука и знания"
+            },
+            "path": "Наука и знания › История",
+            "about": "Исторические события, старые фото.",
+            "aliases": [
+                "старые фото",
+                "ретро фото"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "история",
+                "ретро",
+                "архив",
+                "древности",
+                "ссср",
+                "старое_фото"
+            ]
+        },
+        {
+            "id": "t3ecf6ad4",
+            "key": "science.health",
+            "nsfw": false,
+            "title": "Здоровье",
+            "scope": "private",
+            "parent": {
+                "id": "teb7f1b9e",
+                "title": "Наука и знания"
+            },
+            "path": "Наука и знания › Здоровье",
+            "about": "Медицина, тело, болезни, психология.",
+            "aliases": [
+                "психология"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "здоровье",
+                "болезни",
+                "организм",
+                "анатомия",
+                "психика",
+                "исследование"
+            ]
+        },
+        {
+            "id": "t5c0841a6",
+            "key": "science.facts",
+            "nsfw": false,
+            "title": "Интересные факты",
+            "scope": "private",
+            "parent": {
+                "id": "teb7f1b9e",
+                "title": "Наука и знания"
+            },
+            "path": "Наука и знания › Интересные факты",
+            "about": "Познавательные факты обо всём.",
+            "aliases": [
+                "факты"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "факты",
+                "знаете_ли_вы",
+                "наука",
+                "любопытно",
+                "инфографика",
+                "удивительно"
+            ]
+        },
+        {
+            "id": "tf02ba2cd",
+            "key": "science.other",
+            "nsfw": false,
+            "title": "Прочая наука",
+            "scope": "private",
+            "parent": {
+                "id": "teb7f1b9e",
+                "title": "Наука и знания"
+            },
+            "path": "Наука и знания › Прочая наука",
+            "about": "Другое познавательное.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t1696ea33",
+            "key": "food",
+            "nsfw": false,
+            "title": "Еда",
+            "scope": "broad",
+            "parent": null,
+            "path": "Еда",
+            "about": "Еда и напитки.",
+            "aliases": [
+                "кулинария"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Рецепты",
+                "Блюда и рестораны",
+                "Прочее про еду"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t6b7e3667",
+            "key": "food.recipes",
+            "nsfw": false,
+            "title": "Рецепты",
+            "scope": "private",
+            "parent": {
+                "id": "t1696ea33",
+                "title": "Еда"
+            },
+            "path": "Еда › Рецепты",
+            "about": "Как приготовить блюдо.",
+            "aliases": [
+                "готовка"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "рецепт",
+                "готовка",
+                "быстрый_рецепт",
+                "выпечка",
+                "десерт",
+                "пп"
+            ]
+        },
+        {
+            "id": "t77689aca",
+            "key": "food.dishes",
+            "nsfw": false,
+            "title": "Блюда и рестораны",
+            "scope": "private",
+            "parent": {
+                "id": "t1696ea33",
+                "title": "Еда"
+            },
+            "path": "Еда › Блюда и рестораны",
+            "about": "Фото готовой еды, кафе, рестораны.",
+            "aliases": [
+                "фуд"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "еда",
+                "ресторан",
+                "кафе",
+                "вкусно",
+                "стритфуд",
+                "завтрак"
+            ]
+        },
+        {
+            "id": "ta48b2d3b",
+            "key": "food.other",
+            "nsfw": false,
+            "title": "Прочее про еду",
+            "scope": "private",
+            "parent": {
+                "id": "t1696ea33",
+                "title": "Еда"
+            },
+            "path": "Еда › Прочее про еду",
+            "about": "Другое про еду.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t9a7b8079",
+            "key": "travel",
+            "nsfw": false,
+            "title": "Места и путешествия",
+            "scope": "broad",
+            "parent": null,
+            "path": "Места и путешествия",
+            "about": "Главное на картинке — место.",
+            "aliases": [
+                "путешествия"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Природа",
+                "Города",
+                "Прочие места"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t210960fc",
+            "key": "travel.nature",
+            "nsfw": false,
+            "title": "Природа",
+            "scope": "private",
+            "parent": {
+                "id": "t9a7b8079",
+                "title": "Места и путешествия"
+            },
+            "path": "Места и путешествия › Природа",
+            "about": "Пейзажи, горы, море, лес.",
+            "aliases": [
+                "пейзажи"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "природа",
+                "горы",
+                "море",
+                "лес",
+                "пейзаж",
+                "закат"
+            ]
+        },
+        {
+            "id": "t4cc7ab16",
+            "key": "travel.cities",
+            "nsfw": false,
+            "title": "Города",
+            "scope": "private",
+            "parent": {
+                "id": "t9a7b8079",
+                "title": "Места и путешествия"
+            },
+            "path": "Места и путешествия › Города",
+            "about": "Улицы, здания, архитектура.",
+            "aliases": [
+                "архитектура"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "город",
+                "архитектура",
+                "улицы",
+                "небоскреб",
+                "площадь",
+                "метро"
+            ]
+        },
+        {
+            "id": "t666520fc",
+            "key": "travel.other",
+            "nsfw": false,
+            "title": "Прочие места",
+            "scope": "private",
+            "parent": {
+                "id": "t9a7b8079",
+                "title": "Места и путешествия"
+            },
+            "path": "Места и путешествия › Прочие места",
+            "about": "Другие места.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t2213b4f5",
+            "key": "style",
+            "nsfw": false,
+            "title": "Внешность и стиль",
+            "scope": "broad",
+            "parent": null,
+            "path": "Внешность и стиль",
+            "about": "Как люди выглядят и следят за собой.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Мода",
+                "Красота",
+                "Фитнес",
+                "Прочее про стиль"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "tfcfc609d",
+            "key": "style.fashion",
+            "nsfw": false,
+            "title": "Мода",
+            "scope": "private",
+            "parent": {
+                "id": "t2213b4f5",
+                "title": "Внешность и стиль"
+            },
+            "path": "Внешность и стиль › Мода",
+            "about": "Одежда, обувь, образы.",
+            "aliases": [
+                "одежда"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "мода",
+                "образ",
+                "одежда",
+                "обувь",
+                "стиль",
+                "гардероб"
+            ]
+        },
+        {
+            "id": "t675b92f5",
+            "key": "style.beauty",
+            "nsfw": false,
+            "title": "Красота",
+            "scope": "private",
+            "parent": {
+                "id": "t2213b4f5",
+                "title": "Внешность и стиль"
+            },
+            "path": "Внешность и стиль › Красота",
+            "about": "Макияж, уход, причёски.",
+            "aliases": [
+                "макияж",
+                "бьюти"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "макияж",
+                "уход_за_кожей",
+                "прическа",
+                "маникюр",
+                "skincare",
+                "волосы"
+            ]
+        },
+        {
+            "id": "tc7774d8f",
+            "key": "style.fitness",
+            "nsfw": false,
+            "title": "Фитнес",
+            "scope": "private",
+            "parent": {
+                "id": "t2213b4f5",
+                "title": "Внешность и стиль"
+            },
+            "path": "Внешность и стиль › Фитнес",
+            "about": "Тренировки, спортзал, тело.",
+            "aliases": [
+                "спортзал",
+                "тренировки"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "фитнес",
+                "тренировка",
+                "качалка",
+                "пресс",
+                "растяжка",
+                "кардио"
+            ]
+        },
+        {
+            "id": "t96db370e",
+            "key": "style.other",
+            "nsfw": false,
+            "title": "Прочее про стиль",
+            "scope": "private",
+            "parent": {
+                "id": "t2213b4f5",
+                "title": "Внешность и стиль"
+            },
+            "path": "Внешность и стиль › Прочее про стиль",
+            "about": "Другое про внешность.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t7fc013a7",
+            "key": "cars",
+            "nsfw": false,
+            "title": "Транспорт",
+            "scope": "broad",
+            "parent": null,
+            "path": "Транспорт",
+            "about": "Машины, мотоциклы и другой транспорт.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Автомобили",
+                "Мотоциклы",
+                "Прочий транспорт"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "tad46c0a7",
+            "key": "cars.cars",
+            "nsfw": false,
+            "title": "Автомобили",
+            "scope": "private",
+            "parent": {
+                "id": "t7fc013a7",
+                "title": "Транспорт"
+            },
+            "path": "Транспорт › Автомобили",
+            "about": "Машины, тюнинг, автомобильные обзоры.",
+            "aliases": [
+                "тачки",
+                "машины"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "машина",
+                "тюнинг",
+                "автообзор",
+                "дрифт",
+                "концепт_кар",
+                "автогонки"
+            ]
+        },
+        {
+            "id": "td43ede71",
+            "key": "cars.moto",
+            "nsfw": false,
+            "title": "Мотоциклы",
+            "scope": "private",
+            "parent": {
+                "id": "t7fc013a7",
+                "title": "Транспорт"
+            },
+            "path": "Транспорт › Мотоциклы",
+            "about": "Мотоциклы и мотоциклисты.",
+            "aliases": [
+                "мото",
+                "байки"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "мотоцикл",
+                "байкер",
+                "мотоспорт",
+                "харлей",
+                "эндуро",
+                "мото_путешествие"
+            ]
+        },
+        {
+            "id": "td7ed194e",
+            "key": "cars.other",
+            "nsfw": false,
+            "title": "Прочий транспорт",
+            "scope": "private",
+            "parent": {
+                "id": "t7fc013a7",
+                "title": "Транспорт"
+            },
+            "path": "Транспорт › Прочий транспорт",
+            "about": "Самолёты, поезда, корабли, велосипеды.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "te5c0535e",
+            "key": "hobby",
+            "nsfw": false,
+            "title": "Хобби и творчество",
+            "scope": "broad",
+            "parent": null,
+            "path": "Хобби и творчество",
+            "about": "Что люди делают своими руками и для души.",
+            "aliases": [
+                "творчество"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Рисунки и арт",
+                "Своими руками",
+                "Косплей",
+                "Цитаты и мотивация",
+                "Прочие хобби"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "ta04008b8",
+            "key": "hobby.art",
+            "nsfw": false,
+            "title": "Рисунки и арт",
+            "scope": "private",
+            "parent": {
+                "id": "te5c0535e",
+                "title": "Хобби и творчество"
+            },
+            "path": "Хобби и творчество › Рисунки и арт",
+            "about": "Рисунки, живопись, цифровой арт без 18+.",
+            "aliases": [
+                "арт",
+                "рисунки"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "рисунок",
+                "живопись",
+                "цифровой_арт",
+                "скетчбук",
+                "акварель",
+                "графика"
+            ]
+        },
+        {
+            "id": "taa6b8505",
+            "key": "hobby.diy",
+            "nsfw": false,
+            "title": "Своими руками",
+            "scope": "private",
+            "parent": {
+                "id": "te5c0535e",
+                "title": "Хобби и творчество"
+            },
+            "path": "Хобби и творчество › Своими руками",
+            "about": "Ремонт, поделки, мастерская.",
+            "aliases": [
+                "diy",
+                "поделки"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "своими_руками",
+                "мастерская",
+                "самоделка",
+                "столярка",
+                "3d_печать",
+                "лайфхак"
+            ]
+        },
+        {
+            "id": "ta1ab22b9",
+            "key": "hobby.cosplay",
+            "nsfw": false,
+            "title": "Косплей",
+            "scope": "private",
+            "parent": {
+                "id": "te5c0535e",
+                "title": "Хобби и творчество"
+            },
+            "path": "Хобби и творчество › Косплей",
+            "about": "Люди в костюмах персонажей.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "косплей",
+                "костюм_персонажа",
+                "бутафория",
+                "аниме_косплей",
+                "перевоплощение",
+                "гримировка"
+            ]
+        },
+        {
+            "id": "t9ffafac5",
+            "key": "hobby.quotes",
+            "nsfw": false,
+            "title": "Цитаты и мотивация",
+            "scope": "private",
+            "parent": {
+                "id": "te5c0535e",
+                "title": "Хобби и творчество"
+            },
+            "path": "Хобби и творчество › Цитаты и мотивация",
+            "about": "Текст с цитатой или мотивацией.",
+            "aliases": [
+                "цитаты",
+                "мотивация"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "цитата",
+                "мотивация",
+                "вдохновение",
+                "слова",
+                "мудрость",
+                "надпись"
+            ]
+        },
+        {
+            "id": "t0a0f0eec",
+            "key": "hobby.other",
+            "nsfw": false,
+            "title": "Прочие хобби",
+            "scope": "private",
+            "parent": {
+                "id": "te5c0535e",
+                "title": "Хобби и творчество"
+            },
+            "path": "Хобби и творчество › Прочие хобби",
+            "about": "Другие хобби.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t9dfe1892",
+            "key": "sport",
+            "nsfw": false,
+            "title": "Спорт",
+            "scope": "broad",
+            "parent": null,
+            "path": "Спорт",
+            "about": "Матчи, соревнования, спортсмены.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Футбол",
+                "Единоборства",
+                "Прочий спорт"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "t3dbc5b65",
+            "key": "sport.football",
+            "nsfw": false,
+            "title": "Футбол",
+            "scope": "private",
+            "parent": {
+                "id": "t9dfe1892",
+                "title": "Спорт"
+            },
+            "path": "Спорт › Футбол",
+            "about": "Футбольные матчи, игроки, клубы.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "футбол",
+                "матч",
+                "голы",
+                "трансфер",
+                "футбольный_клуб",
+                "лига"
+            ]
+        },
+        {
+            "id": "t433bea8a",
+            "key": "sport.fight",
+            "nsfw": false,
+            "title": "Единоборства",
+            "scope": "private",
+            "parent": {
+                "id": "t9dfe1892",
+                "title": "Спорт"
+            },
+            "path": "Спорт › Единоборства",
+            "about": "Бокс, ММА, борьба.",
+            "aliases": [
+                "бокс",
+                "мма"
+            ],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "единоборства",
+                "бокс",
+                "mma",
+                "борьба",
+                "ufc",
+                "кикбоксинг"
+            ]
+        },
+        {
+            "id": "t06db0619",
+            "key": "sport.other",
+            "nsfw": false,
+            "title": "Прочий спорт",
+            "scope": "private",
+            "parent": {
+                "id": "t9dfe1892",
+                "title": "Спорт"
+            },
+            "path": "Спорт › Прочий спорт",
+            "about": "Другие виды спорта.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "tf651be4b",
+            "key": "other",
+            "nsfw": false,
+            "title": "Разное",
+            "scope": "broad",
+            "parent": null,
+            "path": "Разное",
+            "about": "Не подходит ни под одну тему выше.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": false,
+            "children": [
+                "Прочее",
+                "Прочее разное"
+            ],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        },
+        {
+            "id": "tff65711f",
+            "key": "other.misc",
+            "nsfw": false,
+            "title": "Прочее",
+            "scope": "private",
+            "parent": {
+                "id": "tf651be4b",
+                "title": "Разное"
+            },
+            "path": "Разное › Прочее",
+            "about": "Всё, что не подошло никуда.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": [
+                "разное",
+                "загадочное",
+                "смешанное",
+                "необычное",
+                "находка",
+                "коллекция",
+                "всякая_всячина"
+            ]
+        },
+        {
+            "id": "t4525d1a2",
+            "key": "other.other",
+            "nsfw": false,
+            "title": "Прочее разное",
+            "scope": "private",
+            "parent": {
+                "id": "tf651be4b",
+                "title": "Разное"
+            },
+            "path": "Разное › Прочее разное",
+            "about": "Прочее, что не подошло ни к одной другой теме ветки.",
+            "aliases": [],
+            "own_sources": 0,
+            "uses_parent_sources": true,
+            "children": [],
+            "criteria": "",
+            "exclude": "",
+            "question": "",
+            "profile": null,
+            "hashtags": []
+        }
+    ]
+}
