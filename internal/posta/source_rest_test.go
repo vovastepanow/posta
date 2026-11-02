@@ -35,3 +35,15 @@ func TestDropTakenSources(t *testing.T) {
 		t.Fatalf("без взятых источников список не меняется, got %d", len(got))
 	}
 }
+
+func TestSourcePoolLimitRelaxesOnlyWhileFeedIsSparse(t *testing.T) {
+	if got := sourcePoolLimit(1, 50, 0); got != 2 {
+		t.Fatalf("empty feed limit: want 2, got %d", got)
+	}
+	if got := sourcePoolLimit(1, 50, 24); got != 2 {
+		t.Fatalf("sparse feed limit: want 2, got %d", got)
+	}
+	if got := sourcePoolLimit(1, 50, 25); got != 1 {
+		t.Fatalf("half-full feed limit: want 1, got %d", got)
+	}
+}

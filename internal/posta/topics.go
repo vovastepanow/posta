@@ -17,13 +17,13 @@ import (
 )
 
 const (
-	topicParentFallbackMin = 3
-	topicTitleMax          = 40
-	topicSameSimilarity    = 0.85 // «мемы и приколы» ↔ «Мемы и юмор» ≈ 0.91, «котики» ↔ «Кошки» ≈ 0.76
-	TopicProfileVersion    = 4    // 4: новая карта тем (2026-10-29) — профили пишутся заново
+	topicParentFallbackMin    = 3
+	topicTitleMax             = 40
+	topicSameSimilarity       = 0.85 // «мемы и приколы» ↔ «Мемы и юмор» ≈ 0.91, «котики» ↔ «Кошки» ≈ 0.76
+	TopicProfileVersion       = 5    // 5: профиль юмора отличает законченную шутку от шаблона
 	topicProfileFallbackRetry = 3600
-	TopicComplaintExamples = 8
-	topicComplaintStep     = 5
+	TopicComplaintExamples    = 8
+	topicComplaintStep        = 5
 )
 
 // TopicProfile — профиль темы от умной модели: критерии, вопрос, план поиска. Идёт во все промпты темы.
@@ -71,10 +71,10 @@ func (t *Topic) ParentID() string {
 }
 
 var (
-	topicNormRe  = regexp.MustCompile(`[^\p{L}\p{N}\s-]+`)
-	topicIDRe    = regexp.MustCompile(`^t[0-9a-f]{8}$`)
-	topicKeyRe   = regexp.MustCompile(`^[a-z_]+(\.[a-z_]+)?$`)
-	quotesRepl   = strings.NewReplacer("«", "", "»", "", `"`, "", "“", "", "”", "")
+	topicNormRe = regexp.MustCompile(`[^\p{L}\p{N}\s-]+`)
+	topicIDRe   = regexp.MustCompile(`^t[0-9a-f]{8}$`)
+	topicKeyRe  = regexp.MustCompile(`^[a-z_]+(\.[a-z_]+)?$`)
+	quotesRepl  = strings.NewReplacer("«", "", "»", "", `"`, "", "“", "", "”", "")
 )
 
 // TopicNorm — нижний регистр, ё → е, без знаков и лишних пробелов.
@@ -669,7 +669,7 @@ func (a *App) TopicTreeSeed(ctx context.Context, logf func(string)) (map[string]
 			}
 		}
 		type node struct {
-			key, title, about, hint string
+			key, title, about, hint    string
 			aliases, entities, queries []string
 			format                     *TopicFormat
 			nsfw                       bool
@@ -1318,6 +1318,9 @@ func (u *U) topicProfileBuild(e *Topic, complaints []string) *TopicProfile {
 		b.WriteString(". Посты — картинки и видео")
 	}
 	b.WriteString(".\nСоставь профиль для отбора записей по этой теме:\n")
+	if u.TopicIsHumor(e.Title) {
+		b.WriteString("Для «Мемов» и «Юмора» подходит законченная самостоятельная шутка: текст, сопоставление или развитие ситуации создаёт панчлайн. Не подходят пустые или почти пустые мем-шаблоны, реакционные картинки, а также узнаваемые мем-персонажи и форматы без новой шутки. Готовый мем на известном шаблоне с собственным панчлайном подходит.\n")
+	}
 	if byText {
 		b.WriteString("criteria — о чём должен быть текст поста, чтобы он подходил под тему (1–2 предложения, конкретные признаки).\n")
 	} else {

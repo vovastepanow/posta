@@ -92,8 +92,8 @@ initializeDebugMode();
 log('Приложение запущено. Загружаю пул контента.');
 if (consumeVkRedirectResult()) openAccountSection('social');
 await startTabSession();   // сначала сессия: запрос пула запускает парсер, привязанный к этой вкладке
-// Ссылки из студии (index.html#calendar и т. п.) открывают нужную вкладку
-const HASH_TABS = { content: 'content-tab', proposals: 'proposals-tab', calendar: 'calendar-tab', sources: 'source-tab', account: 'account-tab' };
+// Хеш-ссылки открывают нужную вкладку на единой странице приложения.
+const HASH_TABS = { home: 'home-tab', content: 'content-tab', proposals: 'proposals-tab', calendar: 'calendar-tab', sources: 'source-tab', account: 'account-tab' };
 const openHashTab = () => { const tab = HASH_TABS[location.hash.slice(1)]; if (tab) switchTab(tab); };
 addEventListener('hashchange', openHashTab);
 openHashTab();

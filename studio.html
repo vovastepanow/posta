@@ -1,109 +1,12 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Posta Студия</title>
-<link rel="icon" href="img/posta-favicon-32.png">
-<link rel="stylesheet" href="css/shell.css">
-<link rel="stylesheet" href="css/studio.css">
-<script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
-<script type="module" src="js/studio.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="0; url=index.html">
+  <link rel="canonical" href="index.html">
+  <title>Posta</title>
+  <script>location.replace('index.html' + location.hash);</script>
 </head>
-<body>
-<div class="studio">
-  <aside class="side">
-    <a class="brand" href="studio.html">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span><b>Posta</b><small>ИИ-студия контента</small></span>
-    </a>
-    <nav class="side-nav">
-      <a class="is-active" href="studio.html"><i>⌂</i>Главная</a>
-      <a href="index.html#content"><i>✦</i>Подбор <em id="nav-pool"></em></a>
-      <a href="index.html#proposals"><i>▣</i>Мой контент <em id="nav-proposals"></em></a>
-      <a href="index.html#calendar"><i>▦</i>Календарь</a>
-      <a href="index.html#sources"><i>⟲</i>Источники</a>
-      <a href="index.html#account"><i>⚙</i>Настройки</a>
-    </nav>
-    <h4>Источники</h4>
-    <ul id="side-sources" class="side-list"><li class="muted">Загрузка…</li></ul>
-    <h4>Фильтры</h4>
-    <ul id="side-filters" class="side-list"></ul>
-    <a class="profile" href="index.html#account">
-      <span class="avatar" id="profile-avatar">P</span>
-      <span><b id="profile-name">Владелец</b><small id="profile-plan">Тариф</small></span>
-      <i>›</i>
-    </a>
-  </aside>
-
-  <main class="main">
-    <header class="top">
-      <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Поиск по тексту, хэштегам и источникам"><kbd>/</kbd></label>
-      <div class="model-pill" id="model-pill"><span class="orb" aria-hidden="true"></span><span><b id="pill-model">Модели</b><small id="pill-state">—</small></span></div>
-    </header>
-
-    <section class="window" aria-label="Смотровое окно">
-      <div class="wtext">
-        <p class="kicker" id="kicker"><span class="onair" id="live-dot"></span><span id="live-label">Сборщик отдыхает</span></p>
-        <h1>Подбор: <em id="win-topic">…</em></h1>
-        <p class="phase" id="ai-phase">Загрузка…</p>
-        <div class="stats">
-          <div><b id="stat-pool">—</b><small>ждут решения</small></div>
-          <div><b id="stat-added">—</b><small>за проход</small></div>
-          <div><b id="stat-hour">—</b><small>за час</small></div>
-        </div>
-        <button class="cta" id="act-search" type="button">✦ Найти контент</button>
-      </div>
-      <div class="jcol">
-        <div class="jhead"><span>журнал</span><span class="jfilter" id="jfilter" hidden><span id="jfilterName"></span><button type="button" id="jfilterOff" aria-label="Сбросить фильтр">✕</button></span></div>
-        <div class="jbody"><div class="journal" id="journal" role="log" aria-live="off"></div></div>
-      </div>
-      <div class="citycol">
-        <div class="cityWrap">
-          <canvas class="sky" id="sky" aria-label="3D-город: год постов, один дом — один день. Тяни — крутить, правой — двигать, колесо — приблизить, двойной клик — сброс" title="Тяни — крутить · правой — двигать · колесо — к курсору · двойной клик — сброс"></canvas>
-          <div class="cityTip" id="cityTip" hidden></div>
-          <p class="glfail" id="glfail" hidden>3D недоступно в этом браузере</p>
-        </div>
-        <div class="heatbox">
-          <div class="heat-top"><span id="heatTip">0 в пул за год</span><span class="hright"><span class="streak">🔥 <b id="heatStreak">0</b> дн.</span><span class="datasrc" role="group" aria-label="Что считать"><button type="button" data-src="pool" aria-pressed="true">пул</button><button type="button" data-src="pub" aria-pressed="false">опубликовано</button></span></span></div>
-          <div class="heat" id="heat"></div>
-        </div>
-      </div>
-    </section>
-
-    <div class="section-head"><h2>Мой контент</h2><small>понравившиеся посты — готовы к публикации</small></div>
-    <div class="toolbar">
-      <div class="chips" id="chips"></div>
-      <select id="sort"><option value="new">Сначала новые</option><option value="rel">По оценке модели</option></select>
-    </div>
-    <div id="grid" class="grid"><p class="muted">Загрузка…</p></div>
-  </main>
-
-  <aside class="panel">
-    <section class="box">
-      <h3 id="pipeTitle">Конвейер</h3>
-      <div class="pipeHead"><b id="pipeNow">—</b><small id="pipePct"></small></div>
-      <div class="pbar"><i id="pbar"></i></div>
-      <div class="pipe" id="pipe"></div>
-    </section>
-    <section class="box">
-      <h3>Только что отобрано</h3>
-      <ul class="feed" id="feed"><li class="muted">Загрузка…</li></ul>
-    </section>
-    <section class="box">
-      <h3>Быстрые действия</h3>
-      <a class="action" href="index.html#content"><i>✦</i><span><b>Разобрать подборку</b><small>Лайк — в «Мой контент», дизлайк учит модель</small></span><em>›</em></a>
-      <a class="action" href="index.html#calendar"><i>▦</i><span><b>Запланировать</b><small>Календарь и расписание каналов</small></span><em>›</em></a>
-      <button class="action" id="act-discover" type="button"><i>⟲</i><span><b>Подобрать источники</b><small>Новые каналы и паблики по теме</small></span><em>›</em></button>
-      <p class="muted" id="act-note" role="status"></p>
-    </section>
-  </aside>
-</div>
-<svg class="fakecur" id="fakecur" viewBox="0 0 22 22" hidden aria-hidden="true">
-  <circle cx="11" cy="11" r="8" fill="rgba(124,92,255,.25)" stroke="#eef0fb" stroke-width="1.5"></circle>
-  <path d="M4 11h-3M21 11h-3M11 4V1M11 21v-3" stroke="#eef0fb" stroke-width="1.5"></path>
-  <circle cx="11" cy="11" r="1.6" fill="#eef0fb"></circle>
-</svg>
-<dialog class="preview" id="preview"></dialog>
-</body>
+<body><p>Открываем <a href="index.html">Posta</a>…</p></body>
 </html>

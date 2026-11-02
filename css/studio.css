@@ -1,4 +1,4 @@
-/* Posta Студия — тёмная панель контента. */
+/* Виджеты главной вкладки Posta. */
 
 /* Смотровое окно: текст | журнал | город с тепловой картой под ним (порядок колонок — как в docs/studio-city-mock.html) */
 .window { position: relative; display: grid; grid-template-columns: minmax(210px, 240px) minmax(200px, 240px) minmax(0, 1fr); gap: 20px; padding: 20px 22px; border-radius: 20px; overflow: hidden; border: 1px solid var(--line);
@@ -46,7 +46,7 @@
 .jbody { position: relative; flex: 1; }
 .journal { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; font: 11px/1.65 var(--mono); color: var(--muted);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%); mask-image: linear-gradient(to bottom, transparent, #000 14%); }
-.journal .ln { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.journal .ln { flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .journal .ts { color: var(--faint); } .journal .ok { color: var(--ok); } .journal .no { color: var(--bad); } .journal .w { color: var(--warm); }
 .journal .prog { color: var(--text); }
 
@@ -123,3 +123,47 @@
 @media (max-width: 640px) { .window { grid-template-columns: minmax(0, 1fr); padding: 16px; } .cityWrap { margin: 0 -16px; } .heat { gap: 1px; } .jcol { min-height: 120px; } }
 @media (max-width: 760px) { .preview[open] { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .kicker.is-on .onair, .dot.run { animation: none; } }
+
+/* Тёплая бумага: та же палитра, что и в приложении. */
+:root {
+  color-scheme: light;
+  --bg: #f5f1e6; --bg2: #eae3d3; --panel: #fffdf7; --panel2: #f1ecdf; --panel3: #eae3d3;
+  --line: #ded5c3; --line2: #bdb29e; --text: #27251f; --muted: #716c60; --faint: #716c60;
+  --accent: #8a7100; --accent2: #8a7100; --cyan: #315e87; --ok: #286744; --bad: #a52d25;
+  --warm: #8a5a00; --grad: #ffda1a; --heat0: #eee9dc; --heat1: #e6d98b; --heat2: #d3bd4c; --heat3: #a88c17; --heat4: #6f5b00;
+  color-scheme: light;
+}
+html, body { background: #f5f1e6; color: #27251f; }
+.side { background: #eae3d3; border-color: #ded5c3; }
+.brand { gap: 0; padding: 8px 8px 20px; }
+.brand-logo { display: inline-flex; align-items: flex-start; padding: .1em .22em .12em .2em; background: #ffda1a; color: #111; font: 900 29px/1 'Jost', 'Futura', 'Century Gothic', sans-serif; letter-spacing: -.045em; white-space: nowrap; }
+.brand-logo sup { position: relative; top: .12em; margin-left: .04em; font-size: .46em; letter-spacing: 0; }
+.side-nav a:hover, .side-nav .tab-btn:hover, .side-list li:hover { background: rgba(39, 37, 31, .07); }
+.side-nav a.is-active, .side-nav .tab-btn.active, .side-list li.is-active { background: #f3e8ae; color: #27251f; }
+.side-nav a.is-active em { background: #d9c66e; color: #27251f; }
+.window { border-color: #ded5c3; background: #fffdf7; box-shadow: 0 8px 24px rgba(54, 43, 25, .10); }
+.window h1 em { background: none; color: #725b00; }
+.phase, .text-only, .preview-text { color: #514d43; }
+.stats div { background: #f5f1e6; border-color: #ded5c3; }
+.cityTip { background: rgba(255, 253, 247, .95); color: #27251f; }
+.datasrc { background: #fffdf7; }
+.datasrc button[aria-pressed="true"] { background: #f3e8ae; color: #27251f; }
+.cta { background: #ffda1a; color: #27251f; box-shadow: 0 2px 0 rgba(39, 37, 31, .16); }
+.cta:hover { background: #f0cb00; }
+.tile { background: #fffdf7; }
+.tile:hover { border-color: #bdb29e; }
+.heat i { background: var(--heat0); }
+.heat i[style*="--v:1"] { background: var(--heat1); }
+.heat i[style*="--v:2"] { background: var(--heat2); }
+.heat i[style*="--v:3"] { background: var(--heat3); }
+.heat i[style*="--v:4"] { background: var(--heat4); }
+:focus-visible { outline: 3px solid #725b00; outline-offset: 2px; }
+.studio-dashboard { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; min-width: 0; width: 100%; }
+.studio-home-main { min-width: 0; }
+.studio-dashboard .panel { grid-column: auto; display: flex; flex-direction: column; gap: 16px; padding: 0; min-width: 0; }
+@media (max-width: 760px) {
+  .side .brand { padding: 0 8px 0 2px; }
+  .brand-logo { font-size: 21px; }
+  .studio-dashboard { grid-template-columns: minmax(0, 1fr); }
+  .studio-dashboard .panel { display: grid; grid-template-columns: minmax(0, 1fr); padding: 0; }
+}

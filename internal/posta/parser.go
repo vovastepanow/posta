@@ -323,8 +323,6 @@ func (u *U) dvachBoardsThisRun(boards []string, topic string) []string {
 	u.Log("Двач: в списке %d досок, в этот запуск — %d (лучшие по прошлым запускам и случайные, остальные — в следующие запуски).", len(boards), len(chosen))
 	return chosen
 }
-
-
 func platformLabel(platform string, entry jx.M) string {
 	if platform == PlatformRSS {
 		k := RSSFeedKind(jx.Str(entry, "id"))
@@ -802,7 +800,7 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 			return nil
 		}
 		topic := TopicNorm(jx.Str(item, "topic"))
-		if sourcePoolCount(pool, topic, ContentSourceKey(item)) >= u.TInt("per_source_pool") {
+		if sourcePoolCount(pool, topic, ContentSourceKey(item)) >= sourcePoolLimit(u.TInt("per_source_pool"), target, topicPoolCount(pool, topic)) {
 			return nil
 		}
 		var same []int
@@ -849,7 +847,7 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	skipped := queueSkip{}
 	busy := u.sourceBusy(topic)
 	unique := map[string]jx.M{}
-	var order []string
+	var order, deferred []string
 	uaHits, uaNames, uaAll := map[string]int{}, map[string]string{}, map[string]bool{}
 	maxAge := u.TInt("content_max_age")
 	platOrder := []string{PlatformTelegram, PlatformVK, PlatformRSS, PlatformOK, PlatformTikTok, PlatformDvach, Platform4chan}
@@ -890,10 +888,6 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 				continue
 			}
 			src := ContentSourceKey(item)
-			if busy[src] {
-				skipped["source_busy"]++
-				continue
-			}
 			days := maxAge
 			if strings.HasPrefix(src, "dvach:") {
 				days = config.DvachMaxAgeDays
@@ -914,9 +908,35 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 				continue
 			}
 			unique[ukey] = item
-			order = append(order, ukey)
+			if busy[src] {
+				deferred = append(deferred, ukey)
+			} else {
+				order = append(order, ukey)
+			}
 		}
 	}
+	// The source cap and cooldown are for variety, not a reason to leave a
+	// topic empty.  If the normal queue is thin, bring back enough of the
+	// otherwise valid posts from resting/full sources to give the analyzer a
+	// realistic chance of filling the feed.  They remain interleaved by source.
+	queueGoal := min(500, max(config.PrescreenBatch, 2*max(1, min(u.TInt("added_per_run"), u.TInt("pool_target")-u.PoolTopicCount(topic)))))
+	returned := 0
+	if len(order) < queueGoal && len(deferred) > 0 {
+		fallback := make([]jx.M, 0, len(deferred))
+		for _, k := range deferred {
+			fallback = append(fallback, unique[k])
+		}
+		for _, it := range InterleaveBySource(fallback)[:min(len(fallback), queueGoal-len(order))] {
+			key := jx.Str(it, "image")
+			if key == "" {
+				key = CandidateTextKey(it)
+			}
+			order = append(order, key)
+			returned++
+		}
+		skipped["source_busy_returned"] = returned
+	}
+	skipped["source_busy"] = len(deferred) - returned
 	skipped["ukraine_sources"] = len(uaAll)
 	for src, n := range uaHits {
 		if n >= uaSourcePostsMax {
@@ -1929,6 +1949,9 @@ func (u *U) RunCollector() bool {
 			notes += fmt.Sprintf(s.t, skipped[s.k])
 		}
 	}
+	if n := skipped["source_busy_returned"]; n > 0 {
+		notes += fmt.Sprintf(" Вернул из них в очередь из-за нехватки кандидатов: %d.", n)
+	}
 	u.Log("%s Быстрая оценка по картинке %d px: отсев мусора при уверенности от %d%%, тему не проверяет.", notes, config.PrescreenMaxSide, u.TInt("prescreen_junk"))
 	pc := &prescreenCtx{stats: map[string]int{}, cached: scores, newCache: map[string]screenedEntry{}, knownHashes: u.collectKnownHashes(), screenedHashes: screenedHashes}
 	analyzed, added, done := 0, 0, 0
@@ -2002,7 +2025,7 @@ outer:
 			t0 := time.Now()
 			if u.analyzeCandidate(c.Item, c.Poster, u.History(), key) {
 				added++
-				if src := ContentSourceKey(c.Item); sourcePoolCount(u.Pool(), key, src) >= u.TInt("per_source_pool") {
+				if src := ContentSourceKey(c.Item); sourcePoolCount(u.Pool(), key, src) >= sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), u.PoolTopicCount(key)) {
 					takenSrc[src] = true
 				}
 			}

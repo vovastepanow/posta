@@ -8,25 +8,30 @@
 <link rel="icon" href="img/posta-favicon-16.png" sizes="16x16" type="image/png">
 <link rel="icon" href="img/posta-favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="img/posta-favicon-180.png">
-<meta name="theme-color" content="#090b14">
+<meta name="theme-color" content="#f5f1e6">
 <link rel="preload" href="fonts/Rubik-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/shell.css">
-<link rel="stylesheet" href="css/app.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@700;800;900&display=swap">
+<link rel="stylesheet" href="css/shell.css?v=warm-paper-1">
+<link rel="stylesheet" href="css/app.css?v=warm-paper-1">
+<link rel="stylesheet" href="css/studio.css?v=warm-paper-1">
+<script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
 <script type="module" src="js/main.js"></script>
+<script type="module" src="js/studio.js"></script>
 <script>setTimeout(() => document.getElementById('app-loading')?.classList.add('is-done'), 20000);</script>
 </head>
 <body>
 <div id="app-loading" class="app-loading" role="status" aria-label="Загрузка приложения"><span class="spinner spinner-lg"></span><span class="app-loading-text">Загрузка…</span></div>
 <div class="studio is-app">
   <aside class="side">
-    <a class="brand" href="./">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span><b>Posta</b><small>ИИ-студия контента</small></span>
+    <a class="brand" href="#home">
+      <span class="brand-logo" aria-label="Posta">posta<sup>,–</sup></span>
     </a>
     <nav class="side-nav" role="tablist" aria-label="Вкладки">
-      <a href="./"><i>⌂</i>Главная</a>
-      <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="content-tab"><i>✦</i>Подбор</button>
-      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="proposals-tab"><i>▣</i>Предложка</button>
+      <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="home-tab"><i>⌂</i>Главная</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="content-tab"><i>✦</i>Подбор<em id="nav-pool"></em></button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="proposals-tab"><i>▣</i>Предложка<em id="nav-proposals"></em></button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="calendar-tab"><i>▦</i>Календарь</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="source-tab"><i>⟲</i>Источники</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab"><i>❖</i>Дерево</button>
@@ -34,6 +39,10 @@
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="account-tab"><i>⚙</i>Личный кабинет</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="admin-tab" hidden><i>★</i>Админка</button>
     </nav>
+    <h4>Источники</h4>
+    <ul id="side-sources" class="side-list"><li class="muted">Загрузка…</li></ul>
+    <h4>Фильтры</h4>
+    <ul id="side-filters" class="side-list"></ul>
     <a class="profile" href="#account">
       <span class="avatar" id="profile-avatar">P</span>
       <span><b id="profile-name">Владелец</b><small id="profile-plan">Тариф</small></span>
@@ -78,9 +87,81 @@
   <button id="debug-reset-button" type="button">Сбросить демо</button>
 </div>
 
-<!-- Панель управления: справа на всех вкладках -->
-<!-- ПОДБОР -->
-<div id="content-tab" class="view-panel active">
+<!-- Главная: сводка студии и быстрые действия -->
+<div id="home-tab" class="view-panel wide-panel home-tab active">
+  <div class="studio-dashboard">
+    <div class="studio-home-main">
+    <header class="top">
+      <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Поиск по тексту, хэштегам и источникам"><kbd>/</kbd></label>
+      <div class="model-pill" id="model-pill"><span class="orb" aria-hidden="true"></span><span><b id="pill-model">Модели</b><small id="pill-state">—</small></span></div>
+    </header>
+
+    <section class="window" aria-label="Смотровое окно">
+      <div class="wtext">
+        <p class="kicker" id="kicker"><span class="onair" id="live-dot"></span><span id="live-label">Сборщик отдыхает</span></p>
+        <h1>Подбор: <em id="win-topic">…</em></h1>
+        <p class="phase" id="ai-phase">Загрузка…</p>
+        <div class="stats">
+          <div><b id="stat-pool">—</b><small>ждут решения</small></div>
+          <div><b id="stat-added">—</b><small>за проход</small></div>
+          <div><b id="stat-hour">—</b><small>за час</small></div>
+        </div>
+        <button class="cta" id="act-search" type="button">✦ Найти контент</button>
+      </div>
+      <div class="jcol">
+        <div class="jhead"><span>журнал</span><span class="jfilter" id="jfilter" hidden><span id="jfilterName"></span><button type="button" id="jfilterOff" aria-label="Сбросить фильтр">✕</button></span></div>
+        <div class="jbody"><div class="journal" id="journal" role="log" aria-live="off"></div></div>
+      </div>
+      <div class="citycol">
+        <div class="cityWrap">
+          <canvas class="sky" id="sky" aria-label="3D-город: год постов, один дом — один день. Тяни — крутить, правой — двигать, колесо — приблизить, двойной клик — сброс" title="Тяни — крутить · правой — двигать · колесо — к курсору · двойной клик — сброс"></canvas>
+          <div class="cityTip" id="cityTip" hidden></div>
+          <p class="glfail" id="glfail" hidden>3D недоступно в этом браузере</p>
+        </div>
+        <div class="heatbox">
+          <div class="heat-top"><span id="heatTip">0 в пул за год</span><span class="hright"><span class="streak">🔥 <b id="heatStreak">0</b> дн.</span><span class="datasrc" role="group" aria-label="Что считать"><button type="button" data-src="pool" aria-pressed="true">пул</button><button type="button" data-src="pub" aria-pressed="false">опубликовано</button></span></span></div>
+          <div class="heat" id="heat"></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-head"><h2>Мой контент</h2><small>понравившиеся посты — готовы к публикации</small></div>
+    <div class="toolbar">
+      <div class="chips" id="chips"></div>
+      <select id="sort"><option value="new">Сначала новые</option><option value="rel">По оценке модели</option></select>
+    </div>
+    <div id="grid" class="grid"><p class="muted">Загрузка…</p></div>
+
+    </div>
+    <aside class="panel">
+    <section class="box">
+      <h3 id="pipeTitle">Конвейер</h3>
+      <div class="pipeHead"><b id="pipeNow">—</b><small id="pipePct"></small></div>
+      <div class="pbar"><i id="pbar"></i></div>
+      <div class="pipe" id="pipe"></div>
+    </section>
+    <section class="box">
+      <h3>Только что отобрано</h3>
+      <ul class="feed" id="feed"><li class="muted">Загрузка…</li></ul>
+    </section>
+    <section class="box">
+      <h3>Быстрые действия</h3>
+      <a class="action" href="index.html#content"><i>✦</i><span><b>Разобрать подборку</b><small>Лайк — в «Мой контент», дизлайк учит модель</small></span><em>›</em></a>
+      <a class="action" href="index.html#calendar"><i>▦</i><span><b>Запланировать</b><small>Календарь и расписание каналов</small></span><em>›</em></a>
+      <button class="action" id="act-discover" type="button"><i>⟲</i><span><b>Подобрать источники</b><small>Новые каналы и паблики по теме</small></span><em>›</em></button>
+      <p class="muted" id="act-note" role="status"></p>
+    </section>
+
+    </aside>
+  </div>
+</div>
+<svg class="fakecur" id="fakecur" viewBox="0 0 22 22" hidden aria-hidden="true">
+  <circle cx="11" cy="11" r="8" fill="rgba(124,92,255,.25)" stroke="#eef0fb" stroke-width="1.5"></circle>
+  <path d="M4 11h-3M21 11h-3M11 4V1M11 21v-3" stroke="#eef0fb" stroke-width="1.5"></path>
+  <circle cx="11" cy="11" r="1.6" fill="#eef0fb"></circle>
+</svg>
+<dialog class="preview" id="preview"></dialog>
+<div id="content-tab" class="view-panel">
   <form id="topic-form" class="topic-form">
     <label for="topic-input">Тема поиска</label>
     <div class="topic-row">

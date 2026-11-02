@@ -1,20 +1,20 @@
-/* app.css — стили приложения Posta поверх css/shell.css: одна тёмная тема студии, шрифт Rubik. */
+/* app.css — стили приложения Posta поверх css/shell.css: тёплая бумажная тема. */
 
 
 /* ---- Палитра и основа: одна тёмная тема студии (--bg и базовые токены — в shell.css) ---- */
 :root {
-    color-scheme: dark;
-    --surface: #121527; --surface-2: #171b31; --surface-3: #1d2140;
-    --line: rgba(160, 170, 230, .12); --line-strong: rgba(160, 170, 230, .24);
-    --text: #eef0fb; --muted: #8b90b0; --faint: #6c7194;
-    --accent: #7c5cff; --accent-text: #ffffff;
-    --danger: #ff5a7a; --red: #ff5a7a; --link: #8fb4ff;
-    --ok: #3ddc97; --ok-pill: #3ddc97; --blue: #4fd1ff; --warm: #ffb84d;
-    --best-tint: rgba(124, 92, 255, .14); --gap-bg: #2a2748; --tg-bg: #1e2340; --warn-bg: #3a2236;
-    --shadow-ink: #05060e; --shadow-card: 0 12px 32px rgba(0, 0, 0, .35); --shadow-btn: none;
-    --plate-blue-ink: #0b0d1a; --plate-danger-ink: #0b0d1a; --plate-ok-ink: #0b0d1a;
-    --dup-text: #d9c8ff; --dup-bg: #2a2150; --dup-line: #9b7bff;
-    --modal-dim: rgba(3, 4, 12, .72); --spinner-ink: #8b90b0; --on-bright: #0b0d1a;
+    color-scheme: light;
+    --surface: #fffdf7; --surface-2: #f1ecdf; --surface-3: #eae3d3;
+    --line: #ded5c3; --line-strong: #bdb29e;
+    --text: #27251f; --muted: #716c60; --faint: #716c60;
+    --accent: #f3e8ae; --accent-text: #27251f;
+    --danger: #a52d25; --red: #a52d25; --link: #514276;
+    --ok: #286744; --ok-pill: #286744; --blue: #315e87; --warm: #8a5a00;
+    --best-tint: #f3e8ae; --gap-bg: #f1ecdf; --tg-bg: #f1ecdf; --warn-bg: #f8e8df;
+    --shadow-ink: #625c50; --shadow-card: 0 8px 24px rgba(54, 43, 25, .10); --shadow-btn: none;
+    --plate-blue-ink: #27251f; --plate-danger-ink: #fffdf7; --plate-ok-ink: #fffdf7;
+    --dup-text: #514276; --dup-bg: #eee8f5; --dup-line: #8d78a9;
+    --modal-dim: rgba(39, 37, 31, .48); --spinner-ink: #716c60; --on-bright: #27251f;
     --radius: 12px; --radius-card: 18px; --border: 1px; --ring: 1px; --ring-active: 2.5px; --spinner-size: 38px;
     --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
     --font-ui: 'Rubik', system-ui, 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
@@ -64,6 +64,32 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .app-loading-text { color: var(--text); font: 700 15px var(--font-ui); }
 .app-loading.is-done { opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* Тёплая бумага: оболочка, бренд и общий контраст интерфейса. */
+:root { --bg: #f5f1e6; --bg2: #eae3d3; --panel: #fffdf7; --panel2: #f1ecdf; --panel3: #eae3d3; --line2: #bdb29e; --faint: #716c60; --grad: #ffda1a; --font-ui: 'Rubik', system-ui, sans-serif; }
+html, body { background: var(--bg); color: var(--text); }
+body { font-family: var(--font-ui); }
+.side { background: #eae3d3; border-color: #ded5c3; }
+.brand { gap: 0; padding: 8px 8px 20px; }
+.brand-logo { display: inline-flex; align-items: flex-start; padding: .1em .22em .12em .2em; background: #ffda1a; color: #111; font: 900 29px/1 'Jost', 'Futura', 'Century Gothic', sans-serif; letter-spacing: -.045em; white-space: nowrap; }
+.brand-logo sup { position: relative; top: .12em; margin-left: .04em; font-size: .46em; letter-spacing: 0; }
+.side-nav a:hover, .side-nav .tab-btn:hover, .side-list li:hover { background: rgba(39, 37, 31, .07); }
+.side-nav a.is-active, .side-nav .tab-btn.active, .side-list li.is-active { background: #f3e8ae; color: #27251f; }
+.side-nav a.is-active em { background: #d9c66e; color: #27251f; }
+.primary-button, .topic-row button { background: #ffda1a; color: #27251f; box-shadow: 0 2px 0 rgba(39, 37, 31, .16); }
+.primary-button:hover:not(:disabled), .topic-row button:hover:not(:disabled) { background: #f0cb00; box-shadow: 0 3px 0 rgba(39, 37, 31, .18); }
+.secondary-button, .refresh-button, .account-secondary, .model-panel button { background: #fffdf7; border-color: #ded5c3; color: #27251f; }
+.secondary-button:hover, .refresh-button:hover, .account-secondary:hover { background: #f3e8ae; border-color: #bdb29e; }
+.topic-switch-button, .topic-switch-menu, .activity-console, .account-card, .proposal-card, .cal-card { background-color: #fffdf7; }
+.topic-switch-menu button:hover, .topic-switch-menu button.is-current { background: #f3e8ae; color: #27251f; }
+.tab-inactive-bar { background: #eae3d3; color: #27251f; }
+.tab-inactive-bar button { background: #ffda1a; border-color: #ffda1a; color: #27251f; }
+:focus-visible { outline-color: #725b00; }
+input[type="checkbox"], input[type="radio"] { accent-color: #8a7100; }
+@media (max-width: 760px) {
+  .side .brand { padding: 0 8px 0 2px; }
+  .brand-logo { font-size: 21px; }
+}
 
 
 /* ---- Шапка, вкладки, панели ---- */
@@ -2329,3 +2355,12 @@ body.pv-open { overflow: hidden; }
 .tunable.is-changed .tunable-title { font-weight: 700; }
 .tunable .link-button { grid-column: 1 / -1; justify-self: start; background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font-size: .85em; }
 @media (max-width: 560px) { .tunable { grid-template-columns: 1fr; } }
+
+/* Финальная привязка интерактивных акцентов к теме после компонентных правил. */
+.primary-button, .topic-row button { background: #ffda1a; color: #27251f; box-shadow: 0 2px 0 rgba(39, 37, 31, .16); }
+.primary-button:hover:not(:disabled), .topic-row button:hover:not(:disabled) { background: #f0cb00; box-shadow: 0 3px 0 rgba(39, 37, 31, .18); }
+.secondary-button:hover, .refresh-button:hover, .debug-banner button:hover, .database-record-actions button:hover { border-color: #bdb29e; background: #f3e8ae; }
+.topic-row button { border-radius: 6px; }
+.btn-main { background: #ffda1a; color: #27251f; box-shadow: 0 2px 0 rgba(39, 37, 31, .16); }
+.activity-console-line.console-box { border-left-color: #8a7100; }
+.cal-fill { background: #a52d25; color: #fffdf7; }

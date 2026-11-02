@@ -25,7 +25,27 @@ func sourcePoolCount(pool []jx.M, topic, src string) int {
 	return n
 }
 
-// sourceBusy — источники, которых сейчас не берём в тему: записей в ленте уже per_source_pool или идёт отдых после оценки.
+func topicPoolCount(pool []jx.M, topic string) int {
+	t, n := TopicNorm(topic), 0
+	for _, it := range pool {
+		if TopicNorm(jx.Str(it, "topic")) == t {
+			n++
+		}
+	}
+	return n
+}
+
+// sourcePoolLimit keeps the feed varied, but gives an underfilled feed one
+// additional post from each source.  A strict one-post cap is counterproductive
+// when there simply are not enough active sources to fill a new topic.
+func sourcePoolLimit(perSource, target, current int) int {
+	if current < max(1, target/2) {
+		return perSource + 1
+	}
+	return perSource
+}
+
+// sourceBusy — источники, которых сейчас не берём в тему: записей в ленте уже допустимый предел или идёт отдых после оценки.
 func (u *U) sourceBusy(topic string) map[string]bool {
 	busy := map[string]bool{}
 	counts := map[string]int{}
@@ -35,7 +55,7 @@ func (u *U) sourceBusy(topic string) map[string]bool {
 			counts[ContentSourceKey(it)]++
 		}
 	}
-	perSource := u.TInt("per_source_pool")
+	perSource := sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), topicPoolCount(u.Pool(), topic))
 	for src, n := range counts {
 		if n >= perSource {
 			busy[src] = true

@@ -35,12 +35,17 @@ func contentFormatKeys() []string {
 }
 
 // ContentAnalysisSchema — relevance и tags первыми: если ответ обрежется, главное уже есть.
-func ContentAnalysisSchema(query string) jx.M {
+func ContentAnalysisSchema(query string, humor bool) jx.M {
 	props := jx.M{"relevance": jx.M{"type": "integer", "minimum": 0, "maximum": 100}}
 	req := []string{"relevance"}
 	if query != "" {
 		props["query_match"] = jx.M{"type": "integer", "minimum": 0, "maximum": 100}
 		req = append(req, "query_match")
+	}
+	if humor {
+		props["meme_kind"] = jx.M{"type": "string", "enum": []string{"finished_meme", "template_or_reaction", "funny_situation", "not_meme"}}
+		props["joke"] = jx.M{"type": "string"}
+		req = append(req, "meme_kind", "joke")
 	}
 	props["ukraine"] = jx.M{"type": "boolean"}
 	props["tags"] = ContentTagsSchema()
@@ -69,6 +74,11 @@ func (u *U) ContentAnalysisPrompt(topic, caption string, h History, video *Story
 	b.WriteString("Оценивай только то, что есть в записи. «Могло бы подойти», «возможный контекст», «может быть частью мема» — значит не подходит.\n\n")
 	b.WriteString("Верни JSON с полями в таком порядке:\n")
 	b.WriteString(rule)
+	if u.TopicIsHumor(topic) {
+		b.WriteString("meme_kind: один тип записи. finished_meme — законченная самостоятельная шутка; template_or_reaction — пустой или почти пустой мем-шаблон, реакционная картинка либо узнаваемый персонаж/формат без собственной шутки; funny_situation — смешная реальная ситуация или видео с понятным поворотом; not_meme — не мем и не смешная ситуация. Шаблон с новым текстом или сопоставлением, которые сами создают шутку, — finished_meme, а не template_or_reaction.\n")
+		b.WriteString("joke: в одном коротком предложении объясни, в чём панчлайн именно этой записи. Если законченной шутки нет — пустая строка. Узнаваемость шаблона, персонажа или фразы сама по себе не панчлайн.\n")
+		b.WriteString("Для темы «Мемы» template_or_reaction и not_meme получают relevance не выше 30; finished_meme или funny_situation без объяснённого панчлайна — не выше 40.\n")
+	}
 	b.WriteString(ContentTagsPromptRules())
 	b.WriteString(fmt.Sprintf("description: одна фраза по-русски, до %d символов: что изображено или происходит и о чём надписи. Только то, что видно.\n", config.AnalysisDescriptionMax))
 	b.WriteString("format: форма поста, одно из: " + contentFormatsLine() + ". Для одной картинки не выбирай video.\n")
@@ -236,7 +246,7 @@ func SubtopicApply(rel int, s *Subtopic, winner string) int {
 // JokePresent — «есть ли шутка, понятная без додумывания» (вероятность «да» ≥ JokeYesMin). Нет ответа — не подтверждена.
 func (u *U) JokePresent(img []byte, private bool) bool {
 	seed := config.AnalysisSeed
-	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleJudge, Prompt: "Есть ли в этой записи шутка, понятная без додумывания: смешная надпись, подпись или ситуация? Ответь да или нет.",
+	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleJudge, Prompt: "Есть ли в этой конкретной записи законченная самостоятельная шутка с понятным панчлайном: в надписи, подписи или ситуации? Считай «нет», если это только пустой мем-шаблон, реакционная картинка, известный персонаж или формат без новой шутки. Ответь да или нет.",
 		Images: [][]byte{img}, MaxTokens: 4, Temperature: 0, Seed: &seed, Logprobs: true, TopLogprobs: 10, UserID: u.ID, Private: private})
 	if err != nil {
 		return false
@@ -294,7 +304,7 @@ func (u *U) AnalyzeContentWithVision(images [][]byte, caption string, h History,
 	var lastErr error
 	for _, at := range attempts {
 		seed := config.AnalysisSeed
-		r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleAnalysis, Prompt: prompt, Images: encoded, Schema: ContentAnalysisSchema(query),
+		r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleAnalysis, Prompt: prompt, Images: encoded, Schema: ContentAnalysisSchema(query, u.TopicIsHumor(topic)),
 			MaxTokens: at.tokens, Temperature: 0, Seed: &seed, Think: at.think, UserID: u.ID, Topic: topic, Private: private,
 			OnThinking: u.thinkingLogger()})
 		if err == nil {
@@ -328,6 +338,10 @@ func (u *U) finishAnalysis(a jx.M, topic, query string, isVideo bool, firstImage
 	if query != "" {
 		rel = min(rel, llm.ClampScore(jx.Float(a, "query_match")))
 	}
+	humor := u.TopicIsHumor(topic)
+	if humor {
+		rel = memeRelevanceCap(rel, jx.Str(a, "meme_kind"), jx.Str(a, "joke"))
+	}
 	var subtopic, subtopicP any
 	if s := u.SubtopicOptions(topic); s != nil {
 		winner, p := u.SubtopicChoice(firstImage, s, private)
@@ -338,12 +352,26 @@ func (u *U) finishAnalysis(a jx.M, topic, query string, isVideo bool, firstImage
 		if p != nil {
 			subtopicP = *p
 		}
-	} else if u.TopicIsHumor(topic) && !u.JokePresent(firstImage, private) {
+	} else if humor && !u.JokePresent(firstImage, private) {
 		rel = min(rel, config.JokeNoCap)
 	}
 	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(a, "description")), config.AnalysisDescriptionMax), "why_relevant": evidence, "format": format,
-		"tags": u.ContentTagsClean(a["tags"]), "entity": ContentEntityClean(a["entity"]), "geo": GeoFromAnalysis(a), "evidence": evidence, "joke": "", "relevance": rel, "rating": nil,
+		"tags": u.ContentTagsClean(a["tags"]), "entity": ContentEntityClean(a["entity"]), "geo": GeoFromAnalysis(a), "evidence": evidence, "joke": trimRunes(llm.StripCJK(jx.Str(a, "joke")), config.AnalysisEvidenceMax), "meme_kind": jx.Str(a, "meme_kind"), "relevance": rel, "rating": nil,
 		"ukraine": a["ukraine"] == true, "subtopic": subtopic, "subtopic_p": subtopicP, "model": model}
+}
+
+// memeRelevanceCap makes the model's meme classification enforceable: a known
+// template is not automatically a finished joke.
+func memeRelevanceCap(relevance int, kind, joke string) int {
+	switch kind {
+	case "template_or_reaction", "not_meme":
+		return min(relevance, config.MemeTemplateCap)
+	case "finished_meme", "funny_situation":
+		if strings.TrimSpace(joke) == "" {
+			return min(relevance, config.JokeNoCap)
+		}
+	}
+	return relevance
 }
 
 // thinkingLogger — размышления в журнал кусками ~220 символов.
@@ -514,7 +542,7 @@ func IsSpamContent(caption, description string) bool {
 
 // ---- Текстовые записи без картинки: пачкой, только текст ----
 
-func TextBatchSchema(query string) jx.M {
+func TextBatchSchema(query string, humor bool) jx.M {
 	props := jx.M{"index": jx.M{"type": "integer"}, "relevance": jx.M{"type": "integer", "minimum": 0, "maximum": 100}}
 	req := []string{"index", "relevance"}
 	if query != "" {
@@ -532,6 +560,10 @@ func TextBatchSchema(query string) jx.M {
 	props["evidence"] = jx.M{"type": "string"}
 	props["joke"] = jx.M{"type": "string"}
 	req = append(req, "ukraine", "tags", "description", "format", "entity", "evidence", "joke")
+	if humor {
+		props["meme_kind"] = jx.M{"type": "string", "enum": []string{"finished_meme", "template_or_reaction", "funny_situation", "not_meme"}}
+		req = append(req, "meme_kind")
+	}
 	item := jx.M{"type": "object", "properties": props, "required": req}
 	return jx.M{"type": "object", "properties": jx.M{"items": jx.M{"type": "array", "items": item}}, "required": []string{"items"}}
 }
@@ -545,6 +577,9 @@ func (u *U) TextBatchPrompt(topic string, texts []string) string {
 	b.WriteString("Оценивай только то, что есть в тексте. «Могло бы подойти», «возможный контекст» — значит не подходит.\n")
 	b.WriteString("Верни JSON: items — по одному объекту на каждую запись, поле index — её номер в списке (с 0). Поля в таком порядке:\n")
 	b.WriteString("relevance (0-100): 0-30 не про тему, реклама, спам или нет смысла; 31-60 тема есть, но слабо; 61-85 явно по теме; 86-100 яркий пример темы.\n")
+	if u.TopicIsHumor(topic) {
+		b.WriteString("meme_kind: finished_meme — законченная самостоятельная шутка; template_or_reaction — шаблон, реакционная картинка или узнаваемый формат без новой шутки; funny_situation — смешная ситуация с понятным поворотом; not_meme — не мем. Для template_or_reaction и not_meme relevance не выше 30. joke: коротко объясни панчлайн; если его нет — пустая строка и relevance не выше 40.\n")
+	}
 	b.WriteString(ContentTagsPromptRules())
 	b.WriteString(fmt.Sprintf("description: одна фраза по-русски, до %d символов, о чём текст. Только то, что написано.\n", config.AnalysisDescriptionMax))
 	b.WriteString("format: форма поста, одно из: " + contentFormatsLine() + ". Для текста обычно text.\n")
@@ -563,7 +598,8 @@ func (u *U) TextBatchPrompt(topic string, texts []string) string {
 // AnalyzeTextBatch — пачка текстовых записей одним вызовом; по порядку входа, nil — модель не ответила по записи.
 func (u *U) AnalyzeTextBatch(texts []string, topic string) ([]Analysis, error) {
 	query := TopicQueryOf(topic)
-	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, Prompt: u.TextBatchPrompt(topic, texts), Schema: TextBatchSchema(query),
+	humor := u.TopicIsHumor(topic)
+	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, Prompt: u.TextBatchPrompt(topic, texts), Schema: TextBatchSchema(query, humor),
 		MaxTokens: config.AnalysisMaxTokens * max(1, min(len(texts), 6)), Temperature: 0.1, UserID: u.ID, Topic: topic, Private: u.TopicIsRestricted(topic)})
 	if err != nil {
 		return nil, err
@@ -585,12 +621,15 @@ func (u *U) AnalyzeTextBatch(texts []string, topic string) ([]Analysis, error) {
 		if evidence == "" || (humorNoSub && joke == "") {
 			rel = min(rel, config.QualityNoEvidenceCap)
 		}
+		if humor {
+			rel = memeRelevanceCap(rel, jx.Str(it, "meme_kind"), joke)
+		}
 		format := jx.Str(it, "format")
 		if !config.IsContentFormat(format) {
 			format = "text"
 		}
 		out[i] = jx.M{"description": trimRunes(llm.StripCJK(jx.Str(it, "description")), config.AnalysisDescriptionMax), "why_relevant": evidence, "format": format,
-			"tags": u.ContentTagsClean(it["tags"]), "entity": ContentEntityClean(it["entity"]), "geo": GeoFromAnalysis(it), "evidence": evidence, "joke": joke,
+			"tags": u.ContentTagsClean(it["tags"]), "entity": ContentEntityClean(it["entity"]), "geo": GeoFromAnalysis(it), "evidence": evidence, "joke": joke, "meme_kind": jx.Str(it, "meme_kind"),
 			"ukraine": it["ukraine"] == true, "relevance": rel, "rating": nil}
 	}
 	return out, nil
