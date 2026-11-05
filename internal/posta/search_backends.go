@@ -30,9 +30,37 @@ func searchPost(platform, sourceKey, sourceURL, title, text, image, video, page 
 	if image != "" {
 		imgs = append(imgs, image)
 	}
-	return jx.M{"source": platform, "source_key": sourceKey, "source_url": sourceURL, "found_by": "поиск " + platform,
+	return jx.M{"source": platform, "source_key": sourceKey, "source_url": page, "source_author_url": sourceURL, "found_by": "поиск " + platform,
 		"title": title, "text": text, "image": image, "images": imgs, "gallery": []any{}, "video": video, "video_unavailable": false,
-		"url": page, "posted_at": posted, "engagement": nil, "post_id": sha1Short(page, 12)}
+		"url": page, "posted_at": posted, "engagement": nil, "post_id": sha1Short(page, 12),
+		"text_post": image == "" && video == "" && runeLen(strings.TrimSpace(text)) >= 20}
+}
+
+// setPostMedia keeps attachment order and represents an album as one post.
+func setPostMedia(post jx.M, media []jx.M) {
+	if len(media) == 0 {
+		return
+	}
+	images := []string{}
+	for _, m := range media {
+		if image := jx.Str(m, "image"); image != "" {
+			images = append(images, image)
+		}
+	}
+	// Analysis needs an image; keep the original album order in gallery.
+	main := media[0]
+	if jx.Str(main, "image") == "" {
+		for _, item := range media {
+			if jx.Str(item, "image") != "" {
+				main = item
+				break
+			}
+		}
+	}
+	post["image"], post["video"], post["images"] = jx.Str(main, "image"), jx.Str(main, "video"), images
+	if len(media) > 1 {
+		post["gallery"] = media
+	}
 }
 
 // RutubeParse — ответ поиска Rutube (results[]); время без пояса — по Москве.
@@ -44,11 +72,13 @@ func RutubeParse(data []byte) ([]jx.M, error) {
 			VideoURL     string `json:"video_url"`
 			ThumbnailURL string `json:"thumbnail_url"`
 			CreatedTS    string `json:"created_ts"`
+			Duration     int64  `json:"duration"`
 			IsAdult      bool   `json:"is_adult"`
 			IsHidden     bool   `json:"is_hidden"`
 			IsDeleted    bool   `json:"is_deleted"`
 			Author       struct {
-				ID int64 `json:"id"`
+				ID   int64  `json:"id"`
+				Name string `json:"name"`
 			} `json:"author"`
 		} `json:"results"`
 	}
@@ -65,7 +95,16 @@ func RutubeParse(data []byte) ([]jx.M, error) {
 		if err == nil {
 			posted = at.Unix()
 		}
-		out = append(out, searchPost(PlatformRutube, fmt.Sprintf("rutube:%d", r.Author.ID), "", r.Title, r.Title, r.ThumbnailURL, "", r.VideoURL, posted))
+		channel := ""
+		if r.Author.ID > 0 {
+			channel = fmt.Sprintf("https://rutube.ru/channel/%d/", r.Author.ID)
+		}
+		p := searchPost(PlatformRutube, fmt.Sprintf("rutube:%d", r.Author.ID), channel, r.Title, r.Title, r.ThumbnailURL, "", r.VideoURL, posted)
+		p["author_name"] = r.Author.Name
+		if VideoPageVia(r.VideoURL) == "ytdlp" {
+			p["video_via"], p["video_page"], p["duration"] = "ytdlp", r.VideoURL, r.Duration
+		}
+		out = append(out, p)
 	}
 	return out, nil
 }
@@ -116,6 +155,36 @@ func NineGAGParse(data []byte) ([]jx.M, error) {
 	return out, nil
 }
 
+// lemmyBodyVideo extracts an explicit video attachment embedded as a Markdown image.
+// Ordinary links in a post are not promoted to media.
+var lemmyBodyVideoRE = regexp.MustCompile(`!\[[^\]]*\]\((https://[^\s)]+)\)`)
+
+func lemmyBodyVideo(body string) string {
+	for _, match := range lemmyBodyVideoRE.FindAllStringSubmatch(body, -1) {
+		parsed, err := url.Parse(match[1])
+		if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" {
+			continue
+		}
+		path := strings.ToLower(parsed.Path)
+		if strings.HasSuffix(path, ".mp4") || strings.HasSuffix(path, ".webm") || strings.HasSuffix(path, ".m4v") {
+			return match[1]
+		}
+	}
+	return ""
+}
+
+func lemmyVideoURL(candidate string) string {
+	parsed, err := url.Parse(candidate)
+	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" {
+		return ""
+	}
+	path := strings.ToLower(parsed.Path)
+	if strings.HasSuffix(path, ".mp4") || strings.HasSuffix(path, ".webm") || strings.HasSuffix(path, ".m4v") {
+		return candidate
+	}
+	return ""
+}
+
 // LemmyParse — ответ поиска Lemmy (posts[]): источник — сообщество; без картинки пост не берём.
 func LemmyParse(data []byte) ([]jx.M, error) {
 	var resp struct {
@@ -146,12 +215,22 @@ func LemmyParse(data []byte) ([]jx.M, error) {
 		if v.NSFW || v.Deleted || v.Removed || v.Name == "" || v.Published == "" {
 			continue
 		}
-		img := v.URL
-		if img == "" {
-			img = v.ThumbnailURL
+		img := ""
+		for _, candidate := range []string{v.URL, v.ThumbnailURL} {
+			if lemmyVideoURL(candidate) != "" {
+				continue
+			}
+			parsed, err := url.Parse(candidate)
+			if err != nil || parsed.Scheme != "https" {
+				continue
+			}
+			path := strings.ToLower(parsed.Path)
+			if strings.Contains(path, "/pictrs/") || strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".jpeg") || strings.HasSuffix(path, ".png") || strings.HasSuffix(path, ".webp") || strings.HasSuffix(path, ".gif") || strings.HasSuffix(path, ".avif") {
+				img = candidate
+				break
+			}
 		}
-		if !strings.Contains(img, "/pictrs/") && !strings.HasSuffix(strings.ToLower(img), ".jpg") && !strings.HasSuffix(strings.ToLower(img), ".png") &&
-			!strings.HasSuffix(strings.ToLower(img), ".webp") && !strings.HasSuffix(strings.ToLower(img), ".gif") && !strings.HasSuffix(strings.ToLower(img), ".avif") {
+		if img == "" && runeLen(strings.TrimSpace(v.Name+" "+CleanHTMLText(v.Body))) < 20 {
 			continue
 		}
 		at, err := time.Parse(time.RFC3339Nano, v.Published)
@@ -162,7 +241,11 @@ func LemmyParse(data []byte) ([]jx.M, error) {
 		if page == "" {
 			page = v.URL
 		}
-		out = append(out, searchPost(PlatformLemmy, fmt.Sprintf("lemmy:%d", v.CommunityID), p.Community.ActorID, v.Name, CleanHTMLText(v.Name+"\n"+v.Body), img, "", page, at.Unix()))
+		video := lemmyVideoURL(v.URL)
+		if video == "" {
+			video = lemmyBodyVideo(v.Body)
+		}
+		out = append(out, searchPost(PlatformLemmy, fmt.Sprintf("lemmy:%d", v.CommunityID), p.Community.ActorID, v.Name, CleanHTMLText(v.Name+"\n"+v.Body), img, video, page, at.Unix()))
 	}
 	return out, nil
 }
@@ -193,28 +276,33 @@ func MastodonParse(data []byte) ([]jx.M, error) {
 		if s.Sensitive || s.Reblog != nil || s.Account.ID == "" {
 			continue
 		}
-		image, video := "", ""
+		var media []jx.M
 		for _, m := range s.Media {
 			switch m.Type {
 			case "image":
-				if image == "" {
-					image = m.URL
+				if strings.HasPrefix(m.URL, "https://") {
+					media = append(media, jx.M{"image": m.URL, "video": ""})
 				}
 			case "video", "gifv":
-				if video == "" {
-					video, image = m.URL, m.PreviewURL
+				if strings.HasPrefix(m.URL, "https://") {
+					media = append(media, jx.M{"image": m.PreviewURL, "video": m.URL})
 				}
 			}
 		}
-		if image == "" && video == "" {
+		text := CleanHTMLText(s.Content)
+		if len(media) == 0 && runeLen(strings.TrimSpace(text)) < 20 {
 			continue
 		}
 		at, err := time.Parse(time.RFC3339Nano, s.CreatedAt)
 		if err != nil {
 			continue
 		}
-		text := CleanHTMLText(s.Content)
-		out = append(out, searchPost(PlatformMastodon, "mastodon:"+s.Account.ID, s.Account.URL, trimRunes(text, 80), text, image, video, s.URL, at.Unix()))
+		post := searchPost(PlatformMastodon, "mastodon:"+s.Account.ID, s.Account.URL, trimRunes(text, 80), text, "", "", s.URL, at.Unix())
+		setPostMedia(post, media)
+		if len(media) > 0 {
+			post["text_post"] = false
+		}
+		out = append(out, post)
 	}
 	return out, nil
 }

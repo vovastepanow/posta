@@ -1,11 +1,15 @@
 package posta
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"math/rand"
 	"net/url"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"posta/internal/config"
 	"posta/internal/jx"
@@ -21,12 +25,12 @@ var sourceKindFilters = map[string]string{"youtube": "YouTube", "shorts": "YouTu
 var SourceRejectReasons = []string{"off_topic", "dead", "other"}
 
 const (
-	sourcePreviewAttempts   = 12
-	sourcePreviewPosts      = 20
-	sourcePreviewPostsTT    = 8
-	sourcePreviewPostsSlow  = 6
-	sourcePreviewTextMax    = 2000
-	SourceAddMaxLink        = 500
+	sourcePreviewAttempts  = 12
+	sourcePreviewPosts     = 20
+	sourcePreviewPostsTT   = 8
+	sourcePreviewPostsSlow = 6
+	sourcePreviewTextMax   = 2000
+	SourceAddMaxLink       = 500
 )
 
 func NewsSiteKind(feed string) string {
@@ -50,20 +54,7 @@ func (u *U) dvachBlockedBoards(votes []jx.M, topic string) map[string]bool {
 			blocked[strings.TrimPrefix(key, "dvach:")] = true
 		}
 	}
-	count := map[string]map[string]int{}
-	for _, v := range votes {
-		if b := jx.Str(v, "board"); b != "" {
-			if count[b] == nil {
-				count[b] = map[string]int{}
-			}
-			count[b][jx.Str(v, "vote")]++
-		}
-	}
-	for b, c := range count {
-		if c["reject"] >= 3 && c["approve"] == 0 {
-			blocked[b] = true
-		}
-	}
+
 	return blocked
 }
 
@@ -80,7 +71,7 @@ func (u *U) dvachSourceCandidates(voted map[string]bool, blocked map[string]bool
 		for _, t := range jx.Maps(u.Fetch2chJSON(board, ""), "threads") {
 			thread := jx.Str(t, "num")
 			sid := "dvach:" + board + ":" + thread
-			if !IsValidDvachID(thread) || voted[sid] || DvachThreadDeadReason(t, now()) != "" {
+			if !IsValidDvachID(thread) || voted[sid] || jx.Int(t, "files_count") < 3 || DvachThreadDeadReason(t, now()) != "" {
 				continue
 			}
 			summary := fmt.Sprintf("%d постов", jx.Int(t, "posts_count"))
@@ -142,7 +133,7 @@ func (u *U) catalogSourceCandidates(d *SourceDB, platform string, voted map[stri
 
 func (u *U) suggestionSourceCandidates(d *SourceDB, platform string, voted map[string]bool, topic string) []jx.M {
 	var list []jx.M
-	vk := u.VKCanRead(u.Ctx)
+	vk := true
 	for _, s := range d.Suggestions {
 		p := jx.Str(s, "platform")
 		if !u.TopicsAreEquivalent(jx.Str(s, "topic"), topic) || (platform != "" && p != platform) || voted[jx.Str(s, "source_id")] || (p == PlatformVK && !vk) ||
@@ -195,7 +186,11 @@ func (u *U) BuildSourcePreview(c jx.M, count int) jx.M {
 	previewList := func(posts []jx.M) []jx.M {
 		out := []jx.M{}
 		for _, p := range posts {
-			out = append(out, u.SourcePreviewPost(p))
+			post := jx.Copy(p)
+			if jx.Str(post, "source") == "" {
+				post["source"] = jx.Str(c, "name")
+			}
+			out = append(out, u.SourcePreviewPost(post))
 		}
 		return out
 	}
@@ -290,7 +285,7 @@ func deadOr(posts []jx.M, reason, empty string) any {
 // SourcePreviewPost — пост превью в одном виде для всех площадок.
 func (u *U) SourcePreviewPost(p jx.M) jx.M {
 	eng := jx.Map(p, "engagement")
-	text := jx.Str(p, "text")
+	text := CleanPostAttribution(jx.Str(p, "text"), p)
 	if text == EmptyPostText {
 		text = ""
 	}
@@ -409,7 +404,141 @@ func sourcePreviewCount(platform string) int {
 	return sourcePreviewPosts
 }
 
-func (u *U) firstPreviewable(cands []jx.M) jx.M {
+// Temporary exclusions are scoped to the user and topic and survive page reloads.
+const sourcePostponeDuration = 7 * 24 * time.Hour
+const sourcePreviewFailureDuration = 30 * time.Minute
+
+func sourceSuggestionKey(uid, topic, kind string) string {
+	h := sha256.Sum256([]byte(TopicNorm(topic)))
+	return fmt.Sprintf("source_suggestion:%s:%s:%x", kind, uid, h[:12])
+}
+
+func activeSourceExclusions(entries map[string]int64, at int64) map[string]bool {
+	active := map[string]bool{}
+	for id, until := range entries {
+		if until > at {
+			active[id] = true
+		}
+	}
+	return active
+}
+
+func (u *U) rememberSourceExclusion(topic, kind, id string, duration time.Duration) error {
+	key := sourceSuggestionKey(u.ID, topic, kind)
+	_, err := KVUpdate(u.App, u.Ctx, key, 0, func(entries map[string]int64, _ bool) *map[string]int64 {
+		if entries == nil {
+			entries = map[string]int64{}
+		}
+		for k, until := range entries {
+			if until <= now() {
+				delete(entries, k)
+			}
+		}
+		entries[id] = now() + int64(duration/time.Second)
+		return &entries
+	})
+	return err
+}
+
+// A displayed source is withheld until a deliberate postponement expires.
+// Recommendation identity joins a YouTube channel's videos and Shorts feeds.
+func recommendationSourceKey(id string) string {
+	id = strings.ToLower(strings.TrimSpace(id))
+	if strings.HasPrefix(id, "rss:") {
+		if u, err := url.Parse(strings.TrimPrefix(id, "rss:")); err == nil && (u.Hostname() == "youtube.com" || u.Hostname() == "www.youtube.com") && u.Path == "/feeds/videos.xml" {
+			q := u.Query()
+			channel := q.Get("channel_id")
+			if p := q.Get("playlist_id"); strings.HasPrefix(p, "uush") && len(p) == 26 {
+				channel = "uc" + p[4:]
+			}
+			if len(channel) == 24 && strings.HasPrefix(channel, "uc") {
+				return "youtube-channel:" + channel
+			}
+		}
+	}
+	return id
+}
+
+// Historical post ratings predate impression tracking. Never recommend an
+// already rated source, even if its exact recommendation was never recorded.
+func (u *U) ratedSourceExclusions() (map[string]bool, error) {
+	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT DISTINCT data->>'source_key' FROM history_items WHERE user_id=$1 AND collection IN ('liked','disliked','undecided','complaints') AND COALESCE(data->>'source_key','')<>''`, u.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		// Post ratings are not decisions about collecting an imageboard thread.
+		if strings.HasPrefix(id, "dvach:") || strings.HasPrefix(id, "4chan:") {
+			continue
+		}
+		out[recommendationSourceKey(id)] = true
+	}
+	return out, rows.Err()
+}
+
+func (u *U) sourceImpressionExclusions(topic string) (map[string]bool, error) {
+	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id FROM source_impressions WHERE user_id=$1 AND topic_key=$2 AND (available_after=0 OR available_after>$3 OR decision<>'')`, u.ID, TopicNorm(topic), now())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+func (u *U) recordSourceShown(topic, id string) (bool, error) {
+	var claimed int
+	err := u.DB.Pool.QueryRow(u.Ctx, `INSERT INTO source_impressions(user_id,topic_key,source_id,first_shown,last_shown) VALUES($1,$2,$3,$4,$4)
+ ON CONFLICT(user_id,topic_key,source_id) DO UPDATE SET last_shown=EXCLUDED.last_shown, show_count=source_impressions.show_count+1, available_after=0
+ WHERE source_impressions.decision='' AND source_impressions.available_after>0 AND source_impressions.available_after<=$4 RETURNING 1`, u.ID, TopicNorm(topic), id, now()).Scan(&claimed)
+	if err == pgx.ErrNoRows {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (u *U) PostponeSource(source jx.M) error {
+	record, err := sourceVoteRecord(source, "maybe")
+	if err != nil {
+		return err
+	}
+	_, err = u.DB.Pool.Exec(u.Ctx, `UPDATE source_impressions SET available_after=$4 WHERE user_id=$1 AND topic_key=$2 AND source_id=$3 AND decision=''`, u.ID, TopicNorm(u.CurrentTopic()), jx.Str(record, "source_id"), now()+int64(sourcePostponeDuration/time.Second))
+	return err
+}
+
+// dvachPreviewImages собирает разные изображения для проверки содержимого треда.
+func dvachPreviewImages(posts []jx.M) []jx.M {
+	var images []jx.M
+	seen := map[string]bool{}
+	for _, post := range posts {
+		for _, media := range jx.Maps(post, "media") {
+			src := jx.Str(media, "src")
+			if jx.Str(media, "kind") == "video" {
+				src = jx.Str(media, "poster")
+			}
+			if src != "" && !seen[src] {
+				seen[src] = true
+				images = append(images, jx.M{"image": src})
+			}
+		}
+	}
+	return images
+}
+
+func (u *U) firstPreviewable(cands []jx.M, topic string) (jx.M, error) {
 	for _, c := range cands[:min(len(cands), sourcePreviewAttempts)] {
 		p := func() (p jx.M) {
 			defer func() {
@@ -420,10 +549,51 @@ func (u *U) firstPreviewable(cands []jx.M) jx.M {
 			return u.BuildSourcePreview(c, sourcePreviewCount(jx.Str(c, "platform")))
 		}()
 		if p != nil && jx.Map(p, "stats")["dead"] == nil && len(jx.Maps(p, "posts")) > 0 {
-			return jx.Merge(c, p)
+			if jx.Str(c, "platform") == PlatformDvach || jx.Str(c, "platform") == Platform4chan {
+				images := dvachPreviewImages(jx.Maps(p, "posts"))
+				if len(images) < 3 {
+					continue
+				}
+				review := u.sourceImagesReview(jx.Str(c, "name"), topic, images)
+				if review == nil || review.Score < config.SourceMinContentScore {
+					continue
+				}
+				c["reason"] = "Примеры медиа треда проверены на соответствие теме: " + review.Reason
+			}
+			claimed, err := u.recordSourceShown(topic, jx.Str(c, "source_id"))
+			if err != nil {
+				return nil, err
+			}
+			if claimed {
+				return jx.Merge(c, p), nil
+			}
+			continue
+		}
+		_ = u.rememberSourceExclusion(topic, "failed", jx.Str(c, "source_id"), sourcePreviewFailureDuration)
+	}
+	return nil, nil
+}
+
+// Alternate discovery and catalog candidates, avoiding duplicate source IDs.
+func interleaveSourceCandidates(suggested, catalog []jx.M) []jx.M {
+	out := make([]jx.M, 0, len(suggested)+len(catalog))
+	seen := map[string]bool{}
+	add := func(c jx.M) {
+		id := jx.Str(c, "source_id")
+		if id != "" && !seen[id] {
+			seen[id] = true
+			out = append(out, c)
 		}
 	}
-	return nil
+	for i := 0; i < len(suggested) || i < len(catalog); i++ {
+		if i < len(suggested) {
+			add(suggested[i])
+		}
+		if i < len(catalog) {
+			add(catalog[i])
+		}
+	}
+	return out
 }
 
 func sourceAutoSearchable(platform, kind string) bool {
@@ -456,6 +626,23 @@ func (u *U) SuggestSources(in jx.M) (jx.M, int, error) {
 	for _, v := range votes {
 		voted[jx.Str(v, "source_id")] = true
 	}
+	rated, err := u.ratedSourceExclusions()
+	if err != nil {
+		return nil, 500, err
+	}
+	seen, err := u.sourceImpressionExclusions(topic)
+	if err != nil {
+		return nil, 500, err
+	}
+	for id := range seen {
+		voted[id] = true
+	}
+	for _, kind := range []string{"postponed", "failed"} {
+		entries := KV(u.App, u.Ctx, sourceSuggestionKey(u.ID, topic, kind), map[string]int64{})
+		for id := range activeSourceExclusions(entries, now()) {
+			voted[id] = true
+		}
+	}
 	for i, id := range jx.Strs(in, "skip") {
 		if i < 200 && len(id) <= 200 {
 			voted[id] = true
@@ -475,14 +662,32 @@ func (u *U) SuggestSources(in jx.M) (jx.M, int, error) {
 		}
 		return out
 	}
-	suggested := filterKind(u.suggestionSourceCandidates(d, platform, voted, topic))
+	for id := range voted {
+		rated[recommendationSourceKey(id)] = true
+	}
+	filterRated := func(cands []jx.M) []jx.M {
+		out := make([]jx.M, 0, len(cands))
+		for _, c := range cands {
+			if !rated[recommendationSourceKey(jx.Str(c, "source_id"))] {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+	suggested := filterRated(filterKind(u.suggestionSourceCandidates(d, platform, voted, topic)))
 	if jx.Bool(in, "suggested_only") {
-		if f := u.firstPreviewable(suggested); f != nil {
+		f, err := u.firstPreviewable(suggested, topic)
+		if err != nil {
+			return nil, 500, err
+		}
+		if f != nil {
+			f["quality"] = u.SourceQualityOf(u.Ctx, jx.Str(f, "source_id"), topic)
+			f["board_quality"] = u.BoardQualityOf(u.Ctx, jx.Str(f, "source_id"), topic)
 			return jx.M{"discovered": f}, 200, nil
 		}
 		return jx.M{"discovered": nil, "message": "Подбор пока ничего не нашёл."}, 200, nil
 	}
-	vk := wants(PlatformVK) && u.VKCanRead(u.Ctx)
+	vk := wants(PlatformVK)
 	var cands []jx.M
 	if wants(PlatformDvach) {
 		cands = append(cands, u.dvachSourceCandidates(voted, u.dvachBlockedBoards(votes, topic), topic)...)
@@ -495,12 +700,12 @@ func (u *U) SuggestSources(in jx.M) (jx.M, int, error) {
 			cands = append(cands, u.catalogSourceCandidates(d, p, voted, topic)...)
 		}
 	}
-	cands = filterKind(cands)
+	cands = filterRated(filterKind(cands))
 	if platform == PlatformTikTok && len(cands) == 0 && len(suggested) == 0 {
 		if note := u.TikTokSearchPauseNote(u.Ctx); note != "" {
 			return jx.M{"discovered": nil, "message": "TikTok не отдаёт поиск (похоже, капча): повторим позже. Пока добавьте аккаунт ссылкой в «Добавить источник» выше.", "action": "add_link"}, 200, nil
 		}
-		if cands = u.tiktokLiveCandidates(voted, topic); len(cands) == 0 {
+		if cands = filterRated(u.tiktokLiveCandidates(voted, topic)); len(cands) == 0 {
 			return jx.M{"discovered": nil, "message": "TikTok по этой теме аккаунтов не нашёл. Добавьте аккаунт ссылкой в «Добавить источник» выше.", "action": "add_link"}, 200, nil
 		}
 	}
@@ -527,17 +732,23 @@ func (u *U) SuggestSources(in jx.M) (jx.M, int, error) {
 	}
 	rand.Shuffle(len(platforms), func(i, j int) { platforms[i], platforms[j] = platforms[j], platforms[i] })
 	sort.SliceStable(platforms, func(i, j int) bool { return counts[platforms[i]] < counts[platforms[j]] })
-	ordered := append([]jx.M{}, suggested...)
+	var catalogOrdered []jx.M
 	for _, p := range platforms {
 		l := by[p]
 		rand.Shuffle(len(l), func(i, j int) { l[i], l[j] = l[j], l[i] })
-		ordered = append(ordered, l...)
+		catalogOrdered = append(catalogOrdered, l...)
 	}
-	if f := u.firstPreviewable(ordered); f != nil {
-		f["quality"] = u.SourceQualityOf(u.Ctx, jx.Str(f, "source_id"))
+	ordered := interleaveSourceCandidates(suggested, catalogOrdered)
+	f, err := u.firstPreviewable(ordered, topic)
+	if err != nil {
+		return nil, 500, err
+	}
+	if f != nil {
+		f["quality"] = u.SourceQualityOf(u.Ctx, jx.Str(f, "source_id"), topic)
+		f["board_quality"] = u.BoardQualityOf(u.Ctx, jx.Str(f, "source_id"), topic)
 		return jx.M{"discovered": f}, 200, nil
 	}
-	return jx.M{"discovered": nil, "message": "Не удалось получить посты с изображениями ни из одного кандидата. Для VK подключите аккаунт, Telegram-каналы должны быть публичными."}, 502, nil
+	return jx.M{"discovered": nil, "message": "Не удалось загрузить посты у проверенных источников. Они временно пропущены; попробуйте ещё раз, чтобы проверить следующие."}, 502, nil
 }
 
 var votePlatforms = []string{PlatformDvach, Platform4chan, PlatformTelegram, PlatformVK, PlatformRSS, PlatformOK, PlatformTikTok}
@@ -568,25 +779,27 @@ func sourceVoteRecord(s jx.M, vote string) (jx.M, error) {
 	return r, nil
 }
 
+// Only decisions explicitly made as thread decisions enable collection.
+func (a *App) approvedImageboardThreads(d *SourceDB, topic string) []jx.M {
+	var out []jx.M
+	for _, v := range d.Votes {
+		if jx.Str(v, "scope") != "thread" || jx.Str(v, "vote") != "approve" || !a.TopicSame(jx.Str(v, "topic"), topic) {
+			continue
+		}
+		platform, board, thread := jx.Str(v, "platform"), jx.Str(v, "board"), jx.Str(v, "thread_id")
+		if (platform == PlatformDvach || platform == Platform4chan) && IsValidDvachBoard(board) && IsValidDvachID(thread) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 func (u *U) addApprovedSource(d *SourceDB, s jx.M, topic string) {
 	id := strings.TrimLeft(strings.TrimSpace(jx.Str(s, "id")), "@")
-	switch jx.Str(s, "platform") {
-	case Platform4chan:
-		u.FourchanApproveBoard(topic, jx.Str(s, "board"))
-		return
-	case PlatformDvach:
-		b := jx.Str(s, "board")
-		if !IsValidDvachBoard(b) {
-			return
-		}
-		if u.TopicSame(config.DefaultTopic, topic) {
-			d.Boards = uniqueStrings(append(d.Boards, b))
-		} else {
-			k := strings.ToLower(topic)
-			d.DvachTopicBoards[k] = uniqueStrings(append(d.DvachTopicBoards[k], b))
-		}
+	if jx.Str(s, "platform") == PlatformDvach || jx.Str(s, "platform") == Platform4chan {
 		return
 	}
+
 	platform := jx.Str(s, "platform")
 	list := d.List(CatalogKind(platform))
 	if list == nil || !IsValidSourceID(platform, id) {
@@ -651,6 +864,17 @@ func (u *U) SourceVote(vote string, source jx.M, reason string) error {
 		return err
 	}
 	record["topic"] = topic
+	if jx.Str(record, "platform") == PlatformDvach || jx.Str(record, "platform") == Platform4chan {
+		board, thread := jx.Str(record, "board"), jx.Str(record, "thread_id")
+		prefix := "dvach:"
+		if jx.Str(record, "platform") == Platform4chan {
+			prefix = "4chan:"
+		}
+		if !IsValidDvachBoard(board) || !IsValidDvachID(thread) || jx.Str(record, "source_id") != prefix+board+":"+thread {
+			return Bad("Некорректный тред.")
+		}
+		record["scope"] = "thread"
+	}
 	if vote == "reject" && contains(SourceRejectReasons, reason) {
 		record["reason"] = reason
 	}
@@ -667,15 +891,14 @@ func (u *U) SourceVote(vote string, source jx.M, reason string) error {
 			}
 		}
 		rec := jx.Merge(record, SourceVoteOrigin(found))
-		exists := false
+		var remaining []jx.M
 		for _, o := range d.Votes {
-			if jx.Str(o, "source_id") == sid && u.TopicSame(jx.Str(o, "topic"), topic) {
-				exists = true
+			if jx.Str(o, "source_id") != sid || !u.TopicSame(jx.Str(o, "topic"), topic) {
+				remaining = append(remaining, o)
 			}
 		}
-		if !exists {
-			d.Votes = append(d.Votes, rec)
-		}
+		d.Votes = append(remaining, rec)
+
 		src, srcTopic := source, topic
 		var keep []jx.M
 		for _, s := range d.Suggestions {
@@ -699,6 +922,10 @@ func (u *U) SourceVote(vote string, source jx.M, reason string) error {
 		return true
 	})
 	if err == nil {
+		_, err = u.DB.Pool.Exec(u.Ctx, `UPDATE source_impressions SET decision=$4, available_after=0 WHERE user_id=$1 AND topic_key=$2 AND source_id=$3`, u.ID, TopicNorm(topic), sid, vote)
+		if err != nil {
+			return err
+		}
 		status := map[string]string{"approve": RegStatusOwnerYes, "reject": RegStatusOwnerNo, "maybe": RegStatusOwnerMaybe}[vote]
 		u.registrySetOwner(sid, jx.Str(record, "platform"), jx.Str(record, "name"), status, topic)
 	}
@@ -709,6 +936,17 @@ func (u *U) SourceVote(vote string, source jx.M, reason string) error {
 func (u *U) RemoveTopicSource(platform, id, name string) error {
 	topic := u.CurrentTopic()
 	id = strings.TrimLeft(strings.TrimSpace(id), "@")
+	if (platform == PlatformDvach || platform == Platform4chan) && strings.Count(id, ":") == 2 {
+		parts := strings.Split(id, ":")
+		prefix := "dvach"
+		if platform == Platform4chan {
+			prefix = "4chan"
+		}
+		if parts[0] != prefix || !IsValidDvachBoard(parts[1]) || !IsValidDvachID(parts[2]) {
+			return Bad("Некорректный тред.")
+		}
+		return u.SourceVote("reject", jx.M{"platform": platform, "source_id": id, "board": parts[1], "thread_id": parts[2], "name": name}, "other")
+	}
 	if platform == PlatformDvach {
 		if !IsValidDvachBoard(id) {
 			return Bad("Некорректная доска.")
@@ -821,17 +1059,16 @@ func (u *U) TopicSources() []jx.M {
 				"frozen": jx.Has(e, "frozen_until"), "frozen_reason": jx.Str(e, "frozen_reason"), "avatar": jx.Str(e, "avatar"), "preview": orAny(preview[:min(4, len(preview))])})
 		}
 	}
-	names := u.dvachBoardList()
-	for _, b := range u.DvachBoardsForTopic(topic, false) {
-		title := jx.Str(names[b], "name")
-		name := "Доска /" + b + "/"
-		if title != "" {
-			name = "/" + b + "/ — " + title
+	for _, t := range u.approvedImageboardThreads(d, topic) {
+		platform, board, thread, sid := jx.Str(t, "platform"), jx.Str(t, "board"), jx.Str(t, "thread_id"), jx.Str(t, "source_id")
+		link := DvachPostURL(board, thread, thread)
+		if platform == Platform4chan {
+			link = fourchanPostURL(board, jx.ToInt(thread), jx.ToInt(thread))
 		}
-		cards = append(cards, jx.M{"source_id": "dvach-board:" + b, "platform": PlatformDvach, "id": b, "name": name, "category": jx.Str(names[b], "category"),
-			"url": "https://2ch.hk/" + url.PathEscape(b) + "/", "handle": "2ch.hk/" + b + "/", "topics": []any{}, "own": true, "auto": false, "score": nil, "subscribers": 0,
-			"subscribers_label": "", "view_rate": nil, "activity": "", "frozen": false, "frozen_reason": "", "avatar": "", "preview": []any{}})
+		cards = append(cards, jx.M{"source_id": sid, "platform": platform, "id": sid, "name": jx.Str(t, "name"), "url": link, "handle": "/" + board + "/ · #" + thread,
+			"topics": []any{topic}, "kind": "Тред", "own": true, "auto": false, "score": nil, "subscribers": 0, "view_rate": nil, "frozen": false, "preview": []any{}})
 	}
+
 	sort.SliceStable(cards, func(i, j int) bool {
 		a, b := cards[i], cards[j]
 		if jx.Bool(a, "own") != jx.Bool(b, "own") {

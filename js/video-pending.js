@@ -2,6 +2,7 @@
 // не больше шести опросов сразу на страницу. Проверка — функция check(): {state: 'pending'|'ready'|'failed', video?, error?, progress?}.
 // Скрытая вкладка — опрос на паузе. videoProgress() — полоса загрузки поверх плитки, если ждать дольше двух секунд.
 import { api, el } from './core.js';
+import { cachedImage, storeImage } from './image-cache.js';
 
 const POLL_MS = 2000;
 const POLL_ACTIVE_MS = 1000;   // ролик уже качается: полоса должна двигаться
@@ -82,7 +83,7 @@ export function videoProgress(host, { compact = false, title = 'Видео за�
     const percent = el('span', { className: 'vp-percent' });
     const fill = el('span', { className: 'vp-fill' });
     const root = el('div', { className: `vp is-indeterminate${compact ? ' is-compact' : ''}`, role: 'progressbar', ariaLabel: 'Загрузка видео', hidden: true },
-        el('div', { className: 'vp-head' }, compact ? null : label, percent), el('div', { className: 'vp-track' }, fill));
+        el('div', { className: 'vp-head' }, el('span', { className: 'vp-spinner', ariaHidden: 'true' }), compact ? null : label, percent), el('div', { className: 'vp-track' }, fill));
     host.append(root);
     let shown = false;
     const count = delta => {   // полос на плитке может быть две (обложка и ролик): класс снимается, когда скрыта последняя
@@ -97,7 +98,7 @@ export function videoProgress(host, { compact = false, title = 'Видео за�
             label.textContent = p.label || title;
             const known = typeof p.percent === 'number';
             root.classList.toggle('is-indeterminate', !known);
-            fill.style.width = known ? `${Math.max(3, p.percent)}%` : '';
+            fill.style.width = known ? `${Math.max(0, Math.min(100, p.percent))}%` : '';
             percent.textContent = known ? `${Math.round(p.percent)}%` : '';
             if (known) root.setAttribute('aria-valuenow', String(Math.round(p.percent))); else root.removeAttribute('aria-valuenow');
             root.title = known ? `${p.label}: ${Math.round(p.percent)}%` : p.label;
@@ -122,6 +123,14 @@ export function loadImage(img, src, host, { compact = false } = {}) {
         if (!own || !window.ReadableStream) { img.src = src; return; }
         (async () => {
             try {
+                const cached = await cachedImage(src);
+                if (cached) {
+                    const url = URL.createObjectURL(cached);
+                    img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+                    img.addEventListener('error', () => URL.revokeObjectURL(url), { once: true });
+                    img.src = url;
+                    return;
+                }
                 const response = await fetch(src);
                 if (!response.ok || !response.body) throw new Error(String(response.status));
                 const total = Number(response.headers.get('Content-Length')) || 0;
@@ -135,8 +144,11 @@ export function loadImage(img, src, host, { compact = false } = {}) {
                     done += part.value.length;
                     if (total) bar?.update({ label: 'Картинка загружается', percent: Math.min(99, done / total * 100) });
                 }
-                const url = URL.createObjectURL(new Blob(chunks, { type: response.headers.get('Content-Type') || '' }));
+                const blob = new Blob(chunks, { type: response.headers.get('Content-Type') || '' });
+                storeImage(src, blob);
+                const url = URL.createObjectURL(blob);
                 img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+                img.addEventListener('error', () => URL.revokeObjectURL(url), { once: true });
                 img.src = url;
             } catch {
                 img.src = src;   // не вышло потоком — обычная загрузка (и обычная обработка ошибки)

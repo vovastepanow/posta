@@ -27,7 +27,9 @@ var okGroupRe = regexp.MustCompile(`^[0-9]{10,20}$`)
 
 func IsValidOKGroup(id string) bool { return okGroupRe.MatchString(id) }
 
-func okGroupURL(id string) string { return "https://m.ok.ru/dk?st.cmd=altGroupMain&st.groupId=" + url.QueryEscape(id) }
+func okGroupURL(id string) string {
+	return "https://m.ok.ru/dk?st.cmd=altGroupMain&st.groupId=" + url.QueryEscape(id)
+}
 
 var (
 	okPathGroupRe  = regexp.MustCompile(`^/group/?([0-9]{10,20})(?:/|$)`)
@@ -75,18 +77,18 @@ func (a *App) OKGroupHTML(id string) (string, error) {
 }
 
 var (
-	ogTitleRe    = regexp.MustCompile(`property="og:title" content="([^"]+)"`)
-	titleTagRe   = regexp.MustCompile(`<title>([^<]+)</title>`)
-	okSuffixRe   = regexp.MustCompile(`(?i)\s*\|\s*OK\.RU\s*$`)
-	okImgRe      = regexp.MustCompile(`<img class="[^"]*\bimage_inner_img\b[^"]*"[^>]*?\ssrc="([^"]+)"`)
-	okCDNRe      = regexp.MustCompile(`(?i)^https://(?:i\.okcdn\.ru/|[a-z0-9-]+\.mycdn\.me/)`)
-	okTopicRe    = regexp.MustCompile(`topicId&quot;:&quot;(\d+)`)
-	okTextRe     = regexp.MustCompile(`(?s)topic-text_content[^"]*"[^>]*>(.*?)(?:<a [^>]*topic-more|<div class="widget-list)`)
-	okDateRe     = regexp.MustCompile(`class="tstmp feed_descr">([^<]*)<`)
-	okCountRe    = regexp.MustCompile(`widget_action_count">\s*([^<]*)<`)
-	hhmmRe       = regexp.MustCompile(`(\d{1,2}):(\d{2})`)
-	onlyHHMMRe   = regexp.MustCompile(`^\d{1,2}:\d{2}$`)
-	dayMonthRe   = regexp.MustCompile(`(\d{1,2})\s+([а-яё]+)\.?(?:\s+(\d{4}))?`)
+	ogTitleRe  = regexp.MustCompile(`property="og:title" content="([^"]+)"`)
+	titleTagRe = regexp.MustCompile(`<title>([^<]+)</title>`)
+	okSuffixRe = regexp.MustCompile(`(?i)\s*\|\s*OK\.RU\s*$`)
+	okImgRe    = regexp.MustCompile(`<img class="[^"]*\bimage_inner_img\b[^"]*"[^>]*?\ssrc="([^"]+)"`)
+	okCDNRe    = regexp.MustCompile(`(?i)^https://(?:i\.okcdn\.ru/|[a-z0-9-]+\.mycdn\.me/)`)
+	okTopicRe  = regexp.MustCompile(`topicId&quot;:&quot;(\d+)`)
+	okTextRe   = regexp.MustCompile(`(?s)topic-text_content[^"]*"[^>]*>(.*?)(?:<a [^>]*topic-more|<div class="widget-list)`)
+	okDateRe   = regexp.MustCompile(`class="tstmp feed_descr">([^<]*)<`)
+	okCountRe  = regexp.MustCompile(`widget_action_count">\s*([^<]*)<`)
+	hhmmRe     = regexp.MustCompile(`(\d{1,2}):(\d{2})`)
+	onlyHHMMRe = regexp.MustCompile(`^\d{1,2}:\d{2}$`)
+	dayMonthRe = regexp.MustCompile(`(\d{1,2})\s+([а-яё]+)\.?(?:\s+(\d{4}))?`)
 )
 
 func OKTitleFromHTML(page, id string) string {
@@ -211,7 +213,7 @@ func OKParseFeed(page, id string, count int, name string) []jx.M {
 		if m := okDateRe.FindStringSubmatch(card); m != nil {
 			date = OKParseDate(m[1], time.Now())
 		}
-		p := jx.M{"image": images[0], "images": images[:min(4, len(images))], "gallery": []any{}, "video": "", "video_unavailable": false, "engagement": nil,
+		p := jx.M{"image": images[0], "images": images, "gallery": []any{}, "video": "", "video_unavailable": false, "engagement": nil,
 			"text": trimRunes(text, 1000), "source": src, "post_id": t[1], "posted_at": date, "url": "https://ok.ru/group/" + id + "/topic/" + t[1]}
 		for k, v := range okCardCounts(card) {
 			p[k] = v

@@ -76,7 +76,7 @@ func TestMastodonParse(t *testing.T) {
 		if strings.Contains(jx.Str(p, "text"), "<p>") {
 			t.Fatalf("HTML не вычищен: %s", jx.Str(p, "text"))
 		}
-		if jx.Str(p, "image") == "" && jx.Str(p, "video") == "" {
+		if jx.Str(p, "image") == "" && jx.Str(p, "video") == "" && !jx.Bool(p, "text_post") {
 			t.Fatalf("пост без медиа: %v", p)
 		}
 	}

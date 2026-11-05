@@ -8,6 +8,7 @@ import { initializeTabs } from './tabs.js';
 import { showPlan, showProfile } from './profile.js';
 import { initializeRadarTab } from './radar.js';
 import { initializeCalendarTab } from './calendar.js';
+import { setImageCacheUser } from './image-cache.js';
 
 // ---- Панель модели под журналом: что загружено в Ollama, загрузка и выгрузка ----
 
@@ -80,7 +81,39 @@ initializeContentTab({ onAddItem: openNewItemEditor });
 initializeSourceTab();
 initializeAccountTab({ onDatabasesReset: loadCurrentItem });
 initializeTabs();
-api('account_info').then(showProfile).catch(() => {});
+// Only construct links from known public identifiers; private resources may have none.
+function resourceUrl(platform, ref, username = '') {
+    const id = String(ref || '');
+    const handle = String(username || '').replace(/^@/, '');
+    if (platform === 'telegram' && /^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(handle)) return `https://t.me/${handle}`;
+    if (platform === 'vk' && /^[A-Za-z0-9_.]{1,100}$/.test(handle)) return `https://vk.com/${handle}`;
+    if (platform === 'vk' && /^[1-9][0-9]*$/.test(id)) return `https://vk.com/club${id}`;
+    if (platform === 'youtube' && /^UC[A-Za-z0-9_-]+$/.test(id)) return `https://www.youtube.com/channel/${id}`;
+    if (platform === 'pinterest' && /^[A-Za-z0-9_]{1,50}$/.test(id)) return `https://www.pinterest.com/${id}/`;
+    if (platform === 'tumblr' && /^[A-Za-z0-9-]{1,64}$/.test(id)) return `https://${id}.tumblr.com/`;
+    if (platform === 'reddit' && /^[A-Za-z0-9_-]{1,32}$/.test(id)) return `https://www.reddit.com/user/${id}/`;
+    if (platform === 'bluesky' && /^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(handle)) return `https://bsky.app/profile/${handle}`;
+    if (platform === 'x' && /^[A-Za-z0-9_]{1,15}$/.test(handle)) return `https://x.com/${handle}`;
+    if (platform === 'ok' && /^[1-9][0-9]*$/.test(id)) return `https://ok.ru/group/${id}`;
+    return '';
+}
+
+let resourceLoadVersion = 0;
+async function loadSideResources() {
+    const version = ++resourceLoadVersion;
+    const list = $('side-resources-list');
+    try {
+        const [telegram, other] = await Promise.all([api('telegram_queue'), api('networks_list')]);
+        if (version !== resourceLoadVersion) return;
+        const resources = [ ...(telegram.channels || []).map(c => ({ badge: 'TG', name: c.title || c.username || c.id, url: resourceUrl('telegram', '', c.username) })),
+            ...(other.channels || []).map(c => ({ badge: (c.platform === 'vk' ? 'VK' : c.platform.slice(0, 2)).toUpperCase(), name: c.title || c.ref, url: resourceUrl(c.platform, c.ref, c.platform === 'vk' ? c.screen_name : c.title) })) ];
+        list.replaceChildren(...(resources.length ? resources.map(c => { const content = [el('span', { className: 'side-resource-badge', textContent: c.badge }), el('span', { textContent: c.name })]; return el('li', { title: c.url ? c.name : `${c.name} — публичный адрес недоступен` }, c.url ? el('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, ...content) : el('span', { className: 'side-resource-unlinked' }, ...content)); }) : [el('li', { textContent: 'Нет подключённых ресурсов' })]));
+    } catch (error) { if (version === resourceLoadVersion) list.replaceChildren(el('li', { textContent: 'Не удалось загрузить ресурсы' })); }
+}
+$('side-resources-manage').addEventListener('click', () => openAccountSection('social'));
+addEventListener('posta:resources-changed', loadSideResources);
+loadSideResources();
+api('account_info').then(info => { setImageCacheUser(info.user_id); showProfile(info); }).catch(() => {});
 api('billing_info').then(showPlan).catch(() => {});
 initializeRadarTab();
 try { initializeCalendarTab(); } catch (error) { log(`Календарь не запущен: ${error.message}`); }   // вкладка не должна ронять запуск всего приложения
@@ -91,15 +124,17 @@ initializeDebugMode();
 
 log('Приложение запущено. Загружаю пул контента.');
 if (consumeVkRedirectResult()) openAccountSection('social');
-await startTabSession();   // сначала сессия: запрос пула запускает парсер, привязанный к этой вкладке
+const sessionReady = startTabSession();   // запрос пула начнём после регистрации вкладки
 // Хеш-ссылки открывают нужную вкладку на единой странице приложения.
-const HASH_TABS = { home: 'home-tab', content: 'content-tab', proposals: 'proposals-tab', calendar: 'calendar-tab', sources: 'source-tab', account: 'account-tab' };
+const HASH_TABS = { home: 'home-tab', content: 'content-tab', proposals: 'home-tab', calendar: 'calendar-tab', sources: 'source-tab', account: 'account-tab' };
 const openHashTab = () => { const tab = HASH_TABS[location.hash.slice(1)]; if (tab) switchTab(tab); };
 addEventListener('hashchange', openHashTab);
 openHashTab();
-consumeReferralLink();   // после первого запроса: у браузера уже есть кука, иначе два запроса без неё заведут двух пользователей
-const first = loadCurrentItem();
-watchParser();
-await first.catch(() => {});
-$('app-loading').classList.add('is-done');   // кольцо загрузки на весь экран — пока не готова первая вкладка
-setTimeout(() => $('app-loading').remove(), 400);
+// Интерфейс доступен сразу; содержимое подбора загружается после регистрации сессии.
+$('app-loading').classList.add('is-done');
+setTimeout(() => $('app-loading')?.remove(), 400);
+sessionReady.then(() => {
+    consumeReferralLink(); // у браузера уже есть кука после регистрации вкладки
+    loadCurrentItem();
+    watchParser();
+}).catch(error => log(`Не удалось завершить запуск: ${error.message}`));

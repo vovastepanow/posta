@@ -35,6 +35,7 @@ const usage = `posta — сервер и служебные команды Posta
   migrate                            применить миграции Postgres и ClickHouse
   import-sqlite <файл> <id владельца> перенести данные из прежней базы SQLite в пустой Postgres
   seed-topics                        засеять дерево тем (повтор ничего не меняет)
+  seed-rss                           добавить проверенные тематические RSS-ленты
   user-password <id|логин> [логин]   новый пароль профиля (печатается); с логином — заодно задать логин
   owner <id> [--remove]              владелец: админка, радар, бета-соцсети (без id — список)
   login-bot <токен> <имя бота>       бот входа через Telegram
@@ -128,6 +129,20 @@ func importSQLite(ctx context.Context, cfg config.Server, args []string) error {
 }
 
 func serve(ctx context.Context, cfg config.Server) error {
+	// Apply the embedded schema before any component touches the catalog or
+	// source registry. Previously a binary update could leave the DB behind.
+	d, err := db.Open(ctx, cfg.PostgresDSN)
+	if err != nil {
+		return err
+	}
+	applied, err := d.Migrate(ctx)
+	d.Close()
+	if err != nil {
+		return err
+	}
+	if len(applied) > 0 {
+		log.Printf("Postgres: применены миграции: %s", strings.Join(applied, ", "))
+	}
 	a, err := posta.New(ctx, cfg)
 	if err != nil {
 		return err
@@ -137,6 +152,11 @@ func serve(ctx context.Context, cfg config.Server) error {
 		log.Printf("дерево тем: %v", err)
 	} else if res["added"]+res["updated"] > 0 {
 		log.Printf("дерево тем: %v", res)
+	}
+	if added, err := a.EnsureThematicRSS(ctx); err != nil {
+		log.Printf("тематические RSS: %v", err)
+	} else if len(added) > 0 {
+		log.Printf("тематические RSS: добавлено %d источников", len(added))
 	}
 	a.StartBackground()
 	srv := &http.Server{Addr: cfg.Listen, Handler: web.New(a).Handler(), ReadHeaderTimeout: 15 * time.Second, IdleTimeout: 2 * time.Minute}
@@ -179,6 +199,13 @@ func command(ctx context.Context, cfg config.Server, args []string) error {
 	defer a.Close()
 	print := func(line string) { fmt.Println(line) }
 	switch args[0] {
+	case "seed-rss":
+		added, err := a.SeedThematicRSS(ctx)
+		for _, feed := range added {
+			fmt.Println(feed)
+		}
+		fmt.Printf("Добавлено RSS-лент: %d\n", len(added))
+		return err
 	case "seed-topics":
 		r, err := a.TopicTreeSeed(ctx, print)
 		fmt.Println(r)

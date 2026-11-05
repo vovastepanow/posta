@@ -49,7 +49,7 @@ function renderLLM(data) {
     $('admin-llm-preset-note').textContent = (data.presets.find(p => p.id === s.preset)?.note) || 'Свой набор моделей.';
     const credits = data.openrouter_credits ? ` · баланс OpenRouter: ${money(data.openrouter_credits.total - data.openrouter_credits.used)}` : '';
     $('admin-llm-state').textContent = data.openrouter_key
-        ? `Сегодня потрачено ${money(data.spent_today)} из ${money(s.daily_budget_usd)} · бесплатных запросов ${data.free_used} из ${s.free_daily_limit}${credits}`
+        ? `Сегодня потрачено ${money(data.spent_today)} из ${money(s.daily_budget_usd)} · бесплатных запросов Posta (примерно): ${data.free_used}${credits}`
         : 'Ключ OpenRouter не задан на сервере (OPENROUTER_API_KEY в posta.env): доступна только Ollama.';
     if (data.ollama_error) $('admin-llm-state').textContent += ` · ${data.ollama_error}`;
     $('admin-llm-budget').value = s.daily_budget_usd;

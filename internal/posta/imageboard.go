@@ -26,6 +26,18 @@ func ImageboardItem(item jx.M) bool {
 	return strings.HasPrefix(k, "dvach:") || strings.HasPrefix(k, "4chan:")
 }
 
+// ImageboardMediaOnly removes text from old cached candidates as well as fresh ones.
+func ImageboardMediaOnly(item jx.M) jx.M {
+	if !ImageboardItem(item) {
+		return item
+	}
+	item = jx.Copy(item)
+	for _, key := range []string{"text", "title", "thread_title", "thread_op", "thread_trust", "captions", "text_post", "article"} {
+		delete(item, key)
+	}
+	return item
+}
+
 func articleAnalysisText(item jx.M) string {
 	a := jx.Map(item, "article")
 	head := []string{"Заголовок статьи: " + strings.TrimSpace(jx.Str(a, "title"))}
@@ -53,28 +65,10 @@ func AnalysisText(item jx.M) string {
 	return strings.TrimSpace(jx.Str(item, "text"))
 }
 
-// AnalysisContextBlock — тред имиджборды или заголовок статьи перед «Запись:»; пусто для остальных.
+// AnalysisContextBlock — заголовок статьи перед «Запись:»; для имиджборд оценивается только медиа.
 func AnalysisContextBlock(item jx.M) string {
 	if ImageboardItem(item) {
-		thread := strings.TrimSpace(jx.Str(item, "thread_title"))
-		if thread == "" {
-			thread = "без названия"
-		}
-		op := strings.TrimSpace(jx.Str(item, "thread_op"))
-		if jx.Bool(item, "is_op") {
-			op = AnalysisSnip(jx.Str(item, "text"), config.ThreadOpMax)
-		}
-		b := "Пост из треда имиджборды. Тред: «" + thread + "»."
-		if op != "" {
-			b += " Шапка треда (о чём тред): " + op + "."
-		}
-		b += " Тред задаёт тему постов: в треде «абсурдные картинки» картинка скорее всего абсурдная.\n"
-		if !jx.Bool(item, "is_op") {
-			if reply := AnalysisSnip(jx.Str(item, "text"), 300); reply != "" {
-				b += "Текст ответа в треде (часто реакция на другие посты, может не относиться к картинке): " + reply + "\n"
-			}
-		}
-		return b
+		return ""
 	}
 	if a := jx.Map(item, "article"); a != nil && strings.TrimSpace(jx.Str(a, "title")) != "" {
 		return articleAnalysisText(item) + "\nКартинка — обложка статьи, судить по заголовку.\n"

@@ -63,7 +63,7 @@ function planRow(row, { replace, remove }, best = []) {
         el('img', { className: 'cal-plan-thumb', src: row.display, alt: '', loading: 'lazy' }),
         el('span', { className: 'cal-plan-when', textContent: planWhen(row.slot_at) + (row.best && best.includes(new Date(row.slot_at * 1000).getHours()) ? ' · лучшее время' : '') }),
         el('span', { className: 'cal-plan-chan', textContent: row.channel_title || '' }),
-        el('span', { className: 'cal-plan-text', textContent: shortText(row.article?.title || row.text || 'Без текста', 90) }),   // у статьи — заголовок, по границе слова
+        el('span', { className: 'cal-plan-text', textContent: shortText(row.article?.title || cleanCaption(row.text), 90) }),   // у статьи — заголовок, по границе слова
         buttons);
 }
 
@@ -97,7 +97,7 @@ function poolItemNode(item, ctx, visible = []) {
         else ctx.draft(item);
     } },
         el('img', { src: item.display_image || item.image || '', alt: '', loading: 'lazy', draggable: false }),
-        el('span', { className: 'cal-plan-text', textContent: (item.text || 'Без текста').slice(0, 90) }),
+        el('span', { className: 'cal-plan-text', textContent: cleanCaption(item.text).slice(0, 90) }),
         el('span', { className: 'cal-pool-meta', textContent: `по теме ${item.relevance ?? '—'} · ${item.source || ''}` }),
         ...(queued ? [el('span', { className: 'cal-pool-sched', textContent: `в расписании · ${planShort(queued.at)}` })] : []));
     node.dataset.image = item.image || '';   // по картинке находим элемент после снятия с расписания
@@ -108,19 +108,19 @@ function poolItemNode(item, ctx, visible = []) {
 /** Панель «Предложка»: лайкнутые посты; клик — черновик с проверкой повтора и постановкой в лучшее время. */
 export async function poolPanel(ctx) {
     const { items = [] } = await api('proposals');
-    if (!items.length) return [el('p', { className: 'account-muted', textContent: 'В Предложке пусто: лайкните посты на вкладке «Подбор».' })];
+    if (!items.length) return [el('p', { className: 'account-muted', textContent: 'В Предложке пусто: лайкните посты на вкладке «Предложка».' })];
     const visible = items.slice(0, 40);
     return [el('ul', { className: 'cal-pool' }, ...visible.map(item => el('li', { className: 'cal-pool-row' },
         el('button', { type: 'button', className: 'cal-pool-item', onclick: () => (ctx.openView ? ctx.openView(visible, visible.indexOf(item)) : ctx.pickSlot ? ctx.pickSlot(item) : ctx.draft(item)) },
             el('img', { className: 'cal-plan-thumb', src: item.display_image || item.image || '', alt: '', loading: 'lazy' }),
-            el('span', { className: 'cal-plan-text', textContent: (item.text || 'Без текста').slice(0, 90) }),
+            el('span', { className: 'cal-plan-text', textContent: cleanCaption(item.text).slice(0, 90) }),
             el('span', { className: 'cal-pool-meta', textContent: `по теме ${item.relevance ?? '—'}` })))))];
 }
 
 /** Черновик из Предложки: предупреждение о повторе для канала и «В лучшее время» (редактор с ближайшим лучшим слотом). */
 export async function draftChildren(item, channel, openEditor) {
     const out = [el('img', { className: 'cal-pop-thumb', src: item.display_image || item.image || '', alt: '', loading: 'lazy' }),
-        el('p', { className: 'cal-pop-text', textContent: item.text || 'Без текста' })];
+        el('p', { className: 'cal-pop-text', textContent: cleanCaption(item.text) })];
     if (!channel) return out;
     const dup = await api('calendar_check', { body: { image: item.image || item.display_image || '', text: item.text || '', channel: channel.id } }).catch(() => null);
     if (dup?.duplicate) out.push(el('p', { className: 'cal-dup-warning', role: 'alert', textContent: `Похожий пост уже выходил в этом канале ${when(dup.duplicate.at)}.` + (dup.duplicate.url ? ' ' : '') }, dup.duplicate.url ? el('a', { href: dup.duplicate.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Показать' }) : ''));
@@ -180,7 +180,7 @@ export async function renderPoolColumn(ctx, root) {
 export async function holesChildren(ctx, summary) {
     const plan = await fetchPlan(ctx.targets?.());
     const rows = plan.slice(0, 5).map(row => el('li', {}, el('span', { textContent: `${new Date(row.slot_at * 1000).toLocaleString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${row.channel_title || ''}` }),
-        el('span', { className: 'cal-plan-text', textContent: (row.text || '').slice(0, 40) })));
+        el('span', { className: 'cal-plan-text', textContent: cleanCaption(row.text).slice(0, 40) })));
     return [el('h3', { className: 'cal-panel-empty-title', textContent: 'Дыры недели' }),
         el('p', { className: 'cal-tg-note', textContent: `${summary.queued} в очереди · ${summary.free} свободно` }),
         plan.length ? el('ul', { className: 'cal-holes' }, ...rows) : el('p', { className: 'cal-tg-note', textContent: 'Дыр в лучшее время на неделе нет.' }),

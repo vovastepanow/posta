@@ -3,6 +3,7 @@ package posta
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"math"
 	"net/url"
 	"regexp"
@@ -49,8 +50,12 @@ func SourcePollCacheKey(platform, id string) string {
 	return "source_posts:" + hex.EncodeToString(h[:])
 }
 
+func personalSourcePollKey(uid, platform, id string) string {
+	return "personal:" + uid + ":" + SourcePollCacheKey(platform, id)
+}
+
 // SourcePollFetchSet — кому идти в сеть на этом проходе: без кэша или с просроченным опросом, самые просроченные первыми.
-func SourcePollFetchSet(entries map[string]jx.M, cached map[string]bool, at int64) []string {
+func SourcePollFetchSet(entries map[string]jx.M, cached map[string]bool, at int64, limit int) []string {
 	type need struct {
 		key string
 		v   float64
@@ -70,7 +75,7 @@ func SourcePollFetchSet(entries map[string]jx.M, cached map[string]bool, at int6
 		return list[i].key < list[j].key
 	})
 	var out []string
-	for _, n := range list[:min(len(list), config.SourceFetchesPerPass)] {
+	for _, n := range list[:min(len(list), max(0, limit))] {
 		out = append(out, n.key)
 	}
 	return out
@@ -148,6 +153,9 @@ func (a *App) SourceParseLink(input string) (string, string, error) {
 }
 
 func (a *App) sourceVKTitle(domain string) string {
+	if !a.VKCanRead(a.ctxOrBg()) {
+		return domain
+	}
 	r, err := a.VKAPI(a.ctxOrBg(), "groups.getById", url.Values{"group_id": {domain}}, true)
 	if err != nil {
 		return domain
@@ -173,9 +181,18 @@ func (u *U) SourceProbe(platform, id string) (string, []jx.M, error) {
 		}
 		name, posts = jx.Str(info, "title"), jx.Maps(info, "posts")
 	case PlatformVK:
-		name, posts = u.sourceVKTitle(id), u.BuildVKPreviewPosts(u.Ctx, jx.M{"id": id}, 10, false, 120)
+		name = u.sourceVKTitle(id)
+		if u.VKCanRead(u.Ctx) {
+			posts = u.BuildVKPreviewPosts(u.Ctx, jx.M{"id": id}, 10, false, 120)
+		} else {
+			posts, err = u.vkPublicPosts(id, name, 10, false, 120)
+		}
 	case PlatformRSS:
-		name = u.RSSFeedTitle(id)
+		if user := instagramProfileName(id); user != "" {
+			name = "@" + user
+		} else {
+			name = u.RSSFeedTitle(id)
+		}
 		posts, err = u.RSSFetchPosts(id, config.RSSPostsPerFeed, "", false, false)
 	case PlatformOK:
 		page, e := u.OKGroupHTML(id)
@@ -213,9 +230,6 @@ func (u *U) SourceAddManual(input, topic string) (jx.M, error) {
 	platform, id, err := u.SourceParseLink(input)
 	if err != nil {
 		return nil, err
-	}
-	if platform == PlatformVK && !u.VKCanRead(u.Ctx) {
-		return nil, Bad("Сначала подключите VK на вкладке «Источники».")
 	}
 	if err := u.sourceAddQuotaTake(); err != nil {
 		return nil, err
@@ -291,12 +305,12 @@ func orEmptyList(l []jx.M) []jx.M {
 // ---- Поиск постов встроенными поисками площадок ----
 
 const (
-	postSearchSeconds      = 60
-	PostSearchLimit        = 30
-	postSearchDateLookups  = 3
-	postSearchCacheTTL     = time.Hour
-	tgSearchChannelPages   = 15
-	tiktokSearchAuthors    = 2
+	postSearchSeconds     = 60
+	PostSearchLimit       = 30
+	postSearchDateLookups = 3
+	postSearchCacheTTL    = time.Hour
+	tgSearchChannelPages  = 15
+	tiktokSearchAuthors   = 2
 )
 
 func (u *U) postSearchCached(platform, query string, fetch func() ([]jx.M, bool, error)) []jx.M {
@@ -399,7 +413,22 @@ func (u *U) PostSearchMatches(topic string, post jx.M) bool {
 
 // PostSearchYouTube — посты YouTube по запросу или #тегу; без даты пост не берём.
 func (u *U) PostSearchYouTube(query string, limit int) []jx.M {
-	return u.postSearchCached("youtube", query, func() ([]jx.M, bool, error) {
+	return u.postSearchYouTube(query, limit, false)
+}
+
+var memeCompilationRe = regexp.MustCompile(`(?i)(подборк|сборник|компиляц|нарезк|compilation|meme\s+(?:dump|mix)|memes\s+(?:that|compilation|mix)|try\s+not\s+to\s+laugh)`)
+
+func memeYouTubeAllowed(duration, title string) bool {
+	d, err := strconv.ParseFloat(duration, 64)
+	return err == nil && d > 0 && d <= 20 && !memeCompilationRe.MatchString(title)
+}
+
+func (u *U) postSearchYouTube(query string, limit int, memes bool) []jx.M {
+	cache := "youtube"
+	if memes {
+		cache = "youtube_short_memes_v1"
+	}
+	return u.postSearchCached(cache, query, func() ([]jx.M, bool, error) {
 		hashtag := strings.HasPrefix(query, "#")
 		target := "https://www.youtube.com/results?search_query=" + url.QueryEscape(query)
 		if hashtag {
@@ -412,7 +441,7 @@ func (u *U) PostSearchYouTube(query string, limit int) []jx.M {
 		}
 		var ok [][]string
 		for _, r := range rows {
-			if videoIDRe.MatchString(r[0]) && len(ok) < postSearchDateLookups {
+			if videoIDRe.MatchString(r[0]) && len(ok) < postSearchDateLookups && (!memes || memeYouTubeAllowed(r[2], r[5])) {
 				ok = append(ok, r)
 			}
 		}
@@ -456,6 +485,9 @@ func (u *U) PostSearchYouTube(query string, limit int) []jx.M {
 			at, _ := strconv.ParseInt(inf[0], 10, 64)
 			views, _ := strconv.ParseInt(r[3], 10, 64)
 			p := YouTubePost(r[0], title, r[4], at, views, short(r))
+			if d, err := strconv.ParseFloat(r[2], 64); err == nil {
+				p["duration"] = d
+			}
 			markYouTubeLong(p, r[2])
 			p["source_key"] = SourceIDFor(PlatformRSS, YouTubeChannelFeedURL(inf[1]))
 			p["source_url"] = "https://www.youtube.com/channel/" + inf[1]
@@ -491,7 +523,7 @@ func (u *U) tgPostSearchAllowed() bool {
 
 var (
 	adBotRe   = regexp.MustCompile(`(?i)@\w+bot\b|t\.me/\+|\?start=|bit\.ly|u\.to/`)
-	adWordsRe = regexp.MustCompile(`(?i)бесплатно|подписыва|переходи|скидк|акци|заработ|промокод|казино`)
+	adWordsRe = regexp.MustCompile(`(?i)бесплатно|подписыва|переходи|скидк|промокод|казино`)
 )
 
 // PostSearchIsAd — реклама и боты в результатах поиска (без модели).
@@ -513,11 +545,19 @@ func (u *U) PostSearchTelegram(query string, limit int) []jx.M {
 		return nil
 	}
 	return u.postSearchCached("telegram", query, func() ([]jx.M, bool, error) {
-		if !u.tgPostSearchAllowed() {
-			u.Log("Поиск постов Telegram «%s»: лимит поисков в час исчерпан — пропуск.", query)
+		hashtag := strings.HasPrefix(query, "#")
+		paidKey := "tg_post_search:paid:" + u.ID
+		if !hashtag && KV(u.App, u.Ctx, paidKey, false) {
 			return nil, false, nil
 		}
-		hashtag := strings.HasPrefix(query, "#")
+		if !u.tgPostSearchAllowed() {
+			limitLogKey := "tg_post_search:limit_log:" + u.ID
+			if !KV(u.App, u.Ctx, limitLogKey, false) {
+				u.KVSet(u.Ctx, limitLogKey, true, 10*time.Minute)
+				u.Log("Поиск постов Telegram временно приостановлен: достигнут лимит или действует FloodWait.")
+			}
+			return nil, false, nil
+		}
 		res, err := u.TelegramUserSearchPosts(strings.TrimLeft(query, "#"), hashtag, limit)
 		if err != nil {
 			return nil, true, err
@@ -528,13 +568,17 @@ func (u *U) PostSearchTelegram(query string, limit int) []jx.M {
 			return nil, false, nil
 		}
 		if res.Paid {
+			if !hashtag {
+				u.KVSet(u.Ctx, paidKey, true, time.Hour)
+			}
 			u.Log("Поиск постов Telegram «%s»: поиск по словам платный сейчас — пропуск (хэштеги работают).", query)
 			return nil, false, nil
 		}
+		withText := u.TBool("text_posts") && u.TopicFormatOf(u.CurrentTopic()).Media == "optional"
 		byChannel := map[string]map[int]bool{}
 		var order []string
 		for _, p := range res.Posts {
-			if !p.HasMedia {
+			if !p.HasMedia && !withText {
 				continue
 			}
 			if byChannel[p.Username] == nil {
@@ -558,7 +602,7 @@ func (u *U) PostSearchTelegram(query string, limit int) []jx.M {
 				continue
 			}
 			src := jx.M{"id": username, "name": SourceDisplayName(PlatformTelegram, username)}
-			for _, p := range TelegramPostsFromHTML(page, src, config.TelegramPostsPerChannel, false, 120) {
+			for _, p := range TelegramPostsFromHTML(page, src, config.TelegramPostsPerChannel, withText, 120) {
 				link := jx.Str(p, "url")
 				id, _ := strconv.Atoi(link[strings.LastIndex(link, "/")+1:])
 				if !ids[id] {
@@ -576,13 +620,25 @@ func (u *U) PostSearchTelegram(query string, limit int) []jx.M {
 
 // PostSearchVK — поиск новостей VK (нужен вход в VK).
 func (u *U) PostSearchVK(query string, limit int) []jx.M {
-	if !u.VKIsConnected(u.Ctx) {
+	token := u.VKAccessToken(u.Ctx)
+	if token == "" {
 		u.Log("Поиск постов VK «%s»: VK не подключён (нужен вход в VK) — пропуск.", query)
 		return nil
+	}
+	if u.Mem != nil {
+		key := "vk_capability:" + sha1Short(token, 24) + ":newsfeed.search"
+		if _, ok := Mem[string](u.Mem, key); ok {
+			return nil
+		}
 	}
 	return u.postSearchCached("vk", query, func() ([]jx.M, bool, error) {
 		r, err := u.VKAPI(u.Ctx, "newsfeed.search", url.Values{"q": {query}, "count": {strconv.Itoa(max(1, min(100, limit)))}, "extended": {"0"}}, false)
 		if err != nil {
+			var apiErr *VKAPIError
+			if errors.As(err, &apiErr) && apiErr.Code == 1051 {
+				u.Log("Поиск постов VK недоступен для этого типа профиля; остальные источники продолжают работать.")
+				return nil, false, nil
+			}
 			return nil, true, err
 		}
 		var posts []jx.M
@@ -604,7 +660,7 @@ func (u *U) PostSearchVK(query string, limit int) []jx.M {
 			p["found_by"] = "поиск VK «" + query + "»"
 			posts = append(posts, p)
 		}
-		return posts, true, nil
+		return u.VKResolveVideoCovers(u.Ctx, posts), true, nil
 	})
 }
 
@@ -642,6 +698,61 @@ var (
 // PostSearchAuthor — автор поста по адресу источника; nil — не понять.
 func PostSearchAuthor(p jx.M) *DiscoveryCandidate {
 	u := jx.Str(p, "source_url")
+	if author := jx.Str(p, "source_author_url"); author != "" {
+		u = author
+	}
+	if host, id := osnovaTimelineSource(u); host != "" {
+		return &DiscoveryCandidate{Platform: PlatformRSS, ID: osnovaTimelineURL(host, id), Info: jx.M{"title": jx.Str(p, "author_name")}}
+	}
+	if source := pikabuCommunityURL(u); source != "" {
+		return &DiscoveryCandidate{Platform: PlatformRSS, ID: source}
+	}
+	if user := xProfileName(u); user != "" {
+		return &DiscoveryCandidate{Platform: PlatformRSS, ID: "https://x.com/" + user}
+	}
+	if guild, channel := discordSource(u); guild != "" {
+		return &DiscoveryCandidate{Platform: PlatformRSS, ID: "https://discord.com/channels/" + guild + "/" + channel}
+	}
+	if user := threadsProfileName(u); user != "" {
+		return &DiscoveryCandidate{Platform: PlatformRSS, ID: "https://www.threads.net/@" + user}
+	}
+	if user := instagramProfileName(u); user != "" {
+		return &DiscoveryCandidate{Platform: PlatformRSS, ID: "https://www.instagram.com/" + user + "/"}
+	}
+	if id := facebookPageID(u); id != "" {
+		return &DiscoveryCandidate{Platform: PlatformRSS, ID: "https://www.facebook.com/" + id}
+	}
+	if id := dzenChannelID(u); id != "" {
+		return &DiscoveryCandidate{Platform: PlatformRSS, ID: "https://dzen.ru/id/" + id}
+	}
+	if strings.HasPrefix(jx.Str(p, "source_key"), "rutube:") {
+		if id := RutubeChannelID(u); id != "" {
+			return &DiscoveryCandidate{Platform: PlatformRSS, ID: "https://rutube.ru/channel/" + id + "/", Info: jx.M{"title": jx.Str(p, "author_name")}}
+		}
+	}
+	// Lemmy publishes an RSS feed for each community. Keep the original host:
+	// community IDs are local to an instance and are not globally unique.
+	if strings.HasPrefix(jx.Str(p, "source_key"), "lemmy:") {
+		if parsed, err := url.Parse(u); err == nil && parsed.Scheme == "https" && parsed.Hostname() != "" && parsed.User == nil {
+			parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+			if len(parts) == 2 && parts[0] == "c" && parts[1] != "" {
+				parsed.Path = "/feeds/c/" + parts[1] + ".xml"
+				parsed.RawPath, parsed.RawQuery, parsed.Fragment = "", "", ""
+				return &DiscoveryCandidate{Platform: PlatformRSS, ID: parsed.String()}
+			}
+		}
+	}
+	// Mastodon exposes an RSS feed at the public profile URL plus .rss.
+	if strings.HasPrefix(jx.Str(p, "source_key"), "mastodon:") {
+		if parsed, err := url.Parse(u); err == nil && parsed.Scheme == "https" && parsed.Hostname() != "" && parsed.User == nil {
+			parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+			if len(parts) == 1 && strings.HasPrefix(parts[0], "@") && len(parts[0]) > 1 {
+				parsed.Path = "/" + parts[0] + ".rss"
+				parsed.RawPath, parsed.RawQuery, parsed.Fragment = "", "", ""
+				return &DiscoveryCandidate{Platform: PlatformRSS, ID: parsed.String()}
+			}
+		}
+	}
 	if m := authorTGRe.FindStringSubmatch(u); m != nil {
 		return &DiscoveryCandidate{Platform: PlatformTelegram, ID: m[1]}
 	}
@@ -693,7 +804,7 @@ func (u *U) PostSearchCollect(topic string) PostSearchResult {
 			break
 		}
 		res.Done["youtube"]++
-		res.By[PlatformRSS] = append(res.By[PlatformRSS], u.PostSearchYouTube(q, PostSearchLimit)...)
+		res.By[PlatformRSS] = append(res.By[PlatformRSS], u.postSearchYouTube(q, PostSearchLimit, TopicNorm(topic) == TopicNorm(config.DefaultTopic))...)
 		if time.Now().After(deadline) {
 			break
 		}

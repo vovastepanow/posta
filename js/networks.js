@@ -52,6 +52,7 @@ function openForm(key) {
         try {
             const info = await api('network_connect', { body: { platform: key, fields } });
             channels = info.channels;
+            window.dispatchEvent(new Event('posta:resources-changed'));
             form.hidden = true;
             status.textContent = `${network.title} подключён.`;
             renderNetworks();
@@ -67,6 +68,7 @@ async function removeChannel(id) {
     try {
         const info = await api('network_remove', { body: { id } });
         channels = info.channels;
+        window.dispatchEvent(new Event('posta:resources-changed'));
         $('networks-status').textContent = 'Ресурс отключён.';
         renderNetworks();
     } catch (error) {

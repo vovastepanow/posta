@@ -29,18 +29,18 @@ func VoteEvent(uid, topic, vote string, reason any, r jx.M) ch.Vote {
 }
 
 var sqlViewTables = map[string]string{
-	"analysis_cache": `SELECT * FROM analysis_cache ORDER BY created_at DESC LIMIT 500`,
-	"kv":             `SELECT key, value, expires_at, updated_at FROM kv ORDER BY key`,
-	"outbox":         `SELECT * FROM outbox WHERE user_id = $1 ORDER BY publish_at`,
-	"published":      `SELECT * FROM published WHERE user_id = $1 ORDER BY id DESC LIMIT 500`,
-	"screened_cache": `SELECT * FROM screened_cache ORDER BY 1 LIMIT 500`,
-	"topics":         `SELECT * FROM topics ORDER BY 1`,
-	"users":          `SELECT * FROM users WHERE id = $1`,
-	"ledger":         `SELECT * FROM ledger WHERE user_id = $1 ORDER BY id DESC`,
-	"subscriptions":  `SELECT * FROM subscriptions WHERE user_id = $1`,
-	"post_usage":     `SELECT * FROM post_usage WHERE user_id = $1 ORDER BY at DESC`,
-	"channels":       `SELECT * FROM channels WHERE user_id = $1 ORDER BY position`,
-	"mirrors":        `SELECT * FROM mirrors WHERE user_id = $1 ORDER BY created_at`,
+	"analysis_cache":  `SELECT * FROM analysis_cache ORDER BY created_at DESC LIMIT 500`,
+	"kv":              `SELECT key, value, expires_at, updated_at FROM kv ORDER BY key`,
+	"outbox":          `SELECT * FROM outbox WHERE user_id = $1 ORDER BY publish_at`,
+	"published":       `SELECT * FROM published WHERE user_id = $1 ORDER BY id DESC LIMIT 500`,
+	"screened_cache":  `SELECT * FROM screened_cache ORDER BY 1 LIMIT 500`,
+	"topics":          `SELECT * FROM topics ORDER BY 1`,
+	"users":           `SELECT * FROM users WHERE id = $1`,
+	"ledger":          `SELECT * FROM ledger WHERE user_id = $1 ORDER BY id DESC`,
+	"subscriptions":   `SELECT * FROM subscriptions WHERE user_id = $1`,
+	"post_usage":      `SELECT * FROM post_usage WHERE user_id = $1 ORDER BY at DESC`,
+	"channels":        `SELECT * FROM channels WHERE user_id = $1 ORDER BY position`,
+	"mirrors":         `SELECT * FROM mirrors WHERE user_id = $1 ORDER BY created_at`,
 	"source_verdicts": `SELECT * FROM source_verdicts ORDER BY 1 LIMIT 500`,
 }
 
@@ -130,20 +130,28 @@ func (a *App) VKTokensPublic(ctx context.Context) jx.M {
 }
 
 // VKOAuthExchange — код VK ID → токены (OAuth 2 + PKCE).
-func (a *App) VKOAuthExchange(ctx context.Context, code, verifier, device, state string) error {
+func (a *App) VKOAuthToken(code, verifier, device, state string) (jx.M, error) {
 	p := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "code_verifier": {verifier}, "client_id": {a.Cfg.VKClientID},
-		"device_id": {device}, "redirect_uri": {a.Cfg.VKRedirectURI}, "state": {state}}
+		"device_id": {device}, "redirect_uri": {a.VKOAuthRedirectURI()}, "state": {state}}
 	if a.Cfg.VKServiceToken != "" {
 		p.Set("service_token", a.Cfg.VKServiceToken)
 	}
 	t, err := a.vkOAuthPost(p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if jx.Str(t, "access_token") == "" || jx.Str(t, "refresh_token") == "" {
-		return Bad("VK ID не вернул access_token и refresh_token.")
+		return nil, Bad("VK ID не вернул access_token и refresh_token.")
 	}
 	t["device_id"], t["expires_at"] = device, now()+max(0, jx.Int(t, "expires_in"))
+	return t, nil
+}
+
+func (a *App) VKOAuthExchange(ctx context.Context, code, verifier, device, state string) error {
+	t, err := a.VKOAuthToken(code, verifier, device, state)
+	if err != nil {
+		return err
+	}
 	a.SaveVKTokens(ctx, t)
 	return nil
 }

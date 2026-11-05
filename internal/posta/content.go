@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"image"
 	"math/bits"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -68,6 +70,43 @@ func PoolWithoutImage(pool []jx.M, key string) []jx.M {
 	return out
 }
 
+// poolUnavailableVideo — ролик окончательно не загрузился и не может быть показан в подборе.
+func poolUnavailableVideo(it jx.M) bool {
+	return jx.Str(it, "video_via") == "ytdlp" && jx.Bool(it, "video_unavailable")
+}
+
+// PruneUnavailablePoolVideos removes failed videos, including records left by older versions.
+func (u *U) PruneUnavailablePoolVideos() {
+	before := u.Pool()
+	if !hasUnavailablePoolVideo(before) {
+		return
+	}
+	after, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
+		if !hasUnavailablePoolVideo(pool) {
+			return nil
+		}
+		out := make([]jx.M, 0, len(pool))
+		for _, it := range pool {
+			if !poolUnavailableVideo(it) {
+				out = append(out, it)
+			}
+		}
+		return out
+	})
+	if err == nil {
+		u.MediaReleaseRemoved(u.Ctx, before, after)
+	}
+}
+
+func hasUnavailablePoolVideo(pool []jx.M) bool {
+	for _, it := range pool {
+		if poolUnavailableVideo(it) {
+			return true
+		}
+	}
+	return false
+}
+
 // PoolWithoutLostVideo убирает записи, у которых пропал кэш видео (ссылки Telegram с истёкшим токеном не играют).
 func (u *U) PoolWithoutLostVideo(pool []jx.M) []jx.M {
 	lost := func(it jx.M) bool {
@@ -97,7 +136,7 @@ func (u *U) PoolWithoutLostVideo(pool []jx.M) []jx.M {
 	}
 	out := []jx.M{}
 	for _, it := range pool {
-		hidden := jx.Str(it, "video_via") == "ytdlp" && jx.Bool(it, "video_unavailable")
+		hidden := poolUnavailableVideo(it)
 		if !bad[ContentImageKey(it)] && !hidden {
 			out = append(out, it)
 		}
@@ -177,11 +216,10 @@ func ContentSourceKey(item jx.M) string {
 func ContentGallery(item jx.M) []jx.M {
 	var g []jx.M
 	for _, f := range jx.Maps(item, "gallery") {
-		img, ok := f["image"].(string)
-		if !ok || img == "" {
+		img, v := jx.Str(f, "image"), jx.Str(f, "video")
+		if img == "" && v == "" {
 			continue
 		}
-		v, _ := f["video"].(string)
 		e := jx.M{"image": img, "video": v}
 		for _, k := range []string{"image_local", "video_local"} {
 			if s, ok := f[k].(string); ok && s != "" {
@@ -209,7 +247,7 @@ func (a *App) ContentHistoryRecord(item jx.M, complaintReason any) jx.M {
 		rec["geo"] = g
 	}
 	if jx.Has(item, "pooled_at") {
-		rec["pooled_at"] = item["pooled_at"]   // когда попал в пул: по нему студия строит «город»
+		rec["pooled_at"] = item["pooled_at"] // когда попал в пул: по нему студия строит «город»
 	}
 	for _, k := range []string{"description", "why_relevant", "topic", "source", "board", "thread_id", "post_id"} {
 		if rec[k] == nil {
@@ -233,9 +271,16 @@ var dvachSourceRe = regexp.MustCompile(`(?i)Двач\s+/([a-z0-9_-]+)/`)
 
 // SourcePostURL — ссылка на исходный пост: сохранённая (известные площадки по HTTPS) или собранная из полей Двача.
 func SourcePostURL(item jx.M) string {
-	url := jx.Str(item, "source_url")
-	if IsTrustedSourceURL(url) || RSSPostURLTrusted(item) {
-		return url
+	// Prefer the post permalink over a channel URL when the parser has both.
+	for _, link := range []string{jx.Str(item, "url"), jx.Str(item, "source_url")} {
+		if link == "" {
+			continue
+		}
+		probe := jx.Copy(item)
+		probe["source_url"] = link
+		if IsTrustedSourceURL(link) || RSSPostURLTrusted(probe) || federatedPostURLTrusted(probe) {
+			return link
+		}
 	}
 	board := jx.Str(item, "board")
 	if board == "" {
@@ -250,8 +295,24 @@ func SourcePostURL(item jx.M) string {
 	return ""
 }
 
+// Fediverse post URLs can belong to different public instances. They are only
+// exposed as HTTPS links, never fetched here; reject local or IP destinations.
+func federatedPostURLTrusted(item jx.M) bool {
+	key := jx.Str(item, "source_key")
+	if !strings.HasPrefix(key, "mastodon:") && !strings.HasPrefix(key, "lemmy:") {
+		return false
+	}
+	u, err := url.Parse(jx.Str(item, "source_url"))
+	if err != nil || u.Scheme != "https" || u.User != nil || (u.Port() != "" && u.Port() != "443") {
+		return false
+	}
+	h := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	return strings.Contains(h, ".") && net.ParseIP(h) == nil && !strings.HasSuffix(h, ".local") && !strings.HasSuffix(h, ".internal")
+}
+
 func PostItemHasVideo(item jx.M) bool {
-	if strings.TrimSpace(jx.Str(item, "video")) != "" {
+	if strings.TrimSpace(jx.Str(item, "video")) != "" ||
+		(jx.Str(item, "video_via") != "" && jx.Str(item, "video_page") != "" && !jx.Bool(item, "video_unavailable")) {
 		return true
 	}
 	for _, f := range ContentGallery(item) {
@@ -312,6 +373,22 @@ func ContentPassesMediaFilters(item, filters jx.M) bool {
 
 // ContentForDisplay — запись для карточки: display_* — копия из кэша или исходная ссылка, preload — картинки следующих.
 func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M {
+	item = jx.Copy(item)
+	item["text"] = CleanPostAttribution(jx.Str(item, "text"), item)
+	if caps := jx.List(item, "captions"); len(caps) > 0 {
+		cleaned := make([]any, len(caps))
+		for i, c := range caps {
+			cleaned[i] = CleanPostAttribution(jx.ToStr(c), item)
+		}
+		item["captions"] = cleaned
+	}
+	// Older Lemmy records may have retained the video only in the Markdown body.
+	if strings.HasPrefix(jx.Str(item, "source_key"), "lemmy:") && jx.Str(item, "video") == "" {
+		if video := lemmyBodyVideo(jx.Str(item, "text")); video != "" {
+			item = jx.Copy(item)
+			item["video"] = video
+		}
+	}
 	main := ContentImageKey(item)
 	display := func(f jx.M) jx.M {
 		out := jx.Copy(f)
@@ -362,9 +439,13 @@ func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M
 		}
 	}
 	out := jx.Copy(item)
+	qualityKey := ContentSourceKey(item)
+	if jx.Str(item, "thread_id") != "" && (strings.HasPrefix(qualityKey, "dvach:") || strings.HasPrefix(qualityKey, "4chan:")) {
+		qualityKey = SourceQualityKey(qualityKey) + ":" + jx.Str(item, "thread_id")
+	}
 	for k, v := range (jx.M{"item_key": ContentItemKey(item), "images": []string{main}, "captions": []string{caption}, "source_url": SourcePostURL(item),
 		"found_by": jx.Str(item, "found_by"), "gallery": gallery, "post_check": check, "display_image": shown["display_image"],
-		"display_video": shown["display_video"], "source_quality": u.SourceQualityOf(u.Ctx, ContentSourceKey(item)), "tags_info": u.ContentTagsPublic(item["tags"]), "hashtags": u.PostHashtags(item), "preload": preload}) {
+		"display_video": shown["display_video"], "source_quality": u.SourceQualityOf(u.Ctx, qualityKey, jx.Str(item, "topic")), "board_quality": u.BoardQualityOf(u.Ctx, qualityKey, jx.Str(item, "topic")), "tags_info": u.ContentTagsPublic(item["tags"]), "hashtags": u.PostHashtags(item), "preload": preload}) {
 		out[k] = v
 	}
 	return out
@@ -582,7 +663,7 @@ func (u *U) PoolTopicCount(key string) int {
 	n := 0
 	norm := TopicNorm(key)
 	for _, it := range u.Pool() {
-		if PoolItemIsFresh(it, 0) && TopicNorm(jx.Str(it, "topic")) == norm {
+		if u.poolItemFresh(it) && TopicNorm(jx.Str(it, "topic")) == norm {
 			n++
 		}
 	}
@@ -605,7 +686,7 @@ func (u *U) PoolArchiveItems(frozen map[string]bool) []jx.M {
 
 func (u *U) ContentPoolNeedsFill(key string) bool {
 	u.PoolStampLegacy()
-	return u.PoolTopicCount(key) < config.ContentPoolTarget
+	return u.PoolTopicCount(key) < u.TInt("pool_target")
 }
 
 // ResetProjectData — пустые пул и история пользователя; каталог общий и остаётся.

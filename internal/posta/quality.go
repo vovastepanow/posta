@@ -13,6 +13,10 @@ import (
 
 // TopicIsHumor — тема из веток «Мемы» и «Юмор» (сами ветки, их частные темы и синонимы).
 func (a *App) TopicIsHumor(topic string) bool {
+	parts := TopicParts(topic)
+	if len(parts) == 1 {
+		topic = parts[0]
+	}
 	for e := a.TopicLookup(topic); e != nil; e = a.TopicParent(e) {
 		k := e.Key
 		if k == "humor" || k == "memes" || strings.HasPrefix(k, "humor.") || strings.HasPrefix(k, "memes.") {
@@ -34,8 +38,8 @@ func QualityViewsRatio(item jx.M) *float64 {
 }
 
 type QualityOpts struct {
-	Threshold                    int
-	Hedge, Format, Dvach, Views  bool
+	Threshold                   int
+	Hedge, Format, Dvach, Views bool
 }
 
 func DefaultQualityOpts() QualityOpts {
@@ -62,25 +66,6 @@ func (a *App) QualityReasons(an jx.M, item jx.M, topic string, o QualityOpts) st
 		return fmt.Sprintf("просмотры ниже %v× медианы канала", config.QualityViewsMinRatio)
 	}
 	return ""
-}
-
-// QualityTagPenalty — частная тема подбора, а её метки у записи нет: оценка −TopicTagMissPenalty.
-func (a *App) QualityTagPenalty(an jx.M, topic string) jx.M {
-	if v, ok := an["subtopic"]; ok && v != nil {
-		return an
-	}
-	e := a.TopicLookup(topic)
-	if e == nil || e.Parent == nil || e.Key == "" {
-		return an
-	}
-	for _, t := range jx.Strs(an, "tags") {
-		if t == e.Key || strings.HasPrefix(t, e.Key+".") {
-			return an
-		}
-	}
-	out := jx.Copy(an)
-	out["relevance"] = max(0, jx.Int(an, "relevance")-config.TopicTagMissPenalty)
-	return out
 }
 
 // PoolAdmission — причина отказа при добавлении в пул; "" — подходит.

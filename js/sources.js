@@ -1,15 +1,16 @@
 // sources.js — вкладка «Источники»: кандидат карточкой (мозаика свежих медиа, сводка, панель решений), автоподбор
 // и уже добавленные источники темы карточками в стиле «Предложки».
-import { $, ask, COUNT, DEBUG_MODE, VIDEO_ICON, api, bindMenu, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, pluralRu, qualityText, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
+import { $, ask, COUNT, DEBUG_MODE, VIDEO_ICON, cleanCaption, api, bindMenu, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, pluralRu, qualityText, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
 import { BIG_VIDEO_NOTE, closePostView, openPostView, shownText } from './post-view.js';
 import { fromSourcePost } from './post-adapters.js';
 import { videoPageFor } from './viewer.js';
-import { loadCurrentItem, postItemToTelegram } from './content.js';
+import { bindFutureDraftButton, toggleFutureDraft, loadCurrentItem, postItemToTelegram } from './content.js';
 import { openAccountSection } from './account.js';
 import { mediaFileKey } from './media-dedupe.js';
 import { loadImage, pageCheck, videoProgress, watchVideo } from './video-pending.js';
 import { shortText } from './card.js';
 import { initRegistry, loadRegistry } from './registry.js';
+import { prepareOwnImage } from './image-prepare.js';
 
 const REASONS = { off_topic: 'не по теме', dead: 'мёртвый', other: 'другое' };
 const state = { source: null, skipped: [], loading: false, voting: false, discovering: false, mosaic: null, poll: null, emptyAction: '' };
@@ -99,8 +100,8 @@ function sourcePostCard(post, index) {
     card.addEventListener('keydown', event => { if ((event.key === 'Enter' || event.key === ' ') && event.target === card) { event.preventDefault(); openFeedPost(index); } });
     if (media.length) card.append(postThumb(media));
     const body = el('div', { className: 'sp-body' });
-    if (post.text) body.append(el('p', { className: media.length ? 'sp-text' : 'sp-text-big', textContent: shortText(post.text, media.length ? 220 : 600) }));
-    else if (media.length) body.append(el('p', { className: 'sp-text is-empty', textContent: 'Без текста' }));
+    const caption = cleanCaption(post.text);
+    body.append(el('p', { className: caption && !media.length ? 'sp-text-big' : 'sp-text', textContent: shortText(caption, media.length ? 220 : 600) }));
     const stats = [post.views != null && `👁 ${COUNT.format(post.views)}`, post.reactions != null && `❤ ${COUNT.format(post.reactions)}`, post.comments != null && `💬 ${COUNT.format(post.comments)}`].filter(Boolean);
     body.append(el('div', { className: 'sp-meta' },
         el('span', { textContent: post.posted_at ? formatAgo(post.posted_at) : '' }),
@@ -119,16 +120,20 @@ function openFeedPost(index) {
     const meta = { name: source.name || '', url: safeSourcePostUrl({ source_url: st.url }), subscribers: st.subscribers, viewRate: st.view_rate, perWeek: st.posts_per_week, medianViews };
     const posts = feed.posts.map(post => fromSourcePost(post, meta));
     const rocket = post => ({ label: 'Запостить', icon: '🚀', primary: true, run: () => postFeedPost(feed.posts[posts.indexOf(post)], shownText(post)) });
-    openPostView(posts, index, { title: meta.name, translate: true, actions: post => [rocket(post)] });
+    openPostView(posts, index, { title: meta.name, translate: true, actions: post => [rocket(post), { label: '', icon: '+🚀', setup: button => bindFutureDraftButton(button, () => feedItem(feed.posts[posts.indexOf(post)], shownText(post)), { click: false }), run: () => toggleFutureDraft(feedItem(feed.posts[posts.indexOf(post)], shownText(post))) }] });
 }
 
 /** 🚀 в просмотрщике: пост ленты источника → редактор поста (файлы без адреса, ещё не скачанные ролики и недоступные пропускаются). */
-function postFeedPost(post, shown) {
+function feedItem(post, shown) {
     const files = (post?.media || []).filter(m => m.src && !m.pending && !m.unavailable);
     const gallery = files.map(m => m.kind === 'video' ? { image: m.poster || '', video: m.src } : { image: m.src });
     const text = String(shown ?? post?.text ?? '').trim();
-    const item = { text, description: '', ...(gallery.length ? { image: gallery[0].image || gallery[0].video, video: gallery[0].video || '', gallery } : { text_post: true }) };
-    if (!gallery.length && !text) { log('В этом посте нечего публиковать: нет ни текста, ни готовых файлов.'); return; }
+    const item = { text, source_url: post?.url || '', description: '', ...(gallery.length ? { image: gallery[0].image || gallery[0].video, video: gallery[0].video || '', gallery } : { text_post: true }) };
+    return item;
+}
+function postFeedPost(post, shown) {
+    const item = feedItem(post, shown);
+    if (!item.image && !item.text) { log('В этом посте нечего публиковать: нет ни текста, ни готовых файлов.'); return; }
     closePostView();
     return postItemToTelegram(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`));
 }
@@ -201,14 +206,15 @@ function renderSource(source) {
     const s = source.stats || {};
     const url = safeSourcePostUrl({ source_url: s.url });
     $('source-name').replaceChildren('Источник: ', url ? el('a', { className: 'source-name-link', href: url, target: '_blank', rel: 'noopener noreferrer', textContent: source.name }) : source.name);
-    $('source-platform-label').textContent = (source.kind || source.platform) + (source.suggested ? ' · найден автоподбором' : '') + ' · ' + qualityText(source.quality);
+    $('source-platform-label').textContent = (source.kind || source.platform) + (source.suggested ? ' · найден автоподбором' : '') + (['Двач', '4chan'].includes(source.platform) ? ` · Тред по теме: ${qualityText(source.quality)} · Доска по теме: ${qualityText(source.board_quality)}` : ' · Оценки постов источника: ' + qualityText(source.quality));
     setMessage('source-score', source.score != null ? `${source.score}%` : '');
     renderStats(s);
     renderCoverage(source);
     if (url) $('source-link').href = url; else $('source-link').removeAttribute('href');
     $('source-link').hidden = !url;
-    $('source-link').textContent = source.platform === 'Двач' ? 'Открыть тред ↗' : 'Открыть источник ↗';
-    $('source-why').textContent = source.reason || 'Кандидат из каталога источников.';
+    $('source-link').textContent = ['Двач', '4chan'].includes(source.platform) ? 'Открыть тред ↗' : 'Открыть источник ↗';
+    $('source-board-note').hidden = !['Двач', '4chan'].includes(source.platform);
+    $('source-why').textContent = (source.reason || 'Кандидат из каталога источников.') + (['Двач', '4chan'].includes(source.platform) ? ' Одобрение добавит этот тред; доска используется для поиска других тредов.' : '');
     $('source-desc').replaceChildren(el('strong', { textContent: 'Описание: ' }), s.description || '');
     $('source-desc').hidden = !s.description;
     clearTimeout(state.poll);
@@ -256,7 +262,17 @@ async function loadNextSource({ quiet = false } = {}) {
 async function vote(type, reason = '') {
     const source = state.source;
     if (!source || state.voting) return;
-    if (type === 'postpone') { state.skipped.push(source.source_id); log(`Отложен источник: ${source.name}`); return loadNextSource(); }
+    if (type === 'postpone') {
+        state.voting = true;
+        try {
+            await api('source_postpone', { body: { source } });
+            state.skipped.push(source.source_id);
+            log(`Источник отложен на 7 дней: ${source.name}`);
+            await loadNextSource();
+        } catch (error) { setMessage('source-error', `Не удалось отложить источник: ${error.message}`); }
+        finally { state.voting = false; }
+        return;
+    }
     state.voting = true;
     const buttons = document.querySelectorAll('#source-tab .controls button');
     buttons.forEach(b => { b.disabled = true; });
@@ -280,7 +296,7 @@ async function loadDiscoveryStatus() {
             (d.last_topic || '').toLowerCase() === (d.topic || '').toLowerCase() && d.last_run ? `Последний подбор: ${formatAgo(d.last_run)}.` : 'По этой теме подбора ещё не было.',
             `В каталоге найденных: ${d.auto_added}, ждут вашего решения: ${d.suggestions}.`,
             d.frozen ? `Заморожено из-за редких постов: ${d.frozen} (перепроверяются раз в несколько дней).` : '',
-            d.requested ? 'Подбор заказан — начнётся при запуске парсера.' : '', d.vk_connected ? '' : 'Подключите VK, чтобы искать и сообщества ВКонтакте.'].filter(Boolean).join(' ');
+            d.requested ? 'Подбор заказан — начнётся при запуске парсера.' : '', d.vk_connected ? '' : 'Открытые сообщества VK доступны без подключения; для поиска через VK API нужен ключ.'].filter(Boolean).join(' ');
     } catch (error) { $('discovery-status').textContent = `Сведения недоступны: ${error.message}`; }
 }
 
@@ -380,7 +396,7 @@ function topicSourceCard(source) {
             el('a', { href: source.url, target: '_blank', rel: 'noopener noreferrer', textContent: source.handle })),
             el('span', { className: 'source-platform-tag', textContent: source.kind || { 'ВКонтакте': 'VK', 'Одноклассники': 'ОК', 'TikTok': 'TikTok' }[source.platform] || source.platform })),
         chips.length ? el('div', { className: 'source-chips' }, ...chips) : null,
-        el('span', { className: `source-status${source.frozen ? ' is-frozen' : ''}`, textContent: source.platform === 'Двач' ? `доска имиджборда${source.category ? ` · ${source.category}` : ''}`
+        el('span', { className: `source-status${source.frozen ? ' is-frozen' : ''}`, textContent: ['Двач', '4chan'].includes(source.platform) ? 'тред имиджборда'
             : source.frozen ? `заморожен: ${source.frozen_reason || 'не активен'}` : source.activity || 'активен' }),
         notes.length ? el('p', { className: 'source-note', textContent: notes.join(' · ') }) : null);
     const actions = el('div', { className: 'proposal-actions' }, el('a', { className: 'proposal-action', href: source.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть ↗' }));
@@ -479,10 +495,13 @@ function initializeOwnContent() {
     $('own-upload-button').addEventListener('click', () => files.click());
     $('own-csv-button').addEventListener('click', () => csv.click());
     $('own-csv-sample').addEventListener('click', downloadCsvSample);
-    files.addEventListener('change', () => {
+    files.addEventListener('change', async () => {
         if (!files.files.length) return;
+        const selected = [...files.files];
+        $('own-upload-button').disabled = true;
+        $('own-content-status').textContent = 'Подготавливаю картинки на вашем устройстве…';
         const form = new FormData();
-        [...files.files].forEach(file => form.append('files[]', file));
+        for (const file of selected) form.append('files[]', await prepareOwnImage(file));
         form.append('text', $('own-text').value.trim());
         form.append('album', $('own-album').checked ? '1' : '0');
         sendOwn('own_upload', form, $('own-upload-button')).finally(() => { files.value = ''; });
@@ -611,18 +630,22 @@ async function importOwnFolder(files) {
     const stem = file => file.webkitRelativePath.replace(/\.[^./]+$/, '');
     const media = files.filter(f => OWN_IMAGE_EXT.test(f.name) || OWN_VIDEO_EXT.test(f.name));
     const captions = new Map(files.filter(f => /\.txt$/i.test(f.name)).map(f => [stem(f), f]));
-    const tooBig = media.filter(f => f.size > OWN_FILE_MAX);
-    const queue = media.filter(f => f.size <= OWN_FILE_MAX).slice(0, OWN_FOLDER_LIMIT);
-    errors.replaceChildren(...(tooBig.length ? [el('li', { textContent: `не загружены (больше 2 МБ): ${tooBig.map(f => f.name).join(', ')}` })] : []));
+    const queue = media.slice(0, OWN_FOLDER_LIMIT);
+    errors.replaceChildren();
     ownFolderStop = false;
     button.disabled = true;
     stop.hidden = false;
     let added = 0;
     try {
         for (let i = 0; i < queue.length && !ownFolderStop; i++) {
-            const file = queue[i];
+            const original = queue[i];
+            const file = await prepareOwnImage(original);
             status.textContent = `Загружено ${i} из ${queue.length}` + (added ? `, в подборку: ${added}` : '');
-            const note = captions.has(stem(file)) ? (await captions.get(stem(file)).text()).trim() : $('own-text').value.trim();
+            if (file.size > OWN_FILE_MAX) {
+                errors.append(el('li', { textContent: `${original.name}: файл больше 2 МБ после подготовки.` }));
+                continue;
+            }
+            const note = captions.has(stem(original)) ? (await captions.get(stem(original)).text()).trim() : $('own-text').value.trim();
             const form = new FormData();
             form.append('files[]', file);
             form.append('text', note.slice(0, 1000));

@@ -29,16 +29,16 @@ import (
 // JS-движок для YouTube — deno (tools/bin/deno). Очередь роликов — горутина сервера.
 
 const (
-	ytdlpListTimeout     = 30 * time.Second
-	ytdlpDownloadTimeout = 180 * time.Second
-	ytdlpConvertTimeout  = 150 * time.Second
-	ytdlpWatchMaxHeight  = 720
-	ytdlpShortsMaxHeight = 854
-	ytdlpWatchMaxSeconds = 600
+	ytdlpListTimeout      = 30 * time.Second
+	ytdlpDownloadTimeout  = 180 * time.Second
+	ytdlpConvertTimeout   = 150 * time.Second
+	ytdlpWatchMaxHeight   = 720
+	ytdlpShortsMaxHeight  = 854
+	ytdlpWatchMaxSeconds  = 600
 	ytdlpWatchClipSeconds = 60 // длинный ролик YouTube: берётся только начало
-	ytdlpQueueKey        = "ytdlp_queue"
-	ytdlpQueueMax        = 500
-	ytdlpTries           = 3
+	ytdlpQueueKey         = "ytdlp_queue"
+	ytdlpQueueMax         = 500
+	ytdlpTries            = 3
 )
 
 var ytdlpURLRe = regexp.MustCompile(`(?i)^https://[a-z0-9.-]+/[\x21-\x7e]*$`)
@@ -114,8 +114,17 @@ func (a *App) ytdlpCacheDir() string {
 
 var progLineRe = regexp.MustCompile(`^PROG (\d+) (\S+) (\S+) (\S+)`)
 
+// Limit all yt-dlp invocations, including playlist probes outside the video queue.
+var ytdlpSlots = make(chan struct{}, 2)
+
 // YtdlpRun — yt-dlp с общими аргументами проекта; адрес — после «--» у вызывающего.
 func (a *App) YtdlpRun(ctx context.Context, args []string, timeout time.Duration, js bool, onProgress func(done, total int64, format string)) ExecResult {
+	select {
+	case ytdlpSlots <- struct{}{}:
+		defer func() { <-ytdlpSlots }()
+	case <-ctx.Done():
+		return ExecResult{Code: -1, Stderr: ctx.Err().Error()}
+	}
 	cache := a.ytdlpCacheDir()
 	base := []string{"--ignore-config", "--no-warnings"}
 	if onProgress != nil {
@@ -271,7 +280,12 @@ func (a *App) YtdlpH264(file string) (string, error) {
 		return file, nil
 	}
 	out := file + ".h264.mp4"
-	r := Exec(context.Background(), a.Cfg.FFmpeg, []string{"-v", "error", "-y", "-i", file, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+	ctx := a.ctxOrBg()
+	if !acquireFFmpeg(ctx) {
+		return "", ctx.Err()
+	}
+	defer releaseFFmpeg()
+	r := Exec(ctx, a.Cfg.FFmpeg, []string{"-v", "error", "-y", "-i", file, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
 		"-c:a", "aac", "-movflags", "+faststart", "-f", "mp4", out}, ytdlpConvertTimeout, nil, nil)
 	if !r.OK || !fileExists(out) {
 		os.Remove(out)
@@ -286,6 +300,11 @@ func (a *App) YtdlpH264(file string) (string, error) {
 
 // YtdlpFormatFor — формат по площадке: шортсы — H.264 до 480p, обычный ролик — до 720p, TikTok — H.264 или MP4.
 func YtdlpFormatFor(page string) string {
+	if rutubeVideoRe.MatchString(page) {
+		// Rutube advertises mirrored HLS formats. Prefer the first CDN and a
+		// modest resolution; the fallback keeps older/single-CDN responses usable.
+		return "b[height<=480][format_id$=-0]/b[height<=480]/b"
+	}
 	if YtdlpIsWatchURL(page) {
 		h := ytdlpWatchMaxHeight
 		return fmt.Sprintf("bv*[vcodec^=avc1][height<=%d]+ba[ext=m4a]/b[ext=mp4][height<=%d]/b[ext=mp4]", h, h)
@@ -379,7 +398,7 @@ var progress = struct {
 	m map[string]videoProgress
 }{m: map[string]videoProgress{}}
 
-var progressStages = map[string]string{"probe": "Ищу ролик", "download": "Скачиваю", "merge": "Склеиваю", "convert": "Перекодирую", "telegram": "Скачиваю из Telegram"}
+var progressStages = map[string]string{"probe": "Получаю данные видео", "download": "Скачиваю", "merge": "Склеиваю", "convert": "Перекодирую", "telegram": "Скачиваю из Telegram"}
 
 func progressKey(uid, key string) string { return uid + "|" + key }
 
@@ -436,10 +455,11 @@ func progressTracker(j VideoJob) func(done, total int64, format string) {
 		if !contains(formats, format) {
 			formats = append(formats, format)
 		}
-		part := 0.0
-		if total > 0 {
-			part = min(1, float64(done)/float64(total))
+		if total <= 0 {
+			progressSave(j, "download", nil)
+			return
 		}
+		part := min(1, float64(done)/float64(total))
 		pc := 85 * part
 		if len(formats) > 1 {
 			pc = 85 + 12*part
@@ -456,9 +476,8 @@ func progressTracker(j VideoJob) func(done, total int64, format string) {
 
 var videoWake = make(chan struct{}, 1)
 
-// videoWorkers — сколько роликов качается сразу: yt-dlp — все ролики превью источника разом (videoPreviewLimits), у каждого своя полоса;
-// Telegram — по одному (аккаунт пользователя).
-var videoWorkers = map[string]int{"ytdlp": 12, "tgu": 1}
+// Queue previews freely, but process only two yt-dlp videos at a time.
+var videoWorkers = map[string]int{"ytdlp": 2, "tgu": 1}
 
 // videoRunning — задачи, которые уже качаются (uid|key), и сколько их по способу.
 var videoRunning = struct {
@@ -703,12 +722,14 @@ var videoPreviewLimits = map[string]int{"tgu": 2, "ytdlp": 12}
 const videoPreviewFirst = 12
 
 var (
-	tmePostURLRe   = regexp.MustCompile(`^https://t\.me/[A-Za-z0-9_]{4,32}/\d+$`)
-	tiktokVideoRe  = regexp.MustCompile(`^https://www\.tiktok\.com/@([^/]+)/video/\d{5,25}$`)
-	ytShortsURLRe  = regexp.MustCompile(`^https://www\.youtube\.com/shorts/[A-Za-z0-9_-]{11}$`)
+	tmePostURLRe  = regexp.MustCompile(`^https://t\.me/[A-Za-z0-9_]{4,32}/\d+$`)
+	tiktokVideoRe = regexp.MustCompile(`^https://www\.tiktok\.com/@([^/]+)/video/\d{5,25}$`)
+	ytShortsURLRe = regexp.MustCompile(`^https://www\.youtube\.com/shorts/[A-Za-z0-9_-]{11}$`)
+	rutubeVideoRe = regexp.MustCompile(`^https://(?:www\.)?rutube\.ru/video/[a-fA-F0-9]{32}/?$`)
+	vkVideoRe     = regexp.MustCompile(`^https://(?:www\.)?(?:vk\.com|vkvideo\.ru)/video-?[0-9]+_[0-9]+$`)
 )
 
-// VideoPageVia — tgu (Telegram через аккаунт), ytdlp (TikTok, YouTube) или "" — адрес не принимается.
+// VideoPageVia — поддерживаемая публичная страница видео или "" для неизвестных адресов.
 func VideoPageVia(u string) string {
 	if tmePostURLRe.MatchString(u) {
 		return "tgu"
@@ -716,7 +737,7 @@ func VideoPageVia(u string) string {
 	if m := tiktokVideoRe.FindStringSubmatch(u); m != nil && IsValidTikTokUser(m[1]) {
 		return "ytdlp"
 	}
-	if ytShortsURLRe.MatchString(u) || YtdlpIsWatchURL(u) {
+	if ytShortsURLRe.MatchString(u) || YtdlpIsWatchURL(u) || rutubeVideoRe.MatchString(u) || vkVideoRe.MatchString(u) {
 		return "ytdlp"
 	}
 	return ""

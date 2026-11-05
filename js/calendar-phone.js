@@ -1,6 +1,6 @@
 // calendar-phone.js — телефонный экран календаря (< 700 px): полоса недели, список дня, шторка «Предложка».
 // Данные и действия приходят из calendar.js через ctx, чтобы не тянуть его состояние сюда.
-import { el, PHOTO_ICON, postTypeLabel, VIDEO_ICON } from './core.js';
+import { cleanCaption, el, PHOTO_ICON, VIDEO_ICON } from './core.js';
 import { addDays, dayAgenda, summary, weekStart } from './calendar-model.js';
 import { shortText } from './card.js';
 
@@ -79,7 +79,7 @@ function postRow(ctx, post) {
         el('span', { className: 'cal-phone-main' },
             post.article   // статья: как будущий пост в Telegram — жирный заголовок и анонс
                 ? el('span', { className: 'cal-phone-text is-article' }, el('b', { textContent: post.article.title }), post.article.lead ? el('span', { className: 'cal-phone-lead', textContent: shortText(post.article.lead, 140) }) : null)
-                : el('span', { className: 'cal-phone-text', textContent: post.error && post.status === 'failed' ? post.error : (post.text || postTypeLabel(post)) }),
+                : el('span', { className: 'cal-phone-text', textContent: post.error && post.status === 'failed' ? post.error : (cleanCaption(post.text)) }),
             el('span', { className: 'cal-phone-meta' }, ctx.avatar(post.channel, 'sm', false), el('span', { textContent: `${lane.title} · ${ctx.statusOf(post)}` }))));
     card.style.setProperty('--c', lane.color);
     return el('div', { className: 'cal-phone-row' }, el('span', { className: 'cal-phone-time', textContent: hhmm(post.at * 1000) }), card);

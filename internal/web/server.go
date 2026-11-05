@@ -187,7 +187,7 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 // authActions — работают без профиля: вход и проверка, что за браузер.
 var authActions = map[string]bool{"auth_status": true, "password_login": true, "login_start": true, "login_status": true, "radar_access": true,
-	"network_oauth_callback": true, "vk_oauth_callback": true}
+	"network_oauth_callback": true, "vk_oauth_callback": true, "vk_login_prepare": true}
 
 func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	action := r.URL.Query().Get("action")
@@ -285,7 +285,7 @@ func (s *Server) bindUser(c *Ctx) error {
 		if !authActions[c.Action] {
 			return fail(401, "Войдите: логин и пароль или Telegram. Новые профили на этом сайте сейчас не создаются.")
 		}
-		if c.Action == "login_start" {
+		if c.Action == "login_start" || c.Action == "vk_login_prepare" {
 			// вход через Telegram ведёт запрос от временного профиля; пустой профиль удалит сборка мусора
 			uid := randUID()
 			t, err := s.A.SessionCreate(ctx, uid)

@@ -59,39 +59,11 @@ func (u *U) PoolForCurrentTopic() []jx.M {
 	if jx.Bool(f, "active_sources_only") {
 		frozen = u.FrozenSourceLabels()
 	}
-	keep := func(i jx.M) bool {
-		return u.poolItemMatchesTopic(i, topic, key) && PoolItemIsFresh(i, now()) &&
-			(!jx.Bool(f, "video_only") || PostItemHasVideo(i)) &&
-			(!jx.Bool(f, "fresh_only") || !IsPostOutdated(jx.Int(i, "posted_at"), 0, config.ContentFreshMaxAgeDays)) &&
-			!frozen[strings.ToLower(jx.Str(i, "source"))]
-	}
 	pool := u.Pool()
-	all := true
-	for _, i := range pool {
-		if !keep(i) {
-			all = false
-			break
-		}
-	}
-	if !all {
-		pool, _ = u.PoolUpdate(func(p []jx.M) []jx.M {
-			out := []jx.M{}
-			for _, i := range p {
-				if keep(i) {
-					out = append(out, i)
-				}
-			}
-			return out
-		})
-	}
 	adult := u.AdultAllowed()
-	var shown []jx.M
-	for _, i := range pool {
-		if u.PoolItemInTopic(i, topic, key, adult) && ContentPassesMediaFilters(i, f) {
-			shown = append(shown, i)
-		}
-	}
-	return PoolOrder(shown)
+	return selectPoolItems(pool, func(i jx.M) bool {
+		return u.PoolItemInTopic(i, topic, key, adult) && u.poolItemFresh(i) && poolMatchesDisplayFilters(i, f, frozen)
+	})
 }
 
 // ApplyVote — новый пул после голоса или nil (записи уже нет). save — до удаления записи.
@@ -107,4 +79,34 @@ func (a *App) ApplyVote(pool []jx.M, image, vote string, reason any, save func(r
 	}
 	save(a.ContentHistoryRecord(item, reason), config.ContentVoteCollections[vote])
 	return PoolWithoutImage(pool, image)
+}
+
+// poolMatchesDisplayFilters applies view filters without changing the stored pool.
+func poolMatchesDisplayFilters(i, f jx.M, frozen map[string]bool) bool {
+	return (!jx.Bool(f, "video_only") || PostItemHasVideo(i)) &&
+		(!jx.Bool(f, "fresh_only") || !IsPostOutdated(jx.Int(i, "posted_at"), 0, config.ContentFreshMaxAgeDays)) &&
+		!frozen[strings.ToLower(jx.Str(i, "source"))] && ContentPassesMediaFilters(i, f)
+}
+
+// PoolStaleForCurrentTopic provides a fallback while the collector finds replacements.
+func (u *U) PoolStaleForCurrentTopic() []jx.M {
+	topic, key, f := u.CurrentTopic(), u.SearchTopicKey(), u.ContentFilterValues()
+	frozen := map[string]bool{}
+	if jx.Bool(f, "active_sources_only") {
+		frozen = u.FrozenSourceLabels()
+	}
+	adult := u.AdultAllowed()
+	return selectPoolItems(u.Pool(), func(item jx.M) bool {
+		return !u.poolItemFresh(item) && u.PoolItemInTopic(item, topic, key, adult) && poolMatchesDisplayFilters(item, f, frozen)
+	})
+}
+
+func selectPoolItems(pool []jx.M, matches func(jx.M) bool) []jx.M {
+	var shown []jx.M
+	for _, item := range pool {
+		if matches(item) {
+			shown = append(shown, item)
+		}
+	}
+	return PoolOrder(shown)
 }

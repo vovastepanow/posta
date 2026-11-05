@@ -27,6 +27,9 @@ func init() {
 		}
 		return r, nil
 	})
+	post("source_postpone", func(c *Ctx) (any, error) {
+		return ok(nil), c.U.PostponeSource(jx.Map(c.In, "source"))
+	})
 	post("source_vote", func(c *Ctx) (any, error) {
 		return ok(nil), c.U.SourceVote(c.Str("vote"), jx.Map(c.In, "source"), c.Str("reason"))
 	})
@@ -261,7 +264,7 @@ func discoveryStatus(c *Ctx) (any, error) {
 	disc := d.Discovery
 	running := now()-jx.Int(disc, "running_since") < int64(c.A.TInt("discovery_minutes")*60+120)
 	return jx.M{"enabled": c.A.TBool("discovery"), "topic": topic, "topic_info": info, "last_topic": jx.Str(disc, "topic"), "last_run": jx.Int(disc, "last_run"),
-		"requested": jx.Bool(disc, "requested"), "running": running, "auto_added": auto, "frozen": frozen, "suggestions": sugg, "vk_connected": c.A.VKIsConnected(c.R.Context())}, nil
+		"requested": jx.Bool(disc, "requested"), "running": running, "auto_added": auto, "frozen": frozen, "suggestions": sugg, "vk_connected": c.A.VKIsConnected(c.U.Ctx)}, nil
 }
 
 func now() int64 { return time.Now().Unix() }

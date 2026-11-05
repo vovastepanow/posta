@@ -68,7 +68,7 @@ var (
 //	free   — бесплатно: отсев локально (2B), анализ и умные задачи — бесплатная модель OpenRouter, резерв — Ollama;
 //	local  — всё на Ollama;
 //	hybrid — отсев локально, остальное — дешёвые платные модели (нужен бюджет);
-//	cloud  — всё в OpenRouter на платных моделях, резерв — Ollama.
+//	cloud  — запросы в OpenRouter, без локальных моделей.
 func Preset(name string) Settings {
 	s := Settings{Preset: name, Roles: map[Role]RoleConfig{}, DailyBudgetUSD: 0, FreeDailyLimit: 1000}
 	set := func(r Role, p, f Target) { s.Roles[r] = RoleConfig{Primary: p, Fallback: f} }
@@ -85,14 +85,14 @@ func Preset(name string) Settings {
 		set(RoleEmbed, LocalEmbed, Off)
 	case "cloud":
 		s.DailyBudgetUSD = 0.5
-		set(RolePrescreen, CloudFast, LocalFast)
-		set(RoleAnalysis, CloudVision, LocalSmart)
-		set(RoleJudge, CloudJudge, LocalSmart)
-		set(RoleSmart, CloudSmart, LocalSmart)
-		set(RoleText, CloudText, LocalSmart)
-		set(RoleRadar, CloudText, LocalSmart)
+		set(RolePrescreen, CloudFast, Off)
+		set(RoleAnalysis, CloudVision, Off)
+		set(RoleJudge, CloudJudge, Off)
+		set(RoleSmart, CloudSmart, Off)
+		set(RoleText, CloudText, Off)
+		set(RoleRadar, CloudText, Off)
 		set(RoleTranslate, CloudText, Off)
-		set(RoleEmbed, LocalEmbed, Off)
+		set(RoleEmbed, Off, Off)
 	case "hybrid":
 		s.DailyBudgetUSD = 0.3
 		set(RolePrescreen, LocalFast, CloudFast)
@@ -157,13 +157,14 @@ type Router struct {
 	// Log — строки в журнал сборщика или ответа API.
 	Log func(userID, line string)
 
-	mu          sync.Mutex
-	freeDay     string
-	freeUsed    int
-	freeBlocked map[string]time.Time // бесплатная модель → до какого времени её не трогаем (429 от поставщика)
-	timeouts    map[Role]int
-	slowTill    map[Role]time.Time
-	fast        string
+	mu                    sync.Mutex
+	freeDay               string
+	freeUsed              int
+	freeDailyBlockedUntil time.Time
+	freeBlocked           map[string]time.Time // бесплатная модель → до какого времени её не трогаем (429 от поставщика)
+	timeouts              map[Role]int
+	slowTill              map[Role]time.Time
+	fast                  string
 }
 
 func NewRouter(ol *Ollama, or *OpenRouter) *Router {
@@ -271,12 +272,8 @@ func (r *Router) blocked(t Target, req *Request, s Settings) string {
 	if till, ok := r.freeBlocked[t.Model]; ok && time.Now().Before(till) {
 		return "у бесплатной модели перегрузка (429) до " + till.Format("15:04")
 	}
-	limit := s.FreeDailyLimit
-	if limit <= 0 {
-		limit = 1000
-	}
-	if r.freeDay == time.Now().Format("2006-01-02") && r.freeUsed >= limit {
-		return fmt.Sprintf("бесплатных запросов за сутки %d из %d", r.freeUsed, limit)
+	if time.Now().Before(r.freeDailyBlockedUntil) {
+		return "OpenRouter сообщил об исчерпании суточного лимита; повторная проверка после " + r.freeDailyBlockedUntil.Format("15:04")
 	}
 	return ""
 }
@@ -292,6 +289,11 @@ func (r *Router) countFree(t Target, err error) {
 		r.freeDay, r.freeUsed = day, 0
 	}
 	r.freeUsed++
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "free-models-per-day") {
+		// Периодически пробуем снова: время сброса может измениться.
+		r.freeDailyBlockedUntil = time.Now().Add(15 * time.Minute)
+		return
+	}
 	if err != nil && (strings.Contains(err.Error(), "429") || strings.Contains(strings.ToLower(err.Error()), "rate limit")) {
 		if r.freeBlocked == nil {
 			r.freeBlocked = map[string]time.Time{}

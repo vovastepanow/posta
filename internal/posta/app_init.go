@@ -86,6 +86,10 @@ func (a *App) Close() {
 func (a *App) StartBackground() {
 	a.Go("publisher", a.RunPublisher)
 	a.Go("video-worker", a.RunVideoWorker)
+	if !a.Cfg.Dev || os.Getenv("POSTA_DEV_PARSERS") == "1" {
+		a.Go("shared-collection", a.runSharedCollection)
+		a.Go("source-discovery", a.runSourceDiscoveryWorker)
+	}
 	a.Every("cache-gc", time.Hour, func(ctx context.Context) {
 		a.CacheGC(ctx)
 		a.ThumbGC(ctx)
@@ -225,7 +229,7 @@ func (a *App) LLMPublic(ctx context.Context) jx.M {
 		"presets": []jx.M{{"id": "free", "title": "Бесплатно", "note": "Отсев на своём компьютере, анализ — бесплатная модель OpenRouter, резерв — Ollama."},
 			{"id": "local", "title": "Только свой компьютер", "note": "Всё на Ollama: бесплатно, но медленно на слабой видеокарте."},
 			{"id": "hybrid", "title": "Гибрид", "note": "Отсев локально, остальное — дешёвые платные модели (нужен бюджет)."},
-			{"id": "cloud", "title": "Облако", "note": "Всё в OpenRouter на платных моделях, резерв — Ollama."}}}
+			{"id": "cloud", "title": "Облако", "note": "OpenRouter без локальных моделей и резерва; сходство тем по эмбеддингам выключено."}}}
 	out["ollama_models"] = orStrs(a.LLM.Ollama.Installed(ctx))
 	if a.Cfg.OpenRouterKey != "" {
 		out["openrouter_models"] = a.LLM.OpenRouter.SortedModels(ctx, false)

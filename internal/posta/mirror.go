@@ -29,13 +29,13 @@ var MirrorModes = []string{"pool", "queue"}
 
 // MirrorRules — правила зеркала (проверенные).
 type MirrorRules struct {
-	Include       []string      `json:"include"`
-	Exclude       []string      `json:"exclude"`
-	Replace       []MirrorPair  `json:"replace"`
-	StripLinks    bool          `json:"strip_links"`
-	StripMentions bool          `json:"strip_mentions"`
-	StripHashtags bool          `json:"strip_hashtags"`
-	Append        string        `json:"append"`
+	Include       []string     `json:"include"`
+	Exclude       []string     `json:"exclude"`
+	Replace       []MirrorPair `json:"replace"`
+	StripLinks    bool         `json:"strip_links"`
+	StripMentions bool         `json:"strip_mentions"`
+	StripHashtags bool         `json:"strip_hashtags"`
+	Append        string       `json:"append"`
 }
 
 type MirrorPair struct {
@@ -185,9 +185,6 @@ func (u *U) MirrorSave(in jx.M) (jx.M, error) {
 	platform, id, err := u.SourceParseLink(jx.Str(in, "link"))
 	if err != nil {
 		return nil, err
-	}
-	if platform == PlatformVK && !u.VKCanRead(u.Ctx) {
-		return nil, Bad("Сначала подключите VK на вкладке «Источники».")
 	}
 	mode := jx.Str(in, "mode")
 	if mode == "" {

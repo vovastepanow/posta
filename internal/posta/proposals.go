@@ -15,9 +15,9 @@ import (
 	"posta/internal/jx"
 )
 
-// «Предложка»: лайки и «не знаю» из истории; файлы достраиваются в фоне, пока ссылки источника живы.
+// Отобранные посты из истории; файлы достраиваются в фоне, пока ссылки источника живы.
 
-const proposalsLimit = 200
+const proposalsLimit = 100
 
 func (a *App) proposalMediaLost(r jx.M) bool {
 	return jx.Bool(r, "media_gone") && a.MediaExisting(jx.Str(r, "image_local")) == "" && a.MediaExisting(jx.Str(r, "video_local")) == ""
@@ -28,7 +28,7 @@ func (u *U) ProposalItems(h History) []jx.M {
 	items := []jx.M{}
 	topic := u.CurrentTopic()
 	adult := u.AdultAllowed()
-	for _, c := range config.ProposalCollections {
+	for _, c := range []string{"liked"} {
 		for _, r := range h[c] {
 			if jx.Bool(r, "proposal_hidden") || u.UARecordHidden(r) || u.proposalMediaLost(r) || ContentImageKey(r) == "" || (!adult && u.ContentIsAdult(r)) {
 				continue
@@ -46,6 +46,62 @@ func (u *U) ProposalItems(h History) []jx.M {
 		items = items[:proposalsLimit]
 	}
 	return items
+}
+
+// pruneSelectedHistory оставляет в выбранной теме последние 100 видимых лайков.
+// Данные оценки остаются, чтобы удаление содержимого не меняло качество источника и предпочтения.
+func pruneSelectedHistory(h History, topic string, same func(string, string) bool) []jx.M {
+	var candidates []int
+	for i, r := range h["liked"] {
+		t := jx.Str(r, "topic")
+		if jx.Bool(r, "proposal_hidden") || ContentImageKey(r) == "" || (t != "" && !same(t, topic)) {
+			continue
+		}
+		candidates = append(candidates, i)
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return jx.Int(h["liked"][candidates[i]], "timestamp") > jx.Int(h["liked"][candidates[j]], "timestamp")
+	})
+	if len(candidates) <= proposalsLimit {
+		return nil
+	}
+	removed := make([]jx.M, 0, len(candidates)-proposalsLimit)
+	for _, index := range candidates[proposalsLimit:] {
+		record := h["liked"][index]
+		removed = append(removed, record)
+		hash := sha1.Sum([]byte(ContentImageKey(record)))
+		compact := jx.M{"image": "deleted:" + hex.EncodeToString(hash[:]), "proposal_hidden": true, "content_deleted": true}
+		// Оставляем признаки оценки; ни сам пост, ни ссылки на его файлы не сохраняются.
+		for _, key := range []string{"topic", "timestamp", "source", "source_key", "tags", "entity", "format", "description", "relevance", "rating_assigned", "complaint_reason"} {
+			if value, ok := record[key]; ok {
+				compact[key] = value
+			}
+		}
+		h["liked"][index] = compact
+	}
+	return removed
+}
+
+// PruneSelectedPosts удаляет старое содержимое, сохраняя оценки. Общие файлы остаются, пока на них кто-то ссылается.
+func (u *U) PruneSelectedPosts() error {
+	topic := u.CurrentTopic()
+	var removed []jx.M
+	_, err := u.HistoryUpdate(func(h History) History {
+		removed = pruneSelectedHistory(h, topic, u.TopicSame)
+		if len(removed) == 0 {
+			return nil
+		}
+		return h
+	})
+	if err != nil {
+		return err
+	}
+	for _, record := range removed {
+		for _, url := range MediaItemURLs(record) {
+			u.MediaRemove(u.Ctx, url)
+		}
+	}
+	return nil
 }
 
 // UpdateHistoryProposals — change(запись) → новая запись или nil (не менять). Возвращает число изменённых.

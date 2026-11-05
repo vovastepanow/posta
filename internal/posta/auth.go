@@ -122,7 +122,7 @@ func (a *App) SessionResolve(ctx context.Context, sid, legacy string) (Resolved,
 
 // UserHasIdentity — есть ли у профиля свой способ входа (Telegram или логин).
 func (a *App) UserHasIdentity(ctx context.Context, uid string) bool {
-	ok, _ := db.Exists(ctx, a.DB.Pool, `SELECT 1 FROM users WHERE id = $1 AND (telegram_id IS NOT NULL OR login IS NOT NULL)`, uid)
+	ok, _ := db.Exists(ctx, a.DB.Pool, `SELECT 1 FROM users WHERE id = $1 AND (telegram_id IS NOT NULL OR login IS NOT NULL OR vk_id IS NOT NULL)`, uid)
 	return ok
 }
 
@@ -454,15 +454,15 @@ func (a *App) CredentialsLogin(ctx context.Context, uid, sid, login, password, i
 func (a *App) AuthPublic(ctx context.Context, uid string) jx.M {
 	var tgID *int64
 	var tgUser, tgName, hash string
-	var login *string
-	a.DB.Pool.QueryRow(ctx, `SELECT telegram_id, tg_username, tg_name, login, COALESCE(password_hash, '') FROM users WHERE id = $1`, uid).Scan(&tgID, &tgUser, &tgName, &login, &hash)
+	var login, vkID *string
+	a.DB.Pool.QueryRow(ctx, `SELECT telegram_id, tg_username, tg_name, login, COALESCE(password_hash, ''), vk_id FROM users WHERE id = $1`, uid).Scan(&tgID, &tgUser, &tgName, &login, &hash, &vkID)
 	var sessions int
 	db.Value(ctx, a.DB.Pool, &sessions, `SELECT COUNT(*) FROM sessions WHERE user_id = $1`, uid)
 	l := ""
 	if login != nil {
 		l = *login
 	}
-	return jx.M{"logged_in": tgID != nil || l != "", "telegram": tgID != nil, "tg_username": tgUser, "tg_name": tgName, "login": l, "has_password": hash != "",
+	return jx.M{"logged_in": tgID != nil || l != "" || vkID != nil, "vk": vkID != nil, "vk_configured": a.VKOAuthConfigured(), "telegram": tgID != nil, "tg_username": tgUser, "tg_name": tgName, "login": l, "has_password": hash != "",
 		"sessions": sessions, "tg_configured": a.TelegramLoginBot(ctx) != nil}
 }
 
@@ -550,7 +550,7 @@ func (a *App) UserMerge(ctx context.Context, from, into string) error {
 
 // UsersGC — анонимные пустые профили без сессий старше суток (мусор от открытых вкладок и ботов).
 func (a *App) UsersGC(ctx context.Context) int {
-	rows, err := a.DB.Pool.Query(ctx, `SELECT u.id FROM users u WHERE u.telegram_id IS NULL AND u.login IS NULL AND u.created_at < $1
+	rows, err := a.DB.Pool.Query(ctx, `SELECT u.id FROM users u WHERE u.telegram_id IS NULL AND u.login IS NULL AND u.vk_id IS NULL AND u.created_at < $1
 		AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.user_id = u.id AND s.last_seen > $1)`, now()-86400)
 	if err != nil {
 		return 0

@@ -11,28 +11,28 @@ import (
 // Server — параметры сервера: из переменных окружения, а если их нет — из файла posta.env рядом с бинарником
 // или в рабочей папке (KEY=VALUE, # — комментарий). Секреты (ключи API) — только здесь, не в коде и не в git.
 type Server struct {
-	Root        string // папка проекта: web/, data/
-	Listen      string // адрес HTTP, по умолчанию 127.0.0.1:8090
-	BasePath    string // префикс за обратным прокси, например /posta
-	PostgresDSN string
-	ClickHouse  string // адрес ClickHouse (tcp), пусто — без аналитики
-	CHDatabase  string
-	MediaDir    string // кэш медиа (было MEDIA_CACHE_DIR)
-	MediaURL    string // как медиа видно браузеру (относительно BasePath)
-	DataDir     string // data/: выгрузки, очередь файлов, кэши yt-dlp
+	Root          string // папка проекта: web/, data/
+	Listen        string // адрес HTTP, по умолчанию 127.0.0.1:8090
+	BasePath      string // префикс за обратным прокси, например /posta
+	PostgresDSN   string
+	ClickHouse    string // адрес ClickHouse (tcp), пусто — без аналитики
+	CHDatabase    string
+	MediaDir      string // кэш медиа (было MEDIA_CACHE_DIR)
+	MediaURL      string // как медиа видно браузеру (относительно BasePath)
+	DataDir       string // data/: выгрузки, очередь файлов, кэши yt-dlp
 	SecretKeyFile string
-	PublicURL   string // https-адрес сайта: возвраты из OAuth соцсетей и VK
+	PublicURL     string // https-адрес сайта: возвраты из OAuth соцсетей и VK
 
 	OllamaURL       string
 	OpenRouterKey   string
 	OpenRouterURL   string
 	OpenRouterTitle string // заголовок X-Title для статистики OpenRouter
 
-	VKClientID      string
-	VKRedirectURI   string
-	VKServiceToken  string
-	VKOAuthScope    string
-	NetworkKeys     map[string]string // REDDIT_CLIENT_ID, X_CLIENT_SECRET… — ключи приложений соцсетей
+	VKClientID     string
+	VKRedirectURI  string
+	VKServiceToken string
+	VKOAuthScope   string
+	NetworkKeys    map[string]string // REDDIT_CLIENT_ID, X_CLIENT_SECRET… — ключи приложений соцсетей
 
 	FFmpeg  string
 	FFprobe string
@@ -49,31 +49,31 @@ func LoadServer() Server {
 	}
 	loadEnvFile(filepath.Join(root, "posta.env"))
 	s := Server{
-		Root:          root,
-		Listen:        env("POSTA_LISTEN", "127.0.0.1:8090"),
-		BasePath:      strings.TrimRight(env("POSTA_BASE_PATH", ""), "/"),
-		PostgresDSN:   env("POSTA_PG", "postgres://posta@127.0.0.1:5432/posta?sslmode=disable"),
-		ClickHouse:    env("POSTA_CH", ""),
-		CHDatabase:    env("POSTA_CH_DB", "posta"),
-		MediaDir:      env("POSTA_MEDIA_DIR", filepath.Join(root, "media_cache")),
-		MediaURL:      env("POSTA_MEDIA_URL", "media_cache"),
-		DataDir:       env("POSTA_DATA_DIR", filepath.Join(root, "data")),
-		SecretKeyFile: env("POSTA_SECRET_KEY_FILE", filepath.Join(root, "secret.key")),
-		PublicURL:     strings.TrimRight(env("POSTA_PUBLIC_URL", ""), "/"),
-		OllamaURL:     strings.TrimRight(env("OLLAMA_URL", "http://localhost:11434"), "/"),
-		OpenRouterKey: env("OPENROUTER_API_KEY", ""),
-		OpenRouterURL: strings.TrimRight(env("OPENROUTER_URL", "https://openrouter.ai/api/v1"), "/"),
+		Root:            root,
+		Listen:          env("POSTA_LISTEN", "127.0.0.1:8090"),
+		BasePath:        strings.TrimRight(env("POSTA_BASE_PATH", ""), "/"),
+		PostgresDSN:     env("POSTA_PG", "postgres://posta@127.0.0.1:5432/posta?sslmode=disable"),
+		ClickHouse:      env("POSTA_CH", ""),
+		CHDatabase:      env("POSTA_CH_DB", "posta"),
+		MediaDir:        env("POSTA_MEDIA_DIR", filepath.Join(root, "media_cache")),
+		MediaURL:        env("POSTA_MEDIA_URL", "media_cache"),
+		DataDir:         env("POSTA_DATA_DIR", filepath.Join(root, "data")),
+		SecretKeyFile:   env("POSTA_SECRET_KEY_FILE", filepath.Join(root, "secret.key")),
+		PublicURL:       strings.TrimRight(env("POSTA_PUBLIC_URL", ""), "/"),
+		OllamaURL:       strings.TrimRight(env("OLLAMA_URL", "http://localhost:11434"), "/"),
+		OpenRouterKey:   env("OPENROUTER_API_KEY", ""),
+		OpenRouterURL:   strings.TrimRight(env("OPENROUTER_URL", "https://openrouter.ai/api/v1"), "/"),
 		OpenRouterTitle: env("OPENROUTER_TITLE", "Posta"),
-		VKClientID:    env("VK_CLIENT_ID", ""),
-		VKRedirectURI: env("VK_REDIRECT_URI", ""),
-		VKServiceToken: env("VK_SERVICE_TOKEN", ""),
-		VKOAuthScope:  env("VK_OAUTH_SCOPE", ""),
-		FFmpeg:        env("FFMPEG", "ffmpeg"),
-		FFprobe:       env("FFPROBE", "ffprobe"),
-		YtDlp:         env("YTDLP", filepath.Join(root, "tools/bin/yt-dlp")),
-		Chrome:        env("CHROME", "google-chrome"),
-		Dev:           env("POSTA_DEV", "") == "1",
-		NetworkKeys:   map[string]string{},
+		VKClientID:      vkClientID(root),
+		VKRedirectURI:   env("VK_REDIRECT_URI", ""),
+		VKServiceToken:  env("VK_SERVICE_TOKEN", ""),
+		VKOAuthScope:    env("VK_OAUTH_SCOPE", ""),
+		FFmpeg:          env("FFMPEG", "ffmpeg"),
+		FFprobe:         env("FFPROBE", "ffprobe"),
+		YtDlp:           env("YTDLP", filepath.Join(root, "tools/bin/yt-dlp")),
+		Chrome:          env("CHROME", "google-chrome"),
+		Dev:             env("POSTA_DEV", "") == "1",
+		NetworkKeys:     map[string]string{},
 	}
 	for _, name := range []string{"REDDIT", "TUMBLR", "LINKEDIN", "PINTEREST", "YOUTUBE", "X"} {
 		for _, part := range []string{"_CLIENT_ID", "_CLIENT_SECRET"} {
@@ -85,7 +85,40 @@ func LoadServer() Server {
 	if v := env("OK_APP_KEY", ""); v != "" {
 		s.NetworkKeys["OK_APP_KEY"] = v
 	}
+	if v := env("DISCORD_BOT_TOKEN", ""); v != "" {
+		s.NetworkKeys["DISCORD_BOT_TOKEN"] = v
+	}
+	if v := env("THREADS_ACCESS_TOKEN", ""); v != "" {
+		s.NetworkKeys["THREADS_ACCESS_TOKEN"] = v
+	}
+	for _, name := range []string{"INSTAGRAM_ACCESS_TOKEN", "INSTAGRAM_BUSINESS_ACCOUNT_ID", "FACEBOOK_PAGE_ACCESS_TOKEN", "FACEBOOK_PAGE_ID", "META_GRAPH_API_VERSION", "BRAVE_SEARCH_API_KEY"} {
+		if v := env(name, ""); v != "" {
+			s.NetworkKeys[name] = v
+		}
+	}
 	return s
+}
+
+// The application ID is public. The local file allows a deployment to set it
+// without exposing any of the secrets in posta.env to the web-service user.
+func vkClientID(root string) string {
+	if id := strings.TrimSpace(os.Getenv("VK_CLIENT_ID")); id != "" {
+		return id
+	}
+	b, err := os.ReadFile(filepath.Join(root, "vk-client-id"))
+	if err != nil {
+		return ""
+	}
+	id := strings.TrimSpace(string(b))
+	if len(id) == 0 || len(id) > 20 {
+		return ""
+	}
+	for _, c := range id {
+		if c < '0' || c > '9' {
+			return ""
+		}
+	}
+	return id
 }
 
 // URL сайта для ссылок наружу (возврат из OAuth): POSTA_PUBLIC_URL или пусто.

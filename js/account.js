@@ -4,7 +4,7 @@ import { $, ask, DEBUG_MODE, api, apiUrl, el, log, onTabOpen, onTopicChange, plu
 import { openViewerGallery, videoFields } from './viewer.js';
 import { pickDateTime } from './editor.js';
 
-const VK_MESSAGES = { connected: 'VK подключён.', misconfigured: 'Настройте VK_CLIENT_ID и VK_REDIRECT_URI на сервере.', error: 'Не удалось подключить VK. Проверьте настройки OAuth и журнал PHP.' };
+const VK_MESSAGES = { signed_in: 'Вход через VK выполнен.', connected: 'VK подключён.', misconfigured: 'Настройте VK_CLIENT_ID и адрес сайта на сервере.', error: 'Не удалось подключить VK. Проверьте настройки OAuth и журнал приложения.' };
 const COLLECTIONS = { liked: 'Нравится', disliked: 'Не нравится', undecided: 'Не знаю', complaints: 'Жалобы' };
 const sections = {};
 export const adminSections = {};   // загрузчики разделов админки; радар добавляет свой
@@ -151,13 +151,42 @@ function logoutButton(label, action, question) {
     return button;
 }
 
+let vkSDKPromise;
+function vkLoginWidget() {
+    const container = el('div', { className: 'vk-login-widget' });
+    (async () => {
+        try {
+            const config = await api('vk_login_prepare', { body: null });
+            if (!vkSDKPromise) vkSDKPromise = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/@vkid/sdk@2/dist-sdk/umd/index.js';
+                script.onload = () => window.VKIDSDK ? resolve(window.VKIDSDK) : reject(new Error('VK ID SDK не загрузился.'));
+                script.onerror = () => reject(new Error('Не удалось загрузить виджет VK ID.'));
+                document.head.append(script);
+            });
+            const vk = await vkSDKPromise;
+            vk.Config.init({ app: Number(config.app), redirectUrl: config.redirect_url, state: config.state,
+                codeChallenge: config.code_challenge, mode: vk.ConfigAuthMode.Redirect });
+            new vk.OneTap().render({ container }).on(vk.WidgetEvents.ERROR, () => authStatus('Не удалось запустить вход через VK. Попробуйте ещё раз.'));
+        } catch (error) { authStatus(error.message); }
+    })();
+    return container;
+}
+
 /** Блок «Вход» в карточке профиля. Не вошёл — создать вход или войти; вошёл — способы входа, смена пароля, выход. */
 function renderAuth(auth) {
     clearInterval(loginTimer);
     const status = el('p', { id: 'auth-status', className: 'account-muted', role: 'status' });
+    if (!auth.logged_in && auth.no_profile) {
+        return el('div', { className: 'auth-box' }, el('h4', { textContent: 'Вход' }),
+            auth.vk_configured ? vkLoginWidget() : null, passwordLoginForm(),
+            auth.tg_configured ? telegramLoginButton('Войти через Telegram') : null,
+            el('p', { className: 'account-muted', textContent: 'Регистрация новых профилей сейчас отключена.' }), status);
+    }
     if (!auth.logged_in) {
         return el('div', { className: 'auth-box' },
             el('h4', { textContent: 'Вход' }),
+            auth.vk_configured ? vkLoginWidget() : null,
             el('p', { className: 'account-muted', textContent: 'Профиль привязан только к этому браузеру. Создайте логин и пароль, чтобы не потерять оценки и баланс и открывать профиль с других устройств.' }),
             el('div', { className: 'auth-grid' },
                 el('div', { className: 'auth-col' }, el('strong', { textContent: 'Новый вход для этого профиля' }), credentialsForm(auth)),
@@ -171,7 +200,9 @@ function renderAuth(auth) {
         el('h4', { textContent: 'Вход' }),
         el('div', { className: 'auth-methods' },
             el('p', { className: 'account-muted' }, 'Логин и пароль: ', auth.login ? el('strong', { textContent: auth.login }) : el('span', { className: 'queue-error', textContent: 'не заданы' })),
-            el('p', { className: 'account-muted' }, 'Telegram: ', tg ? el('strong', { textContent: tg }) : 'не привязан')),
+            el('p', { className: 'account-muted' }, 'Telegram: ', tg ? el('strong', { textContent: tg }) : 'не привязан'),
+            el('p', { className: 'account-muted' }, 'VK ID: ', auth.vk ? 'привязан' : 'не привязан')),
+        !auth.vk && auth.vk_configured ? vkLoginWidget() : null,
         ...(auth.login ? [change] : [
             el('p', { className: 'auth-warning', textContent: 'Задайте логин и пароль — это запасной вход: если Telegram не работает или бот недоступен, войдёте по ним.' }),
             credentialsForm(auth)]),
@@ -196,7 +227,8 @@ async function loadVkStatus() {
     try {
         const d = await api('vk_oauth_status');
         $('vk-oauth-button').textContent = d.connected ? 'Переподключить VK' : 'Подключить VK';
-        status('vk-oauth-status', vkMessage || (!d.configured ? 'Для OAuth задайте VK_CLIENT_ID и VK_REDIRECT_URI на сервере.' : d.connected ? `VK подключён${d.user_id ? ` · ID ${d.user_id}` : ''}.` : 'Подключите VK, чтобы подбирать паблики.'));
+        const callback = d.redirect_uri ? ` Адрес возврата для настроек VK: ${d.redirect_uri}` : '';
+        status('vk-oauth-status', vkMessage || (!d.configured ? `Для OAuth задайте VK_CLIENT_ID и POSTA_PUBLIC_URL на сервере.${callback}` : d.connected ? `VK подключён${d.user_id ? ` · ID ${d.user_id}` : ''}.` : `Подключите VK, чтобы подбирать паблики.${callback}`));
         vkMessage = '';
     } catch (error) { status('vk-oauth-status', `Статус VK недоступен: ${error.message}`); }
 }
@@ -302,6 +334,7 @@ function hashtagSelect(channel) {
 }
 
 function renderTelegram(channels) {
+    window.dispatchEvent(new Event('posta:resources-changed'));
     channelList = channels || [];
     $('telegram-channels').hidden = !channelList.length;
     $('telegram-channels').replaceChildren(...channelList.map(c => el('div', { className: 'channel-row' },
@@ -545,6 +578,13 @@ async function loadAccount() {
         renderPrivacy(info);
     } catch (error) {
         $('account-profile-body').classList.remove('is-loading', 'status-msg');
+        if (error.status === 401) {
+            try {
+                const auth = await api('auth_status');
+                $('account-profile-body').replaceChildren(renderAuth({ ...auth, no_profile: true }));
+                return;
+            } catch (_) { /* Show the original error. */ }
+        }
         $('account-profile-body').textContent = `Не удалось загрузить кабинет: ${error.message}`;
     }
 }

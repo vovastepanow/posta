@@ -1,13 +1,13 @@
 package posta
 
 import (
-	"strings"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -44,7 +44,9 @@ func DefaultSettings() jx.M {
 		"media_only": false, "media_no_text": false, "auto_translate": true}
 }
 
-func NormalizeTopic(topic string) string { return trimRunes(collapseSpaces(topic), config.TopicMaxLength) }
+func NormalizeTopic(topic string) string {
+	return trimRunes(collapseSpaces(topic), config.TopicMaxLength)
+}
 
 // NormalizeQuery — уточнение к теме: без кавычек и «+», пробелы схлопнуты.
 func NormalizeQuery(q string) string {
@@ -193,12 +195,16 @@ func decodeRows(rows pgx.Rows) ([]jx.M, error) {
 	return out, rows.Err()
 }
 
-func (a *App) poolLoad(ctx context.Context, q db.Querier, uid string) []jx.M {
+func (a *App) poolLoadChecked(ctx context.Context, q db.Querier, uid string) ([]jx.M, error) {
 	rows, err := q.Query(ctx, `SELECT data FROM pool_items WHERE user_id = $1 ORDER BY position`, uid)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	list, _ := decodeRows(rows)
+	return decodeRows(rows)
+}
+
+func (a *App) poolLoad(ctx context.Context, q db.Querier, uid string) []jx.M {
+	list, _ := a.poolLoadChecked(ctx, q, uid)
 	return list
 }
 
@@ -215,7 +221,10 @@ func (u *U) PoolUpdate(fn func(pool []jx.M) []jx.M) ([]jx.M, error) {
 		if err := ensureUser(u.Ctx, tx, u.ID); err != nil {
 			return err
 		}
-		cur := u.poolLoad(u.Ctx, tx, u.ID)
+		cur, err := u.poolLoadChecked(u.Ctx, tx, u.ID)
+		if err != nil {
+			return err
+		}
 		next := fn(cur)
 		if next == nil {
 			result = cur
@@ -229,7 +238,7 @@ func (u *U) PoolUpdate(fn func(pool []jx.M) []jx.M) ([]jx.M, error) {
 		for i, item := range next {
 			rows = append(rows, []any{u.ID, i, ContentImageKey(item), jx.Str(item, "topic"), db.JSON(item)})
 		}
-		_, err := tx.CopyFrom(u.Ctx, pgx.Identifier{"pool_items"}, []string{"user_id", "position", "image_key", "topic", "data"}, pgx.CopyFromRows(rows))
+		_, err = tx.CopyFrom(u.Ctx, pgx.Identifier{"pool_items"}, []string{"user_id", "position", "image_key", "topic", "data"}, pgx.CopyFromRows(rows))
 		return err
 	})
 	return result, err
@@ -278,7 +287,9 @@ func (a *App) historyLoad(ctx context.Context, q db.Querier, uid string) History
 
 func (u *U) History() History { return u.historyLoad(u.Ctx, u.DB.Pool, u.ID) }
 
-func (a *App) HistoryOf(ctx context.Context, uid string) History { return a.historyLoad(ctx, a.DB.Pool, uid) }
+func (a *App) HistoryOf(ctx context.Context, uid string) History {
+	return a.historyLoad(ctx, a.DB.Pool, uid)
+}
 
 // HistoryUpdate — заменить историю целиком (fn возвращает nil — не менять).
 func (u *U) HistoryUpdate(fn func(h History) History) (History, error) {

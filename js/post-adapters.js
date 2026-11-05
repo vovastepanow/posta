@@ -2,18 +2,17 @@
 // Без DOM: модуль проверяется в Node (tools/test_post_view.mjs). Вся «грязь» форматов — только здесь.
 import { NO_TEXT as PLACEHOLDERS, pluralRu, safeSourcePostUrl, videoPageFor } from './core.js';
 
-const NO_TEXT = 'Текст к посту отсутствует';
 const STATUS_BADGE = { queued: { text: 'в очереди', tone: 'accent' }, sending: { text: 'отправляется', tone: 'accent' }, sent: { text: 'опубликован', tone: 'ok' }, telegram: { text: 'опубликован', tone: 'ok' }, failed: { text: 'не вышел', tone: 'bad' } };
 
 /** Слайды записи подбора: картинка или ролик на каждый файл (то же, что галерея карточки). */
-export function recordSlides(item, noText = NO_TEXT) {
+export function recordSlides(item) {
     if (!item) return [];
-    const text = item.text || item.description || noText;
+    const text = plainText(item.text);
     if (!item.image && !item.display_image && item.text_post) return [{ image: '', fallbackImage: '', video: '', fallbackVideo: '', text: item.text || '', textPost: true }];
     if (item.gallery?.length > 1) return item.gallery.map(f => ({ image: f.display_image || f.image, fallbackImage: f.image, video: f.video ? f.display_video || f.video : '', fallbackVideo: f.video || '', text }));
     if (item.video || item.display_video) return [{ image: item.display_image || item.image || '', fallbackImage: item.image || '', video: item.display_video || item.video, fallbackVideo: item.video || '', text }];
     const images = item.images?.length ? item.images : [item.image].filter(Boolean);
-    return images.map((image, i) => ({ image: i === 0 ? item.display_image || image : image, fallbackImage: image, text: item.captions?.[i] || item.text || '' }));
+    return images.map((image, i) => ({ image: i === 0 ? item.display_image || image : image, fallbackImage: image, text: plainText(item.captions?.[i] || item.text) }));
 }
 
 /** Медиа одного файла в формате просмотрщика; неизвестные поля не переносятся. */
@@ -94,7 +93,7 @@ export function fromRecord(item) {
         source: { name: item?.article?.site || hostOf(url || item?.url), url: url, badge: '' },
         date: Number(item?.posted_at) > 0 ? Number(item.posted_at) : null,
         url,
-        text: plainText(item?.text || item?.description),
+        text: plainText(item?.text),
         media: items,
         article: articleOf(item),
         poll: null,

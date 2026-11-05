@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"net/url"
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +23,9 @@ import (
 // Сборщик: посты всех источников темы → очередь кандидатов → быстрая оценка пачками → полный анализ лучших → пул.
 
 func PostCaptionForAI(item jx.M) string {
+	if ImageboardItem(item) {
+		return ""
+	}
 	t := strings.TrimSpace(jx.Str(item, "text"))
 	if t == EmptyPostText {
 		return ""
@@ -39,8 +44,7 @@ func candidateLogLabel(item jx.M) string {
 
 // ---- Сбор постов ----
 
-// ParseDvach — посты свежих тредов доски; с темой — треды отбираются по ней.
-// Оценка идёт по каталогу (название и шапка уже там), тела тредов грузим только у выбранных.
+// ParseDvach — медиа свежих тредов доски; пригодность определяет анализ медиа.
 func (u *U) ParseDvach(board, topic string) []jx.M {
 	catalog := u.DvachJSONCached(board, "")
 	allThreads := jx.Maps(catalog, "threads")
@@ -51,20 +55,6 @@ func (u *U) ParseDvach(board, topic string) []jx.M {
 		}
 	}
 	pool = pool[:min(len(pool), config.DvachThreadPool)]
-	gates := map[string]*int{}
-	if topic != "" {
-		var infos []threadInfo
-		for _, t := range pool {
-			infos = append(infos, threadInfo{jx.Str(t, "num"), CleanHTMLText(jx.Str(t, "subject")), DvachPostText(t)})
-		}
-		gates = u.ImageboardThreadScores(topic, board, infos)
-		var skipped []jx.M
-		pool, skipped = DvachByTopic(pool, gates)
-		for _, t := range skipped {
-			id := jx.Str(t, "num")
-			u.Log("-> Двач /%s/: тред «%s» не по теме (%d) — пропуск.", board, DvachThreadTitle(jx.Str(t, "subject"), id), *gates[id])
-		}
-	}
 	pool = pool[:min(len(pool), config.DvachThreadsPerBoard)]
 	type batch struct {
 		thread, title string
@@ -78,11 +68,6 @@ func (u *U) ParseDvach(board, topic string) []jx.M {
 	}
 	var out []jx.M
 	for _, b := range batches {
-		gate := ImageboardThreadGate(gates[b.thread])
-		opText := ""
-		if len(b.posts) > 0 {
-			opText = DvachPostText(b.posts[0])
-		}
 		eng := DvachThreadEngagement(b.posts, allThreads)
 		title := CleanHTMLText(jx.Str(b.subject, "subject"))
 		if title == "" {
@@ -93,16 +78,11 @@ func (u *U) ParseDvach(board, topic string) []jx.M {
 			if len(files) == 0 {
 				continue
 			}
-			text := DvachPostText(post)
 			id := jx.Str(post, "num")
-			threadOp := trimRunes(opText, config.ThreadOpMax)
-			if id == b.thread {
-				threadOp = ""
-			}
-			rec := jx.M{"source_key": "dvach:" + board, "posted_at": jx.Int(post, "timestamp"), "board": board, "thread_id": b.thread, "post_id": id,
+			rec := jx.M{"source_key": "dvach:" + board + ":" + b.thread, "posted_at": jx.Int(post, "timestamp"), "board": board, "thread_id": b.thread, "post_id": id,
 				"source": PlatformDvach + " /" + board + "/ · " + b.title, "source_url": DvachPostURL(board, b.thread, id),
-				"image": files[0]["image"], "images": []any{files[0]["image"]}, "video": files[0]["video"], "captions": []any{text}, "text": text,
-				"engagement": eng[id], "thread_title": trimRunes(title, config.ThreadTitleMax), "thread_op": threadOp, "is_op": id == b.thread, "thread_trust": gate == "trust"}
+				"image": files[0]["image"], "images": []any{files[0]["image"]}, "video": files[0]["video"], "captions": []any{},
+				"engagement": eng[id], "thread_title": trimRunes(title, config.ThreadTitleMax), "is_op": id == b.thread}
 			if len(files) > 1 {
 				rec["gallery"] = files
 			}
@@ -111,6 +91,34 @@ func (u *U) ParseDvach(board, topic string) []jx.M {
 				return out
 			}
 		}
+	}
+	return out
+}
+
+// ParseDvachThread collects only the approved thread, independently of board catalog ordering.
+func (u *U) ParseDvachThread(board, thread, name string) []jx.M {
+	posts := DvachThreadPosts(u.DvachJSONCached(board, thread))
+	if len(posts) == 0 {
+		return nil
+	}
+	if jx.Bool(posts[0], "closed") {
+		return nil
+	}
+	eng := DvachThreadEngagement(posts, nil)
+	var out []jx.M
+	for _, post := range posts[:min(len(posts), config.DvachPostsPerThread)] {
+		files := DvachPostMedia(board, post, true)
+		if len(files) == 0 {
+			continue
+		}
+		id := jx.Str(post, "num")
+		rec := jx.M{"source_key": "dvach:" + board + ":" + thread, "posted_at": jx.Int(post, "timestamp"), "board": board, "thread_id": thread, "post_id": id,
+			"source": name, "source_url": DvachPostURL(board, thread, id), "image": files[0]["image"], "images": []any{files[0]["image"]}, "video": files[0]["video"],
+			"captions": []any{}, "engagement": eng[id], "thread_title": name, "is_op": id == thread}
+		if len(files) > 1 {
+			rec["gallery"] = files
+		}
+		out = append(out, rec)
 	}
 	return out
 }
@@ -194,7 +202,11 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 	case PlatformTikTok:
 		posts, err = u.TikTokFetchPosts(u.Ctx, id, TikTokPostsPerAccount, jx.Str(src, "name"))
 	default:
-		posts = u.BuildVKPreviewPosts(u.Ctx, src, config.VKPostsPerPublic, acceptText, 120)
+		if u.VKCanRead(u.Ctx) {
+			posts = u.BuildVKPreviewPosts(u.Ctx, src, config.VKPostsPerPublic, acceptText, 120)
+		} else {
+			posts, err = u.vkPublicPosts(id, jx.Str(src, "name"), config.VKPostsPerPublic, acceptText, 120)
+		}
 	}
 	if err != nil {
 		u.Log("-> %s %s: %s", platform, label, err)
@@ -388,66 +400,49 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	for _, k := range reportOrder {
 		rep[k] = &platReport{}
 	}
-	boards := u.DvachBoardsForTopic(topic, true)
-	if len(boards) == 0 {
-		u.Log("Подходящих теме досок Двача нет — Двач пропущен.")
-	}
-	for _, b := range u.dvachBoardsThisRun(boards, topic) {
+	// Boards are discovery locations; only explicitly approved threads are collected.
+	for _, thread := range u.approvedImageboardThreads(u.Catalog(), topic) {
 		if !u.Alive() {
 			return by
 		}
-		u.Log("Парсинг Двача /%s/...", b)
-		found := u.ParseDvach(b, topic)
-		by[PlatformDvach] = append(by[PlatformDvach], found...)
-		rep["dvach"].Sources++
-		if len(found) > 0 {
-			rep["dvach"].With++
+		platform, board, id := jx.Str(thread, "platform"), jx.Str(thread, "board"), jx.Str(thread, "thread_id")
+		var found []jx.M
+		if platform == PlatformDvach {
+			found = u.ParseDvachThread(board, id, jx.Str(thread, "name"))
+			rep["dvach"].Sources++
+			if len(found) > 0 {
+				rep["dvach"].With++
+			}
+			rep["dvach"].Posts += len(found)
+		} else {
+			found = u.FourchanThreadMedia(board, jx.M{"no": jx.ToInt(id)}, 200, nil)
+			rep["fourchan"].Sources++
+			if len(found) > 0 {
+				rep["fourchan"].With++
+			}
+			rep["fourchan"].Posts += len(found)
 		}
-		rep["dvach"].Posts += len(found)
-		u.Log("-> Двач /%s/: найдено медиа-постов: %d", b, len(found))
+		by[platform] = append(by[platform], found...)
 	}
-	chanBoards := u.FourchanBoardsForTopic(topic)
-	if len(chanBoards) == 0 {
-		u.Log("Подходящих теме досок 4chan нет — 4chan пропущен.")
-	}
-	threads := 0
-	for _, b := range FourchanBoardsThisRun(chanBoards) {
-		if !u.Alive() {
-			return by
-		}
-		u.Log("Парсинг 4chan /%s/...", b)
-		found := u.ParseFourchan(b, FourchanThreadsPerBoard, topic)
-		by[Platform4chan] = append(by[Platform4chan], found...)
-		rep["fourchan"].Sources++
-		if len(found) > 0 {
-			rep["fourchan"].With++
-		}
-		rep["fourchan"].Posts += len(found)
-		ts := map[string]bool{}
-		for _, p := range found {
-			ts[jx.Str(p, "thread_id")] = true
-		}
-		threads += len(ts)
-		u.Log("-> 4chan /%s/: найдено медиа-постов: %d", b, len(found))
-	}
-	if len(chanBoards) > 0 && u.run != nil {
-		u.Log("4chan: %d доски, %d тредов с медиа, %d постов с медиа, %d запросов к API (из кэша: %d).", min(len(chanBoards), FourchanBoardsPerRun), threads,
-			len(by[Platform4chan]), u.run.FourchanAPI, u.run.FourchanAPICached)
-	}
-	vk := u.VKCanRead(u.Ctx)
-	if !vk {
-		u.Log("VK: нет ключа — паблики VK пропущены (добавьте сервисный ключ VK_SERVICE_TOKEN в posta.env).")
-	}
+
+	vk := true
 	activeOnly := jx.Bool(u.ContentFilterValues(), "active_sources_only")
 	d := u.Catalog()
 	t := now()
 	poll := map[string]jx.M{}
+	sharedCache := map[string]sharedPosts{}
 	for _, c := range CatalogKinds {
 		if c.Platform == PlatformVK && !vk {
 			continue
 		}
 		for _, e := range *d.List(c.Kind) {
 			if u.CatalogEntryMatchesTopic(e, topic, false) && !IsSourceFrozen(e, 0) {
+				id := strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@")
+				var shared sharedPosts
+				if sharedSourceEligible(c.Platform, e) && u.CacheGet(u.Ctx, sharedSourceKey(c.Platform, id), &shared) {
+					sharedCache[c.Platform+"|"+strings.ToLower(jx.Str(e, "id"))] = shared
+					continue // готовый общий источник не занимает бюджет сетевых запросов
+				}
 				poll[c.Platform+"|"+strings.ToLower(jx.Str(e, "id"))] = e
 			}
 		}
@@ -461,12 +456,12 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	for pkey, e := range poll {
 		platform := strings.SplitN(pkey, "|", 2)[0]
 		var cp cachedPosts
-		if u.CacheGet(u.Ctx, SourcePollCacheKey(platform, jx.Str(e, "id")), &cp) {
+		if u.CacheGet(u.Ctx, personalSourcePollKey(u.ID, platform, jx.Str(e, "id")), &cp) {
 			cachedMap[pkey], cache[pkey] = true, cp
 		}
 	}
 	fetchSet := map[string]bool{}
-	for _, k := range SourcePollFetchSet(poll, cachedMap, t) {
+	for _, k := range SourcePollFetchSet(poll, cachedMap, t, u.TInt("fetches_per_pass")) {
 		fetchSet[k] = true
 	}
 	fetched, fromCache := 0, 0
@@ -493,7 +488,17 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 			var posts []jx.M
 			var updated jx.M
 			event := ""
-			if _, inPoll := poll[pkey]; inPoll && !fetchSet[pkey] && cachedMap[pkey] {
+			shared, useShared := sharedCache[pkey]
+			if useShared {
+				posts = shared.Posts
+				if c.Platform == PlatformRSS {
+					posts = u.NewsEnrichPosts(posts, e)
+				}
+				fromCache++
+			} else if _, inPoll := poll[pkey]; inPoll && !fetchSet[pkey] {
+				if !cachedMap[pkey] {
+					continue
+				}
 				posts = cache[pkey].Posts
 				fromCache++
 				left := SourcePollInterval(jx.Map(e, "activity")) - (t - jx.Int(jx.Map(e, "activity"), "checked_at"))
@@ -503,7 +508,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 			} else {
 				posts, updated, event = u.collectCatalogSource(c.Platform, e, activeOnly)
 				if len(posts) > 0 {
-					u.CacheSet(u.Ctx, SourcePollCacheKey(c.Platform, jx.Str(e, "id")), cachedPosts{now(), posts}, config.SourcePollMax*2*time.Second)
+					u.CacheSet(u.Ctx, personalSourcePollKey(u.ID, c.Platform, jx.Str(e, "id")), cachedPosts{now(), posts}, config.SourcePollMax*2*time.Second)
 				}
 				if _, inPoll := poll[pkey]; inPoll {
 					fetched++
@@ -593,6 +598,17 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 		u.Log("Источники: %s.", strings.Join(notes, ", "))
 	}
 	u.Log("%s", platformSummaryLine(rep, vk))
+	if u.TBool("post_search") && u.CurrentQuery() == "" && u.Alive() {
+		// These search platforms were previously used only with an explicit query.
+		plan := u.QuerySearchPlan(topic, topic)
+		off := u.querySearchOffset("topic:" + TopicNorm(topic))
+		extra, _ := u.searchEngineRun(plan, off, time.Duration(min(45, u.TInt("query_search_seconds")))*time.Second,
+			map[string]bool{"Rutube": true, "9GAG": true, "Lemmy": true, "Mastodon": true, "Joyreactor": true})
+		for platform, posts := range extra {
+			by[platform] = append(by[platform], posts...)
+		}
+	}
+
 	return by
 }
 
@@ -618,6 +634,7 @@ func bestHeatPost(posts []jx.M) jx.M {
 func ExpandPostImages(posts []jx.M) []jx.M {
 	var out []jx.M
 	for _, p := range posts {
+		p = ImageboardMediaOnly(p)
 		imgs := uniqueStrings(jx.Strs(p, "images"))
 		if len(imgs) == 0 {
 			if s := jx.Str(p, "image"); s != "" {
@@ -625,6 +642,12 @@ func ExpandPostImages(posts []jx.M) []jx.M {
 			}
 		}
 		if len(imgs) == 0 {
+			if video := jx.Str(p, "video"); strings.HasPrefix(video, "https://") {
+				c := jx.Copy(p)
+				c["image"], c["images"], c["_video_without_poster"] = video, []string{video}, true
+				out = append(out, c)
+				continue
+			}
 			if jx.Bool(p, "text_post") {
 				c := jx.Copy(p)
 				c["image"], c["images"] = "", []any{}
@@ -653,25 +676,49 @@ func ExpandPostImages(posts []jx.M) []jx.M {
 	return out
 }
 
-var queryFragRe = regexp.MustCompile(`[?#].*$`)
-
-// CandidatePostKey — ключ поста (ссылка на пост).
+// CandidatePostKey — canonical post URL, keeping query parameters or anchors
+// when they identify the post rather than tracking a visit.
 func CandidatePostKey(item jx.M) string {
-	u := jx.Str(item, "source_url")
-	if u == "" {
-		u = jx.Str(item, "url")
+	raw := jx.Str(item, "url")
+	if raw == "" {
+		raw = jx.Str(item, "source_url")
 	}
-	if u == "" && jx.Str(item, "board") != "" && jx.Str(item, "thread_id") != "" && jx.Str(item, "post_id") != "" {
-		u = DvachPostURL(jx.Str(item, "board"), jx.Str(item, "thread_id"), jx.Str(item, "post_id"))
+	if raw == "" && jx.Str(item, "board") != "" && jx.Str(item, "thread_id") != "" && jx.Str(item, "post_id") != "" {
+		raw = DvachPostURL(jx.Str(item, "board"), jx.Str(item, "thread_id"), jx.Str(item, "post_id"))
 	}
-	if u == "" {
+	if raw == "" {
 		return ""
 	}
-	k := "post:" + queryFragRe.ReplaceAllString(u, "")
-	if strings.Contains(u, "2ch.hk") {
-		k += "#" + jx.Str(item, "post_id")
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Hostname() == "" {
+		return "post:" + raw
 	}
-	return k
+	host := strings.ToLower(parsed.Hostname())
+	query := parsed.Query()
+	if (host == "youtube.com" || strings.HasSuffix(host, ".youtube.com")) && parsed.Path == "/watch" && query.Get("v") != "" {
+		parsed.Host = "www.youtube.com"
+		query = url.Values{"v": {query.Get("v")}}
+	} else {
+		for key := range query {
+			k := strings.ToLower(key)
+			if strings.HasPrefix(k, "utm_") || k == "fbclid" || k == "gclid" || k == "yclid" {
+				query.Del(key)
+			}
+		}
+	}
+	parsed.RawQuery = query.Encode()
+	if host == "2ch.hk" || strings.HasSuffix(host, ".2ch.hk") || host == "boards.4chan.org" {
+		if id := jx.Str(item, "post_id"); id != "" {
+			if host == "boards.4chan.org" {
+				parsed.Fragment = "p" + id
+			} else {
+				parsed.Fragment = id
+			}
+		}
+	} else {
+		parsed.Fragment = ""
+	}
+	return "post:" + parsed.String()
 }
 
 var (
@@ -770,7 +817,7 @@ func candidateIsKnown(item jx.M, k *knownKeys) bool {
 func (u *U) prunePoolAlreadyRated() int {
 	known := recordKnownKeys(u.History().All())
 	before := u.Pool()
-	after, _ := u.PoolUpdate(func(pool []jx.M) []jx.M {
+	after, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
 		var kept []jx.M
 		for _, it := range pool {
 			if !candidateIsKnown(it, known) {
@@ -782,6 +829,10 @@ func (u *U) prunePoolAlreadyRated() int {
 		}
 		return orEmptyList(kept)
 	})
+	if err != nil {
+		u.Log("Не удалось проверить пул на оценённые записи: %v", err)
+		return 0
+	}
 	u.MediaReleaseRemoved(u.Ctx, before, after)
 	return len(before) - len(after)
 }
@@ -795,12 +846,16 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 	before := u.Pool()
 	known := u.collectKnown()
 	target := u.TInt("pool_target")
-	after, _ := u.PoolUpdate(func(pool []jx.M) []jx.M {
+	after, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
 		if candidateIsKnown(item, known) {
 			return nil
 		}
 		topic := TopicNorm(jx.Str(item, "topic"))
-		if sourcePoolCount(pool, topic, ContentSourceKey(item)) >= sourcePoolLimit(u.TInt("per_source_pool"), target, topicPoolCount(pool, topic)) {
+		fresh := u.freshPoolItems(pool)
+		if candidateIsKnown(item, recordKnownKeys(pool)) {
+			return nil
+		}
+		if sourcePoolCount(fresh, topic, ContentSourceKey(item)) >= sourcePoolLimit(u.TInt("per_source_pool"), target, topicPoolCount(fresh, topic)) {
 			return nil
 		}
 		var same []int
@@ -819,12 +874,18 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 			if len(expired) == 0 {
 				return nil
 			}
-			sort.SliceStable(expired, func(a, b int) bool { return jx.Int(pool[expired[a]], "pooled_at") < jx.Int(pool[expired[b]], "pooled_at") })
+			sort.SliceStable(expired, func(a, b int) bool {
+				return jx.Int(pool[expired[a]], "pooled_at") < jx.Int(pool[expired[b]], "pooled_at")
+			})
 			pool = append(pool[:expired[0]], pool[expired[0]+1:]...)
 		}
 		added = true
 		return PoolOrder(append(pool, item))
 	})
+	if err != nil {
+		u.Log("Не удалось сохранить запись в пул: %v", err)
+		return false
+	}
 	u.MediaReleaseRemoved(u.Ctx, before, after)
 	if added {
 		u.PoolItemsEnqueueVideos(u.Ctx, []jx.M{item}, u.ID)
@@ -840,6 +901,33 @@ func (a *App) poolItemFresh(item jx.M) bool {
 	return now()-jx.Int(item, "pooled_at") <= int64(a.TInt("pool_max_age"))*60
 }
 
+// candidatePlatformOrder also accepts search platforms added in the future.
+func candidatePlatformOrder(by map[string][]jx.M) []string {
+	order := []string{PlatformTelegram, PlatformVK, PlatformRSS, PlatformOK, PlatformTikTok, PlatformDvach, Platform4chan}
+	seen := map[string]bool{}
+	for _, p := range order {
+		seen[p] = true
+	}
+	var extra []string
+	for p := range by {
+		if !seen[p] {
+			extra = append(extra, p)
+		}
+	}
+	sort.Strings(extra)
+	return append(order, extra...)
+}
+
+func (a *App) freshPoolItems(pool []jx.M) []jx.M {
+	var fresh []jx.M
+	for _, item := range pool {
+		if a.poolItemFresh(item) {
+			fresh = append(fresh, item)
+		}
+	}
+	return fresh
+}
+
 type queueSkip map[string]int
 
 // buildCandidateQueue — без виденных, устаревших, отсеянных раньше; лучшие источники первыми, горячие — в шортлист. До 500.
@@ -850,9 +938,14 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	var order, deferred []string
 	uaHits, uaNames, uaAll := map[string]int{}, map[string]string{}, map[string]bool{}
 	maxAge := u.TInt("content_max_age")
-	platOrder := []string{PlatformTelegram, PlatformVK, PlatformRSS, PlatformOK, PlatformTikTok, PlatformDvach, Platform4chan}
+	platOrder := candidatePlatformOrder(byPlatform)
 	for _, p := range platOrder {
 		for _, item := range ExpandPostImages(byPlatform[p]) {
+			if TopicNorm(topic) == TopicNorm(config.DefaultTopic) && (PostItemHasVideo(item) || jx.Str(item, "video_via") != "") &&
+				!memeYouTubeAllowed(strconv.FormatFloat(jx.Float(item, "duration"), 'f', -1, 64), jx.Str(item, "text")) {
+				skipped["format"]++
+				continue
+			}
 			if !ContentPassesMediaFilters(item, filters) {
 				skipped["filter"]++
 				continue
@@ -950,7 +1043,7 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	}
 	query := u.CurrentQuery()
 	named := func(it jx.M) int {
-		if query != "" && QueryTextHit(jx.Str(it, "text"), query) {
+		if !ImageboardItem(it) && query != "" && QueryTextHit(jx.Str(it, "text"), query) {
 			return 1
 		}
 		return 0
@@ -960,18 +1053,9 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 		rate := float64(r[0]+1) / float64(r[1]+2)
 		return r[1] >= config.SourceVerdictMin && rate < config.SourceVerdictLow, rate
 	}
-	b2i := func(b bool) int {
-		if b {
-			return 1
-		}
-		return 0
-	}
 	sort.SliceStable(all, func(i, j int) bool {
 		a, b := all[i], all[j]
 		if x, y := named(a), named(b); x != y {
-			return x > y
-		}
-		if x, y := b2i(jx.Bool(a, "thread_trust")), b2i(jx.Bool(b, "thread_trust")); x != y {
 			return x > y
 		}
 		ca, ra := chance(a)
@@ -1160,18 +1244,20 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 	if p := u.TopicProfileForPrompts(topic); p != nil {
 		keywords, exclude = p.Keywords, hotWords(p.Exclude)
 	}
-	native := u.imageboardNativeTopic(topic)
 	shortN := u.TInt("hot_shortlist")
 	var first, rest []jx.M
 	var boost []float64
 	excluded := 0
 	for _, it := range all {
-		text := jx.Str(it, "text") + " " + jx.Str(it, "thread_title")
+		text := jx.Str(it, "text")
+		if ImageboardItem(it) {
+			text = ""
+		}
 		if len(exclude) > 0 && hotHasWord(text, exclude) {
 			excluded++
 			continue
 		}
-		named := query != "" && QueryTextHit(jx.Str(it, "text"), query)
+		named := query != "" && QueryTextHit(text, query)
 		if named && len(first) < shortN/2 {
 			first = append(first, it)
 			continue
@@ -1180,9 +1266,6 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 		if named {
 			b *= config.HotQueryBoost
 		}
-		if jx.Bool(it, "thread_trust") {
-			b *= config.HotTrustBoost
-		}
 		boost = append(boost, b)
 		rest = append(rest, it)
 	}
@@ -1190,11 +1273,9 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 	score := map[int]float64{}
 	tail := 0
 	for i, it := range rest {
-		board := contains([]string{PlatformDvach, Platform4chan}, HotPlatform(it))
-		text := jx.Str(it, "text") + " " + jx.Str(it, "thread_title") + " " + jx.Str(it, "thread_op")
-		if board && !native && !jx.Bool(it, "thread_trust") && !TopicWordsHit(text, keywords) {
-			tail++
-			continue
+		text := jx.Str(it, "text")
+		if ImageboardItem(it) {
+			text = ""
 		}
 		r := rates[ContentSourceKey(it)]
 		rate := float64(r[0]+1) / float64(r[1]+2)
@@ -1291,8 +1372,12 @@ func (u *U) hotTextJudge(items []jx.M, topic string) []jx.M {
 		}
 	}
 	drop, late := map[int]bool{}, map[int]bool{}
+	var h History
+	if len(texts) > 0 {
+		h = u.History()
+	}
 	for off := 0; off < len(texts) && u.Alive(); off += config.HotTextBatch {
-		res, err := u.AnalyzeTextBatch(texts[off:min(len(texts), off+config.HotTextBatch)], topic)
+		res, err := u.AnalyzeTextBatch(texts[off:min(len(texts), off+config.HotTextBatch)], topic, h)
 		if err != nil {
 			continue
 		}
@@ -1337,7 +1422,7 @@ func (u *U) prescreenIsJunk(score *int, item jx.M) bool {
 
 func (a *App) prescreenThreshold(item jx.M) int {
 	t := a.TInt("prescreen_junk")
-	if jx.Bool(item, "thread_trust") {
+	if !ImageboardItem(item) && jx.Bool(item, "thread_trust") {
 		t += config.ThreadTrustPrescreenBonus
 	}
 	return t
@@ -1428,8 +1513,11 @@ func (a *App) cacheMerge(entries map[string]screenedEntry) {
 func AnalysisCacheKey(item jx.M, topic string) string {
 	t := strings.ToLower(strings.TrimSpace(topic))
 	suffix := ""
+	if ImageboardItem(item) {
+		suffix = "|imageboard-media-only-v1"
+	}
 	if contains(config.SubtopicCacheTopics, t) {
-		suffix = "|subtopic2"
+		suffix += "|subtopic2"
 	}
 	k := ContentImageKey(item)
 	if k == "" {
@@ -1439,9 +1527,24 @@ func AnalysisCacheKey(item jx.M, topic string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func (a *App) analysisCacheGet(item jx.M, topic string) jx.M {
+// A user's complaint examples affect the vision prompt and must never be
+// reused for another user or after those examples change.
+func (u *U) analysisCacheKey(item jx.M, topic string, h History) string {
+	base := AnalysisCacheKey(item, topic)
+	if h == nil {
+		h = EmptyHistory()
+	}
+	complaints := TopicComplaintTexts(u.TopicComplaints(topic, h), TopicComplaintExamples)
+	if len(complaints) == 0 {
+		return base
+	}
+	sum := sha1.Sum([]byte(base + "|" + u.ID + "|" + string(jx.Marshal(complaints))))
+	return hex.EncodeToString(sum[:])
+}
+
+func (u *U) analysisCacheGet(item jx.M, topic string, h History) jx.M {
 	var raw []byte
-	err := a.DB.Pool.QueryRow(a.ctxOrBg(), `SELECT analysis FROM analysis_cache WHERE key = $1 AND at > $2`, AnalysisCacheKey(item, topic),
+	err := u.DB.Pool.QueryRow(u.ctxOrBg(), `SELECT analysis FROM analysis_cache WHERE key = $1 AND at > $2`, u.analysisCacheKey(item, topic, h),
 		now()-config.AnalysisCacheDays*config.DaySeconds).Scan(&raw)
 	if err != nil {
 		return nil
@@ -1449,18 +1552,38 @@ func (a *App) analysisCacheGet(item jx.M, topic string) jx.M {
 	return jx.Unmarshal(raw)
 }
 
-func (a *App) analysisCachePut(item jx.M, topic string, an jx.M) {
-	ctx := a.ctxOrBg()
-	a.DB.Pool.Exec(ctx, `INSERT INTO analysis_cache (key, analysis, at) VALUES ($1, $2, $3) ON CONFLICT (key) DO UPDATE SET analysis = EXCLUDED.analysis, at = EXCLUDED.at`,
-		AnalysisCacheKey(item, topic), jx.Marshal(an), now())
-	a.DB.Pool.Exec(ctx, `DELETE FROM analysis_cache WHERE at < $1`, now()-config.AnalysisCacheDays*config.DaySeconds)
-	a.DB.Pool.Exec(ctx, `DELETE FROM analysis_cache WHERE key IN (SELECT key FROM analysis_cache ORDER BY at DESC OFFSET $1)`, config.AnalysisCacheLimit)
+func (u *U) analysisCachePut(item jx.M, topic string, h History, an jx.M) {
+	ctx := u.ctxOrBg()
+	u.DB.Pool.Exec(ctx, `INSERT INTO analysis_cache (key, analysis, at) VALUES ($1, $2, $3) ON CONFLICT (key) DO UPDATE SET analysis = EXCLUDED.analysis, at = EXCLUDED.at`,
+		u.analysisCacheKey(item, topic, h), jx.Marshal(an), now())
+	u.DB.Pool.Exec(ctx, `DELETE FROM analysis_cache WHERE at < $1`, now()-config.AnalysisCacheDays*config.DaySeconds)
+	u.DB.Pool.Exec(ctx, `DELETE FROM analysis_cache WHERE key IN (SELECT key FROM analysis_cache ORDER BY at DESC OFFSET $1)`, config.AnalysisCacheLimit)
 }
 
 // ---- Оценка ----
 
 func (u *U) fetchCandidatePoster(item jx.M) []byte {
 	img := jx.Str(item, "image")
+	if jx.Bool(item, "_video_without_poster") {
+		b := u.videoPosterFromPublicURL(jx.Str(item, "video"))
+		if len(b) == 0 {
+			u.Log("-> Не удалось получить кадр видео, пропуск.")
+			return nil
+		}
+		local := u.MediaStoreImage("video-poster:"+jx.Str(item, "video"), b)
+		if local == "" {
+			return nil
+		}
+		item["image"], item["images"] = local, []string{local}
+		delete(item, "_video_without_poster")
+		for _, f := range jx.Maps(item, "gallery") {
+			if jx.Str(f, "video") == jx.Str(item, "video") && jx.Str(f, "image") == "" {
+				f["image"] = local
+				break
+			}
+		}
+		return b
+	}
 	var b []byte
 	if p := u.MediaPath(img); p != "" {
 		b, _ = os.ReadFile(p)
@@ -1609,40 +1732,54 @@ func (u *U) textCandidatesPriority(items []jx.M, topic string) []jx.M {
 	return items
 }
 
-func (u *U) admit(a jx.M, item jx.M, topic, verdict, stage, text string) bool {
-	if IsSpamContent(text, jx.Str(a, "description")) {
-		u.Log("-> Отброшено: явный маркер рекламы или спама.")
-		u.screen(topic, stage, item, int(jx.Int(a, "relevance")), false, "спам", jx.Str(a, "model"))
-		return false
+// admissionReason contains the same content decisions for collection and diagnostics.
+func (u *U) admissionReason(a jx.M, item jx.M, topic, text string) string {
+	if IsSpamContent(CleanPostAttribution(text, item), jx.Str(a, "description")) {
+		return "спам"
 	}
-	a = u.QualityTagPenalty(a, topic)
-	threshold := u.LLM.ThresholdForModel(jx.Str(a, "model"), u.TInt("relevance_threshold"))
-	passedAnalysis := int(jx.Int(a, "relevance")) >= threshold
-	u.SourceVerdictRecord(topic, ContentSourceKey(item), passedAnalysis)
-	u.sourceMissNote(ContentSourceKey(item), passedAnalysis)
 	o := DefaultQualityOpts()
-	o.Threshold = threshold
+	o.Threshold = u.LLM.ThresholdForModel(jx.Str(a, "model"), u.TInt("relevance_threshold"))
 	if reason := u.QualityReasons(a, item, topic, o); reason != "" {
+		return reason
+	}
+	if u.ContentAdultBlocked(jx.Merge(item, jx.M{"tags": a["tags"]}), topic) {
+		return "18+ или «Жесть» не по теме"
+	}
+	if a["ukraine"] == true && u.UAFilterOn() {
+		return "украинский контент"
+	}
+	if u.SearchTopicKey() != topic {
+		return "тема поиска сменилась"
+	}
+	return ""
+}
+
+func (u *U) admit(a jx.M, item jx.M, topic, verdict, stage, text string) bool {
+	reason := u.admissionReason(a, item, topic, text)
+	if reason != "спам" {
+		threshold := u.LLM.ThresholdForModel(jx.Str(a, "model"), u.TInt("relevance_threshold"))
+		passed := int(jx.Int(a, "relevance")) >= threshold
+		u.SourceVerdictRecord(topic, ContentSourceKey(item), passed)
+		u.sourceMissNote(ContentSourceKey(item), passed)
+	}
+	if reason != "" {
 		u.Log("-> Отброшено: %s (%s).", reason, verdict)
 		u.screen(topic, stage, item, int(jx.Int(a, "relevance")), false, reason, jx.Str(a, "model"))
 		return false
 	}
-	if u.ContentAdultBlocked(jx.Merge(item, jx.M{"tags": a["tags"]}), topic) {
-		u.Log("-> Отклонено: 18+ или «Жесть» не по теме.")
-		u.screen(topic, stage, item, int(jx.Int(a, "relevance")), false, "18+", jx.Str(a, "model"))
-		return false
-	}
-	if a["ukraine"] == true && u.UAFilterOn() {
-		u.Log("-> Отклонено: украинский контент.")
-		u.screen(topic, stage, item, int(jx.Int(a, "relevance")), false, "украинский", jx.Str(a, "model"))
-		return false
-	}
-	if u.SearchTopicKey() != topic {
-		u.Log("-> Тема поиска сменилась — запись по старой теме не сохраняю.")
-		return false
-	}
 	u.screen(topic, stage, item, int(jx.Int(a, "relevance")), true, "", jx.Str(a, "model"))
 	return true
+}
+
+// analyzeCandidateVision is the common uncached image evaluation used by the collector and the AI test.
+func (u *U) analyzeCandidateVision(frames [][]byte, item jx.M, h History, topic string, video *Storyboard) (Analysis, string, error) {
+	context := AnalysisContextBlock(item)
+	caption := ""
+	if context == "" {
+		caption = PostCaptionForAI(item)
+	}
+	a, err := u.AnalyzeContentWithVision(frames, caption, h, topic, video, u.LLM.Settings().ThinkInParser, context, item)
+	return a, caption, err
 }
 
 func analysisRecord(a, item jx.M, topic, defFormat string) jx.M {
@@ -1687,11 +1824,12 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 		u.run.TextAnalysesLeft--
 	}
 	u.Log("Полный анализ текстовой записи %s (без картинки)", candidateLogLabel(item))
-	a := u.analysisCacheGet(item, topic)
+	h := u.History()
+	a := u.analysisCacheGet(item, topic, h)
 	if a != nil {
-		u.Log("-> Анализ взят из общего кэша: эту запись по этой теме уже оценивали.")
+		u.Log("-> Анализ взят из кэша: эту запись по этой теме уже оценивали.")
 	} else {
-		res, err := u.AnalyzeTextBatch([]string{text}, topic)
+		res, err := u.AnalyzeTextBatch([]string{text}, topic, h)
 		if err != nil {
 			u.Log("-> ИИ не вернул оценку текста: %s", err)
 			return false
@@ -1702,7 +1840,7 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 		}
 		a = res[0]
 		a["model"] = u.LLM.ModelFor(u.Ctx, "text")
-		u.analysisCachePut(item, topic, a)
+		u.analysisCachePut(item, topic, h, a)
 	}
 	verdict := fmt.Sprintf("соответствие теме %d%%", jx.Int(a, "relevance"))
 	if !u.admit(a, item, topic, verdict, "text", text) {
@@ -1721,18 +1859,22 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 	if jx.Str(item, "image") == "" {
 		return u.analyzeTextCandidate(item, topic)
 	}
-	isVideo := jx.Str(item, "video") != ""
+	isVideo := PostItemHasVideo(item)
 	kind := "картинка"
 	if isVideo {
 		kind = "видео"
 	}
 	u.Log("Полный анализ %s %s %s", candidateLogLabel(item), kind, jx.Str(item, "image"))
 	var video *Storyboard
-	if isVideo {
-		video = u.VideoAnalysisInput(jx.Str(item, "video"), poster)
+	if direct := jx.Str(item, "video"); direct != "" {
+		video = u.VideoAnalysisInput(direct, poster)
 		if video.File != "" {
 			defer os.Remove(video.File)
 		}
+	} else if jx.Str(item, "video_via") == "ytdlp" && jx.Int(item, "duration") <= ytdlpWatchMaxSeconds {
+		var cleanup func()
+		video, cleanup = u.VideoPageAnalysisInput(jx.Str(item, "video_page"), poster)
+		defer cleanup()
 	}
 	frames := [][]byte{poster}
 	if video != nil {
@@ -1744,21 +1886,21 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 	if context == "" {
 		caption = PostCaptionForAI(item)
 	}
-	a := u.analysisCacheGet(item, topic)
+	a := u.analysisCacheGet(item, topic, h)
 	if a != nil {
-		u.Log("-> Анализ взят из общего кэша: эту запись по этой теме уже оценивали.")
+		u.Log("-> Анализ взят из кэша: эту запись по этой теме уже оценивали.")
 	} else {
 		var sb *Storyboard
 		if storyboard {
 			sb = video
 		}
 		var err error
-		a, err = u.AnalyzeContentWithVision(frames, caption, h, topic, sb, u.LLM.Settings().ThinkInParser, context, item)
+		a, caption, err = u.analyzeCandidateVision(frames, item, h, topic, sb)
 		if err != nil {
 			u.Log("-> ИИ не вернул корректную оценку: %s", err)
 			return false
 		}
-		u.analysisCachePut(item, topic, a)
+		u.analysisCachePut(item, topic, h, a)
 	}
 	verdict := fmt.Sprintf("соответствие теме %d%%", jx.Int(a, "relevance"))
 	if !u.admit(a, item, topic, verdict, "analysis", caption) {
@@ -1851,9 +1993,6 @@ func (u *U) RunCollector() bool {
 	if n := u.prunePoolAlreadyRated(); n > 0 {
 		u.Log("Пул: убрано записей, пост которых уже оценён: %d.", n)
 	}
-	if n := u.PruneSourceDuplicates(); n > 0 {
-		u.Log("Пул: убрано лишних записей одного источника: %d.", n)
-	}
 	u.PoolStampLegacy()
 	u.CachePoolGalleries(4)
 	u.PruneDeadPoolItems(false, false, true)
@@ -1910,8 +2049,15 @@ func (u *U) RunCollector() bool {
 	h := u.History()
 	format := u.TopicFormatOf(key)
 	var byPlatform map[string][]jx.M
+	u.parserPhaseWithTopic("ожидание общего сбора", topic)
+	u.ParserProgress(jx.M{"shared_wait": true}, false)
+	u.waitSharedCollection(u.Ctx, topic)
+	u.ParserProgress(jx.M{"shared_wait": false}, false)
+	if !u.Alive() {
+		return false
+	}
 	if u.CurrentQuery() != "" {
-		byPlatform = u.QuerySearchCollect(key)   // поиск по запросу сам включает каталог темы
+		byPlatform = u.QuerySearchCollect(key) // поиск по запросу сам включает каталог темы
 	} else {
 		byPlatform = u.collectPostsByPlatform(key)
 	}
@@ -2025,7 +2171,7 @@ outer:
 			t0 := time.Now()
 			if u.analyzeCandidate(c.Item, c.Poster, u.History(), key) {
 				added++
-				if src := ContentSourceKey(c.Item); sourcePoolCount(u.Pool(), key, src) >= sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), u.PoolTopicCount(key)) {
+				if src := ContentSourceKey(c.Item); sourcePoolCount(u.freshPoolItems(u.Pool()), key, src) >= sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), u.PoolTopicCount(key)) {
 					takenSrc[src] = true
 				}
 			}
@@ -2044,7 +2190,7 @@ outer:
 		u.Log("%s", stop)
 	}
 	u.ParserStage("pool")
-	u.KVSet(u.Ctx, parserLastPassKey(u.ID), jx.M{"at": now(), "funnel": funnel()}, 0)   // воронка — для конвейера студии вне работы
+	u.KVSet(u.Ctx, parserLastPassKey(u.ID), jx.M{"at": now(), "funnel": funnel()}, 0) // воронка — для конвейера студии вне работы
 	u.Log("")
 	u.Log("✅ Подбор завершён за %.1f мин: добавлено %d, проанализировано %d, отсеяно быстрой оценкой %d, повторов %d.", time.Since(started).Minutes(), added, analyzed,
 		pc.stats["rejected"], pc.stats["duplicates"])

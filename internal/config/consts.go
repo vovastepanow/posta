@@ -64,16 +64,13 @@ const (
 	RelevanceThreshold         = 80 // порог «по теме»: при 80 жалоб 34% против 58–78% у оценок 60–75
 
 	// ---- Качество подбора (цифры — история оценок мемов, 2026-10-23, 610 карточек) ----
-	AnalysisPromptVersion         = 4  // 4: анализ отличает готовый мем от шаблона; входит в ключ кэша
-	TopicTagMissPenalty           = 15 // частная тема подбора, а меток записи её нет — оценка −15
+	AnalysisPromptVersion         = 6  // тематическая оценка допускает пересечения подтем
 	TranslateEmail                = "" // почта для MyMemory (лимит ~50 000 символов в сутки)
 	TextPostsEnabled              = true
 	TextAnalysesPerPass           = 12
 	JokeYesMin                    = 50 // вероятность «да» на вопрос «есть ли шутка» ниже — шутки нет
 	JokeNoCap                     = 40
 	MemeTemplateCap               = 30
-	SubtopicLostCap               = 40 // частная тема проиграла соседней подтеме
-	SubtopicOffCap                = 20 // выбор «не юмор / не по теме»
 	SourceVerdictWindow           = 30
 	SourceVerdictMin              = 8
 	SourceVerdictLow              = 0.12
@@ -95,7 +92,7 @@ const (
 	TopicQueryMinSources          = 3
 	TopicQueryDiscoveryPerDay     = 10
 	TopicQueryChannelsPerRun      = 12
-	ScreenedCacheVersion          = 2
+	ScreenedCacheVersion          = 4
 	PrescreenBatch                = 10
 	AnalyzeBlock                  = 8 // прошедшие быструю оценку уходят на полный анализ блоком: меньше смен модели
 	PrescreenSourceMissLimit      = 6
@@ -186,7 +183,7 @@ const (
 	// ---- Видео ----
 	VideoMaxBytes            = 30 << 20
 	VideoFramesMin           = 4
-	VideoFramesMax           = 8
+	VideoFramesMax           = 30
 	VideoSecondsPerFrame     = 3.0
 	VideoFrameMaxSide        = 384
 	StoryboardFramesPerSheet = 4 // кадры уходят в модель листами 2×2

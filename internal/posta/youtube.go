@@ -11,9 +11,9 @@ import (
 // YouTube без лент RSS: ролики и шортсы канала через yt-dlp (лента videos.xml иногда отдаёт 404).
 
 const (
-	YouTubeListCount   = 15
+	YouTubeListCount    = 15
 	youtubeListCacheTTL = 30 * time.Minute
-	youtubeShortsDates = 1
+	youtubeShortsDates  = 1
 )
 
 // YouTubeChannelPosts — посты вкладки videos или shorts в формате RSSParse (кэш 30 минут в памяти).
@@ -90,6 +90,9 @@ func (u *U) youtubeListPosts(cid, tab string) ([]jx.M, error) {
 		prev = at
 		views, _ := strconv.ParseInt(r[2], 10, 64)
 		p := YouTubePost(r[0], r[4], r[3], at, views, tab == "shorts")
+		if d, err := strconv.ParseFloat(r[1], 64); err == nil {
+			p["duration"] = d
+		}
 		markYouTubeLong(p, r[1])
 		posts = append(posts, p)
 	}

@@ -92,6 +92,7 @@ function bind() {
     $('article-reader-close').addEventListener('click', () => closeArticleReader());
     $('article-reader').addEventListener('click', event => { if (event.target.id === 'article-reader') closeArticleReader(); });   // клик по затемнению
     $('article-reader-post').addEventListener('click', () => reader?.onPost?.());
+    import('./content.js').then(({ bindFutureDraftButton }) => bindFutureDraftButton($('article-reader-draft-add'), () => reader?.item));
     document.addEventListener('keydown', event => {
         if (!reader) return;
         if (event.key === 'Escape') closeArticleReader();
@@ -110,6 +111,7 @@ export async function openArticleReader(item, { onPost = null } = {}) {
     closeArticleReader(false);
     const url = safeSourcePostUrl(item) || '';
     reader = { item, opener: document.activeElement, scrollY: window.scrollY, onPost };
+    import('./content.js').then(({ refreshFutureDraftButton }) => refreshFutureDraftButton($('article-reader-draft-add')));
     $('article-reader-site').textContent = articleSite(item);
     const open = $('article-reader-open');
     open.hidden = !url;

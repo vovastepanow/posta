@@ -49,6 +49,7 @@ func newRun(a *App) *Run {
 type userParser struct {
 	mu        sync.Mutex
 	running   bool
+	paused    bool // остановлен администратором до нового открытия вкладки
 	cancel    context.CancelFunc
 	startedAt time.Time
 	tab       string
@@ -65,11 +66,14 @@ type userParser struct {
 
 // ParserManager — сборщики всех пользователей процесса.
 type ParserManager struct {
-	app   *App
-	mu    sync.Mutex
-	users map[string]*userParser
-	slots chan struct{}
-	named sync.Map // блокировки по имени: подбор темы, уточнение
+	app          *App
+	mu           sync.Mutex
+	users        map[string]*userParser
+	slots        chan struct{}
+	named        sync.Map // блокировки по имени: подбор темы, уточнение
+	sharedPaused bool
+	sharedCancel context.CancelFunc
+	sharedDone   chan struct{}
 }
 
 func newParserManager(a *App) *ParserManager {
@@ -219,6 +223,13 @@ func (a *App) ParserRunning(uid string) bool {
 	return p.running
 }
 
+func (a *App) ParserPaused(uid string) bool {
+	p := a.parsers.user(uid)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.paused
+}
+
 func (a *App) ParserRuntimeSeconds(uid string) *int64 {
 	p := a.parsers.user(uid)
 	p.mu.Lock()
@@ -239,6 +250,9 @@ func (a *App) ParserProgressPublic(uid string) jx.M {
 	p.mu.Unlock()
 	t := now()
 	maxSec := int64(a.TInt("parser_minutes") * 60)
+	if jx.Bool(pr, "shared_wait") {
+		return jx.M{"share": nil, "eta": nil, "added": 0, "queued": true}
+	}
 	if !jx.Bool(pr, "queued_at") && !jx.Bool(pr, "deadline") && running {
 		pr["deadline"] = started.Unix() + maxSec
 	}
@@ -308,6 +322,9 @@ func (u *U) StartParser(force bool) string {
 	p := u.parsers.user(u.ID)
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.paused {
+		return "paused"
+	}
 	if p.running {
 		return "running"
 	}
@@ -317,8 +334,10 @@ func (u *U) StartParser(force bool) string {
 	if p.tab == "" || time.Since(p.tabSeen) > TabSessionTTL {
 		return "no_session"
 	}
+	u.RequestSharedCollection(u.Ctx, u.CurrentTopic(), 10)
 	ctx, cancel := context.WithCancel(u.App.ctx)
 	p.running, p.cancel, p.startedAt = true, cancel, time.Now()
+	p.progress = jx.M{"queued_at": now()}
 	if p.file != nil {
 		p.file.Close()
 	}
@@ -421,6 +440,55 @@ func (a *App) StopAllParsers() int {
 	return len(ids)
 }
 
+// PauseAllParsers blocks automatic restarts from existing tab heartbeats before cancellation.
+// Opening a new page explicitly clears that user's pause.
+func (a *App) PauseAllParsers() int {
+	a.parsers.mu.Lock()
+	a.parsers.sharedPaused = true
+	sharedCancel, sharedDone := a.parsers.sharedCancel, a.parsers.sharedDone
+	var active []*userParser
+	var cancels []context.CancelFunc
+	for _, p := range a.parsers.users {
+		p.mu.Lock()
+		p.paused = true
+		if p.running {
+			active = append(active, p)
+			if p.cancel != nil {
+				cancels = append(cancels, p.cancel)
+			}
+		}
+		p.mu.Unlock()
+	}
+	a.parsers.mu.Unlock()
+	if sharedCancel != nil {
+		sharedCancel()
+	}
+	for _, cancel := range cancels {
+		cancel()
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		running := false
+		if sharedDone != nil {
+			select {
+			case <-sharedDone:
+			default:
+				running = true
+			}
+		}
+		for _, p := range active {
+			p.mu.Lock()
+			running = running || p.running
+			p.mu.Unlock()
+		}
+		if !running {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return len(active)
+}
+
 // RunningParsers — пользователи, у которых сейчас идёт сбор (админка).
 func (a *App) RunningParsers() []jx.M {
 	a.parsers.mu.Lock()
@@ -436,6 +504,12 @@ func (a *App) RunningParsers() []jx.M {
 	return out
 }
 
+func (a *App) SharedCollectionRunning() bool {
+	a.parsers.mu.Lock()
+	defer a.parsers.mu.Unlock()
+	return a.parsers.sharedDone != nil
+}
+
 // ---- Сессия вкладки ----
 
 var tabIDRe = regexp.MustCompile(`^[a-f0-9-]{8,64}$`)
@@ -444,9 +518,13 @@ func IsValidTabID(t string) bool { return tabIDRe.MatchString(t) }
 
 // TabOpen — вкладка заняла сессию; сборщик запускается (уже работающий не трогаем).
 func (u *U) TabOpen(tab string) string {
+	u.parsers.mu.Lock()
+	u.parsers.sharedPaused = false
+	u.parsers.mu.Unlock()
 	p := u.parsers.user(u.ID)
 	p.mu.Lock()
 	p.tab, p.tabSeen, p.tabOpened = tab, time.Now(), time.Now()
+	p.paused = false
 	p.mu.Unlock()
 	if u.Cfg.Dev && os.Getenv("POSTA_DEV_PARSERS") != "1" {
 		return "disabled" // режим разработки: открытие страницы не запускает сборщик

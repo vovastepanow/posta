@@ -64,21 +64,21 @@ func RSSAbsoluteURL(base, href string) string {
 
 // xnode — узел XML: имя с привычным префиксом (media:content), атрибуты, дети, текст, сырая разметка внутри.
 type xnode struct {
-	N    string
-	A    map[string]string
-	K    []*xnode
-	T    string
-	Raw  string
+	N   string
+	A   map[string]string
+	K   []*xnode
+	T   string
+	Raw string
 }
 
 var nsPrefix = map[string]string{
-	"http://search.yahoo.com/mrss/":              "media",
-	"http://purl.org/rss/1.0/modules/content/":   "content",
-	"http://purl.org/dc/elements/1.1/":           "dc",
-	"http://www.youtube.com/xml/schemas/2015":    "yt",
+	"http://search.yahoo.com/mrss/":               "media",
+	"http://purl.org/rss/1.0/modules/content/":    "content",
+	"http://purl.org/dc/elements/1.1/":            "dc",
+	"http://www.youtube.com/xml/schemas/2015":     "yt",
 	"http://www.w3.org/1999/02/22-rdf-syntax-ns#": "rdf",
-	"http://www.w3.org/2005/Atom":                "",
-	"http://purl.org/rss/1.0/":                   "",
+	"http://www.w3.org/2005/Atom":                 "",
+	"http://purl.org/rss/1.0/":                    "",
 }
 
 func xname(n xml.Name) string {
@@ -268,7 +268,9 @@ func rssIsImage(f rssFile) bool {
 
 var pinimgRe = regexp.MustCompile(`^https://i\.pinimg\.com/(?:136x136|236x|474x|564x)/`)
 
-func rssUpgradeImageURL(u string) string { return pinimgRe.ReplaceAllString(u, "https://i.pinimg.com/736x/") }
+func rssUpgradeImageURL(u string) string {
+	return pinimgRe.ReplaceAllString(u, "https://i.pinimg.com/736x/")
+}
 
 var imgSrcRe = regexp.MustCompile(`(?i)<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']`)
 
@@ -349,6 +351,19 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 			body = append(body, item.kid(tag).html())
 		}
 		files := rssItemMedia(item)
+		// Lemmy RSS exposes the original as an enclosure and a resized copy as
+		// media:content. They are alternative representations, not an album.
+		if feed, err := url.Parse(feedURL); err == nil && strings.HasPrefix(feed.Path, "/feeds/c/") {
+			enclosures := item.kids("enclosure")
+			media := item.kids("media:content")
+			if len(enclosures) == 1 && len(media) == 1 && len(files) == 2 && rssIsImage(files[0]) && rssIsImage(files[1]) {
+				original, e1 := url.Parse(files[0].URL)
+				preview, e2 := url.Parse(files[1].URL)
+				if e1 == nil && e2 == nil && original.Scheme == "https" && original.Host != "" && preview.Host == feed.Host && strings.HasPrefix(original.Path, "/pictrs/image/") && strings.HasPrefix(preview.Path, "/pictrs/image/") && rssHTMLImage(item.kid("description").html(), base) == files[0].URL {
+					files = files[:1]
+				}
+			}
+		}
 		videoID := ""
 		if youtube {
 			videoID = strings.TrimSpace(item.kid("yt:videoId").text())
@@ -356,33 +371,43 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 				videoID = ""
 			}
 		}
-		img := ""
-		for _, f := range files {
-			if rssIsImage(f) && f.Medium != "thumbnail" && rssImageOK(f.URL) {
-				if img = rssHTTPS(f.URL, base); img != "" {
-					break
-				}
+		var images []string
+		addImage := func(raw string) {
+			if raw = rssUpgradeImageURL(rssHTTPS(raw, base)); raw != "" && rssImageOK(raw) && !contains(images, raw) {
+				images = append(images, raw)
 			}
 		}
-		if img == "" {
+		for _, f := range files {
+			if rssIsImage(f) && f.Medium != "thumbnail" && rssImageOK(f.URL) {
+				addImage(f.URL)
+			}
+		}
+		if len(images) == 0 {
 			for _, f := range files {
 				if f.Medium == "thumbnail" && rssImageOK(f.URL) {
-					if img = rssHTTPS(f.URL, base); img != "" {
+					addImage(f.URL)
+					if len(images) > 0 {
 						break
 					}
 				}
 			}
 		}
-		if img == "" {
+		if len(images) == 0 {
 			for _, h := range body {
-				if i := rssHTMLImage(h, base); i != "" && rssImageOK(i) {
-					img = i
+				for _, m := range imgSrcRe.FindAllStringSubmatch(h, -1) {
+					addImage(m[1])
+				}
+				if len(images) > 0 {
 					break
 				}
 			}
 		}
-		if img == "" && videoID != "" {
-			img = "https://i.ytimg.com/vi/" + videoID + "/hqdefault.jpg"
+		if len(images) == 0 && videoID != "" {
+			addImage("https://i.ytimg.com/vi/" + videoID + "/hqdefault.jpg")
+		}
+		img := ""
+		if len(images) > 0 {
+			img = images[0]
 		}
 		title := CleanHTMLText(item.kid("title").html())
 		desc := ""
@@ -428,10 +453,6 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 		if text == "" {
 			text = EmptyPostText
 		}
-		images := []string{}
-		if img != "" {
-			images = []string{img}
-		}
 		p := jx.M{"image": img, "images": images, "gallery": []any{}, "video": video, "text": text, "source": src, "post_id": hex.EncodeToString(h[:])[:12],
 			"posted_at": rssItemTime(item), "url": link, "video_unavailable": false, "engagement": nil, "text_post": textOnly}
 		if videoID != "" {
@@ -461,6 +482,149 @@ func hostOf(raw string) string {
 
 // RSSFetchPosts — свежие посты ленты по адресу (YouTube без ленты — через yt-dlp).
 func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, withText bool) ([]jx.M, error) {
+	if id := dzenChannelID(feedURL); id != "" {
+		r := u.RSSGet("https://dzen.ru/api/v3/launcher/more?channel_id="+id, rssMaxBytes, 15*time.Second, BrowserUA)
+		if !r.OK {
+			return nil, Bad("Дзен: канал не загрузился: %s", r.Error)
+		}
+		posts, err := dzenChannelPosts(r.Bytes, id, count, withText, time.Now())
+		for _, p := range posts {
+			if name != "" {
+				p["source"] = name
+			}
+		}
+		return posts, err
+	}
+	if username := instagramProfileName(feedURL); username != "" {
+		posts, err := u.instagramReadProfile(username, count, withText)
+		for _, p := range posts {
+			if name != "" {
+				p["source"] = name
+			}
+		}
+		return posts, err
+	}
+	if id := facebookPageID(feedURL); id != "" {
+		posts, err := u.facebookReadPage(id, count, withText)
+		for _, p := range posts {
+			if name != "" {
+				p["source"] = name
+			}
+		}
+		return posts, err
+	}
+	if username := threadsProfileName(feedURL); username != "" {
+		body, err := u.threadsRead("profile_posts", url.Values{"username": {username}, "fields": {threadsFields}})
+		if err != nil {
+			return nil, err
+		}
+		posts, err := threadsProfilePosts(body, username, count, withText)
+		for _, p := range posts {
+			if name != "" {
+				p["source"] = name
+			}
+		}
+		return posts, err
+	}
+	if guild, channel := discordSource(feedURL); guild != "" {
+		body, err := u.discordRead("/channels/" + channel + "/messages?limit=50")
+		if err != nil {
+			return nil, err
+		}
+		posts, err := discordMessages(body, guild, channel, count, withText)
+		for _, p := range posts {
+			if name != "" {
+				p["source"] = name
+			}
+		}
+		return posts, err
+	}
+	if username := xProfileName(feedURL); username != "" {
+		r := u.RSSGet("https://x.com/"+username, 4<<20, 15*time.Second, BrowserUA)
+		if !r.OK {
+			return nil, Bad("X: профиль не загрузился: %s", r.Error)
+		}
+		posts := xProfilePosts(r.Bytes, username, count, withText)
+		if len(posts) == 0 {
+			return nil, Bad("X: публичная лента недоступна или в ней нет подходящих постов.")
+		}
+		for _, p := range posts {
+			if name != "" {
+				p["source"] = name
+			}
+		}
+		return posts, nil
+	}
+	if community := redditSourceName(feedURL); community != "" && u.NetworkAppKey("REDDIT_CLIENT_ID") != "" && u.NetworkAppKey("REDDIT_CLIENT_SECRET") != "" {
+		data, err := u.redditRead("/r/" + community + "/new?limit=50")
+		if err != nil {
+			return nil, err
+		}
+		posts, err := redditListingPosts(data, community, count, withText)
+		for _, p := range posts {
+			if name != "" {
+				p["source"] = name
+			}
+		}
+		return posts, err
+	}
+	if source := pikabuCommunityURL(feedURL); source != "" {
+		r := u.RSSGet(source, rssMaxBytes, 15*time.Second, BrowserUA)
+		if !r.OK {
+			return nil, Bad("Пикабу: сообщество не загрузилось: %s", r.Error)
+		}
+		posts, err := pikabuCommunityPosts(r.Bytes, source, count, withText)
+		for _, p := range posts {
+			if name != "" {
+				p["source"] = name
+			}
+		}
+		return posts, err
+	}
+	if host, id := osnovaTimelineSource(feedURL); host != "" {
+		r := u.RSSGet(osnovaTimelineURL(host, id), rssMaxBytes, 15*time.Second, HTTPUA)
+		if !r.OK {
+			return nil, Bad("%s: сообщество не загрузилось: %s", host, r.Error)
+		}
+		posts, err := osnovaTimelinePosts(r.Bytes, host, id)
+		if err != nil {
+			return nil, err
+		}
+		var out []jx.M
+		for _, p := range posts {
+			if jx.Str(p, "image") == "" && !keepNoImage && !(withText && runeLen(jx.Str(p, "text")) >= 120) {
+				continue
+			}
+			if name != "" {
+				p["source"] = name
+			}
+			out = append(out, p)
+			if len(out) >= count {
+				break
+			}
+		}
+		return out, nil
+	}
+	if id := RutubeChannelID(feedURL); id != "" {
+		api := "https://rutube.ru/api/video/person/" + id + "/?page=1&format=json"
+		r := u.RSSGet(api, rssMaxBytes, 15*time.Second, HTTPUA)
+		if !r.OK {
+			return nil, Bad("Rutube: канал не загрузился: %s", r.Error)
+		}
+		posts, err := RutubeParse(r.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		if len(posts) > count {
+			posts = posts[:count]
+		}
+		for _, p := range posts {
+			if name != "" {
+				p["source"] = name
+			}
+		}
+		return posts, nil
+	}
 	r := u.RSSGet(feedURL, rssMaxBytes, 15*time.Second, HTTPUA)
 	if !r.OK {
 		if cid, tab, ok := YouTubeFeedChannel(feedURL); ok {
@@ -545,14 +709,26 @@ func (a *App) RSSDiscover(raw string) (string, error) {
 }
 
 var (
-	tumblrNameRe   = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
-	pinUserRe      = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
-	pinBoardRe     = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,100}$`)
-	ytChannelIDRe  = regexp.MustCompile(`^UC[A-Za-z0-9_-]{22}$`)
-	ytFeedIDRe     = regexp.MustCompile(`channel_id=(UC[A-Za-z0-9_-]{22})`)
-	ytPageIDRe     = regexp.MustCompile(`"channelId":"(UC[A-Za-z0-9_-]{22})"|youtube\.com/channel/(UC[A-Za-z0-9_-]{22})`)
-	pinterestHostRe = regexp.MustCompile(`(^|\.)pinterest\.(com|ru)$`)
+	rutubeChannelPath = regexp.MustCompile(`^/(?:channel|video/person)/(\d{1,20})/?(?:videos/?)?$`)
+	tumblrNameRe      = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
+	pinUserRe         = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
+	pinBoardRe        = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,100}$`)
+	ytChannelIDRe     = regexp.MustCompile(`^UC[A-Za-z0-9_-]{22}$`)
+	ytFeedIDRe        = regexp.MustCompile(`channel_id=(UC[A-Za-z0-9_-]{22})`)
+	ytPageIDRe        = regexp.MustCompile(`"channelId":"(UC[A-Za-z0-9_-]{22})"|youtube\.com/channel/(UC[A-Za-z0-9_-]{22})`)
+	pinterestHostRe   = regexp.MustCompile(`(^|\.)pinterest\.(com|ru)$`)
 )
+
+func RutubeChannelID(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || !strings.EqualFold(u.Hostname(), "rutube.ru") || u.User != nil || u.Port() != "" {
+		return ""
+	}
+	if m := rutubeChannelPath.FindStringSubmatch(u.Path); m != nil && m[1] != "0" {
+		return m[1]
+	}
+	return ""
+}
 
 var pinterestReserved = []string{"pin", "search", "ideas", "today", "explore", "categories", "login", "settings", "business"}
 
@@ -563,6 +739,27 @@ func (a *App) RSSKnownFeed(raw string) (string, error) {
 		return "", nil
 	}
 	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+	if user := xProfileName(raw); user != "" {
+		return "https://x.com/" + user, nil
+	}
+	if user := threadsProfileName(raw); user != "" {
+		return "https://www.threads.net/@" + user, nil
+	}
+	if user := instagramProfileName(raw); user != "" {
+		return "https://www.instagram.com/" + user + "/", nil
+	}
+	if id := facebookPageID(raw); id != "" {
+		return "https://www.facebook.com/" + id, nil
+	}
+	if id := dzenChannelID(raw); id != "" {
+		return "https://dzen.ru/id/" + id, nil
+	}
+	if guild, channel := discordSource(raw); guild != "" {
+		return "https://discord.com/channels/" + guild + "/" + channel, nil
+	}
+	if community := redditSourceName(raw); community != "" {
+		return "https://www.reddit.com/r/" + community + "/.rss", nil
+	}
 	var parts []string
 	for _, s := range strings.Split(strings.Trim(u.Path, "/"), "/") {
 		if s != "" {
@@ -570,6 +767,20 @@ func (a *App) RSSKnownFeed(raw string) (string, error) {
 		}
 	}
 	switch {
+	case host == "pikabu.ru":
+		if community := pikabuCommunityURL(raw); community != "" {
+			return community, nil
+		}
+	case host == "rutube.ru":
+		if id := RutubeChannelID(raw); id != "" {
+			return "https://rutube.ru/channel/" + id + "/", nil
+		}
+		return "", Bad("Нужна ссылка на канал Rutube с числовым ID")
+	case host == "bsky.app":
+		if len(parts) < 2 || parts[0] != "profile" || (len(parts) > 2 && !(len(parts) == 3 && parts[2] == "rss")) || !regexp.MustCompile(`^(?:did:plc:[a-z2-7]{24}|[a-zA-Z0-9.-]{3,253})$`).MatchString(parts[1]) {
+			return "", Bad("Нужна ссылка на профиль Bluesky")
+		}
+		return "https://bsky.app/profile/" + parts[1] + "/rss", nil
 	case host == "tumblr.com" || strings.HasSuffix(host, ".tumblr.com"):
 		name := strings.TrimSuffix(host, ".tumblr.com")
 		if host == "tumblr.com" {
@@ -668,7 +879,7 @@ func RSSFeedKind(feedURL string) string {
 }
 
 func (u *U) RSSPreviewPosts(src jx.M, count int) []jx.M {
-	posts, err := u.RSSFetchPosts(jx.Str(src, "id"), count, jx.Str(src, "name"), false, false)
+	posts, err := u.RSSFetchPosts(jx.Str(src, "id"), count, jx.Str(src, "name"), false, u.TopicsAcceptText([]string{u.CurrentTopic()}))
 	if err != nil {
 		return []jx.M{}
 	}

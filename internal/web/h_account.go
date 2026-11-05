@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -16,9 +17,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"posta/internal/config"
-	"posta/internal/llm"
 	"posta/internal/jx"
+	"posta/internal/llm"
 	"posta/internal/posta"
 )
 
@@ -32,7 +35,7 @@ func init() {
 		if c.U != nil {
 			r = c.A.AuthPublic(c.R.Context(), c.U.ID)
 		} else {
-			r = jx.M{"logged_in": false, "telegram": false, "login": "", "has_password": false, "sessions": 0, "tg_configured": bot != nil}
+			r = jx.M{"logged_in": false, "telegram": false, "login": "", "has_password": false, "sessions": 0, "tg_configured": bot != nil, "vk_configured": c.A.VKOAuthConfigured()}
 		}
 		r["configured"], r["bot"], r["registration"] = bot != nil, jx.Str(bot, "username"), c.A.TBool("registration")
 		return r, nil
@@ -81,9 +84,10 @@ func init() {
 	post("logout_all", func(c *Ctx) (any, error) { return logout(c, true) })
 
 	get("vk_oauth_status", func(c *Ctx) (any, error) {
-		t := c.A.VKTokensPublic(c.R.Context())
-		return jx.M{"configured": c.A.VKOAuthConfigured(), "connected": jx.Bool(t, "connected"), "user_id": t["user_id"]}, nil
+		t := c.A.VKTokensPublic(c.U.Ctx)
+		return jx.M{"configured": c.A.VKOAuthConfigured(), "connected": jx.Bool(t, "connected"), "user_id": t["user_id"], "redirect_uri": c.A.VKOAuthRedirectURI()}, nil
 	})
+	post("vk_login_prepare", vkLoginPrepare)
 	get("vk_oauth_start", vkOAuthStart)
 	get("vk_oauth_callback", vkOAuthCallback)
 
@@ -311,15 +315,30 @@ func init() {
 				continue
 			}
 			media := jx.Maps(e, "media")
-			if len(media) == 0 || jx.Str(media[0], "kind") != "photo" {
+			index := 0
+			if c.Q("index") != "" {
+				var err error
+				index, err = strconv.Atoi(c.Q("index"))
+				if err != nil {
+					break
+				}
+			}
+			if index < 0 || index >= len(media) {
 				break
 			}
 			dir, _ := c.A.OutboxMediaDir(id)
-			c.serveFile(filepath.Join(dir, filepath.Base(jx.Str(media[0], "path"))), "", "private, max-age=300")
+			path := filepath.Clean(jx.Str(media[index], "path"))
+			rel, err := filepath.Rel(dir, path)
+			if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+				break
+			}
+			c.serveFile(path, "", "private, no-store")
 			return nil, nil
 		}
 		return nil, fail(404, "Нет такого файла.")
 	})
+	get("outbox_edit_get", getOutboxEdit)
+	post("outbox_edit_save", saveOutboxEdit)
 	post("telegram_cancel", telegramCancel)
 
 	get("model_status", modelStatus)
@@ -331,10 +350,17 @@ func init() {
 		if t := c.Str("tab"); posta.IsValidTabID(t) {
 			c.U.TabClose(t)
 		}
-		n := len(c.A.RunningParsers())
-		c.A.StopAllParsers()
+		shared := c.A.SharedCollectionRunning()
+		n := c.A.PauseAllParsers()
+		if shared {
+			n++
+		}
 		c.A.LLM.Ollama.UnloadAll(c.R.Context())
-		return ok(jx.M{"stopped": n}), nil
+		remaining := len(c.A.RunningParsers())
+		if c.A.SharedCollectionRunning() {
+			remaining++
+		}
+		return ok(jx.M{"stopped": max(0, n-remaining), "stopping": remaining}), nil
 	})
 
 	get("billing_info", billingInfo)
@@ -460,10 +486,14 @@ func styleChannel(c *Ctx, v string) (*posta.Channel, error) {
 // ---- VK ID (OAuth 2 + PKCE), одно подключение на сайт ----
 
 func vkRedirect(c *Ctx, result string) (any, error) {
-	if !contains([]string{"connected", "misconfigured", "error"}, result) {
+	if !contains([]string{"connected", "signed_in", "misconfigured", "error"}, result) {
 		result = "error"
 	}
-	c.redirect("index.html?vk=" + result + "#account")
+	base := strings.TrimRight(c.A.Cfg.PublicURL, "/")
+	if base == "" {
+		base = strings.TrimRight(c.A.Cfg.BasePath, "/")
+	}
+	c.redirect(base + "/?vk=" + url.QueryEscape(result) + "#account")
 	return nil, nil
 }
 
@@ -476,13 +506,68 @@ func vkOAuthStart(c *Ctx) (any, error) {
 	state, verifier := randUID()+randUID()[:16], posta.PKCEVerifier()
 	c.A.KVSet(c.R.Context(), "vk_oauth:"+state, jx.M{"verifier": verifier, "uid": c.U.ID, "at": now()}, 10*time.Minute)
 	sum := sha256.Sum256([]byte(verifier))
-	q := url.Values{"response_type": {"code"}, "client_id": {c.A.Cfg.VKClientID}, "redirect_uri": {c.A.Cfg.VKRedirectURI}, "state": {state},
+	q := url.Values{"response_type": {"code"}, "client_id": {c.A.Cfg.VKClientID}, "redirect_uri": {c.A.VKOAuthRedirectURI()}, "state": {state},
 		"code_challenge": {b64url(sum[:])}, "code_challenge_method": {"S256"}, "lang_id": {"0"}}
 	if c.A.Cfg.VKOAuthScope != "" {
 		q.Set("scope", c.A.Cfg.VKOAuthScope)
 	}
 	c.redirect("https://id.vk.ru/authorize?" + q.Encode())
 	return nil, nil
+}
+
+// VK ID OneTap uses a server-generated challenge bound to this browser session.
+func vkLoginPrepare(c *Ctx) (any, error) {
+	if !c.A.VKOAuthConfigured() || c.U == nil {
+		return nil, fail(400, "VK ID не настроен.")
+	}
+	state, verifier := randUID()+randUID()[:16], posta.PKCEVerifier()
+	sessionHash := sha256.Sum256([]byte(c.SID))
+	if err := c.A.KVSet(c.R.Context(), "vk_login:"+state, jx.M{"verifier": verifier, "uid": c.U.ID, "session": b64url(sessionHash[:])}, 10*time.Minute); err != nil {
+		return nil, err
+	}
+	challenge := sha256.Sum256([]byte(verifier))
+	return jx.M{"app": c.A.Cfg.VKClientID, "redirect_url": c.A.VKOAuthRedirectURI(), "state": state, "code_challenge": b64url(challenge[:])}, nil
+}
+
+func vkLoginCallback(c *Ctx, cb map[string]string) (any, error) {
+	ctx := c.R.Context()
+	// Consume atomically: a code and state may only be used once.
+	var raw []byte
+	err := c.A.DB.Pool.QueryRow(ctx, `DELETE FROM kv WHERE key = $1 AND (expires_at = 0 OR expires_at > $2) RETURNING value`, "vk_login:"+cb["state"], now()).Scan(&raw)
+	saved := jx.Unmarshal(raw)
+	hash := sha256.Sum256([]byte(c.SID))
+	if err != nil || c.U == nil || jx.Str(saved, "uid") != c.U.ID || jx.Str(saved, "session") != b64url(hash[:]) || cb["code"] == "" || cb["device_id"] == "" {
+		return vkRedirect(c, "error")
+	}
+	token, err := c.A.VKOAuthToken(cb["code"], jx.Str(saved, "verifier"), cb["device_id"], cb["state"])
+	if err != nil {
+		return vkRedirect(c, "error")
+	}
+	vkID := jx.Str(token, "user_id")
+	if !regexp.MustCompile(`^[1-9][0-9]{0,19}$`).MatchString(vkID) {
+		return vkRedirect(c, "error")
+	}
+	var owner string
+	err = c.A.DB.Pool.QueryRow(ctx, `SELECT id FROM users WHERE vk_id = $1`, vkID).Scan(&owner)
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return vkRedirect(c, "error")
+		}
+		if !c.A.TBool("registration") && !c.A.UserHasIdentity(ctx, c.U.ID) {
+			return vkRedirect(c, "error")
+		}
+		tag, e := c.A.DB.Pool.Exec(ctx, `UPDATE users SET vk_id = $1 WHERE id = $2 AND (vk_id IS NULL OR vk_id = $1)`, vkID, c.U.ID)
+		if e != nil || tag.RowsAffected() != 1 {
+			return vkRedirect(c, "error")
+		}
+		owner = c.U.ID
+	}
+	sid, err := c.A.LoginSwitch(ctx, c.U.ID, c.SID, owner)
+	if err != nil {
+		return vkRedirect(c, "error")
+	}
+	c.setSessionCookie(sid)
+	return vkRedirect(c, "signed_in")
 }
 
 func vkOAuthCallback(c *Ctx) (any, error) {
@@ -497,12 +582,20 @@ func vkOAuthCallback(c *Ctx) (any, error) {
 		}
 	}
 	ctx := c.R.Context()
+	if posta.KV(c.A, ctx, "vk_login:"+cb["state"], jx.M(nil)) != nil {
+		return vkLoginCallback(c, cb)
+	}
 	saved := posta.KV(c.A, ctx, "vk_oauth:"+cb["state"], jx.M(nil))
 	c.A.KVDelete(ctx, "vk_oauth:"+cb["state"])
 	if saved == nil || cb["code"] == "" || cb["device_id"] == "" || !c.A.VKOAuthConfigured() {
 		return vkRedirect(c, "error")
 	}
-	if err := c.A.VKOAuthExchange(ctx, cb["code"], jx.Str(saved, "verifier"), cb["device_id"], cb["state"]); err != nil {
+	uid := jx.Str(saved, "uid")
+	if !posta.IsValidUserID(uid) {
+		return vkRedirect(c, "error")
+	}
+	userCtx := c.A.User(ctx, uid, nil).Ctx
+	if err := c.A.VKOAuthExchange(userCtx, cb["code"], jx.Str(saved, "verifier"), cb["device_id"], cb["state"]); err != nil {
 		return vkRedirect(c, "error")
 	}
 	return vkRedirect(c, "connected")

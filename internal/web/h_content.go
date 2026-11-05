@@ -104,6 +104,9 @@ func init() {
 		return jx.M{"refreshing": c.U.ProposalRefreshing() && jx.Bool(p, "running"), "progress": p}, nil
 	})
 	get("proposals", func(c *Ctx) (any, error) {
+		if err := c.U.PruneSelectedPosts(); err != nil {
+			return nil, err
+		}
 		refreshing := c.U.ProposalBackfillAsync()
 		var progress any
 		if refreshing {
@@ -196,6 +199,7 @@ func getItemVideo(c *Ctx) (any, error) {
 
 func getCurrentItem(c *Ctx) (any, error) {
 	u := c.U
+	u.PruneUnavailablePoolVideos()
 	topic := u.CurrentTopic()
 	if u.TopicSaveDenied(topic) != "" {
 		return jx.M{"status": "empty", "message": "Тема «" + topic + "» недоступна: выберите другую тему."}, nil
@@ -204,27 +208,16 @@ func getCurrentItem(c *Ctx) (any, error) {
 		return u.TranslateDisplay(u.ContentForDisplay(pool[0], pool[1:min(4, len(pool))], true)), nil
 	}
 	started := u.StartParser(false)
-	if started != "started" && started != "running" {
-		return jx.M{"status": "empty", "message": "Нового контента пока нет. Можно повторить поиск или добавить запись вручную."}, nil
-	}
 	rt := c.A.ParserRuntimeSeconds(u.ID)
-	if rt != nil && *rt >= config.ParserSlowThresholdSeconds {
-		frozen := map[string]bool{}
-		if jx.Bool(u.ContentFilterValues(), "active_sources_only") {
-			frozen = u.FrozenSourceLabels()
+	if archive := u.PoolWithoutLostVideo(u.PoolStaleForCurrentTopic()); len(archive) > 0 {
+		r := u.TranslateDisplay(u.ContentForDisplay(archive[0], archive[1:min(4, len(archive))], true))
+		return r, nil
+	}
+	if started != "started" && started != "running" {
+		if started == "paused" {
+			return jx.M{"status": "empty", "message": "Сбор остановлен администратором. Обновите страницу, чтобы возобновить работу."}, nil
 		}
-		key, adult := u.SearchTopicKey(), u.AdultAllowed()
-		var archive []jx.M
-		for _, i := range u.PoolArchiveItems(frozen) {
-			if u.PoolItemInTopic(i, topic, key, adult) {
-				archive = append(archive, i)
-			}
-		}
-		if len(archive) > 0 {
-			r := u.TranslateDisplay(u.ContentForDisplay(archive[0], archive[1:min(4, len(archive))], true))
-			r["archive"], r["fire_warning"], r["parser_runtime"], r["parser_status"] = true, "🔥 Пост скоро исчезнет", *rt, "slow"
-			return r, nil
-		}
+		return jx.M{"status": "empty", "message": "Нового контента пока нет. Можно повторить поиск или добавить запись вручную."}, nil
 	}
 	var runtime int64
 	if rt != nil {
@@ -241,7 +234,7 @@ func parserStatus(c *Ctx) (any, error) {
 			phase = "парсер работает"
 		}
 	}
-	r := jx.M{"running": running, "phase": phase, "activity": c.A.ParserActivity(c.U.ID)}
+	r := jx.M{"running": running, "stopping": running && c.A.ParserPaused(c.U.ID), "paused": c.A.ParserPaused(c.U.ID), "phase": phase, "activity": c.A.ParserActivity(c.U.ID)}
 	if running {
 		r["runtime"], r["progress"] = c.A.ParserRuntimeSeconds(c.U.ID), c.A.ParserProgressPublic(c.U.ID)
 	}
@@ -251,6 +244,7 @@ func parserStatus(c *Ctx) (any, error) {
 // studioLive — «смотровое окно» студии: последние отобранные посты пула (новые сверху) и ход сборщика одним запросом.
 func studioLive(c *Ctx) (any, error) {
 	u := c.U
+	u.PruneUnavailablePoolVideos()
 	pool := u.PoolWithoutLostVideo(u.PoolForCurrentTopic())
 	sorted := append([]jx.M{}, pool...)
 	sort.SliceStable(sorted, func(i, j int) bool { return jx.Int(sorted[i], "timestamp") > jx.Int(sorted[j], "timestamp") })
@@ -523,6 +517,11 @@ func vote(c *Ctx) (any, error) {
 	for _, s := range saved {
 		u.HistoryAppend(s.c, s.r)
 		c.A.CH.Vote(posta.VoteEvent(u.ID, u.CurrentTopic(), v, reason, s.r))
+	}
+	if coll == "liked" {
+		if err := u.PruneSelectedPosts(); err != nil {
+			return nil, err
+		}
 	}
 	if it := posta.PoolFindItem(before, image); it != nil && v != "postpone" {
 		u.MarkSourceRest(u.SearchTopicKey(), it)

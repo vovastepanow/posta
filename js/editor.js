@@ -80,7 +80,7 @@ let ui = null;
 let session = null;
 document.addEventListener('click', () => { if (ui?.targetMenu) ui.targetMenu.hidden = true; });   // меню «Куда» закрывается кликом в стороне
 
-const textLimit = (target, mediaCount) => (TEXT_LIMITS[String(target).split(':')[0]] || TEXT_LIMITS.tg)[mediaCount ? 0 : 1];
+const textLimit = (target, mediaCount) => (session.options.targets.find(t => t.value === target)?.textLimit || TEXT_LIMITS[String(target).split(':')[0]] || TEXT_LIMITS.tg)[mediaCount ? 0 : 1];
 const chip = (label, value) => el('span', { className: 'pe-chip' }, el('span', { className: 'pe-chip-label', textContent: label }), el('strong', { textContent: value }));
 
 function buildUi() {
@@ -109,7 +109,7 @@ function buildUi() {
         drafts.delete(session.options.key);
         session.media = session.options.media.map(m => ({ ...m }));
         session.tags = [...(session.options.hashtags || [])];
-        u.text.value = session.options.original || session.options.description || '';
+        u.text.value = session.options.original || '';
         u.note.textContent = '';
         render();
     });
@@ -299,7 +299,9 @@ function render() {
     ui.summary.textContent = `${media.length} медиа · ${text.length} ${pluralRu(text.length, 'символ', 'символа', 'символов')} · ${options.picked.length} ${pluralRu(options.picked.length, 'ресурс', 'ресурса', 'ресурсов')}`;
     ui.original.disabled = !options.original;
     ui.description.disabled = !options.description;
-    drafts.set(options.key, { media: media.map(m => ({ ...m })), text, tags: [...session.tags] });
+    const snapshot = { media: media.map(m => ({ ...m })), text, tags: [...session.tags] };
+    drafts.set(options.key, snapshot);
+    options.onDraftChange?.(snapshot);
     renderTags();
 }
 
@@ -349,7 +351,7 @@ const targetLabel = o => {
 
 /** Чип «Куда»: один ресурс — подпись; несколько — меню с галочками, отметить можно любые, хотя бы один остаётся. */
 function targetChip(o) {
-    if (o.targets.length < 2) return chip('Куда', targetLabel(o));
+    if (!o.targets.length) return chip('Куда', 'Нет ресурсов');
     const label = el('strong', { textContent: `${targetLabel(o)} ▾` });
     const boxes = o.targets.map(t => {
         const box = el('input', { type: 'checkbox', checked: o.picked.includes(t.value) });
@@ -371,7 +373,11 @@ function togglePicked(value, box) {
     const picked = box.checked ? [...o.picked, value] : o.picked.filter(v => v !== value);
     if (!picked.length) { box.checked = true; return; }
     o.picked = o.targets.map(t => t.value).filter(v => picked.includes(v));
+    if (o.picked.some(v => !v.startsWith('tg:')) && o.mode === 'native') o.mode = 'queue';
+    if (o.mode === 'slot' && !o.picked.every(v => o.schedule?.slots(v))) o.mode = 'queue';
     ui.targetLabel.textContent = `${targetLabel(o)} ▾`;
+    const whenText = ui.chips.querySelector('.pe-chip-when strong');
+    if (whenText) whenText.textContent = whenLabel(o);
     render();
     renderStyle();
 }
@@ -442,12 +448,13 @@ async function pickDate(o) {
     const chosen = await pickDateTime({ value: o.scheduledTs ? new Date(o.scheduledTs * 1000) : null });
     if (chosen === undefined || !session) return;
     if (!chosen) return setWhen(o, { mode: 'now', scheduledTs: 0, scheduledAt: '' });
-    const mode = o.mode === 'native' || o.mode === 'queue' ? o.mode : (o.schedule?.native ? 'native' : 'queue');
+    const mode = o.mode === 'native' || o.mode === 'queue' ? o.mode : 'queue';
     setWhen(o, { mode, scheduledTs: Math.floor(chosen.getTime() / 1000), scheduledAt: formatWhen(chosen) });
 }
 
 /** Ближайший свободный слот: у каждого канала свой, сервер выберет при публикации; здесь показываем слот первого канала с расписанием. */
 async function pickSlot(o) {
+    if (!o.picked.every(v => o.schedule.slots(v))) { ui.note.textContent = 'Расписание нужно настроить для каждого выбранного ресурса.'; return; }
     const first = o.picked.find(v => o.schedule.slots(v));
     if (!first) { ui.note.textContent = 'У выбранных ресурсов нет расписания: «Соцсети» → канал → «Расписание».'; return; }
     const slot = await o.schedule.nextSlot(first).catch(() => null);
@@ -462,7 +469,7 @@ function whenChip(o) {
         { label: 'Сразу', run: () => setWhen(o, { mode: 'now', scheduledTs: 0, scheduledAt: '' }) },
         ...(o.schedule ? [{ label: 'В ближайший слот', run: () => pickSlot(o) }] : []),
         { label: 'Выбрать дату и время…', run: () => pickDate(o) },
-        ...(o.scheduledTs && o.schedule?.native && o.mode !== 'slot' && !session.poll ? [
+        ...(o.scheduledTs && o.schedule?.native && o.picked.every(v => v.startsWith('tg:')) && o.mode !== 'slot' && !session.poll ? [
             { label: o.mode === 'native' ? '✓ Через «Отложенные» Telegram' : 'Через «Отложенные» Telegram', run: () => setWhen(o, { mode: 'native' }) },
             { label: o.mode === 'queue' ? '✓ Через очередь Posta' : 'Через очередь Posta', run: () => setWhen(o, { mode: 'queue' }) },
         ] : []),
@@ -480,9 +487,9 @@ function whenChip(o) {
 
 function renderWhen() {
     const o = session.options;
-    ui.chips.replaceChildren(targetChip(o), whenChip(o), pollChip());
-    ui.title.textContent = o.scheduledTs ? 'Отложенный пост' : 'Новый пост';
-    ui.submit.textContent = o.scheduledTs ? 'Запланировать' : 'Запостить';
+    ui.chips.replaceChildren(targetChip(o), o.editing ? chip('Когда', whenLabel(o)) : whenChip(o), pollChip());
+    ui.title.textContent = o.editing ? 'Редактирование поста' : o.scheduledTs ? 'Отложенный пост' : 'Новый пост';
+    ui.submit.textContent = o.editing ? 'Сохранить' : o.scheduledTs ? 'Запланировать' : 'Запостить';
 }
 
 async function submit(e) {
@@ -506,14 +513,14 @@ async function submit(e) {
     try {
         const { poll } = session;
         const post = { targets: [...options.picked], mode: options.mode, scheduledAt: options.scheduledAt, scheduledTs: options.mode === 'now' ? 0 : options.scheduledTs || 0,
-            media: poll ? [] : media.map(({ kind, src, name, file }) => ({ kind, src, name, file })), text: poll ? '' : ui.text.value.trim(),
+            media: poll ? [] : media.map(({ kind, src, name, file, existing }) => ({ kind, src, name, file, existing })), text: poll ? '' : ui.text.value.trim(),
             poll: poll ? { question: poll.question.trim(), options: poll.options.map(v => v.trim()).filter(Boolean) } : null,
             hashtags: poll || ui.tags.hidden ? [] : [...session.tags] };
         await options.onSubmit(post, onProgress);
         drafts.delete(options.key);
         closeEditor();
     } catch (error) {
-        if (session) { ui.warning.hidden = false; ui.warning.textContent = error.message || String(error); }
+        if (session) { if (error.failedTargets?.length) { options.picked = error.failedTargets; renderWhen(); render(); } ui.warning.hidden = false; ui.warning.textContent = error.message || String(error); }
     } finally {
         ui.submit.textContent = label;
         ui.cancel.disabled = false;
@@ -526,20 +533,22 @@ function closeEditor() {
     if (!session) return;
     ui.overlay.hidden = true;
     document.body.classList.remove('post-editor-open');
+    const onClose = session.options.onClose;
     session = null;
+    onClose?.();
 }
 
 /** options: { key, targets: [{value, label, hashtags}], picked: [value], hashtags: ['#рубрика', …], scheduledAt, scheduledTs, media: [{kind, src, thumb, name}], original, description, schedule, onSubmit(post) → Promise }.
  *  post.targets — значения выбранных ресурсов; post.poll — {question, options} вместо текста и медиа. */
 export function openPostEditor(options) {
     ui ||= buildUi();
-    options.mode ??= options.scheduledTs ? (options.schedule?.native ? 'native' : 'queue') : 'now';
+    options.mode ??= options.scheduledTs ? 'queue' : 'now';
     options.picked = [...options.picked];
-    const draft = drafts.get(options.key);
-    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: null, dragFrom: null, tags: [...(draft?.tags || options.hashtags || [])] };
+    const draft = options.savedDraft || drafts.get(options.key);
+    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: options.poll ? { question: options.poll.question || '', options: [...(options.poll.options || [])] } : null, dragFrom: null, tags: [...(draft?.tags || options.hashtags || [])] };
     renderPoll();
     renderWhen();
-    ui.text.value = draft ? draft.text : (options.original || options.description || '');
+    ui.text.value = draft ? draft.text : (options.original || '');
     ui.note.textContent = ui.url.value = '';
     ui.aiNote.textContent = '';
     ui.overlay.hidden = false;

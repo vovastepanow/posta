@@ -1660,12 +1660,16 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .vp-percent { flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
 .vp-track { height: 6px; overflow: hidden; border-radius: 999px; background: var(--line); }
 .vp-fill { display: block; width: 3%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.8s ease; }
-.vp.is-indeterminate .vp-fill { width: 35%; transition: none; animation: search-slide 1.6s ease-in-out infinite; }
+.vp-spinner { display: none; width: 14px; height: 14px; flex: none; box-sizing: border-box; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: vp-spin .8s linear infinite; }
+@keyframes vp-spin { to { transform: rotate(360deg); } }
+.vp.is-indeterminate .vp-spinner { display: block; }
+.vp.is-indeterminate .vp-track { display: none; }
+.vp.is-indeterminate .vp-head { justify-content: flex-start; align-items: center; }
 .vp.is-compact { left: 5px; right: 5px; bottom: 5px; gap: 3px; padding: 4px 5px; border-radius: 6px; }
 .vp.is-compact .vp-head { justify-content: center; font-size: 10px; }
-.vp.is-compact .vp-head:has(.vp-percent:empty) { display: none; }   /* стадия без процента (разбор, очередь) — одна полоса */
+.vp.is-compact.is-indeterminate .vp-head { justify-content: center; }
 .has-vp > .pv-cell-plate, .has-vp > .sp-plate, .has-vp > .proposal-pending { visibility: hidden; }   /* подпись «Видео загружается…» заменила полоса */
-@media (prefers-reduced-motion: reduce) { .vp-fill, .vp.is-indeterminate .vp-fill, .search-progress-fill, .pe-progress-fill { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .vp-fill, .vp-spinner, .search-progress-fill, .pe-progress-fill { animation: none; } }
 
 /* ---- Ролик TikTok/Shorts ещё загружается (js/tabs.js) ---- */
 .proposal-pending { position: absolute; left: 6px; bottom: 6px; padding: 2px 8px; border: 1.5px solid var(--line-strong); border-radius: 999px; background: var(--accent); color: var(--accent-text); font-size: 11px; font-weight: 700; pointer-events: none; }
@@ -2009,7 +2013,7 @@ body.console-collapsed .activity-console { display: none; }
 .cal-group-row .cal-act { margin-left: auto; }
 
 /* ---- Просмотрщик постов (POST_VIEW_V2_PROMPT.md): карточка по центру, листание по бокам, медиа — мозаика; один модуль js/post-view.js ---- */
-.pv { position: fixed; inset: 0; z-index: 950; display: grid; place-items: center; padding: 20px; background: var(--modal-dim); }
+.pv { position: fixed; inset: 0; z-index: 950; display: grid; box-sizing: border-box; place-items: center; padding: 20px; background: rgba(0, 0, 0, .3); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
 .pv[hidden] { display: none; }
 body.pv-open { overflow: hidden; }
 .pv-frame { display: flex; align-items: center; justify-content: center; gap: 16px; width: 100%; height: 100%; min-height: 0; }
@@ -2039,6 +2043,7 @@ body.pv-open { overflow: hidden; }
 /* Видео в плитке (post-view.js, videoTile): играет без звука; панель контролов — после первого нажатия */
 .pv-cell-video, .pv-cell-poster { cursor: pointer; }
 .pv-cell-media { display: block; width: 100%; height: 100%; object-fit: cover; background: #000000; }
+.pv-youtube { border: 0; background: #000; }
 .pv-mosaic.n-1 .pv-cell-media { object-fit: contain; }
 .pv-cell-video:focus-visible, .pv-cell-poster:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Раскладка по числу файлов; высоты заданы заранее — вёрстка не прыгает при загрузке картинок */
@@ -2103,9 +2108,9 @@ body.pv-open { overflow: hidden; }
 .is-embedded .pv-actions { position: static; }
 .item-post { min-width: 0; }
 @media (max-width: 899px) {
-    .pv { padding: 0; }
+    .pv { padding: 12px; }
     .pv-frame { position: relative; }
-    .pv-sheet { width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; }
+    .pv-sheet { width: 100%; max-height: 100%; }
     .pv-side-nav { position: absolute; top: 50%; z-index: 2; width: 40px; height: 40px; transform: translateY(-50%); background: color-mix(in srgb, var(--surface) 85%, transparent); font-size: 22px; transition: opacity 0.2s; }
     .pv-side-nav.is-prev { left: 6px; }
     .pv-side-nav.is-next { right: 6px; }
@@ -2331,6 +2336,19 @@ body.pv-open { overflow: hidden; }
 /* Подтверждение внутри страницы (ask() в js/core.js) — вместо браузерного confirm() */
 .ask-dialog { width: min(440px, calc(100vw - 32px)); max-width: none; padding: 20px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); }
 .ask-dialog::backdrop { background: var(--modal-dim); }
+
+/* Единый фон модальных окон и медиапросмотрщика. */
+.tree-backdrop, .image-viewer, .pe-overlay, .dtp-overlay, .cal-hint-layer,
+.source-preview-overlay, .article-reader, .pv {
+    background: rgba(0, 0, 0, .3);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+}
+.database-edit-dialog::backdrop, .ask-dialog::backdrop {
+    background: rgba(0, 0, 0, .3);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+}
 .ask-dialog h2 { margin: 0 0 8px; font-size: 18px; }
 .ask-dialog p { margin: 0 0 10px; line-height: 1.45; }
 .ask-dialog .dialog-actions { margin-top: 16px; }
@@ -2364,3 +2382,8 @@ body.pv-open { overflow: hidden; }
 .btn-main { background: #ffda1a; color: #27251f; box-shadow: 0 2px 0 rgba(39, 37, 31, .16); }
 .activity-console-line.console-box { border-left-color: #8a7100; }
 .cal-fill { background: #a52d25; color: #fffdf7; }
+
+.image-viewer-draft-add { margin-left: 0; width: 38px; }
+
+/* Пустая подпись занимает столько же места, сколько одна строка текста. */
+.pv-text-empty, .cal-plan-text:empty, .cal-text:empty, .cal-phone-text:empty, .cal-pick-text:empty, .cal-pop-text:empty, .sp-text:empty { min-height: 1lh; }

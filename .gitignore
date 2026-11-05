@@ -1,5 +1,6 @@
 # Секреты
 posta.env
+/vk-client-id
 config.local.php
 secret.key
 secret.key.php

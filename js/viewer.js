@@ -186,6 +186,11 @@ function open(item, gallery = null) {
     $('image-viewer-prev').hidden = $('image-viewer-next').hidden = !(gallery && gallery.items.length > 1);
     for (const m of [$('image-viewer-image'), $('image-viewer-video')]) m.style.width = m.style.height = '';
     syncRocket();
+    import('./content.js').then(({ bindFutureDraftButton }) => bindFutureDraftButton($('image-viewer-draft-add'), () => {
+        const current = state.gallery?.items?.[state.gallery.index];
+        if (!current?.src) return null;
+        return current.kind === 'video' ? { image: current.poster || current.src, video: current.src } : { image: current.src };
+    }));
     setHeader(item.kind, item.src, item.fallback);
     status('');
     offerVideo(item, gallery);
@@ -361,6 +366,9 @@ export function initializeImageViewer() {
     document.addEventListener('click', e => {
         const img = e.target.closest('img');
         if (!img || img.dataset.noZoom || img.closest('#image-viewer') || !(img.currentSrc || img.src)) return;
+        // Миниатюры кликабельных карточек открывают сам пост; их клик не должен
+        // одновременно запускать глобальный медиапросмотрщик.
+        if (img.closest('.cal-card, .cal-phone-card, .cal-pool-item, .sp-card')) return;
         e.preventDefault();
         const d = img.dataset;
         if (d.external) return void open_(d.external);

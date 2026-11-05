@@ -27,14 +27,14 @@ type OpenRouter struct {
 
 // ORModel — модель из каталога OpenRouter: цены в долларах за токен.
 type ORModel struct {
-	ID             string   `json:"id"`
-	Name           string   `json:"name"`
-	ContextLength  int      `json:"context_length"`
-	PromptPrice    float64  `json:"prompt_price"`
-	CompletionPrice float64 `json:"completion_price"`
-	ImagePrice     float64  `json:"image_price"`
-	Vision         bool     `json:"vision"`
-	Params         []string `json:"params"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	ContextLength   int      `json:"context_length"`
+	PromptPrice     float64  `json:"prompt_price"`
+	CompletionPrice float64  `json:"completion_price"`
+	ImagePrice      float64  `json:"image_price"`
+	Vision          bool     `json:"vision"`
+	Params          []string `json:"params"`
 }
 
 func (m ORModel) Supports(p string) bool {
@@ -234,6 +234,9 @@ func (o *OpenRouter) Generate(ctx context.Context, model string, req *Request) (
 			delete(payload, "provider")
 			req.Logprobs = false
 			continue
+		}
+		if status == 429 && strings.Contains(strings.ToLower(string(raw)), "free-models-per-day") {
+			break // суточный лимит не исчезнет за несколько секунд
 		}
 		if err != nil || status == 429 || status >= 500 {
 			if ctx.Err() != nil {

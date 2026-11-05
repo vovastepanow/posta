@@ -1,18 +1,423 @@
 package posta
 
 import (
-	"os"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"golang.org/x/net/html"
+
 	"posta/internal/config"
 	"posta/internal/jx"
 )
+
+var habrHubPath = regexp.MustCompile(`^/(?:ru|en)/hubs/([a-zA-Z0-9_-]+)/?(?:articles/?)?$`)
+
+// discoveryNewsSites extracts publisher origins, never the news aggregator itself.
+func discoveryNewsSites(data []byte) []string {
+	doc := rssLoad(data)
+	if !rssIsFeed(doc) {
+		return nil
+	}
+	seen := map[string]bool{}
+	var sites []string
+	for _, item := range rssItems(doc) {
+		raw := ""
+		if source := item.kid("source"); source != nil {
+			raw = source.A["url"]
+		}
+		if raw == "" {
+			raw = rssItemLink(item)
+		}
+		parsed, err := url.Parse(raw)
+		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Hostname() == "" || parsed.User != nil || parsed.Port() != "" {
+			continue
+		}
+		host := strings.ToLower(parsed.Hostname())
+		if !strings.Contains(host, ".") || host == "bing.com" || strings.HasSuffix(host, ".bing.com") || host == "google.com" || strings.HasSuffix(host, ".google.com") {
+			continue
+		}
+		origin := "https://" + host + "/"
+		if !seen[origin] {
+			seen[origin] = true
+			sites = append(sites, origin)
+		}
+	}
+	return sites
+}
+
+// Discover publishers through Bing News, then resolve each site's advertised feed.
+func (u *U) discoveryFindNewsFeeds(queries []string) []DiscoveryCandidate {
+	if !u.TBool("search_news") {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []DiscoveryCandidate
+	for _, q := range queries[:min(2, len(queries))] {
+		feed := "https://www.bing.com/news/search?q=" + url.QueryEscape(q) + "&format=rss&setlang=ru"
+		r := u.RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
+		if !r.OK {
+			u.Log("-> Поиск сайтов «%s»: новостной поиск недоступен.", q)
+			continue
+		}
+		for _, site := range discoveryNewsSites(r.Bytes) {
+			if seen[site] {
+				continue
+			}
+			if len(seen) >= 6 {
+				return out
+			}
+			seen[site] = true
+			feedURL, err := u.RSSDiscover(site)
+			if err != nil {
+				continue
+			}
+			out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: feedURL, Origin: "издание по запросу «" + q + "»", OriginKind: "other"})
+		}
+	}
+	u.Log("-> Поиск сайтов: RSS-лент найдено %d, сайтов проверено %d.", len(out), len(seen))
+	return out
+}
+
+func discoveryHabrHubs(page string, queries []string) []DiscoveryCandidate {
+	z := html.NewTokenizer(strings.NewReader(page))
+	var href string
+	var title strings.Builder
+	var out []DiscoveryCandidate
+	seen := map[string]bool{}
+	for {
+		t := z.Next()
+		if t == html.ErrorToken {
+			if z.Err() == io.EOF {
+				break
+			}
+			return out
+		}
+		switch t {
+		case html.StartTagToken:
+			tok := z.Token()
+			if tok.Data == "a" {
+				href = ""
+				title.Reset()
+				for _, a := range tok.Attr {
+					if a.Key == "href" {
+						href = a.Val
+					}
+				}
+			}
+		case html.TextToken:
+			if href != "" {
+				title.Write(z.Text())
+			}
+		case html.EndTagToken:
+			if z.Token().Data != "a" || href == "" {
+				continue
+			}
+			parsed, err := url.Parse(href)
+			if err != nil || (parsed.Host != "" && parsed.Hostname() != "habr.com") {
+				href = ""
+				continue
+			}
+			m := habrHubPath.FindStringSubmatch(parsed.Path)
+			name := strings.TrimSpace(title.String())
+			if m == nil || name == "" || seen[m[1]] {
+				href = ""
+				continue
+			}
+			match := false
+			for _, q := range queries {
+				if QueryTextHit(strings.ToLower(name), strings.ToLower(q)) {
+					match = true
+					break
+				}
+			}
+			if match {
+				seen[m[1]] = true
+				out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: "https://habr.com/ru/rss/hubs/" + m[1] + "/articles/all/?fl=ru", Info: jx.M{"title": name}, Origin: "хаб Хабра", OriginKind: "other"})
+			}
+			href = ""
+		}
+	}
+	return out
+}
+
+func (u *U) discoveryFindHabr(queries []string, turn int) []DiscoveryCandidate {
+	var out []DiscoveryCandidate
+	for i := 0; i < 2; i++ {
+		page := (turn*2+i)%11 + 1
+		r := u.RSSGet(fmt.Sprintf("https://habr.com/ru/hubs/page%d/", page), 3<<20, 15*time.Second, BrowserUA)
+		if !r.OK {
+			u.Log("-> Хабр: страница хабов %d не загрузилась.", page)
+			continue
+		}
+		out = append(out, discoveryHabrHubs(string(r.Bytes), queries)...)
+	}
+	u.Log("-> Хабр: подходящих хабов найдено %d.", len(out))
+	return out
+}
+
+// discoveryLemmyCommunities extracts stable community feeds from the search response.
+func discoveryLemmyCommunities(data []byte) ([]DiscoveryCandidate, error) {
+	var response struct {
+		Communities []struct {
+			Community struct {
+				ActorID string `json:"actor_id"`
+				Name    string `json:"name"`
+				Title   string `json:"title"`
+				Deleted bool   `json:"deleted"`
+				Removed bool   `json:"removed"`
+			} `json:"community"`
+		} `json:"communities"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	var out []DiscoveryCandidate
+	for _, row := range response.Communities {
+		c := row.Community
+		if c.Deleted || c.Removed {
+			continue
+		}
+		candidate := PostSearchAuthor(jx.M{"source_key": "lemmy:community", "source_author_url": c.ActorID})
+		if candidate == nil {
+			continue
+		}
+		candidate.Info = jx.M{"title": c.Title}
+		out = append(out, *candidate)
+	}
+	return out, nil
+}
+
+func (u *U) discoveryFindLemmy(queries []string) []DiscoveryCandidate {
+	if !u.TBool("search_lemmy") {
+		return nil
+	}
+	var out []DiscoveryCandidate
+	for _, q := range queries[:min(3, len(queries))] {
+		body, err := u.searchGetJSON("https://lemmy.world/api/v3/search?type_=Communities&limit=30&q=" + url.QueryEscape(q))
+		if err != nil {
+			u.Log("-> Lemmy «%s»: %s", q, err)
+			continue
+		}
+		found, err := discoveryLemmyCommunities(body)
+		if err != nil {
+			u.Log("-> Lemmy «%s»: %s", q, err)
+			continue
+		}
+		for _, c := range found {
+			c.Origin, c.OriginKind = "поиск сообществ Lemmy «"+q+"»", "other"
+			out = append(out, c)
+		}
+		u.Log("-> Поиск сообществ Lemmy «%s»: найдено %d.", q, len(found))
+	}
+	return out
+}
+
+var redditCommunityName = regexp.MustCompile(`^[A-Za-z0-9_]{3,21}$`)
+
+var blueskyDID = regexp.MustCompile(`^did:plc:[a-z2-7]{24}$`)
+
+func discoveryBlueskyActors(data []byte) ([]DiscoveryCandidate, error) {
+	var response struct {
+		Actors []struct {
+			DID         string `json:"did"`
+			Handle      string `json:"handle"`
+			DisplayName string `json:"displayName"`
+		} `json:"actors"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	var out []DiscoveryCandidate
+	for _, actor := range response.Actors {
+		if !blueskyDID.MatchString(actor.DID) {
+			continue
+		}
+		name := strings.TrimSpace(actor.DisplayName)
+		if name == "" {
+			name = actor.Handle
+		}
+		out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: "https://bsky.app/profile/" + actor.DID + "/rss", Info: jx.M{"title": name}})
+	}
+	return out, nil
+}
+
+func discoveryBlueskyPostAuthors(data []byte) ([]DiscoveryCandidate, error) {
+	var response struct {
+		Posts []struct {
+			Author struct {
+				DID         string `json:"did"`
+				Handle      string `json:"handle"`
+				DisplayName string `json:"displayName"`
+			} `json:"author"`
+		} `json:"posts"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	var out []DiscoveryCandidate
+	seen := map[string]bool{}
+	for _, post := range response.Posts {
+		a := post.Author
+		if !blueskyDID.MatchString(a.DID) || seen[a.DID] {
+			continue
+		}
+		seen[a.DID] = true
+		name := strings.TrimSpace(a.DisplayName)
+		if name == "" {
+			name = a.Handle
+		}
+		out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: "https://bsky.app/profile/" + a.DID + "/rss", Info: jx.M{"title": name}})
+	}
+	return out, nil
+}
+
+func (u *U) discoveryFindBluesky(queries []string) []DiscoveryCandidate {
+	if !u.TBool("search_bluesky") {
+		return nil
+	}
+	var out []DiscoveryCandidate
+	for _, q := range queries[:min(3, len(queries))] {
+		body, err := u.searchGetJSON("https://public.api.bsky.app/xrpc/app.bsky.actor.searchActors?limit=25&q=" + url.QueryEscape(q))
+		if err == nil {
+			var found []DiscoveryCandidate
+			found, err = discoveryBlueskyActors(body)
+			for _, c := range found {
+				c.Origin, c.OriginKind = "поиск аккаунтов Bluesky «"+q+"»", "other"
+				out = append(out, c)
+			}
+			u.Log("-> Поиск аккаунтов Bluesky «%s»: найдено %d.", q, len(found))
+		}
+		if err != nil {
+			u.Log("-> Bluesky «%s»: %s", q, err)
+		}
+		body, err = u.searchGetJSON("https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?limit=25&q=" + url.QueryEscape(q))
+		if err != nil {
+			u.Log("-> Посты Bluesky «%s»: %s", q, err)
+			continue
+		}
+		authors, err := discoveryBlueskyPostAuthors(body)
+		if err != nil {
+			u.Log("-> Посты Bluesky «%s»: %s", q, err)
+			continue
+		}
+		for _, c := range authors {
+			c.Origin, c.OriginKind = "автор поста Bluesky «"+q+"»", "post_search"
+			out = append(out, c)
+		}
+		u.Log("-> Поиск постов Bluesky «%s»: авторов %d.", q, len(authors))
+	}
+	return out
+}
+
+// Reddit's subreddit search returns communities; each public community has an RSS feed.
+func discoveryRedditCommunities(data []byte) ([]DiscoveryCandidate, error) {
+	var response struct {
+		Data struct {
+			Children []struct {
+				Data struct {
+					Name  string `json:"display_name"`
+					Title string `json:"title"`
+					Type  string `json:"subreddit_type"`
+					NSFW  bool   `json:"over18"`
+				} `json:"data"`
+			} `json:"children"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	var out []DiscoveryCandidate
+	for _, row := range response.Data.Children {
+		c := row.Data
+		if !redditCommunityName.MatchString(c.Name) || c.NSFW || c.Type != "public" {
+			continue
+		}
+		out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: "https://www.reddit.com/r/" + strings.ToLower(c.Name) + "/.rss", Info: jx.M{"title": c.Title}})
+	}
+	return out, nil
+}
+
+func (u *U) discoveryFindReddit(queries []string) []DiscoveryCandidate {
+	if !u.TBool("search_reddit") {
+		return nil
+	}
+	var out []DiscoveryCandidate
+	for _, q := range queries[:min(3, len(queries))] {
+		var body []byte
+		var err error
+		if u.NetworkAppKey("REDDIT_CLIENT_ID") != "" && u.NetworkAppKey("REDDIT_CLIENT_SECRET") != "" {
+			body, err = u.redditRead("/subreddits/search?limit=25&q=" + url.QueryEscape(q))
+		} else {
+			body, err = u.searchGetJSON("https://www.reddit.com/subreddits/search.json?limit=25&q=" + url.QueryEscape(q))
+		}
+		if err != nil {
+			u.Log("-> Reddit «%s»: %s", q, err)
+			continue
+		}
+		found, err := discoveryRedditCommunities(body)
+		if err != nil {
+			u.Log("-> Reddit «%s»: %s", q, err)
+			continue
+		}
+		for _, c := range found {
+			c.Origin, c.OriginKind = "поиск сообществ Reddit «"+q+"»", "other"
+			out = append(out, c)
+		}
+		u.Log("-> Поиск сообществ Reddit «%s»: найдено %d.", q, len(found))
+	}
+	return out
+}
+
+// Find JoyReactor authors from posts and resolve their advertised RSS feeds.
+func (u *U) discoveryFindJoyAuthors(queries []string, topic string) []DiscoveryCandidate {
+	if !u.TBool("search_joyreactor") {
+		return nil
+	}
+	var out []DiscoveryCandidate
+	seen := map[string]bool{}
+	for _, c := range out {
+		seen[strings.ToLower(c.ID)] = true
+	}
+	for _, q := range queries[:min(2, len(queries))] {
+		posts, _, err := u.SearchJoyreactor(q, 1)
+		if err != nil {
+			u.Log("-> JoyReactor «%s»: %s", q, err)
+			continue
+		}
+		for _, p := range posts {
+			if len(seen) >= 5 {
+				return out
+			}
+			if !u.PostSearchMatches(topic, p) {
+				continue
+			}
+			profile := jx.Str(p, "source_author_url")
+			if profile == "" || seen[profile] {
+				continue
+			}
+			seen[profile] = true
+			feed, err := u.RSSDiscover(profile)
+			if err != nil {
+				continue
+			}
+			parsed, err := url.Parse(feed)
+			if err != nil || parsed.Scheme != "https" || (parsed.Hostname() != "joyreactor.cc" && parsed.Hostname() != "reactor.cc") {
+				continue
+			}
+			out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: feed, Origin: "автор JoyReactor «" + q + "»", OriginKind: "post_search"})
+		}
+	}
+	return out
+}
 
 const (
 	discoveryYouTubeMax     = 12
@@ -47,6 +452,12 @@ var (
 	lsYTChanRe   = regexp.MustCompile(`youtube\.com/channel/(UC[A-Za-z0-9_-]{22})`)
 	lsPinRe      = regexp.MustCompile(`(?i)pinterest\.(?:com|ru)/([A-Za-z0-9_.-]{2,64})/`)
 	lsTumblrRe   = regexp.MustCompile(`(?i)(?:^|[^\w-])([a-z0-9-]{1,32})\.tumblr\.com`)
+	lsRedditRe   = regexp.MustCompile(`(?i)(?:^|[^\w.])(?:www\.|old\.)?reddit\.com/r/([a-z0-9_]{3,21})(?:[/?:#"'<\s]|$)`)
+	lsBlueskyRe  = regexp.MustCompile(`(?i)(?:^|[^\w.])bsky\.app/profile/(did:plc:[a-z2-7]{24}|[a-z0-9.-]{3,253})(?:[/?:#"'<\s]|$)`)
+	lsPinBoardRe = regexp.MustCompile(`(?i)(?:^|[^\w.])(?:www\.)?pinterest\.(?:com|ru)/([a-z0-9_.-]{2,64})/([a-z0-9_.-]{1,100})(?:[/?:#"'<\s]|$)`)
+	lsRutubeRe   = regexp.MustCompile(`(?i)(?:^|[^\w.])rutube\.ru/(?:channel|video/person)/(\d{1,20})(?:[/?:#"'<\s]|$)`)
+	lsPikabuRe   = regexp.MustCompile(`(?i)(?:^|[^\w.])pikabu\.ru/community/([a-z0-9_]{2,80})(?:[/?:#"'<\s]|$)`)
+	lsXRe        = regexp.MustCompile(`(?i)(?:^|[^\w.])(?:x\.com|twitter\.com)/([a-z0-9_]{1,15})(?:[/?:#"'<\s]|$)`)
 )
 
 // SourceLinkedSources — ссылки на площадки в тексте или HTML (только распознавание, сети нет).
@@ -94,6 +505,89 @@ func SourceLinkedSources(text string) []DiscoveryCandidate {
 		if strings.ToLower(m[1]) != "www" {
 			add(PlatformRSS, "https://"+strings.ToLower(m[1])+".tumblr.com/")
 		}
+	}
+	for _, m := range lsRedditRe.FindAllStringSubmatch(text, -1) {
+		add(PlatformRSS, "https://www.reddit.com/r/"+strings.ToLower(m[1])+"/.rss")
+	}
+	for _, m := range lsRutubeRe.FindAllStringSubmatch(text, -1) {
+		if m[1] != "0" {
+			add(PlatformRSS, "https://rutube.ru/channel/"+m[1]+"/")
+		}
+	}
+	for _, m := range lsPikabuRe.FindAllStringSubmatch(text, -1) {
+		add(PlatformRSS, "https://pikabu.ru/community/"+m[1])
+	}
+	for _, m := range lsXRe.FindAllStringSubmatch(text, -1) {
+		if user := xProfileName("https://x.com/" + m[1]); user != "" {
+			add(PlatformRSS, "https://x.com/"+user)
+		}
+	}
+	for _, m := range lsBlueskyRe.FindAllStringSubmatch(text, -1) {
+		add(PlatformRSS, "https://bsky.app/profile/"+strings.ToLower(m[1])+"/rss")
+	}
+	for _, m := range lsPinBoardRe.FindAllStringSubmatch(text, -1) {
+		if !contains(pinterestReserved, strings.ToLower(m[1])) && !contains(pinterestReserved, strings.ToLower(m[2])) {
+			add(PlatformRSS, "https://www.pinterest.com/"+m[1]+"/"+m[2]+".rss")
+		}
+	}
+	return out
+}
+
+func discoveryPinterestBoards(page string) []DiscoveryCandidate {
+	z := html.NewTokenizer(strings.NewReader(page))
+	seen := map[string]bool{}
+	var out []DiscoveryCandidate
+	for {
+		t := z.Next()
+		if t == html.ErrorToken {
+			break
+		}
+		if t != html.StartTagToken && t != html.SelfClosingTagToken {
+			continue
+		}
+		tok := z.Token()
+		if tok.Data != "a" {
+			continue
+		}
+		for _, a := range tok.Attr {
+			if a.Key != "href" {
+				continue
+			}
+			parsed, err := url.Parse(a.Val)
+			if err != nil || parsed.User != nil || (parsed.Host != "" && !strings.EqualFold(parsed.Hostname(), "www.pinterest.com") && !strings.EqualFold(parsed.Hostname(), "pinterest.com")) {
+				continue
+			}
+			parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+			if len(parts) != 2 || !pinUserRe.MatchString(parts[0]) || !pinBoardRe.MatchString(parts[1]) || contains(pinterestReserved, strings.ToLower(parts[0])) || contains(pinterestReserved, strings.ToLower(parts[1])) {
+				continue
+			}
+			id := "https://www.pinterest.com/" + parts[0] + "/" + parts[1] + ".rss"
+			if !seen[id] {
+				seen[id] = true
+				out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: id})
+			}
+		}
+	}
+	return out
+}
+
+// discoveryFindPinterest uses public board search when Pinterest includes board links in HTML.
+func (u *U) discoveryFindPinterest(queries []string) []DiscoveryCandidate {
+	var out []DiscoveryCandidate
+	for _, q := range queries[:min(2, len(queries))] {
+		page := "https://www.pinterest.com/search/boards/?q=" + url.QueryEscape(q)
+		r := u.RSSGet(page, 3<<20, 15*time.Second, BrowserUA)
+		if !r.OK {
+			u.Log("-> Pinterest «%s»: поиск недоступен.", q)
+			continue
+		}
+		count := 0
+		for _, c := range discoveryPinterestBoards(string(r.Bytes)) {
+			c.Origin, c.OriginKind = "поиск досок Pinterest «"+q+"»", "other"
+			out = append(out, c)
+			count++
+		}
+		u.Log("-> Поиск досок Pinterest «%s»: найдено %d.", q, count)
 	}
 	return out
 }
@@ -184,7 +678,9 @@ type discoveryQueue struct {
 	turn   int
 }
 
-func newDiscoveryQueue() *discoveryQueue { return &discoveryQueue{groups: map[string][]DiscoveryCandidate{}} }
+func newDiscoveryQueue() *discoveryQueue {
+	return &discoveryQueue{groups: map[string][]DiscoveryCandidate{}}
+}
 
 func (q *discoveryQueue) add(group string, c DiscoveryCandidate, front bool) {
 	if front {
@@ -354,10 +850,31 @@ func (u *U) discoveryFindPosts(queries []string, topic string) []DiscoveryCandid
 			authors[key].n++
 		}
 	}
-	for _, q := range queries[:min(len(queries), u.TInt("post_search_queries"))] {
+	for i, q := range queries[:min(len(queries), u.TInt("post_search_queries"))] {
 		take(u.PostSearchYouTube(q, PostSearchLimit))
 		take(u.PostSearchTelegram(q, PostSearchLimit))
 		take(u.PostSearchVK(q, PostSearchLimit))
+		if i < 3 && u.TBool("search_vc") {
+			take(u.queryOsnovaSearch(q))
+		}
+		if u.TBool("search_lemmy") {
+			posts, _, err := u.SearchLemmy(q, 1)
+			if err == nil {
+				take(posts)
+			}
+		}
+		if i < 3 && u.TBool("search_rutube") {
+			posts, _, err := u.SearchRutube(q, 1)
+			if err == nil {
+				take(posts)
+			}
+		}
+		if i < 2 && u.TBool("search_mastodon") {
+			posts, _, err := u.SearchMastodon(q, 1)
+			if err == nil {
+				take(posts)
+			}
+		}
 	}
 	if len(queries) > 0 {
 		take(u.PostSearchTikTok(queries[0], PostSearchLimit))
@@ -440,15 +957,204 @@ func (u *U) discoveryFindTelegram(plan discoveryPlan, seeds []string) []Discover
 	return out
 }
 
+// Only direct VK profile/community links are accepted from public search results.
+var vkWebPostPath = regexp.MustCompile(`(?i)^(?:wall|photo|video|topic)-?\d`)
+
+func vkWebSearchCandidates(page string) []DiscoveryCandidate {
+	seen := map[string]bool{}
+	var out []DiscoveryCandidate
+	z := html.NewTokenizer(strings.NewReader(page))
+	for {
+		tt := z.Next()
+		if tt == html.ErrorToken {
+			break
+		}
+		if tt != html.StartTagToken && tt != html.SelfClosingTagToken {
+			continue
+		}
+		token := z.Token()
+		if token.Data != "a" {
+			continue
+		}
+		for _, a := range token.Attr {
+			if a.Key != "href" {
+				continue
+			}
+			p, err := url.Parse(a.Val)
+			if err != nil || p.User != nil || p.Scheme != "https" || (p.Hostname() != "vk.com" && p.Hostname() != "www.vk.com" && p.Hostname() != "m.vk.com") {
+				continue
+			}
+			id := strings.Trim(p.Path, "/")
+			if strings.Contains(id, "/") || !IsValidVKDomain(id) || lsVKBadRe.MatchString(id) || vkWebPostPath.MatchString(id) {
+				continue
+			}
+			key := strings.ToLower(id)
+			if !seen[key] {
+				seen[key] = true
+				out = append(out, DiscoveryCandidate{Platform: PlatformVK, ID: id})
+			}
+		}
+	}
+	return out
+}
+
+var vkDirectoryCategoryPath = regexp.MustCompile(`^/vk/([a-z0-9-]+)/$`)
+
+func vkDirectoryCategories(page string, queries []string) []string {
+	z := html.NewTokenizer(strings.NewReader(page))
+	var href string
+	var label strings.Builder
+	seen := map[string]bool{}
+	var out []string
+	for {
+		tt := z.Next()
+		if tt == html.ErrorToken {
+			break
+		}
+		switch tt {
+		case html.StartTagToken:
+			tok := z.Token()
+			if tok.Data == "a" {
+				href = ""
+				label.Reset()
+				for _, a := range tok.Attr {
+					if a.Key == "href" {
+						href = a.Val
+					}
+				}
+			}
+		case html.TextToken:
+			if href != "" {
+				label.Write(z.Text())
+			}
+		case html.EndTagToken:
+			if z.Token().Data != "a" || href == "" {
+				continue
+			}
+			m := vkDirectoryCategoryPath.FindStringSubmatch(href)
+			name := strings.ToLower(label.String())
+			if m != nil {
+				for _, q := range queries {
+					for _, word := range strings.Fields(strings.ToLower(q)) {
+						if len([]rune(word)) >= 4 && strings.Contains(name, word) && !seen[href] {
+							seen[href] = true
+							out = append(out, href)
+						}
+					}
+				}
+			}
+			href = ""
+		}
+	}
+	return out
+}
+
+// Extract only catalog result rows; page-wide navigation and recommendations
+// can contain communities from unrelated categories.
+func vkDirectoryResults(page string) []DiscoveryCandidate {
+	root, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		return nil
+	}
+	var out []DiscoveryCandidate
+	seen := map[string]bool{}
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "li" && strings.Contains(" "+publicAttr(n, "class")+" ", " row ") {
+			var content strings.Builder
+			var collect func(*html.Node)
+			collect = func(x *html.Node) {
+				if x.Type == html.TextNode {
+					content.WriteString(x.Data)
+					content.WriteByte(' ')
+				}
+				for c := x.FirstChild; c != nil; c = c.NextSibling {
+					collect(c)
+				}
+			}
+			collect(n)
+			for _, c := range SourceLinkedSources(content.String()) {
+				if c.Platform == PlatformVK && !seen[strings.ToLower(c.ID)] {
+					seen[strings.ToLower(c.ID)] = true
+					out = append(out, c)
+				}
+			}
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+	return out
+}
+
+func (u *U) discoveryFindVKDirectory(queries []string) []DiscoveryCandidate {
+	base := "https://ugcplatform.ru"
+	r := u.RSSGet(base+"/vk/", 3<<20, 15*time.Second, BrowserUA)
+	if !r.OK {
+		u.Log("-> Каталог VK недоступен.")
+		return nil
+	}
+	paths := vkDirectoryCategories(string(r.Bytes), queries)
+	var out []DiscoveryCandidate
+	seen := map[string]bool{}
+	for _, path := range paths[:min(3, len(paths))] {
+		p := u.RSSGet(base+path, 3<<20, 15*time.Second, BrowserUA)
+		if !p.OK {
+			continue
+		}
+		for _, c := range vkDirectoryResults(string(p.Bytes)) {
+			if c.Platform != PlatformVK || seen[strings.ToLower(c.ID)] {
+				continue
+			}
+			seen[strings.ToLower(c.ID)] = true
+			c.Origin = "тематический каталог VK"
+			c.OriginKind = "vk_search"
+			out = append(out, c)
+		}
+	}
+	u.Log("-> Тематический каталог VK: разделов %d, кандидатов %d.", min(3, len(paths)), len(out))
+	return out
+}
+
+func (u *U) discoveryFindVKWeb(queries []string) []DiscoveryCandidate {
+	out := u.discoveryFindVKDirectory(queries)
+	seen := map[string]bool{}
+	for _, q := range queries[:min(2, len(queries))] {
+		page, err := u.braveSearchPage("site:vk.com " + q + " сообщество")
+		if err != nil {
+			u.Log("-> Веб-поиск сообществ VK «%s»: %s", q, err)
+			break
+		}
+		found := vkWebSearchCandidates(page)
+		for _, c := range found {
+			key := strings.ToLower(c.ID)
+			if !seen[key] {
+				seen[key] = true
+				c.Origin = "веб-поиск VK «" + q + "»"
+				c.OriginKind = "vk_search"
+				out = append(out, c)
+			}
+		}
+		u.Log("-> Веб-поиск сообществ VK «%s»: кандидатов %d.", q, len(found))
+	}
+	return out
+}
+
 func (u *U) discoveryFindVK(queries []string) []DiscoveryCandidate {
 	if !u.VKIsConnected(u.Ctx) {
-		u.Log("-> VK не подключён — поиск сообществ VK пропущен (кнопка «Подключить VK» на вкладке «Источники»).")
-		return nil
+		return u.discoveryFindVKWeb(queries)
 	}
 	var out []DiscoveryCandidate
 	for _, q := range queries[:min(8, len(queries))] {
 		found, err := u.VKSearchGroups(u.Ctx, q, 10)
 		if err != nil {
+			var apiErr *VKAPIError
+			if errors.As(err, &apiErr) && apiErr.Code == 1051 {
+				u.Log("-> VK ID не разрешает поиск сообществ для этого профиля; пробую веб-поиск.")
+				return append(out, u.discoveryFindVKWeb(queries)...)
+			}
 			u.Log("-> Поиск VK «%s»: %s", q, err)
 			continue
 		}
@@ -598,7 +1304,7 @@ func (u *U) discoveryFindOK(queries []string, topic string) []DiscoveryCandidate
 }
 
 // discoveryProbe — сведения о кандидате: название, описание, посты, подписчики, даты, просмотры, ссылки.
-func (u *U) discoveryProbe(c DiscoveryCandidate) (jx.M, error) {
+func (u *U) discoveryProbe(c DiscoveryCandidate, topic string) (jx.M, error) {
 	base := jx.M{"id": c.ID, "title": "", "description": "", "subscribers": int64(0), "posts": []jx.M{}, "post_times": []any{}, "post_views": []any{}, "linked": []DiscoveryCandidate{}}
 	merge := func(m jx.M) jx.M {
 		out := jx.Copy(base)
@@ -644,11 +1350,27 @@ func (u *U) discoveryProbe(c DiscoveryCandidate) (jx.M, error) {
 		return u.discoveryFinishProbe(merge(tg), pairs), nil
 	case PlatformVK:
 		title := jx.Str(c.Info, "title")
+		info := jx.Copy(c.Info)
+		if title == "" {
+			if response, err := u.VKAPI(u.Ctx, "groups.getById", url.Values{"group_id": {c.ID}, "fields": {"members_count,description,country"}}, true); err == nil {
+				if groups := jx.Maps(response, "groups"); len(groups) > 0 {
+					title = jx.Str(groups[0], "name")
+					info["description"] = groups[0]["description"]
+					info["subscribers"] = groups[0]["members_count"]
+				}
+			}
+		}
 		if title == "" {
 			title = c.ID
 		}
 		posts := u.BuildVKPreviewPosts(u.Ctx, jx.M{"id": c.ID, "name": SourceDisplayName(PlatformVK, title)}, 8, false, 120)
-		return u.discoveryFinishProbe(merge(jx.M{"title": title, "subscribers": jx.Int(c.Info, "subscribers"), "posts": posts, "post_times": times(posts)}), nil), nil
+		if len(posts) == 0 {
+			posts, _ = u.vkPublicPosts(c.ID, title, 8, false, 120)
+		}
+		if len(posts) == 0 {
+			return nil, Bad("VK не отдал доступные посты сообщества — проверю позже.")
+		}
+		return u.discoveryFinishProbe(merge(jx.M{"title": title, "subscribers": jx.Int(info, "subscribers"), "description": jx.Str(info, "description"), "posts": posts, "post_times": times(posts)}), nil), nil
 	case PlatformTikTok:
 		posts, err := u.TikTokFetchPosts(u.Ctx, c.ID, 8, "")
 		if err != nil {
@@ -673,10 +1395,11 @@ func (u *U) discoveryProbe(c DiscoveryCandidate) (jx.M, error) {
 	if f, err := u.RSSKnownFeed(c.ID); err == nil && f != "" {
 		feed = f
 	}
-	posts, err := u.RSSFetchPosts(feed, 15, "", false, false)
+	withText := u.TopicsAcceptText([]string{topic})
+	posts, err := u.RSSFetchPosts(feed, 15, "", false, withText)
 	if err != nil {
 		time.Sleep(2 * time.Second)
-		if posts, err = u.RSSFetchPosts(feed, 15, "", false, false); err != nil {
+		if posts, err = u.RSSFetchPosts(feed, 15, "", false, withText); err != nil {
 			return nil, err
 		}
 	}

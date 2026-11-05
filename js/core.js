@@ -47,15 +47,19 @@ export function postTypeLabel(post) {
 export function videoPageFor(url) {
     const s = String(url || '');
     return /^https:\/\/t\.me\/[A-Za-z0-9_]{4,32}\/\d+$/.test(s) || /^https:\/\/www\.tiktok\.com\/@[A-Za-z0-9_.]{2,24}\/video\/\d{5,25}$/.test(s)
-        || /^https:\/\/www\.youtube\.com\/(shorts\/|watch\?v=)[A-Za-z0-9_-]{11}$/.test(s) ? s : '';
+        || /^https:\/\/www\.youtube\.com\/(shorts\/|watch\?v=)[A-Za-z0-9_-]{11}$/.test(s)
+        || /^https:\/\/(?:www\.)?rutube\.ru\/video\/[a-fA-F0-9]{32}\/?$/.test(s)
+        || /^https:\/\/(?:www\.)?(?:vk\.com|vkvideo\.ru)\/video-?\d+_\d+$/.test(s) ? s : '';
 }
 
 export function safeSourcePostUrl(record) {
     try {
         const url = new URL(record?.source_url);
-        if (url.protocol !== 'https:') return '';
-        // RSS: адрес уже проверен сервером (source_post_url) — хост совпадает с хостом ленты
-        return String(record?.source_key || '').startsWith('rss:') || ['2ch.hk', 't.me', 'vk.com', 'ok.ru', 'www.tiktok.com', 'x.com', 'boards.4chan.org'].includes(url.hostname) ? url.href : '';
+        if (url.protocol !== 'https:' || url.username || url.password) return '';
+        const hosts = ['2ch.hk', 't.me', 'vk.com', 'vkvideo.ru', 'www.vkvideo.ru', 'ok.ru', 'www.tiktok.com', 'youtube.com', 'www.youtube.com', 'rutube.ru', 'www.rutube.ru', '9gag.com', 'joyreactor.cc', 'x.com', 'boards.4chan.org'];
+        const key = String(record?.source_key || '');
+        const fediverse = /^(mastodon|lemmy):/.test(key) && url.hostname.includes('.') && !/\.(local|internal)$/i.test(url.hostname) && !/^\d+\.\d+\.\d+\.\d+$/.test(url.hostname) && (!url.port || url.port === '443');
+        return key.startsWith('rss:') || hosts.includes(url.hostname) || fediverse ? url.href : '';
     } catch { return ''; }
 }
 
@@ -414,5 +418,5 @@ export function ask(text, { ok = 'Да', cancel = 'Отмена', danger = false
 
 /** Индекс качества источника: «Качество 63 · 👍 5 👎 2»; оценок ещё не было — нейтральные 50. */
 export function qualityText(q) {
-    return q ? `Качество ${Math.round(q.quality)} · 👍 ${q.likes} 🤷 ${q.maybes || 0} 👎 ${q.dislikes}` : 'Качество 50 · оценок пока нет';
+    return q ? `Качество ${Math.round(q.quality)} · 👍 ${q.likes} 🤷 ${q.maybes || 0} 👎 ${q.dislikes}` : 'оценок пока нет';
 }

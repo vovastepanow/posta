@@ -12,11 +12,14 @@ export function profileName(info) {
 /** Заполняет имя и аватар (первая буква имени) по ответу account_info. */
 export function showProfile(info) {
     const name = profileName(info);
-    $('profile-name').textContent = name;
-    $('profile-avatar').textContent = (name[0] || 'P').toUpperCase();
+    const nameEl = $('profile-name');
+    const avatarEl = $('profile-avatar');
+    if (nameEl) nameEl.textContent = name;
+    if (avatarEl) avatarEl.textContent = (name[0] || 'P').toUpperCase();
 }
 
 /** Строка тарифа по ответу billing_info. */
 export function showPlan(billing) {
-    $('profile-plan').textContent = `Тариф «${billing.plan?.title || '—'}»`;
+    const planEl = $('profile-plan');
+    if (planEl) planEl.textContent = `Тариф «${billing.plan?.title || '—'}»`;
 }

@@ -1,7 +1,7 @@
 // calendar.js — вкладка «Календарь»: сетка дней с масштабом (колесо — от трёх дней до месяца), карточки постов
 // с содержимым по ширине колонки, свободные слоты, список, панель подробностей, подсказка «один раз».
 // Перетаскивание и жесты фона — в calendar-drag.js, чистая модель — в calendar-model.js.
-import { $, api, apiUrl, ask, cleanCaption, el, isTabActive, onTabOpen, PHOTO_ICON, postTypeLabel, switchTab, VIDEO_ICON } from './core.js';
+import { $, api, apiUrl, ask, cleanCaption, el, isTabActive, onTabOpen, PHOTO_ICON, switchTab, VIDEO_ICON } from './core.js';
 import { addDays, centeredHourShift, dayAgenda, easeView, freeSlots, hourSpan, hourWindow, layoutDay, layoutRow, shiftHourWindow, slotTimes, snapGestureDays, snapView, summary, viewGapPx, weekStart, wheelFactor, wheelPixels, zoomAround, zoomHoursAround, zoomLimitReached, ZOOM_DAYS_MAX, ZOOM_DAYS_MIN, DAY, HOUR, MIN } from './calendar-model.js';
 import { postItemToTelegram } from './content.js';
 import { isPhone, phoneView } from './calendar-phone.js';
@@ -741,12 +741,12 @@ function fillCard(card, post, mode, rows = false) {
         : null;
     const head = el('span', { className: 'cal-card-row' }, when, ...(dot ? [dot] : []), ...(avatars ? [avatars] : []), el('span', { className: 'cal-spacer' }), ...(meta ? [meta] : []));
     const failed = post.status === 'failed';
-    const title = el('span', { className: 'cal-text', textContent: post.text || postTypeLabel(post) });
+    const title = el('span', { className: 'cal-text', textContent: cleanCaption(post.text) });
     const reason = failed && post.error && mode === 'full' ? el('span', { className: 'cal-err', textContent: post.error }) : null;
     if (mode === 'mid') {
         // средняя: миниатюра и первая строка в одном ряду, текст — во всю ширину под ними
         const top = el('span', { className: 'cal-card-top' }, cardMedia(post, mode), head);
-        card.replaceChildren(top, el('span', { className: 'cal-text', textContent: failed ? 'ошибка' : (post.text || postTypeLabel(post)) }));
+        card.replaceChildren(top, el('span', { className: 'cal-text', textContent: failed ? 'ошибка' : (cleanCaption(post.text)) }));
     } else if (mode === 'pill') {
         card.replaceChildren(el('span', { className: 'cal-card-body' }, head));
     } else {
@@ -801,7 +801,7 @@ function stackNode(entry, day) {
             node = slotPill(item, { ...entry, width }, 'pill');
         } else {
             node = cardNode(item.post, mode, g.rows);
-            node.dataset.text = (item.post.text || postTypeLabel(item.post)).replace(/\s+/g, ' ');
+            node.dataset.text = (cleanCaption(item.post.text)).replace(/\s+/g, ' ');
         }
         node.style.setProperty('--z', i + 1);
         placeNode(node, step * i, peek * i, width);
@@ -835,7 +835,7 @@ function coverNode(entry) {
     placeNode(card, 0, 0, entry.width);
     const more = entry.items.length - 1;
     const list = el('div', { className: 'cal-cover-list', hidden: true },
-        ...entry.items.map(item => el('button', { type: 'button', className: 'cal-cover-item', textContent: `${hhmm(item.post.at * 1000)} · ${item.post.text || 'Без текста'}`, onclick: () => openPanel(item.post, wrap) })));
+        ...entry.items.map(item => el('button', { type: 'button', className: 'cal-cover-item', textContent: `${hhmm(item.post.at * 1000)} · ${cleanCaption(item.post.text)}`, onclick: () => openPanel(item.post, wrap) })));
     const badge = el('button', { type: 'button', className: 'cal-cover-more', textContent: `+${more}`, 'aria-label': `Ещё ${more} ${postWord(more)} в это время`, title: 'Посты в это время' });
     badge.addEventListener('click', event => { event.stopPropagation(); list.hidden = !list.hidden; });
     wrap.append(card, badge, list);
@@ -897,7 +897,7 @@ function listRow(post) {
         el('span', { className: 'cal-row-body' },
             el('span', { className: 'cal-row-top' }, el('b', { textContent: hhmm(post.at * 1000) }), ...(badge ? [badge] : []),
                 el('span', { className: 'cal-row-channel' }, el('span', { className: 'cal-dot' }), lane.title)),
-            el('span', { className: 'cal-text', textContent: post.text || 'Без текста' })));
+            el('span', { className: 'cal-text', textContent: cleanCaption(post.text) })));
     row.style.setProperty('--c', lane.color);
     row.addEventListener('click', () => openPanel(post, row));
     return row;
@@ -1102,8 +1102,8 @@ async function openPicker(row, from) {
         const items = (await api('proposals')).items || [];
         const children = items.length
             ? [el('div', { className: 'cal-picks' }, ...items.map(item => pickerItem(item, row)))]
-            : [el('p', { className: 'cal-muted', textContent: 'В Предложке пусто: лайкните посты на вкладке «Подбор»' }),
-                el('button', { type: 'button', className: 'cal-act', textContent: 'Перейти на «Подбор»', onclick: () => { closePanel(); switchTab('content-tab'); } })];
+            : [el('p', { className: 'cal-muted', textContent: 'В Предложке пусто: лайкните посты на вкладке «Предложка»' }),
+                el('button', { type: 'button', className: 'cal-act', textContent: 'Перейти на «Предложку»', onclick: () => { closePanel(); switchTab('content-tab'); } })];
         if (state.panel?.from === from) showPanel(heading, children, from);
     } catch (error) {
         setStatus(error.message, true);
@@ -1115,7 +1115,7 @@ function pickerItem(item, row) {
     const src = item.display_image || item.image || '';
     const thumb = src ? el('img', { className: 'cal-pick-thumb', src, alt: '', loading: 'lazy', decoding: 'async', referrerPolicy: 'no-referrer' }) : el('span', { className: 'cal-ph', innerHTML: CAMERA_ICON });
     if (src) thumb.addEventListener('error', () => thumb.replaceWith(el('span', { className: 'cal-ph', innerHTML: CAMERA_ICON })));
-    const button = el('button', { type: 'button', className: 'cal-pick' }, thumb, el('span', { className: 'cal-pick-text', textContent: item.text || item.description || 'Без текста' }));
+    const button = el('button', { type: 'button', className: 'cal-pick' }, thumb, el('span', { className: 'cal-pick-text', textContent: cleanCaption(item.text) }));
     button.addEventListener('click', () => pickItem(item, row));
     return button;
 }
@@ -1299,7 +1299,7 @@ async function placeNearest(item) {
     if (card) { openPanel(post, card); animate(card); }
 }
 
-/** «Убрать из Предложки» — тот же запрос, что 👎 на вкладке «Подбор» (запись уходит из лайкнутых). */
+/** «Убрать из Предложки» — тот же запрос, что 👎 на вкладке «Предложка» (запись уходит из лайкнутых). */
 async function removeFromPool(item) {
     try {
         await api('vote', { body: { vote: 'dislike', image: item.item_key || item.image || '' } });
@@ -1334,7 +1334,7 @@ async function pickSlotForItem(item) {
         el('button', { type: 'button', className: 'cal-pick-slot', onclick: () => postItemToTelegram(item, { scheduledTs: unix(row.at), channel: row.channel.id, onDone: () => loadCalendar() }) },
             `${hhmm(row.at)} · ${row.channel.title}${isBest(row.at) ? ' · лучшее время' : ''}`)))
         : [el('li', { textContent: 'В этот день свободных слотов нет.' })]));
-    showPanel('Свободные слоты', [el('p', { className: 'cal-pop-text', textContent: item.text || 'Без текста' }), list]);
+    showPanel('Свободные слоты', [el('p', { className: 'cal-pop-text', textContent: cleanCaption(item.text) }), list]);
 }
 
 /** Лучшие часы канала с охватом (первый включённый канал) — для подсветки шкалы. */
@@ -1346,7 +1346,7 @@ function postChildren(post) {
     dot.style.background = lane.color;
     const message = [];
     if (post.thumb && post.id) message.push(el('img', { src: apiUrl('outbox_media', { id: post.id }), alt: '', loading: 'lazy' }));
-    message.push(el('p', { textContent: post.full_text || post.text || 'Без текста' }));
+    message.push(el('p', { textContent: cleanCaption(post.full_text ?? post.text) }));
     const forecast = post.forecast ? ` · прогноз ≈ ${fmtViews(post.forecast)} просмотров` : '';
     const tg = el('div', { className: 'cal-tg' },
         el('div', { className: 'cal-tg-head' }, dot, el('span', { textContent: post.channel_title || lane.title })),
@@ -1359,6 +1359,7 @@ function postChildren(post) {
         el('div', {}, el('dt', { textContent: 'Соседний пост' }), el('dd', { textContent: neighbourText(post) })));
     const children = [resourcesOf(post), tg, rows, groupBlock(post)];
     if (post.error) children.push(el('p', { className: 'cal-pop-error', textContent: post.error }));
+    if (post.status === 'telegram') children.push(el('p', { className: 'cal-muted', textContent: 'Этот пост находится в отложенных Telegram. Редактируйте его в Telegram; посты в очереди Posta можно редактировать здесь.' }));
     if (post.duplicate) children.push(el('p', { className: 'cal-dup-warning', role: 'alert' }, `Похожий пост уже выходил в этом канале ${whenLabel(post.duplicate.at * 1000)}. `,
         ...(post.duplicate.url?.startsWith('https://') ? [el('a', { href: post.duplicate.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Показать' })] : [])));
     if (post.status === 'sent' && post.url?.startsWith('https://')) children.push(el('a', { href: post.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть в Telegram ↗' }));
@@ -1405,7 +1406,38 @@ async function unscheduleOne(copy) {
 }
 
 /** «Открыть пост» из панели: тот же просмотрщик, что у записей Предложки, через адаптер очереди. */
-function openQueuePost(post) {
+async function openQueuePost(post) {
+    if (['queued', 'failed'].includes(post.status)) {
+        try {
+            const data = await api('outbox_edit_get', { params: { id: post.id } });
+            const { openPostEditor, formatWhen } = await import('./editor.js');
+            const lane = laneOf(post.channel);
+            closePanel();
+            openPostEditor({
+                key: `outbox:${post.id}`, editing: true, mode: 'queue', scheduledTs: data.publish_at,
+                scheduledAt: formatWhen(new Date(data.publish_at * 1000)),
+                targets: [{ value: 'tg:main', label: lane.title, hashtags: 'off' }], picked: ['tg:main'],
+                original: data.text || '', description: '', media: data.media || [], poll: data.poll || null,
+                onSubmit: async edited => {
+                    const form = new FormData();
+                    const files = [];
+                    const media = edited.media.map(m => {
+                        if (m.file) return { kind: m.kind, name: m.name, upload: files.push(m.file) - 1 };
+                        if (m.existing !== undefined) return { kind: m.kind, name: m.name, existing: m.existing };
+                        return { kind: m.kind, name: m.name, src: m.src };
+                    });
+                    form.append('id', data.id); form.append('revision', data.revision);
+                    form.append('text', edited.text || ''); form.append('media', JSON.stringify(media));
+                    if (edited.poll) form.append('poll', JSON.stringify(edited.poll));
+                    files.forEach(f => form.append('files[]', f));
+                    await api('outbox_edit_save', { body: form });
+                    setStatus('Изменения сохранены.');
+                    await loadCalendar();
+                }
+            });
+        } catch (error) { setStatus(error.message, true); }
+        return;
+    }
     const thumb = post.thumb && post.id ? apiUrl('outbox_media', { id: post.id }) : '';
     openPostView([fromQueuePost({ ...post, thumb }, { title: laneOf(post.channel).title })], 0, { title: laneOf(post.channel).title });
 }
@@ -1426,6 +1458,7 @@ function postActions(post) {
     const toneOf = label => (['В лучшее время', 'Повторить'].includes(label) ? 'primary-button' : ['Отменить', 'Удалить'].includes(label) ? 'cal-act is-danger' : 'cal-act');
     const action = (label, run, confirmText = '') => el('button', { type: 'button', className: toneOf(label), textContent: label, onclick: () => runAction(run, confirmText) });
     if (post.status === 'queued') return [
+        el('button', { type: 'button', className: 'primary-button', textContent: 'Редактировать', onclick: () => openQueuePost(post) }),
         action('В лучшее время', () => api('telegram_reschedule', { body: { id, slot: true } }).then(() => 'Пост перенесён в ближайший слот.')),
         action('Перенести…', async () => {
             const at = await pickTime(post);
@@ -1442,6 +1475,7 @@ function postActions(post) {
         action('Отменить', () => api('telegram_cancel', { body: { id } }).then(() => 'Отложенный пост отменён.'), 'Отменить пост? Он не будет опубликован.')
     ];
     if (post.status === 'failed') return [
+        el('button', { type: 'button', className: 'cal-act', textContent: 'Редактировать', onclick: () => openQueuePost(post) }),
         action('Повторить', () => api('telegram_retry', { body: { id } }).then(() => 'Пост снова в очереди.')),
         action('Копия в канал…', async () => {
             const at = await pickTime(post);

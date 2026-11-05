@@ -32,13 +32,13 @@ func searchTerms(list []string, n int) []string {
 // searchBackends — все площадки поиска по запросу. Встроенные поиски оборачиваются тем же интерфейсом.
 func searchBackends() []SearchBackend {
 	ru := func(n int) func(QueryPlan) []string {
-		return func(p QueryPlan) []string { return searchTerms(p.RU, n) }
+		return func(p QueryPlan) []string { return p.RU }
 	}
 	en := func(n int) func(QueryPlan) []string {
-		return func(p QueryPlan) []string { return searchTerms(p.EN, n) }
+		return func(p QueryPlan) []string { return p.EN }
 	}
 	tags := func(n int) func(QueryPlan) []string {
-		return func(p QueryPlan) []string { return searchTerms(p.Hashtags, n) }
+		return func(p QueryPlan) []string { return p.Hashtags }
 	}
 	// once — площадка без страниц: одна выдача на формулировку
 	once := func(f func(u *U, q string) []jx.M) func(u *U, q string, page int) ([]jx.M, bool, error) {
@@ -47,10 +47,10 @@ func searchBackends() []SearchBackend {
 		}
 	}
 	return []SearchBackend{
-		{"Telegram", PlatformTelegram, "search_telegram", func(p QueryPlan) []string { return append(searchTerms(p.Hashtags, 1), searchTerms(p.RU, 1)...) },
+		{"Telegram", PlatformTelegram, "search_telegram", func(p QueryPlan) []string { return append(append([]string{}, p.Hashtags...), p.RU...) },
 			once(func(u *U, q string) []jx.M { return u.PostSearchTelegram(q, PostSearchLimit) }), false},
 		{"VK", PlatformVK, "search_vk", ru(2), once(func(u *U, q string) []jx.M { return u.PostSearchVK(q, PostSearchLimit) }), false},
-		{"YouTube", PlatformRSS, "search_youtube", func(p QueryPlan) []string { return append(searchTerms(p.RU, 1), searchTerms(p.EN, 1)...) },
+		{"YouTube", PlatformRSS, "search_youtube", func(p QueryPlan) []string { return append(append([]string{}, p.RU...), p.EN...) },
 			once(func(u *U, q string) []jx.M { return u.PostSearchYouTube(q, PostSearchLimit) }), false},
 		{"Новости", PlatformRSS, "search_news", ru(1), once(func(u *U, q string) []jx.M { return u.queryNewsRSS(q) }), false},
 		{"vc/dtf", PlatformRSS, "search_vc", ru(1), once(func(u *U, q string) []jx.M { return u.queryOsnovaSearch(q) }), false},
@@ -91,16 +91,28 @@ func (u *U) searchBackendCall(b SearchBackend, q string, page int) (posts []jx.M
 // SearchEngineRun — опрос включённых площадок по формулировкам плана. off — сдвиг по кругу (страница и формулировка).
 // Бюджет budget на весь опрос: то, что не успело прийти, пропускается, остальные результаты идут.
 func (u *U) SearchEngineRun(plan QueryPlan, off int, budget time.Duration) (map[string][]jx.M, map[string]int) {
+	return u.searchEngineRun(plan, off, budget, nil)
+}
+
+// searchEngineRun can restrict a topic pass to the platforms absent from the
+// built-in Telegram/VK/YouTube search.
+func (u *U) searchEngineRun(plan QueryPlan, off int, budget time.Duration, only map[string]bool) (map[string][]jx.M, map[string]int) {
 	groups := map[string][]SearchBackend{}
 	var order []string
 	for _, b := range searchBackends() {
-		if !u.TBool(b.Tunable) {
+		if !u.TBool(b.Tunable) || (only != nil && !only[b.Name]) {
 			continue
 		}
-		if _, ok := groups[b.Platform]; !ok {
-			order = append(order, b.Platform)
+		// YouTube, news and vc/dtf share a result category, not a rate limit.
+		// Run them independently so a slow YouTube lookup cannot starve RSS.
+		group := b.Platform
+		if b.Platform == PlatformRSS {
+			group = b.Name
 		}
-		groups[b.Platform] = append(groups[b.Platform], b)
+		if _, ok := groups[group]; !ok {
+			order = append(order, group)
+		}
+		groups[group] = append(groups[group], b)
 	}
 	type result struct {
 		plat, name string
@@ -135,6 +147,7 @@ func (u *U) SearchEngineRun(plan QueryPlan, off int, budget time.Duration) (map[
 	}()
 	got := map[string][]jx.M{}
 	counts := map[string]int{}
+	timedOut := false
 	for waiting := true; waiting; {
 		select {
 		case r := <-results:
@@ -143,7 +156,7 @@ func (u *U) SearchEngineRun(plan QueryPlan, off int, budget time.Duration) (map[
 		case <-done:
 			waiting = false
 		case <-time.After(time.Until(deadline)):
-			waiting = false
+			timedOut, waiting = true, false
 		}
 	}
 	// уже лежащее в канале после выхода из цикла — тоже в выдачу (поздних ответов не ждём)
@@ -151,6 +164,9 @@ func (u *U) SearchEngineRun(plan QueryPlan, off int, budget time.Duration) (map[
 		r := <-results
 		got[r.plat] = append(got[r.plat], r.posts...)
 		counts[r.name] += len(r.posts)
+	}
+	if timedOut {
+		u.Log("Поиск: истёк общий бюджет; поздние ответы площадок пропущены.")
 	}
 	u.Log("%s", searchCountsLine(plan, counts))
 	return got, counts
@@ -185,7 +201,7 @@ func (u *U) SearchTest(query, topic string) string {
 			fmt.Fprintf(&b, "  %-16s %d\n", name, n)
 		}
 	}
-	fmt.Fprintf(&b, "отобрано по словам (по одному с источника): %d, из них площадок: %d\n", len(all), len(ranked))
+	fmt.Fprintf(&b, "отобрано по словам: %d, из них площадок: %d\n", len(all), len(ranked))
 	for i, it := range all[:min(len(all), 20)] {
 		fmt.Fprintf(&b, "%2d. [%s] %s — %s\n", i+1, jx.Str(it, "source"), trimRunes(jx.Str(it, "title"), 80), jx.Str(it, "url"))
 	}

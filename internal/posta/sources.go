@@ -21,7 +21,7 @@ import (
 var SourceNamePrefixes = map[string]string{PlatformTelegram: "Telegram | ", PlatformVK: "ВКонтакте | ", PlatformRSS: "RSS | ", PlatformOK: "Одноклассники | ",
 	PlatformTikTok: "TikTok | ", Platform4chan: "4chan | "}
 
-var trustedSourceHosts = []string{"2ch.hk", "t.me", "vk.com", "ok.ru", "www.tiktok.com", "x.com", "boards.4chan.org"}
+var trustedSourceHosts = []string{"2ch.hk", "t.me", "vk.com", "vkvideo.ru", "www.vkvideo.ru", "ok.ru", "www.tiktok.com", "www.youtube.com", "youtube.com", "rutube.ru", "www.rutube.ru", "9gag.com", "joyreactor.cc", "x.com", "boards.4chan.org"}
 
 const EmptyPostText = "Пост без текста"
 
@@ -48,10 +48,10 @@ func CleanHTMLText(raw string) string {
 func htmlAttr(v string) string { return html.UnescapeString(v) }
 
 var (
-	dvachBoardRe  = regexp.MustCompile(`(?i)^[a-z0-9_-]{1,30}$`)
-	dvachIDRe     = regexp.MustCompile(`^[0-9]{1,20}$`)
-	tgChannelRe   = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{4,31}$`)
-	vkDomainRe    = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
+	dvachBoardRe = regexp.MustCompile(`(?i)^[a-z0-9_-]{1,30}$`)
+	dvachIDRe    = regexp.MustCompile(`^[0-9]{1,20}$`)
+	tgChannelRe  = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{4,31}$`)
+	vkDomainRe   = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
 )
 
 func IsValidDvachBoard(b string) bool      { return dvachBoardRe.MatchString(b) }
@@ -666,11 +666,11 @@ func TelegramPageFacts(page string) TelegramFacts {
 }
 
 const (
-	telegramPreviewPages       = 4
-	telegramPreviewBudget      = 10 * time.Second
-	telegramPageCacheSeconds   = 600
-	telegramTextPostMin        = 80
-	telegramTextPostsMax       = 6
+	telegramPreviewPages     = 4
+	telegramPreviewBudget    = 10 * time.Second
+	telegramPageCacheSeconds = 600
+	telegramTextPostMin      = 80
+	telegramTextPostsMax     = 6
 )
 
 // TelegramChannelPageCached — страница канала из кэша (10 минут, в памяти) или из сети.
@@ -785,17 +785,41 @@ func TelegramLinkedChannels(page, own string) []string {
 
 const vkIDTokenURL = "https://id.vk.ru/oauth2/auth"
 
-func (a *App) VKOAuthConfigured() bool { return a.Cfg.VKClientID != "" && a.Cfg.VKRedirectURI != "" }
+// VKOAuthRedirectURI uses the externally visible application URL, including
+// its deployment prefix; an explicit registered callback remains supported.
+func (a *App) VKOAuthRedirectURI() string {
+	if s := strings.TrimSpace(a.Cfg.VKRedirectURI); s != "" {
+		return s
+	}
+	if base := strings.TrimRight(strings.TrimSpace(a.Cfg.PublicURL), "/"); base != "" {
+		return base + "/index.php?action=vk_oauth_callback"
+	}
+	return ""
+}
 
-// vkTokens — токены VK сайта (kv vk_tokens, зашифрованы ключом сервера).
+func (a *App) VKOAuthConfigured() bool { return a.Cfg.VKClientID != "" && a.VKOAuthRedirectURI() != "" }
+
+func vkTokenKey(ctx context.Context) string {
+	uid, _ := ctx.Value(vkUserContextKey{}).(string)
+	if !IsValidUserID(uid) {
+		return ""
+	}
+	return "vk_tokens:" + uid
+}
+
+// VK OAuth tokens are scoped to the user and encrypted with a user-specific context.
 func (a *App) vkTokens(ctx context.Context) jx.M {
-	var enc string
-	if !a.KVGet(ctx, "vk_tokens", &enc) || enc == "" {
+	key := vkTokenKey(ctx)
+	if key == "" {
 		return jx.M{}
 	}
-	plain, ok := a.Box.Decrypt(enc, "vk_tokens")
+	var enc string
+	if !a.KVGet(ctx, key, &enc) || enc == "" {
+		return jx.M{}
+	}
+	plain, ok := a.Box.Decrypt(enc, key)
 	if !ok {
-		plain, ok = a.Box.Decrypt(enc, "")
+		return jx.M{}
 	}
 	if m := jx.Unmarshal([]byte(plain)); ok && m != nil {
 		return m
@@ -804,7 +828,10 @@ func (a *App) vkTokens(ctx context.Context) jx.M {
 }
 
 func (a *App) SaveVKTokens(ctx context.Context, t jx.M) {
-	a.KVSet(ctx, "vk_tokens", a.Box.Encrypt(string(jx.Marshal(t)), "vk_tokens"), 0)
+	key := vkTokenKey(ctx)
+	if key != "" {
+		a.KVSet(ctx, key, a.Box.Encrypt(string(jx.Marshal(t)), key), 0)
+	}
 }
 
 func (a *App) vkOAuthPost(params url.Values) (jx.M, error) {
@@ -828,6 +855,8 @@ func (a *App) vkOAuthPost(params url.Values) (jx.M, error) {
 
 // VKAccessToken — рабочий токен VK (обновляется по refresh_token) или "".
 func (a *App) VKAccessToken(ctx context.Context) string {
+	a.vkMu.Lock()
+	defer a.vkMu.Unlock()
 	t := a.vkTokens(ctx)
 	if jx.Str(t, "access_token") == "" {
 		return ""
@@ -869,6 +898,15 @@ func (a *App) VKTokenForRead(ctx context.Context) string {
 
 func (a *App) VKCanRead(ctx context.Context) bool { return a.VKTokenForRead(ctx) != "" }
 
+// VKAPIError preserves the error code so callers can distinguish capability
+// restrictions from transient errors without inspecting translated text.
+type VKAPIError struct {
+	Code    int
+	Message string
+}
+
+func (e *VKAPIError) Error() string { return e.Message }
+
 // VKAPI — запрос к VK API; service — метод читается сервисным ключом.
 func (a *App) VKAPI(ctx context.Context, method string, params url.Values, service bool) (jx.M, error) {
 	token := a.VKAccessToken(ctx)
@@ -878,6 +916,12 @@ func (a *App) VKAPI(ctx context.Context, method string, params url.Values, servi
 	if token == "" {
 		return jx.M{}, nil
 	}
+	capabilityKey := "vk_capability:" + sha1Short(token, 24) + ":" + method
+	if a.Mem != nil {
+		if message, ok := Mem[string](a.Mem, capabilityKey); ok {
+			return nil, &VKAPIError{Code: 1051, Message: message}
+		}
+	}
 	params.Set("access_token", token)
 	if params.Get("v") == "" {
 		params.Set("v", "5.199")
@@ -886,14 +930,18 @@ func (a *App) VKAPI(ctx context.Context, method string, params url.Values, servi
 	var data struct {
 		Response json.RawMessage `json:"response"`
 		Error    *struct {
-			Msg string `json:"error_msg"`
+			Code int    `json:"error_code"`
+			Msg  string `json:"error_msg"`
 		} `json:"error"`
 	}
 	if err != nil || status < 200 || status >= 300 || json.Unmarshal(b, &data) != nil {
 		return nil, Bad("Не удалось получить ответ VK API.")
 	}
 	if data.Error != nil {
-		return nil, Bad("%s", data.Error.Msg)
+		if data.Error.Code == 1051 && a.Mem != nil {
+			a.Mem.Set(capabilityKey, data.Error.Msg, 30*time.Minute)
+		}
+		return nil, &VKAPIError{Code: data.Error.Code, Message: data.Error.Msg}
 	}
 	var m jx.M
 	if json.Unmarshal(data.Response, &m) != nil {
@@ -920,9 +968,39 @@ func (a *App) VKWallItems(ctx context.Context, domain string, count, offset int)
 }
 
 // VKWallPost — запись стены → пост с картинками или nil.
+// vkVideoFields extracts a public video page and the best thumbnail returned by VK.
+func vkVideoFields(v jx.M) (string, string) {
+	owner, id := jx.Int(v, "owner_id"), jx.Int(v, "id")
+	if owner == 0 || id <= 0 || jx.Bool(v, "is_private") {
+		return "", ""
+	}
+	page := fmt.Sprintf("https://vk.com/video%d_%d", owner, id)
+	best, size := "", int64(-1)
+	for _, field := range []string{"image", "first_frame"} {
+		for _, im := range jx.Maps(v, field) {
+			u := jx.Str(im, "url")
+			if u == "" {
+				u = jx.Str(im, "src")
+			}
+			if n := jx.Int(im, "width") * jx.Int(im, "height"); strings.HasPrefix(u, "https://") && n > size {
+				best, size = u, n
+			}
+		}
+	}
+	if best == "" {
+		for _, k := range []string{"photo_800", "photo_640", "photo_320", "photo_130"} {
+			if v := jx.Str(v, k); strings.HasPrefix(v, "https://") {
+				best = v
+				break
+			}
+		}
+	}
+	return page, best
+}
+
 func VKWallPost(post jx.M, sourceName, domain string, withText bool, minText int) jx.M {
 	var images []string
-	hasVideo := false
+	videoPage, videoCover := "", ""
 	for _, a := range jx.Maps(post, "attachments") {
 		switch jx.Str(a, "type") {
 		case "photo":
@@ -934,12 +1012,17 @@ func VKWallPost(post jx.M, sourceName, domain string, withText bool, minText int
 				images = append(images, jx.Str(sizes[0], "url"))
 			}
 		case "video":
-			hasVideo = true
+			if videoPage == "" {
+				videoPage, videoCover = vkVideoFields(jx.Map(a, "video"))
+			}
 		}
 	}
+	if videoCover != "" {
+		images = append([]string{videoCover}, images...)
+	}
 	text := CleanHTMLText(jx.Str(post, "text"))
-	textOnly := len(images) == 0 && !hasVideo && withText && runeLen(text) >= minText
-	if len(images) == 0 && !textOnly {
+	textOnly := len(images) == 0 && videoPage == "" && withText && runeLen(text) >= minText
+	if len(images) == 0 && !textOnly && videoPage == "" {
 		return nil
 	}
 	owner, id := jx.Str(post, "owner_id"), jx.Str(post, "id")
@@ -959,9 +1042,13 @@ func VKWallPost(post jx.M, sourceName, domain string, withText bool, minText int
 	if v := jx.Map(post, "views"); v != nil && jx.Has(v, "count") {
 		views = jx.Int(v, "count")
 	}
-	return jx.M{"image": main, "images": images, "text": text, "text_post": textOnly, "source": sourceName, "post_id": id, "posted_at": jx.Int(post, "date"),
+	p := jx.M{"image": main, "images": images, "text": text, "text_post": textOnly, "source": sourceName, "post_id": id, "posted_at": jx.Int(post, "date"),
 		"likes": jx.Int(jx.Map(post, "likes"), "count"), "reposts": jx.Int(jx.Map(post, "reposts"), "count"), "comments": jx.Int(jx.Map(post, "comments"), "count"),
 		"views": views, "url": link}
+	if videoPage != "" {
+		p["video_via"], p["video_page"] = "ytdlp", videoPage
+	}
+	return p
 }
 
 func (a *App) BuildVKPreviewPosts(ctx context.Context, src jx.M, count int, withText bool, minText int) []jx.M {
@@ -974,12 +1061,47 @@ func (a *App) BuildVKPreviewPosts(ctx context.Context, src jx.M, count int, with
 		name = SourceDisplayName(PlatformVK, domain)
 	}
 	posts := []jx.M{}
+	if !a.VKCanRead(ctx) {
+		posts, _ = a.vkPublicPosts(domain, name, count, withText, minText)
+		return a.VKResolveVideoCovers(ctx, posts)
+	}
 	for _, it := range a.VKWallItems(ctx, domain, count, 0) {
 		if p := VKWallPost(it, name, domain, withText, minText); p != nil {
 			posts = append(posts, p)
 		}
 		if len(posts) >= count {
 			break
+		}
+	}
+	if len(posts) == 0 {
+		posts, _ = a.vkPublicPosts(domain, name, count, withText, minText)
+	}
+	return a.VKResolveVideoCovers(ctx, posts)
+}
+
+// VKResolveVideoCovers fills missing VK thumbnails from the public video page.
+// Bound work per pass; entries whose covers cannot be fetched remain ineligible
+// for image analysis instead of masquerading as ordinary photos.
+func (a *App) VKResolveVideoCovers(ctx context.Context, posts []jx.M) []jx.M {
+	const maxLookups = 3
+	attempts := 0
+	for _, p := range posts {
+		page := jx.Str(p, "video_page")
+		if jx.Str(p, "image") != "" || VideoPageVia(page) != "ytdlp" || attempts >= maxLookups || ctx.Err() != nil {
+			continue
+		}
+		attempts++
+		r := a.YtdlpRun(ctx, []string{"--skip-download", "--no-playlist", "-j", "--", page}, 12*time.Second, true, nil)
+		if !r.OK {
+			continue
+		}
+		data := jx.Unmarshal([]byte(r.Stdout))
+		cover := jx.Str(data, "thumbnail")
+		if !strings.HasPrefix(cover, "https://") {
+			cover = tiktokBestThumbnail(jx.Maps(data, "thumbnails"))
+		}
+		if strings.HasPrefix(cover, "https://") {
+			p["image"], p["images"] = cover, []string{cover}
 		}
 	}
 	return posts

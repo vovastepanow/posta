@@ -50,12 +50,13 @@ func (u *U) sourceBusy(topic string) map[string]bool {
 	busy := map[string]bool{}
 	counts := map[string]int{}
 	t := TopicNorm(topic)
-	for _, it := range u.Pool() {
+	pool := u.freshPoolItems(u.Pool())
+	for _, it := range pool {
 		if TopicNorm(jx.Str(it, "topic")) == t {
 			counts[ContentSourceKey(it)]++
 		}
 	}
-	perSource := sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), topicPoolCount(u.Pool(), topic))
+	perSource := sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), topicPoolCount(pool, topic))
 	for src, n := range counts {
 		if n >= perSource {
 			busy[src] = true

@@ -545,11 +545,11 @@ func XStatusID(link string) string {
 }
 
 type xTweet struct {
-	Text      string
-	PostedAt  int64
-	Images    []string
-	VideoURL  string
-	HasVideo  bool
+	Text     string
+	PostedAt int64
+	Images   []string
+	VideoURL string
+	HasVideo bool
 }
 
 func (a *App) xFetchPost(id string) (*xTweet, error) {
@@ -754,7 +754,9 @@ func BestPostsVirality(posts []jx.M) {
 		}
 		return
 	}
-	score := func(p jx.M) float64 { return float64(jx.Int(p, "likes") + 2*jx.Int(p, "reposts") + jx.Int(p, "comments")) }
+	score := func(p jx.M) float64 {
+		return float64(jx.Int(p, "likes") + 2*jx.Int(p, "reposts") + jx.Int(p, "comments"))
+	}
 	var all []float64
 	for _, p := range posts {
 		all = append(all, score(p))
@@ -767,7 +769,8 @@ func BestPostsVirality(posts []jx.M) {
 
 func bestPost(kind string, p jx.M, views, likes, reposts, comments any) jx.M {
 	return jx.M{"kind": kind, "post_id": jx.Str(p, "post_id"), "image": jx.Str(p, "image"), "images": orStrs(jx.Strs(p, "images")), "video": jx.Str(p, "video"),
-		"text": jx.Str(p, "text"), "source": jx.Str(p, "source"), "url": jx.Str(p, "url"), "posted_at": jx.Int(p, "posted_at"),
+		"gallery": jx.Maps(p, "gallery"),
+		"text":    jx.Str(p, "text"), "source": jx.Str(p, "source"), "url": jx.Str(p, "url"), "posted_at": jx.Int(p, "posted_at"),
 		"views": numOrNil(views), "likes": numOrNil(likes), "reposts": numOrNil(reposts), "comments": numOrNil(comments)}
 }
 
@@ -994,6 +997,11 @@ func (u *U) BestPostPoolItem(p jx.M, withVideo bool) (jx.M, error) {
 			remote = append(remote, s)
 		}
 	}
+	for _, f := range jx.Maps(p, "gallery") {
+		if s := jx.Str(f, "image"); strings.HasPrefix(s, "https://") && !contains(remote, s) {
+			remote = append(remote, s)
+		}
+	}
 	type cached struct{ image, local string }
 	var got []cached
 	for _, s := range remote[:min(len(remote), 4)] {
@@ -1023,14 +1031,19 @@ func (u *U) BestPostPoolItem(p jx.M, withVideo bool) (jx.M, error) {
 			via, page = v, jx.Str(p, "url")
 		}
 	}
-	images := []string{}
-	gallery := []jx.M{}
+	images := append([]string(nil), remote...)
+	local := map[string]string{}
 	for _, c := range got {
-		images = append(images, c.image)
-		gallery = append(gallery, jx.M{"image": c.image, "image_local": c.local, "video": ""})
+		local[c.image] = c.local
 	}
-	if len(got) < 2 {
-		gallery = []jx.M{}
+	gallery := bestPostGallery(p, images, local)
+	if len(gallery) > 0 && videoLocal != "" {
+		for _, f := range gallery {
+			if jx.Str(f, "video") == video {
+				f["video_local"] = videoLocal
+				break
+			}
+		}
 	}
 	videoURL := ""
 	if videoLocal != "" {
@@ -1043,6 +1056,33 @@ func (u *U) BestPostPoolItem(p jx.M, withVideo bool) (jx.M, error) {
 	return jx.M{"image": got[0].image, "images": images, "image_local": got[0].local, "video": videoURL, "video_local": videoLocal, "video_via": via, "video_page": page,
 		"gallery": gallery, "text": text, "captions": []string{text}, "description": text, "source": jx.Str(p, "source"), "source_key": jx.Str(p, "source_key"),
 		"source_url": src, "posted_at": jx.Int(p, "posted_at"), "pooled_at": now(), "topic": u.CurrentTopic(), "relevance": 100, "rating": 100, "picked": true}, nil
+}
+
+// bestPostGallery preserves every source attachment even when only a few
+// images were downloaded into the server cache.
+func bestPostGallery(p jx.M, images []string, local map[string]string) []jx.M {
+	files := jx.Maps(p, "gallery")
+	if len(files) == 0 {
+		for _, img := range images {
+			files = append(files, jx.M{"image": img, "video": ""})
+		}
+	}
+	out := make([]jx.M, 0, len(files))
+	for _, f := range files {
+		img, video := jx.Str(f, "image"), jx.Str(f, "video")
+		if !strings.HasPrefix(img, "https://") && !strings.HasPrefix(video, "https://") {
+			continue
+		}
+		item := jx.M{"image": img, "video": video}
+		if l := local[img]; l != "" {
+			item["image_local"] = l
+		}
+		out = append(out, item)
+	}
+	if len(out) < 2 {
+		return []jx.M{}
+	}
+	return out
 }
 
 // BestPostsTake — выбранные посты из кэшированной выдачи → в подборку.

@@ -236,12 +236,32 @@ function mosaicBlock(media, ctx) {
 /** Плитка одного файла. Картинка и видео с файлом — зум; докачка — видео-плитка по готовности; большое видео — пояснение под сеткой. */
 function tileNode(m, i, media, ctx) {
     if (m.src) return openableTile(m, i, media, ctx);
+    const youtube = youtubeVideoId(m.page);
+    if (youtube) return youtubeTile(m, youtube);
     if (m.pending && m.page) return pendingTile(m, i, media, ctx);
     if (m.unavailable) return el('button', { type: 'button', className: 'pv-cell', ariaLabel: 'Большое видео', onclick: event => showNote(event.currentTarget) },
         posterNode(m.poster), el('span', { className: 'pv-cell-mark', textContent: 'большое видео' }), videoMark());
     if (needsFetch(m, ctx.watchPending)) return fetchTile(m, i, media, ctx);
     if (m.page) return el('a', { className: 'pv-cell pv-cell-link', href: m.page, target: '_blank', rel: 'noopener noreferrer', textContent: 'Смотреть на сайте ↗' });
     return plainTile(m.poster, 'Файл недоступен');
+}
+
+// Встроенный плеер доступен сразу, пока файл для публикации скачивается отдельно.
+export function youtubeVideoId(page) {
+    const match = /^https:\/\/www\.youtube\.com\/(?:shorts\/|watch\?v=)([A-Za-z0-9_-]{11})$/.exec(page || '');
+    return match ? match[1] : '';
+}
+
+function youtubeTile(m, id) {
+    const box = el('button', { type: 'button', className: 'pv-cell pv-cell-poster', ariaLabel: 'Смотреть видео YouTube',
+        onclick: event => {
+            event.stopPropagation();
+            const frame = el('iframe', { className: 'pv-cell pv-youtube', title: 'Видео YouTube', allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', allowFullscreen: true });
+            frame.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1`;
+            box.replaceWith(frame);
+        } }, posterNode(m.poster), videoMark());
+    if (!m.unavailable && !m.pending) api('video_fetch', { body: { url: m.page } }).catch(() => {});
+    return box;
 }
 
 /** Плитка картинки — кнопка зума по всем файлам поста; плитка видео — см. videoTile (играет само или постер с «▶»). */
@@ -495,10 +515,9 @@ function insightBlock(post) {
         tools.length ? el('div', { className: 'pv-tools-row' }, ...tools) : null);
 }
 
-/** Текст поста: переносы сохраняются, ссылки, #теги и @имена выделены, **жирный**. Без текста секции нет вовсе;
- *  тихая строка — только у поста, в котором нет ни медиа, ни опроса, ни статьи (иначе лист был бы пустым). */
+/** Текст поста с сохранением места для пустой подписи. */
 function textBlock(post, big) {
-    if (!post.text) return post.media?.length || post.poll || post.article ? null : el('p', { className: 'pv-quiet', textContent: 'Пост без текста' });
+    if (!post.text) return el('div', { className: big ? 'pv-text-big pv-text-empty' : 'pv-text pv-text-empty', ariaHidden: 'true' });
     const tr = post.translation;
     const shown = tr && !post.showOriginal ? tr.text : post.text;
     const text = el('div', { className: big ? 'pv-text-big' : 'pv-text' }, ...richText(shown));
@@ -547,6 +566,7 @@ function actionsBar(post, actions) {
     if (!list.length) return null;
     return el('div', { className: 'pv-actions' }, ...list.map(action => {
         const button = el('button', { type: 'button', className: `pv-action${action.primary ? ' is-primary' : ''}`, textContent: `${action.icon ? `${action.icon} ` : ''}${action.label}` });
+        action.setup?.(button);
         button.addEventListener('click', async () => {
             button.disabled = true;
             button.setAttribute('aria-busy', 'true');

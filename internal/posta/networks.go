@@ -95,9 +95,9 @@ func (a *App) Networks() map[string]*Network {
 	na := func(title, note string) *Network { return &Network{Title: title, Status: "unavailable", Note: note} }
 	r := map[string]*Network{
 		"telegram": {Title: "Telegram", Prefix: "tg", Status: "ready", TextLimit: [2]int{1024, 4096}, MediaMax: 10, Kinds: []string{"photo", "video", "animation"}, Poll: true},
-		"vk": {Title: "ВКонтакте (группа)", Prefix: "vk", Status: "beta", Note: "Токен администратора с правами wall, photos, groups.", TextLimit: [2]int{16384, 16384},
+		"vk": {Title: "ВКонтакте (группа)", Prefix: "vk", Status: "beta", Note: "Ключ сообщества позволяет проверить и подключить группу; публикация фотографий может требовать пользовательский токен с доступом к API VK.", TextLimit: [2]int{16384, 16384},
 			MediaMax: 10, Kinds: []string{"photo"}, MaxBytes: map[string]int64{"photo": 50_000_000}, Docs: "unverified",
-			Fields: []NetField{{"token", "Токен администратора (wall, photos, groups, offline)", true}, {"group", "Адрес или id сообщества", false}}, Connect: vkConnect, Publish: vkPublish},
+			Fields: []NetField{{"token", "Ключ сообщества или пользовательский токен VK", true}, {"group", "Адрес или id сообщества", false}}, Connect: vkConnect, Publish: vkPublish},
 		"max": {Title: "MAX", Prefix: "max", Status: "beta", Note: "Бот MAX в чате, токен из «MAX для бизнеса»; пока только текст.", TextLimit: [2]int{4000, 4000}, Docs: "partly",
 			Fields: []NetField{{"token", "Токен бота (MAX для бизнеса)", true}, {"chat_id", "id чата, где бот админ", false}}, Connect: maxConnect, Publish: maxPublish},
 		"bluesky": {Title: "Bluesky", Prefix: "bsky", Status: "beta", Note: "Пароль приложения Bluesky.", TextLimit: [2]int{300, 300}, MediaMax: 4, Kinds: []string{"photo"},
@@ -207,6 +207,9 @@ func (a *App) NetworkPreflight(platform, text string, kinds []string) (int, []st
 	kept := 0
 	skipped := []string{}
 	for _, k := range kinds {
+		if k == "image" {
+			k = "photo"
+		}
 		switch {
 		case !contains(n.Kinds, k):
 			skipped = append(skipped, kindName(k)+": "+n.Title+" такой вид не принимает")
@@ -570,10 +573,25 @@ func vkCall(ctx context.Context, method string, params url.Values, token string)
 		return nil, err
 	}
 	if e := jx.Map(r.Data, "error"); e != nil {
-		return nil, fmt.Errorf("ВКонтакте: %s.", trimRunes(jx.Str(e, "error_msg"), 200))
+		return nil, vkMethodError(method, jx.Int(e, "error_code"), jx.Str(e, "error_msg"))
 	}
 	return r.Data["response"], nil
 }
+
+// VK restricts some methods by token type even if the community key has photos permission.
+func vkMethodError(method string, code int64, message string) error {
+	if code == 27 && (method == "photos.getWallUploadServer" || method == "photos.saveWallPhoto") {
+		return &vkPhotoAuthError{Bad("ВКонтакте не разрешает загружать фотографии на стену с этим ключом сообщества (ошибка 27). Подключите в профиле VK с доступом к методам загрузки фото или переподключите группу с подходящим пользовательским токеном. Обычный вход через VK ID такого доступа не гарантирует.")}
+	}
+	if code == 27 {
+		return Bad("ВКонтакте не разрешает метод %s с этим ключом сообщества (ошибка 27). Проверьте доступность метода и тип ключа в VK.", method)
+	}
+	return fmt.Errorf("ВКонтакте (%s): %s.", method, trimRunes(message, 200))
+}
+
+type vkPhotoAuthError struct{ error }
+
+func (e *vkPhotoAuthError) Unwrap() error { return e.error }
 
 func vkConnect(a *App, ctx context.Context, in map[string]string) (*NetResource, error) {
 	token, group := in["token"], strings.TrimLeft(in["group"], "-")
@@ -631,9 +649,22 @@ func vkPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, er
 		return nil, Bad("Текст длиннее 16384 символов: ВКонтакте его не примет.")
 	}
 	token := c.Secrets["token"]
+	photoToken := token
 	var att []string
 	for _, f := range p.Media {
-		s, err := vkPhotoAttachment(ctx, c.Ref, f.Path, token)
+		s, err := vkPhotoAttachment(ctx, c.Ref, f.Path, photoToken)
+		var authErr *vkPhotoAuthError
+		if errors.As(err, &authErr) && photoToken == token {
+			// VK ID tokens are user-scoped; never use another account's token.
+			userToken := a.VKAccessToken(a.User(ctx, c.UserID, nil).Ctx)
+			if userToken != "" && userToken != token {
+				photoToken = userToken
+				s, err = vkPhotoAttachment(ctx, c.Ref, f.Path, photoToken)
+				if err != nil {
+					return nil, fmt.Errorf("Не удалось загрузить фото с подключённым пользовательским токеном VK: %w", err)
+				}
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -1280,7 +1311,7 @@ func linkedinPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSe
 		return nil, Bad("LinkedIn: пост без текста.")
 	}
 	body := jx.M{"author": "urn:li:person:" + c.Ref, "commentary": p.Text, "visibility": "PUBLIC",
-		"distribution": jx.M{"feedDistribution": "MAIN_FEED", "targetEntities": []any{}, "thirdPartyDistributionChannels": []any{}},
+		"distribution":   jx.M{"feedDistribution": "MAIN_FEED", "targetEntities": []any{}, "thirdPartyDistributionChannels": []any{}},
 		"lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": false}
 	h := withCT(bearer(c.Secrets["access_token"]), ctJSON)
 	h["Linkedin-Version"], h["X-Restli-Protocol-Version"] = "202511", "2.0.0"
@@ -1419,7 +1450,7 @@ func (u *U) NetworksChannelsPublic() []jx.M {
 	out := []jx.M{}
 	for _, c := range u.Channels() {
 		if c.Platform != "telegram" {
-			out = append(out, jx.M{"id": c.ID, "platform": c.Platform, "title": c.ChatTitle, "ref": c.Ref, "connected_at": c.ConnectedAt})
+			out = append(out, jx.M{"id": c.ID, "platform": c.Platform, "title": c.ChatTitle, "ref": c.Ref, "screen_name": jx.Str(c.Meta, "screen_name"), "connected_at": c.ConnectedAt, "schedule": ChannelSchedule(c), "style": u.ChannelStylePublic(c), "hashtags": c.Hashtags})
 		}
 	}
 	return out

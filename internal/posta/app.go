@@ -45,6 +45,7 @@ type App struct {
 	spentMu     sync.Mutex
 	spentDay    string
 	spentUSD    float64
+	vkMu        sync.Mutex
 }
 
 // Error — ожидаемая ошибка с текстом для пользователя и HTTP-статусом (было: InvalidArgumentException/RuntimeException → 400,
@@ -85,8 +86,10 @@ type U struct {
 }
 
 func (a *App) User(ctx context.Context, uid string, logf func(string)) *U {
-	return &U{App: a, ID: uid, Ctx: ctx, log: logf}
+	return &U{App: a, ID: uid, Ctx: context.WithValue(ctx, vkUserContextKey{}, uid), log: logf}
 }
+
+type vkUserContextKey struct{}
 
 // Log — строка журнала (бывший cli_echo): в сборщике — в консоль сайта, иначе — в журнал сервера только в режиме разработки.
 func (u *U) Log(format string, a ...any) {

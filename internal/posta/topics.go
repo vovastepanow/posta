@@ -20,10 +20,9 @@ const (
 	topicParentFallbackMin    = 3
 	topicTitleMax             = 40
 	topicSameSimilarity       = 0.85 // «мемы и приколы» ↔ «Мемы и юмор» ≈ 0.91, «котики» ↔ «Кошки» ≈ 0.76
-	TopicProfileVersion       = 5    // 5: профиль юмора отличает законченную шутку от шаблона
+	TopicProfileVersion       = 6    // общий профиль без чужих жалоб и исключения соседних тем
 	topicProfileFallbackRetry = 3600
 	TopicComplaintExamples    = 8
-	topicComplaintStep        = 5
 )
 
 // TopicProfile — профиль темы от умной модели: критерии, вопрос, план поиска. Идёт во все промпты темы.
@@ -237,6 +236,10 @@ func treeFormat(key string) *TopicFormat {
 
 // TopicFormatOf — формат темы: свой, иначе у родителя, иначе умолчание; поверх — правка пользователя.
 func (u *U) TopicFormatOf(topic string) TopicFormat {
+	parts := TopicParts(topic)
+	if len(parts) == 1 {
+		topic = parts[0]
+	}
 	base := TopicFormatDefault
 	for e := u.TopicLookup(topic); e != nil; e = u.TopicParent(e) {
 		f := cleanFormat(e.Format)
@@ -303,19 +306,56 @@ func TopicNames(e *Topic) []string {
 	return out
 }
 
+// Explicit meanings for historically overlapping seed aliases. Exact titles
+// still take precedence; other ambiguous aliases remain unresolved.
+var topicAliasOwners = map[string]string{"кулинария": "food", "инвестиции": "finance.invest"}
+
 func buildTopicIndex(list []*Topic) *topicIndex {
 	idx := &topicIndex{byID: map[string]*Topic{}, byNorm: map[string]*Topic{}, kids: map[string][]*Topic{}, order: list}
 	for _, e := range list {
 		idx.byID[e.ID] = e
 	}
+	// Exact titles take priority. An alias shared by multiple topics without
+	// an exact-title owner is ambiguous and must not depend on registry order.
 	for _, e := range list {
-		for _, n := range TopicNames(e) {
-			if _, ok := idx.byNorm[n]; !ok {
-				idx.byNorm[n] = e
+		n := TopicNorm(e.Title)
+		if _, exists := idx.byNorm[n]; !exists {
+			idx.byNorm[n] = e
+		}
+	}
+	aliases := map[string]*Topic{}
+	ambiguous := map[string]bool{}
+	for _, e := range list {
+		for _, alias := range e.Aliases {
+			n := TopicNorm(alias)
+			if n == "" {
+				continue
+			}
+			if prev, ok := aliases[n]; ok && prev.ID != e.ID {
+				ambiguous[n] = true
+			} else {
+				aliases[n] = e
 			}
 		}
 		if p := e.ParentID(); p != "" {
 			idx.kids[p] = append(idx.kids[p], e)
+		}
+	}
+	for n, e := range aliases {
+		if _, isTitle := idx.byNorm[n]; isTitle {
+			continue
+		}
+		if !ambiguous[n] {
+			idx.byNorm[n] = e
+			continue
+		}
+		if key := topicAliasOwners[n]; key != "" {
+			for _, candidate := range list {
+				if candidate.Key == key && contains(TopicNames(candidate), n) {
+					idx.byNorm[n] = candidate
+					break
+				}
+			}
 		}
 	}
 	return idx
@@ -453,7 +493,7 @@ func (a *App) TopicOwnSourceCount(e *Topic, d *SourceDB) int {
 		d = a.Catalog()
 	}
 	names := map[string]bool{}
-	for _, n := range TopicNames(e) {
+	for _, n := range a.topicResolvedNames(e) {
 		names[n] = true
 	}
 	count := 0
@@ -470,6 +510,18 @@ func (a *App) TopicOwnSourceCount(e *Topic, d *SourceDB) int {
 	return count
 }
 
+// topicResolvedNames excludes aliases that resolve to another topic or are
+// ambiguous, so source matching follows the same rules as topic lookup.
+func (a *App) topicResolvedNames(e *Topic) []string {
+	var names []string
+	for _, n := range TopicNames(e) {
+		if owner := a.TopicLookup(n); owner != nil && owner.ID == e.ID {
+			names = append(names, n)
+		}
+	}
+	return names
+}
+
 // TopicRelatedNorms — нормальные формы тем, источники которых годятся для topic.
 func (a *App) TopicRelatedNorms(topic string) map[string]bool {
 	key := TopicNorm(topic)
@@ -478,17 +530,17 @@ func (a *App) TopicRelatedNorms(topic string) map[string]bool {
 		return map[string]bool{key: true}
 	}
 	norms := map[string]bool{}
-	for _, n := range TopicNames(e) {
+	for _, n := range a.topicResolvedNames(e) {
 		norms[n] = true
 	}
 	if e.Scope == "broad" {
 		for _, c := range a.TopicChildren(e) {
-			for _, n := range TopicNames(c) {
+			for _, n := range a.topicResolvedNames(c) {
 				norms[n] = true
 			}
 		}
 	} else if p := a.TopicParent(e); p != nil && a.TopicOwnSourceCount(e, nil) < topicParentFallbackMin {
-		for _, n := range TopicNames(p) {
+		for _, n := range a.topicResolvedNames(p) {
 			norms[n] = true
 		}
 	}
@@ -503,8 +555,8 @@ func (a *App) TopicSame(x, y string) bool {
 	if TopicNorm(x) == TopicNorm(y) {
 		return true
 	}
-	e := a.TopicLookup(x)
-	return e != nil && contains(TopicNames(e), TopicNorm(y))
+	e, other := a.TopicLookup(x), a.TopicLookup(y)
+	return e != nil && other != nil && e.ID == other.ID
 }
 
 // TopicBase — тема без уточнения: «первая + вторая» из «тема ? запрос».
@@ -550,8 +602,8 @@ func translit(w string) string {
 
 // QueryTextHit — каждое слово уточнения найдено в начале слова текста по основе («тюмень» — «тюмени», «Tyumen»).
 func QueryTextHit(text, query string) bool {
-	text = strings.ToLower(text)
-	for _, word := range strings.Fields(strings.ToLower(strings.TrimSpace(query))) {
+	text = strings.ReplaceAll(strings.ToLower(text), "ё", "е")
+	for _, word := range strings.Fields(strings.ReplaceAll(strings.ToLower(strings.TrimSpace(query)), "ё", "е")) {
 		stems := []string{word}
 		if cyrRe.MatchString(word) {
 			stems = append(stems, translit(word))
@@ -581,6 +633,7 @@ func (a *App) TopicPromptContext(topic string) string {
 		}
 		return strings.Join(out, " и ")
 	}
+	topic = TopicBase(topic)
 	e := a.TopicLookup(topic)
 	if e == nil {
 		return "«" + topic + "»"
@@ -630,15 +683,19 @@ func (u *U) TopicPublic(e *Topic, d *SourceDB) jx.M {
 
 // TopicIsNSFW — тема 18+ или «Жесть»: её флаг или флаг её общей темы.
 func (a *App) TopicIsNSFW(text string) bool {
-	e := a.TopicLookup(text)
-	if e == nil {
-		return false
+	for _, part := range TopicParts(text) {
+		e := a.TopicLookup(part)
+		if e == nil {
+			continue
+		}
+		if e.NSFW {
+			return true
+		}
+		if p := a.TopicParent(e); p != nil && p.NSFW {
+			return true
+		}
 	}
-	if e.NSFW {
-		return true
-	}
-	p := a.TopicParent(e)
-	return p != nil && p.NSFW
+	return false
 }
 
 // ---- Засев дерева в реестр ----
@@ -676,7 +733,6 @@ func (a *App) TopicTreeSeed(ctx context.Context, logf func(string)) (map[string]
 			parent                     string
 		}
 		var nodes []node
-		owner := map[string]string{}
 		for _, b := range TopicTree {
 			f := b.Format
 			nodes = append(nodes, node{key: b.Key, title: b.Title, about: b.About, aliases: b.Aliases, format: &f, nsfw: b.NSFW})
@@ -687,11 +743,6 @@ func (a *App) TopicTreeSeed(ctx context.Context, logf func(string)) (map[string]
 				}
 				nodes = append(nodes, node{key: c.Key, title: c.Title, about: c.About, hint: c.Hint, aliases: c.Aliases, entities: c.Entities,
 					queries: c.Queries, format: c.Format, nsfw: ns, parent: b.Key})
-			}
-		}
-		for _, n := range nodes {
-			for _, name := range append([]string{n.title}, n.aliases...) {
-				owner[TopicNorm(name)] = n.key
 			}
 		}
 		ids := map[string]bool{}
@@ -739,9 +790,7 @@ func (a *App) TopicTreeSeed(ctx context.Context, logf func(string)) (map[string]
 			e.Entities, e.Queries = n.entities, n.queries
 			var aliases []string
 			for _, al := range append(append([]string{}, e.Aliases...), n.aliases...) {
-				if o, ok := owner[TopicNorm(al)]; !ok || o == n.key {
-					aliases = append(aliases, al)
-				}
+				aliases = append(aliases, al)
 			}
 			e.Aliases = aliases
 			e.About = n.about // описание ведёт дерево
@@ -1285,7 +1334,7 @@ func TopicWordsHit(text string, words []string) bool {
 	return false
 }
 
-// topicNeighborsHint — родитель и соседние подтемы: профиль темы знает, чем она не является.
+// topicNeighborsHint — контекст соседних тем; они могут пересекаться.
 func (a *App) topicNeighborsHint(e *Topic) string {
 	p := a.TopicParent(e)
 	if p == nil {
@@ -1300,20 +1349,24 @@ func (a *App) topicNeighborsHint(e *Topic) string {
 	if len(list) == 0 {
 		return ""
 	}
-	return "Родительская тема: «" + p.Title + "» — " + strings.TrimRight(p.About, ".") + ".\nСоседние темы (НЕ эта): " + strings.Join(list, "; ") + ".\n"
+	return "Родительская тема: «" + p.Title + "» — " + strings.TrimRight(p.About, ".") + ".\nСоседние темы могут пересекаться с выбранной: " + strings.Join(list, "; ") + ". Наличие соседней темы не исключает выбранную.\n"
 }
 
 var yearRe = regexp.MustCompile(`\b(19|20)\d{2}\b`)
 var tmeRe = regexp.MustCompile(`(?i)^(https?://)?t\.me/(s/)?`)
 
-func (u *U) topicProfileBuild(e *Topic, complaints []string) *TopicProfile {
-	format := u.TopicFormatOf(e.Title)
+func (u *U) topicProfileBuild(e *Topic) *TopicProfile {
+	// The stored profile is shared; personal format overrides belong to the
+	// user's own selection, not to the definition used by everyone.
+	format := (&U{App: u.App}).TopicFormatOf(e.Title)
 	neighbors := u.topicNeighborsHint(e)
 	byText := format.Judge == "text"
 	var b strings.Builder
 	b.WriteString("Тема подбора из соцсетей: " + u.TopicPromptContext(e.Title))
 	if byText {
 		b.WriteString(". Посты этой темы — в основном текст, картинка часто стоковая")
+	} else if format.Judge == "both" {
+		b.WriteString(". Посты могут быть текстом, изображениями или видео; учитывай их содержание и подписи")
 	} else {
 		b.WriteString(". Посты — картинки и видео")
 	}
@@ -1321,18 +1374,25 @@ func (u *U) topicProfileBuild(e *Topic, complaints []string) *TopicProfile {
 	if u.TopicIsHumor(e.Title) {
 		b.WriteString("Для «Мемов» и «Юмора» подходит законченная самостоятельная шутка: текст, сопоставление или развитие ситуации создаёт панчлайн. Не подходят пустые или почти пустые мем-шаблоны, реакционные картинки, а также узнаваемые мем-персонажи и форматы без новой шутки. Готовый мем на известном шаблоне с собственным панчлайном подходит.\n")
 	}
+	if TopicNorm(e.Title) == TopicNorm(config.DefaultTopic) {
+		b.WriteString("Для видео-мемов выбирай одну самостоятельную шутку, а не подборку, нарезку или компиляцию нескольких мемов.\n")
+	}
 	if byText {
 		b.WriteString("criteria — о чём должен быть текст поста, чтобы он подходил под тему (1–2 предложения, конкретные признаки).\n")
+	} else if format.Judge == "both" {
+		b.WriteString("criteria — какие признаки в тексте, изображении или видео показывают соответствие теме (1–2 предложения).\n")
 	} else {
 		b.WriteString("criteria — что должно быть видно на картинке или в видео, чтобы запись подходила под тему (1–2 предложения, конкретные признаки, не общие слова).\n")
 	}
 	if neighbors != "" {
-		b.WriteString("exclude — чем эта тема отличается от родительской и от соседних (1–2 предложения, конкретно: что именно видно в записях соседей).\n")
+		b.WriteString("exclude — что действительно не подходит к выбранной теме (1–2 предложения). Соседняя тема сама по себе не исключает выбранную: пост может подходить обеим.\n")
 	} else {
 		b.WriteString("exclude — что похоже на тему, но не подходит (1 предложение).\n")
 	}
 	if byText {
 		b.WriteString("question — один вопрос по-русски, на который отвечают «да» или «нет» по тексту поста; начинается со слов «Этот пост про …?» и проверяет criteria.\n")
+	} else if format.Judge == "both" {
+		b.WriteString("question — один вопрос по-русски для быстрой проверки по изображению; если по нему нельзя определить тему, результат должен быть неясным.\n")
 	} else {
 		b.WriteString("question — один вопрос по-русски, на который отвечают «да» или «нет» по одной картинке; начинается со слов «Это …?» и проверяет критерии (например: «Это картинка с мотоциклом или мотоциклистом?»). Вопрос про видимое на картинке.\n")
 	}
@@ -1340,10 +1400,6 @@ func (u *U) topicProfileBuild(e *Topic, complaints []string) *TopicProfile {
 		"queries — 8 поисковых запросов по-русски, которыми люди ищут такие каналы: 1–3 слова, от прямого названия к синонимам и подтемам. Строго про тему: каждый запрос содержит слово из keywords. Без годов и дат, без соседних тем, без слов «канал», «телеграм», «паблик», «группа».\n" +
 		"queries_en — 3 запроса по-английски.\n" +
 		"telegram — адреса (username, латиница, цифры и _) публичных Telegram-каналов по теме, которые ты точно знаешь. Не уверен — пустой список.\n")
-	if len(complaints) > 0 {
-		b.WriteString("Пользователи пожаловались, что эти записи НЕ подходят под тему, хотя их пропустили: " + string(jx.Marshal(complaints)) +
-			".\nПойми, что в них общего, и опиши это в exclude. criteria и question сделай строже, чтобы такие записи не проходили.\n")
-	}
 	b.WriteString(neighbors + "Ответь только JSON.")
 	list := jx.M{"type": "array", "items": jx.M{"type": "string"}}
 	str := jx.M{"type": "string"}
@@ -1406,23 +1462,20 @@ func (u *U) topicProfileBuild(e *Topic, complaints []string) *TopicProfile {
 		Telegram: uniqueStrings(tg), V: TopicProfileVersion, Smart: smart, At: now()})
 }
 
-// TopicProfileEnsure — профиль темы; нет, устарел, от быстрой модели или накопились жалобы — пишется заново.
+// TopicProfileEnsure — общий профиль темы, без пользовательских жалоб.
 func (u *U) TopicProfileEnsure(topic string) *TopicProfile {
 	e := u.TopicLookup(topic)
 	if e == nil {
 		return nil
 	}
 	p := e.Profile
-	all := u.TopicComplaints(e.Title, nil)
-	needsRebuild := p != nil && len(all) >= p.Complaints+topicComplaintStep && now()-p.At > 600
-	if p != nil && p.V == TopicProfileVersion && (p.Smart || now()-p.At < topicProfileFallbackRetry) && !needsRebuild {
+	if p != nil && p.V == TopicProfileVersion && (p.Smart || now()-p.At < topicProfileFallbackRetry) {
 		return p
 	}
-	built := u.topicProfileBuild(e, TopicComplaintTexts(all, TopicComplaintExamples))
+	built := u.topicProfileBuild(e)
 	if built == nil {
 		return p
 	}
-	built.Complaints = len(all)
 	if p != nil && p.Question != built.Question {
 		// вопрос сменился — прежние быстрые оценки темы не годятся
 		u.DB.Pool.Exec(u.Ctx, `DELETE FROM screened_cache WHERE lower(topic) = ANY($1)`, TopicNames(e))
@@ -1430,15 +1483,11 @@ func (u *U) TopicProfileEnsure(topic string) *TopicProfile {
 	c := *e
 	c.Profile = built
 	u.TopicSave(u.Ctx, &c)
-	if needsRebuild {
-		u.Log("Профиль темы «%s» уточнён по %d жалобам. Не подходит: %s", e.Title, len(all), built.Exclude)
-	} else {
-		note := ""
-		if !built.Smart {
-			note = " (быстрой моделью)"
-		}
-		u.Log("Профиль темы «%s»%s: %s", e.Title, note, built.Criteria)
+	note := ""
+	if !built.Smart {
+		note = " (быстрой моделью)"
 	}
+	u.Log("Профиль темы «%s»%s: %s", e.Title, note, built.Criteria)
 	return built
 }
 
@@ -1680,8 +1729,8 @@ func ContentTagsSchema() jx.M {
 
 // ContentTagsPromptRules — правила меток для промптов анализа.
 func ContentTagsPromptRules() string {
-	return fmt.Sprintf("tags: 1–%d ключа тем из списка ниже — о чём запись, независимо от темы подборки. Ключ — «ветка.тема» (например animals.cats) или просто ветка, если подходит ветка, но ни одна её тема. Первый — главное содержание."+
-		" Мем — ключ ветки memes; анекдот, смешное видео, пранк — humor. Плюс ключ того, над чем шутят (мем про кота: memes и animals.cats). Видно обнажённое тело или секс — обязательно ключ adult."+
+	return fmt.Sprintf("tags: 1–%d ключа тем из списка ниже — о чём запись, независимо от темы подборки. Ключ — «ветка.тема» (например animals.cats) или просто ветка, если подходит ветка, но ни одна её тема. Первый — главное содержание. Запись может иметь несколько пересекающихся тем, в том числе соседние: рецепт торта — food.recipes и food.baking; жизненный мем о работе — memes.relatable и people.work. Выбирай только признаки, подтверждённые записью."+
+		" Мем — memes или подходящая подтема memes; анекдот, смешное видео, пранк — humor или подходящая подтема humor. Плюс ключ того, над чем шутят (мем про кота: memes и animals.cats). Видно обнажённое тело или секс — обязательно ключ adult."+
 		" Только ключи из списка.\nТемы:\n%s\n", config.ContentTagsMax, ContentTagsPromptList())
 }
 

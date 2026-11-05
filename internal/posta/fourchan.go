@@ -20,15 +20,15 @@ import (
 // файлы — с заголовками браузера, Referer и паузой 2 с (иначе 429).
 
 const (
-	FourchanAPI            = "https://a.4cdn.org"
-	FourchanImg            = "https://i.4cdn.org"
-	FourchanBoardsPerRun   = 4
+	FourchanAPI             = "https://a.4cdn.org"
+	FourchanImg             = "https://i.4cdn.org"
+	FourchanBoardsPerRun    = 4
 	FourchanThreadsPerBoard = 6
-	fourchanPostsPerThread = 20
-	fourchanAPIPerRun      = 30
-	FourchanMediaGap       = 2 * time.Second
-	fourchanAPIGap         = time.Second
-	fourchanUA             = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+	fourchanPostsPerThread  = 20
+	fourchanAPIPerRun       = 30
+	FourchanMediaGap        = 2 * time.Second
+	fourchanAPIGap          = time.Second
+	fourchanUA              = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 )
 
 var fourchanAlwaysBoards = []string{"b"}
@@ -356,19 +356,20 @@ func (u *U) FourchanThreadMedia(board string, t jx.M, capN int, extra jx.M) []jx
 	if len(posts) > 0 {
 		op = posts[0]
 	}
+	if jx.Bool(op, "closed") || jx.Bool(op, "archived") {
+		return nil
+	}
 	title := CleanHTMLText(jx.Str(t, "sub"))
 	if title == "" {
 		title = CleanHTMLText(jx.Str(op, "sub"))
 	}
 	title = trimRunes(title, config.ThreadTitleMax)
-	opText := trimRunes(FourchanPostText(op), config.ThreadOpMax)
 	var out []jx.M
 	for _, p := range posts {
 		files := fourchanPostMedia(board, p)
 		if len(files) == 0 {
 			continue
 		}
-		text := FourchanPostText(p)
 		id := jx.Int(p, "no")
 		flag := ""
 		if strings.ToUpper(jx.Str(p, "country")) == "UA" || strings.ToUpper(jx.Str(op, "country")) == "UA" {
@@ -378,15 +379,14 @@ func (u *U) FourchanThreadMedia(board string, t jx.M, capN int, extra jx.M) []jx
 		if label == "" {
 			label = "#" + strconv.FormatInt(thread, 10)
 		}
-		threadOp := opText
-		if id == thread {
-			threadOp = ""
-		}
 		rec := jx.M{"source_key": fmt.Sprintf("4chan:%s:%d", board, thread), "posted_at": jx.Int(p, "time"), "board": board, "thread_id": strconv.FormatInt(thread, 10),
 			"post_id": strconv.FormatInt(id, 10), "country": flag, "source": Platform4chan + " /" + board + "/ · " + trimRunes(label, 60),
 			"source_url": fourchanPostURL(board, thread, id), "image": files[0]["image"], "images": []any{files[0]["image"]}, "video": files[0]["video"],
-			"captions": []any{text}, "text": text, "engagement": jx.M{"source": "4chan", "replies": jx.Int(t, "replies"), "images": jx.Int(t, "images")},
-			"url": fourchanPostURL(board, thread, id), "thread_title": title, "thread_op": threadOp, "is_op": id == thread}
+			"captions": []any{}, "engagement": jx.M{"source": "4chan", "replies": jx.Int(t, "replies"), "images": jx.Int(t, "images")},
+			"url": fourchanPostURL(board, thread, id), "thread_title": title, "is_op": id == thread}
+		if len(files) > 1 {
+			rec["gallery"] = files
+		}
 		for k, v := range extra {
 			rec[k] = v
 		}
@@ -412,26 +412,9 @@ func (u *U) ParseFourchan(board string, threadLimit int, topic string) []jx.M {
 			alive = append(alive, t)
 		}
 	}
-	gates := map[string]*int{}
-	if topic != "" {
-		var infos []threadInfo
-		for _, t := range alive {
-			infos = append(infos, threadInfo{jx.Str(t, "no"), CleanHTMLText(jx.Str(t, "sub")), FourchanPostText(jx.M{"com": jx.Str(t, "com")})})
-		}
-		gates = u.ImageboardThreadScores(topic, board, infos)
-	}
 	var out []jx.M
 	for _, t := range alive {
-		g := ImageboardThreadGate(gates[jx.Str(t, "no")])
-		if g == "skip" {
-			name := CleanHTMLText(jx.Str(t, "sub"))
-			if name == "" {
-				name = "#" + jx.Str(t, "no")
-			}
-			u.Log("-> 4chan /%s/: тред «%s» не по теме (%d) — пропуск.", board, name, *gates[jx.Str(t, "no")])
-			continue
-		}
-		out = append(out, u.FourchanThreadMedia(board, t, 200-len(out), jx.M{"thread_trust": g == "trust"})...)
+		out = append(out, u.FourchanThreadMedia(board, t, 200-len(out), nil)...)
 		if len(out) >= 200 {
 			break
 		}

@@ -276,7 +276,7 @@ func (u *U) sourceTasteScore(title, topic string, posts []jx.M) *int {
 
 // candidateGoodness — годнота кандидата. Метрики считаются всегда (дёшево); вкус владельца — только если тема
 // уже проходит порог предложения, потому что это вызов модели.
-func (u *U) candidateGoodness(c DiscoveryCandidate, title, topic string, posts []jx.M, rate *float64, activity jx.M, passesTopic bool) GoodnessResult {
+func (u *U) candidateGoodness(c DiscoveryCandidate, title, topic string, posts []jx.M, rate *float64, activity jx.M, passesTopic bool, precomputedTaste *int, tasteIncluded bool) GoodnessResult {
 	in := GoodnessInput{ViewRate: rate, LastPostAge: -1, PerWeek: jx.Float(activity, "per_week"), HasPosts: len(posts) > 0}
 	if lp := jx.Int(activity, "last_post"); lp > 0 {
 		in.LastPostAge = now() - lp
@@ -285,7 +285,11 @@ func (u *U) candidateGoodness(c DiscoveryCandidate, title, topic string, posts [
 	in.AdShare, in.LinkShare = goodnessPostShares(posts)
 	res := SourceGoodness(in)
 	if passesTopic {
-		if taste := u.sourceTasteScore(title, topic, posts); taste != nil {
+		taste := precomputedTaste
+		if !tasteIncluded {
+			taste = u.sourceTasteScore(title, topic, posts)
+		}
+		if taste != nil {
 			in.Taste = taste
 			res = SourceGoodness(in)
 		}

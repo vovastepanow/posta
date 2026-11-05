@@ -1,10 +1,10 @@
-// studio.js — главная «Студии»: смотровое окно (глобус с только что отобранными постами), лента «Мой контент», источники, события.
+// Главная страница: контент, источники и состояние подбора.
 // Данные — тот же API, что у приложения.
-import { createCity } from './studio-city.js';
 import { showPlan, showProfile } from './profile.js';
+import { cleanCaption, log, onTabOpen, onTopicChange } from './core.js';
+import { bindFutureDraftButton, applyRocketCheck, postItemToTelegram } from './content.js';
 
 const $ = id => document.getElementById(id);
-const COUNT = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 });
 
 function el(tag, props = {}, ...children) {
     const node = Object.assign(document.createElement(tag), props);
@@ -33,7 +33,7 @@ async function api(action, { body } = {}) {
 /** Запрос к API; без входа — на страницу входа приложения. */
 async function apiOrLogin(action, opts) {
     try { return await api(action, opts); }
-    catch (e) { if (e.status === 401) location.replace('index.html'); throw e; }
+    catch (e) { throw e; }
 }
 
 const PLATFORMS = { YouTube: '▶', Telegram: '✈', 'ВКонтакте': 'VK', RSS: '◉', 'Двач': '2ch', '4chan': '4ch', 'Одноклассники': 'OK', TikTok: '♪' };
@@ -50,12 +50,12 @@ const platformOf = item => {
 const PLATFORM_COLORS = { Telegram: '#4fd1ff', YouTube: '#ff5a7a', 'ВКонтакте': '#6f9bff', 'Двач': '#ffd166', '4chan': '#9be15d', RSS: '#c86bff', 'Сайт': '#c86bff' };
 const colorOf = p => PLATFORM_COLORS[p] || '#e06bff';
 
-const firstLine = i => String(i.text || i.description || '').split('\n')[0].replace(/#\S+/g, '').trim().slice(0, 90) || 'Без подписи';
+const firstLine = i => cleanCaption(i.text).split('\n')[0].replace(/#\S+/g, '').trim().slice(0, 90);
 
 const FILTERS = [
     ['all', 'Всё', () => true],
-    ['images', 'Картинки', i => !i.display_video && !i.video],
-    ['videos', 'Видео', i => !!(i.display_video || i.video)],
+    ['images', 'Картинки', i => !!i.display_image && !i.display_video && !i.video],
+    ['videos', 'Видео', i => postMedia(i).some(file => file.video) || !!(i.video_via || i.video_pending)],
     ['text', 'Текст', i => !i.display_image],
     ['telegram', 'Из Telegram', i => platformOf(i) === 'Telegram'],
     ['boards', 'С имиджбордов', i => ['Двач', '4chan'].includes(platformOf(i))],
@@ -68,50 +68,125 @@ function visible() {
     return list.sort(state.sort === 'rel' ? (a, b) => (b.relevance || 0) - (a.relevance || 0) : (a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 }
 
+function postMedia(item) {
+    if (item.gallery?.length > 1) return item.gallery.map(file => ({ image: file.display_image || file.image || '', video: file.display_video || file.video || '' }));
+    if (item.images?.length > 1) return item.images.map((src, index) => ({ image: index === 0 ? item.display_image || src : src, video: index === 0 ? item.display_video || item.video || '' : '' }));
+    const image = item.display_image || item.image || '';
+    const video = item.display_video || item.video || '';
+    return image || video ? [{ image, video }] : [];
+}
+
+const videoObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+    for (const entry of entries) {
+        const video = entry.target;
+        if (entry.isIntersecting && !document.hidden) {
+            if (!video.getAttribute('src')) video.src = video.dataset.src;
+            video.play().catch(() => {});
+        } else video.pause();
+    }
+}, { rootMargin: '150px' }) : null;
+document.addEventListener('visibilitychange', () => {
+    if (!videoObserver) return;
+    const videos = document.querySelectorAll('#grid video');
+    if (document.hidden) videos.forEach(video => video.pause());
+    else videos.forEach(video => { videoObserver.unobserve(video); videoObserver.observe(video); });
+});
+
+function makeVideo(src, poster, preview = false) {
+    const video = el('video', { poster: poster || '', muted: !preview, autoplay: preview, loop: !preview, playsInline: true, preload: preview ? 'auto' : 'none', controls: preview });
+    video.setAttribute('playsinline', '');
+    if (preview || !videoObserver) { video.src = src; video.autoplay = true; }
+    else video.dataset.src = src;
+    return video;
+}
+
 function card(i) {
-    const media = i.display_video
-        ? el('video', { src: i.display_video, poster: i.display_image || '', muted: true, loop: true, playsInline: true, preload: 'none',
-            onmouseenter: e => e.target.play().catch(() => {}), onmouseleave: e => e.target.pause() })
-        : i.display_image ? el('img', { src: i.display_image, alt: '', loading: 'lazy' }) : el('div', { className: 'text-only', textContent: (i.text || '').slice(0, 220) });
-    const eng = i.engagement || {};
-    const stats = el('div', { className: 'card-stats' },
-        eng.views ? el('span', { textContent: `👁 ${COUNT.format(eng.views)}` }) : null,
-        i.relevance ? el('span', { textContent: `★ ${i.relevance}`, title: 'Оценка модели: насколько пост по теме' }) : null,
-        el('span', { className: 'vote', textContent: i.vote === 'liked' ? '♥' : '?', title: i.vote === 'liked' ? 'Лайк' : 'Без решения' }));
+    const files = postMedia(i), first = files[0];
+    const media = first?.video ? makeVideo(first.video, first.image) : first?.image ? el('img', { src: first.image, alt: '', loading: 'lazy' }) : el('div', { className: 'text-only', textContent: (i.text || '').slice(0, 220) });
+    const hasVideo = files.some(file => file.video) || Boolean(i.video_via || i.video_pending);
     const ago = i.timestamp ? formatAgo(i.timestamp) : '';
     const title = firstLine(i);
-    return el('article', { className: 'tile', onclick: e => { if (!e.target.closest('a')) openPreview(i); } },
+    const rocket = el('button', { type: 'button', className: 'home-card-action', textContent: '🚀', ariaLabel: 'Подготовить пост', onclick: async e => {
+        e.stopPropagation();
+        try { await postItemToTelegram(i, { onDone: () => loadContent().catch(() => {}) }); } catch (error) { log(`Не удалось открыть редактор: ${error.message}`); }
+    } });
+    applyRocketCheck(rocket, i.post_check, 'Подготовить пост');
+    const add = bindFutureDraftButton(el('button', { type: 'button', className: 'home-card-action', textContent: '+🚀', ariaLabel: 'Добавить в будущий пост' }), () => i);
+    const remove = el('button', { type: 'button', className: 'home-card-action', textContent: '✕', ariaLabel: 'Убрать из отобранных', title: 'Убрать из отобранных (оценка останется в истории)', onclick: async e => {
+        e.stopPropagation();
+        remove.disabled = true;
+        try { await api('proposal_hide', { body: { image: i.image } }); await loadContent(); } catch (error) { remove.disabled = false; log(`Не удалось убрать пост: ${error.message}`); }
+    } });
+    return el('article', { className: 'tile', tabIndex: 0, role: 'button', ariaLabel: `Открыть пост: ${title}`, onclick: e => { if (!e.target.closest('a, img, button')) { e.stopPropagation(); openPreview(i); } }, onkeydown: e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openPreview(i); } } },
         el('div', { className: 'tile-media' }, media,
-            el('span', { className: 'badge', textContent: `${PLATFORMS[platformOf(i)] || '◌'} ${platformOf(i)}` }),
-            ago ? el('span', { className: 'ago', textContent: ago }) : null, stats),
+            hasVideo ? el('span', { className: 'tile-video-mark', ariaLabel: 'Есть видео', textContent: '▶' }) : null,
+            files.length > 1 ? el('span', { className: 'tile-media-count', ariaLabel: `Медиафайлов: ${files.length}`, textContent: `▣ ${files.length}` }) : null),
         el('div', { className: 'tile-body' },
             el('b', { textContent: title }),
-            el('small', { textContent: (i.hashtags || []).slice(0, 4).join(' ') || i.source || '' }),
-            i.source_url ? el('a', { href: i.source_url, target: '_blank', rel: 'noopener', textContent: '↗', title: 'Открыть у источника' }) : null));
+            el('small', { textContent: [platformOf(i), ago].filter(Boolean).join(' · ') }),
+            i.source_url ? el('a', { href: i.source_url, target: '_blank', rel: 'noopener', textContent: '↗', title: 'Открыть у источника' }) : null,
+            el('div', { className: 'home-card-actions' }, rocket, add, remove)));
 }
 
 // ---- просмотр поста ----
 function openPreview(i) {
     const dlg = $('preview');
-    const media = i.display_video
-        ? el('video', { src: i.display_video, poster: i.display_image || '', controls: true, autoplay: true, playsInline: true })
-        : i.display_image ? el('img', { src: i.display_image, alt: '' }) : null;
+    const backdrop = $('preview-backdrop');
+    const showPreview = () => { backdrop.hidden = false; dlg.show(); };
+    const files = postMedia(i);
+    let currentMedia = 0;
+    const mediaHost = el('div', { className: 'preview-media' });
+    const showMedia = () => {
+        const file = files[currentMedia];
+        mediaHost.querySelector('video')?.pause();
+        if (!file) return;
+        const media = file.video ? makeVideo(file.video, file.image, true) : el('img', { src: file.image, alt: `Медиа ${currentMedia + 1} из ${files.length}` });
+        mediaHost.replaceChildren(media);
+        if (files.length > 1) {
+            const previous = el('button', { type: 'button', className: 'preview-media-prev', ariaLabel: 'Предыдущий файл', textContent: '‹', onclick: () => { currentMedia = (currentMedia + files.length - 1) % files.length; showMedia(); } });
+            const next = el('button', { type: 'button', className: 'preview-media-next', ariaLabel: 'Следующий файл', textContent: '›', onclick: () => { currentMedia = (currentMedia + 1) % files.length; showMedia(); } });
+            mediaHost.append(previous, next, el('span', { className: 'preview-media-counter', textContent: `${currentMedia + 1} / ${files.length}` }));
+        }
+    };
+    showMedia();
     const p = platformOf(i);
+    const openEditor = async scheduled => {
+        try {
+            let scheduledTs = 0;
+            if (scheduled) {
+                dlg.close();
+                const { pickDateTime } = await import('./editor.js');
+                const date = await pickDateTime({});
+                if (!date) { showPreview(); return; }
+                scheduledTs = Math.floor(date.getTime() / 1000);
+            }
+            if (dlg.open) dlg.close();
+            const { postItemToTelegram } = await import('./content.js');
+            await postItemToTelegram(i, { scheduledTs, onDone: () => loadContent().catch(() => {}) });
+        } catch (error) {
+            $('preview-error').textContent = `Не удалось открыть редактор: ${error.message}`;
+            if (!dlg.open) showPreview();
+        }
+    };
     dlg.replaceChildren(
+        el('h2', { className: 'preview-title', textContent: 'Просмотр поста' }),
         el('button', { type: 'button', className: 'preview-close', textContent: '×', ariaLabel: 'Закрыть', onclick: () => dlg.close() }),
-        media ? el('div', { className: 'preview-media' }, media) : null,
+        files.length ? mediaHost : null,
         el('div', { className: 'preview-body' },
             el('p', { className: 'preview-meta' }, el('span', { className: 'badge-inline', style: `--c:${colorOf(p)}`, textContent: `${PLATFORMS[p] || '◌'} ${p}` }),
                 el('span', { textContent: String(i.source || '').split(' | ').pop() }),
                 i.relevance ? el('span', { textContent: `★ ${i.relevance}` }) : null,
                 i.timestamp ? el('span', { className: 'muted', textContent: formatAgo(i.timestamp) }) : null),
-            el('p', { className: 'preview-text', textContent: String(i.text || i.description || '').slice(0, 1200) }),
+            el('p', { className: 'preview-text', textContent: cleanCaption(i.text) }),
             i.why_relevant ? el('p', { className: 'preview-why' }, el('b', { textContent: 'Почему отобран: ' }), i.why_relevant) : null,
+            el('p', { id: 'preview-error', className: 'preview-error', role: 'alert' }),
             el('div', { className: 'preview-actions' },
-                i.source_url ? el('a', { className: 'ghost', href: i.source_url, target: '_blank', rel: 'noopener', textContent: 'У источника ↗' }) : null,
-                el('a', { className: 'cta', href: 'index.html#content', textContent: 'Открыть в «Подборе»' }))));
-    dlg.onclose = () => dlg.querySelector('video')?.pause();
-    dlg.showModal();
+                el('button', { type: 'button', className: 'cta', textContent: '🚀', ariaLabel: 'Подготовить пост', title: 'Подготовить пост', onclick: () => openEditor(false) }),
+                bindFutureDraftButton(el('button', { type: 'button', className: 'ghost', textContent: '+🚀', ariaLabel: 'Добавить в будущий пост' }), () => i),
+                el('button', { type: 'button', className: 'ghost', textContent: '🕒', ariaLabel: 'Запланировать', title: 'Запланировать', onclick: () => openEditor(true) })),
+            i.source_url ? el('a', { className: 'preview-source', href: i.source_url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть оригинал ↗' }) : null));
+    dlg.onclose = () => { backdrop.hidden = true; dlg.querySelector('video')?.pause(); };
+    showPreview();
 }
 
 // ---- смотровое окно ----
@@ -119,166 +194,72 @@ const live = { timer: 0, last: null, gen: 0 };
 
 // строка «Только что отобрано» в правой панели: миниатюра, первая строка текста, источник · балл
 function feedItem(i) {
-    const open = () => openPreview(i);
+    const open = e => { if (e.type === 'click' && e.target.closest('img')) return; e.stopPropagation(); openPreview(i); };
     return el('li', { tabIndex: 0, title: firstLine(i), onclick: open, onkeydown: e => { if (e.key === 'Enter') open(); } },
         el('span', { className: 'th' }, i.display_image ? el('img', { src: i.display_image, alt: '', loading: 'lazy' }) : null),
         el('span', {}, el('span', { className: 'fline', textContent: firstLine(i) }),
             el('small', { textContent: `${String(i.source || '').split(' | ').pop()}${i.relevance ? ` · ★${i.relevance}` : ''}` })));
 }
 
-const cleanLog = l => l.replace(/[╔╗╚╝║═─│┌┐└┘]+/g, ' ').replace(/\s+/g, ' ').trim();
-
-// ---- журнал: строки дописываются, без перерисовки всего списка; фильтр по шагу — скрытием строк ----
-const journal = { texts: [], filter: null, filterName: '', idle: false };
-const JOURNAL_ROWS = 200;
-
-/** Сервер присылает хвост журнала (40 строк): добавляем только новые — по перекрытию с прошлой порцией. */
-function appendJournal(rows) {
-    const incoming = rows.map(r => cleanLog(r.t || ''));
-    const box = $('journal');
-    let overlap = Math.min(journal.texts.length, incoming.length);
-    while (overlap > 0 && !journal.texts.slice(-overlap).every((t, i) => t === incoming[i])) overlap--;
-    // журнал начат заново (новый проход) или стояла строка «отдыхает» — перерисовываем один раз
-    if (journal.idle || (overlap === 0 && journal.texts.length)) box.replaceChildren();
-    journal.idle = false;
-    for (const r of rows.slice(overlap)) {
-        const text = cleanLog(r.t || '');
-        if (!text) continue;
-        const cls = text.includes('✓') ? 'ok' : text.includes('✗') ? 'no' : text.startsWith('⏳') ? 'prog' : '';
-        const row = el('div', { className: 'ln', hidden: !!journal.filter && r.s !== journal.filter },
-            r.at ? el('span', { className: 'ts', textContent: `${r.at} ` }) : null,
-            el('span', { className: cls, textContent: text }));
-        row.dataset.stage = r.s || '';
-        box.append(row);
-    }
-    while (box.childElementCount > JOURNAL_ROWS) box.firstElementChild.remove();
-    journal.texts = incoming;
-}
-
-/** Вне работы журнал пуст — одна серая строка про последний проход. */
-function idleJournal(last) {
-    const at = last?.at ? new Date(last.at * 1000).toTimeString().slice(0, 5) : '';
-    $('journal').replaceChildren(el('div', { className: 'ln ts', textContent: at ? `Сборщик отдыхает. Последний проход — ${at}` : 'Сборщик отдыхает.' }));
-    journal.texts = [];
-    journal.idle = true;
-}
-
-function setJournalFilter(stage, name) {
-    journal.filter = stage;
-    journal.filterName = name || '';
-    $('jfilter').hidden = !stage;
-    $('jfilterName').textContent = stage ? `только «${name}»` : '';
-    for (const row of $('journal').querySelectorAll('.ln[data-stage]')) row.hidden = !!stage && row.dataset.stage !== stage;
-    if (live.last) renderPipe(live.last);   // подсветка шага — по последнему ответу
-}
-$('jfilterOff').addEventListener('click', () => setJournalFilter(null));
-
-// ---- конвейер: шаги и числа воронки; клик по шагу фильтрует журнал ----
+// ---- конвейер: текущее действие и счётчики прохода ----
 // rank — порядок шагов сборщика; ПК-фильтр идёт в одном шаге с «Фильтрами» (stage filter)
 const RANK = { collect: 0, filter: 1, prescreen: 3, analysis: 4, pool: 5 };
 const PIPE_STEPS = [
     { stage: 'collect', name: 'Сбор', rank: 0, num: f => f.collected },
     { stage: 'filter', name: 'Фильтры', rank: 1, num: f => f.candidates, note: f => `отсеяно ${f.filtered}` },
-    { stage: 'filter', name: 'ПК-фильтр', rank: 1, num: f => f.filtered_by?.ukraine ?? 0 },
-    { stage: 'prescreen', name: 'Быстрая оценка', rank: 3, num: f => Math.max(0, f.candidates - f.prescreen_rejected - f.duplicates) },
-    { stage: 'analysis', name: 'Анализ моделью', rank: 4, num: f => f.analyzed },
-    { stage: 'pool', name: 'В пул', rank: 5, num: f => f.added },
+    { stage: 'prescreen', name: 'Быстрая оценка', rank: 3, num: f => f.prescreen_rejected, note: () => 'отсеяно' },
+    { stage: 'analysis', name: 'Глубокая оценка', rank: 4, num: f => f.analyzed },
+    { stage: 'pool', name: 'Добавлено за проход', rank: 5, num: f => f.added },
 ];
-const STAGE_NAME = { collect: 'Сбор постов', filter: 'Фильтры', prescreen: 'Быстрая оценка', analysis: 'Анализ моделью', pool: 'В пул', discovery: 'Автоподбор источников' };
+const STAGE_NAME = { collect: 'Сбор постов', filter: 'Фильтры', prescreen: 'Быстрая оценка', analysis: 'Глубокая оценка', pool: 'В пул', discovery: 'Автоподбор источников' };
 
 function renderPipe(r) {
     const running = !!r.running;
     const last = r.last_pass;
     const funnel = running ? r.progress?.funnel : last?.funnel;
+    const added = running && funnel ? Number(funnel.added) || 0 : null;
+    if (added !== null && renderPipe.previousAdded !== null && renderPipe.previousAdded !== undefined && added > renderPipe.previousAdded) {
+        renderPipe.pulseUntil = Date.now() + 1200;
+    }
+    renderPipe.previousAdded = added;
     // перерисовываем только при изменении: опрос раз в 4 с не должен сбивать фокус и клики
-    const sig = JSON.stringify([running, r.stage, r.progress?.share, funnel, last?.at, journal.filter, journal.filterName]);
+    const sig = JSON.stringify([running, r.stopping, r.paused, r.stage, r.progress?.share, funnel, last?.at]);
     if (sig === renderPipe.sig) return;
     renderPipe.sig = sig;
     const cur = RANK[r.stage] ?? -1;
     $('pipeTitle').textContent = running || !last ? 'Конвейер' : `Последний проход · ${new Date(last.at * 1000).toTimeString().slice(0, 5)}`;
-    const share = running ? r.progress?.share : null;
-    $('pipeNow').textContent = running ? (STAGE_NAME[r.stage] || 'Подбор') : (last ? 'Сборщик отдыхает' : 'Ещё не было проходов');
-    $('pipePct').textContent = share != null ? `${Math.round(share * 100)}%` : '';
-    $('pbar').style.width = share != null ? `${Math.round(share * 100)}%` : (last && !running ? '100%' : '0%');
+    $('pipeNow').textContent = r.stopping ? 'Останавливается…' : r.paused ? 'Сбор остановлен' : running ? (STAGE_NAME[r.stage] || 'Подбор') : (last ? 'Сборщик отдыхает' : 'Ещё не было проходов');
     $('pipe').replaceChildren(...PIPE_STEPS.map(step => {
-        const st = !funnel ? 'wait' : !running ? 'ok' : step.rank < cur ? 'ok' : step.rank === cur ? 'run' : 'wait';
-        const num = funnel && st !== 'wait' ? (Number(step.num(funnel)) || 0).toLocaleString('ru-RU') : '—';
-        const note = st === 'run' ? 'идёт…' : funnel && step.note && st !== 'wait' ? step.note(funnel) : '';
-        const open = journal.filter === step.stage && journal.filterName === step.name;
-        const btn = el('button', { type: 'button', className: `job ${st}${open ? ' open' : ''}`, title: 'Показать в журнале только этот шаг',
-            onclick: () => setJournalFilter(open ? null : step.stage, open ? '' : step.name) },
-            el('span', { className: `dot ${st}`, textContent: st === 'ok' ? '✓' : '' }),
+        const repeating = step.stage === 'prescreen' || step.stage === 'analysis';
+        const st = running ? (step.rank === cur ? 'run' : repeating && cur >= RANK.prescreen ? 'active' : step.rank < cur ? 'ok' : 'wait') : funnel && !repeating ? 'ok' : 'wait';
+        const num = funnel && (st !== 'wait' || step.stage === 'pool' || !running) ? (Number(step.num(funnel)) || 0).toLocaleString('ru-RU') : '—';
+        const note = [st === 'run' ? 'идёт…' : '', funnel && step.note && (st !== 'wait' || !running) ? step.note(funnel) : ''].filter(Boolean).join(' · ');
+        const btn = el('div', { className: `job ${st}` },
+            step.stage === 'pool'
+                ? el('span', { className: `pool-led${Date.now() < (renderPipe.pulseUntil || 0) ? ' is-lit' : ''}`, ariaHidden: 'true' })
+                : el('span', { className: `dot ${st}`, textContent: st === 'ok' ? '✓' : '' }),
             el('span', {}, step.name, el('span', { className: 't', textContent: note })),
             el('span', { className: 'n', textContent: num }));
-        btn.setAttribute('aria-pressed', String(open));
         return btn;
     }));
-}
-
-// ---- город и тепловая карта (studio_city) ----
-const city = { view: null, src: 'pool', data: null, cells: [], hot: -1, idle: '', running: false };
-const dayFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
-const plural = v => v % 10 === 1 && v % 100 !== 11 ? 'пост' : v % 10 > 1 && v % 10 < 5 && (v % 100 < 10 || v % 100 > 20) ? 'поста' : 'постов';
-const level = v => v === 0 ? 0 : v < 3 ? 1 : v < 5 ? 2 : v < 7 ? 3 : 4;
-const valuesOf = () => (city.src === 'pub' ? city.data.published : city.data.pool);
-const dayText = k => {
-    const d = new Date(city.start.getFullYear(), city.start.getMonth(), city.start.getDate() + k), v = valuesOf()[k];
-    return `${dayFmt.format(d)} — ${v} ${plural(v)}`;
-};
-
-async function loadCity() {
-    let c;
-    try { c = await apiOrLogin('studio_city'); } catch { return; }
-    city.data = { ...c, published: c.published ?? c.pool.map(() => 0) };
-    const [y, m, d] = c.start.split('-').map(Number);
-    city.start = new Date(y, m - 1, d);
-    city.cells = c.pool.map((_, k) => {
-        const i = el('i', { onmouseenter: () => setHot(k) });
-        return i;
-    });
-    $('heat').replaceChildren(...city.cells);
-    $('heat').onmouseleave = () => setHot(-1);
-    city.view?.setData(c.pool, c.published);
-    paintHeat();
-}
-
-function paintHeat() {
-    if (!city.data) return;
-    const vals = valuesOf();
-    city.cells.forEach((c, k) => { c.style.background = `var(--heat${level(vals[k])})`; });
-    const total = vals.reduce((a, v) => a + v, 0).toLocaleString('ru-RU');
-    city.idle = `${total} ${city.src === 'pool' ? 'в пул' : 'опубликовано'} за год`;
-    let streak = 0;
-    for (let k = vals.length - 1; k >= 0 && vals[k] > 0; k--) streak++;
-    $('heatStreak').textContent = String(streak);
-    markHeat(city.hot);
-}
-
-/** Подсветка дня: клетка тепловой карты и подпись над ней. */
-function markHeat(k) {
-    city.hot = k;
-    city.cells.forEach((c, j) => c.classList.toggle('on', j === k));
-    $('heatTip').textContent = k >= 0 && city.data ? dayText(k) : city.idle;
-}
-
-/** Наведение на клетку подсвечивает дом в городе; и обратно — дом подсвечивает клетку. */
-function setHot(k) {
-    markHeat(k);
-    city.view?.highlight(k);
-}
-
-function onCityHover(k, x, y) {
-    const tip = $('cityTip');
-    markHeat(k);
-    tip.hidden = k < 0;
-    if (k >= 0) { tip.textContent = dayText(k); tip.style.left = `${x}px`; tip.style.top = `${y}px`; }
+    clearTimeout(renderPipe.pulseTimer);
+    if (Date.now() < (renderPipe.pulseUntil || 0)) {
+        renderPipe.pulseTimer = setTimeout(() => $('pipe').querySelector('.pool-led')?.classList.remove('is-lit'), renderPipe.pulseUntil - Date.now());
+    }
 }
 
 async function loadLive() {
     const gen = ++live.gen;   // один активный опрос: ответ старого запроса не планирует новый таймер
     clearTimeout(live.timer);
     let r;
-    try { r = await apiOrLogin('studio_live'); } catch { if (gen === live.gen) live.timer = setTimeout(loadLive, 15000); return; }
+    try { r = await apiOrLogin('studio_live'); } catch (error) {
+        renderPipe.sig = null;
+        $('pipeNow').textContent = error.status === 401 ? 'Войдите, чтобы увидеть состояние' : 'Не удалось загрузить состояние';
+        $('feed').replaceChildren(el('li', { className: 'muted', textContent: error.status === 401 ? 'Войдите, чтобы увидеть материалы.' : 'Не удалось загрузить материалы.' }));
+        if (gen === live.gen && error.status !== 401) live.timer = setTimeout(loadLive, 15000);
+        return;
+    }
+    if (gen !== live.gen) return;
     try { renderLive(r); }
     catch (e) { console.error('studio_live:', e); }   // ошибка отрисовки не должна останавливать опрос
     finally { if (gen === live.gen) live.timer = setTimeout(loadLive, r.running ? 4000 : 15000); }
@@ -287,33 +268,20 @@ async function loadLive() {
 function renderLive(r) {
     const items = r.items || [];
 
-    $('win-topic').textContent = r.topic || 'контент';
-    $('live-label').textContent = r.running ? 'В эфире · идёт подбор' : 'Сборщик отдыхает';
-    $('kicker').classList.toggle('is-on', !!r.running);
-    $('ai-phase').textContent = r.running ? (r.phase || 'Работает') : (items.length ? 'Подборка ждёт ваших решений' : 'Пока ничего: нажмите «Найти контент»');
-    $('stat-pool').textContent = String(r.pool ?? items.length);
-    $('stat-added').textContent = r.running ? String(r.progress?.added ?? 0) : '—';
-    const hour = items.filter(i => i.timestamp > Date.now() / 1000 - 3600).length;
-    $('stat-hour').textContent = hour >= items.length && items.length >= 30 ? '30+' : String(hour);
     $('nav-pool').textContent = r.pool || '';
-    $('act-search').disabled = !!r.running;
-    $('act-search').textContent = r.running ? '✦ Идёт поиск…' : '✦ Найти контент';
-    $('model-pill').classList.toggle('is-busy', !!r.running);
-    // проход закончился — город пересчитывается по новым постам
-    if (city.running && !r.running) loadCity();
-    city.running = !!r.running;
+    $('home-pool-count').textContent = r.pool ? `· ${r.pool}` : '';
 
     live.last = r;
     renderPipe(r);
-    if ((r.journal || []).length) appendJournal(r.journal);
-    else if (!r.running && !journal.idle) idleJournal(r.last_pass);
     $('feed').replaceChildren(...(items.length ? items.slice(0, 5).map(feedItem)
         : [el('li', { className: 'muted', textContent: 'Пока ничего: подборка пуста.' })]));
 }
 
 function render() {
     const list = visible();
-    $('grid').replaceChildren(...(list.length ? list.map(card) : [el('p', { className: 'muted', textContent: 'Здесь пока пусто: лайкните посты в «Подборе» — они появятся в студии.' })]));
+    videoObserver?.disconnect();
+    $('grid').replaceChildren(...(list.length ? list.map(card) : [el('p', { className: 'muted', textContent: 'Здесь пока пусто: лайкните посты в «Предложке» — они появятся здесь.' })]));
+    if (videoObserver) $('grid').querySelectorAll('video').forEach(video => videoObserver.observe(video));
     $('chips').replaceChildren(...FILTERS.map(([id, label, f]) => el('button', {
         type: 'button', className: state.filter === id ? 'is-active' : '', onclick: () => { state.filter = id; render(); },
     }, label, el('em', { textContent: String(state.items.filter(f).length) }))));
@@ -324,7 +292,6 @@ function render() {
 async function loadContent() {
     const [proposals, info] = await Promise.all([apiOrLogin('proposals'), api('account_info')]);
     state.items = proposals.items || [];
-    $('nav-proposals').textContent = state.items.length || '';
     showProfile(info);
     render();
 }
@@ -338,40 +305,21 @@ async function loadSources() {
         : [el('li', { className: 'muted', textContent: 'Источников темы пока нет' })]));
 }
 
-async function loadModel() {
-    const m = await api('model_status');
-    $('pill-model').textContent = m.roles?.analysis?.split('/').pop() || 'Модели';
-    $('pill-state').textContent = m.ollama ? `Ollama ${m.version || ''} · набор «${m.llm?.preset || ''}»` : 'Ollama не отвечает';
-}
-
-async function action(name, done) {
-    $('act-note').textContent = '…';
-    try { const r = await api(name, { body: {} }); $('act-note').textContent = r.message || done; clearTimeout(live.timer); live.timer = setTimeout(loadLive, 800); }
-    catch (e) { $('act-note').textContent = `Ошибка: ${e.message}`; }
-}
-
 function init() {
     $('sort').onchange = e => { state.sort = e.target.value; render(); };
     $('search').oninput = e => { state.q = e.target.value; render(); };
     document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== $('search')) { e.preventDefault(); $('search').focus(); } });
-    $('act-search').onclick = () => action('refresh_content', 'Сборщик запущен.');
-    $('act-discover').onclick = () => action('discover_sources', 'Автоподбор запущен.');
-    const fail = e => { $('grid').replaceChildren(el('p', { className: 'muted', textContent: e.status === 401 ? 'Войдите в приложение, чтобы открыть студию.' : `Ошибка: ${e.message}` })); };
+    const fail = e => { $('grid').replaceChildren(el('p', { className: 'muted', textContent: e.status === 401 ? 'Войдите в приложение, чтобы увидеть материалы.' : `Ошибка: ${e.message}` })); };
     loadContent().catch(fail);
+    onTabOpen('home-tab', () => loadContent().catch(fail));
+    onTopicChange(() => { loadContent().catch(fail); loadLive(); });
     loadSources().catch(() => {});
-    city.view = createCity($('sky'), { onHover: onCityHover });
-    if (!city.view) $('glfail').hidden = false;
-    document.querySelectorAll('.datasrc button').forEach(b => b.addEventListener('click', () => {
-        document.querySelectorAll('.datasrc button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-        city.src = b.dataset.src;
-        city.view?.setSource(city.src);
-        paintHeat();
-    }));
-    loadCity();
+    renderPipe({});
     loadLive();
-    loadModel().catch(() => {});
+    window.addEventListener('parser-stopped', loadLive);
     api('billing_info').then(showPlan).catch(() => {});
-    $('preview').addEventListener('click', e => { if (e.target === $('preview')) $('preview').close(); });
+    $('preview-backdrop').addEventListener('click', () => $('preview').close());
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('preview').open && $('image-viewer').hidden) $('preview').close(); }, true);
 }
 
 init();

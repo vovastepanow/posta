@@ -1,9 +1,11 @@
 package posta
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,7 +36,7 @@ type QueryPlan struct {
 
 // QuerySearchPlan — формулировки запроса. Кэш на 7 дней; без модели — сам запрос.
 func (u *U) QuerySearchPlan(query, topic string) QueryPlan {
-	key := "query_plan:" + sha1Short(query+"|"+topic, 20)
+	key := "query_plan:v2:" + sha1Short(query+"|"+topic, 20)
 	var cached QueryPlan
 	if u.CacheGet(u.Ctx, key, &cached) && len(cached.RU) > 0 {
 		return cached
@@ -43,6 +45,7 @@ func (u *U) QuerySearchPlan(query, topic string) QueryPlan {
 	if !ok {
 		return queryPlanFallback(query)
 	}
+	plan = queryPlanIncludeOriginal(query, plan)
 	u.CacheSet(u.Ctx, key, plan, querySearchPlanTTL)
 	return plan
 }
@@ -79,9 +82,26 @@ func (u *U) querySearchPlanModel(query, topic string) (QueryPlan, bool) {
 	return plan, true
 }
 
+// Always search the user's wording as well as model-generated alternatives.
+func queryPlanIncludeOriginal(query string, plan QueryPlan) QueryPlan {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return plan
+	}
+	var ru []string
+	ru = append(ru, query)
+	for _, term := range plan.RU {
+		if TopicNorm(term) != TopicNorm(query) {
+			ru = append(ru, term)
+		}
+	}
+	plan.RU = cleanPhrases(ru, 5)
+	return plan
+}
+
 // queryPlanFallback — без модели: сам запрос, хэштег из него и самое длинное слово как обязательное.
 func queryPlanFallback(query string) QueryPlan {
-	return QueryPlan{RU: []string{query}, Hashtags: []string{"#" + spacesAllRe.ReplaceAllString(query, "")}, Must: []string{longestWord(query)}}
+	return QueryPlan{RU: []string{query}, EN: []string{query}, Hashtags: []string{"#" + spacesAllRe.ReplaceAllString(query, "")}, Must: []string{longestWord(query)}}
 }
 
 func cleanPhrases(list []string, n int) []string {
@@ -122,7 +142,7 @@ func (u *U) querySearchOffset(key string) int {
 	return pass - 1
 }
 
-// QuerySearchCollect — посты площадок по запросу в пределах query_search_seconds, отобранные по словам и по одному с источника.
+// QuerySearchCollect — посты площадок по запросу в пределах query_search_seconds, отобранные по словам.
 func (u *U) QuerySearchCollect(key string) map[string][]jx.M {
 	query, topic := u.CurrentQuery(), u.CurrentTopic()
 	plan := u.QuerySearchPlan(query, topic)
@@ -137,8 +157,9 @@ func (u *U) QuerySearchCollect(key string) map[string][]jx.M {
 		got[PlatformTelegram] = append(got[PlatformTelegram], chans...)
 		counts["Telegram каналы"] = len(chans)
 	}
-	// каталог — дёшево: только посты, уже закэшированные опросом источников; сеть не трогаем
-	for p, posts := range u.catalogCachedPosts(topic) {
+	// Collect the actual topic sources, including imageboards and uncached
+	// catalog entries; previously a new topic could see an empty cache forever.
+	for p, posts := range u.collectPostsByPlatform(topic) {
 		got[p] = append(got[p], posts...)
 		counts["каталог"] += len(posts)
 	}
@@ -148,7 +169,7 @@ func (u *U) QuerySearchCollect(key string) map[string][]jx.M {
 	for _, posts := range ranked {
 		n += len(posts)
 	}
-	u.Log("После отбора по словам запроса: %d постов, по одному с источника.", n)
+	u.Log("После отбора по словам запроса: %d постов.", n)
 	return ranked
 }
 
@@ -156,6 +177,7 @@ func (u *U) QuerySearchCollect(key string) map[string][]jx.M {
 func (u *U) querySearchTelegramChannels(ru, must []string) []jx.M {
 	chans := u.discoveryTelegramAccountChannels(ru[:min(len(ru), 2)], nil)
 	var out []jx.M
+	withText := u.TBool("text_posts") && u.TopicFormatOf(u.CurrentTopic()).Media == "optional"
 	for _, ch := range chans[:min(len(chans), querySearchChannels)] {
 		name := ch.Username
 		if !IsValidTelegramChannel(name) {
@@ -166,12 +188,12 @@ func (u *U) querySearchTelegramChannels(ru, must []string) []jx.M {
 			continue
 		}
 		src := jx.M{"id": name, "name": SourceDisplayName(PlatformTelegram, name)}
-		for _, p := range TelegramPostsFromHTML(page, src, config.TelegramPostsPerChannel, false, 120) {
-			if !queryTextHitAny(jx.Str(p, "text"), must) {
+		for _, p := range TelegramPostsFromHTML(page, src, config.TelegramPostsPerChannel, withText, 120) {
+			if !queryTextHitAny(jx.Str(p, "text"), must) && (jx.Str(p, "image") == "" || PostCaptionForAI(p) != "") {
 				continue
 			}
 			p["source_key"] = SourceIDFor(PlatformTelegram, name)
-			p["source_url"] = "https://t.me/" + name
+			p["source_url"] = jx.Str(p, "url")
 			p["found_by"] = "поиск Telegram «" + ru[0] + "»"
 			out = append(out, p)
 		}
@@ -220,7 +242,7 @@ func (u *U) newsFeedPosts(feed, q string) []jx.M {
 		}
 		p["source"] = host
 		p["source_key"] = SourceIDFor(PlatformRSS, host)
-		p["source_url"] = "https://" + host
+		p["source_url"] = link
 		p["found_by"] = "поиск новостей «" + q + "»"
 	}
 	return posts
@@ -272,17 +294,66 @@ func osnovaSearchPost(d jx.M, host, q string) jx.M {
 		return nil
 	}
 	p := jx.M{"url": link, "posted_at": jx.Int(d, "date"), "source": host, "source_key": SourceIDFor(PlatformRSS, host),
-		"source_url": "https://" + host, "found_by": "поиск " + host + " «" + q + "»", "image": "", "images": []any{}, "gallery": []any{},
+		"source_url": link, "found_by": "поиск " + host + " «" + q + "»", "image": "", "images": []any{}, "gallery": []any{},
 		"video": "", "text_post": false, "video_unavailable": false}
 	articleApplyOsnova(p, a, link)
+	if sub := jx.Map(d, "subsite"); jx.Int(sub, "id") > 0 {
+		p["source_author_url"] = osnovaTimelineURL(host, jx.Int(sub, "id"))
+		p["author_name"] = jx.Str(sub, "name")
+	}
 	return p
+}
+
+func osnovaTimelineURL(host string, id int64) string {
+	if (host != "vc.ru" && host != "dtf.ru") || id <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("https://api.%s/v2.10/timeline?sorting=new&subsitesIds=%d", host, id)
+}
+
+func osnovaTimelineSource(raw string) (string, int64) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Port() != "" || u.Path != "/v2.10/timeline" {
+		return "", 0
+	}
+	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "api.")
+	if u.Hostname() != "api."+host || (host != "vc.ru" && host != "dtf.ru") {
+		return "", 0
+	}
+	id, err := strconv.ParseInt(u.Query().Get("subsitesIds"), 10, 64)
+	if err != nil || id <= 0 {
+		return "", 0
+	}
+	return host, id
+}
+
+func osnovaTimelinePosts(data []byte, host string, subsiteID int64) ([]jx.M, error) {
+	var response struct {
+		Result struct {
+			Items []struct {
+				Data jx.M `json:"data"`
+			} `json:"items"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	var posts []jx.M
+	for _, item := range response.Result.Items {
+		if jx.Int(jx.Map(item.Data, "subsite"), "id") != subsiteID && jx.Int(item.Data, "subsiteId") != subsiteID {
+			continue
+		}
+		if p := osnovaSearchPost(item.Data, host, ""); p != nil {
+			posts = append(posts, p)
+		}
+	}
+	return posts, nil
 }
 
 // queryWordHit — основа слова есть в тексте (как в PostSearchMatches): «тюмень» находит «Тюменский».
 func queryWordHit(text, w string) bool {
-	w = strings.ToLower(strings.TrimSpace(w))
-	stem := trimRunes(w, max(3, runeLen(w)-2))
-	return stem != "" && strings.Contains(text, stem)
+	w = strings.TrimSpace(w)
+	return w != "" && QueryTextHit(strings.ReplaceAll(strings.ToLower(text), "ё", "е"), strings.ReplaceAll(strings.ToLower(w), "ё", "е"))
 }
 
 // queryPhraseHit — есть все слова формулировки (короткие предлоги не считаем).
@@ -302,6 +373,9 @@ func queryPhraseHit(text, phrase string) bool {
 
 // queryLex — насколько пост про запрос: 1 — есть все обязательные слова; 0.6 — часть из них или целая формулировка; 0 — не про запрос.
 func queryLex(item jx.M, plan QueryPlan) float64 {
+	if ImageboardItem(item) {
+		return 0
+	}
 	text := strings.ToLower(jx.Str(item, "title") + " " + jx.Str(item, "text") + " " + jx.Str(item, "thread_title"))
 	hit := 0
 	for _, w := range plan.Must {
@@ -335,7 +409,7 @@ func queryDedupKey(it jx.M) string {
 }
 
 // rankQuerySearch — отбор до моделей: без рекламы, украинского и старого; по словам запроса; дубли — оставляем раньше опубликованный;
-// один пост с источника (лучший по словам × горячесть); доля площадки не больше querySearchPlatformCap; очередь до querySearchQueueMax.
+// посты ранжируются по словам и горячести; доля площадки не больше querySearchPlatformCap; очередь до querySearchQueueMax.
 func rankQuerySearch(by map[string][]jx.M, plan QueryPlan, maxAge int, skip func(jx.M) bool) map[string][]jx.M {
 	type cand struct {
 		plat string
@@ -350,10 +424,17 @@ func rankQuerySearch(by map[string][]jx.M, plan QueryPlan, maxAge int, skip func
 	var all []cand
 	for _, p := range plats {
 		for _, it := range by[p] {
+			it = ImageboardMediaOnly(it)
 			if PostSearchIsAd(it) || skip(it) || IsPostOutdated(jx.Int(it, "posted_at"), 0, maxAge) {
 				continue
 			}
-			if lex := queryLex(it, plan); lex > 0 {
+			lex := queryLex(it, plan)
+			// Image-only posts may contain the query in the image. Keep a small,
+			// low-priority sample for the vision model; never infer a match.
+			if lex == 0 && jx.Str(it, "image") != "" && (ImageboardItem(it) || strings.TrimSpace(jx.Str(it, "title")+PostCaptionForAI(it)) == "") {
+				lex = 0.2
+			}
+			if lex > 0 {
 				all = append(all, cand{p, it, lex})
 			}
 		}
@@ -378,16 +459,9 @@ func rankQuerySearch(by map[string][]jx.M, plan QueryPlan, maxAge int, skip func
 	for i, c := range kept {
 		score[i] = c.lex * heat[i]
 	}
-	bestBySrc := map[string]int{}
-	for i, c := range kept {
-		k := ContentSourceKey(c.item)
-		if j, ok := bestBySrc[k]; !ok || score[i] > score[j] {
-			bestBySrc[k] = i
-		}
-	}
-	var one []int
-	for _, i := range bestBySrc {
-		one = append(one, i)
+	one := make([]int, len(kept))
+	for i := range kept {
+		one[i] = i
 	}
 	sort.SliceStable(one, func(a, b int) bool {
 		x, y := one[a], one[b]
@@ -399,12 +473,35 @@ func rankQuerySearch(by map[string][]jx.M, plan QueryPlan, maxAge int, skip func
 		}
 		return jx.Int(kept[x].item, "posted_at") > jx.Int(kept[y].item, "posted_at")
 	})
+	// First offer each source a candidate, then its remaining posts. The
+	// collector can discard an already-seen first post and still use another.
+	bySource := map[string][]int{}
+	var sources []string
+	for _, i := range one {
+		src := ContentSourceKey(kept[i].item)
+		if len(bySource[src]) == 0 {
+			sources = append(sources, src)
+		}
+		bySource[src] = append(bySource[src], i)
+	}
+	balanced := make([]int, 0, len(one))
+	for round := 0; len(balanced) < len(one); round++ {
+		for _, src := range sources {
+			if round < len(bySource[src]) {
+				balanced = append(balanced, bySource[src][round])
+			}
+		}
+	}
+	one = balanced
 	limitPlat := int(querySearchPlatformCap * querySearchQueueMax)
 	per := map[string]int{}
 	out := map[string][]jx.M{}
-	n := 0
+	n, unverified := 0, 0
 	for _, i := range one {
 		c := kept[i]
+		if c.lex == 0.2 && unverified >= 20 {
+			continue
+		}
 		if n >= querySearchQueueMax {
 			break
 		}
@@ -412,6 +509,9 @@ func rankQuerySearch(by map[string][]jx.M, plan QueryPlan, maxAge int, skip func
 			continue
 		}
 		per[c.plat]++
+		if c.lex == 0.2 {
+			unverified++
+		}
 		n++
 		out[c.plat] = append(out[c.plat], c.item)
 	}
@@ -432,7 +532,13 @@ func (u *U) catalogCachedPosts(topic string) map[string][]jx.M {
 				continue
 			}
 			var cp cachedPosts
-			if u.CacheGet(u.Ctx, SourcePollCacheKey(c.Platform, jx.Str(e, "id")), &cp) {
+			id := strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@")
+			if u.UASourceBlocked(SourceIDFor(c.Platform, id), jx.M{"title": jx.Str(e, "name")}) != "" {
+				continue
+			}
+			if sharedSourceEligible(c.Platform, e) && u.CacheGet(u.Ctx, sharedSourceKey(c.Platform, id), &cp) {
+				out[c.Platform] = append(out[c.Platform], cp.Posts...)
+			} else if u.CacheGet(u.Ctx, personalSourcePollKey(u.ID, c.Platform, jx.Str(e, "id")), &cp) {
 				out[c.Platform] = append(out[c.Platform], cp.Posts...)
 			}
 		}
@@ -452,8 +558,13 @@ func (u *U) queryRerank(query string, plan QueryPlan, ranked map[string][]jx.M) 
 		lex  float64
 	}
 	var refs []ref
+	boards := map[string][]jx.M{}
 	for _, p := range sortedKeys(ranked) {
 		for _, it := range ranked[p] {
+			if ImageboardItem(it) {
+				boards[p] = append(boards[p], ImageboardMediaOnly(it))
+				continue
+			}
 			refs = append(refs, ref{p, it, queryLex(it, plan)})
 		}
 	}
@@ -509,7 +620,7 @@ func (u *U) queryRerank(query string, plan QueryPlan, ranked map[string][]jx.M) 
 		order[i] = i
 	}
 	sort.SliceStable(order, func(a, b int) bool { return scores[order[a]] > scores[order[b]] })
-	out := map[string][]jx.M{}
+	out := boards
 	for _, i := range order {
 		out[refs[i].plat] = append(out[refs[i].plat], refs[i].item)
 	}
