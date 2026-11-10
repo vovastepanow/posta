@@ -21,6 +21,43 @@ import { itemCheck, loadImage, videoProgress, watchVideo } from './video-pending
 
 const proposals = { items: [], filter: 'all' };
 const proposalCards = new Map();
+const proposalTranslations = new Map();
+
+// Переводим в фоне: загрузка списка не должна ждать ответов переводчика.
+async function translateProposals(items) {
+    if (!$('filter-translate').checked) return;
+    const pending = items.filter(item => item.text && !item.text_original && !NO_TEXT.includes(item.text) && !proposalTranslations.has(item.text));
+    async function worker() {
+        for (let item; (item = pending.shift());) {
+            const original = item.text;
+            if (proposalTranslations.has(original)) continue;
+            proposalTranslations.set(original, null);
+            try {
+                const result = await api('translate_text', { body: { text: original } });
+                if (!result.text) { proposalTranslations.delete(original); continue; }
+                proposalTranslations.set(original, result);
+                if (!$('filter-translate').checked) continue;
+                for (const current of proposals.items) {
+                    if (current.text !== original) continue;
+                    applyProposalTranslation(current, result);
+                    const card = proposalCards.get(current);
+                    const text = card?.querySelector('.proposal-text');
+                    if (text && cardKind(current) !== 'article') text.textContent = shortText(current.text, 220);
+                }
+            } catch {
+                proposalTranslations.delete(original);
+            }
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
+}
+
+function applyProposalTranslation(item, result) {
+    item.text_original = item.text;
+    item.text = result.text;
+    item.translated_note = result.note;
+    if (item.captions?.length) item.captions = [result.text, ...item.captions.slice(1)];
+}
 
 // Keep the same item objects for unchanged records: card handlers close over them.
 function reuseProposalItems(incoming) {
@@ -318,10 +355,16 @@ async function loadProposals({ quiet = false } = {}) {
         const data = await api('proposals');
         const elapsed = Date.now() - start;
 
-        proposals.items = reuseProposalItems(data.items || []);
+        const incoming = data.items || [];
+        for (const item of incoming) {
+            const translation = proposalTranslations.get(item.text);
+            if (translation && $('filter-translate').checked) applyProposalTranslation(item, translation);
+        }
+        proposals.items = reuseProposalItems(incoming);
         proposals.refreshing = !!data.refreshing;   // пока идёт достройка, пропавшие файлы не «пропали», а ещё качаются
         proposalsReloadedAt = Date.now();
         renderProposals();
+        translateProposals(proposals.items);
 
         status.textContent = `${proposals.items.length} предложек${elapsed > 1000 ? ` (${(elapsed/1000).toFixed(1)}с)` : ''}`;
         if (!quiet) trackProposalMedia();
@@ -363,7 +406,7 @@ async function pollProposalProgress() {
 
 const tree = { topics: [], current: null, selected: null, rubric: null, query: '', busy: false, parentOpen: false, width: 'narrow', sheetOpen: false, tagsOpen: null };
 const RUBRIC_KEY = 'postaTreeRubric';
-const RUBRIC_ICONS = { adult: '🔞', shock: '💥', humor: '😂', internet: '🌐', animals: '🐾', people: '👥', games: '🎮', screen: '🎬', music: '🎵', celebs: '⭐', news: '📰', tech: '💻', money: '💰', expert: '🎓', science: '🔬', food: '🍔', travel: '✈️', style: '👗', cars: '🚗', hobby: '🎨', sport: '⚽', other: '📁' };
+const RUBRIC_ICONS = { adult: '🔞', shock: '💥', humor: '😂', internet: '🌐', animals: '🐾', people: '👥', games: '🎮', screen: '🎬', music: '🎵', celebs: '⭐', news: '📰', tech: '💻', money: '💰', business: '💼', finance: '💰', self: '🧠', home: '🏡', health: '🩺', culture: '🎭', design: '✏️', environment: '🌱', memes: '😄', expert: '🎓', science: '🔬', food: '🍔', travel: '✈️', style: '👗', cars: '🚗', transport: '🚗', hobby: '🎨', sport: '⚽', other: '📁' };
 
 /** Поиск: строчные, ё → е, без «#», пробелы и дефисы → «_» — как hashtag_norm на сервере. */
 const treeNorm = s => String(s ?? '').toLowerCase().replace(/ё/g, 'е').replace(/#/g, '').trim().replace(/[\s-]+/g, '_');
@@ -380,8 +423,16 @@ function treeModel() {
     const byTitle = (a, b) => a.title.localeCompare(b.title, 'ru');
     rubrics.sort((a, b) => (b.scope === 'broad') - (a.scope === 'broad') || byTitle(a, b));
     for (const list of children.values()) list.sort(byTitle);
-    const rubricOf = t => (t.parent?.id && ids.has(t.parent.id) ? ids.get(t.parent.id) : t);
-    return { ids, children, rubrics, rubricOf };
+    const rubricOf = t => {
+        const seen = new Set();
+        while (t.parent?.id && ids.has(t.parent.id) && !seen.has(t.id)) {
+            seen.add(t.id);
+            t = ids.get(t.parent.id);
+        }
+        return t;
+    };
+    const descendants = t => [t, ...(children.get(t.id) || []).flatMap(descendants)];
+    return { ids, children, rubrics, rubricOf, descendants };
 }
 
 /** Хэштеги темы для показа: рубрика первой, потом имена. */
@@ -440,8 +491,8 @@ function pickRubric(id) {
 
 function renderRubrics(model, q, rubricId, liveRubricId) {
     const rubrics = model.rubrics.map(r => {
-        const kids = model.children.get(r.id) || [];
-        const found = q ? [r, ...kids].filter(t => treeMatches(t, q)) : kids;
+        const kids = model.descendants(r).slice(1);
+        const found = q ? model.descendants(r).filter(t => treeMatches(t, q)) : kids;
         return { r, found };
     }).filter(({ found }) => !q || found.length);
     $('tree-rubrics').replaceChildren(...rubrics.map(({ r, found }) => {
@@ -479,7 +530,7 @@ function treeCard(t, model, q) {
 function renderCards(model, q, rubricId) {
     const grid = (items) => el('div', { className: 'tree-grid' }, ...items.map(t => treeCard(t, model, q)));
     if (q) {
-        const blocks = model.rubrics.map(r => [r, [r, ...(model.children.get(r.id) || [])].filter(t => treeMatches(t, q))])
+        const blocks = model.rubrics.map(r => [r, model.descendants(r).filter(t => treeMatches(t, q))])
             .filter(([, hits]) => hits.length)
             .map(([r, hits]) => el('section', { className: 'tree-block-cards' }, el('h3', { className: 'tree-cards-group', textContent: `${r.title} · найдено ${hits.length}` }), grid(hits)));
         $('tree-cards').replaceChildren(...blocks);
@@ -487,7 +538,7 @@ function renderCards(model, q, rubricId) {
     }
     const rubric = model.ids.get(rubricId);
     if (!rubric) { $('tree-cards').replaceChildren(); return 0; }
-    const kids = model.children.get(rubric.id) || [];
+    const kids = model.descendants(rubric).slice(1);
     $('tree-cards').replaceChildren(
         el('div', { className: 'tree-cards-head' }, el('h2', { className: 'tree-rubric-title', textContent: rubric.title }), rubric.about ? el('p', { className: 'tree-rubric-about', textContent: rubric.about }) : null),
         grid([rubric, ...kids]));
@@ -527,7 +578,7 @@ function renderDetail() {
     const copy = tag => { copyTreeText(`#${tag}`).then(() => note.textContent = `Скопировано: #${tag}`, () => note.textContent = 'Не удалось скопировать'); clearTimeout(note.timer); note.timer = setTimeout(() => { note.textContent = ''; }, 1500); };
     $('tree-detail').replaceChildren(...[close,
         el('nav', { className: 'tree-crumbs', 'aria-label': 'Путь к теме' }, t.parent
-            ? el('span', {}, el('button', { type: 'button', className: 'tree-crumb', textContent: t.parent.title, onclick: () => pickRubric(t.parent.id) }), ' › ', t.title)
+            ? el('span', {}, el('button', { type: 'button', className: 'tree-crumb', textContent: rubric.title, onclick: () => pickRubric(rubric.id) }), ' › ', ...(t.parent.id !== rubric.id ? [el('button', { type: 'button', className: 'tree-crumb', textContent: t.parent.title, onclick: () => selectTopic(t.parent.id) }), ' › '] : []), t.title)
             : el('span', { textContent: 'Рубрика' })),
         el('h3', { className: 'tree-detail-title', textContent: t.title }),
         el('div', { className: 'tree-badges' },
@@ -543,8 +594,9 @@ function renderDetail() {
         children.length ? el('div', { className: 'tree-block' }, el('h4', { className: 'tree-block-title', textContent: 'Частные темы' }),
             el('div', { className: 'tree-tags' }, ...children.map(c => el('button', { type: 'button', className: 'tree-alias is-button', textContent: c.title, onclick: () => selectTopic(c.id) })))) : null,
         el('p', { className: 'tree-sources', textContent: sources }),
+		el('div', { className: 'tree-block tree-health' }, el('h4', { className: 'tree-block-title', textContent: 'Как работает тема' }), el('p', { className: 'tree-detail-empty', textContent: 'Загружаю показатели…' })),
         el('details', { className: 'tree-ai' }, el('summary', { textContent: 'Как ИИ отбирает' }),
-            el('dl', { className: 'tree-facts' }, treeRow('Подходит', t.criteria), treeRow('Не подходит', t.exclude), treeRow('Вопрос к картинке', t.question), treeRow('Профиль', profile))),
+            el('dl', { className: 'tree-facts' }, treeRow('Подходит', t.criteria || t.about), treeRow('Границы темы', t.hint), treeRow('Не подходит', t.exclude), treeRow('Проверка темы', t.question), treeRow('Профиль', profile))),
         el('div', { className: 'tree-actions' },
             action('secondary-button tree-small', 'Сменить общую тему', () => { tree.parentOpen = !tree.parentOpen; $('tree-parent-editor').hidden = !tree.parentOpen; if (tree.parentOpen) $('tree-parent-editor').querySelector('select').focus(); }),
             action('secondary-button tree-small', 'Пересоставить профиль', async () => {
@@ -555,6 +607,26 @@ function renderDetail() {
         el('details', { className: 'tree-debug', ontoggle: e => { if (e.currentTarget.open) loadTopicRecord(t.id); } },
             el('summary', { textContent: 'Для отладки: полная запись из базы' }),
             el('div', { className: 'tree-record' }, el('p', { className: 'tree-detail-empty', textContent: 'Раскройте, чтобы загрузить запись.' })))].filter(Boolean));
+	loadTopicHealth(t.id);
+}
+
+async function loadTopicHealth(id) {
+	try {
+		const { health } = await api('topic_record', { params: { id } });
+		if (tree.selected !== id) return;
+		const box = $('tree-detail').querySelector('.tree-health');
+		if (!box) return;
+		const values = [
+			['Источники', health.sources], ['Кандидаты в последнем поиске', health.candidates],
+			['Проверено источников', health.sources_checked], ['Проанализировано постов', health.analyzed],
+			['Достигли порога темы', health.relevant], ['Сейчас в подборе', health.pool],
+			['Понравились', health.liked], ['Не понравились', health.disliked], ['Опубликованы', health.published],
+		];
+		box.replaceChildren(el('h4', { className: 'tree-block-title', textContent: 'Как работает тема' }),
+			el('dl', { className: 'tree-facts' }, ...values.map(([label, value]) => treeRow(label, String(value ?? 0)))));
+	} catch {
+		if (tree.selected === id) $('tree-detail').querySelector('.tree-health')?.replaceChildren(el('p', { className: 'tree-detail-empty', textContent: 'Показатели сейчас недоступны.' }));
+	}
 }
 
 /** Хэштеги темы: рубрика (одна, её ставим в посты) и имена; клик копирует. «Изменить» — своя рубрика вместо словарной. */

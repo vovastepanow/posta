@@ -13,7 +13,7 @@ const TEXT_BIG = 280;        // короткий текст (до 280 симво
 const TOKEN = /(https?:\/\/[^\s<>"']*[^\s<>"'.,;:!?)\]]|#[\p{L}\p{N}_]+|@[A-Za-z0-9_]{3,})/u;
 
 const view = { posts: [], index: 0, actions: () => [], loadMore: null, onClose: null, opener: null, scrollY: 0, watches: [], scrollTimer: 0, zoomTile: null,
-    loading: false, token: 0, root: null, refs: null };
+    loading: false, root: null, refs: null };
 
 /** Просмотрщик открыт. */
 export const postViewOpen = () => Boolean(view.root && !view.root.hidden);
@@ -256,7 +256,7 @@ function youtubeTile(m, id) {
     const box = el('button', { type: 'button', className: 'pv-cell pv-cell-poster', ariaLabel: 'Смотреть видео YouTube',
         onclick: event => {
             event.stopPropagation();
-            const frame = el('iframe', { className: 'pv-cell pv-youtube', title: 'Видео YouTube', allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', allowFullscreen: true });
+            const frame = el('iframe', { className: 'pv-cell pv-youtube', title: 'Видео YouTube', referrerPolicy: 'strict-origin-when-cross-origin', allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', allowFullscreen: true });
             frame.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1`;
             box.replaceWith(frame);
         } }, posterNode(m.poster), videoMark());
@@ -586,8 +586,7 @@ function articleBlock(post, ctx) {
     const a = post.article;
     const item = { url: a.readUrl || post.url, article: { title: a.title, lead: a.lead, site: a.site, rubric: a.rubric, author: a.author, minutes: a.minutes, cover: { src: a.cover } } };
     const blocks = el('div', { className: 'pv-article-blocks' }, el('div', { className: 'ar-skeleton', ariaHidden: 'true' }));
-    const token = ++view.token;
-    if (a.readUrl) loadBlocks(a.readUrl, blocks, token, item, post);
+    if (a.readUrl) loadBlocks(a.readUrl, blocks, post);
     else blocks.replaceChildren(articleFallback(post));
     return el('article', { className: `pv-read pv-article${ctx.link ? '' : ' pv-embedded'}` },
         articleCover(item),
@@ -600,15 +599,15 @@ function articleBlock(post, ctx) {
 }
 
 /** Блоки статьи с сервера; ошибка или чужая запись — запасной вид. */
-async function loadBlocks(url, box, token, item, post) {
+async function loadBlocks(url, box, post) {
     try {
         const data = await api('article_read', { params: { url } });
-        if (token !== view.token || !box.isConnected) return;
+        if (!box.isConnected) return;
         const images = (data.article?.blocks || []).filter(b => b.type === 'image');
         const nodes = (data.article?.blocks || []).map(b => blockNode(b, images));
         box.replaceChildren(...(nodes.length ? nodes : [el('p', { className: 'ar-note', textContent: 'На странице не нашлось текста статьи. Откройте её на сайте.' })]));
     } catch {
-        if (token === view.token && box.isConnected) box.replaceChildren(articleFallback(post));
+        if (box.isConnected) box.replaceChildren(articleFallback(post));
     }
 }
 

@@ -119,7 +119,9 @@ var hashtagValidRe = regexp.MustCompile(`^[\p{L}\p{N}_]{2,16}$`)
 var digitsRe = regexp.MustCompile(`^\d+$`)
 
 // HashtagValid — одно слово из букв и цифр (допустим «_»), 2–16 символов, не одни цифры.
-func HashtagValid(tag string) bool { return hashtagValidRe.MatchString(tag) && !digitsRe.MatchString(tag) }
+func HashtagValid(tag string) bool {
+	return hashtagValidRe.MatchString(tag) && !digitsRe.MatchString(tag)
+}
 
 // HashtagRubric — рубрика темы: своя рубрика пользователя, иначе из словаря. Ветка — своя рубрика ветки.
 func (u *U) HashtagRubric(key string) string {
@@ -215,18 +217,21 @@ func HashtagFormat(r jx.M) string {
 		return "опрос"
 	case len(ContentGallery(r)) >= 3 || len(jx.List(r, "images")) >= 3:
 		return "подборка"
+	case jx.Bool(r, "quote"):
+		return "цитата"
 	case jx.Str(r, "format") == "text" && jx.Str(r, "image") != "":
 		return "переписка"
 	}
 	return ""
 }
 
-// PostHashtags — хэштеги поста: рубрика (из первой метки, иначе из темы) → имя → формат, с «#».
+// PostHashtags — рубрика подтверждённой метки → имя → формат, с «#».
+// Тема поиска — запасной вариант только для старых записей без поля tags.
 func (u *U) PostHashtags(r jx.M) []string {
 	key := ""
 	if tags := u.ContentTagsClean(r["tags"]); len(tags) > 0 {
 		key = tags[0]
-	} else if t := u.TopicLookup(jx.Str(r, "topic")); t != nil {
+	} else if t := u.TopicLookup(jx.Str(r, "topic")); !jx.Has(r, "tags") && t != nil {
 		key = t.Key
 	}
 	out := []string{}

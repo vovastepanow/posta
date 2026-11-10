@@ -72,6 +72,7 @@ var (
 func Preset(name string) Settings {
 	s := Settings{Preset: name, Roles: map[Role]RoleConfig{}, DailyBudgetUSD: 0, FreeDailyLimit: 1000}
 	set := func(r Role, p, f Target) { s.Roles[r] = RoleConfig{Primary: p, Fallback: f} }
+	set(RoleClassify, Off, Off)
 	switch name {
 	case "free":
 		set(RolePrescreen, LocalFast, Off)
@@ -84,6 +85,7 @@ func Preset(name string) Settings {
 		set(RoleTranslate, Off, Off)
 		set(RoleEmbed, LocalEmbed, Off)
 	case "cloud":
+		set(RoleClassify, Target{"openrouter", "nvidia/nemotron-3.5-super-vl"}, Off)
 		s.DailyBudgetUSD = 0.5
 		set(RolePrescreen, CloudFast, Off)
 		set(RoleAnalysis, CloudVision, Off)

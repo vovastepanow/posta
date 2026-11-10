@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -30,6 +31,17 @@ func TestXSearchCandidates(t *testing.T) {
 	page := `<a href="https://x.com/NASA">NASA</a><a href="https://twitter.com/NASA/status/123">post</a><a href="https://x.com/search?q=cat">search</a><a href="https://x.com.evil.example/NASA">bad</a>`
 	got := xSearchCandidates(page)
 	if len(got) != 1 || got[0].ID != "https://x.com/nasa" {
+		t.Fatalf("candidates: %#v", got)
+	}
+}
+
+func TestXBingSearchCandidates(t *testing.T) {
+	encoded := base64.RawURLEncoding.EncodeToString([]byte("https://x.com/example/status/123"))
+	page := `<a href="https://www.bing.com/ck/a?u=a1` + encoded + `">result</a>` +
+		`<a href="https://evil.example/ck/a?u=a1` + encoded + `">bad</a>` +
+		`<a href="https://x.com.evil.example/example">bad</a>`
+	got := xSearchCandidates(page)
+	if len(got) != 1 || got[0].ID != "https://x.com/example" {
 		t.Fatalf("candidates: %#v", got)
 	}
 }
@@ -200,8 +212,11 @@ func TestPikabuDiscoveryAndPosts(t *testing.T) {
 func TestRedditAuthenticatedListing(t *testing.T) {
 	data := []byte(`{"data":{"children":[{"data":{"title":"Cat","subreddit":"cats","permalink":"/r/cats/comments/abc/cat/","created_utc":1793400000,"preview":{"images":[{"source":{"url":"https://preview.redd.it/cat.jpg?a=1&amp;b=2"}}]}}},{"data":{"title":"Other","subreddit":"dogs","permalink":"/r/dogs/comments/abc/dog/","url":"https://i.redd.it/dog.jpg"}},{"data":{"title":"Adult","subreddit":"cats","over_18":true,"permalink":"/r/cats/comments/x/","url":"https://i.redd.it/cat.jpg"}}]}}`)
 	posts, err := redditListingPosts(data, "cats", 10, false)
-	if err != nil || len(posts) != 1 || jx.Str(posts[0], "image") != "https://preview.redd.it/cat.jpg?a=1&b=2" {
+	if err != nil || len(posts) != 2 || jx.Str(posts[0], "image") != "https://preview.redd.it/cat.jpg?a=1&b=2" {
 		t.Fatalf("posts: %#v, %v", posts, err)
+	}
+	if !jx.Bool(posts[1], "source_sensitive") {
+		t.Fatal("source sensitivity must survive parsing")
 	}
 	if redditSourceName("https://www.reddit.com/r/Cats/.rss") != "cats" || redditSourceName("https://www.reddit.com.evil.example/r/cats/.rss") != "" {
 		t.Fatal("invalid source handling")
@@ -297,4 +312,55 @@ func TestBraveAPISearchResults(t *testing.T) {
 	if strings.Contains(page, "javascript:") {
 		t.Fatal("accepted unsafe URL")
 	}
+}
+
+func TestDzenMediaPosts(t *testing.T) {
+	id := "644490cf573a6f66d239d89b"
+	data := []byte(`{"items":[{"publisher_id":"644490cf573a6f66d239d89b","link":"https://dzen.ru/a/test","publication_date":"1793887544","image":"http://avatars.dzeninfra.ru/get-zen_doc/1/p/smart_crop_344x194","common_image":{"url_template":"https://avatars.dzeninfra.ru/get-{namespace}/1/p/{size}","namespace":"zen_doc"}},{"publisher_id":"644490cf573a6f66d239d89b","link":"https://dzen.ru/shorts/test","publication_date":"1793887544","video":{"id":"https://vd564.okcdn.ru/video.m3u8?token=x"}},{"publisher_id":"other","link":"https://dzen.ru/a/other","publication_date":"1793887544","image":"https://avatars.dzeninfra.ru/x"}]}`)
+	posts, err := dzenChannelPosts(data, id, 10, false, time.Now())
+	if err != nil || len(posts) != 2 {
+		t.Fatalf("posts: %#v, %v", posts, err)
+	}
+	if got := jx.Str(posts[0], "image"); got != "https://avatars.dzeninfra.ru/get-zen_doc/1/p/orig" {
+		t.Fatalf("image: %q", got)
+	}
+	if jx.Str(posts[1], "video") != "" || jx.Str(posts[1], "video_via") != "ytdlp" || VideoPageVia(jx.Str(posts[1], "video_page")) != "ytdlp" {
+		t.Fatalf("playlist treated as file: %#v", posts[1])
+	}
+	if dzenMediaURL("https://avatars.dzeninfra.ru.evil.example/x") != "" {
+		t.Fatal("untrusted host")
+	}
+}
+
+func TestAdditionalSourceMedia(t *testing.T) {
+	t.Run("X gif", func(t *testing.T) {
+		tweet := jx.M{"__typename": "Tweet", "rest_id": "123", "details": jx.M{"created_at_ms": int64(1793400000000)}, "core": jx.M{"user_results": jx.M{"result": jx.M{"core": jx.M{"screen_name": "cats"}}}}, "media_entities2": []any{jx.M{"type": "animated_gif", "media_url_https": "https://pbs.twimg.com/a.jpg", "video_info": jx.M{"variants": []any{jx.M{"content_type": "video/mp4", "url": "https://video.twimg.com/a.mp4"}}}}}}
+		body, _ := json.Marshal(jx.M{"profile_user_originals_timeline": []any{tweet}})
+		quoted, _ := json.Marshal(string(body))
+		posts := xProfilePosts([]byte(`<script>value:`+string(quoted)+`</script>`), "cats", 10, false)
+		if len(posts) != 1 || jx.Str(posts[0], "video") != "https://video.twimg.com/a.mp4" {
+			t.Fatalf("%#v", posts)
+		}
+	})
+	t.Run("Reddit video", func(t *testing.T) {
+		data := []byte(`{"data":{"children":[{"data":{"title":"cat","subreddit":"cats","permalink":"/r/cats/comments/a/","created_utc":1793400000,"secure_media":{"reddit_video":{"fallback_url":"https://v.redd.it/a/DASH_720.mp4?x=1&amp;y=2"}}}}]}}`)
+		posts, err := redditListingPosts(data, "cats", 10, false)
+		if err != nil || len(posts) != 1 || jx.Str(posts[0], "video") != "https://v.redd.it/a/DASH_720.mp4?x=1&y=2" {
+			t.Fatalf("%#v %v", posts, err)
+		}
+	})
+	t.Run("Facebook attachments", func(t *testing.T) {
+		data := []byte(`{"data":[{"id":"123456_1","created_time":"2026-10-31T12:00:00+0000","permalink_url":"https://www.facebook.com/123456/posts/1","attachments":{"data":[{"subattachments":{"data":[{"media":{"image":{"src":"https://cdn.example/a.jpg"}}},{"media":{"source":"https://cdn.example/v.mp4","image":{"src":"https://cdn.example/p.jpg"}}}]}}]}}]}`)
+		posts, err := facebookPagePosts(data, "123456", 10, false)
+		if err != nil || len(posts) != 1 || len(jx.Maps(posts[0], "gallery")) != 2 {
+			t.Fatalf("%#v %v", posts, err)
+		}
+	})
+	t.Run("Pikabu attachments", func(t *testing.T) {
+		data := []byte(`<article class="story"><a class="story__title-link" href="https://pikabu.ru/story/a">cat</a><div class="story__content-inner"><img src="https://cs.pikabu.ru/a.gif"><img src="https://cs.pikabu.ru/b.jpg"><video src="https://v.pikabu.ru/a.mp4"></video></div></article>`)
+		posts, err := pikabuCommunityPosts(data, "https://pikabu.ru/community/cat", 10, false)
+		if err != nil || len(posts) != 1 || len(jx.Maps(posts[0], "gallery")) != 3 {
+			t.Fatalf("%#v %v", posts, err)
+		}
+	})
 }

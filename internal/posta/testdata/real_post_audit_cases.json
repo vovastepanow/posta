@@ -1,0 +1,410 @@
+[
+  {
+    "id": "01",
+    "fixture": "source_preview_rss.json",
+    "index": 0,
+    "topic": "Робототехника",
+    "want": true,
+    "note": "Новость о роботакси, не реклама сервиса",
+    "text": "Такси-сервис inDrive и китайская Pony.ai начнут тестировать роботакси в Казахстане в 2027 году\nЕсли запуск будет удачным — роботакси запустят в других городах и странах присутствия inDrive. Это примерно 48 государств.",
+    "url": "https://vc.ru/transport/3211386-zapusk-robotaksi-indrive-i-ponyai-v-kazahstane?from=rss"
+  },
+  {
+    "id": "02",
+    "fixture": "source_preview_rss.json",
+    "index": 0,
+    "topic": "Криптовалюта",
+    "want": false,
+    "note": "Нет криптовалют",
+    "text": "Такси-сервис inDrive и китайская Pony.ai начнут тестировать роботакси в Казахстане в 2027 году\nЕсли запуск будет удачным — роботакси запустят в других городах и странах присутствия inDrive. Это примерно 48 государств.",
+    "url": "https://vc.ru/transport/3211386-zapusk-robotaksi-indrive-i-ponyai-v-kazahstane?from=rss"
+  },
+  {
+    "id": "03",
+    "fixture": "source_preview_rss.json",
+    "index": 1,
+    "topic": "Право",
+    "want": true,
+    "note": "Изменение административных штрафов",
+    "text": "Правительство внесло в Госдуму законопроект о повышении штрафов за езду без прав — с 5-15 тысяч рублей до 15-30 тысяч рублей\nНапример, если водитель вообще их не получал.",
+    "url": "https://vc.ru/transport/3211319-uzhestochienie-shtrafov-za-ezdu-bez-prav?from=rss"
+  },
+  {
+    "id": "04",
+    "fixture": "source_preview_rss.json",
+    "index": 2,
+    "topic": "Экономика",
+    "want": true,
+    "note": "Изменение импортных пошлин",
+    "text": "День 1703: пошлину на иностранный крепкий алкоголь могут повысить уже в ноябре 2026 года\nСобираем новости, события и мнения о рынках, банках и реакциях компаний.",
+    "url": "https://vc.ru/money/3211013-povyshenie-poshlin-na-import-krepkogo-alkogolya?from=rss"
+  },
+  {
+    "id": "05",
+    "fixture": "source_preview_rss.json",
+    "index": 3,
+    "topic": "Приложения и сервисы",
+    "want": true,
+    "note": "Закрытие браузера, независимая новость",
+    "text": "The Browser Company закроет браузер Arc\nКомпания призывает переходить на ИИ-браузер Dia, на разработке которого сосредоточилась в 2025 году.",
+    "url": "https://vc.ru/services/3210488-kompaniya-the-browser-company-zakryvaet-brauzer-arc?from=rss"
+  },
+  {
+    "id": "06",
+    "fixture": "source_preview_rss.json",
+    "index": 3,
+    "topic": "Продажи и переговоры",
+    "want": false,
+    "note": "Нет методов продаж",
+    "text": "The Browser Company закроет браузер Arc\nКомпания призывает переходить на ИИ-браузер Dia, на разработке которого сосредоточилась в 2025 году.",
+    "url": "https://vc.ru/services/3210488-kompaniya-the-browser-company-zakryvaet-brauzer-arc?from=rss"
+  },
+  {
+    "id": "07",
+    "fixture": "source_preview_rss.json",
+    "index": 4,
+    "topic": "Автомобили",
+    "want": true,
+    "note": "Модели автомобилей для такси",
+    "text": "Минпромторг добавил в список автомобилей для такси ещё две модели Haval\nВсего в перечне свыше 30 моделей.",
+    "url": "https://vc.ru/transport/3210403-minpromtorg-dobavil-haval-h3-i-haval-dargo-v-spisok-taksi?from=rss"
+  },
+  {
+    "id": "08",
+    "fixture": "source_preview_rss.json",
+    "index": 5,
+    "topic": "Кибербезопасность",
+    "want": true,
+    "note": "Атаки из-за уязвимости PHP",
+    "text": "Cloudflare зафиксировала «миллионы» атак на сайты по всему миру из-за уязвимости в языке PHP\nО крупных утечках данных публично неизвестно. В России о временном ограничении функций сообщали «Битрикс24» и Beget.",
+    "url": "https://vc.ru/services/3209892-cloudflare-zafiksirovala-ataki-na-sayty-iz-za-uiazvimosti-php?from=rss"
+  },
+  {
+    "id": "09",
+    "fixture": "source_preview_rss.json",
+    "index": 6,
+    "topic": "Банки и платёжные сервисы",
+    "want": true,
+    "note": "Восстановление платёжных функций, не реклама",
+    "text": "«Яндекс Пэй» рассказал, что восстановил оформление карт, оплату по QR-коду, накопление кешбэка и обмен баллов «Плюса»\nПлатежи и переводы работают уже больше недели.",
+    "url": "https://vc.ru/money/3209610-yandeks-pey-vosstanovlenie-oformleniya-kart?from=rss"
+  },
+  {
+    "id": "10",
+    "fixture": "source_preview_rss.json",
+    "index": 7,
+    "topic": "Робототехника",
+    "want": true,
+    "note": "Новость о демонстрации робота, не рекламная интеграция",
+    "text": "Unitree представила человекоподобного «робота-телохранителя» H2-X — в рекламном ролике он разбивает дверь автомобиля ногой и «защищает» человека\nСтоимость и сроки выхода устройства в компании не назвали.",
+    "url": "https://vc.ru/tech/3207799-unitree-h2-x-robot-telohranitel?from=rss"
+  },
+  {
+    "id": "11",
+    "fixture": "source_preview_rss.json",
+    "index": 8,
+    "topic": "Местные новости ? Москва",
+    "want": true,
+    "note": "Московский городской проект",
+    "text": "Дептранс Москвы начал тестировать ровера-заправщика для электромобилей\nВместе с «Росатомом».",
+    "url": "https://vc.ru/transport/3207552-depttrans-moskvy-testiruet-mobilnuyu-zaryadnuyu-stantsiyu?from=rss"
+  },
+  {
+    "id": "12",
+    "fixture": "source_preview_rss.json",
+    "index": 8,
+    "topic": "Местные новости ? Тюмень",
+    "want": false,
+    "note": "Пост о Москве, не о Тюмени",
+    "text": "Дептранс Москвы начал тестировать ровера-заправщика для электромобилей\nВместе с «Росатомом».",
+    "url": "https://vc.ru/transport/3207552-depttrans-moskvy-testiruet-mobilnuyu-zaryadnuyu-stantsiyu?from=rss"
+  },
+  {
+    "id": "13",
+    "fixture": "source_preview_rss.json",
+    "index": 9,
+    "topic": "Карьера и HR",
+    "want": true,
+    "note": "Отказ кандидату автоматического фильтра найма",
+    "text": "Тимлид рассказал на Reddit, как откликнулся на вакансию в своей компании и получил отказ — не прошёл автоматический фильтр\nОн не указал название компании и не прикрепил скриншоты, но история вызвала обсуждения в соцсетях.",
+    "url": "https://vc.ru/hr/3207206-timlid-na-reddit-rasskazal-ob-otkaze-pri-otklyke-na-vakansiyu?from=rss"
+  },
+  {
+    "id": "14",
+    "fixture": "source_preview_tg_text.json",
+    "index": 1,
+    "topic": "Политика",
+    "want": true,
+    "note": "Сообщение об участниках переговоров",
+    "text": "#Политика Стив Уиткофф и зять Дональда Трампа Джаред Кушнер действительно в ближайшее время прибудут в Москву с очередным визитом. Об этом сообщает ТАСС со ссылкой на источники. По информации источника, американские переговорщики могут посетить Россию в ближайшие две недели. «Такая вероятность, действительно, есть. Детали будут согласованы», — заявил собеседник агентства.",
+    "url": "https://t.me/investor4444/4372"
+  },
+  {
+    "id": "15",
+    "fixture": "source_preview_tg_text.json",
+    "index": 6,
+    "topic": "Банки и платёжные сервисы",
+    "want": true,
+    "note": "Реорганизация банка",
+    "text": "#банкиПутин разрешил провести реорганизацию \"Юникредит Банка\" и выкупить 100% его акций, принадлежащих итальянской UniCredit.",
+    "url": "https://t.me/investor4444/4367"
+  },
+  {
+    "id": "16",
+    "fixture": "source_preview_tg_text.json",
+    "index": 8,
+    "topic": "Интерьер",
+    "want": false,
+    "note": "Прямое приглашение в магазин диванов — реклама",
+    "text": "📣 Если по счастливой случайности вы живете в Дагестане, за диванами приходите только в мой магазин! https://www.instagram.com/divan.mhk цены постепенно буду выкладывать в Инсте.",
+    "url": "https://t.me/investor4444/4339"
+  },
+  {
+    "id": "17",
+    "fixture": "search_lemmy.json",
+    "index": 0,
+    "topic": "Выпечка и десерты",
+    "want": true,
+    "note": "Домашняя пицца и опыт приготовления",
+    "text": "Detroit style circular cast iron pizza\nThanks to u/FauxPseudo I was inspired to make a Detroit style pizza with a sheet of wings and homemade sauce.\n\nHad a great time putting this together with my son tonight. The dough came out just a bit too doughy in the middle but otherwise it was perfect! I think next time I’ll only do 1.5x the recipe of dough instead of 2x\n\n![](https://lemmy.zip/pictrs/image/7c138d50-5554-4616-a2e9-8922c5f363a5.avif)\n\n![](https://lemmy.zip/pictrs/image/ca91e3a7-dc37-4e57-b685-ad262ed54d03.avif)\n\nObligatory cat pix\n\n![](https://lemmy.zip/pictrs/image/0e6cb6f4-8f3c-4965-870e-869694f94fd7.avif)",
+    "url": "https://lemmy.zip/post/74125700"
+  },
+  {
+    "id": "18",
+    "fixture": "search_lemmy.json",
+    "index": 0,
+    "topic": "Политика",
+    "want": false,
+    "note": "Кулинарный пост",
+    "text": "Detroit style circular cast iron pizza\nThanks to u/FauxPseudo I was inspired to make a Detroit style pizza with a sheet of wings and homemade sauce.\n\nHad a great time putting this together with my son tonight. The dough came out just a bit too doughy in the middle but otherwise it was perfect! I think next time I’ll only do 1.5x the recipe of dough instead of 2x\n\n![](https://lemmy.zip/pictrs/image/7c138d50-5554-4616-a2e9-8922c5f363a5.avif)\n\n![](https://lemmy.zip/pictrs/image/ca91e3a7-dc37-4e57-b685-ad262ed54d03.avif)\n\nObligatory cat pix\n\n![](https://lemmy.zip/pictrs/image/0e6cb6f4-8f3c-4965-870e-869694f94fd7.avif)",
+    "url": "https://lemmy.zip/post/74125700"
+  },
+  {
+    "id": "19",
+    "fixture": "search_lemmy.json",
+    "index": 5,
+    "topic": "Водный транспорт",
+    "want": true,
+    "note": "Судостроение",
+    "text": "[News] HD Korea Shipbuilding and Offshore Engineering Q3 profit rises 37 per cent\nProfit fell 12 per cent from Q2 on won appreciation and wage settlement costs. Orders for 176 vessels worth US$19.1 billion have already passed the full-year target, and nine-month profit exceeds the 2025 record.\n\n---\n**Category:** Industry & regulation, Capability & shipbuilding  \n**Source:** Baird Maritime · 30 Oct 2026",
+    "url": "https://lemmy.world/post/53761375"
+  },
+  {
+    "id": "20",
+    "fixture": "search_lemmy.json",
+    "index": 6,
+    "topic": "Водный транспорт",
+    "want": true,
+    "note": "Заказ пассажирского парома",
+    "text": "[News] Contract awarded for 150-passenger ferry for Sapelo Island, Georgia\n---\n**Category:** Industry & regulation, Capability & shipbuilding  \n**Source:** Baird Maritime · 30 Oct 2026",
+    "url": "https://lemmy.world/post/53761372"
+  },
+  {
+    "id": "21",
+    "fixture": "search_lemmy.json",
+    "index": 9,
+    "topic": "Нейросети",
+    "want": true,
+    "note": "Обсуждение локального инференса",
+    "text": "Sam Altman: \"Local inference is a terrible allocation of scarce resources\"\nSam Altman:\n\n> A lot of people want local inference, and somehow they assume that the problem is solved now because we have open-source models, we're going to be able to run them on our computers, and so we're not going to need all the stuff in the data center.\n\n> But from a global allocation perspective, actually it's quite terrible to have everybody, like, have a bunch of the world's limited supply of DRAM sitting in their own computer and being used five percent of the time.\n\n> Like you want maximum utilisation in the cloud if you're trying to deal with this very supply-constrained environment,\n\n> And somehow many people's intuition is the opposite of that\n\nTL;DR Guy selling product: \"Here's why owning your own product instead of renting it from me is a terrible idea\"",
+    "url": "https://discuss.tchncs.de/post/70060294"
+  },
+  {
+    "id": "22",
+    "fixture": "search_lemmy.json",
+    "index": 10,
+    "topic": "Кибербезопасность",
+    "want": true,
+    "note": "Кража криптовалют через кибератаку",
+    "text": "Billions Dollars Stolen in Historic Cryptocurrency Cyberattack\n![The platform attributed the attack to a failure in DebugBear, an external software, and promised to refund all stolen funds to users. Photo: Getty images.](https://ikona.telesurenglish.net/content/uploads/2026/10/binance-phone-1200x675-1-1024x576.webp)\n\n#### Billions of dollars in crypto assets were reportedly stolen in separate hacks targeting Binance and Polymarket, triggering a market selloff and raising fresh concerns over digital asset security worldwide.\n\n---\n\nThe cryptocurrency industry faced one of its most turbulent days this Thursday as reports of **massive security breaches involving Binance and Polymarket triggered sharp market declines**, widespread panic among investors, and renewed concerns over the security of digital asset platforms.\n\nWhile **Binance investigated what could become the largest cryptocurrency hack in history**, Polymarket temporarily halted operations following a cyberattack linked to a third-party service provider.\n\n***RELATED: [Artificial Intelligence Pioneers Call for International Body to Oversee Cybersecurity Standards](https://telesurenglish.net/artificial-intelligence-pioneers-call-for-international-body-to-oversee-cybersecurity-standards/)***\n\nThe crisis began when reports emerged suggesting that [Binance](https://www.binance.com/en), the world’s largest cryptocurrency exchange by trading volume, had suffered a major security breach. Initial estimates indicated that nearly $600 million in crypto liquidations occurred across exchanges within a single hour as traders rushed to reduce risk amid growing uncertainty.\n\n> We are working non-stop to resolve this issue. Binance will cover all losses.  \n>   \n> As a precaution, all deposits and withdrawals are temporarily suspended while our team conducts security checks, freezes funds, and works with law enforcement.  \n>   \n> We are working around the clock and will… [pic.twitter.com/zufWJ6V05D](https://t.co/zufWJ6V05D)\n>\n> — Binance (@binance) [October 30, 2026](https://x.com/binance/status/2115960292115124558)\n\nAs the situation unfolded, blockchain analysts reported that wallets allegedly tied to the attackers had received digital assets worth more than $5.5 billion. Later disclosures suggested that the amount associated with the incident could exceed $5.7 billion across multiple cryptocurrencies, including Bitcoin, Ether, USDT, and USDC.\n\nThe market reaction was immediate. **Bitcoin fell below the $80,000 threshold, while Binance Coin (BNB), the exchange’s native token, dropped sharply.** Other major cryptocurrencies also recorded significant losses as investors sought safety amid fears of a systemic security event affecting one of the sector’s most important institutions.\n\nChangpeng Zhao, widely known as CZ and the founder of Binance, stated that the available information appeared to indicate that the platform had suffered a hack. Although no longer involved in the day-to-day management of the company, Zhao expressed hope that **all customer funds would ultimately be protected.**\n\nBinance, for its part, sought to reassure users, stating that customer assets remained secure and urging the community to remain vigilant against scams and phishing attempts that often proliferate during high-profile security incidents. **The company also temporarily suspended several Binance Alpha services, including CEX Buy Token, Alpha Instant, and predictive trading-related functions linked to spot wallet funds.**\n\nAs investigators worked to determine the full scope of the breach, **Binance announced that approximately $2.54 billion worth of assets had already been frozen through emergency security measures.** The exchange emphasized that only verified information would be released as **the investigation continued.**\n\n> We are aware of differing figures circulating publicly regarding the amount frozen, including references to $1.8 billion.  \n>   \n> For clarity, the current verified total frozen is $2.54 billion. This figure may continue to increase as our teams work closely with law enforcement,… [pic.twitter.com/Kx68qptfXk](https://t.co/Kx68qptfXk)\n>\n> — Binance (@binance) [October 29, 2026](https://x.com/binance/status/2115947325617299903)\n\n**The turmoil was compounded by a separate cyberattack targeting [Polymarket](https://polymarket.com/),** one of the world’s most prominent prediction market platforms. **The company temporarily suspended trading operations for nearly an hour after identifying a security incident involving an external service provider.**\n\nAccording to reports, **attackers may have exploited a vulnerability connected to *DebugBear*, a third-party performance and analytics tool used by the platform.** The breach allegedly resulted in the theft of roughly $2.65 billion to $2.7 billion worth of cryptocurrencies from user wallets, making it one of the largest incidents ever reported in the prediction market sector.\n\nFollowing the attack, Polymarket notified British authorities, as preliminary information suggested the operation may have originated from the United Kingdom. At the same time, users reported missing funds and emptied wallets across community channels, raising concerns about the broader implications of third-party software vulnerabilities within the crypto ecosystem.\n\nDespite the disruption, **Polymarket moved quickly to restore operations and pledged to compensate affected users.** In public statements, the company promised to reimburse all verified losses, an effort aimed at restoring confidence and preventing a prolonged loss of trust among traders.\n\n> POLYMARKET HALTS TRADING AFTER HACKERS DRAIN USER FUNDS WITHOUT PASSWORDS OR SEED PHRASES  \n>   \n> Attackers allegedly exploited users’ active sessions to sell their positions and withdraw funds directly through Polymarket’s own system.  \n>   \n> The attack reportedly originated from a… [pic.twitter.com/GJB7MTrBfH](https://t.co/GJB7MTrBfH)\n>\n> — Bitcoin News (@BitcoinNewsCom) [October 29, 2026](https://x.com/BitcoinNewsCom/status/2115928168297005349)\n\n### Security Under Fire\n\nThe dual incidents have reignited a longstanding debate over cybersecurity standards in the cryptocurrency industry. For years, exchanges and digital asset platforms have promoted increasingly sophisticated security systems, yet the scale of the reported losses at Binance and Polymarket suggests that even major players remain vulnerable to large-scale attacks.\n\nIf confirmed at the estimated levels reported by analysts and security firms, **the Binance breach would surpass all previous cryptocurrency thefts on record, marking a pivotal moment for the digital asset industry.** Combined with the Polymarket attack, the events of October 29 erased billions of dollars in market value, exposed potential weaknesses in platform security infrastructure, and highlighted the systemic risks that continue to accompany the rapid growth of the global cryptocurrency ecosystem.\n\nAs investigations continue, regulators, security experts, and investors alike will be watching closely to determine not only how the attacks occurred, but also what they reveal about the resilience of the crypto industry in an era of increasingly sophisticated cyber threats.\n\n---\n\n**From [teleSUR English](https://www.telesurenglish.net/feed/) via [This RSS Feed](https://www.telesurenglish.net/feed/).**",
+    "url": "https://news.abolish.capital/post/89653"
+  },
+  {
+    "id": "23",
+    "fixture": "search_lemmy.json",
+    "index": 10,
+    "topic": "Криптовалюта",
+    "want": true,
+    "note": "Преступление связано с криптоактивами",
+    "text": "Billions Dollars Stolen in Historic Cryptocurrency Cyberattack\n![The platform attributed the attack to a failure in DebugBear, an external software, and promised to refund all stolen funds to users. Photo: Getty images.](https://ikona.telesurenglish.net/content/uploads/2026/10/binance-phone-1200x675-1-1024x576.webp)\n\n#### Billions of dollars in crypto assets were reportedly stolen in separate hacks targeting Binance and Polymarket, triggering a market selloff and raising fresh concerns over digital asset security worldwide.\n\n---\n\nThe cryptocurrency industry faced one of its most turbulent days this Thursday as reports of **massive security breaches involving Binance and Polymarket triggered sharp market declines**, widespread panic among investors, and renewed concerns over the security of digital asset platforms.\n\nWhile **Binance investigated what could become the largest cryptocurrency hack in history**, Polymarket temporarily halted operations following a cyberattack linked to a third-party service provider.\n\n***RELATED: [Artificial Intelligence Pioneers Call for International Body to Oversee Cybersecurity Standards](https://telesurenglish.net/artificial-intelligence-pioneers-call-for-international-body-to-oversee-cybersecurity-standards/)***\n\nThe crisis began when reports emerged suggesting that [Binance](https://www.binance.com/en), the world’s largest cryptocurrency exchange by trading volume, had suffered a major security breach. Initial estimates indicated that nearly $600 million in crypto liquidations occurred across exchanges within a single hour as traders rushed to reduce risk amid growing uncertainty.\n\n> We are working non-stop to resolve this issue. Binance will cover all losses.  \n>   \n> As a precaution, all deposits and withdrawals are temporarily suspended while our team conducts security checks, freezes funds, and works with law enforcement.  \n>   \n> We are working around the clock and will… [pic.twitter.com/zufWJ6V05D](https://t.co/zufWJ6V05D)\n>\n> — Binance (@binance) [October 30, 2026](https://x.com/binance/status/2115960292115124558)\n\nAs the situation unfolded, blockchain analysts reported that wallets allegedly tied to the attackers had received digital assets worth more than $5.5 billion. Later disclosures suggested that the amount associated with the incident could exceed $5.7 billion across multiple cryptocurrencies, including Bitcoin, Ether, USDT, and USDC.\n\nThe market reaction was immediate. **Bitcoin fell below the $80,000 threshold, while Binance Coin (BNB), the exchange’s native token, dropped sharply.** Other major cryptocurrencies also recorded significant losses as investors sought safety amid fears of a systemic security event affecting one of the sector’s most important institutions.\n\nChangpeng Zhao, widely known as CZ and the founder of Binance, stated that the available information appeared to indicate that the platform had suffered a hack. Although no longer involved in the day-to-day management of the company, Zhao expressed hope that **all customer funds would ultimately be protected.**\n\nBinance, for its part, sought to reassure users, stating that customer assets remained secure and urging the community to remain vigilant against scams and phishing attempts that often proliferate during high-profile security incidents. **The company also temporarily suspended several Binance Alpha services, including CEX Buy Token, Alpha Instant, and predictive trading-related functions linked to spot wallet funds.**\n\nAs investigators worked to determine the full scope of the breach, **Binance announced that approximately $2.54 billion worth of assets had already been frozen through emergency security measures.** The exchange emphasized that only verified information would be released as **the investigation continued.**\n\n> We are aware of differing figures circulating publicly regarding the amount frozen, including references to $1.8 billion.  \n>   \n> For clarity, the current verified total frozen is $2.54 billion. This figure may continue to increase as our teams work closely with law enforcement,… [pic.twitter.com/Kx68qptfXk](https://t.co/Kx68qptfXk)\n>\n> — Binance (@binance) [October 29, 2026](https://x.com/binance/status/2115947325617299903)\n\n**The turmoil was compounded by a separate cyberattack targeting [Polymarket](https://polymarket.com/),** one of the world’s most prominent prediction market platforms. **The company temporarily suspended trading operations for nearly an hour after identifying a security incident involving an external service provider.**\n\nAccording to reports, **attackers may have exploited a vulnerability connected to *DebugBear*, a third-party performance and analytics tool used by the platform.** The breach allegedly resulted in the theft of roughly $2.65 billion to $2.7 billion worth of cryptocurrencies from user wallets, making it one of the largest incidents ever reported in the prediction market sector.\n\nFollowing the attack, Polymarket notified British authorities, as preliminary information suggested the operation may have originated from the United Kingdom. At the same time, users reported missing funds and emptied wallets across community channels, raising concerns about the broader implications of third-party software vulnerabilities within the crypto ecosystem.\n\nDespite the disruption, **Polymarket moved quickly to restore operations and pledged to compensate affected users.** In public statements, the company promised to reimburse all verified losses, an effort aimed at restoring confidence and preventing a prolonged loss of trust among traders.\n\n> POLYMARKET HALTS TRADING AFTER HACKERS DRAIN USER FUNDS WITHOUT PASSWORDS OR SEED PHRASES  \n>   \n> Attackers allegedly exploited users’ active sessions to sell their positions and withdraw funds directly through Polymarket’s own system.  \n>   \n> The attack reportedly originated from a… [pic.twitter.com/GJB7MTrBfH](https://t.co/GJB7MTrBfH)\n>\n> — Bitcoin News (@BitcoinNewsCom) [October 29, 2026](https://x.com/BitcoinNewsCom/status/2115928168297005349)\n\n### Security Under Fire\n\nThe dual incidents have reignited a longstanding debate over cybersecurity standards in the cryptocurrency industry. For years, exchanges and digital asset platforms have promoted increasingly sophisticated security systems, yet the scale of the reported losses at Binance and Polymarket suggests that even major players remain vulnerable to large-scale attacks.\n\nIf confirmed at the estimated levels reported by analysts and security firms, **the Binance breach would surpass all previous cryptocurrency thefts on record, marking a pivotal moment for the digital asset industry.** Combined with the Polymarket attack, the events of October 29 erased billions of dollars in market value, exposed potential weaknesses in platform security infrastructure, and highlighted the systemic risks that continue to accompany the rapid growth of the global cryptocurrency ecosystem.\n\nAs investigations continue, regulators, security experts, and investors alike will be watching closely to determine not only how the attacks occurred, but also what they reveal about the resilience of the crypto industry in an era of increasingly sophisticated cyber threats.\n\n---\n\n**From [teleSUR English](https://www.telesurenglish.net/feed/) via [This RSS Feed](https://www.telesurenglish.net/feed/).**",
+    "url": "https://news.abolish.capital/post/89653"
+  },
+  {
+    "id": "24",
+    "fixture": "search_lemmy.json",
+    "index": 14,
+    "topic": "Игры",
+    "want": true,
+    "note": "Обсуждение RuneScape",
+    "text": "What’s your Runescape superstition?\n[Original Reddit post](https://www.reddit.com/r/2007scape/comments/1xj3hkw/whats_your_runescape_superstition/)\n\nI’ve gone 3 months without a Greater Demons task. Every time I go to Kuradel, I stand in the middle tile and wait for her to stand on the north tile before I request her assignment.\nShe never, ever does it. She never stands on that north tile.\nSo I get impatient and get a task. Lo and behold, I don’t get Greater Demons. Every single time.\nJust now, after THREE MONTHS, I walked up the ladder, and there she was, on the coveted north tile.\nI took my opportunity, quickly ran to the middle and requested a task.\nGreater Demons.\nFinally. I waited so long, and my superstition was vindicated.\nWhat is your Runescape superstition?\nsubmitted by\n/u/TheFalloutHandbook\n\nOriginally posted by u/TheFalloutHandbook on r/2007scape",
+    "url": "https://lemmy.durstig.online/post/69351"
+  },
+  {
+    "id": "25",
+    "fixture": "search_lemmy.json",
+    "index": 18,
+    "topic": "Наука и образование",
+    "want": true,
+    "note": "Разбор исследования цифровых платформ",
+    "text": "Digital platforms and democratic publics: How social media platforms selectively appropriate and strategically subvert institutional logics\ncross-posted from:  https://lemmy.ca/post/73100852\n\n> > Our analysis contributes to ongoing debates on digital platforms, in particular from an institutional perspective, in the following ways. **First, research on platforms has established a critical distinction between the organization of the platform host organization and the organization of the ‘crowd’ - the users who interact in digital action spaces (e.g., Ametowobla and Kirchner, 2023; Bauer and Gegenhuber, 2015; Dolata and Schrape, 2023). However, less attention has been paid to how certain features of platform organization such as centralized algorithmic control, data extraction mechanisms, and proprietary governance structures (e.g., Stark and Pais, 2020; Van Dijck, Poell, and De Waal, 2018) shape the public arena. Given that, in the case of social media platforms, the crowd comprises a large part of society, we demonstrate how the selective appropriation of institutional logics in the governance of platforms simultaneously subverts these logics in the public sphere.**\n> \n> \n> > **Second, we highlight that these effects reflect strategic choices rather than technological inevitability, because platforms rhetorically appeal to the logics of the market, the corporation and the community to gain legitimacy (Meyer and Rowan, 1977), while diverging from these logics in the actual practices in which they create, regulate and monetize digital marketplaces. As an outlook, we point to alternative forms of platform organization more in line with liberal, democratic principles - while indicating a need to reform democratic societies away from a market towards a commons-based orientation (e.g. Etzioni, 2000, Etzioni, 2009).** Social media platforms structured around decentralization rather than centralized control could lead to different dynamics in the public sphere and foster logics diversity (Almandoz and Thornton, 2025), granting communities more autonomy over content curation and moderation standards, enabling democratic deliberation rather than polarization, and allowing for distributed governance rather than proprietary control. In this sense, social media platforms and contestation around their governance constitute non-neutral battlegrounds where societal logics collide, are challenged, and can be transformed - in different directions.\n> \n> > The digital transformation can be seen as “the combined effects of several digital innovations bringing about novel actors (and actor constellations), structures, practices, values, and beliefs that change, threaten, replace or complement existing rules of the game within organizations and fields” (Hinings, Gegenhuber, and Greenwood, 2018: 53). Digital platforms can be seen as a constitutive feature of late digital society, and terms such as platform economy (Kenney and Zysman, 2016) or platform capitalism (Srnicek, 2017; Staab, 2019) indicate a broader societal and economic transformation associated with the spread of platform organizations. **In a platform-mediated society, economic as well as social processes are shaped by globally operating platform companies such as Amazon, Apple, Google, Meta, or Microsoft, leading to the commodification of both private and public exchanges (Dolata, 2019; Van Dijck et al., 2018). This development not only marks the endpoint of the ‘organization society’ that Pfeffer (1997) described in the introductory quote (Davis, 2016), but undermines democratic principles because an algorithmically governed social order creates new participation possibilities, while restricting participation in decision-making (Stalder, 2016). Users on most platforms have limited to no control over the conditions under which they work (e.g., Maric, Schuessler, and Thäter, 2025).**\n> \n> \n> \n> > Digital platforms are commonly defined as technology-enabled infrastructures operated by host organizations to facilitate the exchange between providers and consumers of goods, services, or knowledge (Gawer, 2010). It is important to distinguish the platform host organization - typically a rather small, formal organization often embedded in multinational technology companies - from structures and practices of platform organizing, which shape the dynamics of market, crowd or community transactions (Bauer and Gegenhuber, 2015; Kirchner and Schuessler, 2019; Langner and Seidel, 2015). Dolata and Schrape (2023) hence distinguish the platform-operating companies from the technologically mediated social action space that is typically referred to as the ‘platform’ (similarly Ametowobla and Kirchner, 2023). While initially narratives about sharing, autonomy, flexibility, openness, fluidity, and peer production accompanied the rise of the platform organization, dominant narratives now emphasize data extraction and processing, algorithmic governance, surveillance, social stratification (Fourcade, 2021; Healy, Nicholson, and Pekarek, 2017; Zuboff, 2018) as well as platform domination, power, centralization and control (Seemann, 2021; Kenney, Bearson, and Zysman, 2021; Schuessler, Attwood-Charles, Kirchner, and Schor, 2021). Platform governance is often described as ‘hybrid’, because it uses market, corporation and community mechanisms to coordinate crowds via a digital infrastructure (e.g. Kornberger, 2016; Zhang et al., 2024).\n> \n> \n> ![](https://lemmy.ca/pictrs/image/2fbb69f9-b63f-41f2-8973-61495bf03ba7.png)\n> \n> ...\n> \n> > Our study contributes to ongoing debates on digital platforms and institutional logics in several ways. First, by shifting our analysis\n> from gig work platforms operating on a national or field-level to globally operating social media platforms, we show how platforms'\n> hybrid use of institutional logics (Frenken et al., 2020; Grabher and K¨onig, 2020; Watkins and Stark, 2018; Zhang et al., 2025) has\n> repercussions for the public sphere. Hence, we support critical analyses of platforms' regulatory power (e.g. Lehdonvirta, 2022),\n> complementing these analyses with an organization-theoretical perspective that shows how the governance of the platform host or-\n> ganization extends to the ways in which platforms organize crowds, yielding them significant power to play with and undermine\n> societal-level institutional logics given their influence over the public sphere.\n> \n> \n> > Second, we respond to recent calls for using the institutional logics framework to understand current challenges to the liberal-\n> capitalist, democratic institutional order (Lounsbury and Wang, 2020), revealing the role played by certain kinds of platforms in\n> undermining its institutional pillars. While symbolically adopting the rhetoric of the logic of the market, the corporation and the\n> community to gain legitimacy (Meyer and Rowan, 1977), large, centralized and profit-driven social media platforms decompose the\n> means and ends of these logics in the specific ways in which they create, regulate and monetize markets (Yan et al., 2021), thereby\n> redefining not just the composition of dominant logics in society, but also their meanings and associated practices (Schildt and Kodeih,\n> 2025). Arguably, platforms' strategic and subversive use of institutional logics is possible and impactful because users lack situated\n> interaction possibilities in digital spaces. Such interactions are an important source of resistance to a manipulative use of institutional\n> logics, because they allow detecting and acting upon a lack of coherence in logics (Zilber, 2024).\n\n\n![](https://lemmy.ca/pictrs/image/cb7e4c65-6f0c-46bd-b139-208febff93e5.jpeg)",
+    "url": "https://lemmy.ca/post/73102045"
+  },
+  {
+    "id": "26",
+    "fixture": "tag_mastodon.json",
+    "index": 0,
+    "topic": "Кошки",
+    "want": true,
+    "note": "Наблюдение двух кошек",
+    "text": " The most important observation is the presence of two cats on the cracked concrete driveway. A black cat is walking toward the camera, while a light-colored cat is walking away from the camera. No people, vehicles, or unusual packages are visible in this image. At the feeders:  # crittercam     # cat    # cat_orange   88.35% OMVI3.20261029_185823082.jpg ",
+    "url": "https://dea42.social/@critters/117527808036753626"
+  },
+  {
+    "id": "27",
+    "fixture": "tag_mastodon.json",
+    "index": 0,
+    "topic": "Собаки",
+    "want": false,
+    "note": "Описаны кошки, собак нет",
+    "text": " The most important observation is the presence of two cats on the cracked concrete driveway. A black cat is walking toward the camera, while a light-colored cat is walking away from the camera. No people, vehicles, or unusual packages are visible in this image. At the feeders:  # crittercam     # cat    # cat_orange   88.35% OMVI3.20261029_185823082.jpg ",
+    "url": "https://dea42.social/@critters/117527808036753626"
+  },
+  {
+    "id": "28",
+    "fixture": "tag_mastodon.json",
+    "index": 8,
+    "topic": "Живопись и арт",
+    "want": false,
+    "note": "Продажа открыток с призывом купить",
+    "text": " Yes. You want one. 🥺    https://www.  joyousjoyness.com/collections/  postcard     # cat    # OrangeCat    # postcard    # art   ",
+    "url": "https://mastodon.social/@joyousjoyness/117527389308928348"
+  },
+  {
+    "id": "29",
+    "fixture": "tag_mastodon.json",
+    "index": 12,
+    "topic": "Собаки",
+    "want": true,
+    "note": "Пост описывает собаку",
+    "text": " The most important observation is a small brown dog emerging from an open door on the side of a house. There are no people, vehicles, or unusual packages visible. The scene is adorned with Halloween decorations, including a black flag with a bat, another flag with bats and a moon, and inflatable pumpkins, indicating a festive setting. At the feeders:  # crittercam     # cat    # cat_orange   90.42% OMVI3.20261029_183509453.jpg ",
+    "url": "https://dea42.social/@critters/117527099591356461"
+  },
+  {
+    "id": "30",
+    "fixture": "tag_mastodon.json",
+    "index": 12,
+    "topic": "Кошки",
+    "want": false,
+    "note": "Хэштег кошек не соответствует описанной собаке",
+    "text": " The most important observation is a small brown dog emerging from an open door on the side of a house. There are no people, vehicles, or unusual packages visible. The scene is adorned with Halloween decorations, including a black flag with a bat, another flag with bats and a moon, and inflatable pumpkins, indicating a festive setting. At the feeders:  # crittercam     # cat    # cat_orange   90.42% OMVI3.20261029_183509453.jpg ",
+    "url": "https://dea42.social/@critters/117527099591356461"
+  },
+  {
+    "id": "31",
+    "fixture": "tag_mastodon.json",
+    "index": 15,
+    "topic": "Косплей",
+    "want": true,
+    "note": "Танцевальный конкурс в костюме персонажа",
+    "text": " Kado Kat during the fursuit dance competition at FWA25   # Furry    # Furries    # Fursuit    # FursuitFriday    # Photography    # Anthro    # FurryArt    # FurryArtist    # FWA    # FWA25    # ArtShare    # Art    # DanceCompetition    # Cat    # Nikon   ",
+    "url": "https://furry.engineer/@AutomataDog/117527003500780694"
+  },
+  {
+    "id": "32",
+    "fixture": "tag_mastodon.json",
+    "index": 15,
+    "topic": "Кошки",
+    "want": false,
+    "note": "Персонаж в костюме не является живой кошкой",
+    "text": " Kado Kat during the fursuit dance competition at FWA25   # Furry    # Furries    # Fursuit    # FursuitFriday    # Photography    # Anthro    # FurryArt    # FurryArtist    # FWA    # FWA25    # ArtShare    # Art    # DanceCompetition    # Cat    # Nikon   ",
+    "url": "https://furry.engineer/@AutomataDog/117527003500780694"
+  },
+  {
+    "id": "33",
+    "fixture": "source_preview_rss.json",
+    "index": 6,
+    "topic": "Банки и платёжные сервисы ? Яндекс",
+    "want": true,
+    "note": "Уточнение про Яндекс подтверждено",
+    "text": "«Яндекс Пэй» рассказал, что восстановил оформление карт, оплату по QR-коду, накопление кешбэка и обмен баллов «Плюса»\nПлатежи и переводы работают уже больше недели.",
+    "url": "https://vc.ru/money/3209610-yandeks-pey-vosstanovlenie-oformleniya-kart?from=rss",
+    "control": true
+  },
+  {
+    "id": "34",
+    "fixture": "source_preview_rss.json",
+    "index": 6,
+    "topic": "Банки и платёжные сервисы ? Сбербанк",
+    "want": false,
+    "note": "Новость о другом платёжном сервисе",
+    "text": "«Яндекс Пэй» рассказал, что восстановил оформление карт, оплату по QR-коду, накопление кешбэка и обмен баллов «Плюса»\nПлатежи и переводы работают уже больше недели.",
+    "url": "https://vc.ru/money/3209610-yandeks-pey-vosstanovlenie-oformleniya-kart?from=rss",
+    "control": true
+  },
+  {
+    "id": "35",
+    "fixture": "source_preview_rss.json",
+    "index": 0,
+    "topic": "Технологии",
+    "want": true,
+    "note": "Новость о роботакси относится к технологиям",
+    "text": "Такси-сервис inDrive и китайская Pony.ai начнут тестировать роботакси в Казахстане в 2027 году\nЕсли запуск будет удачным — роботакси запустят в других городах и странах присутствия inDrive. Это примерно 48 государств.",
+    "url": "https://vc.ru/transport/3211386-zapusk-robotaksi-indrive-i-ponyai-v-kazahstane?from=rss",
+    "control": true
+  },
+  {
+    "id": "36",
+    "fixture": "source_preview_rss.json",
+    "index": 0,
+    "topic": "Транспорт",
+    "want": true,
+    "note": "Роботакси — транспорт",
+    "text": "Такси-сервис inDrive и китайская Pony.ai начнут тестировать роботакси в Казахстане в 2027 году\nЕсли запуск будет удачным — роботакси запустят в других городах и странах присутствия inDrive. Это примерно 48 государств.",
+    "url": "https://vc.ru/transport/3211386-zapusk-robotaksi-indrive-i-ponyai-v-kazahstane?from=rss",
+    "control": true
+  },
+  {
+    "id": "37",
+    "fixture": "search_lemmy.json",
+    "index": 0,
+    "topic": "Рецепты",
+    "want": false,
+    "note": "Описан опыт приготовления пиццы, но нет рецепта или достаточных шагов",
+    "text": "Detroit style circular cast iron pizza\nThanks to u/FauxPseudo I was inspired to make a Detroit style pizza with a sheet of wings and homemade sauce.\n\nHad a great time putting this together with my son tonight. The dough came out just a bit too doughy in the middle but otherwise it was perfect! I think next time I’ll only do 1.5x the recipe of dough instead of 2x\n\n![](https://lemmy.zip/pictrs/image/7c138d50-5554-4616-a2e9-8922c5f363a5.avif)\n\n![](https://lemmy.zip/pictrs/image/ca91e3a7-dc37-4e57-b685-ad262ed54d03.avif)\n\nObligatory cat pix\n\n![](https://lemmy.zip/pictrs/image/0e6cb6f4-8f3c-4965-870e-869694f94fd7.avif)",
+    "url": "https://lemmy.zip/post/74125700",
+    "control": true
+  },
+  {
+    "id": "38",
+    "fixture": "search_lemmy.json",
+    "index": 14,
+    "topic": "Настольные игры",
+    "want": false,
+    "note": "RuneScape — видеоигра, не настольная игра",
+    "text": "What’s your Runescape superstition?\n[Original Reddit post](https://www.reddit.com/r/2007scape/comments/1xj3hkw/whats_your_runescape_superstition/)\n\nI’ve gone 3 months without a Greater Demons task. Every time I go to Kuradel, I stand in the middle tile and wait for her to stand on the north tile before I request her assignment.\nShe never, ever does it. She never stands on that north tile.\nSo I get impatient and get a task. Lo and behold, I don’t get Greater Demons. Every single time.\nJust now, after THREE MONTHS, I walked up the ladder, and there she was, on the coveted north tile.\nI took my opportunity, quickly ran to the middle and requested a task.\nGreater Demons.\nFinally. I waited so long, and my superstition was vindicated.\nWhat is your Runescape superstition?\nsubmitted by\n/u/TheFalloutHandbook\n\nOriginally posted by u/TheFalloutHandbook on r/2007scape",
+    "url": "https://lemmy.durstig.online/post/69351",
+    "control": true
+  },
+  {
+    "id": "39",
+    "fixture": "search_lemmy.json",
+    "index": 5,
+    "topic": "Мировые новости",
+    "want": true,
+    "note": "Новость о южнокорейской судостроительной компании",
+    "text": "[News] HD Korea Shipbuilding and Offshore Engineering Q3 profit rises 37 per cent\nProfit fell 12 per cent from Q2 on won appreciation and wage settlement costs. Orders for 176 vessels worth US$19.1 billion have already passed the full-year target, and nine-month profit exceeds the 2025 record.\n\n---\n**Category:** Industry & regulation, Capability & shipbuilding  \n**Source:** Baird Maritime · 30 Oct 2026",
+    "url": "https://lemmy.world/post/53761375",
+    "control": true
+  },
+  {
+    "id": "40",
+    "fixture": "source_preview_tg_text.json",
+    "index": 0,
+    "topic": "Политика",
+    "want": true,
+    "note": "Короткий политический комментарий — допустимый текстовый пост",
+    "text": "#ПолитикаНе знаю, насколько мы приближаемся к завершению конфликта, но дело идет к этому — Ушаков",
+    "url": "https://t.me/investor4444/4373",
+    "control": true
+  }
+]

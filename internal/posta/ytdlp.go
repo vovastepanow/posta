@@ -731,6 +731,9 @@ var (
 
 // VideoPageVia — поддерживаемая публичная страница видео или "" для неизвестных адресов.
 func VideoPageVia(u string) string {
+	if dzenVideoStream(u) {
+		return "ytdlp"
+	}
 	if tmePostURLRe.MatchString(u) {
 		return "tgu"
 	}

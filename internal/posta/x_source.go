@@ -1,10 +1,14 @@
 package posta
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"golang.org/x/net/html"
 	"posta/internal/jx"
@@ -30,8 +34,8 @@ func xSearchCandidates(page string) []DiscoveryCandidate {
 			if attr.Key != "href" {
 				continue
 			}
-			u, err := url.Parse(attr.Val)
-			if err != nil || (u.Hostname() != "x.com" && u.Hostname() != "twitter.com" && u.Hostname() != "www.twitter.com") {
+			u, err := url.Parse(xSearchResultURL(attr.Val))
+			if err != nil || u.Scheme != "https" || u.User != nil || u.Port() != "" || (u.Hostname() != "x.com" && u.Hostname() != "twitter.com" && u.Hostname() != "www.twitter.com" && u.Hostname() != "www.x.com") {
 				continue
 			}
 			parts := strings.Split(strings.Trim(u.Path, "/"), "/")
@@ -48,23 +52,85 @@ func xSearchCandidates(page string) []DiscoveryCandidate {
 	return out
 }
 
+var xSearchPause struct {
+	sync.Mutex
+	until time.Time
+}
+
+// Bing wraps result links in a base64url-encoded redirect. Decode only its
+// own redirect format and validate the resulting X host in xSearchCandidates.
+func xSearchResultURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Port() != "" || (u.Hostname() != "www.bing.com" && u.Hostname() != "bing.com") || u.Path != "/ck/a" {
+		return raw
+	}
+	encoded := u.Query().Get("u")
+	if !strings.HasPrefix(encoded, "a1") {
+		return ""
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(encoded[2:], "="))
+	if err != nil {
+		return ""
+	}
+	return string(decoded)
+}
+
 func (u *U) discoveryFindX(queries []string) []DiscoveryCandidate {
 	if !u.TBool("search_x_sources") {
 		return nil
 	}
 	var out []DiscoveryCandidate
+	seen := map[string]bool{}
 	for _, q := range queries[:min(2, len(queries))] {
-		page, err := u.braveSearchPage("site:x.com " + q)
-		if err != nil {
-			u.Log("-> Поиск профилей X «%s»: %s", q, err)
+		q = strings.TrimSpace(q)
+		if q == "" {
 			continue
 		}
-		found := xSearchCandidates(page)
-		for _, c := range found {
-			c.Origin, c.OriginKind = "веб-поиск X «"+q+"»", "other"
-			out = append(out, c)
+		key := "bing_x_search:" + sha1Short(strings.ToLower(q), 20)
+		var found []DiscoveryCandidate
+		if u.DB != nil && u.CacheGet(u.Ctx, key, &found) {
+			for _, c := range found {
+				if !seen[c.ID] {
+					seen[c.ID] = true
+					out = append(out, c)
+				}
+			}
+			continue
 		}
-		u.Log("-> Поиск профилей X «%s»: найдено %d.", q, len(found))
+		xSearchPause.Lock()
+		until := xSearchPause.until
+		xSearchPause.Unlock()
+		if time.Now().Before(until) {
+			u.discoveryError("Поиск Bing временно ограничен; повтор не раньше " + until.Format("02.01 15:04") + ".")
+			break
+		}
+		params := url.Values{"q": {"site:x.com " + q}, "count": {"20"}}
+		r := u.RSSGet("https://www.bing.com/search?"+params.Encode(), 3<<20, 15*time.Second, BrowserUA)
+		if r.Status == 429 {
+			xSearchPause.Lock()
+			xSearchPause.until = time.Now().Add(30 * time.Minute)
+			xSearchPause.Unlock()
+			u.discoveryError("Bing ограничил поиск X (HTTP 429); пауза на 30 минут.")
+			break
+		}
+		if !r.OK {
+			u.discoveryError(fmt.Sprintf("Поиск X через Bing недоступен: %s", fetchFailure(r.FetchResult)))
+			break
+		}
+		found = xSearchCandidates(string(r.Bytes))
+		for i := range found {
+			found[i].Origin, found[i].OriginKind = "поиск Bing «"+q+"»", "other"
+		}
+		if len(found) > 0 && u.DB != nil {
+			u.CacheSet(u.Ctx, key, found, time.Hour)
+		}
+		for _, c := range found {
+			if !seen[c.ID] {
+				seen[c.ID] = true
+				out = append(out, c)
+			}
+		}
+		u.Log("-> Поиск профилей X через Bing «%s»: найдено %d.", q, len(found))
 	}
 	return out
 }
@@ -105,21 +171,38 @@ func xProfilePosts(page []byte, username string, count int, withText bool) []jx.
 				user := jx.Str(jx.Map(jx.Map(jx.Map(jx.Map(m, "core"), "user_results"), "result"), "core"), "screen_name")
 				details := jx.Map(m, "details")
 				text := jx.Str(details, "full_text")
-				if id != "" && !seen[id] && strings.EqualFold(user, username) && !jx.Bool(jx.Map(m, "legacy"), "possibly_sensitive") {
-					var images []string
-					for _, media := range jx.Maps(m, "media_entities2") {
-						if jx.Str(media, "type") == "photo" {
-							if image := jx.Str(media, "media_url_https"); strings.HasPrefix(image, "https://") {
-								images = append(images, image)
+				if id != "" && !seen[id] && strings.EqualFold(user, username) {
+					var media []jx.M
+					for _, m := range jx.Maps(m, "media_entities2") {
+						poster := jx.Str(m, "media_url_https")
+						if !strings.HasPrefix(poster, "https://pbs.twimg.com/") {
+							poster = ""
+						}
+						switch jx.Str(m, "type") {
+						case "photo":
+							if poster != "" {
+								media = append(media, jx.M{"image": poster})
+							}
+						case "video", "animated_gif":
+							video, rate := "", int64(-1)
+							for _, v := range jx.Maps(jx.Map(m, "video_info"), "variants") {
+								if candidate := jx.Str(v, "url"); jx.Str(v, "content_type") == "video/mp4" && strings.HasPrefix(candidate, "https://video.twimg.com/") && jx.Int(v, "bitrate") > rate {
+									video, rate = candidate, jx.Int(v, "bitrate")
+								}
+							}
+							if video != "" {
+								media = append(media, jx.M{"image": poster, "video": video})
 							}
 						}
 					}
-					if len(images) > 0 || (withText && runeLen(strings.TrimSpace(text)) >= 120) {
+					if len(media) > 0 || (withText && runeLen(strings.TrimSpace(text)) >= 120) {
 						seen[id] = true
 						link := "https://x.com/" + username + "/status/" + id
 						post := searchPost("X", "x:"+username, "https://x.com/"+username, trimRunes(text, 80), text, "", "", link, jx.Int(details, "created_at_ms")/1000)
-						if len(images) > 0 {
-							post["image"], post["images"], post["text_post"] = images[0], images, false
+						post["source_sensitive"] = jx.Bool(jx.Map(m, "legacy"), "possibly_sensitive")
+						if len(media) > 0 {
+							setPostMedia(post, media)
+							post["text_post"] = false
 						}
 						out = append(out, post)
 					}

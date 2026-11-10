@@ -591,7 +591,7 @@ async function loadAccount() {
 
 // ---- Базы данных: записи из SQLite, правка с проверкой «запись не изменилась» на сервере ----
 
-const db = { databases: [], ready: null, items: [], columns: [], editing: null, currentIndex: null, database: null, collection: null, isSqlTable: false };
+const db = { databases: [], ready: null, items: [], visible: [], columns: [], editing: null, currentIndex: null, database: null, collection: null, isSqlTable: false, request: 0 };
 const dbSelected = () => [$('database-select').value, $('database-collection-select').value];
 const dbStatus = (text, error = false) => { $('database-status').textContent = text; $('database-status').classList.toggle('error-msg', error); };
 const option = ({ id, label }) => el('option', { value: id, textContent: label });
@@ -601,12 +601,15 @@ function loadDatabaseOptions() {
         // Отфильтровываем скрытые базы (старые JSON версии)
         db.databases = d.databases || [];
         $('database-select').replaceChildren(...db.databases.map(option));
+        $('database-topic-select').replaceChildren(el('option', { value: '', textContent: 'Текущая тема' }), ...(d.topics || []).map(t => el('option', { value: t.id, textContent: t.path || t.title })));
         await loadCollections();
     }).catch(error => { db.ready = null; dbStatus(`Не удалось загрузить базы: ${error.message}`, true); });
 }
 
 async function loadCollections() {
     db.currentIndex = null;
+    $('database-search').value = '';
+    $('database-topic-label').hidden = $('database-select').value !== 'topic_sources';
     $('database-collection-select').replaceChildren(...(db.databases.find(d => d.id === $('database-select').value)?.collections || []).map(option));
     await loadRecords();
 }
@@ -618,9 +621,17 @@ async function loadRecords() {
     db.database = database;
     db.collection = collection;
     db.isSqlTable = false;
+    db.currentIndex = null;
+    const request = ++db.request;
+    db.isSqlTable = db.databases.find(d => d.id === database)?.read_only || false;
+    $('database-add').hidden = db.isSqlTable;
+    $('database-browser').hidden = true;
+    $('database-list').replaceChildren();
+    $('database-records').replaceChildren();
     dbStatus('Загружаю записи...');
     try {
-        const d = await api('database_read', { params: { database, collection } });
+        const d = await api('database_read', { params: { database, collection, ...(database === 'topic_sources' ? { topic: $('database-topic-select').value } : {}) } });
+        if (request !== db.request) return;
         db.items = d.items || [];
         db.columns = d.columns || [];
         db.mediaMissing = new Set(d.media_missing || []);
@@ -628,9 +639,10 @@ async function loadRecords() {
         db.collectionLabel = d.collection_label;
         db.topic = d.topic || '';
         // Проверяем, является ли это SQL таблицей
-        db.isSqlTable = db.databases.find(d => d.id === database)?.is_sql_table || false;
+        db.isSqlTable = db.databases.find(d => d.id === database)?.read_only || false;
+        $('database-add').hidden = db.isSqlTable;
         dbStatus('');
-    } catch (error) { db.items = []; db.columns = []; dbStatus(`Не удалось прочитать коллекцию: ${error.message}`, true); }
+    } catch (error) { if (request !== db.request) return; db.items = []; db.columns = []; $('database-count').textContent = ''; $('database-browser').hidden = true; $('database-list').replaceChildren(); $('database-records').replaceChildren(); dbStatus(`Не удалось прочитать коллекцию: ${error.message}`, true); return; }
 
     if (!db.items.length) {
         const empty = db.topic ? `В этой коллекции нет записей по теме «${db.topic}».` : 'В этой коллекции пока нет записей.';
@@ -638,33 +650,43 @@ async function loadRecords() {
         $('database-records').replaceChildren(el('div', { className: 'database-empty', textContent: empty }));
         $('database-browser').hidden = true;
         $('database-list').replaceChildren();
+        $('database-count').textContent = '0';
         return;
     }
 
     renderDatabaseList();
-    if (db.currentIndex === null) selectRecord(0);
+    if (db.visible.length) selectRecord(db.visible[0]);
+    else $('database-browser').hidden = true;
 }
 
 function renderDatabaseList() {
-    const items = db.items.map((record, idx) => {
-        const label = record && typeof record === 'object' ? (record.text ? record.text.slice(0, 50) : record.name || record.title || `Запись #${idx + 1}`) : String(record).slice(0, 50);
-        const btn = el('button', { type: 'button', className: 'database-list-item', textContent: `#${idx + 1}: ${label}` });
+    const query = $('database-search').value.trim().toLocaleLowerCase();
+    db.visible = db.items.map((record, idx) => ({ record, idx })).filter(({ record }) => !query || JSON.stringify(record).toLocaleLowerCase().includes(query)).map(({ idx }) => idx);
+    $('database-count').textContent = query ? `${db.visible.length} из ${db.items.length}` : String(db.items.length);
+    const items = db.visible.map(idx => {
+        const record = db.items[idx];
+        const label = record && typeof record === 'object' ? (record.name || record.title || record.text || record.key || record.value || `Запись #${idx + 1}`) : String(record);
+        const subtitle = record && typeof record === 'object' ? [record.platform || record.source, record.handle || record.topic || record.id].filter(Boolean).join(' · ') : '';
+        const btn = el('button', { type: 'button', className: 'database-list-item', role: 'option' }, el('span', { className: 'db-item-number', textContent: String(idx + 1).padStart(2, '0') }), el('span', { className: 'db-item-copy' }, el('strong', { textContent: String(label) }), el('small', { textContent: subtitle || 'Запись' })));
+        btn.dataset.index = String(idx);
         btn.addEventListener('click', () => selectRecord(idx));
         return btn;
     });
     $('database-list').replaceChildren(...items);
+    if (!items.length && db.items.length) $('database-list').append(el('div', { className: 'db-no-results', textContent: 'По вашему запросу ничего не найдено.' }));
     updateListSelection();
 }
 
 function updateListSelection() {
-    document.querySelectorAll('.database-list-item').forEach((btn, idx) => {
-        btn.classList.toggle('active', idx === db.currentIndex);
+    document.querySelectorAll('.database-list-item').forEach(btn => {
+        const active = Number(btn.dataset.index) === db.currentIndex;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', String(active));
     });
 }
 
 function selectRecord(index) {
     if (!db.items.length) return;
-    index = (index + db.items.length) % db.items.length;   // листание по кругу
     db.currentIndex = index;
     updateListSelection();
     renderDatabaseBrowser();
@@ -689,14 +711,14 @@ function renderDatabaseBrowser() {
     );
 
     // Кнопки навигации
-    $('database-prev').disabled = $('database-next').disabled = db.items.length < 2;   // по кругу: край не мешает
+    $('database-prev').disabled = $('database-next').disabled = db.visible.length < 2;
 
     // Отключаем редактирование для SQL таблиц
     $('database-edit').disabled = db.isSqlTable;
     $('database-delete').disabled = db.isSqlTable;
     if (db.isSqlTable) {
-        $('database-edit').title = 'Редактирование системных таблиц недопустимо';
-        $('database-delete').title = 'Удаление из системных таблиц недопустимо';
+        $('database-edit').title = 'Это представление доступно только для просмотра';
+        $('database-delete').title = 'Это представление доступно только для просмотра';
     } else {
         $('database-edit').title = '';
         $('database-delete').title = '';
@@ -707,148 +729,24 @@ function renderDatabaseBrowser() {
 }
 
 function renderRecordDetails(record, index) {
-    const isMedia = db.mediaMissing.has(index);
-    const media = !isMedia ? dbMediaItem(record) : null;
-    const isObject = record && typeof record === 'object' && !Array.isArray(record);
-
-    // Главный контейнер с улучшенным стилем
-    const container = el('div', { className: 'database-record-item-improved' });
-
-    // Верхняя часть: медиа и основная информация рядом
-    const topSection = el('div', { className: 'database-record-top' });
-
-    // Медиа в красивом контейнере (займёт место слева)
+    const object = record !== null && typeof record === 'object' && !Array.isArray(record);
+    const fields = object ? Object.entries(record) : [['value', record]];
+    const container = el('div', { className: 'database-record-content' });
+    const media = !db.mediaMissing.has(index) ? dbMediaItem(record) : null;
     if (media) {
-        const mediaEl = media.kind === 'image'
-            ? el('img', { src: media.src, alt: media.alt || '', className: 'database-record-item-media-large' })
-            : el('video', { src: media.src, className: 'database-record-item-media-large', controls: true });
-
-        const mediaWrapper = el('div', { className: 'database-record-item-media-wrapper-large' }, mediaEl);
-
-        // Клик на медиа для открытия просмотрщика
-        mediaWrapper.addEventListener('click', () => {
-            const items = [{
-                kind: media.kind,
-                src: media.src,
-                fallback: media.src,
-                poster: media.kind === 'video' ? (record.image || '') : ''
-            }];
-            openViewerGallery(items, 0);
-        });
-
-        topSection.appendChild(mediaWrapper);
-    } else if (isMedia) {
-        // Показываем плейсхолдер если нет медиа
-        const placeholder = el('div', { className: 'database-record-no-media' }, el('span', { textContent: 'Нет медиа' }));
-        topSection.appendChild(placeholder);
-    }
-
-    // Основная информация рядом с медиа
-    const infoSection = el('div', { className: 'database-record-info-section' });
-
-    // Заголовок записи
-    if (isObject) {
-        const title = record.title || record.name || record.text;
-        if (title) {
-            const titleEl = el('h3', { className: 'database-record-title', textContent: String(title).slice(0, 100) });
-            infoSection.appendChild(titleEl);
+        const preview = media.kind === 'image'
+            ? el('img', { src: media.src, alt: '', loading: 'lazy' })
+            : el('video', { src: media.src, controls: true });
+        const wrapper = el('div', { className: 'database-media-preview' }, preview);
+        if (media.kind === 'image') {
+            wrapper.addEventListener('click', () => openViewerGallery([media], 0));
+            wrapper.title = 'Открыть изображение';
         }
+        container.append(wrapper);
     }
-
-    // Приоритетные поля показываем красиво в строк
-    const priorityFields = ['description', 'why_relevant', 'source', 'topic', 'tags', 'relevance', 'rating'];
-    const priorityInfo = el('div', { className: 'database-record-priority-fields' });
-
-    for (const fieldName of priorityFields) {
-        if (isObject && fieldName in record && record[fieldName]) {
-            const value = record[fieldName];
-            const fieldEl = renderPriorityField(fieldName, value);
-            if (fieldEl) priorityInfo.appendChild(fieldEl);
-        }
-    }
-
-    if (priorityInfo.children.length > 0) {
-        infoSection.appendChild(priorityInfo);
-    }
-
-    topSection.appendChild(infoSection);
-    container.appendChild(topSection);
-
-    // Остальные поля в развертывающемся блоке
-    if (isObject) {
-        const fields = Object.entries(record);
-        const systemFields = ['id', 'rowid', 'user_id', 'position', 'image_key', 'collection', 'proposal_hidden'];
-        const technicalFields = [];
-        const sqlSystemFields = [];
-
-        for (const [key, value] of fields) {
-            if (key === 'image_local' || key === 'image' || key === 'video_local' || key === 'video') continue;
-            if (priorityFields.includes(key) && value) continue;
-
-            if (systemFields.includes(key)) {
-                sqlSystemFields.push([key, value]);
-            } else {
-                technicalFields.push([key, value]);
-            }
-        }
-
-        // Объединяем поля: сначала остальные, потом системные
-        const allOtherFields = [...technicalFields, ...sqlSystemFields];
-
-        if (allOtherFields.length > 0) {
-            const expandable = el('details', { className: 'database-record-expandable' },
-                el('summary', { textContent: '📋 Все поля' }),
-                el('div', { className: 'database-record-all-fields' },
-                    ...allOtherFields.map(([key, value]) => {
-                        const fieldEl = renderRecordField(key, value);
-                        if (systemFields.includes(key)) {
-                            fieldEl.classList.add('database-record-field-system');
-                        }
-                        return fieldEl;
-                    })
-                )
-            );
-            container.appendChild(expandable);
-        }
-    }
-
+    const rows = el('div', { className: 'database-fields' }, ...fields.map(([key, value]) => renderRecordField(key, value)));
+    container.append(rows);
     $('database-record-view').replaceChildren(container);
-}
-
-function renderPriorityField(key, value) {
-    if (value === null || value === undefined || value === '') return null;
-
-    let displayValue;
-    const labels = {
-        description: '📝',
-        why_relevant: '💡',
-        source: '📍',
-        topic: '🏷',
-        tags: '🔖',
-        relevance: '📊',
-        rating: '⭐'
-    };
-
-    if (Array.isArray(value)) {
-        displayValue = el('span', { className: 'database-priority-value', textContent: value.join(', ') });
-    } else if (typeof value === 'object') {
-        displayValue = el('span', { className: 'database-priority-value', textContent: JSON.stringify(value) });
-    } else {
-        const text = String(value);
-        if (/^https?:\/\//.test(text)) {
-            displayValue = el('a', { href: text, target: '_blank', rel: 'noopener noreferrer', className: 'database-priority-value database-priority-link', textContent: text.slice(0, 50) + (text.length > 50 ? '…' : '') });
-        } else {
-            displayValue = el('span', { className: 'database-priority-value', textContent: text.slice(0, 150) });
-        }
-    }
-
-    return el('div', { className: 'database-priority-field' },
-        el('span', { className: 'database-priority-label', textContent: labels[key] || '•' }),
-        el('div', { className: 'database-priority-content' },
-            el('strong', { textContent: formatFieldLabel(key) }),
-            displayValue
-        )
-    );
 }
 
 /** Поля записей в базах: [название, что хранится]. Нет в списке — показываем имя поля как есть. */
@@ -902,10 +800,9 @@ const DB_FIELDS = {
     platform: ['Площадка', ''], vote: ['Голос', 'approve — источник нравится, reject — нет'], reason: ['Причина', ''], score: ['Баллы', 'Оценка источника'],
     topics: ['Темы', ''], frozen_until: ['Заморожен до', 'Источник временно не опрашивается'], frozen_reason: ['Причина заморозки', ''],
     avatar: ['Аватар', ''], activity: ['Активность', ''], preview: ['Превью', ''], audience: ['Аудитория', 'Подписчики'], auto: ['Найден автоматически', ''],
-    source_id: ['Код источника', ''],
+    source_id: ['Код источника', ''], handle: ['Адрес', ''], subscribers: ['Подписчики', ''],
 };
 const dbFieldLabel = key => DB_FIELDS[key]?.[0] || key;
-const formatFieldLabel = dbFieldLabel;
 
 function renderRecordField(key, value) {
     let displayValue;
@@ -915,20 +812,15 @@ function renderRecordField(key, value) {
         displayValue = el('span', { className: 'database-record-field-value', textContent: value ? 'да' : 'нет' });
     } else if (DB_TIME_FIELDS.includes(key) && Number(value) > 0) {
         displayValue = el('span', { className: 'database-record-field-value', textContent: new Date(Number(value) * 1000).toLocaleString('ru-RU') });
+    } else if (Array.isArray(value) && value.every(v => typeof v === 'string')) {
+        displayValue = el('span', { className: 'database-record-field-value', textContent: value.length ? value.join(', ') : '—' });
     } else if (typeof value === 'object') {
         displayValue = el('code', { className: 'database-record-field-value code', textContent: JSON.stringify(value, null, 2) });
     } else {
         const text = String(value);
-        const isUrl = /^https?:\/\//.test(text);
-        if (isUrl && text.length > DB_TEXT_LIMIT) {
-            displayValue = el('a', { href: text, target: '_blank', rel: 'noopener noreferrer', className: 'database-record-field-value', title: text, textContent: `${text.slice(0, DB_TEXT_LIMIT - 1)}…` });
-        } else if (isUrl) {
-            displayValue = el('a', { href: text, target: '_blank', rel: 'noopener noreferrer', className: 'database-record-field-value', textContent: text });
-        } else if (text.length > DB_TEXT_LIMIT) {
-            displayValue = el('span', { className: 'database-record-field-value', textContent: `${text.slice(0, DB_TEXT_LIMIT - 1)}…`, title: text });
-        } else {
-            displayValue = el('span', { className: 'database-record-field-value', textContent: text });
-        }
+        displayValue = /^https?:\/\//.test(text)
+            ? el('a', { href: text, target: '_blank', rel: 'noopener noreferrer', className: 'database-record-field-value', textContent: text })
+            : el('span', { className: 'database-record-field-value', textContent: text });
     }
 
     return el('div', { className: 'database-record-field' },
@@ -1024,10 +916,17 @@ export async function openNewItemEditor() {
 function initializeDatabases(onReset) {
     $('database-select').addEventListener('change', loadCollections);
     $('database-collection-select').addEventListener('change', loadRecords);
+    $('database-topic-select').addEventListener('change', loadRecords);
+    $('database-search').addEventListener('input', () => {
+        renderDatabaseList();
+        if (db.visible.length) selectRecord(db.visible.includes(db.currentIndex) ? db.currentIndex : db.visible[0]);
+        else { db.currentIndex = null; $('database-browser').hidden = true; }
+    });
     $('database-refresh').addEventListener('click', loadRecords);
     $('database-add').addEventListener('click', () => openDialog('Добавить запись', template(...dbSelected())));
-    $('database-prev').addEventListener('click', () => selectRecord(db.currentIndex - 1));
-    $('database-next').addEventListener('click', () => selectRecord(db.currentIndex + 1));
+    const navigate = delta => { const i = db.visible.indexOf(db.currentIndex); if (i >= 0) selectRecord(db.visible[(i + delta + db.visible.length) % db.visible.length]); };
+    $('database-prev').addEventListener('click', () => navigate(-1));
+    $('database-next').addEventListener('click', () => navigate(1));
     $('database-edit').addEventListener('click', () => {
         if (db.currentIndex !== null) openDialog('Редактировать запись', db.items[db.currentIndex], db.currentIndex);
     });
@@ -1233,7 +1132,7 @@ export function initializeAccountTab({ onDatabasesReset } = {}) {
     Object.assign(adminSections, { privacy: loadAccount, databases: loadDatabaseOptions });
     initializeBilling();
     // Тему сменили во вкладках — открытая база с записями по темам перечитывается под новую
-    onTopicChange(() => { if (adminCurrent === 'databases' && db.ready && db.databases.find(d => d.id === db.database)?.by_topic) { db.currentIndex = null; loadRecords(); } });
+    onTopicChange(() => { if (adminCurrent === 'databases' && db.ready && (db.databases.find(d => d.id === db.database)?.by_topic || (db.database === 'topic_sources' && !$('database-topic-select').value))) { db.currentIndex = null; loadRecords(); } });
     onTabOpen('account-tab', () => openAccountSection(current));
     if (DEBUG_MODE) ['billing', 'api'].forEach(name => { document.querySelector(`[data-account-section="${name}"]`).hidden = true; });
     else initializeDatabases(onDatabasesReset);

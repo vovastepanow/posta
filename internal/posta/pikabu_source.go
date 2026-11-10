@@ -108,7 +108,9 @@ func pikabuCommunityPosts(data []byte, source string, count int, withText bool) 
 		if len(out) >= count || n.Type != html.ElementNode || n.Data != "article" || !pikabuHasClass(n, "story") {
 			return
 		}
-		var title, link, img, text string
+		var title, link, text string
+		var media []jx.M
+		seenMedia := map[string]bool{}
 		var at int64
 		pikabuWalk(n, func(x *html.Node) {
 			if x.Type != html.ElementNode {
@@ -139,12 +141,26 @@ func pikabuCommunityPosts(data []byte, source string, count int, withText bool) 
 					break
 				}
 			}
-			if img == "" && inContent && (x.Data == "img" || pikabuHasClass(x, "story-block_type_image")) {
-				for _, key := range []string{"data-large-image", "data-src", "src"} {
-					if v := pikabuAttr(x, key); strings.HasPrefix(v, "https://") {
-						img = v
-						break
+			if inContent {
+				keys := []string{}
+				if x.Data == "img" {
+					keys = []string{"data-large-image", "data-src", "src"}
+				}
+				if x.Data == "video" || x.Data == "source" {
+					keys = []string{"src", "data-src"}
+				}
+				for _, key := range keys {
+					v := pikabuAttr(x, key)
+					if !strings.HasPrefix(v, "https://") || seenMedia[v] {
+						continue
 					}
+					seenMedia[v] = true
+					if x.Data == "img" {
+						media = append(media, jx.M{"image": v})
+					} else {
+						media = append(media, jx.M{"video": v})
+					}
+					break
 				}
 			}
 			if pikabuHasClass(x, "story-block_type_text") {
@@ -156,10 +172,15 @@ func pikabuCommunityPosts(data []byte, source string, count int, withText bool) 
 			return
 		}
 		text = strings.TrimSpace(title + " " + text)
-		if img == "" && (!withText || runeLen(text) < 120) {
+		if len(media) == 0 && (!withText || runeLen(text) < 120) {
 			return
 		}
-		out = append(out, searchPost("Пикабу", "pikabu:"+source, source, title, text, img, "", link, at))
+		post := searchPost("Пикабу", "pikabu:"+source, source, title, text, "", "", link, at)
+		if len(media) > 0 {
+			setPostMedia(post, media)
+			post["text_post"] = false
+		}
+		out = append(out, post)
 	})
 	return out, nil
 }
@@ -182,7 +203,7 @@ func (u *U) discoveryFindPikabu(queries []string) []DiscoveryCandidate {
 	for _, q := range queries[:min(2, len(queries))] {
 		r := u.RSSGet("https://pikabu.ru/search?q="+url.QueryEscape(q), 4<<20, 15*time.Second, BrowserUA)
 		if !r.OK {
-			u.Log("-> Пикабу «%s»: поиск недоступен.", q)
+			u.Log("-> Пикабу «%s»: поиск недоступен: %s.", q, fetchFailure(r.FetchResult))
 			continue
 		}
 		found, err := pikabuSearchCommunities(r.Bytes)

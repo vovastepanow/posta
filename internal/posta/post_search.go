@@ -56,27 +56,72 @@ func personalSourcePollKey(uid, platform, id string) string {
 
 // SourcePollFetchSet — кому идти в сеть на этом проходе: без кэша или с просроченным опросом, самые просроченные первыми.
 func SourcePollFetchSet(entries map[string]jx.M, cached map[string]bool, at int64, limit int) []string {
+	return sourcePollFetchSet(entries, cached, at, limit, nil)
+}
+
+// sourcePollFetchSet reserves part of the budget for overdue sources, so weak
+// and untested sources can recover. The rest favours sources whose posts have
+// passed the full analysis for this topic. A prior keeps small samples neutral.
+func sourcePollFetchSet(entries map[string]jx.M, cached map[string]bool, at int64, limit int, verdicts map[string][2]int) []string {
 	type need struct {
-		key string
-		v   float64
+		key                string
+		lateness, priority float64
 	}
 	var list []need
 	for k, e := range entries {
-		if !cached[k] {
-			list = append(list, need{k, math.Inf(1)})
-		} else if sourcePollOverdue(e, at) {
-			list = append(list, need{k, sourcePollLateness(e, at)})
+		if cached[k] && !sourcePollOverdue(e, at) {
+			continue
 		}
+		late := sourcePollLateness(e, at)
+		if !cached[k] || math.IsInf(late, 0) {
+			late = 1
+		}
+		parts := strings.SplitN(k, "|", 2)
+		var v [2]int
+		if len(parts) == 2 {
+			v = verdicts[SourceIDFor(parts[0], jx.Str(e, "id"))]
+		}
+		rate := float64(v[0]+2) / float64(v[1]+4)
+		list = append(list, need{k, late, rate})
 	}
-	sort.SliceStable(list, func(i, j int) bool {
-		if list[i].v != list[j].v {
-			return list[i].v > list[j].v
+	limit = min(len(list), max(0, limit))
+	if limit == 0 {
+		return nil
+	}
+	// Quality ranks the bulk; lateness breaks ties and provides an independent
+	// exploration slot. Only eligible (due or uncached) sources are considered.
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].priority != list[j].priority {
+			return list[i].priority > list[j].priority
+		}
+		if list[i].lateness != list[j].lateness {
+			return list[i].lateness > list[j].lateness
 		}
 		return list[i].key < list[j].key
 	})
-	var out []string
-	for _, n := range list[:min(len(list), max(0, limit))] {
+	explore := limit / 4
+	if limit >= 2 && explore == 0 {
+		explore = 1
+	}
+	chosen := map[string]bool{}
+	out := make([]string, 0, limit)
+	for _, n := range list[:limit-explore] {
 		out = append(out, n.key)
+		chosen[n.key] = true
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].lateness != list[j].lateness {
+			return list[i].lateness > list[j].lateness
+		}
+		return list[i].key < list[j].key
+	})
+	for _, n := range list {
+		if len(out) == limit {
+			break
+		}
+		if !chosen[n.key] {
+			out = append(out, n.key)
+		}
 	}
 	return out
 }

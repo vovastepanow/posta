@@ -32,12 +32,17 @@ type App struct {
 	Mem  *MemCache
 	HTTP *http.Client
 
-	catalog   *Catalog
-	parsers   *ParserManager
-	userLocks sync.Map // id пользователя → *sync.Mutex: пул и история пользователя меняются по очереди
-	bg        sync.WaitGroup
-	ctx       context.Context
-	cancel    context.CancelFunc
+	catalog       *Catalog
+	parsers       *ParserManager
+	discoveryLive sync.Map // текущий проход подбора по теме → снимок состояния
+	userLocks     sync.Map // id пользователя → *sync.Mutex: пул и история пользователя меняются по очереди
+	bg            sync.WaitGroup
+	ctx           context.Context
+	cancel        context.CancelFunc
+
+	topicEmbMu      sync.Mutex
+	topicEmbKey     string
+	topicEmbVectors [][]float64
 
 	llmMu       sync.Mutex
 	llmSettings llm.Settings
@@ -81,8 +86,18 @@ type U struct {
 	ID  string
 	Ctx context.Context
 	// log — журнал: сборщик пишет в консоль пользователя, запрос API собирает ai_log для ответа.
-	log func(string)
-	run *Run // состояние прохода сборщика (бывшие $GLOBALS); nil вне сборщика
+	log                        func(string)
+	run                        *Run                         // состояние прохода сборщика (бывшие $GLOBALS); nil вне сборщика
+	discoverySearchObservation func(string, string, string) // площадка, запрос, результат поиска
+	discoveryPhase             func(string)                 // подробности текущей проверки кандидата
+	discoveryIssue             func(string)                 // ошибки текущего поиска для панели источников
+}
+
+func (u *U) discoveryError(message string) {
+	u.Log("-> %s", message)
+	if u.discoveryIssue != nil {
+		u.discoveryIssue(message)
+	}
 }
 
 func (a *App) User(ctx context.Context, uid string, logf func(string)) *U {

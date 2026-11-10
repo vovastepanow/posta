@@ -129,7 +129,7 @@ func (u *U) GeoFill(rec jx.M) {
 func (u *U) geoAsk(name string) ([2]float64, bool) {
 	schema := jx.M{"type": "object", "properties": jx.M{"lat": jx.M{"type": "number"}, "lon": jx.M{"type": "number"}}, "required": []string{"lat", "lon"}}
 	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, Schema: schema, MaxTokens: 60, Temperature: 0, UserID: u.ID,
-		Prompt: "Дай широту и долготу в градусах для места «" + name + "». Любая точка внутри этого региона подойдёт: центр города, страны или области. Верни JSON {\"lat\": число, \"lon\": число}."})
+		Prompt: u.prompt("geo", map[string]string{"name": name})})
 	if err != nil {
 		return [2]float64{}, false
 	}

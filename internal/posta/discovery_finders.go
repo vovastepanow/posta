@@ -65,10 +65,28 @@ func (u *U) discoveryFindNewsFeeds(queries []string) []DiscoveryCandidate {
 		feed := "https://www.bing.com/news/search?q=" + url.QueryEscape(q) + "&format=rss&setlang=ru"
 		r := u.RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
 		if !r.OK {
-			u.Log("-> Поиск сайтов «%s»: новостной поиск недоступен.", q)
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("links", q, "unavailable")
+			}
+			u.discoveryNewsError(q, r.FetchResult)
 			continue
 		}
-		for _, site := range discoveryNewsSites(r.Bytes) {
+		if !rssIsFeed(rssLoad(r.Bytes)) {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("links", q, "unavailable")
+			}
+			u.discoveryError(fmt.Sprintf("Bing News «%s»: HTTP %d, ответ не является RSS или Atom (тип: %s)", q, r.Status, r.Type))
+			continue
+		}
+		sites := discoveryNewsSites(r.Bytes)
+		if u.discoverySearchObservation != nil {
+			status := "ok"
+			if len(sites) == 0 {
+				status = "empty"
+			}
+			u.discoverySearchObservation("links", q, status)
+		}
+		for _, site := range sites {
 			if seen[site] {
 				continue
 			}
@@ -85,6 +103,10 @@ func (u *U) discoveryFindNewsFeeds(queries []string) []DiscoveryCandidate {
 	}
 	u.Log("-> Поиск сайтов: RSS-лент найдено %d, сайтов проверено %d.", len(out), len(seen))
 	return out
+}
+
+func (u *U) discoveryNewsError(query string, result FetchResult) {
+	u.discoveryError(fmt.Sprintf("Bing News «%s»: %s", query, fetchFailure(result)))
 }
 
 func discoveryHabrHubs(page string, queries []string) []DiscoveryCandidate {
@@ -155,7 +177,7 @@ func (u *U) discoveryFindHabr(queries []string, turn int) []DiscoveryCandidate {
 		page := (turn*2+i)%11 + 1
 		r := u.RSSGet(fmt.Sprintf("https://habr.com/ru/hubs/page%d/", page), 3<<20, 15*time.Second, BrowserUA)
 		if !r.OK {
-			u.Log("-> Хабр: страница хабов %d не загрузилась.", page)
+			u.Log("-> Хабр: страница хабов %d не загрузилась: %s.", page, fetchFailure(r.FetchResult))
 			continue
 		}
 		out = append(out, discoveryHabrHubs(string(r.Bytes), queries)...)
@@ -578,7 +600,7 @@ func (u *U) discoveryFindPinterest(queries []string) []DiscoveryCandidate {
 		page := "https://www.pinterest.com/search/boards/?q=" + url.QueryEscape(q)
 		r := u.RSSGet(page, 3<<20, 15*time.Second, BrowserUA)
 		if !r.OK {
-			u.Log("-> Pinterest «%s»: поиск недоступен.", q)
+			u.Log("-> Pinterest «%s»: поиск недоступен: %s.", q, fetchFailure(r.FetchResult))
 			continue
 		}
 		count := 0
@@ -674,8 +696,9 @@ func DiscoveryGroupOf(platform, id string) string {
 }
 
 type discoveryQueue struct {
-	groups map[string][]DiscoveryCandidate
-	turn   int
+	groups    map[string][]DiscoveryCandidate
+	turn      int
+	lastQuery string
 }
 
 func newDiscoveryQueue() *discoveryQueue {
@@ -719,27 +742,35 @@ func (q *discoveryQueue) next() *DiscoveryCandidate {
 			continue
 		}
 		q.turn = (q.turn + i + 1) % n
-		rank := func(c DiscoveryCandidate) [4]int {
+		rank := func(c DiscoveryCandidate) [5]int {
 			d := 10
 			if c.Deferred {
 				d = 0
 			}
-			return [4]int{d, c.Tail, -c.Priority, c.Depth}
+			_, query := discoveryQueryKey(c)
+			repeated := 0
+			if query != "" && TopicNorm(query) == q.lastQuery {
+				repeated = 1
+			}
+			return [5]int{d, c.Tail, -c.Priority, repeated, c.Depth}
 		}
 		best := 0
 		for j := range list {
-			if less4(rank(list[j]), rank(list[best])) {
+			if less5(rank(list[j]), rank(list[best])) {
 				best = j
 			}
 		}
 		c := list[best]
+		if _, query := discoveryQueryKey(c); query != "" {
+			q.lastQuery = TopicNorm(query)
+		}
 		q.groups[g] = append(list[:best], list[best+1:]...)
 		return &c
 	}
 	return nil
 }
 
-func less4(a, b [4]int) bool {
+func less5(a, b [5]int) bool {
 	for i := range a {
 		if a[i] != b[i] {
 			return a[i] < b[i]
@@ -900,7 +931,7 @@ func (u *U) discoveryFindTumblr(queries []string) []DiscoveryCandidate {
 	for _, q := range queries[:min(2, len(queries))] {
 		r := u.RSSGet("https://www.tumblr.com/tagged/"+url.PathEscape(strings.ReplaceAll(strings.ToLower(strings.TrimSpace(q)), " ", "-")), 3<<20, 15*time.Second, BrowserUA)
 		if !r.OK {
-			u.Log("-> Tumblr «%s»: страница тега не ответила.", q)
+			u.Log("-> Tumblr «%s»: страница тега не ответила: %s.", q, fetchFailure(r.FetchResult))
 			continue
 		}
 		var blogs []string
@@ -1093,7 +1124,7 @@ func (u *U) discoveryFindVKDirectory(queries []string) []DiscoveryCandidate {
 	base := "https://ugcplatform.ru"
 	r := u.RSSGet(base+"/vk/", 3<<20, 15*time.Second, BrowserUA)
 	if !r.OK {
-		u.Log("-> Каталог VK недоступен.")
+		u.Log("-> Каталог VK недоступен: %s.", fetchFailure(r.FetchResult))
 		return nil
 	}
 	paths := vkDirectoryCategories(string(r.Bytes), queries)
@@ -1102,6 +1133,7 @@ func (u *U) discoveryFindVKDirectory(queries []string) []DiscoveryCandidate {
 	for _, path := range paths[:min(3, len(paths))] {
 		p := u.RSSGet(base+path, 3<<20, 15*time.Second, BrowserUA)
 		if !p.OK {
+			u.Log("-> Каталог VK: раздел не загрузился: %s.", fetchFailure(p.FetchResult))
 			continue
 		}
 		for _, c := range vkDirectoryResults(string(p.Bytes)) {
@@ -1124,10 +1156,20 @@ func (u *U) discoveryFindVKWeb(queries []string) []DiscoveryCandidate {
 	for _, q := range queries[:min(2, len(queries))] {
 		page, err := u.braveSearchPage("site:vk.com " + q + " сообщество")
 		if err != nil {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("vk", q, "unavailable")
+			}
 			u.Log("-> Веб-поиск сообществ VK «%s»: %s", q, err)
 			break
 		}
 		found := vkWebSearchCandidates(page)
+		if u.discoverySearchObservation != nil {
+			status := "ok"
+			if len(found) == 0 {
+				status = "empty"
+			}
+			u.discoverySearchObservation("vk", q, status)
+		}
 		for _, c := range found {
 			key := strings.ToLower(c.ID)
 			if !seen[key] {
@@ -1150,6 +1192,9 @@ func (u *U) discoveryFindVK(queries []string) []DiscoveryCandidate {
 	for _, q := range queries[:min(8, len(queries))] {
 		found, err := u.VKSearchGroups(u.Ctx, q, 10)
 		if err != nil {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("vk", q, "unavailable")
+			}
 			var apiErr *VKAPIError
 			if errors.As(err, &apiErr) && apiErr.Code == 1051 {
 				u.Log("-> VK ID не разрешает поиск сообществ для этого профиля; пробую веб-поиск.")
@@ -1157,6 +1202,13 @@ func (u *U) discoveryFindVK(queries []string) []DiscoveryCandidate {
 			}
 			u.Log("-> Поиск VK «%s»: %s", q, err)
 			continue
+		}
+		if u.discoverySearchObservation != nil {
+			status := "ok"
+			if len(found) == 0 {
+				status = "empty"
+			}
+			u.discoverySearchObservation("vk", q, status)
 		}
 		u.Log("-> Поиск VK «%s»: найдено сообществ: %d.", q, len(found))
 		for _, g := range found[:min(4, len(found))] {
@@ -1166,11 +1218,11 @@ func (u *U) discoveryFindVK(queries []string) []DiscoveryCandidate {
 	return out
 }
 
-func (u *U) discoveryYouTubeRows(target string) [][2]string {
+func (u *U) discoveryYouTubeRows(target string) ([][2]string, bool) {
 	r := u.YtdlpRun(u.Ctx, []string{"--flat-playlist", "--playlist-end", "10", "--print", "%(channel_id)s|%(channel)s", "--", target}, ytdlpListTimeout, true, nil)
 	if !r.OK && strings.TrimSpace(r.Stdout) == "" {
 		u.Log("-> YouTube не отдал поиск: %s", YtdlpErrorText(r))
-		return nil
+		return nil, false
 	}
 	var rows [][2]string
 	for _, line := range strings.Split(r.Stdout, "\n") {
@@ -1179,7 +1231,7 @@ func (u *U) discoveryYouTubeRows(target string) [][2]string {
 			rows = append(rows, [2]string{p[0], trimRunes(strings.TrimSpace(p[1]), 120)})
 		}
 	}
-	return rows
+	return rows, true
 }
 
 func (u *U) discoveryFindYouTube(queries []string) []DiscoveryCandidate {
@@ -1190,13 +1242,23 @@ func (u *U) discoveryFindYouTube(queries []string) []DiscoveryCandidate {
 		if time.Now().After(until) {
 			return out
 		}
-		freshRows := u.discoveryYouTubeRows("https://www.youtube.com/results?search_query=" + url.QueryEscape(q) + "&sp=EgIIAw%3D%3D")
+		freshRows, freshOK := u.discoveryYouTubeRows("https://www.youtube.com/results?search_query=" + url.QueryEscape(q) + "&sp=EgIIAw%3D%3D")
 		fresh := map[string]bool{}
 		for _, r := range freshRows {
 			fresh[r[0]] = true
 		}
-		rows := append(append(freshRows, u.discoveryYouTubeRows("https://www.youtube.com/results?search_query="+url.QueryEscape(q)+"&sp=EgIQAg%3D%3D")...),
-			u.discoveryYouTubeRows("ytsearch10:"+q+" shorts")...)
+		channelRows, channelOK := u.discoveryYouTubeRows("https://www.youtube.com/results?search_query=" + url.QueryEscape(q) + "&sp=EgIQAg%3D%3D")
+		shortRows, shortOK := u.discoveryYouTubeRows("ytsearch10:" + q + " shorts")
+		rows := append(append(freshRows, channelRows...), shortRows...)
+		if u.discoverySearchObservation != nil {
+			status := "ok"
+			if !freshOK || !channelOK || !shortOK {
+				status = "unavailable"
+			} else if len(rows) == 0 {
+				status = "empty"
+			}
+			u.discoverySearchObservation("youtube", q, status)
+		}
 		u.Log("-> Поиск YouTube «%s»: авторов свежих роликов: %d, каналов в ответе: %d.", q, len(fresh), len(rows))
 		for _, r := range rows {
 			if time.Now().After(until) {
@@ -1263,7 +1325,7 @@ func (u *U) discoveryFindOK(queries []string, topic string) []DiscoveryCandidate
 		feed := "https://ok.ru/atom-feed/" + name
 		r := u.RSSGet(feed, 3<<20, 15*time.Second, BrowserUA)
 		if !r.OK {
-			u.Log("-> ОК: лента «%s» не отвечает.", name)
+			u.Log("-> ОК: лента «%s» не отвечает: %s.", name, fetchFailure(r.FetchResult))
 			continue
 		}
 		posts, err := RSSParse(r.Bytes, 100, PlatformOK, feed, true, false, 120)
@@ -1363,9 +1425,16 @@ func (u *U) discoveryProbe(c DiscoveryCandidate, topic string) (jx.M, error) {
 		if title == "" {
 			title = c.ID
 		}
-		posts := u.BuildVKPreviewPosts(u.Ctx, jx.M{"id": c.ID, "name": SourceDisplayName(PlatformVK, title)}, 8, false, 120)
+		var posts []jx.M
+		if u.VKCanRead(u.Ctx) {
+			posts = u.BuildVKPreviewPosts(u.Ctx, jx.M{"id": c.ID, "name": SourceDisplayName(PlatformVK, title)}, 8, false, 120)
+		}
 		if len(posts) == 0 {
-			posts, _ = u.vkPublicPosts(c.ID, title, 8, false, 120)
+			var err error
+			posts, err = u.vkPublicPosts(c.ID, title, 8, false, 120)
+			if err != nil {
+				return nil, Bad("VK не отдал доступные посты сообщества: %s", err)
+			}
 		}
 		if len(posts) == 0 {
 			return nil, Bad("VK не отдал доступные посты сообщества — проверю позже.")
@@ -1479,19 +1548,6 @@ func (u *U) discoveryTopicSeeds(d *SourceDB, topic string) []string {
 			seeds = append(seeds, seed{strings.TrimLeft(jx.Str(s, "id"), "@"), jx.Int(s, "score")})
 		}
 	}
-	liked, anti := u.telegramTastes()
-	kept := seeds[:0]
-	for _, s := range seeds {
-		key := strings.ToLower(s.id)
-		if anti[key] {
-			continue
-		}
-		if liked[key] {
-			s.score += 1 << 40
-		}
-		kept = append(kept, s)
-	}
-	seeds = kept
 	sort.SliceStable(seeds, func(i, j int) bool { return seeds[i].score > seeds[j].score })
 	var out []string
 	for _, s := range seeds {
@@ -1502,4 +1558,43 @@ func (u *U) discoveryTopicSeeds(d *SourceDB, topic string) []string {
 
 func shuffleStrings(s []string) {
 	rand.Shuffle(len(s), func(i, j int) { s[i], s[j] = s[j], s[i] })
+}
+
+// DiscoveryPlatforms contains platforms for which discovery finds individual sources.
+var DiscoveryPlatforms = map[string]string{
+	"telegram": "Telegram", "vk": "ВКонтакте", "youtube": "YouTube", "tiktok": "TikTok", "ok": "Одноклассники",
+	"tumblr": "Tumblr", "reddit": "Reddit", "bluesky": "Bluesky", "joyreactor": "JoyReactor", "habr": "Хабр",
+	"rss": "Сайты и блоги", "pinterest": "Pinterest", "pikabu": "Пикабу", "x": "X", "threads": "Threads", "instagram": "Instagram", "dzen": "Дзен",
+}
+
+func discoveryMatchesPlatform(c DiscoveryCandidate, platform string) bool {
+	if platform == "" {
+		return true
+	}
+	p, ok := SourcePlatformFilters[platform]
+	if !ok || c.Platform != p {
+		return false
+	}
+	if p != PlatformRSS {
+		return true
+	}
+	label := RSSPlatformLabel(c.ID)
+	if platform == "youtube" {
+		return label == "YouTube" || label == "YouTube Shorts"
+	}
+	if platform == "rss" {
+		return strings.HasPrefix(label, "Сайт")
+	}
+	return label == sourceKindFilters[platform]
+}
+
+func discoveryPartitionParked(candidates []DiscoveryCandidate, platform string) (ready, other []DiscoveryCandidate) {
+	for _, c := range candidates {
+		if discoveryMatchesPlatform(c, platform) {
+			ready = append(ready, c)
+		} else {
+			other = append(other, c)
+		}
+	}
+	return
 }

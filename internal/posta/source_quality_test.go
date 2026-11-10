@@ -21,3 +21,18 @@ func TestSourceQuality(t *testing.T) {
 		}
 	}
 }
+
+func TestCommunityFeedbackDemotesSourceOnlyAcrossUsers(t *testing.T) {
+	base := map[string][2]int{"telegram:good": {6, 8}, "telegram:bad": {6, 8}}
+	feedback := map[string]*SourceFeedback{
+		"telegram:good": {Votes: 12, Users: 1, Score: 0},
+		"telegram:bad":  {Votes: 12, Users: 4, Score: 0.1},
+	}
+	got := mergeSourceFeedback(base, feedback)
+	if got["telegram:good"] != [2]int{6, 8} {
+		t.Fatal("one user changed source priority")
+	}
+	if bad := got["telegram:bad"]; bad[1] <= 8 || float64(bad[0])/float64(bad[1]) >= 0.5 {
+		t.Fatalf("community dislikes did not demote source: %v", bad)
+	}
+}

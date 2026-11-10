@@ -135,7 +135,7 @@ func parserLastPassKey(uid string) string { return "parser_funnel:" + uid }
 func passFunnel(collected, candidates int, skipped queueSkip, prescreen map[string]int, analyzed, added int) jx.M {
 	byReason, filtered := jx.M{}, 0
 	for k, n := range skipped {
-		if k == "ukraine_sources" || n == 0 {
+		if k == "ukraine_sources" || k == "source_busy_returned" || n == 0 {
 			continue
 		}
 		byReason[k] = n

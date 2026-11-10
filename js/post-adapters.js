@@ -30,7 +30,7 @@ export const needsFetch = (m, watchPending) => m.kind === 'video' && !m.src && !
 export function fromSourcePost(post, source = {}) {
     const url = safeSourcePostUrl({ source_url: post.url });
     const items = (post.media || []).map(m => media(m.kind === 'video' ? 'video' : 'image', {
-        src: m.src || '', poster: m.poster || '', page: m.page || '', pending: Boolean(m.pending), unavailable: Boolean(m.unavailable),
+        src: m.src || '', fallback: m.fallback || '', poster: m.poster || '', page: m.page || '', pending: Boolean(m.pending), unavailable: Boolean(m.unavailable),
         width: Number(m.width) || 0, height: Number(m.height) || 0, duration: Number(m.duration) || 0 }));
     return {
         key: `source:${post.url || post.posted_at || ''}`,

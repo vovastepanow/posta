@@ -70,7 +70,7 @@ func (a *App) publicSocialHTML(raw string) ([]byte, error) {
 		return nil, Bad("Площадка ограничила запросы (HTTP 429); пауза 30 минут")
 	}
 	if !r.OK {
-		return nil, Bad("Публичная страница недоступна (HTTP %d): %s", r.Status, r.Error)
+		return nil, Bad("Публичная страница недоступна: %s", fetchFailure(r.FetchResult))
 	}
 	final, _ := url.Parse(r.URL)
 	if final != nil && (strings.Contains(final.Path, "/accounts/login") || strings.Contains(final.Path, "/login") || strings.Contains(final.Path, "/challenge")) {

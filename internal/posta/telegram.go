@@ -10,8 +10,8 @@ import (
 	"io"
 	"math/rand"
 	"mime/multipart"
-	"net/url"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -920,7 +920,7 @@ func (u *U) TelegramLogPublished(entry jx.M) {
 }
 
 // TelegramRecordNativePost — пост в «Отложенных» канала (через аккаунт): запись в очереди со статусом telegram.
-func (u *U) TelegramRecordNativePost(text string, prepared []Prepared, publishAt int64, ids []int, channelID string) string {
+func (u *U) TelegramRecordNativePost(text string, prepared []Prepared, publishAt int64, ids []int, channelID string, sourceMeta jx.M) string {
 	id := randHex(6)
 	var media []jx.M
 	for _, f := range prepared {
@@ -929,7 +929,7 @@ func (u *U) TelegramRecordNativePost(text string, prepared []Prepared, publishAt
 	thumb := u.PostThumbMake(PreparedMaps(prepared))
 	u.OutboxUpdate(func(q []jx.M) []jx.M {
 		return append(q, jx.M{"id": id, "created_at": now(), "publish_at": publishAt, "text": text, "media": media, "status": "telegram", "tg_ids": ids,
-			"attempts": 0, "error": "", "channel": channelID, "thumb_id": thumb})
+			"attempts": 0, "error": "", "channel": channelID, "thumb_id": thumb, "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic")})
 	})
 	return id
 }
@@ -959,7 +959,7 @@ func (u *U) TelegramSettleNativePosts() {
 		}
 		entry := jx.Merge(jx.Merge(TelegramPostSummary(jx.Str(e, "text"), len(media)), u.TelegramChannelFields(jx.Str(e, "channel"))),
 			jx.M{"at": jx.Int(e, "publish_at"), "scheduled_for": jx.Int(e, "publish_at"), "url": "", "status": "ok", "error": "", "media_src": MediaSourcesOf(media),
-				"thumb_id": jx.Str(e, "thumb_id"), "kind": kind})
+				"thumb_id": jx.Str(e, "thumb_id"), "kind": kind, "source_key": jx.Str(e, "source_key"), "topic": jx.Str(e, "topic"), "source_unconfirmed": true})
 		u.TelegramLogPublished(entry)
 	}
 }
@@ -1224,13 +1224,15 @@ func PublishArticleInput(raw any) jx.M {
 	if in == nil || strings.TrimSpace(jx.Str(in, "title")) == "" {
 		return nil
 	}
-	field := func(k string, n int) string { return trimRunes(strings.TrimSpace(tagRe.ReplaceAllString(jx.Str(in, k), "")), n) }
+	field := func(k string, n int) string {
+		return trimRunes(strings.TrimSpace(tagRe.ReplaceAllString(jx.Str(in, k), "")), n)
+	}
 	return jx.M{"title": field("title", 300), "lead": field("lead", 400), "site": field("site", 100), "rubric": field("rubric", 100), "author": field("author", 100),
 		"minutes": max(0, min(999, int(jx.Int(in, "minutes"))))}
 }
 
 // OutboxQueuePost — пост в нашу очередь: файлы переносятся в папку поста.
-func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publishAt int64, slotAt *int64, work string, poll, article jx.M, group, record string) (jx.M, error) {
+func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publishAt int64, slotAt *int64, work string, poll, article jx.M, group, record string, sourceMeta jx.M) (jx.M, error) {
 	id := randHex(6)
 	media, err := u.outboxMediaMove(work, id, PreparedMaps(prepared))
 	if err != nil {
@@ -1241,7 +1243,7 @@ func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publis
 		slot = *slotAt
 	}
 	post := jx.M{"id": id, "created_at": now(), "publish_at": publishAt, "slot_at": slot, "slot": slotAt != nil, "channel": c.ID, "channel_title": c.ChatTitle,
-		"text": PostCaptionClean(text), "media": media, "status": "queued", "attempts": 0, "error": "", "next_try_at": 0, "source_key": ""}
+		"text": PostCaptionClean(text), "media": media, "status": "queued", "attempts": 0, "error": "", "next_try_at": 0, "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic")}
 	if poll != nil {
 		post["poll"] = poll
 	}
@@ -1253,6 +1255,7 @@ func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publis
 	}
 	if record != "" {
 		post["record"] = record
+		post["repeat_identity"] = u.repeatQueueIdentity(record)
 	}
 	dir, _ := u.OutboxMediaDir(id)
 	if !outboxMediaReady(post) {
@@ -1359,6 +1362,10 @@ func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.
 		shown = PreparedMaps(sent.MediaKept)
 	}
 	u := a.User(ctx, uid, nil)
+	identity := jx.Map(post, "repeat_identity")
+	if err := rememberRepeatKeys(ctx, a.DB.Pool, uid, jx.Strs(identity, "keys"), jx.Strs(identity, "hashes"), now()); err != nil {
+		u.Log("Не удалось запомнить опубликованный пост: %v", err)
+	}
 	a.DB.Pool.Exec(ctx, `DELETE FROM outbox WHERE id = $1`, postID)
 	url := ""
 	var skipped []string
@@ -1366,7 +1373,7 @@ func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.
 		url, skipped = sent.URL, sent.Skipped
 	}
 	entry := jx.Merge(TelegramPostSummary(jx.Str(post, "text"), len(shown)), jx.M{"at": now(), "scheduled_for": jx.Int(post, "publish_at"), "url": url, "status": "ok",
-		"error": "", "channel": c.ID, "channel_title": c.ChatTitle, "media_src": MediaSourcesOf(shown), "skipped": orStrs(skipped), "thumb_id": jx.Str(post, "thumb_id")})
+		"error": "", "channel": c.ID, "channel_title": c.ChatTitle, "media_src": MediaSourcesOf(shown), "skipped": orStrs(skipped), "thumb_id": jx.Str(post, "thumb_id"), "source_key": jx.Str(post, "source_key"), "topic": jx.Str(post, "topic")})
 	u.TelegramLogPublished(entry)
 	if d, err := a.OutboxMediaDir(postID); err == nil {
 		os.RemoveAll(d)

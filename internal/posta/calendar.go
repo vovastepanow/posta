@@ -652,7 +652,7 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 	if err != nil {
 		return "", err
 	}
-	r, err := u.OutboxQueuePost(c, text, prepared, at, &at, work, nil, nil, group, "")
+	r, err := u.OutboxQueuePost(c, text, prepared, at, &at, work, nil, nil, group, "", nil)
 	if err != nil {
 		return "", err
 	}

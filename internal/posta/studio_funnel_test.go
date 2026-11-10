@@ -27,3 +27,19 @@ func TestPassFunnel(t *testing.T) {
 		t.Fatalf("счётчики: %v", f)
 	}
 }
+
+func TestQuickYesNeedsNumericConfidence(t *testing.T) {
+	if score := parseYesNoScore("да"); score != nil {
+		t.Fatalf("plain yes should trigger numeric retry, got %d", *score)
+	}
+	if score := parseYesNoScore("нет"); score == nil || *score != 15 {
+		t.Fatalf("plain no should remain a low score, got %v", score)
+	}
+}
+
+func TestFunnelExcludesReturnedSources(t *testing.T) {
+	f := passFunnel(10, 8, queueSkip{"source_busy": 2, "source_busy_returned": 3}, nil, 0, 0)
+	if f["filtered"] != 2 {
+		t.Fatalf("returned posts counted as filtered: %v", f)
+	}
+}

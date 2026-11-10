@@ -45,7 +45,7 @@ const (
 	PrescreenMaxSide        = 768
 
 	// ---- Сборщик ----
-	ContentPoolTarget          = 50    // записей в пуле на тему
+	ContentPoolTarget          = 100   // записей в пуле на тему
 	SourcePollMin              = 1200  // опрос источника не чаще раза в 20 минут
 	SourcePollMax              = 21600 // и не реже раза в 6 часов
 	SourceFetchesPerPass       = 10    // источников в сеть за проход; остальные — из кэша
@@ -56,18 +56,18 @@ const (
 	HotTopicsWindowDays        = 7
 	HotTopicsMinScore          = 3
 	HotTopicsCacheSeconds      = 600
-	ContentAddedPerRun         = 30
-	ContentAnalyzePerRun       = 80
+	ContentAddedPerRun         = 100
+	ContentAnalyzePerRun       = 300
 	ParserMaxSeconds           = 2400
 	ParserCooldownSeconds      = 600
 	ParserSlowThresholdSeconds = 30 // через сколько секунд показываем архивные посты с 🔥, если сборщик ещё работает
 	RelevanceThreshold         = 80 // порог «по теме»: при 80 жалоб 34% против 58–78% у оценок 60–75
 
 	// ---- Качество подбора (цифры — история оценок мемов, 2026-10-23, 610 карточек) ----
-	AnalysisPromptVersion         = 6  // тематическая оценка допускает пересечения подтем
+	AnalysisPromptVersion         = 13 // независимая проверка смысла и подтверждений меток
 	TranslateEmail                = "" // почта для MyMemory (лимит ~50 000 символов в сутки)
 	TextPostsEnabled              = true
-	TextAnalysesPerPass           = 12
+	TextAnalysesPerPass           = 100
 	JokeYesMin                    = 50 // вероятность «да» на вопрос «есть ли шутка» ниже — шутки нет
 	JokeNoCap                     = 40
 	MemeTemplateCap               = 30
@@ -92,7 +92,7 @@ const (
 	TopicQueryMinSources          = 3
 	TopicQueryDiscoveryPerDay     = 10
 	TopicQueryChannelsPerRun      = 12
-	ScreenedCacheVersion          = 4
+	ScreenedCacheVersion          = 5
 	PrescreenBatch                = 10
 	AnalyzeBlock                  = 8 // прошедшие быструю оценку уходят на полный анализ блоком: меньше смен модели
 	PrescreenSourceMissLimit      = 6

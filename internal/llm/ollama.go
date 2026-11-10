@@ -23,6 +23,7 @@ import (
 type Ollama struct {
 	URL       string
 	NumCtx    int
+	NumGPU    *int // nil uses Ollama auto-fit; zero permits CPU-only diagnostics.
 	KeepAlive string
 	// ProjectModels — модели Posta: их можно выгружать ради другой модели проекта; чужие модели не трогаем.
 	ProjectModels func() []string
@@ -109,9 +110,9 @@ func (o *Ollama) HasModel(ctx context.Context, model string) bool {
 }
 
 type LoadedModel struct {
-	Name     string `json:"name"`
-	Size     int64  `json:"size"`
-	SizeVRAM int64  `json:"size_vram"`
+	Name      string `json:"name"`
+	Size      int64  `json:"size"`
+	SizeVRAM  int64  `json:"size_vram"`
 	ExpiresAt string `json:"expires_at"`
 	Context   int    `json:"context_length"`
 }
@@ -211,6 +212,9 @@ func (o *Ollama) Generate(ctx context.Context, model string, req *Request) (*Res
 	}
 	if req.Seed != nil {
 		opts["seed"] = *req.Seed
+	}
+	if o.NumGPU != nil {
+		opts["num_gpu"] = *o.NumGPU
 	}
 	payload["options"] = opts
 	if o.CanThink(ctx, model) {

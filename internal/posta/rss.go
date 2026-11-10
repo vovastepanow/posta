@@ -351,6 +351,7 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 			body = append(body, item.kid(tag).html())
 		}
 		files := rssItemMedia(item)
+		imageFallback := ""
 		// Lemmy RSS exposes the original as an enclosure and a resized copy as
 		// media:content. They are alternative representations, not an album.
 		if feed, err := url.Parse(feedURL); err == nil && strings.HasPrefix(feed.Path, "/feeds/c/") {
@@ -359,7 +360,8 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 			if len(enclosures) == 1 && len(media) == 1 && len(files) == 2 && rssIsImage(files[0]) && rssIsImage(files[1]) {
 				original, e1 := url.Parse(files[0].URL)
 				preview, e2 := url.Parse(files[1].URL)
-				if e1 == nil && e2 == nil && original.Scheme == "https" && original.Host != "" && preview.Host == feed.Host && strings.HasPrefix(original.Path, "/pictrs/image/") && strings.HasPrefix(preview.Path, "/pictrs/image/") && rssHTMLImage(item.kid("description").html(), base) == files[0].URL {
+				if e1 == nil && e2 == nil && original.Scheme == "https" && original.Host != "" && preview.Scheme == "https" && preview.Host == feed.Host && strings.HasPrefix(preview.Path, "/pictrs/image/") && rssHTMLImage(item.kid("description").html(), base) == files[0].URL {
+					imageFallback = files[1].URL
 					files = files[:1]
 				}
 			}
@@ -421,7 +423,7 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 		if desc != "" && desc != title {
 			text = strings.TrimSpace(title + "\n" + desc)
 		}
-		text = trimRunes(strings.TrimSpace(text), 1000)
+		text = strings.TrimSpace(text)
 		textOnly := img == "" && withText && runeLen(text) >= minText
 		if img == "" && !keepNoImage && !textOnly {
 			continue
@@ -455,6 +457,13 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 		}
 		p := jx.M{"image": img, "images": images, "gallery": []any{}, "video": video, "text": text, "source": src, "post_id": hex.EncodeToString(h[:])[:12],
 			"posted_at": rssItemTime(item), "url": link, "video_unavailable": false, "engagement": nil, "text_post": textOnly}
+		feed, _ := url.Parse(feedURL)
+		if kind == "RSS" && video == "" && feed != nil && !strings.HasPrefix(feed.Path, "/feeds/c/") && !strings.HasPrefix(feed.Path, "/@") {
+			p["article_source"] = true
+		}
+		if imageFallback != "" && img != "" {
+			p["image_fallback"] = imageFallback
+		}
 		if videoID != "" {
 			p["video_via"] = "ytdlp"
 			if short {
@@ -489,6 +498,9 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 		}
 		posts, err := dzenChannelPosts(r.Bytes, id, count, withText, time.Now())
 		for _, p := range posts {
+			if jx.Str(p, "video") == "" && jx.Str(p, "video_via") == "" && !jx.Bool(p, "video_unavailable") {
+				p["article_source"] = true
+			}
 			if name != "" {
 				p["source"] = name
 			}
@@ -575,6 +587,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 		}
 		posts, err := pikabuCommunityPosts(r.Bytes, source, count, withText)
 		for _, p := range posts {
+			p["article_source"] = true
 			if name != "" {
 				p["source"] = name
 			}
@@ -635,11 +648,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 			}
 			return posts, err
 		}
-		msg := "Лента не загрузилась"
-		if r.Error != "" {
-			msg += ": " + r.Error
-		}
-		return nil, Bad("%s", msg)
+		return nil, Bad("Лента не загрузилась: %s", fetchFailure(r.FetchResult))
 	}
 	return RSSParse(r.Bytes, count, name, r.URL, keepNoImage, withText, 120)
 }

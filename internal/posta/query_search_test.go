@@ -2,6 +2,7 @@ package posta
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"posta/internal/jx"
@@ -21,6 +22,17 @@ func TestQueryPlanFallback(t *testing.T) {
 	}
 	if len(p.Must) != 1 || p.Must[0] != "тюмень" {
 		t.Fatalf("must: %v", p.Must)
+	}
+}
+
+func TestOsnovaPostContainsFullArticle(t *testing.T) {
+	body := strings.Repeat("Текст статьи. ", 500) + "Конец статьи"
+	d := jx.M{"url": "https://vc.ru/test/123456-example", "title": "Заголовок", "blocks": []jx.M{
+		{"type": "text", "data": jx.M{"text": "<p>" + body + "</p>"}},
+	}}
+	p := osnovaSearchPost(d, "vc.ru", "")
+	if p == nil || !strings.Contains(jx.Str(p, "text"), "Конец статьи") || !strings.Contains(jx.Str(p, "text"), "Заголовок") {
+		t.Fatal("текст поста должен содержать заголовок и статью целиком")
 	}
 }
 

@@ -199,9 +199,7 @@ func (u *U) fourchanModelBoards(topic string) {
 		lines = append(lines, b.Board+" — "+b.Title)
 		valid[b.Board] = true
 	}
-	prompt := "Тема контента: " + u.TopicPromptContext(topic) + ". Ниже доски 4chan: адрес — название.\n" + strings.Join(lines, "\n") +
-		"\n\nВыбери до 3 досок, где чаще всего публикуют картинки и видео именно по этой теме. Выбирай только доски, которые прямо о ней." +
-		" Общие доски (юмор, аниме, обои, игры) для узкой темы не выбирай. Если подходящих нет, верни пустой список. Ответь только JSON: {\"boards\": [\"адрес\", ...]}"
+	prompt := u.prompt("fourchan_boards", map[string]string{"topic": u.TopicPromptContext(topic), "boards": strings.Join(lines, "\n")})
 	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, JSON: true, MaxTokens: 80, Temperature: 0, UserID: u.ID})
 	if err != nil {
 		u.Log("-> Нейросеть не выбрала доски 4chan: %s", err)

@@ -124,3 +124,23 @@ func TestPostSearchAdsDoNotDiscardFinancialNews(t *testing.T) {
 		}
 	}
 }
+
+func TestSourcePollPrioritizesTopicVerdictsAndExplores(t *testing.T) {
+	at := int64(1_700_000_000)
+	entries := map[string]jx.M{
+		"Telegram|good":  {"id": "good", "activity": jx.M{"checked_at": at - 900000, "per_week": 7}},
+		"Telegram|poor":  {"id": "poor", "activity": jx.M{"checked_at": at - 3000000, "per_week": 7}},
+		"Telegram|new":   {"id": "new", "activity": jx.M{"checked_at": at - 900000, "per_week": 7}},
+		"Telegram|fresh": {"id": "fresh", "activity": jx.M{"checked_at": at, "per_week": 7}},
+	}
+	cached := map[string]bool{"Telegram|good": true, "Telegram|poor": true, "Telegram|fresh": true}
+	verdicts := map[string][2]int{SourceIDFor(PlatformTelegram, "good"): {8, 10}, SourceIDFor(PlatformTelegram, "poor"): {0, 10}}
+	got := sourcePollFetchSet(entries, cached, at, 2, verdicts)
+	if len(got) != 2 || got[0] != "Telegram|good" || got[1] != "Telegram|poor" {
+		t.Fatalf("expected proven source and overdue exploration, got %v", got)
+	}
+	got = sourcePollFetchSet(entries, cached, at, 3, verdicts)
+	if len(got) != 3 || got[0] != "Telegram|good" || got[1] != "Telegram|new" {
+		t.Fatalf("expected new source ahead of poor history and fresh source excluded, got %v", got)
+	}
+}

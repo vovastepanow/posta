@@ -36,6 +36,21 @@ func init() {
 		}
 		return ok(jx.M{"tunables": c.A.TunablesPublic()}), nil
 	})
+	get("admin_prompts", func(c *Ctx) (any, error) {
+		if err := ownerOnly(c); err != nil {
+			return nil, err
+		}
+		return jx.M{"prompts": c.A.PromptsPublic(c.R.Context())}, nil
+	})
+	post("admin_prompt_save", func(c *Ctx) (any, error) {
+		if err := ownerOnly(c); err != nil {
+			return nil, err
+		}
+		if err := c.A.PromptSave(c.R.Context(), c.Str("id"), c.Str("value"), jx.Truthy(c.In["reset"])); err != nil {
+			return nil, err
+		}
+		return ok(jx.M{"prompts": c.A.PromptsPublic(c.R.Context())}), nil
+	})
 	// Модели: поставщик и модель по ролям, пресеты, бюджет, расход
 	get("admin_llm", func(c *Ctx) (any, error) {
 		if err := ownerOnly(c); err != nil {

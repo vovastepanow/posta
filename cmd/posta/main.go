@@ -48,6 +48,8 @@ const usage = `posta — сервер и служебные команды Posta
   discovery-origins [тема]           откуда берутся предложения источников и как их решают
   leads-scan [id]                    проход радара лидов
   outbox-repair [--dry-run] [id]     починить очередь постов
+  classify-text <текст>              проверить метки текста без сохранения
+  reclassify-saved                    повторно определить метки сохранённых постов
   media-repair <id> [--dry-run]      исправить ссылки на кэш медиа
   users-gc                           удалить пустые анонимные профили
   users-merge <из> <в>               слить профили
@@ -199,6 +201,25 @@ func command(ctx context.Context, cfg config.Server, args []string) error {
 	defer a.Close()
 	print := func(line string) { fmt.Println(line) }
 	switch args[0] {
+	case "classify-text":
+		if len(args) < 2 {
+			return errors.New("classify-text <текст>")
+		}
+		tags := a.User(ctx, "", nil).ContentTagsFromText("", strings.Join(args[1:], " "))
+		if tags == nil {
+			return errors.New("классификация недоступна")
+		}
+		fmt.Println(strings.Join(tags, ", "))
+		return nil
+	case "reclassify-saved":
+		if model := os.Getenv("POSTA_RECLASSIFY_MODEL"); model != "" {
+			a.LLM.LoadSettings = func() llm.Settings {
+				s := a.LLMSettings()
+				s.Roles[llm.RoleText] = llm.RoleConfig{Primary: llm.Target{Provider: "ollama", Model: model}}
+				return s
+			}
+		}
+		return a.ReclassifySaved(ctx, print)
 	case "seed-rss":
 		added, err := a.SeedThematicRSS(ctx)
 		for _, feed := range added {

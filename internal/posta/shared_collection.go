@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"posta/internal/config"
@@ -106,7 +107,12 @@ func (a *App) runSharedCollection(ctx context.Context) {
 			done := make(chan struct{})
 			a.parsers.sharedCancel, a.parsers.sharedDone = cancel, done
 			a.parsers.mu.Unlock()
-			a.collectNextSharedTopic(jobCtx)
+			var workers sync.WaitGroup
+			for i := 0; i < 4; i++ {
+				workers.Add(1)
+				go func() { defer workers.Done(); a.collectNextSharedTopic(jobCtx) }()
+			}
+			workers.Wait()
 			cancel()
 			a.parsers.mu.Lock()
 			a.parsers.sharedCancel, a.parsers.sharedDone = nil, nil
@@ -180,74 +186,101 @@ func (a *App) collectPublicTopic(ctx context.Context, topic string, lastDone int
 		s := sources[(start+i)%len(sources)]
 		id := strings.TrimLeft(strings.TrimSpace(jx.Str(s.entry, "id")), "@")
 		key := sharedSourceKey(s.platform, id)
-		var cached sharedPosts
-		if a.CacheGet(ctx, key, &cached) && now()-cached.At < int64(sharedCollectionInterval.Seconds()) {
+		if a.withSharedSourceLock(ctx, key, func() bool {
+			var cached sharedPosts
+			if a.CacheGet(ctx, key, &cached) && now()-cached.At < int64(sharedCollectionInterval.Seconds()) {
+				return true
+			}
+			name := jx.Str(s.entry, "name")
+			if name == "" {
+				name = id
+			}
+			name = SourceDisplayName(s.platform, name)
+			var posts []jx.M
+			switch s.platform {
+			case PlatformTelegram:
+				page := a.FetchTelegramChannelPage(id, 0)
+				if page == "" {
+					return false
+				}
+				posts = TelegramPostsFromHTML(page, jx.M{"id": id, "name": name}, config.TelegramPostsPerChannel, true, 120)
+			case PlatformRSS:
+				var err error
+				posts, err = a.User(ctx, "", nil).RSSFetchPosts(id, config.RSSPostsPerFeed, name, true, true)
+				if err != nil {
+					return false
+				}
+			case PlatformOK:
+				var err error
+				posts, err = a.OKFetchPosts(id, OKPostsPerGroup, name)
+				if err != nil {
+					return false
+				}
+			case PlatformTikTok:
+				var err error
+				posts, err = a.TikTokFetchPosts(ctx, id, TikTokPostsPerAccount, name)
+				if err != nil {
+					return false
+				}
+			case PlatformVK:
+				var err error
+				posts, err = a.sharedVKPosts(id, name)
+				if err != nil {
+					return false
+				}
+			case PlatformDvach, Platform4chan:
+				u := a.User(ctx, "", nil)
+				u.run = newRun(a)
+				if s.platform == PlatformDvach {
+					posts = u.ParseDvach(id, "")
+				} else {
+					posts = u.ParseFourchan(id, FourchanThreadsPerBoard, "")
+				}
+				if len(posts) == 0 {
+					return false
+				}
+			}
+			for _, p := range posts {
+				if s.platform == PlatformDvach || s.platform == Platform4chan {
+					continue
+				}
+				p["source_key"] = SourceIDFor(s.platform, id)
+				p["source_url"] = jx.Str(p, "url")
+				if !jx.Has(p, "video") {
+					p["video"] = ""
+				}
+			}
+			a.storePublicPosts(ctx, s.platform, SourceIDFor(s.platform, id), posts)
+			a.CacheSet(ctx, key, sharedPosts{At: now(), Posts: posts}, sharedCollectionInterval)
+			return true
+		}) {
 			completed++
-			continue
 		}
-		name := jx.Str(s.entry, "name")
-		if name == "" {
-			name = id
-		}
-		name = SourceDisplayName(s.platform, name)
-		var posts []jx.M
-		switch s.platform {
-		case PlatformTelegram:
-			page := a.FetchTelegramChannelPage(id, 0)
-			if page == "" {
-				continue
-			}
-			posts = TelegramPostsFromHTML(page, jx.M{"id": id, "name": name}, config.TelegramPostsPerChannel, true, 120)
-		case PlatformRSS:
-			var err error
-			posts, err = a.User(ctx, "", nil).RSSFetchPosts(id, config.RSSPostsPerFeed, name, true, true)
-			if err != nil {
-				continue
-			}
-		case PlatformOK:
-			var err error
-			posts, err = a.OKFetchPosts(id, OKPostsPerGroup, name)
-			if err != nil {
-				continue
-			}
-		case PlatformTikTok:
-			var err error
-			posts, err = a.TikTokFetchPosts(ctx, id, TikTokPostsPerAccount, name)
-			if err != nil {
-				continue
-			}
-		case PlatformVK:
-			var err error
-			posts, err = a.sharedVKPosts(id, name)
-			if err != nil {
-				continue
-			}
-		case PlatformDvach, Platform4chan:
-			u := a.User(ctx, "", nil)
-			u.run = newRun(a)
-			if s.platform == PlatformDvach {
-				posts = u.ParseDvach(id, "")
-			} else {
-				posts = u.ParseFourchan(id, FourchanThreadsPerBoard, "")
-			}
-			if len(posts) == 0 {
-				continue
-			}
-		}
-		for _, p := range posts {
-			if s.platform == PlatformDvach || s.platform == Platform4chan {
-				continue
-			}
-			p["source_key"] = SourceIDFor(s.platform, id)
-			p["source_url"] = jx.Str(p, "url")
-			if !jx.Has(p, "video") {
-				p["video"] = ""
-			}
-		}
-		a.CacheSet(ctx, key, sharedPosts{At: now(), Posts: posts}, sharedCollectionInterval)
-		completed++
 	}
 	return completed, len(sources)
+}
+
+// withSharedSourceLock serializes public source fetches across processes.
+func (a *App) withSharedSourceLock(ctx context.Context, key string, f func() bool) bool {
+	lock := a.namedLock("public-source:" + key)
+	lock.Lock()
+	defer lock.Unlock()
+	if ctx.Err() != nil {
+		return false
+	}
+	tx, err := a.DB.Pool.Begin(ctx)
+	if err != nil {
+		return false
+	}
+	defer func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = tx.Rollback(cleanup)
+	}()
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "posta:public-source:"+key); err != nil {
+		return false
+	}
+	return f()
 }
 
 // sharedVKPosts uses only the server's service token, never an OAuth account.

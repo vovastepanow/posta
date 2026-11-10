@@ -160,3 +160,19 @@ func TestLemmyRSSDistinctImagesAreNotCollapsed(t *testing.T) {
 	}
 	requireAlbum(t, posts, "https://example.com/pictrs/image/original.png", "https://example.com/pictrs/image/second.png")
 }
+
+func TestLemmyRSSExternalOriginalHasPreviewFallback(t *testing.T) {
+	data := []byte(`<rss xmlns:media="http://search.yahoo.com/mrss/"><channel><item><title>Post</title><link>https://lemmy.example/post/1</link><description><![CDATA[<img src="https://media.example/a/original.png">]]></description><enclosure url="https://media.example/a/original.png" type="image/png"/><media:content medium="image" url="https://lemmy.example/pictrs/image/copy.webp"/></item></channel></rss>`)
+	posts, err := RSSParse(data, 10, "", "https://lemmy.example/feeds/c/test.xml", false, false, 120)
+	if err != nil || len(posts) != 1 {
+		t.Fatalf("posts=%v err=%v", posts, err)
+	}
+	if images := jx.Strs(posts[0], "images"); len(images) != 1 || images[0] != "https://media.example/a/original.png" {
+		t.Fatalf("images=%v", images)
+	}
+	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
+	media := u.sourcePreviewMedia(posts[0])
+	if len(media) != 1 || jx.Str(media[0], "fallback") != "https://lemmy.example/pictrs/image/copy.webp" {
+		t.Fatalf("media=%v", media)
+	}
+}

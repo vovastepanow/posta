@@ -1,7 +1,7 @@
 // Главная страница: контент, источники и состояние подбора.
 // Данные — тот же API, что у приложения.
 import { showPlan, showProfile } from './profile.js';
-import { cleanCaption, log, onTabOpen, onTopicChange } from './core.js';
+import { cleanCaption, log, onTabOpen, onTopicChange, switchTab } from './core.js';
 import { bindFutureDraftButton, applyRocketCheck, postItemToTelegram } from './content.js';
 
 const $ = id => document.getElementById(id);
@@ -87,7 +87,7 @@ const videoObserver = 'IntersectionObserver' in window ? new IntersectionObserve
 }, { rootMargin: '150px' }) : null;
 document.addEventListener('visibilitychange', () => {
     if (!videoObserver) return;
-    const videos = document.querySelectorAll('#grid video');
+    const videos = document.querySelectorAll('#grid video, #rejected-grid video');
     if (document.hidden) videos.forEach(video => video.pause());
     else videos.forEach(video => { videoObserver.unobserve(video); videoObserver.observe(video); });
 });
@@ -100,7 +100,7 @@ function makeVideo(src, poster, preview = false) {
     return video;
 }
 
-function card(i) {
+function card(i, rejection = null) {
     const files = postMedia(i), first = files[0];
     const media = first?.video ? makeVideo(first.video, first.image) : first?.image ? el('img', { src: first.image, alt: '', loading: 'lazy' }) : el('div', { className: 'text-only', textContent: (i.text || '').slice(0, 220) });
     const hasVideo = files.some(file => file.video) || Boolean(i.video_via || i.video_pending);
@@ -124,8 +124,10 @@ function card(i) {
         el('div', { className: 'tile-body' },
             el('b', { textContent: title }),
             el('small', { textContent: [platformOf(i), ago].filter(Boolean).join(' · ') }),
+            rejection ? el('p', { className: 'rejected-reason', textContent: `Причина: ${rejection.reason || (rejection.stage === 'prescreen' ? 'Вероятный мусор' : 'Не прошёл оценку')}` }) : null,
+            rejection ? el('small', { className: 'rejected-stage', textContent: [({ filter: 'Фильтры', prescreen: 'Быстрая оценка' })[rejection.stage] || 'Глубокая оценка', rejection.score != null ? `${rejection.score}%` : '', rejection.at ? formatAgo(rejection.at) : ''].filter(Boolean).join(' · ') }) : null,
             i.source_url ? el('a', { href: i.source_url, target: '_blank', rel: 'noopener', textContent: '↗', title: 'Открыть у источника' }) : null,
-            el('div', { className: 'home-card-actions' }, rocket, add, remove)));
+            el('div', { className: 'home-card-actions' }, rocket, add, rejection ? null : remove)));
 }
 
 // ---- просмотр поста ----
@@ -201,17 +203,42 @@ function feedItem(i) {
             el('small', { textContent: `${String(i.source || '').split(' | ').pop()}${i.relevance ? ` · ★${i.relevance}` : ''}` })));
 }
 
+// История загружается при открытии страницы и смене темы.
+let rejectedRequest = 0;
+let rejectedSignature = null;
+async function loadRejected({ silent = false } = {}) {
+    const request = ++rejectedRequest;
+    const grid = $('rejected-grid');
+    if (!silent) {
+        rejectedSignature = null;
+        grid.replaceChildren(el('p', { className: 'muted', textContent: 'Загрузка…' }));
+    }
+    try {
+        const data = await api('studio_rejected');
+        if (request !== rejectedRequest) return;
+        const records = data.items || [];
+        const signature = JSON.stringify(records);
+        if (signature === rejectedSignature) return;
+        rejectedSignature = signature;
+        grid.replaceChildren(...(records.length ? records.map(record => card(record.item || {}, record)) : [el('p', { className: 'muted', textContent: 'Пока нет сохранённых отклонений. Они появятся после следующих проходов.' })]));
+        if (videoObserver) grid.querySelectorAll('video').forEach(video => videoObserver.observe(video));
+    } catch (error) {
+        if (request === rejectedRequest && !silent) grid.replaceChildren(el('p', { className: 'muted', textContent: `Не удалось загрузить: ${error.message}` }));
+    }
+}
+$('show-rejected').addEventListener('click', () => switchTab('rejected-tab'));
+
 // ---- конвейер: текущее действие и счётчики прохода ----
 // rank — порядок шагов сборщика; ПК-фильтр идёт в одном шаге с «Фильтрами» (stage filter)
 const RANK = { collect: 0, filter: 1, prescreen: 3, analysis: 4, pool: 5 };
 const PIPE_STEPS = [
     { stage: 'collect', name: 'Сбор', rank: 0, num: f => f.collected },
     { stage: 'filter', name: 'Фильтры', rank: 1, num: f => f.candidates, note: f => `отсеяно ${f.filtered}` },
-    { stage: 'prescreen', name: 'Быстрая оценка', rank: 3, num: f => f.prescreen_rejected, note: () => 'отсеяно' },
+    { stage: 'prescreen', name: 'Быстрая оценка', rank: 3, num: f => f.prescreen_rejected, note: f => `отсеяно за проход${f.filtered_by?.rejected_before ? ` · ранее: ${f.filtered_by.rejected_before}` : ''}` },
     { stage: 'analysis', name: 'Глубокая оценка', rank: 4, num: f => f.analyzed },
     { stage: 'pool', name: 'Добавлено за проход', rank: 5, num: f => f.added },
 ];
-const STAGE_NAME = { collect: 'Сбор постов', filter: 'Фильтры', prescreen: 'Быстрая оценка', analysis: 'Глубокая оценка', pool: 'В пул', discovery: 'Автоподбор источников' };
+const STAGE_NAME = { collect: 'Сбор постов', filter: 'Фильтры', prescreen: 'Быстрая оценка', analysis: 'Глубокая оценка', pool: 'В пул' };
 
 function renderPipe(r) {
     const running = !!r.running;
@@ -248,6 +275,41 @@ function renderPipe(r) {
     }
 }
 
+// Поиск источников может работать независимо от сборщика постов, в том числе в фоне.
+function renderSourcePipe(d = {}) {
+    const sig = JSON.stringify(d);
+    if (sig === renderSourcePipe.sig) return;
+    renderSourcePipe.sig = sig;
+    const running = Boolean(d.running), active = Boolean(d.active), hasBatch = Number(d.target) > 0;
+    const stage = d.stage || '';
+    $('sourcePipeNow').textContent = running ? (d.paused ? 'Останавливается…' : 'Идёт подбор') : d.paused ? 'Поиск остановлен' : !d.enabled ? 'Автоподбор выключен' : active ? 'Ожидает продолжения' : hasBatch ? 'Цель достигнута' : 'Ещё не запускался';
+    $('sourcePipeDetail').textContent = running ? (d.detail || 'Готовим поиск') : d.paused ? 'Запустите подбор источников в админке, чтобы продолжить.' : active && d.enabled ? 'Следующий фоновый проход продолжит эту партию.' : !d.enabled && active ? 'Включите автоподбор, чтобы продолжить.' : '';
+    const health = `Источников темы: ${Number(d.own_sources) || 0}. Порог релевантности: ${Number(d.accepted_posts) || 0} из ${Number(d.analyzed_posts) || 0} проверенных постов.`;
+    $('sourcePipeInsight').textContent = [health, hasBatch ? d.insight : '', hasBatch ? d.last_search : '', d.retry_count ? `Ожидают повтора: ${d.retry_count}.` : ''].filter(Boolean).join(' ');
+    const errors = Array.isArray(d.errors) ? d.errors : [];
+    $('sourcePipeErrors').hidden = errors.length === 0;
+    $('sourcePipeErrors').replaceChildren(...(errors.length ? [el('b', { textContent: 'Ошибки поиска' }), ...errors.map(message => el('div', { textContent: message }))] : []));
+    $('sourcePipeProgress').hidden = !hasBatch;
+    if (hasBatch) {
+        const found = Number(d.found) || 0, target = Number(d.target) || 0;
+        const percent = Math.min(100, Math.round(found * 100 / target));
+        $('sourcePipeGoal').textContent = `${found} из ${target}`;
+        $('sourcePipeBar').setAttribute('aria-valuenow', String(percent));
+        $('sourcePipeBar').querySelector('i').style.width = `${percent}%`;
+    }
+    const steps = [
+        { name: 'Поиск кандидатов', value: d.pending, state: running && ['prepare', 'search', 'queue'].includes(stage) ? 'run' : hasBatch ? 'ok' : 'wait', note: 'в очереди' },
+        { name: 'Проверено', value: d.checked, state: running && stage === 'check' ? 'run' : hasBatch ? 'ok' : 'wait', note: d.failed ? `ошибок ${d.failed}` : '' },
+        { name: 'Отклонено', value: d.rejected, state: hasBatch ? 'ok' : 'wait' },
+        { name: 'На одобрение', value: d.suggested, state: hasBatch ? 'ok' : 'wait' },
+        { name: 'Добавлено автоматически', value: d.added, state: hasBatch ? 'ok' : 'wait' },
+    ];
+    $('sourcePipe').replaceChildren(...steps.map(step => el('div', { className: `job ${step.state}` },
+        el('span', { className: `dot ${step.state}`, textContent: step.state === 'ok' ? '✓' : '' }),
+        el('span', {}, step.name, step.note ? el('span', { className: 't', textContent: step.note }) : null),
+        el('span', { className: 'n', textContent: hasBatch ? (Number(step.value) || 0).toLocaleString('ru-RU') : '—' }))));
+}
+
 async function loadLive() {
     const gen = ++live.gen;   // один активный опрос: ответ старого запроса не планирует новый таймер
     clearTimeout(live.timer);
@@ -255,31 +317,36 @@ async function loadLive() {
     try { r = await apiOrLogin('studio_live'); } catch (error) {
         renderPipe.sig = null;
         $('pipeNow').textContent = error.status === 401 ? 'Войдите, чтобы увидеть состояние' : 'Не удалось загрузить состояние';
+        $('sourcePipeNow').textContent = error.status === 401 ? 'Войдите, чтобы увидеть состояние' : 'Не удалось загрузить состояние';
+        renderSourcePipe.sig = null;
         $('feed').replaceChildren(el('li', { className: 'muted', textContent: error.status === 401 ? 'Войдите, чтобы увидеть материалы.' : 'Не удалось загрузить материалы.' }));
         if (gen === live.gen && error.status !== 401) live.timer = setTimeout(loadLive, 15000);
         return;
     }
     if (gen !== live.gen) return;
+    if ($('rejected-tab').classList.contains('active')) loadRejected({ silent: true });
     try { renderLive(r); }
     catch (e) { console.error('studio_live:', e); }   // ошибка отрисовки не должна останавливать опрос
-    finally { if (gen === live.gen) live.timer = setTimeout(loadLive, r.running ? 4000 : 15000); }
+    finally { if (gen === live.gen) live.timer = setTimeout(loadLive, r.running || r.source_discovery?.running ? 4000 : 15000); }
 }
 
 function renderLive(r) {
     const items = r.items || [];
 
-    $('nav-pool').textContent = r.pool || '';
-    $('home-pool-count').textContent = r.pool ? `· ${r.pool}` : '';
+    const poolCount = Number.isFinite(Number(r.pool)) ? Math.max(0, Math.trunc(Number(r.pool))) : 0;
+    $('nav-pool').textContent = poolCount ? poolCount.toLocaleString('ru-RU') : '';
+    $('home-pool-count').textContent = poolCount ? `· ${poolCount.toLocaleString('ru-RU')}` : '';
 
     live.last = r;
     renderPipe(r);
+    renderSourcePipe(r.source_discovery);
     $('feed').replaceChildren(...(items.length ? items.slice(0, 5).map(feedItem)
         : [el('li', { className: 'muted', textContent: 'Пока ничего: подборка пуста.' })]));
 }
 
 function render() {
     const list = visible();
-    videoObserver?.disconnect();
+    $('grid').querySelectorAll('video').forEach(video => videoObserver?.unobserve(video));
     $('grid').replaceChildren(...(list.length ? list.map(card) : [el('p', { className: 'muted', textContent: 'Здесь пока пусто: лайкните посты в «Предложке» — они появятся здесь.' })]));
     if (videoObserver) $('grid').querySelectorAll('video').forEach(video => videoObserver.observe(video));
     $('chips').replaceChildren(...FILTERS.map(([id, label, f]) => el('button', {
@@ -311,8 +378,19 @@ function init() {
     document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== $('search')) { e.preventDefault(); $('search').focus(); } });
     const fail = e => { $('grid').replaceChildren(el('p', { className: 'muted', textContent: e.status === 401 ? 'Войдите в приложение, чтобы увидеть материалы.' : `Ошибка: ${e.message}` })); };
     loadContent().catch(fail);
+    const panel = $('live-panel');
+    const placePanel = tab => {
+        const excluded = tab === 'tree-tab' || tab === 'calendar-tab';
+        panel.hidden = excluded;
+        $('shared-layout').classList.toggle('has-shared-panel', !excluded);
+    };
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(button => onTabOpen(button.dataset.tab, () => placePanel(button.dataset.tab)));
+    placePanel(document.querySelector('.view-panel.active')?.id || 'home-tab');
     onTabOpen('home-tab', () => loadContent().catch(fail));
-    onTopicChange(() => { loadContent().catch(fail); loadLive(); });
+    onTabOpen('rejected-tab', () => loadRejected());
+    if ($('rejected-tab').classList.contains('active')) loadRejected();
+    onTopicChange(() => { loadContent().catch(fail); loadLive(); if ($('rejected-tab').classList.contains('active')) loadRejected(); });
+    document.addEventListener('posta:pool-updated', loadLive);
     loadSources().catch(() => {});
     renderPipe({});
     loadLive();

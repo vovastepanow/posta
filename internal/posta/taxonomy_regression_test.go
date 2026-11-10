@@ -11,11 +11,15 @@ import (
 func taxonomyTestUser() *U {
 	var topics []*Topic
 	for _, b := range TopicTree {
-		parent := &Topic{ID: b.Key, Key: b.Key, Title: b.Title, About: b.About, Aliases: b.Aliases, Scope: "broad", Format: &b.Format}
+		parent := &Topic{ID: b.Key, Key: b.Key, Title: b.Title, About: b.About, Aliases: b.Aliases, Scope: "broad", Format: &b.Format, NSFW: b.NSFW, Seed: true}
 		topics = append(topics, parent)
 		for _, leaf := range b.Children {
 			parentID := b.Key
-			topics = append(topics, &Topic{ID: leaf.Key, Key: leaf.Key, Title: leaf.Title, About: leaf.About, Aliases: leaf.Aliases, Scope: "narrow", Parent: &parentID, Format: leaf.Format})
+			nsfw := b.NSFW
+			if leaf.NSFW != nil {
+				nsfw = *leaf.NSFW
+			}
+			topics = append(topics, &Topic{ID: leaf.Key, Key: leaf.Key, Title: leaf.Title, About: leaf.About, Aliases: leaf.Aliases, Scope: "narrow", Parent: &parentID, Format: leaf.Format, Hint: leaf.Hint, Entities: leaf.Entities, Queries: leaf.Queries, NSFW: nsfw, Seed: true})
 		}
 	}
 	return &U{App: &App{catalog: &Catalog{idx: buildTopicIndex(topics)}}}

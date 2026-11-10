@@ -87,7 +87,7 @@ func RutubeParse(data []byte) ([]jx.M, error) {
 	}
 	var out []jx.M
 	for _, r := range resp.Results {
-		if r.IsAdult || r.IsHidden || r.IsDeleted || r.ID == "" || r.Title == "" {
+		if r.IsHidden || r.IsDeleted || r.ID == "" || r.Title == "" {
 			continue
 		}
 		at, err := time.ParseInLocation("2006-01-02T15:04:05", r.CreatedTS[:min(len(r.CreatedTS), 19)], moscowZone)
@@ -101,6 +101,7 @@ func RutubeParse(data []byte) ([]jx.M, error) {
 		}
 		p := searchPost(PlatformRutube, fmt.Sprintf("rutube:%d", r.Author.ID), channel, r.Title, r.Title, r.ThumbnailURL, "", r.VideoURL, posted)
 		p["author_name"] = r.Author.Name
+		p["source_sensitive"] = r.IsAdult
 		if VideoPageVia(r.VideoURL) == "ytdlp" {
 			p["video_via"], p["video_page"], p["duration"] = "ytdlp", r.VideoURL, r.Duration
 		}
@@ -140,7 +141,7 @@ func NineGAGParse(data []byte) ([]jx.M, error) {
 	}
 	var out []jx.M
 	for _, p := range resp.Data.Posts {
-		if p.NSFW != 0 || p.Promo != 0 || p.Title == "" {
+		if p.Promo != 0 || p.Title == "" {
 			continue
 		}
 		image, video := p.Images.Image460.URL, ""
@@ -150,7 +151,9 @@ func NineGAGParse(data []byte) ([]jx.M, error) {
 		if image == "" && video == "" {
 			continue
 		}
-		out = append(out, searchPost(Platform9GAG, "9gag:"+p.ID, "", p.Title, p.Title, image, video, p.URL, p.Created))
+		post := searchPost(Platform9GAG, "9gag:"+p.ID, "", p.Title, p.Title, image, video, p.URL, p.Created)
+		post["source_sensitive"] = p.NSFW != 0
+		out = append(out, post)
 	}
 	return out, nil
 }
@@ -212,7 +215,7 @@ func LemmyParse(data []byte) ([]jx.M, error) {
 	var out []jx.M
 	for _, p := range resp.Posts {
 		v := p.Post
-		if v.NSFW || v.Deleted || v.Removed || v.Name == "" || v.Published == "" {
+		if v.Deleted || v.Removed || v.Name == "" || v.Published == "" {
 			continue
 		}
 		img := ""
@@ -245,7 +248,9 @@ func LemmyParse(data []byte) ([]jx.M, error) {
 		if video == "" {
 			video = lemmyBodyVideo(v.Body)
 		}
-		out = append(out, searchPost(PlatformLemmy, fmt.Sprintf("lemmy:%d", v.CommunityID), p.Community.ActorID, v.Name, CleanHTMLText(v.Name+"\n"+v.Body), img, video, page, at.Unix()))
+		post := searchPost(PlatformLemmy, fmt.Sprintf("lemmy:%d", v.CommunityID), p.Community.ActorID, v.Name, CleanHTMLText(v.Name+"\n"+v.Body), img, video, page, at.Unix())
+		post["source_sensitive"] = v.NSFW
+		out = append(out, post)
 	}
 	return out, nil
 }
@@ -273,7 +278,7 @@ func MastodonParse(data []byte) ([]jx.M, error) {
 	}
 	var out []jx.M
 	for _, s := range statuses {
-		if s.Sensitive || s.Reblog != nil || s.Account.ID == "" {
+		if s.Reblog != nil || s.Account.ID == "" {
 			continue
 		}
 		var media []jx.M
@@ -298,6 +303,7 @@ func MastodonParse(data []byte) ([]jx.M, error) {
 			continue
 		}
 		post := searchPost(PlatformMastodon, "mastodon:"+s.Account.ID, s.Account.URL, trimRunes(text, 80), text, "", "", s.URL, at.Unix())
+		post["source_sensitive"] = s.Sensitive
 		setPostMedia(post, media)
 		if len(media) > 0 {
 			post["text_post"] = false

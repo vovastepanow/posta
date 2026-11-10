@@ -589,6 +589,10 @@ func TelegramPostMedia(content string, maxN int) []jx.M {
 // TelegramPostsFromHTML — посты с медиа (и текстовые, если withText) со страницы канала, свежие первыми.
 func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minText int) []jx.M {
 	channel := strings.TrimLeft(jx.Str(src, "id"), "@")
+	channelTitle := ""
+	if m := channelTitleRe.FindStringSubmatch(page); m != nil {
+		channelTitle = CleanHTMLText(m[1])
+	}
 	eng, _ := TelegramPageEngagement(page)
 	blocks := TelegramPageBlocks(page)
 	posts := []jx.M{}
@@ -622,6 +626,7 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 		if name == "" {
 			name = SourceDisplayName(PlatformTelegram, channel)
 		}
+		text = CleanPostAttribution(text, jx.M{"source": name, "channel_title": channelTitle, "url": "https://t.me/" + channel + "/" + b.ID})
 		if text == "" {
 			text = EmptyPostText
 		}
@@ -1384,23 +1389,25 @@ func DescribeSourceAudience(subs int64, rate *float64, q jx.M) string {
 // ---- Отзывы пользователей об источниках ----
 
 type SourceFeedback struct {
-	Likes, Dislikes, Votes int
-	Score                  float64
+	Likes, Dislikes, Votes, Users int
+	Score                         float64
 }
 
 // SourceFeedbackStats — лайки и дизлайки всех пользователей по источникам темы (жалоба «ошибка подбора» — дизлайк).
 func (a *App) SourceFeedbackStats(ctx context.Context, topic string) map[string]*SourceFeedback {
 	stats := map[string]*SourceFeedback{}
-	rows, err := a.DB.Pool.Query(ctx, `SELECT collection, data->>'source_key', data->>'topic', COALESCE(data->>'complaint_reason', '')
+	rows, err := a.DB.Pool.Query(ctx, `SELECT user_id, collection, data->>'source_key', data->>'topic', COALESCE(data->>'complaint_reason', '')
 		FROM history_items WHERE collection IN ('liked', 'disliked', 'complaints')`)
 	if err != nil {
 		return stats
 	}
 	defer rows.Close()
+	perUser := map[string]int{}
+	countedUser := map[string]bool{}
 	for rows.Next() {
-		var coll, reason string
+		var userID, coll, reason string
 		var key, t *string
-		if rows.Scan(&coll, &key, &t, &reason) != nil || key == nil || *key == "" || strings.HasPrefix(*key, "own:") {
+		if rows.Scan(&userID, &coll, &key, &t, &reason) != nil || key == nil || *key == "" || strings.HasPrefix(*key, "own:") {
 			continue
 		}
 		if coll == "complaints" && reason != "match_error" {
@@ -1413,10 +1420,19 @@ func (a *App) SourceFeedbackStats(ctx context.Context, topic string) map[string]
 		if !a.TopicsAreEquivalent(tt, topic) {
 			continue
 		}
+		userSource := userID + "\x00" + *key
+		if perUser[userSource] >= 5 {
+			continue
+		}
+		perUser[userSource]++
 		s := stats[*key]
 		if s == nil {
 			s = &SourceFeedback{}
 			stats[*key] = s
+		}
+		if !countedUser[userSource] {
+			countedUser[userSource] = true
+			s.Users++
 		}
 		if coll == "liked" {
 			s.Likes++
@@ -1429,6 +1445,27 @@ func (a *App) SourceFeedbackStats(ctx context.Context, topic string) map[string]
 		s.Score = float64(s.Likes+1) / float64(s.Likes+s.Dislikes+2)
 	}
 	return stats
+}
+
+// CombinedSourceVerdicts merges topic-match outcomes with capped community votes.
+// A source with many independent dislikes loses priority, while new sources
+// still retain the exploration slots in sourcePollFetchSet.
+func (a *App) CombinedSourceVerdicts(ctx context.Context, topic string) map[string][2]int {
+	return mergeSourceFeedback(a.TopicVerdictStats(topic), a.SourceFeedbackStats(ctx, topic))
+}
+
+func mergeSourceFeedback(out map[string][2]int, feedback map[string]*SourceFeedback) map[string][2]int {
+	for key, s := range feedback {
+		if s.Votes < config.SourceFeedbackMinVotes || s.Users < 2 {
+			continue
+		}
+		weight := min(s.Votes, 20)
+		v := out[key]
+		v[0] += int(math.Round(s.Score * float64(weight)))
+		v[1] += weight
+		out[key] = v
+	}
+	return out
 }
 
 // SourceUserMutes — источники, которые пользователь не хочет по теме (доля лайков ниже порога при достаточных оценках).
@@ -1466,9 +1503,9 @@ func (a *App) SourceUserMutes(h History, topic string) map[string]jx.M {
 // CombinedSourceRates — доля прошедших, смешанная с долей лайков; стабильно плохой источник — 0.
 func (a *App) CombinedSourceRates(ctx context.Context, pass map[string]float64, topic string) map[string]float64 {
 	for key, s := range a.SourceFeedbackStats(ctx, topic) {
-		if s.Votes >= config.SourceFeedbackBanVotes && s.Score < config.SourceFeedbackBanScore {
+		if s.Votes >= config.SourceFeedbackBanVotes && s.Users >= 3 && s.Score < config.SourceFeedbackBanScore {
 			pass[key] = 0
-		} else if s.Votes >= config.SourceFeedbackMinVotes {
+		} else if s.Votes >= config.SourceFeedbackMinVotes && s.Users >= 2 {
 			if v, ok := pass[key]; ok {
 				pass[key] = (v + s.Score) / 2
 			} else {
@@ -1485,6 +1522,11 @@ func (a *App) CatalogEntryMatchesTopic(entry jx.M, topic string, strict bool) bo
 		return false
 	}
 	topic = TopicBase(topic)
+	for _, excluded := range jx.Strs(entry, "excluded_topics") {
+		if a.TopicSame(excluded, topic) {
+			return false
+		}
+	}
 	topics := jx.Strs(entry, "topics")
 	if len(topics) == 0 {
 		return true

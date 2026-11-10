@@ -783,8 +783,19 @@ func publish(c *Ctx) (any, error) {
 		record = r
 	}
 	recordKey := ""
+	var sourceMeta jx.M
 	if record != nil {
 		recordKey = posta.ContentItemKey(record)
+		source := posta.SourceQualityKey(jx.Str(record, "source_key"))
+		if source != "" && len(source) <= 600 {
+			topic := jx.Str(record, "topic")
+			if topic == "" {
+				topic = c.U.CurrentTopic()
+			}
+			if len(topic) <= 300 {
+				sourceMeta = jx.M{"source_key": source, "topic": topic}
+			}
+		}
 	}
 	if poll != nil && mode == "native" {
 		return nil, fail(422, "Опросы ставятся в очередь Posta или публикуются сразу: через «Отложенные» Telegram опросы пока не ставятся.")
@@ -885,7 +896,7 @@ func publish(c *Ctx) (any, error) {
 	}
 	switch mode {
 	case "queue", "slot":
-		r, err := w.OutboxQueuePost(ch, text, prepared, at, slotAt, work, poll, posta.PublishArticleInput(fields["article"]), "", recordKey)
+		r, err := w.OutboxQueuePost(ch, text, prepared, at, slotAt, work, poll, posta.PublishArticleInput(fields["article"]), "", recordKey, sourceMeta)
 		if err != nil {
 			return nil, fail(422, err.Error())
 		}
@@ -899,7 +910,7 @@ func publish(c *Ctx) (any, error) {
 		if err != nil {
 			return nil, fail(422, err.Error())
 		}
-		response = jx.M{"scheduled": true, "id": w.TelegramRecordNativePost(text, prepared, at, ids, ch.ID), "publish_at": at, "native": true}
+		response = jx.M{"scheduled": true, "id": w.TelegramRecordNativePost(text, prepared, at, ids, ch.ID, sourceMeta), "publish_at": at, "native": true}
 	default:
 		post := jx.M{"text": text, "media": posta.PreparedMaps(prepared)}
 		if poll != nil {
@@ -928,7 +939,7 @@ func publish(c *Ctx) (any, error) {
 		}
 		w.TelegramLogPublished(jx.Merge(posta.TelegramPostSummary(text, len(shown)), jx.M{"at": now(), "scheduled_for": 0, "url": sent.URL, "status": "ok", "error": "",
 			"media_src": posta.MediaSourcesOf(posta.PreparedMaps(shown)), "channel": ch.ID, "channel_title": ch.ChatTitle, "kind": kind, "duration": dur,
-			"thumb_id": w.PostThumbMake(posta.PreparedMaps(shown)), "skipped": orStrs(skipped)}))
+			"thumb_id": w.PostThumbMake(posta.PreparedMaps(shown)), "skipped": orStrs(skipped), "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic")}))
 		response = jx.M{"scheduled": false, "url": sent.URL, "messages": len(sent.MessageIDs), "skipped": orStrs(skipped)}
 	}
 	w.BillingPostUsed()

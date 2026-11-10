@@ -304,7 +304,7 @@ func (u *U) mirrorQueuePost(m mirrorRow, post jx.M) error {
 		return err
 	}
 	slotAt := jx.Int(slot, "slot_at")
-	if _, err := u.OutboxQueuePost(c, text, prepared, jx.Int(slot, "publish_at"), &slotAt, work, nil, nil, "", ""); err != nil {
+	if _, err := u.OutboxQueuePost(c, text, prepared, jx.Int(slot, "publish_at"), &slotAt, work, nil, nil, "", "", nil); err != nil {
 		return err
 	}
 	u.BillingPostUsed()

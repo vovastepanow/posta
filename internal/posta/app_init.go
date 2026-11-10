@@ -89,6 +89,19 @@ func (a *App) StartBackground() {
 	if !a.Cfg.Dev || os.Getenv("POSTA_DEV_PARSERS") == "1" {
 		a.Go("shared-collection", a.runSharedCollection)
 		a.Go("source-discovery", a.runSourceDiscoveryWorker)
+		a.Go("public-classification-backfill", func(ctx context.Context) {
+			a.backfillPublicClassifications(ctx)
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					a.backfillPublicClassifications(ctx)
+				}
+			}
+		})
 	}
 	a.Every("cache-gc", time.Hour, func(ctx context.Context) {
 		a.CacheGC(ctx)

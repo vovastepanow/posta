@@ -18,6 +18,7 @@ import (
 // Отобранные посты из истории; файлы достраиваются в фоне, пока ссылки источника живы.
 
 const proposalsLimit = 100
+const selectedPostMaxAge = 7 * 24 * 60 * 60
 
 func (a *App) proposalMediaLost(r jx.M) bool {
 	return jx.Bool(r, "media_gone") && a.MediaExisting(jx.Str(r, "image_local")) == "" && a.MediaExisting(jx.Str(r, "video_local")) == ""
@@ -50,9 +51,14 @@ func (u *U) ProposalItems(h History) []jx.M {
 
 // pruneSelectedHistory оставляет в выбранной теме последние 100 видимых лайков.
 // Данные оценки остаются, чтобы удаление содержимого не меняло качество источника и предпочтения.
-func pruneSelectedHistory(h History, topic string, same func(string, string) bool) []jx.M {
+func pruneSelectedHistory(h History, topic string, same func(string, string) bool, at int64) []jx.M {
 	var candidates []int
+	var expired []int
 	for i, r := range h["liked"] {
+		if !jx.Bool(r, "content_deleted") && jx.Int(r, "timestamp") < at-selectedPostMaxAge {
+			expired = append(expired, i)
+			continue
+		}
 		t := jx.Str(r, "topic")
 		if jx.Bool(r, "proposal_hidden") || ContentImageKey(r) == "" || (t != "" && !same(t, topic)) {
 			continue
@@ -62,11 +68,11 @@ func pruneSelectedHistory(h History, topic string, same func(string, string) boo
 	sort.SliceStable(candidates, func(i, j int) bool {
 		return jx.Int(h["liked"][candidates[i]], "timestamp") > jx.Int(h["liked"][candidates[j]], "timestamp")
 	})
-	if len(candidates) <= proposalsLimit {
-		return nil
+	if len(candidates) > proposalsLimit {
+		expired = append(expired, candidates[proposalsLimit:]...)
 	}
-	removed := make([]jx.M, 0, len(candidates)-proposalsLimit)
-	for _, index := range candidates[proposalsLimit:] {
+	removed := make([]jx.M, 0, len(expired))
+	for _, index := range expired {
 		record := h["liked"][index]
 		removed = append(removed, record)
 		hash := sha1.Sum([]byte(ContentImageKey(record)))
@@ -87,7 +93,7 @@ func (u *U) PruneSelectedPosts() error {
 	topic := u.CurrentTopic()
 	var removed []jx.M
 	_, err := u.HistoryUpdate(func(h History) History {
-		removed = pruneSelectedHistory(h, topic, u.TopicSame)
+		removed = pruneSelectedHistory(h, topic, u.TopicSame, now())
 		if len(removed) == 0 {
 			return nil
 		}

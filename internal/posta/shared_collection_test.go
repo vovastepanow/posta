@@ -133,3 +133,59 @@ func TestSharedCollectionQueuePostgres(t *testing.T) {
 		t.Fatalf("job claimed more than once: attempts=%d err=%v", attempts, err)
 	}
 }
+
+func TestSharedSourceLockAcrossAppsPostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_TEST_PG")
+	if dsn == "" {
+		t.Skip("POSTA_TEST_PG not set")
+	}
+	ctx := context.Background()
+	first, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	if _, err := first.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	apps := []*App{{DB: first}, {DB: second}}
+	for _, app := range apps {
+		app.parsers = newParserManager(app)
+	}
+	key := "integration-lock-" + time.Now().Format("150405.000000000")
+	var mu sync.Mutex
+	calls := 0
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, app := range apps {
+		wg.Add(1)
+		go func(a *App) {
+			defer wg.Done()
+			<-start
+			if !a.withSharedSourceLock(ctx, key, func() bool {
+				var cached bool
+				if a.CacheGet(ctx, key, &cached) {
+					return true
+				}
+				mu.Lock()
+				calls++
+				mu.Unlock()
+				time.Sleep(100 * time.Millisecond)
+				a.CacheSet(ctx, key, true, time.Minute)
+				return true
+			}) {
+				t.Error("source lock failed")
+			}
+		}(app)
+	}
+	close(start)
+	wg.Wait()
+	if calls != 1 {
+		t.Fatalf("source fetched %d times, want 1", calls)
+	}
+}

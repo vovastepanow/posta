@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "advertising": false,
+      "description": "Новость о масштабных кибератаках на криптобиржу Binance и платформу Polymarket, краже миллиардов долларов в криптовалютах и падении курса Bitcoin.",
+      "entity": "Binance",
+      "evidence": "Billions of dollars in crypto assets were reportedly stolen in separate hacks targeting Binance and Polymarket... Bitcoin fell below the $80,000 threshold...",
+      "format": "text",
+      "index": 0,
+      "place": "",
+      "place_lat": 55.7558,
+      "place_lon": 37.6173,
+      "relevance": 98,
+      "safety": [],
+      "ukraine": false
+    },
+    {
+      "advertising": false,
+      "description": "Сообщение о начале тестирования роботакси сервисами inDrive и Pony.ai в Казахстане в 2027 году.",
+      "entity": "inDrive",
+      "evidence": "Такси-сервис inDrive и китайская Pony.ai начнут тестировать роботакси в Казахстане в 2027 году",
+      "format": "text",
+      "index": 1,
+      "place": "Казахстан",
+      "place_lat": 48.0196,
+      "place_lon": 66.9237,
+      "relevance": 10,
+      "safety": [],
+      "ukraine": false
+    }
+  ]
+}

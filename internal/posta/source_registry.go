@@ -26,8 +26,6 @@ const (
 	RegStatusFailed     = "failed"
 	RegStatusUkraine    = "ukraine"
 
-	// RegistryFailMax — сколько раз источник может не загрузиться, прежде чем стать мёртвым.
-	RegistryFailMax = 3
 	// RegistryRetryAfter — повтор не раньше чем через сутки.
 	RegistryRetryAfter = int64(config.DaySeconds)
 	// registryMovedReason — причина для записей, перенесённых из старой памяти checked_at.
@@ -67,28 +65,23 @@ func registryDecide(r *registryRow, topic string, at, recheckDays, sampleDays in
 		return regNew, ""
 	}
 	switch r.Status {
-	case RegStatusCatalog:
-		return regSkip, "уже в каталоге"
-	case RegStatusSuggested:
-		return regSkip, "уже предлагался"
-	case RegStatusOwnerYes:
-		return regSkip, "владелец одобрил"
-	case RegStatusOwnerNo:
-		return regSkip, "владелец отклонил"
-	case RegStatusOwnerMaybe:
-		return regSkip, "владелец отметил «не знаю»"
+	case RegStatusCatalog, RegStatusSuggested, RegStatusOwnerYes, RegStatusOwnerNo, RegStatusOwnerMaybe:
+		// These statuses describe one topic. The catalog and votes are checked separately.
+		return regNew, ""
 	case RegStatusDead:
-		return regSkip, "мёртвый, пустой или закрытый источник"
-	case RegStatusUkraine:
-		return regSkip, "украинский источник"
-	case RegStatusFailed:
-		if r.FailCount >= RegistryFailMax {
-			return regSkip, "не загрузился трижды"
+		if r.Reason != "не загрузился трижды" {
+			return regSkip, "мёртвый, пустой или закрытый источник"
 		}
-		if at-r.CheckedAt < RegistryRetryAfter {
-			return regSkip, "не загрузился — повтор через сутки"
+		fallthrough // old versions incorrectly marked repeated temporary failures dead
+	case RegStatusFailed:
+		// Temporary failures do not prove the source is dead. Back off up to a week.
+		delay := discoveryRetryDelay(r.FailCount)
+		if at-r.CheckedAt < delay {
+			return regSkip, fmt.Sprintf("не загрузился — повтор через %d дн.", delay/RegistryRetryAfter)
 		}
 		return regNew, ""
+	case RegStatusUkraine:
+		return regSkip, "украинский источник"
 	case RegStatusRejected:
 		if t, ok := r.Topics[TopicNorm(topic)]; ok {
 			if recheckDays > 0 && at-t.At >= recheckDays*config.DaySeconds {
@@ -99,7 +92,7 @@ func registryDecide(r *registryRow, topic string, at, recheckDays, sampleDays in
 		if r.HasSample && at-r.SampleAt < sampleDays*config.DaySeconds {
 			return regSample, ""
 		}
-		return regSkip, "отклонён по другой теме, сохранённый сэмпл устарел"
+		return regNew, ""
 	}
 	return regNew, ""
 }
@@ -149,17 +142,17 @@ func scanRegistryRow(rows interface{ Scan(...any) error }) (*registryRow, error)
 // RegistryVerdict — решение реестра по кандидату темы; до любого сетевого запроса.
 func (u *U) RegistryVerdict(sid, topic string) (registryVerdict, string, *registryRow) {
 	r := u.registryGet(sid)
-	v, reason := registryDecide(r, topic, now(), int64(u.TInt("registry_recheck_days")), int64(u.TInt("registry_sample_days")))
-	if v == regSkip && r != nil && r.Status == RegStatusFailed {
-		u.registryUpsert(registryWrite{SourceID: sid, Status: RegStatusDead, Reason: "не загрузился трижды"})
+	if u.discoveryTopicKnown(u.Catalog(), topic)[sid] {
+		return regSkip, "уже известен по этой теме", r
 	}
+	v, reason := registryDecide(r, topic, now(), int64(u.TInt("registry_recheck_days")), int64(u.TInt("registry_sample_days")))
 	return v, reason, r
 }
 
 // registryKnown — источники, которые по теме пропускаются без запросов к сети (сэмпл-проверка в этот набор не входит).
 func (u *U) registryKnown(topic string) map[string]bool {
-	out := map[string]bool{}
-	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id, status, check_count, fail_count, checked_at, topics, sample_at, sample IS NOT NULL FROM source_registry`)
+	out := u.discoveryTopicKnown(u.Catalog(), topic)
+	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id, status, reason, check_count, fail_count, checked_at, topics, sample_at, sample IS NOT NULL FROM source_registry`)
 	if err != nil {
 		u.Log("Реестр источников: не прочитан: %v", err)
 		return out
@@ -169,7 +162,7 @@ func (u *U) registryKnown(topic string) map[string]bool {
 	for rows.Next() {
 		var r registryRow
 		var topics []byte
-		if rows.Scan(&r.SourceID, &r.Status, &r.CheckCount, &r.FailCount, &r.CheckedAt, &topics, &r.SampleAt, &r.HasSample) != nil {
+		if rows.Scan(&r.SourceID, &r.Status, &r.Reason, &r.CheckCount, &r.FailCount, &r.CheckedAt, &topics, &r.SampleAt, &r.HasSample) != nil {
 			continue
 		}
 		json.Unmarshal(topics, &r.Topics)
@@ -231,7 +224,13 @@ func registrySample(posts []jx.M) []jx.M {
 		if text == "" && img == "" {
 			continue
 		}
-		out = append(out, jx.M{"text": text, "image": img, "url": jx.Str(p, "url"), "posted_at": jx.Int(p, "posted_at")})
+		sample := jx.M{"text": text, "image": img, "url": jx.Str(p, "url"), "posted_at": jx.Int(p, "posted_at")}
+		for _, key := range []string{"views", "likes", "comments", "video", "video_page", "gallery", "images"} {
+			if value, ok := p[key]; ok {
+				sample[key] = value
+			}
+		}
+		out = append(out, sample)
 	}
 	return out
 }
@@ -522,19 +521,20 @@ func registryStatusLine(byStatus map[string]int) string {
 
 // registryView — запись реестра для вкладки «Проверенные» (без сэмпла: он нужен только оценке).
 type registryView struct {
-	SourceID   string                   `json:"source_id"`
-	Platform   string                   `json:"platform"`
-	Name       string                   `json:"name"`
-	URL        string                   `json:"url"`
-	Status     string                   `json:"status"`
-	Reason     string                   `json:"reason"`
-	FirstSeen  int64                    `json:"first_seen_at"`
-	CheckedAt  int64                    `json:"checked_at"`
-	CheckCount int                      `json:"check_count"`
-	Topics     map[string]registryTopic `json:"topics"`
-	Metrics    jx.M                     `json:"metrics"`
-	Origin     jx.M                     `json:"origin"`
-	HasSample  bool                     `json:"has_sample"`
+	SourceID      string                   `json:"source_id"`
+	Platform      string                   `json:"platform"`
+	PlatformLabel string                   `json:"platform_label"`
+	Name          string                   `json:"name"`
+	URL           string                   `json:"url"`
+	Status        string                   `json:"status"`
+	Reason        string                   `json:"reason"`
+	FirstSeen     int64                    `json:"first_seen_at"`
+	CheckedAt     int64                    `json:"checked_at"`
+	CheckCount    int                      `json:"check_count"`
+	Topics        map[string]registryTopic `json:"topics"`
+	Metrics       jx.M                     `json:"metrics"`
+	Origin        jx.M                     `json:"origin"`
+	HasSample     bool                     `json:"has_sample"`
 }
 
 const registryListLimit = 300
@@ -572,7 +572,16 @@ func (u *U) RegistryList(status, platform, topic, q string) ([]registryView, jx.
 		if err != nil {
 			return nil, nil, err
 		}
-		out = append(out, registryView{SourceID: r.SourceID, Platform: r.Platform, Name: r.Name, URL: r.URL, Status: r.Status, Reason: r.Reason,
+		name, label := r.Name, r.Platform
+		if r.Platform == PlatformRSS {
+			feed := r.URL
+			if feed == "" {
+				feed = registryID(r.SourceID)
+			}
+			name, _ = pendingRSSName(r.Name, "", feed)
+			label = RSSPlatformLabel(feed)
+		}
+		out = append(out, registryView{SourceID: r.SourceID, Platform: r.Platform, PlatformLabel: label, Name: name, URL: r.URL, Status: r.Status, Reason: r.Reason,
 			FirstSeen: r.FirstSeen, CheckedAt: r.CheckedAt, CheckCount: r.CheckCount, Topics: r.Topics, Metrics: r.Metrics, Origin: r.Origin, HasSample: r.HasSample})
 	}
 	counts := jx.M{}

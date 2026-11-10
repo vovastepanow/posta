@@ -191,11 +191,12 @@ func (u *U) instagramReadProfile(username string, count int, withText bool) ([]j
 func facebookPagePosts(data []byte, pageID string, count int, withText bool) ([]jx.M, error) {
 	var response struct {
 		Data []struct {
-			ID        string `json:"id"`
-			Message   string `json:"message"`
-			Created   string `json:"created_time"`
-			Permalink string `json:"permalink_url"`
-			Picture   string `json:"full_picture"`
+			ID          string `json:"id"`
+			Message     string `json:"message"`
+			Created     string `json:"created_time"`
+			Permalink   string `json:"permalink_url"`
+			Picture     string `json:"full_picture"`
+			Attachments jx.M   `json:"attachments"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(data, &response); err != nil {
@@ -207,11 +208,45 @@ func facebookPagePosts(data []byte, pageID string, count int, withText bool) ([]
 		if err != nil || link.Scheme != "https" || (link.Hostname() != "www.facebook.com" && link.Hostname() != "facebook.com") || !strings.HasPrefix(p.ID, pageID+"_") {
 			continue
 		}
+		var media []jx.M
+		var collect func(jx.M)
+		collect = func(a jx.M) {
+			children := jx.Maps(jx.Map(a, "subattachments"), "data")
+			if len(children) > 0 {
+				for _, child := range children {
+					collect(child)
+				}
+				return
+			}
+			m := jx.Map(a, "media")
+			image := jx.Str(jx.Map(m, "image"), "src")
+			video := jx.Str(m, "source")
+			if !strings.HasPrefix(image, "https://") {
+				image = ""
+			}
+			if !strings.HasPrefix(video, "https://") {
+				video = ""
+			}
+			if image != "" || video != "" {
+				media = append(media, jx.M{"image": image, "video": video})
+			}
+		}
+		for _, a := range jx.Maps(p.Attachments, "data") {
+			collect(a)
+		}
+		if len(media) == 0 && strings.HasPrefix(p.Picture, "https://") {
+			media = append(media, jx.M{"image": p.Picture})
+		}
 		at := ParseFeedTime(p.Created)
-		if at == 0 || (p.Picture == "" && (!withText || runeLen(strings.TrimSpace(p.Message)) < 120)) {
+		if at == 0 || (len(media) == 0 && (!withText || runeLen(strings.TrimSpace(p.Message)) < 120)) {
 			continue
 		}
-		out = append(out, searchPost("Facebook", "facebook:"+pageID, "https://www.facebook.com/"+pageID, trimRunes(p.Message, 80), p.Message, p.Picture, "", p.Permalink, at))
+		post := searchPost("Facebook", "facebook:"+pageID, "https://www.facebook.com/"+pageID, trimRunes(p.Message, 80), p.Message, "", "", p.Permalink, at)
+		if len(media) > 0 {
+			setPostMedia(post, media)
+			post["text_post"] = false
+		}
+		out = append(out, post)
 		if len(out) >= count {
 			break
 		}
@@ -223,7 +258,7 @@ func (u *U) facebookReadPage(id string, count int, withText bool) ([]jx.M, error
 	if id != u.NetworkAppKey("FACEBOOK_PAGE_ID") {
 		return nil, Bad("Facebook: токен настроен для другой страницы.")
 	}
-	body, err := u.metaGraphRead(id+"/posts", url.Values{"fields": {"id,message,created_time,permalink_url,full_picture"}, "limit": {"50"}}, "FACEBOOK_PAGE_ACCESS_TOKEN")
+	body, err := u.metaGraphRead(id+"/posts", url.Values{"fields": {"id,message,created_time,permalink_url,full_picture,attachments{media,subattachments{media}}"}, "limit": {"50"}}, "FACEBOOK_PAGE_ACCESS_TOKEN")
 	if err != nil {
 		return nil, err
 	}

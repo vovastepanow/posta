@@ -57,6 +57,13 @@
 .pipe-explainer { margin: 0 0 8px; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .pbar { height: 5px; border-radius: 5px; background: var(--panel3); overflow: hidden; margin: 6px 0 10px; }
 .pbar i { display: block; height: 100%; background: var(--grad); transition: width .6s ease; }
+.source-pipe-progress-label { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; }
+.source-pipe-progress-label b { color: var(--text); font: 600 11px var(--mono); }
+.source-pipe-progress .pbar { margin: 5px 0 8px; }
+#sourcePipeDetail, #sourcePipeInsight { overflow-wrap: anywhere; }
+.source-pipe-insight { margin: 8px 8px 0; }
+#sourcePipe .job { cursor: default; }
+#sourcePipe .job:hover { background: transparent; }
 .pipe { display: grid; gap: 2px; }
 .job { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 9px; align-items: center; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; text-align: left; font-size: 13px; color: var(--text); }
 .job:hover { background: var(--panel2); }
@@ -255,3 +262,41 @@ html, body { background:var(--bg); color:var(--text); }
 .preview-actions button { flex: 0 0 auto; min-width: 48px; font-size: 18px; }
 
 .fline:empty, .preview-text:empty { min-height: 1lh; }
+
+/* Панель всегда занимает одно место рядом с содержимым вкладок. */
+.shared-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; align-items: start; }
+.shared-layout.has-shared-panel { grid-template-columns: minmax(0, 1fr) 310px; }
+.shared-content { min-width: 0; }
+.shared-layout #live-panel { grid-column: 2; grid-row: 1; width: auto; min-width: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+#live-panel[hidden] { display: none !important; }
+.home-tab .studio-dashboard { display: block; }
+@media (max-width: 1100px) {
+  .shared-layout.has-shared-panel { grid-template-columns: minmax(0, 1fr) 260px; }
+}
+@media (max-width: 760px) {
+  .shared-layout.has-shared-panel { grid-template-columns: minmax(0, 1fr); }
+  .shared-layout #live-panel { grid-column: 1; grid-row: 1; }
+  .shared-layout.has-shared-panel .shared-content { grid-column: 1; grid-row: 2; }
+}
+
+/* Ширина шапки и её кнопок не зависит от длины вкладки или текста статуса. */
+html { scrollbar-gutter: stable; }
+.app-top { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(180px, 320px); }
+.app-top .console-mini { margin-left: 0; min-width: 0; width: 100%; box-sizing: border-box; }
+.app-top #future-draft-open { width: auto; white-space: nowrap; }
+.app-top #console-mini-status { flex: 1; max-width: none; }
+@media (max-width: 760px) {
+  .app-top { grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; }
+  .app-top #console-mini { width: auto; }
+  .app-top #console-mini-status { display: none; }
+  .app-top .topic-switch-button { max-width: 100%; }
+  .app-top .topic-switch-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+.rejected-tab .grid { margin-top: 20px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.rejected-reason { margin: 9px 0 4px; color: var(--text); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.rejected-tab .tile-body .rejected-stage { white-space: normal; }
+#show-rejected { margin-top: 10px; }
+@media (max-width: 1100px) { .rejected-tab .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .rejected-tab .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
+@media (max-width: 420px) { .rejected-tab .grid { grid-template-columns: 1fr; } }

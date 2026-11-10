@@ -47,10 +47,16 @@ func (u *U) braveSearchPage(query string) (string, error) {
 		return cached, nil
 	}
 	bravePause.Lock()
-	paused := time.Now().Before(bravePause.until)
+	until := bravePause.until
 	bravePause.Unlock()
+	if u.DB != nil {
+		if saved := KV(u.App, u.Ctx, "brave_search_pause_until", int64(0)); saved > until.Unix() {
+			until = time.Unix(saved, 0)
+		}
+	}
+	paused := time.Now().Before(until)
 	if paused {
-		return "", Bad("Веб-поиск временно ограничен; повторим позже.")
+		return "", Bad("Brave ограничил веб-поиск; повтор не раньше %s.", until.Format("02.01 15:04"))
 	}
 	var data []byte
 	var status int
@@ -78,8 +84,12 @@ func (u *U) braveSearchPage(query string) (string, error) {
 	if status == 429 {
 		bravePause.Lock()
 		bravePause.until = time.Now().Add(30 * time.Minute)
+		until := bravePause.until
 		bravePause.Unlock()
-		return "", Bad("Веб-поиск ограничил запросы; пауза на 30 минут.")
+		if u.DB != nil {
+			_ = u.KVSet(u.Ctx, "brave_search_pause_until", until.Unix(), 30*time.Minute)
+		}
+		return "", Bad("Brave ограничил запросы (HTTP 429); пауза на 30 минут.")
 	}
 	if data == nil {
 		return "", fmt.Errorf("веб-поиск недоступен (HTTP %d)", status)

@@ -66,18 +66,25 @@ type userParser struct {
 
 // ParserManager — сборщики всех пользователей процесса.
 type ParserManager struct {
-	app          *App
-	mu           sync.Mutex
-	users        map[string]*userParser
-	slots        chan struct{}
-	named        sync.Map // блокировки по имени: подбор темы, уточнение
-	sharedPaused bool
-	sharedCancel context.CancelFunc
-	sharedDone   chan struct{}
+	app             *App
+	mu              sync.Mutex
+	users           map[string]*userParser
+	slots           chan struct{}
+	named           sync.Map // блокировки по имени: подбор темы, уточнение
+	sharedPaused    bool
+	sharedCancel    context.CancelFunc
+	sharedDone      chan struct{}
+	discoveryRuns   map[string]*discoveryRun
+	discoveryPaused map[string]bool
+}
+
+type discoveryRun struct {
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 func newParserManager(a *App) *ParserManager {
-	return &ParserManager{app: a, users: map[string]*userParser{}, slots: make(chan struct{}, 64)}
+	return &ParserManager{app: a, users: map[string]*userParser{}, slots: make(chan struct{}, 64), discoveryRuns: map[string]*discoveryRun{}, discoveryPaused: map[string]bool{}}
 }
 
 func (m *ParserManager) user(uid string) *userParser {
@@ -145,7 +152,7 @@ func (a *App) ParserActivity(uid string) []string {
 	return out
 }
 
-// ParserStage — шаг сборщика для журнала студии: collect, filter, prescreen, analysis, pool, discovery.
+// ParserStage — шаг сборщика для журнала студии: collect, filter, prescreen, analysis, pool.
 func (u *U) ParserStage(key string) {
 	p := u.parsers.user(u.ID)
 	p.mu.Lock()
@@ -422,6 +429,22 @@ func (u *U) RestartParser() string {
 	return u.StartParser(true)
 }
 
+// PauseParser prevents tab heartbeats from immediately restarting this collector.
+func (u *U) PauseParser() bool {
+	p := u.parsers.user(u.ID)
+	p.mu.Lock()
+	p.paused = true
+	p.mu.Unlock()
+	return u.StopParser(u.ID)
+}
+
+func (u *U) ResumeParser() {
+	p := u.parsers.user(u.ID)
+	p.mu.Lock()
+	p.paused = false
+	p.mu.Unlock()
+}
+
 // StopAllParsers — админка: остановить всё.
 func (a *App) StopAllParsers() int {
 	a.parsers.mu.Lock()
@@ -448,6 +471,10 @@ func (a *App) PauseAllParsers() int {
 	sharedCancel, sharedDone := a.parsers.sharedCancel, a.parsers.sharedDone
 	var active []*userParser
 	var cancels []context.CancelFunc
+	for key, run := range a.parsers.discoveryRuns {
+		a.parsers.discoveryPaused[key] = true
+		cancels = append(cancels, run.cancel)
+	}
 	for _, p := range a.parsers.users {
 		p.mu.Lock()
 		p.paused = true

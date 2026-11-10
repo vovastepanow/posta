@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"html"
 	"net/url"
 	"regexp"
 	"strings"
@@ -13,6 +14,38 @@ import (
 var captionPromoStart = regexp.MustCompile(`(?i)^(?:подписывай(?:тесь|ся)|подпиш(?:итесь|ись)|subscribe\b|follow\s+us\b|по\s+вопросам\s+рекламы|реклам[аы]\s*[:—–-]|на\s+правах\s+рекламы|#реклама|erid\s*[:=]|промокод\s*[:—–-]|заказать\s+рекламу|advertisement\s*[:—–-])`)
 var captionSentenceEnd = regexp.MustCompile(`[.!?…]+(?:\s+|$)`)
 var captionBareReference = regexp.MustCompile(`(?i)^(?:https?://\S+|@\w+|#\S+)$`)
+var captionTokens = regexp.MustCompile(`!?\[[^\]\n]*\]\(https?://[^\s)]+\)|https?://[^\s<>]+|[\p{L}\p{N}._%+\-]+@[\p{L}\p{N}.\-]+\.[\p{L}]{2,}|\*\*@[\p{L}\p{N}_]+(?:@[\p{L}\p{N}_\-.]+)?\*\*|@[\p{L}\p{N}_]+(?:@[\p{L}\p{N}_\-.]+)?|\\?#[\p{L}\p{N}_]+`)
+var captionSpaces = regexp.MustCompile(`[ \t]{2,}`)
+var captionBlankLines = regexp.MustCompile(`\n[ \t]*\n(?:[ \t]*\n)+`)
+
+// CleanPostDisplayText removes source hashtags and unwraps Markdown links, while
+// preserving ordinary URLs (including fragments) and the labels of other links.
+func CleanPostDisplayText(text string, item jx.M) string {
+	text = html.UnescapeString(CleanPostAttribution(text, item))
+	text = captionTokens.ReplaceAllStringFunc(text, func(token string) string {
+		if strings.HasPrefix(token, "http://") || strings.HasPrefix(token, "https://") {
+			return token
+		}
+		if !strings.HasPrefix(token, "@") && !strings.HasPrefix(token, "**@") && strings.Contains(token, "@") && !strings.HasPrefix(token, "[") {
+			return token // email address
+		}
+		if strings.HasPrefix(token, "[") || strings.HasPrefix(token, "![") {
+			start := strings.Index(token, "[") + 1
+			end := strings.Index(token, "](")
+			label := strings.TrimSpace(token[start:end])
+			if strings.HasPrefix(strings.TrimPrefix(label, `\`), "#") || strings.HasPrefix(label, "@") {
+				return ""
+			}
+			return label
+		}
+		return ""
+	})
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimSpace(captionSpaces.ReplaceAllString(line, " "))
+	}
+	return strings.TrimSpace(captionBlankLines.ReplaceAllString(strings.Join(lines, "\n"), "\n\n"))
+}
 
 func captionLineTrim(s string) string {
 	return strings.TrimSpace(strings.TrimFunc(s, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsPunct(r) || unicode.IsSymbol(r) }))
@@ -25,6 +58,9 @@ func captionSourceNames(item jx.M) map[string]bool {
 		source = strings.TrimSpace(parts[1])
 	}
 	if n := strings.ToLower(captionLineTrim(source)); len([]rune(n)) >= 3 {
+		names[n] = true
+	}
+	if n := strings.ToLower(captionLineTrim(jx.Str(item, "channel_title"))); n != "" {
 		names[n] = true
 	}
 	for _, raw := range []string{jx.Str(item, "source_url"), jx.Str(item, "url")} {
@@ -45,11 +81,25 @@ func CleanPostAttribution(text string, item jx.M) string {
 	names := captionSourceNames(item)
 	lines := strings.Split(text, "\n")
 	kept := make([]string, 0, len(lines))
-	changed, substantive := false, false
+	changed, substantive, removedSource := false, false, false
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		plain := captionLineTrim(trimmed)
 		isSource := names[strings.ToLower(plain)] && plain != ""
+		// Название канала иногда сохранено в источнике сокращённо: «Юмор»
+		// вместо «Мемы | Видео | Юмор». Сопоставляем только короткий список.
+		segments := strings.Split(plain, "|")
+		if !isSource && len(segments) >= 3 && len(segments) <= 5 {
+			valid, matches := true, false
+			for _, segment := range segments {
+				part := captionLineTrim(segment)
+				if part == "" || len([]rune(part)) > 30 || len(strings.Fields(part)) > 3 {
+					valid = false
+				}
+				matches = matches || names[strings.ToLower(part)]
+			}
+			isSource = valid && matches
+		}
 		lower := strings.ToLower(trimmed)
 		for _, prefix := range []string{"источник:", "source:", "канал:"} {
 			if strings.HasPrefix(lower, prefix) && names[strings.ToLower(captionLineTrim(trimmed[len(prefix):]))] {
@@ -65,6 +115,7 @@ func CleanPostAttribution(text string, item jx.M) string {
 		}
 		if isSource {
 			changed = true
+			removedSource = true
 			continue
 		}
 		// Удаляем отдельные рекламные предложения, не затрагивая соседние фразы.
@@ -101,7 +152,7 @@ func CleanPostAttribution(text string, item jx.M) string {
 			}
 		}
 	}
-	if !changed || !substantive {
+	if !changed || (!substantive && !removedSource) {
 		return text
 	}
 	return strings.TrimSpace(strings.Join(kept, "\n"))

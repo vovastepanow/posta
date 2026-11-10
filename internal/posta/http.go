@@ -187,6 +187,27 @@ type FetchOpts struct {
 	Headers   map[string]string
 }
 
+// fetchFailure describes only information actually returned by the request.
+func fetchFailure(r FetchResult) string {
+	var parts []string
+	if r.Status > 0 {
+		parts = append(parts, fmt.Sprintf("HTTP %d", r.Status))
+	}
+	if r.Error != "" {
+		parts = append(parts, r.Error)
+	}
+	if r.TooBig {
+		parts = append(parts, "ответ превышает допустимый размер")
+	}
+	if r.Status >= 200 && r.Status < 300 && r.Error == "" && !r.TooBig && !r.OK {
+		parts = append(parts, "пустое тело ответа")
+	}
+	if len(parts) == 0 {
+		return "пустой ответ (HTTP-ответ не получен)"
+	}
+	return strings.Join(parts, ": ")
+}
+
 // FetchPublic скачивает публичный файл без перенаправлений и не больше MaxBytes, подключаясь к проверенному адресу.
 func (a *App) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
 	u, addr, err := publicResolve(raw)
@@ -203,7 +224,9 @@ func (a *App) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
 	client := &http.Client{
 		Timeout: o.Timeout,
 		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) { return dialer.DialContext(ctx, "tcp4", addr) },
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return dialer.DialContext(ctx, "tcp4", addr)
+			},
 			TLSHandshakeTimeout: 8 * time.Second,
 		},
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -218,7 +241,12 @@ func (a *App) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
 	r := FetchResult{}
 	resp, err := client.Do(req)
 	if err != nil {
-		r.Error = err.Error()
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			r.Error = urlErr.Err.Error()
+		} else {
+			r.Error = err.Error()
+		}
 		return r, nil
 	}
 	defer resp.Body.Close()

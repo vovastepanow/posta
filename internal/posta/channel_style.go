@@ -38,7 +38,7 @@ func (u *U) ChannelStylePublic(c *Channel) jx.M {
 		errText = jx.Str(job, "message")
 	}
 	return jx.M{"summary": jx.Str(s, "summary"), "source": jx.Str(s, "source"), "updated_at": updated,
-		"stale": updated > 0 && jx.Str(s, "source") == "auto" && now()-updated > channelStyleStaleDays*86400,
+		"stale":     updated > 0 && jx.Str(s, "source") == "auto" && now()-updated > channelStyleStaleDays*86400,
 		"can_learn": c.ChatUsername != "", "busy": busy, "error": errText}
 }
 
@@ -74,10 +74,7 @@ func channelStylePrompt(samples []string) string {
 	for i, t := range samples {
 		fmt.Fprintf(&b, "[%d] %s\n\n", i+1, trimRunes(t, channelStyleSample))
 	}
-	return "Ниже последние посты одного Telegram-канала. Опиши, КАК автор пишет, чтобы другой человек мог писать так же.\n\n" + b.String() +
-		"Опиши по пунктам, коротко и конкретно (всего до 700 символов, каждый пункт одной-двумя фразами, без вступлений и без Markdown-разметки): язык и тон; обращение к читателю («ты»/«вы»/без); длина постов и абзацев; " +
-		"эмодзи (есть ли, сколько, какие, где стоят); оформление (жирный, списки, заглавные, многоточия); хештеги и подписи в конце; шутки и приёмы; что автор никогда не делает. " +
-		"Не пересказывай темы постов и не цитируй их целиком."
+	return b.String()
 }
 
 // channelStyleTrim — режем по концу абзаца или предложения, а не посреди слова.
@@ -107,7 +104,7 @@ func (u *U) ChannelStyleLearn(channelID string) (jx.M, error) {
 	if len(samples) < 3 {
 		return nil, Bad("В канале мало постов с текстом (нашлось %d, нужно хотя бы 3): опишите стиль вручную.", len(samples))
 	}
-	resp, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, Prompt: channelStylePrompt(samples), MaxTokens: 500, Temperature: 0.3, UserID: u.ID})
+	resp, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, Prompt: u.prompt("channel_style", map[string]string{"samples": channelStylePrompt(samples)}), MaxTokens: 500, Temperature: 0.3, UserID: u.ID})
 	if err != nil {
 		return nil, Bad("Модель не ответила: %s", err)
 	}
@@ -163,34 +160,15 @@ func (u *U) CaptionQuotaTake() error {
 	return nil
 }
 
-func captionPrompt(c *Channel, about, original string, limit int, current string) string {
-	var b strings.Builder
-	b.WriteString("Ты автор Telegram-канала")
-	if c.ChatTitle != "" {
-		b.WriteString(" «" + c.ChatTitle + "»")
+func (u *U) captionPrompt(c *Channel, about, original string, limit int, current string) string {
+	style := jx.Str(c.Style, "summary")
+	if style == "" {
+		style = "Стиль неизвестен: одно-два коротких предложения, не больше одного эмодзи."
 	}
-	b.WriteString(". Напиши подпись к посту с картинкой или видео.\n\n")
-	if s := jx.Str(c.Style, "summary"); s != "" {
-		b.WriteString("Так пишет автор канала (стиль строго соблюдай):\n" + s + "\n\n")
-	} else {
-		b.WriteString("Стиль канала неизвестен: пиши коротко (одно-два предложения, до 150 символов), живо и по-человечески, с лёгкой иронией, не больше одного эмодзи.\n\n")
-	}
-	for i, e := range jx.Strs(c.Style, "examples") {
-		fmt.Fprintf(&b, "Пример поста канала %d:\n%s\n\n", i+1, e)
-	}
-	if about != "" {
-		b.WriteString("Что на картинке или видео:\n" + about + "\n\n")
-	}
-	if original != "" {
-		b.WriteString("Исходный текст поста у другого источника (перепиши своими словами, не копируй, чужие названия каналов и ссылки не переноси):\n" + trimRunes(original, 800) + "\n\n")
-	}
-	if current != "" {
-		b.WriteString("Черновик подписи, который нужно улучшить, сохранив смысл:\n" + trimRunes(current, 800) + "\n\n")
-	}
-	fmt.Fprintf(&b, "Требования: пиши на языке канала, не длиннее %d символов; не выдумывай факты, имена и цифры, которых нет выше; без ссылок и без @упоминаний; "+
-		"не используй штампы и пафос («пусть это принесёт улыбку», «идеальная картина», «это тот случай»); не описывай картинку дословно, а подай её с характером; "+
-		"ответь только текстом подписи, без кавычек, без слов «Вот подпись» и пояснений.", limit)
-	return b.String()
+	return u.prompt("caption", map[string]string{
+		"channel": c.ChatTitle, "style": style, "examples": strings.Join(jx.Strs(c.Style, "examples"), "\n\n"),
+		"about": about, "original": trimRunes(original, 800), "draft": trimRunes(current, 800), "limit": fmt.Sprint(limit),
+	})
 }
 
 // ChannelCaptionGenerate — подпись от ИИ в стиле канала. context: description, original, current.
@@ -207,7 +185,7 @@ func (u *U) ChannelCaptionGenerate(channelID string, context jx.M) (string, erro
 	if err := u.CaptionQuotaTake(); err != nil {
 		return "", err
 	}
-	resp, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, Prompt: captionPrompt(c, about, original, captionMaxChars-100, current), MaxTokens: 500, Temperature: 0.8, UserID: u.ID})
+	resp, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, Prompt: u.captionPrompt(c, about, original, captionMaxChars-100, current), MaxTokens: 500, Temperature: 0.8, UserID: u.ID})
 	if err != nil {
 		return "", Bad("Модель не ответила: %s", err)
 	}

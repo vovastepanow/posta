@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@700;800;900&display=swap">
 <link rel="stylesheet" href="css/shell.css?v=warm-paper-1">
-<link rel="stylesheet" href="css/app.css?v=warm-paper-1">
-<link rel="stylesheet" href="css/studio.css?v=editorial-dark-4">
-<script type="module" src="js/main.js?v=startup-2"></script>
-<script type="module" src="js/studio.js?v=pipeline-5"></script>
+<link rel="stylesheet" href="css/app.css?v=source-tools-8">
+<link rel="stylesheet" href="css/studio.css?v=rejected-page-1">
+<script type="module" src="js/main.js?v=rejected-page-1"></script>
+<script type="module" src="js/studio.js?v=rejected-page-1"></script>
 <script>setTimeout(() => document.getElementById('app-loading')?.classList.add('is-done'), 20000);</script>
 </head>
 <body>
@@ -29,6 +29,7 @@
     </a>
     <nav class="side-nav" role="tablist" aria-label="Вкладки">
       <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="home-tab"><i>⌂</i>Главная</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="rejected-tab"><i>◫</i>Отсеянные</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="content-tab"><i>✦</i>Предложка<em id="nav-pool"></em></button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="calendar-tab"><i>▦</i>Календарь</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="source-tab"><i>⟲</i>Источники</button>
@@ -85,6 +86,8 @@
   <button id="debug-reset-button" type="button">Сбросить демо</button>
 </div>
 
+<div class="shared-layout" id="shared-layout">
+<div class="shared-content">
 <!-- Главная страница -->
 <div id="home-tab" class="view-panel wide-panel home-tab active">
   <div class="studio-dashboard">
@@ -98,21 +101,12 @@
     <div id="grid" class="grid"><p class="muted">Загрузка…</p></div>
 
     </div>
-    <aside class="panel">
-    <section class="box">
-      <h3 id="pipeTitle">Конвейер</h3>
-      <div class="pipeHead"><b id="pipeNow">—</b></div>
-      <p class="pipe-explainer">Быстрая и глубокая оценка чередуются по партиям.</p>
-      <div class="pipe" id="pipe"></div>
-    </section>
-    <section class="box">
-      <h3>Только что отобрано</h3>
-      <ul class="feed" id="feed"><li class="muted">Загрузка…</li></ul>
-    </section>
 
-
-    </aside>
   </div>
+</div>
+<div id="rejected-tab" class="view-panel wide-panel rejected-tab">
+  <div class="section-head"><div><h1>Отсеянные посты</h1><p>Отклонения по текущей теме за последние 30 дней · до 200 постов</p></div></div>
+  <div id="rejected-grid" class="grid"><p class="muted">Загрузка…</p></div>
 </div>
 <svg class="fakecur" id="fakecur" viewBox="0 0 22 22" hidden aria-hidden="true">
   <circle cx="11" cy="11" r="8" fill="rgba(124,92,255,.25)" stroke="#eef0fb" stroke-width="1.5"></circle>
@@ -238,12 +232,24 @@
 <div id="source-tab" class="view-panel">
   <section class="discovery-panel" aria-label="Автоподбор источников">
     <div class="discovery-text"><strong>Автоподбор по теме</strong><span id="discovery-status">Загружаю сведения…</span></div>
+    <label class="source-platform-filter" for="discovery-platform"><span>Искать на площадке</span><select id="discovery-platform"><option value="">Все площадки</option><option value="telegram">Telegram</option><option value="vk">ВКонтакте</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="ok">Одноклассники</option><option value="dzen">Дзен</option><option value="reddit">Reddit</option><option value="bluesky">Bluesky</option><option value="pikabu">Пикабу</option><option value="habr">Хабр</option><option value="joyreactor">JoyReactor</option><option value="pinterest">Pinterest</option><option value="tumblr">Tumblr</option><option value="threads">Threads</option><option value="instagram">Instagram</option><option value="x">X</option><option value="rss">Сайты и блоги</option></select></label>
     <button id="discovery-button" class="primary-button" type="button">Подобрать источники</button>
   </section>
   <label class="source-platform-filter" for="source-platform"><span>Платформа</span>
-    <select id="source-platform"><option value="any">Все источники</option><option value="telegram">Telegram</option><option value="vk">ВКонтакте</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="shorts">YouTube Shorts</option><option value="ok">Одноклассники</option><option value="pinterest">Pinterest</option><option value="tumblr">Tumblr</option><option value="rss">Сайты и блоги</option><option value="fourchan">4chan</option><option value="dvach">Двач</option></select>
+    <select id="source-platform"><option value="any">Все источники</option><option value="telegram">Telegram</option><option value="dzen">Дзен</option><option value="vk">ВКонтакте</option><option value="ok">Одноклассники</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="shorts">YouTube Shorts</option><option value="rutube">Rutube</option><option value="reddit">Reddit</option><option value="bluesky">Bluesky</option><option value="pikabu">Пикабу</option><option value="habr">Хабр</option><option value="joyreactor">JoyReactor</option><option value="pinterest">Pinterest</option><option value="tumblr">Tumblr</option><option value="threads">Threads</option><option value="instagram">Instagram</option><option value="x">X</option><option value="medium">Medium</option><option value="substack">Substack</option><option value="livejournal">LiveJournal</option><option value="rss">Сайты и блоги</option><option value="fourchan">4chan</option><option value="dvach">Двач</option></select>
   </label>
-  <div id="source-loading" class="status-msg is-loading" role="status">Ищу источники…</div>
+  <label class="source-platform-filter" for="source-sort"><span>Сортировка</span>
+    <select id="source-sort"><option value="rank">По рекомендации</option><option value="newest">Сначала новые</option><option value="oldest">Сначала старые</option><option value="score_high">Оценка: выше сначала</option><option value="score_low">Оценка: ниже сначала</option><option value="name">По названию</option></select>
+  </label>
+  <section class="pending-sources" aria-labelledby="pending-sources-title">
+    <div class="pending-sources-head"><div><h2 id="pending-sources-title" class="section-title">Ожидают решения</h2><p id="pending-sources-count" class="pending-sources-hint">Загружаем сохранённые источники…</p></div><button id="pending-sources-refresh" class="secondary-button" type="button">Обновить</button></div>
+    <div id="pending-sources-grid" class="pending-sources-grid"></div>
+    <button id="pending-sources-more" class="secondary-button" type="button" hidden>Показать ещё</button>
+    <p id="pending-sources-empty" class="pending-sources-hint" hidden></p>
+  </section>
+  <div class="source-more-candidates"><button id="source-find-other" class="secondary-button" type="button">Показать другие источники</button></div>
+  <button id="source-tools-open" class="secondary-button source-tools-trigger" type="button" aria-haspopup="dialog">Инструменты источников <span aria-hidden="true">↗</span></button>
+  <div id="source-loading" class="status-msg is-loading" role="status" hidden>Ищу другие источники…</div>
   <div id="source-error" class="status-msg error-msg" role="alert" hidden></div>
 
   <div id="source-card-wrapper" class="item-card-wrapper" hidden>
@@ -300,6 +306,12 @@
     </div>
   </div>
 
+  <dialog id="source-tools-dialog" class="source-tools-dialog" aria-labelledby="source-tools-title">
+    <div class="source-tools-header">
+      <div><span class="source-tools-eyebrow">ИСТОЧНИКИ</span><h2 id="source-tools-title">Инструменты и импорт</h2><p>Добавляйте источники, загружайте контент и управляйте списками.</p></div>
+      <button id="source-tools-close" class="source-tools-close" type="button" aria-label="Закрыть">×</button>
+    </div>
+    <div class="source-tools-body">
   <section class="source-add" aria-labelledby="source-add-title">
     <h2 id="source-add-title" class="section-title">Добавить источник</h2>
     <form id="source-add-form" class="source-add-form">
@@ -387,6 +399,8 @@
     <div id="mirror-status" class="proposals-status" role="status"></div>
   </section>
 
+  <details id="topic-sources-section" class="source-extra-section">
+    <summary>Источники темы</summary>
   <section class="topic-sources" aria-labelledby="topic-sources-title">
     <div class="proposals-toolbar">
       <h2 id="topic-sources-title" class="section-title">Источники темы</h2>
@@ -405,7 +419,10 @@
     <div id="topic-sources-status" class="proposals-status" role="status"></div>
     <div id="topic-sources-grid" class="proposals-grid topic-sources-grid"></div>
   </section>
+  </details>
 
+  <details id="registry-section" class="source-extra-section">
+    <summary>Проверенные источники</summary>
   <section class="topic-sources registry" aria-labelledby="registry-title">
     <div class="proposals-toolbar">
       <h2 id="registry-title" class="section-title">Проверенные источники</h2>
@@ -420,6 +437,9 @@
     <div id="registry-status-line" class="proposals-status" role="status"></div>
     <div id="registry-list" class="proposals-grid topic-sources-grid"></div>
   </section>
+  </details>
+    </div>
+  </dialog>
 </div>
 
 <!-- ДЕРЕВО ТЕМ -->
@@ -525,6 +545,7 @@
     <button type="button" data-admin-nav="control" class="is-active">Управление</button>
     <button type="button" data-admin-nav="models">Модели</button>
     <button type="button" data-admin-nav="behavior">Поведение</button>
+    <button type="button" data-admin-nav="prompts">Промпты</button>
     <button type="button" data-admin-nav="radar">Радар</button>
     <button type="button" data-admin-nav="databases">Базы данных</button>
     <button type="button" data-admin-nav="privacy">Куки и данные</button>
@@ -533,10 +554,16 @@
   <section class="admin-section" data-admin-section="control">
     <div class="account-card">
       <h3>Запуск и остановка</h3>
-      <div class="admin-action"><button id="admin-run-search" class="primary-button" type="button">🔍 Найти новый контент</button>
+      <div class="admin-action"><button id="admin-run-search" class="primary-button" type="button">🔍 Запустить сбор контента</button>
         <span class="account-muted">Запускает сборщик по вашей текущей теме: обходит её источники, модель отбирает посты, подходящие появятся в «Предложке». Если сборщик уже работает — ничего не меняется.</span></div>
-      <div class="admin-action"><button id="admin-run-discovery" class="secondary-button" type="button">📚 Подобрать новые источники</button>
-        <span class="account-muted">Ищет новые каналы, паблики и аккаунты по текущей теме на всех площадках и проверяет их моделью. Идёт до 15 минут, ход — в журнале; найденные — во вкладке «Источники».</span></div>
+      <div class="admin-action"><button id="admin-repair-media" class="secondary-button" type="button">Восстановить медиа записей</button>
+        <span class="account-muted">Проверяет ссылки на сохранённые файлы в пуле и истории и запускает загрузку недостающих медиа для записей в «Предложке».</span></div>
+      <div class="admin-action"><button id="admin-stop-search" class="secondary-button" type="button">Остановить сборщик контента</button>
+        <span class="account-muted">Останавливает ваш сборщик до следующего запуска или обновления страницы.</span></div>
+      <div class="admin-action"><button id="admin-run-discovery" class="secondary-button" type="button">📚 Запустить подбор новых источников</button>
+        <span class="account-muted">Сразу запускает поиск и проверку источников по текущей теме. Найденные источники появятся во вкладке «Источники».</span></div>
+      <div class="admin-action"><button id="admin-stop-discovery" class="secondary-button" type="button">Остановить подбор источников</button>
+        <span class="account-muted">Останавливает поиск по текущей теме до следующего ручного запуска.</span></div>
       <div class="admin-action"><button id="admin-stop-all" class="danger-button" type="button">🛑 Остановить всё на сервере</button>
         <span class="account-muted">Останавливает сборщики контента всех пользователей и общий сбор источников, выгружает модели из видеопамяти. Чтобы снова работать, обновите страницу.</span></div>
       <p id="admin-control-note" class="account-muted" role="status"></p>
@@ -580,6 +607,15 @@
       <div id="admin-tunables" class="tunables"></div>
       <div class="admin-action"><button id="admin-tunables-save" class="primary-button" type="button">Сохранить параметры</button></div>
       <p id="admin-tunables-note" class="account-muted" role="status"></p>
+    </div>
+  </section>
+
+  <section class="admin-section" data-admin-section="prompts" hidden>
+    <div class="account-card">
+      <h3>Промпты моделей</h3>
+      <p class="account-muted">Шаблоны запросов к моделям и общие правила анализа. Переменные в фигурных скобках заполняются автоматически. Сохраняйте переменные в двойных фигурных скобках; изменения действуют для всех пользователей. Ранее сохранённые результаты могут браться из кеша.</p>
+      <div id="admin-prompts"></div>
+      <p id="admin-prompts-note" class="account-muted" role="status"></p>
     </div>
   </section>
 
@@ -647,13 +683,17 @@
   </section>
 
   <section class="admin-section" data-admin-section="databases" hidden>
+    <div class="db-page-heading"><h2>Базы данных</h2><button id="database-add" class="primary-button" type="button">＋ Добавить запись</button></div>
     <div class="database-layout">
       <div class="database-sidebar">
         <div class="database-toolbar">
           <label><span>База</span><select id="database-select"></select></label>
           <label><span>Коллекция</span><select id="database-collection-select"></select></label>
+          <label id="database-topic-label" hidden><span>Тема</span><select id="database-topic-select"></select></label>
           <button id="database-refresh" class="refresh-button" type="button" aria-label="Обновить список">↻</button>
         </div>
+        <div class="db-list-heading"><strong>Записи</strong><span id="database-count"></span></div>
+        <label class="db-search"><span aria-hidden="true">⌕</span><input id="database-search" type="search" placeholder="Поиск по записям" aria-label="Поиск по записям"></label>
         <div id="database-list" class="database-list" role="listbox"></div>
       </div>
       <div class="database-main">
@@ -661,7 +701,6 @@
         <div id="database-browser" class="database-browser" hidden>
           <div class="database-header">
             <div class="database-breadcrumb" id="database-breadcrumb"></div>
-            <button id="database-add" class="primary-button" type="button">＋ Добавить</button>
           </div>
           <div class="database-viewer">
             <button id="database-prev" class="database-nav-btn" type="button" aria-label="Предыдущая запись">‹</button>
@@ -822,6 +861,35 @@
 
 
 
+</div>
+</div>
+    <aside class="panel" id="live-panel">
+    <section class="box">
+      <h3 id="pipeTitle">Конвейер</h3>
+      <div class="pipeHead"><b id="pipeNow">—</b></div>
+      <p class="pipe-explainer">Быстрая и глубокая оценка чередуются по партиям.</p>
+      <div class="pipe" id="pipe"></div>
+      <button type="button" class="ghost" id="show-rejected">Посмотреть отсеянные</button>
+    </section>
+    <section class="box" aria-labelledby="sourcePipeTitle">
+      <h3 id="sourcePipeTitle">Поиск источников</h3>
+      <div class="pipeHead"><b id="sourcePipeNow">Загрузка…</b></div>
+      <p class="pipe-explainer" id="sourcePipeDetail"></p>
+      <div class="source-pipe-progress" id="sourcePipeProgress" hidden>
+        <div class="source-pipe-progress-label"><span>Цель подбора</span><b id="sourcePipeGoal">—</b></div>
+        <div class="pbar" role="progressbar" id="sourcePipeBar" aria-label="Цель поиска источников" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+      </div>
+      <div class="pipe" id="sourcePipe"></div>
+      <p class="pipe-explainer source-pipe-insight" id="sourcePipeInsight"></p>
+      <div id="sourcePipeErrors" class="pipe-explainer" role="status" aria-live="polite" hidden></div>
+    </section>
+    <section class="box">
+      <h3>Только что отобрано</h3>
+      <ul class="feed" id="feed"><li class="muted">Загрузка…</li></ul>
+    </section>
+
+
+    </aside>
 </div>
 </main>
 </div>

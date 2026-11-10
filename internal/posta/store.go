@@ -213,6 +213,10 @@ func (u *U) Pool() []jx.M { return u.poolLoad(u.Ctx, u.DB.Pool, u.ID) }
 
 // PoolUpdate — заменить пул целиком: fn получает текущий и возвращает новый (nil — не менять). Возвращает итог.
 func (u *U) PoolUpdate(fn func(pool []jx.M) []jx.M) ([]jx.M, error) {
+	return u.poolUpdate(func(_ pgx.Tx, pool []jx.M) ([]jx.M, error) { return fn(pool), nil })
+}
+
+func (u *U) poolUpdate(fn func(pgx.Tx, []jx.M) ([]jx.M, error)) ([]jx.M, error) {
 	lock := u.userLock(u.ID)
 	lock.Lock()
 	defer lock.Unlock()
@@ -221,14 +225,24 @@ func (u *U) PoolUpdate(fn func(pool []jx.M) []jx.M) ([]jx.M, error) {
 		if err := ensureUser(u.Ctx, tx, u.ID); err != nil {
 			return err
 		}
+		if _, err := tx.Exec(u.Ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "posta:content:"+u.ID); err != nil {
+			return err
+		}
 		cur, err := u.poolLoadChecked(u.Ctx, tx, u.ID)
 		if err != nil {
 			return err
 		}
-		next := fn(cur)
+		before := repeatSnapshot(cur)
+		next, err := fn(tx, cur)
+		if err != nil {
+			return err
+		}
 		if next == nil {
 			result = cur
 			return nil
+		}
+		if err := syncRepeatRecords(u.Ctx, tx, u.ID, before, next, false); err != nil {
+			return err
 		}
 		result = next
 		if _, err := tx.Exec(u.Ctx, `DELETE FROM pool_items WHERE user_id = $1`, u.ID); err != nil {
@@ -305,11 +319,18 @@ func (a *App) historyUpdate(ctx context.Context, uid string, fn func(h History) 
 		if err := ensureUser(ctx, tx, uid); err != nil {
 			return err
 		}
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "posta:content:"+uid); err != nil {
+			return err
+		}
 		cur := a.historyLoad(ctx, tx, uid)
+		before := repeatSnapshot(cur.All())
 		next := fn(cur)
 		if next == nil {
 			result = cur
 			return nil
+		}
+		if err := syncRepeatRecords(ctx, tx, uid, before, next.All(), true); err != nil {
+			return err
 		}
 		result = next
 		if _, err := tx.Exec(ctx, `DELETE FROM history_items WHERE user_id = $1`, uid); err != nil {
@@ -334,6 +355,13 @@ func (u *U) HistoryAppend(collection string, record jx.M) error {
 	defer lock.Unlock()
 	err := u.DB.Tx(u.Ctx, func(tx pgx.Tx) error {
 		if err := ensureUser(u.Ctx, tx, u.ID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(u.Ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "posta:content:"+u.ID); err != nil {
+			return err
+		}
+		record["repeat_action_at"] = now()
+		if err := rememberRepeat(u.Ctx, tx, u.ID, record, now()); err != nil {
 			return err
 		}
 		var pos int

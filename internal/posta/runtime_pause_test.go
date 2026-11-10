@@ -36,3 +36,47 @@ func TestPauseAllParsersBlocksAllExistingSessions(t *testing.T) {
 		t.Fatal("parser still marked running")
 	}
 }
+
+func TestStopSourceDiscoveryDoesNotStopCollector(t *testing.T) {
+	a := &App{}
+	a.parsers = newParserManager(a)
+	u := &U{App: a, ID: "user", Ctx: context.Background()}
+	collectorCtx, collectorCancel := context.WithCancel(context.Background())
+	defer collectorCancel()
+	p := a.parsers.user(u.ID)
+	p.running, p.cancel = true, collectorCancel
+	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
+	run := &discoveryRun{cancel: discoveryCancel, done: make(chan struct{})}
+	a.parsers.discoveryRuns[TopicNorm("Тема")] = run
+	go func() { <-discoveryCtx.Done(); close(run.done) }()
+	stopped, stopping := u.StopSourceDiscovery("Тема")
+	if !stopped || stopping || !a.parsers.discoveryPaused[TopicNorm("Тема")] {
+		t.Fatal("discovery should be stopped and paused")
+	}
+	if collectorCtx.Err() != nil || !a.ParserRunning(u.ID) {
+		t.Fatal("stopping discovery must not stop the collector")
+	}
+}
+
+func TestPauseParserDoesNotStopDiscovery(t *testing.T) {
+	a := &App{}
+	a.parsers = newParserManager(a)
+	u := &U{App: a, ID: "user", Ctx: context.Background()}
+	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
+	defer discoveryCancel()
+	a.parsers.discoveryRuns["topic"] = &discoveryRun{cancel: discoveryCancel, done: make(chan struct{})}
+	collectorCtx, collectorCancel := context.WithCancel(context.Background())
+	p := a.parsers.user(u.ID)
+	p.running, p.cancel = true, collectorCancel
+	go func() { <-collectorCtx.Done(); p.mu.Lock(); p.running = false; p.mu.Unlock() }()
+	if !u.PauseParser() || !a.ParserPaused(u.ID) {
+		t.Fatal("collector should be stopped and paused")
+	}
+	if discoveryCtx.Err() != nil {
+		t.Fatal("stopping the collector must not stop discovery")
+	}
+	u.ResumeParser()
+	if a.ParserPaused(u.ID) {
+		t.Fatal("manual start must clear the pause")
+	}
+}

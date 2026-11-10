@@ -1,8 +1,10 @@
 package posta
 
 import (
+	"bytes"
 	"encoding/json"
 	"html"
+	"io"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	xhtml "golang.org/x/net/html"
+	"golang.org/x/net/html/charset"
 
 	"posta/internal/jx"
 	"posta/internal/llm"
@@ -19,8 +22,7 @@ import (
 // vc.ru и dtf.ru — из API Osnova, остальные сайты — из страницы.
 
 const (
-	articleMaxBytes  = 2 << 20
-	articleTextMax   = 4000
+	articleMaxBytes  = 8 << 20
 	articleCacheTTL  = 3 * 24 * time.Hour
 	ArticleShortText = 200
 	articleGapChars  = 700
@@ -70,6 +72,72 @@ func articlePublished(page string) int64 {
 }
 
 var blockClassRe = regexp.MustCompile(`(?i)(text|content|body|article|paragraph)`)
+
+// articleSemanticText preserves short paragraphs, headings and lists inside an article.
+func articleSemanticText(page string) string {
+	doc, err := xhtml.Parse(strings.NewReader(page))
+	if err != nil {
+		return ""
+	}
+	best := ""
+	bestPriority := 0
+	var visit func(*xhtml.Node)
+	visit = func(n *xhtml.Node) {
+		classes := ""
+		for _, a := range n.Attr {
+			if a.Key == "class" {
+				classes = " " + a.Val + " "
+			}
+		}
+		priority := 0
+		if n.Data == "article" {
+			priority = 1
+		}
+		if strings.Contains(classes, " article__body ") || strings.Contains(classes, " article-formatted-body ") {
+			priority = 2
+		}
+		if n.Type == xhtml.ElementNode && priority > 0 {
+			var parts []string
+			var collect func(*xhtml.Node)
+			collect = func(c *xhtml.Node) {
+				if c.Type == xhtml.ElementNode {
+					if articleStripTags[c.Data] {
+						return
+					}
+					if c.Data == "div" {
+						for _, a := range c.Attr {
+							if a.Key == "class" && strings.Contains(" "+a.Val+" ", " article__text ") {
+								if t := strings.TrimSpace(nodeText(c)); t != "" {
+									parts = append(parts, t)
+								}
+								return
+							}
+						}
+					}
+					switch c.Data {
+					case "p", "h2", "h3", "h4", "li", "blockquote", "pre":
+						if t := strings.TrimSpace(nodeText(c)); t != "" {
+							parts = append(parts, t)
+						}
+						return
+					}
+				}
+				for child := c.FirstChild; child != nil; child = child.NextSibling {
+					collect(child)
+				}
+			}
+			collect(n)
+			if text := strings.Join(parts, "\n\n"); text != "" && (priority > bestPriority || priority == bestPriority && runeLen(text) > runeLen(best)) {
+				best, bestPriority = text, priority
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			visit(c)
+		}
+	}
+	visit(doc)
+	return best
+}
 
 // articleMainText — листовые блоки текста по порядку; соседние (разрыв до articleGapChars) — группа; берётся самая длинная.
 func articleMainText(page string) string {
@@ -164,7 +232,7 @@ func articleMainText(page string) string {
 			best, bestLen = g, n
 		}
 	}
-	return trimRunes(strings.Join(best, "\n\n"), articleTextMax)
+	return strings.Join(best, "\n\n")
 }
 
 var ldJSONRe = regexp.MustCompile(`(?is)<script[^>]+application/ld\+json[^>]*>(.*?)</script>`)
@@ -270,8 +338,11 @@ type articleData struct {
 func articleParse(page string) articleData {
 	_, body, ldImage := articleJSONLD(page)
 	text := articleMainText(page)
+	if semantic := articleSemanticText(page); semantic != "" {
+		text = semantic
+	}
 	if runeLen(body) > runeLen(text) {
-		text = trimRunes(body, articleTextMax)
+		text = body
 	}
 	img := articleImage(page)
 	if img == "" {
@@ -282,6 +353,15 @@ func articleParse(page string) articleData {
 		desc = articleMeta(page, "description")
 	}
 	return articleData{img, trimRunes(desc, 1000), articlePublished(page), text}
+}
+
+func articleDecode(data []byte, contentType string) string {
+	if decoded, err := charset.NewReader(bytes.NewReader(data), contentType); err == nil {
+		if utf8, err := io.ReadAll(decoded); err == nil {
+			return string(utf8)
+		}
+	}
+	return string(data)
 }
 
 func articleBodyText(blocks []jx.M) string {
@@ -298,7 +378,7 @@ func articleBodyText(blocks []jx.M) string {
 			parts = append(parts, jx.Str(b, "text"))
 		}
 	}
-	return trimRunes(strings.Join(parts, "\n\n"), articleTextMax)
+	return strings.TrimSpace(strings.Join(parts, "\n\n"))
 }
 
 func articlePlainBlocks(text string) []jx.M {
@@ -314,12 +394,12 @@ func articlePlainBlocks(text string) []jx.M {
 func articleApplyOsnova(post jx.M, a jx.M, link string) jx.M {
 	post["article"] = jx.M{"title": a["title"], "lead": a["lead"], "cover": a["cover"], "rubric": a["rubric"], "author": a["author"],
 		"minutes": a["minutes"], "words": a["words"], "site": hostOf(link)}
-	text := jx.Str(a, "title")
-	if l := jx.Str(a, "lead"); l != "" {
-		text += "\n" + l
+	body := articleBodyText(jx.Maps(a, "blocks"))
+	if body == "" {
+		body = jx.Str(a, "lead")
 	}
-	post["text"] = strings.TrimSpace(text)
-	post["article_text"] = articleBodyText(jx.Maps(a, "blocks"))
+	post["text"] = strings.TrimSpace(strings.Join([]string{jx.Str(a, "title"), body}, "\n\n"))
+	post["article_text"] = body
 	eng := jx.M{"source": "osnova"}
 	for k, v := range jx.Map(a, "counters") {
 		eng[k] = v
@@ -348,7 +428,7 @@ func (a *App) ArticleEnrich(post jx.M, force bool) jx.M {
 	if os := a.OsnovaArticle(link, force); os != nil {
 		return articleApplyOsnova(jx.Copy(post), os, link)
 	}
-	key := "article:" + sha1Short(link, 40)
+	key := "article:v3:" + sha1Short(link, 40)
 	var data *articleData
 	var cached struct {
 		Data *articleData `json:"data"`
@@ -357,10 +437,10 @@ func (a *App) ArticleEnrich(post jx.M, force bool) jx.M {
 		data = cached.Data
 	} else {
 		HostThrottle(hostOf(link), time.Second)
-		r, err := a.FetchPublic(link, FetchOpts{MaxBytes: articleMaxBytes, Timeout: 10 * time.Second})
+		r := a.RSSGet(link, articleMaxBytes, 10*time.Second, HTTPUA)
 		ttl := time.Hour
-		if err == nil && r.OK {
-			d := articleParse(string(r.Bytes))
+		if r.OK {
+			d := articleParse(articleDecode(r.Bytes, r.Type))
 			data, ttl = &d, articleCacheTTL
 		}
 		a.CacheSet(a.ctxOrBg(), key, jx.M{"data": data}, ttl)
@@ -368,12 +448,24 @@ func (a *App) ArticleEnrich(post jx.M, force bool) jx.M {
 	if data == nil {
 		return post
 	}
+	return articleApplyData(post, data)
+}
+
+func articleApplyData(post jx.M, data *articleData) jx.M {
 	post = jx.Copy(post)
 	if jx.Str(post, "image") == "" && data.Image != "" {
 		post["image"], post["images"] = data.Image, []any{data.Image}
 	}
 	if data.ArticleText != "" {
 		post["article_text"] = data.ArticleText
+		if jx.Bool(post, "article_source") && runeLen(data.ArticleText) > runeLen(jx.Str(post, "text")) {
+			title := strings.TrimSpace(strings.SplitN(jx.Str(post, "text"), "\n", 2)[0])
+			if title != "" && !strings.HasPrefix(data.ArticleText, title) {
+				post["text"] = title + "\n\n" + data.ArticleText
+			} else {
+				post["text"] = data.ArticleText
+			}
+		}
 	}
 	desc := data.Description
 	if ArticleIsKeywordList(desc) {
@@ -632,11 +724,11 @@ func (a *App) OsnovaArticle(link string, force bool) jx.M {
 // ---- Новости: дообогащение, дубли, подпись ----
 
 const (
-	rssEnrichPerFeed   = 10
-	NewsEnrichPerPass  = 40
-	newsDuplicateShare = 0.6
-	NewsDuplicateHours = 48
-	newsKeyWords       = 6
+	rssEnrichPerFeed    = 10
+	NewsEnrichPerPass   = 40
+	newsDuplicateShare  = 0.6
+	NewsDuplicateHours  = 48
+	newsKeyWords        = 6
 	NewsSiteMaxAgeHours = 48
 )
 
@@ -707,10 +799,12 @@ func (u *U) NewsEnrichPosts(posts []jx.M, entry jx.M) []jx.M {
 		if ArticleImageIsStub(jx.Str(p, "image")) {
 			p["image"], p["images"] = "", []any{}
 		}
-		if newsNeedsArticle(p) && budget > 0 && (u.run == nil || u.run.NewsEnrichLeft > 0) {
-			budget--
-			if u.run != nil {
-				u.run.NewsEnrichLeft--
+		if (jx.Bool(p, "article_source") && !jx.Bool(p, "enriched")) || (newsNeedsArticle(p) && budget > 0 && (u.run == nil || u.run.NewsEnrichLeft > 0)) {
+			if !jx.Bool(p, "article_source") {
+				budget--
+				if u.run != nil {
+					u.run.NewsEnrichLeft--
+				}
 			}
 			p = u.ArticleEnrich(p, false)
 		}
@@ -785,7 +879,7 @@ func (u *U) NewsExcerpt(link string) (string, error) {
 		return "", err
 	}
 	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, MaxTokens: 240, Temperature: 0.3, UserID: u.ID,
-		Prompt: "Напиши выжимку новости из текста ниже: 2–3 коротких предложения по-русски, своими словами, без цитат и без вступления. Не копируй фразы из текста. Ответь только выжимкой.\n\nТекст статьи:\n" + trimRunes(body, 4000)})
+		Prompt: u.prompt("article_summary", map[string]string{"text": trimRunes(body, 4000)})})
 	if err != nil {
 		return "", Bad("Модель не написала выжимку: попробуйте ещё раз.")
 	}

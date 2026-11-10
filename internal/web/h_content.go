@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"posta/internal/config"
@@ -30,6 +31,9 @@ func init() {
 	get("parser_status", parserStatus)
 	get("studio_live", studioLive)
 	get("studio_city", studioCity)
+	get("studio_rejected", func(c *Ctx) (any, error) {
+		return jx.M{"items": c.U.RejectedPosts(c.U.SearchTopicKey())}, nil
+	})
 	post("tab_open", func(c *Ctx) (any, error) {
 		tab, err := tabID(c)
 		if err != nil {
@@ -58,7 +62,41 @@ func init() {
 		return nil, fail(503, "Не удалось запустить поиск контента на сервере.")
 	}
 	post("refresh_content", refresh)
-	post("control_search", refresh)
+	post("control_search", func(c *Ctx) (any, error) {
+		if err := ownerOnly(c); err != nil {
+			return nil, err
+		}
+		c.U.ResumeParser()
+		switch c.U.StartParser(true) {
+		case "started":
+			return jx.M{"status": "loading", "message": "Сбор контента запущен."}, nil
+		case "running":
+			return jx.M{"status": "loading", "message": "Сбор контента уже идёт."}, nil
+		default:
+			return nil, fail(503, "Не удалось запустить сбор контента на сервере.")
+		}
+	})
+	post("restart_content", func(c *Ctx) (any, error) {
+		if err := ownerOnly(c); err != nil {
+			return nil, err
+		}
+		c.U.ResumeParser()
+		r := c.U.RestartParser()
+		if r != "started" {
+			if r == "running" {
+				return nil, fail(409, "Предыдущий проход ещё останавливается. Попробуйте снова через несколько секунд.")
+			}
+			return nil, fail(503, "Не удалось перезапустить подбор на сервере.")
+		}
+		return ok(jx.M{"parser": r}), nil
+	})
+	post("stop_content", func(c *Ctx) (any, error) {
+		if err := ownerOnly(c); err != nil {
+			return nil, err
+		}
+		stopped := c.U.PauseParser()
+		return ok(jx.M{"stopped": stopped, "stopping": c.A.ParserRunning(c.U.ID)}), nil
+	})
 	get("settings", settings)
 	get("topic_record", topicRecord)
 	get("topics", func(c *Ctx) (any, error) {
@@ -197,19 +235,50 @@ func getItemVideo(c *Ctx) (any, error) {
 	return jx.M{"video": video, "video_local": local, "display_video": display, "video_unavailable": jx.Bool(item, "video_unavailable"), "progress": progress}, nil
 }
 
+var warmingPoolItems sync.Map
+
+// Prepare the next cards while the current one is being viewed.
+func warmUpcomingItems(c *Ctx, items []jx.M) {
+	for _, item := range items {
+		key := c.U.ID + ":" + posta.ContentItemKey(item)
+		if _, loaded := warmingPoolItems.LoadOrStore(key, struct{}{}); loaded {
+			continue
+		}
+		item := jx.Copy(item)
+		u, cancel := c.userDetached(45 * time.Second)
+		go func() {
+			defer cancel()
+			defer warmingPoolItems.Delete(key)
+			var checks sync.WaitGroup
+			checks.Add(1)
+			go func() {
+				defer checks.Done()
+				u.TelegramPreflightItem(item, true)
+			}()
+			u.TranslateWarmCache(item)
+			checks.Wait()
+		}()
+	}
+}
+
 func getCurrentItem(c *Ctx) (any, error) {
 	u := c.U
+	if err := u.PruneOldPool(); err != nil {
+		return nil, err
+	}
 	u.PruneUnavailablePoolVideos()
 	topic := u.CurrentTopic()
 	if u.TopicSaveDenied(topic) != "" {
 		return jx.M{"status": "empty", "message": "Тема «" + topic + "» недоступна: выберите другую тему."}, nil
 	}
 	if pool := u.PoolWithoutLostVideo(u.PoolForCurrentTopic()); len(pool) > 0 {
+		warmUpcomingItems(c, pool[1:min(4, len(pool))])
 		return u.TranslateDisplay(u.ContentForDisplay(pool[0], pool[1:min(4, len(pool))], true)), nil
 	}
 	started := u.StartParser(false)
 	rt := c.A.ParserRuntimeSeconds(u.ID)
 	if archive := u.PoolWithoutLostVideo(u.PoolStaleForCurrentTopic()); len(archive) > 0 {
+		warmUpcomingItems(c, archive[1:min(4, len(archive))])
 		r := u.TranslateDisplay(u.ContentForDisplay(archive[0], archive[1:min(4, len(archive))], true))
 		return r, nil
 	}
@@ -244,8 +313,15 @@ func parserStatus(c *Ctx) (any, error) {
 // studioLive — «смотровое окно» студии: последние отобранные посты пула (новые сверху) и ход сборщика одним запросом.
 func studioLive(c *Ctx) (any, error) {
 	u := c.U
+	if err := u.PruneOldPool(); err != nil {
+		return nil, err
+	}
+	if err := u.PruneSelectedPosts(); err != nil {
+		return nil, err
+	}
 	u.PruneUnavailablePoolVideos()
 	pool := u.PoolWithoutLostVideo(u.PoolForCurrentTopic())
+	poolCount := len(u.PoolTopicPositions(u.Pool()))
 	sorted := append([]jx.M{}, pool...)
 	sort.SliceStable(sorted, func(i, j int) bool { return jx.Int(sorted[i], "timestamp") > jx.Int(sorted[j], "timestamp") })
 	items := []jx.M{}
@@ -262,7 +338,7 @@ func studioLive(c *Ctx) (any, error) {
 		}
 		items = append(items, jx.M{"key": posta.ContentImageKey(it), "display_image": img, "display_video": vid, "text": jx.Str(it, "text"),
 			"description": jx.Str(it, "description"), "why_relevant": jx.Str(it, "why_relevant"), "source": jx.Str(it, "source"),
-			"source_key": jx.Str(it, "source_key"), "source_url": jx.Str(it, "source_url"), "board": jx.Str(it, "board"),
+			"source_key": jx.Str(it, "source_key"), "source_url": jx.Str(it, "source_url"), "topic": jx.Str(it, "topic"), "board": jx.Str(it, "board"),
 			"posted_at": jx.Int(it, "posted_at"), "timestamp": jx.Int(it, "timestamp"), "relevance": jx.Int(it, "relevance")})
 	}
 	r, err := parserStatus(c)
@@ -278,7 +354,8 @@ func studioLive(c *Ctx) (any, error) {
 	if running, _ := st["running"].(bool); !running {
 		st["last_pass"] = c.A.ParserLastPass(c.U.ID)
 	}
-	st["items"], st["pool"], st["topic"] = items, len(pool), u.CurrentTopic()
+	st["items"], st["pool"], st["topic"] = items, poolCount, u.CurrentTopic()
+	st["source_discovery"] = u.DiscoveryPipelinePublic(u.CurrentTopic())
 	return st, nil
 }
 
@@ -307,7 +384,7 @@ func topicRecord(c *Ctx) (any, error) {
 	if e == nil {
 		return nil, fail(404, "Такой темы нет.")
 	}
-	return jx.M{"topic": e, "summary": c.U.TopicPublic(e, c.A.Catalog())}, nil
+	return jx.M{"topic": e, "summary": c.U.TopicPublic(e, c.A.Catalog()), "health": c.U.TopicHealthPublic(e.Title)}, nil
 }
 
 func topicsPublicList(u *posta.U) []jx.M {
@@ -539,6 +616,7 @@ type dbDef struct {
 	Collections [][2]string
 	ByTopic     bool
 	SQL         bool
+	ReadOnly    bool
 }
 
 var dbHiddenKV = []string{"telegram_app_keys", "vk_tokens", "telegram_login_bot", "admin:llm"}
@@ -549,6 +627,7 @@ var sqlTables = [][2]string{{"analysis_cache", "Кэш анализов ИИ"}, 
 
 func dbDefinitions() map[string]dbDef {
 	defs := map[string]dbDef{
+		"topic_sources":   {Label: "Источники по темам", Collections: [][2]string{{"all", "Все площадки"}}, ReadOnly: true},
 		"content_pool":    {Label: "Пул контента", Collections: [][2]string{{"items", "Записи"}}, ByTopic: true},
 		"content_history": {Label: "История оценок", Collections: [][2]string{{"liked", "Лайки"}, {"disliked", "Дизлайки"}, {"undecided", "Без решения"}, {"complaints", "Жалобы"}}, ByTopic: true},
 		"sources_db": {Label: "Каталог источников", Collections: [][2]string{{"2ch_boards", "Доски 2ch"}, {"vk_publics", "Паблики ВКонтакте"}, {"telegram_channels", "Каналы Telegram"},
@@ -560,7 +639,7 @@ func dbDefinitions() map[string]dbDef {
 	return defs
 }
 
-var dbOrder = []string{"content_pool", "content_history", "sources_db"}
+var dbOrder = []string{"topic_sources", "content_pool", "content_history", "sources_db"}
 
 func databaseOptions(c *Ctx) (any, error) {
 	defs := dbDefinitions()
@@ -575,9 +654,9 @@ func databaseOptions(c *Ctx) (any, error) {
 		for _, cl := range d.Collections {
 			colls = append(colls, jx.M{"id": cl[0], "label": cl[1]})
 		}
-		list = append(list, jx.M{"id": id, "label": d.Label, "is_sql_table": d.SQL, "by_topic": d.ByTopic, "collections": colls})
+		list = append(list, jx.M{"id": id, "label": d.Label, "is_sql_table": d.SQL, "read_only": d.SQL || d.ReadOnly, "by_topic": d.ByTopic, "collections": colls})
 	}
-	return jx.M{"databases": list}, nil
+	return jx.M{"databases": list, "topics": topicsPublicList(c.U)}, nil
 }
 
 func collLabel(d dbDef, coll string) (string, bool) {
@@ -599,6 +678,17 @@ func databaseOpen(c *Ctx, database, coll string) (dbDef, []jx.M, error) {
 		return d, nil, fail(400, "Неизвестная коллекция.")
 	}
 	u := c.U
+	if database == "topic_sources" {
+		topic := u.CurrentTopic()
+		if id := c.Q("topic"); id != "" {
+			e := u.TopicByID(id)
+			if e == nil || (!u.AdultAllowed() && u.TopicIsRestricted(e.Title)) {
+				return d, nil, fail(404, "Такой темы нет.")
+			}
+			topic = e.Title
+		}
+		return d, u.TopicSourcesFor(topic), nil
+	}
 	if d.SQL {
 		rows, err := u.SQLTableRows(database)
 		if err != nil {
@@ -678,6 +768,11 @@ func databaseRead(c *Ctx) (any, error) {
 	topic := ""
 	if d.ByTopic {
 		topic = c.U.SearchTopicKey()
+	} else if db == "topic_sources" {
+		topic = c.U.CurrentTopic()
+		if e := c.U.TopicByID(c.Q("topic")); e != nil {
+			topic = e.Title
+		}
 	}
 	cols := []string{}
 	seen := map[string]bool{}
@@ -787,7 +882,7 @@ func databaseChange(c *Ctx) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if d.SQL {
+	if d.SQL || d.ReadOnly {
 		return nil, fail(400, "Редактирование системных таблиц недопустимо из интерфейса базы данных.")
 	}
 	u := c.U

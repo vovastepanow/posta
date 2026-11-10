@@ -240,6 +240,7 @@ async function vote(type, details = {}) {
     $('content-tab').classList.add('is-busy');
     try {
         await api('vote', { body: { vote: type, image: state.item.item_key || state.item.image, ...details } });
+        document.dispatchEvent(new CustomEvent('posta:pool-updated'));
         if (type === 'wrong' && details.reason === 'match_error') {
             log('🚩 Жалоба учтена: ИИ увидит эту запись как пример «не по теме», источник теряет рейтинг, а каждые 5 жалоб уточняют профиль темы.');
         }
@@ -790,7 +791,7 @@ async function publishToTargets(post, onProgress = null) {
 
 /** Поля записи, по которым сервер считает её ключ (тот же, что у пула и истории). */
 const recordOf = item => ({ image: item.image || '', url: item.url || '', source_url: item.source_url || '', source_key: item.source_key || '',
-    board: item.board || '', thread_id: item.thread_id || '', post_id: item.post_id || '', text: item.text || '', text_post: !!item.text_post });
+    topic: item.topic || '', board: item.board || '', thread_id: item.thread_id || '', post_id: item.post_id || '', text: item.text || '', text_post: !!item.text_post });
 
 /** Единое окно публикации для всех кнопок «Запостить»: редактор поста; ресурсы выбираются в нём (по умолчанию — основной канал). */
 /** Адрес источника новости (сайт или RSS-лента с записью): https или ''. */

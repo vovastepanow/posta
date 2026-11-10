@@ -238,9 +238,9 @@ export function apiUrl(action, params = {}) {
 }
 
 /** Запрос к API. body: объект (JSON), FormData или null (пустой POST); без body — GET. Ошибка HTTP — исключение с текстом сервера. */
-export async function api(action, { body, params } = {}) {
+export async function api(action, { body, params, signal } = {}) {
     if (ACTION_LABELS[action]) log(ACTION_LABELS[action]);
-    const options = { method: body === undefined ? 'GET' : 'POST', headers: {} };
+    const options = { method: body === undefined ? 'GET' : 'POST', headers: {}, signal };
     if (options.method === 'POST') {
         options.headers['X-Posta'] = '1';
         if (body instanceof FormData) options.body = body;

@@ -16,7 +16,7 @@ import (
 
 func init() {
 	post("suggest_sources", func(c *Ctx) (any, error) {
-		u, cancel := c.userDetached(4 * time.Minute)
+		u, cancel := c.userDetached(30 * time.Second)
 		defer cancel()
 		r, status, err := u.SuggestSources(c.In)
 		if err != nil {
@@ -27,6 +27,45 @@ func init() {
 		}
 		return r, nil
 	})
+	get("pending_sources", func(c *Ctx) (any, error) {
+		list, err := c.U.PendingSources(c.Q("platform"))
+		if err != nil {
+			return nil, err
+		}
+		return jx.M{"sources": list, "topic": c.U.CurrentTopic()}, nil
+	})
+	post("pending_sources_page", func(c *Ctx) (any, error) {
+		limit := int(jx.Int(c.In, "limit"))
+		if limit < 1 {
+			limit = 12
+		}
+		if limit > 40 {
+			limit = 40
+		}
+		exclude := jx.Strs(c.In, "exclude")
+		if len(exclude) > 5000 {
+			return nil, fail(400, "Слишком длинный список источников.")
+		}
+		list, total, more, err := c.U.PendingSourcesPage(c.Str("platform"), exclude, limit, c.Str("sort"))
+		if err != nil {
+			return nil, err
+		}
+		return jx.M{"sources": list, "total": total, "has_more": more, "topic": c.U.CurrentTopic()}, nil
+	})
+	post("pending_source_preview", func(c *Ctx) (any, error) {
+		u, cancel := c.userDetached(30 * time.Second)
+		defer cancel()
+		return u.PendingSourcePreview(c.Str("source_id"), jx.Bool(c.In, "title_only"))
+	})
+	post("rss_source_title", func(c *Ctx) (any, error) {
+		u, cancel := c.userDetached(30 * time.Second)
+		defer cancel()
+		name, err := u.RSSSourceTitle(c.Str("source_id"))
+		if err != nil {
+			return nil, err
+		}
+		return jx.M{"name": name}, nil
+	})
 	post("source_postpone", func(c *Ctx) (any, error) {
 		return ok(nil), c.U.PostponeSource(jx.Map(c.In, "source"))
 	})
@@ -34,20 +73,31 @@ func init() {
 		return ok(nil), c.U.SourceVote(c.Str("vote"), jx.Map(c.In, "source"), c.Str("reason"))
 	})
 	discover := func(c *Ctx) (any, error) {
-		c.A.RequestSourceDiscovery()
-		p := c.U.StartParser(true)
-		msg := map[string]string{"started": "Автоподбор запущен. Ход поиска — в журнале.", "running": "Сборщик уже работает: автоподбор начнётся при следующем запуске.",
-			"no_session": "Окно приложения неактивно: обновите страницу, и автоподбор начнётся."}[p]
-		if msg == "" {
-			msg = "Не удалось запустить сборщик на сервере."
+		platform := c.Str("platform")
+		if platform != "" {
+			if _, ok := posta.DiscoveryPlatforms[platform]; !ok {
+				return nil, fail(400, "Неизвестная площадка для поиска источников.")
+			}
 		}
-		if p == "unavailable" {
-			return Resp{503, jx.M{"status": "error", "parser": p, "message": msg}}, nil
+		if !c.U.StartSourceDiscovery(c.U.CurrentTopic(), platform) {
+			return jx.M{"status": "success", "message": "Подбор источников по этой теме уже идёт."}, nil
 		}
-		return jx.M{"status": "success", "parser": p, "message": msg}, nil
+		return jx.M{"status": "success", "message": "Подбор источников запущен. Ход поиска — в панели поиска источников."}, nil
 	}
 	post("discover_sources", discover)
-	post("control_sources", discover)
+	post("control_sources", func(c *Ctx) (any, error) {
+		if err := ownerOnly(c); err != nil {
+			return nil, err
+		}
+		return discover(c)
+	})
+	post("stop_sources", func(c *Ctx) (any, error) {
+		if err := ownerOnly(c); err != nil {
+			return nil, err
+		}
+		stopped, stopping := c.U.StopSourceDiscovery(c.U.CurrentTopic())
+		return ok(jx.M{"stopped": stopped, "stopping": stopping}), nil
+	})
 	get("discovery_status", discoveryStatus)
 	// реестр проверенных источников: «Проверенные» на вкладке «Источники»
 	get("registry_list", func(c *Ctx) (any, error) {
@@ -261,10 +311,11 @@ func discoveryStatus(c *Ctx) (any, error) {
 	if e := c.A.TopicEnsure(c.R.Context(), topic); e != nil {
 		info = u.TopicPublic(e, d)
 	}
+	found, target, pending, active := u.DiscoveryProgress(topic)
 	disc := d.Discovery
 	running := now()-jx.Int(disc, "running_since") < int64(c.A.TInt("discovery_minutes")*60+120)
 	return jx.M{"enabled": c.A.TBool("discovery"), "topic": topic, "topic_info": info, "last_topic": jx.Str(disc, "topic"), "last_run": jx.Int(disc, "last_run"),
-		"requested": jx.Bool(disc, "requested"), "running": running, "auto_added": auto, "frozen": frozen, "suggestions": sugg, "vk_connected": c.A.VKIsConnected(c.U.Ctx)}, nil
+		"requested": jx.Bool(disc, "requested"), "running": running, "batch_found": found, "batch_target": target, "batch_pending": pending, "batch_active": active, "auto_added": auto, "frozen": frozen, "suggestions": sugg, "vk_connected": c.A.VKIsConnected(c.U.Ctx)}, nil
 }
 
 func now() int64 { return time.Now().Unix() }

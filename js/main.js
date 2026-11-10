@@ -2,7 +2,7 @@
 import { $, DEBUG_MODE, api, el, hide, initializeCore, log, show, startTabSession, switchTab, watchParser } from './core.js';
 import { initializeImageViewer } from './viewer.js';
 import { initializeContentTab, loadCurrentItem } from './content.js';
-import { clearDiscoveredSource, initializeSourceTab } from './sources.js';
+import { clearDiscoveredSource, initializeSourceTab } from './sources.js?v=source-tools-8';
 import { consumeReferralLink, consumeVkRedirectResult, initializeAccountTab, openAccountSection, openNewItemEditor } from './account.js';
 import { initializeTabs } from './tabs.js';
 import { showPlan, showProfile } from './profile.js';
@@ -126,7 +126,7 @@ log('Приложение запущено. Загружаю пул контен
 if (consumeVkRedirectResult()) openAccountSection('social');
 const sessionReady = startTabSession();   // запрос пула начнём после регистрации вкладки
 // Хеш-ссылки открывают нужную вкладку на единой странице приложения.
-const HASH_TABS = { home: 'home-tab', content: 'content-tab', proposals: 'home-tab', calendar: 'calendar-tab', sources: 'source-tab', account: 'account-tab' };
+const HASH_TABS = { home: 'home-tab', rejected: 'rejected-tab', content: 'content-tab', proposals: 'home-tab', calendar: 'calendar-tab', sources: 'source-tab', account: 'account-tab' };
 const openHashTab = () => { const tab = HASH_TABS[location.hash.slice(1)]; if (tab) switchTab(tab); };
 addEventListener('hashchange', openHashTab);
 openHashTab();

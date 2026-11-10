@@ -1,0 +1,1339 @@
+{
+  "method": {
+    "sources": "Saved public Telegram, VC, DTF, Lemmy and Mastodon posts; eight images downloaded from the real rejection history and visually reviewed.",
+    "model_requests": "Live calls through the configured free/local model router and current analysis code.",
+    "expected_labels": "Set after reviewing source text and images; includes positive, negative, neighboring-topic, advertisement and query-mismatch cases.",
+    "database": "Read-only connection. No publishing, collectors, pool writes, preference changes or deployments.",
+    "scope": "Content analysis and admission checks; two real video candidates separately replayed through the candidate queue.",
+    "limitations": [
+      "Diagnostic curated sample, not a random estimate of production accuracy.",
+      "Saved snapshots are assessed for content; post freshness is not a claimed result of these checks.",
+      "Personal complaint examples are excluded to isolate general filtering rules."
+    ]
+  },
+  "baseline": {
+    "checks": 40,
+    "correct": 36,
+    "false_rejections": 3,
+    "false_acceptances": 1,
+    "errors": 0
+  },
+  "final": {
+    "checks": 48,
+    "correct": 48,
+    "false_rejections": 0,
+    "false_acceptances": 0,
+    "errors": 0,
+    "topics": 31,
+    "unique_public_posts": 33
+  },
+  "video_queue": {
+    "real_candidates": 2,
+    "previously_rejected_reason": "Не подходит по формату; YouTube duration condition applied to other platforms with unknown duration.",
+    "queued_after_fix": 2,
+    "format_rejected_after_fix": 0
+  },
+  "by_topic": {
+    "Робототехника": {
+      "checks": 2,
+      "correct": 2,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Криптовалюта": {
+      "checks": 2,
+      "correct": 2,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Право": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Экономика": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Приложения и сервисы": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Продажи и переговоры": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Автомобили": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Кибербезопасность": {
+      "checks": 2,
+      "correct": 2,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Банки и платёжные сервисы": {
+      "checks": 2,
+      "correct": 2,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Местные новости ? Москва": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Местные новости ? Тюмень": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Карьера и HR": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Политика": {
+      "checks": 3,
+      "correct": 3,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Интерьер": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Выпечка и десерты": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Водный транспорт": {
+      "checks": 2,
+      "correct": 2,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Нейросети": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Игры": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Наука и образование": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Кошки": {
+      "checks": 3,
+      "correct": 3,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Собаки": {
+      "checks": 2,
+      "correct": 2,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Живопись и арт": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Косплей": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Банки и платёжные сервисы ? Яндекс": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Банки и платёжные сервисы ? Сбербанк": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Технологии": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Транспорт": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Рецепты": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Настольные игры": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Мировые новости": {
+      "checks": 1,
+      "correct": 1,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    },
+    "Мемы": {
+      "checks": 8,
+      "correct": 8,
+      "false_rejections": 0,
+      "false_acceptances": 0,
+      "errors": 0
+    }
+  },
+  "fixes": [
+    "Correct swapped text-batch indices using uniquely attributable source quotations; retry incomplete or conflicting entries individually.",
+    "Remove blanket duration filtering of fetched video candidates.",
+    "Do not hard-reject media based solely on a caption.",
+    "Remove spam decisions based on standalone topic words and screenshot descriptions; retain explicit advertising labels and mandatory promotion classification.",
+    "Recognize self-contained short jokes, wordplay and screenshots without requiring a visual template.",
+    "Require explicit confirmation of mandatory topic criteria independently of numeric model thresholds.",
+    "Constrain text-only analysis to text evidence and preserve the actual returned model for threshold selection.",
+    "Clarify animal/cosplay and recipe/prepared-food topic boundaries."
+  ],
+  "cases": [
+    {
+      "id": "01",
+      "source_url": "https://vc.ru/transport/3211386-zapusk-robotaksi-indrive-i-ponyai-v-kazahstane?from=rss",
+      "topic": "Робототехника",
+      "expected_accept": true,
+      "rationale": "Новость о роботакси, не реклама сервиса",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Такси-сервис inDrive и китайская Pony.ai начнут тестировать роботакси в Казахста",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "10",
+      "source_url": "https://vc.ru/tech/3207799-unitree-h2-x-robot-telohranitel?from=rss",
+      "topic": "Робототехника",
+      "expected_accept": true,
+      "rationale": "Новость о демонстрации робота, не рекламная интеграция",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 95,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Unitree представила человекоподобного «робота-телохранителя» H2-X — в рекламном ",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "02",
+      "source_url": "https://vc.ru/transport/3211386-zapusk-robotaksi-indrive-i-ponyai-v-kazahstane?from=rss",
+      "topic": "Криптовалюта",
+      "expected_accept": false,
+      "rationale": "Нет криптовалют",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": false
+      },
+      "final": {
+        "accepted": false,
+        "reason": "не подтверждены обязательные признаки темы",
+        "correct": true,
+        "relevance": 0,
+        "topic_match": false,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Такси-сервис inDrive и китайская Pony.ai начнут тестировать роботакси в Казахста",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "23",
+      "source_url": "https://news.abolish.capital/post/89653",
+      "topic": "Криптовалюта",
+      "expected_accept": true,
+      "rationale": "Преступление связано с криптоактивами",
+      "baseline": {
+        "accepted": false,
+        "reason": "порог 65: оценка 10",
+        "correct": false
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 95,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Billions of dollars in crypto assets were reportedly stolen in separate hacks ta",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "03",
+      "source_url": "https://vc.ru/transport/3211319-uzhestochienie-shtrafov-za-ezdu-bez-prav?from=rss",
+      "topic": "Право",
+      "expected_accept": true,
+      "rationale": "Изменение административных штрафов",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Правительство внесло в Госдуму законопроект о повышении штрафов за езду без прав",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "04",
+      "source_url": "https://vc.ru/money/3211013-povyshenie-poshlin-na-import-krepkogo-alkogolya?from=rss",
+      "topic": "Экономика",
+      "expected_accept": true,
+      "rationale": "Изменение импортных пошлин",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "пошлину на иностранный крепкий алкоголь могут повысить уже в ноябре 2026 года",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "05",
+      "source_url": "https://vc.ru/services/3210488-kompaniya-the-browser-company-zakryvaet-brauzer-arc?from=rss",
+      "topic": "Приложения и сервисы",
+      "expected_accept": true,
+      "rationale": "Закрытие браузера, независимая новость",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "The Browser Company закроет браузер Arc. Компания призывает переходить на ИИ-бра",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "06",
+      "source_url": "https://vc.ru/services/3210488-kompaniya-the-browser-company-zakryvaet-brauzer-arc?from=rss",
+      "topic": "Продажи и переговоры",
+      "expected_accept": false,
+      "rationale": "Нет методов продаж",
+      "baseline": {
+        "accepted": false,
+        "reason": "порог 65: оценка 20",
+        "correct": true
+      },
+      "final": {
+        "accepted": false,
+        "reason": "не подтверждены обязательные признаки темы",
+        "correct": true,
+        "relevance": 0,
+        "topic_match": false,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "07",
+      "source_url": "https://vc.ru/transport/3210403-minpromtorg-dobavil-haval-h3-i-haval-dargo-v-spisok-taksi?from=rss",
+      "topic": "Автомобили",
+      "expected_accept": true,
+      "rationale": "Модели автомобилей для такси",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 95,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Минпромторг добавил в список автомобилей для такси ещё две модели Haval",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "08",
+      "source_url": "https://vc.ru/services/3209892-cloudflare-zafiksirovala-ataki-na-sayty-iz-za-uiazvimosti-php?from=rss",
+      "topic": "Кибербезопасность",
+      "expected_accept": true,
+      "rationale": "Атаки из-за уязвимости PHP",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Cloudflare зафиксировала «миллионы» атак на сайты по всему миру из-за уязвимости",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "22",
+      "source_url": "https://news.abolish.capital/post/89653",
+      "topic": "Кибербезопасность",
+      "expected_accept": true,
+      "rationale": "Кража криптовалют через кибератаку",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 95,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Billions of dollars in crypto assets were reportedly stolen in separate hacks ta",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "09",
+      "source_url": "https://vc.ru/money/3209610-yandeks-pey-vosstanovlenie-oformleniya-kart?from=rss",
+      "topic": "Банки и платёжные сервисы",
+      "expected_accept": true,
+      "rationale": "Восстановление платёжных функций, не реклама",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "«Яндекс Пэй» рассказал, что восстановил оформление карт, оплату по QR-коду, нако",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "15",
+      "source_url": "https://t.me/investor4444/4367",
+      "topic": "Банки и платёжные сервисы",
+      "expected_accept": true,
+      "rationale": "Реорганизация банка",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 95,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "#банкиПутин разрешил провести реорганизацию \"Юникредит Банка\" и выкупить 100% ег",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "11",
+      "source_url": "https://vc.ru/transport/3207552-depttrans-moskvy-testiruet-mobilnuyu-zaryadnuyu-stantsiyu?from=rss",
+      "topic": "Местные новости ? Москва",
+      "expected_accept": true,
+      "rationale": "Московский городской проект",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Дептранс Москвы начал тестировать ровера-заправщика для электромобилей",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "12",
+      "source_url": "https://vc.ru/transport/3207552-depttrans-moskvy-testiruet-mobilnuyu-zaryadnuyu-stantsiyu?from=rss",
+      "topic": "Местные новости ? Тюмень",
+      "expected_accept": false,
+      "rationale": "Пост о Москве, не о Тюмени",
+      "baseline": {
+        "accepted": false,
+        "reason": "порог 65: оценка 0",
+        "correct": true
+      },
+      "final": {
+        "accepted": false,
+        "reason": "порог 65: оценка 0",
+        "correct": true,
+        "relevance": 0,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Дептранс Москвы начал тестировать ровера-заправщика для электромобилей",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "13",
+      "source_url": "https://vc.ru/hr/3207206-timlid-na-reddit-rasskazal-ob-otkaze-pri-otklyke-na-vakansiyu?from=rss",
+      "topic": "Карьера и HR",
+      "expected_accept": true,
+      "rationale": "Отказ кандидату автоматического фильтра найма",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Тимлид рассказал на Reddit, как откликнулся на вакансию в своей компании и получ",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "14",
+      "source_url": "https://t.me/investor4444/4372",
+      "topic": "Политика",
+      "expected_accept": true,
+      "rationale": "Сообщение об участниках переговоров",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Стив Уиткофф и зять Дональда Трампа Джаред Кушнер действительно в ближайшее врем",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "18",
+      "source_url": "https://lemmy.zip/post/74125700",
+      "topic": "Политика",
+      "expected_accept": false,
+      "rationale": "Кулинарный пост",
+      "baseline": {
+        "accepted": false,
+        "reason": "порог 65: оценка 0",
+        "correct": true
+      },
+      "final": {
+        "accepted": false,
+        "reason": "не подтверждены обязательные признаки темы",
+        "correct": true,
+        "relevance": 0,
+        "topic_match": false,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Detroit style circular cast iron pizza",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "40",
+      "source_url": "https://t.me/investor4444/4373",
+      "topic": "Политика",
+      "expected_accept": true,
+      "rationale": "Короткий политический комментарий — допустимый текстовый пост",
+      "baseline": null,
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Не знаю, насколько мы приближаемся к завершению конфликта, но дело идет к этому ",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "16",
+      "source_url": "https://t.me/investor4444/4339",
+      "topic": "Интерьер",
+      "expected_accept": false,
+      "rationale": "Прямое приглашение в магазин диванов — реклама",
+      "baseline": {
+        "accepted": false,
+        "reason": "реклама или не проверена на рекламу",
+        "correct": true
+      },
+      "final": {
+        "accepted": false,
+        "reason": "реклама или не проверена на рекламу",
+        "correct": true,
+        "relevance": 30,
+        "topic_match": false,
+        "advertising": true,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "за диванами приходите только в мой магазин! https://www.instagram.com/divan.mhk",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "17",
+      "source_url": "https://lemmy.zip/post/74125700",
+      "topic": "Выпечка и десерты",
+      "expected_accept": true,
+      "rationale": "Домашняя пицца и опыт приготовления",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Thanks to u/FauxPseudo I was inspired to make a Detroit style pizza with a sheet",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "19",
+      "source_url": "https://lemmy.world/post/53761375",
+      "topic": "Водный транспорт",
+      "expected_accept": true,
+      "rationale": "Судостроение",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "HD Korea Shipbuilding and Offshore Engineering Q3 profit rises 37 per cent",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "20",
+      "source_url": "https://lemmy.world/post/53761372",
+      "topic": "Водный транспорт",
+      "expected_accept": true,
+      "rationale": "Заказ пассажирского парома",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Contract awarded for 150-passenger ferry for Sapelo Island, Georgia",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "21",
+      "source_url": "https://discuss.tchncs.de/post/70060294",
+      "topic": "Нейросети",
+      "expected_accept": true,
+      "rationale": "Обсуждение локального инференса",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Sam Altman: \"Local inference is a terrible allocation of scarce resources\"",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "24",
+      "source_url": "https://lemmy.durstig.online/post/69351",
+      "topic": "Игры",
+      "expected_accept": true,
+      "rationale": "Обсуждение RuneScape",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 95,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "I’ve gone 3 months without a Greater Demons task. Every time I go to Kuradel, I ",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "25",
+      "source_url": "https://lemmy.ca/post/73102045",
+      "topic": "Наука и образование",
+      "expected_accept": true,
+      "rationale": "Разбор исследования цифровых платформ",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 65,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Digital platforms and democratic publics: How social media platforms selectively",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "26",
+      "source_url": "https://dea42.social/@critters/117527808036753626",
+      "topic": "Кошки",
+      "expected_accept": true,
+      "rationale": "Наблюдение двух кошек",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 95,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "The most important observation is the presence of two cats on the cracked concre",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "30",
+      "source_url": "https://dea42.social/@critters/117527099591356461",
+      "topic": "Кошки",
+      "expected_accept": false,
+      "rationale": "Хэштег кошек не соответствует описанной собаке",
+      "baseline": {
+        "accepted": false,
+        "reason": "порог 65: оценка 30",
+        "correct": true
+      },
+      "final": {
+        "accepted": false,
+        "reason": "не подтверждены обязательные признаки темы",
+        "correct": true,
+        "relevance": 30,
+        "topic_match": false,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "The most important observation is a small brown dog emerging from an open door o",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "32",
+      "source_url": "https://furry.engineer/@AutomataDog/117527003500780694",
+      "topic": "Кошки",
+      "expected_accept": false,
+      "rationale": "Персонаж в костюме не является живой кошкой",
+      "baseline": {
+        "accepted": false,
+        "reason": "порог 65: оценка 55",
+        "correct": true
+      },
+      "final": {
+        "accepted": false,
+        "reason": "не подтверждены обязательные признаки темы",
+        "correct": true,
+        "relevance": 30,
+        "topic_match": false,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Kado Kat during the fursuit dance competition at FWA25",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "27",
+      "source_url": "https://dea42.social/@critters/117527808036753626",
+      "topic": "Собаки",
+      "expected_accept": false,
+      "rationale": "Описаны кошки, собак нет",
+      "baseline": {
+        "accepted": false,
+        "reason": "порог 65: оценка 10",
+        "correct": true
+      },
+      "final": {
+        "accepted": false,
+        "reason": "не подтверждены обязательные признаки темы",
+        "correct": true,
+        "relevance": 0,
+        "topic_match": false,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "The most important observation is the presence of two cats on the cracked concre",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "29",
+      "source_url": "https://dea42.social/@critters/117527099591356461",
+      "topic": "Собаки",
+      "expected_accept": true,
+      "rationale": "Пост описывает собаку",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 95,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "The most important observation is a small brown dog emerging from an open door o",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "28",
+      "source_url": "https://mastodon.social/@joyousjoyness/117527389308928348",
+      "topic": "Живопись и арт",
+      "expected_accept": false,
+      "rationale": "Продажа открыток с призывом купить",
+      "baseline": {
+        "accepted": false,
+        "reason": "реклама или не проверена на рекламу",
+        "correct": true
+      },
+      "final": {
+        "accepted": false,
+        "reason": "реклама или не проверена на рекламу",
+        "correct": true,
+        "relevance": 30,
+        "topic_match": false,
+        "advertising": true,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "https://www. joyousjoyness.com/collections/ postcard",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "31",
+      "source_url": "https://furry.engineer/@AutomataDog/117527003500780694",
+      "topic": "Косплей",
+      "expected_accept": true,
+      "rationale": "Танцевальный конкурс в костюме персонажа",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 65,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Kado Kat during the fursuit dance competition at FWA25",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "33",
+      "source_url": "https://vc.ru/money/3209610-yandeks-pey-vosstanovlenie-oformleniya-kart?from=rss",
+      "topic": "Банки и платёжные сервисы ? Яндекс",
+      "expected_accept": true,
+      "rationale": "Уточнение про Яндекс подтверждено",
+      "baseline": null,
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "«Яндекс Пэй» рассказал, что восстановил оформление карт, оплату по QR-коду, нако",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "34",
+      "source_url": "https://vc.ru/money/3209610-yandeks-pey-vosstanovlenie-oformleniya-kart?from=rss",
+      "topic": "Банки и платёжные сервисы ? Сбербанк",
+      "expected_accept": false,
+      "rationale": "Новость о другом платёжном сервисе",
+      "baseline": null,
+      "final": {
+        "accepted": false,
+        "reason": "порог 65: оценка 0",
+        "correct": true,
+        "relevance": 0,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "«Яндекс Пэй» рассказал, что восстановил оформление карт, оплату по QR-коду, нако",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "35",
+      "source_url": "https://vc.ru/transport/3211386-zapusk-robotaksi-indrive-i-ponyai-v-kazahstane?from=rss",
+      "topic": "Технологии",
+      "expected_accept": true,
+      "rationale": "Новость о роботакси относится к технологиям",
+      "baseline": null,
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Такси-сервис inDrive и китайская Pony.ai начнут тестировать роботакси в Казахста",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "36",
+      "source_url": "https://vc.ru/transport/3211386-zapusk-robotaksi-indrive-i-ponyai-v-kazahstane?from=rss",
+      "topic": "Транспорт",
+      "expected_accept": true,
+      "rationale": "Роботакси — транспорт",
+      "baseline": null,
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 95,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Такси-сервис inDrive и китайская Pony.ai начнут тестировать роботакси в Казахста",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "37",
+      "source_url": "https://lemmy.zip/post/74125700",
+      "topic": "Рецепты",
+      "expected_accept": false,
+      "rationale": "Описан опыт приготовления пиццы, но нет рецепта или достаточных шагов",
+      "baseline": null,
+      "final": {
+        "accepted": false,
+        "reason": "не подтверждены обязательные признаки темы",
+        "correct": true,
+        "relevance": 30,
+        "topic_match": false,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Thanks to u/FauxPseudo I was inspired to make a Detroit style pizza with a sheet",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "38",
+      "source_url": "https://lemmy.durstig.online/post/69351",
+      "topic": "Настольные игры",
+      "expected_accept": false,
+      "rationale": "RuneScape — видеоигра, не настольная игра",
+      "baseline": null,
+      "final": {
+        "accepted": false,
+        "reason": "не подтверждены обязательные признаки темы",
+        "correct": true,
+        "relevance": 10,
+        "topic_match": false,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "I’ve gone 3 months without a Greater Demons task. Every time I go to Kuradel, I ",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "39",
+      "source_url": "https://lemmy.world/post/53761375",
+      "topic": "Мировые новости",
+      "expected_accept": true,
+      "rationale": "Новость о южнокорейской судостроительной компании",
+      "baseline": null,
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 80,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "[News] HD Korea Shipbuilding and Offshore Engineering Q3 profit rises 37 per cen",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "image-0",
+      "source_url": "https://t.me/inst_prikol/14372",
+      "topic": "Мемы",
+      "expected_accept": true,
+      "rationale": "Шутка о новой причёске и неизменном лице",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Текст и изображение создают ироничное сравнение причёски и лица.",
+        "prescreen_score": 15
+      }
+    },
+    {
+      "id": "image-12",
+      "source_url": "https://t.me/besaMEMucha/20133",
+      "topic": "Мемы",
+      "expected_accept": true,
+      "rationale": "Шутка о начале жизни с нуля после казино",
+      "baseline": {
+        "accepted": false,
+        "reason": "порог 65: оценка 30",
+        "correct": false
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Текст картинки и подпись содержат ироничную шутку о начале жизни с нуля и казино",
+        "prescreen_score": null
+      }
+    },
+    {
+      "id": "image-16",
+      "source_url": "https://t.me/cuckokdbek/8588",
+      "topic": "Мемы",
+      "expected_accept": true,
+      "rationale": "Комичная переписка пассажира и водителя такси",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "потому что я не везу Олегов / точнеe людей с именем Олег / Я Михаил",
+        "prescreen_score": 15
+      }
+    },
+    {
+      "id": "image-22",
+      "source_url": "https://t.me/belyashiandkumis/8196",
+      "topic": "Мемы",
+      "expected_accept": true,
+      "rationale": "Шутка о превышении калорий и расходов",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Текст на картинке и изображение обезьяны с человеческим телом.",
+        "prescreen_score": 15
+      }
+    },
+    {
+      "id": "image-34",
+      "source_url": "https://t.me/memasys/1911",
+      "topic": "Мемы",
+      "expected_accept": true,
+      "rationale": "Шутка о визах в Казань и созвучии Тольятти с Италией",
+      "baseline": {
+        "accepted": false,
+        "reason": "порог 65: оценка 10",
+        "correct": false
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "«Хочу съездить в Казань, Татарстан, расскажите, тут виза нужна? Сам я из Перми» ",
+        "prescreen_score": 15
+      }
+    },
+    {
+      "id": "image-35",
+      "source_url": "https://t.me/devhumor_tg/7580",
+      "topic": "Мемы",
+      "expected_accept": true,
+      "rationale": "Шутка о надеждах менеджмента на ИИ",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 90,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Надписи «Менеджмент», «Новая модель AI», «Это решит все наши проблемы?» создают ",
+        "prescreen_score": 15
+      }
+    },
+    {
+      "id": "image-36",
+      "source_url": "https://t.me/unosmemes/14595",
+      "topic": "Мемы",
+      "expected_accept": true,
+      "rationale": "Сопоставление изображения на сигаретах с жареной курицей",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Надписи «ПАРОДОНТОЗ», «Если вы лепите это на сигареты», «То потрудитесь ух», лог",
+        "prescreen_score": 15
+      }
+    },
+    {
+      "id": "image-41",
+      "source_url": "https://t.me/belyashiandkumis/8198",
+      "topic": "Мемы",
+      "expected_accept": true,
+      "rationale": "Пошлая шутка с отсылкой к Gorillaz без откровенных изображений",
+      "baseline": {
+        "accepted": true,
+        "reason": "",
+        "correct": true
+      },
+      "final": {
+        "accepted": true,
+        "reason": "",
+        "correct": true,
+        "relevance": 85,
+        "topic_match": true,
+        "advertising": false,
+        "model": "nvidia/nemotron-3.5-super-vl:free",
+        "evidence": "Текст твита и заголовок новости TMZ.",
+        "prescreen_score": 15
+      }
+    }
+  ]
+}

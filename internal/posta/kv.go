@@ -105,9 +105,10 @@ func (a *App) CacheSet(ctx context.Context, key string, value any, ttl time.Dura
 		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at`, key, db.JSON(value), time.Now().Add(ttl).Unix())
 }
 
-// CacheGC — уборка просроченного kv и cache (раз в час).
+// CacheGC — уборка просроченного kv, cache и памяти повторов (раз в час).
 func (a *App) CacheGC(ctx context.Context) {
 	t := now()
+	a.DB.Pool.Exec(ctx, `DELETE FROM content_repeat_memory WHERE expires_at <= $1`, t)
 	a.DB.Pool.Exec(ctx, `DELETE FROM cache WHERE expires_at <= $1`, t)
 	a.DB.Pool.Exec(ctx, `DELETE FROM kv WHERE expires_at > 0 AND expires_at <= $1`, t)
 }

@@ -1,11 +1,14 @@
 package posta
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"image"
+	"image/jpeg"
+	"image/png"
 	"math/bits"
 	"net"
 	"net/url"
@@ -241,8 +244,8 @@ func (a *App) ContentHistoryRecord(item jx.M, complaintReason any) jx.M {
 		"entity": jx.Str(item, "entity"), "source_hashtags": orList(jx.List(item, "source_hashtags")), "topic": item["topic"], "source": item["source"],
 		"source_key": ContentSourceKey(item), "board": item["board"], "thread_id": item["thread_id"], "post_id": item["post_id"],
 		"source_url": SourcePostURL(item), "posted_at": item["posted_at"], "engagement": item["engagement"], "complaint_reason": complaintReason,
-		"video": jx.Str(item, "video"), "image_local": jx.Str(item, "image_local"), "video_local": jx.Str(item, "video_local"),
-		"phash": jx.Str(item, "phash"), "gallery": ContentGallery(item), "timestamp": now()}
+		"video": jx.Str(item, "video"), "video_via": jx.Str(item, "video_via"), "video_page": jx.Str(item, "video_page"), "image_local": jx.Str(item, "image_local"), "video_local": jx.Str(item, "video_local"),
+		"phash": jx.Str(item, "phash"), "repeat_file_hashes": item["repeat_file_hashes"], "text_post": item["text_post"], "gallery": ContentGallery(item), "timestamp": now()}
 	if g := GeoClean(item["geo"]); g != nil {
 		rec["geo"] = g
 	}
@@ -374,17 +377,19 @@ func ContentPassesMediaFilters(item, filters jx.M) bool {
 // ContentForDisplay — запись для карточки: display_* — копия из кэша или исходная ссылка, preload — картинки следующих.
 func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M {
 	item = jx.Copy(item)
-	item["text"] = CleanPostAttribution(jx.Str(item, "text"), item)
+	// Video extraction needs the original Markdown attachment before display cleanup.
+	rawText := jx.Str(item, "text")
+	item["text"] = CleanPostDisplayText(rawText, item)
 	if caps := jx.List(item, "captions"); len(caps) > 0 {
 		cleaned := make([]any, len(caps))
 		for i, c := range caps {
-			cleaned[i] = CleanPostAttribution(jx.ToStr(c), item)
+			cleaned[i] = CleanPostDisplayText(jx.ToStr(c), item)
 		}
 		item["captions"] = cleaned
 	}
 	// Older Lemmy records may have retained the video only in the Markdown body.
 	if strings.HasPrefix(jx.Str(item, "source_key"), "lemmy:") && jx.Str(item, "video") == "" {
-		if video := lemmyBodyVideo(jx.Str(item, "text")); video != "" {
+		if video := lemmyBodyVideo(rawText); video != "" {
 			item = jx.Copy(item)
 			item["video"] = video
 		}
@@ -481,16 +486,129 @@ var imageExt = map[string]string{"jpeg": "jpg", "png": "png", "gif": "gif", "web
 
 // MediaStoreImage — картинка в кэш; адрес для браузера или "".
 func (a *App) MediaStoreImage(url string, data []byte) string {
-	_, format, err := image.DecodeConfig(strings.NewReader(string(data)))
+	_, format, err := image.DecodeConfig(bytes.NewReader(data))
 	ext, ok := imageExt[format]
 	if err != nil || !ok {
 		return ""
+	}
+	if isJoyreactorImageURL(url) {
+		if cropped := cropJoyreactorBadge(data, format); len(cropped) > 0 {
+			data = cropped
+		}
 	}
 	p, err := a.MediaWrite(MediaCacheName(url, ext), data)
 	if err != nil {
 		return ""
 	}
 	return p
+}
+
+// The footer is recognised by both its full-width orange strip and the shape of
+// its logo. Anything ambiguous is left intact, including yellow meme captions.
+var joyLogoMask = []string{
+	"..##.................................................##....................................",
+	"..##.................................................##....................................",
+	"...#.................................................###...................................",
+	".####...####..###...########..#####...#####....##########...####...#####.......####...#####",
+	"..###..######.###..##..#####.######...#####...######.####..######..#####......######.#####.",
+	"..###.###..##..##..##..###..########....####.###.....###..###..###.###.......###.....##....",
+	"..###.##...###.######..##...########..######.###.....##...##...###.###.......##.....###....",
+	"..###.##...###..####...##...###......#######.###.....##...##...###.###.......##.....###....",
+	"..###.###..##...####...##....##.....####.###.###.....###..###..###.###....#..###.....##....",
+	"..###..######...####...##....######.########..######.####..######..###...###..######.#####.",
+	"..###...####.....###...##.....#####...######...####...###...####...###...##....####...#####",
+	"..###............##........................................................................",
+	".###............###........................................................................",
+	"###.............##.........................................................................",
+}
+
+func isJoyreactorImageURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	return host == "joyreactor.cc" || strings.HasSuffix(host, ".joyreactor.cc") || host == "reactor.cc" || strings.HasSuffix(host, ".reactor.cc")
+}
+
+func cropJoyreactorBadge(data []byte, format string) []byte {
+	if format != "png" && format != "jpeg" {
+		return nil
+	}
+	src, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil
+	}
+	b := src.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w < 200 || h < 100 {
+		return nil
+	}
+	orange := func(x, y int) bool {
+		r, g, bl, _ := src.At(b.Min.X+x, b.Min.Y+y).RGBA()
+		return r>>8 >= 235 && g>>8 >= 175 && g>>8 <= 210 && bl>>8 >= 35 && bl>>8 <= 75
+	}
+	// The left three quarters of every footer row must be almost solid orange.
+	start := h
+	for y := h - 1; y >= 0 && h-y <= min(64, h/20); y-- {
+		n := 0
+		for x := 0; x < w*3/4; x++ {
+			if orange(x, y) {
+				n++
+			}
+		}
+		if n*100 < (w*3/4)*98 {
+			break
+		}
+		start = y
+	}
+	if h-start < 5 || start == 0 || h-start >= min(64, h/20) {
+		return nil
+	}
+	minX, minY, maxX, maxY := w, h, -1, -1
+	for y := start; y < h; y++ {
+		for x := w * 3 / 4; x < w; x++ {
+			r, g, bl, _ := src.At(b.Min.X+x, b.Min.Y+y).RGBA()
+			if r>>8 < 125 && g>>8 < 125 && bl>>8 < 125 {
+				minX = min(minX, x)
+				maxX = max(maxX, x)
+				minY = min(minY, y)
+				maxY = max(maxY, y)
+			}
+		}
+	}
+	lw, lh := maxX-minX+1, maxY-minY+1
+	if lw < 30 || lh < 5 || lw < lh*5 || lw > lh*10 || maxX < w*9/10 {
+		return nil
+	}
+	mismatch := 0
+	for y := 0; y < len(joyLogoMask); y++ {
+		for x := 0; x < len(joyLogoMask[y]); x++ {
+			sx := minX + x*lw/len(joyLogoMask[y])
+			sy := minY + y*lh/len(joyLogoMask)
+			r, g, bl, _ := src.At(b.Min.X+sx, b.Min.Y+sy).RGBA()
+			dark := r>>8 < 125 && g>>8 < 125 && bl>>8 < 125
+			if dark != (joyLogoMask[y][x] == '#') {
+				mismatch++
+			}
+		}
+	}
+	if mismatch*100 > len(joyLogoMask)*len(joyLogoMask[0])*25 {
+		return nil
+	}
+	cropped := src.(interface {
+		SubImage(image.Rectangle) image.Image
+	}).SubImage(image.Rect(b.Min.X, b.Min.Y, b.Max.X, b.Min.Y+start))
+	var out bytes.Buffer
+	if format == "png" {
+		err = png.Encode(&out, cropped)
+	} else {
+		err = jpeg.Encode(&out, cropped, &jpeg.Options{Quality: 92})
+	}
+	if err != nil {
+		return nil
+	}
+	return out.Bytes()
 }
 
 // MediaStoreVideo — видео в кэш: из файла или скачать. Перекодированное — всегда .mp4.
@@ -631,6 +749,42 @@ func (a *App) MediaReleaseRemoved(ctx context.Context, before, after []jx.M) {
 	}
 }
 
+// PruneOldPool removes collected posts after a week, including archived fallback items.
+func (u *U) PruneOldPool() error {
+	var before []jx.M
+	cutoff := now() - 7*24*60*60
+	after, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
+		kept := make([]jx.M, 0, len(pool))
+		changed := false
+		for _, item := range pool {
+			at := jx.Int(item, "pooled_at")
+			if at <= 0 {
+				at = jx.Int(item, "timestamp")
+			}
+			if at <= 0 {
+				item["pooled_at"] = now()
+				changed = true
+			} else if at < cutoff {
+				changed = true
+				continue
+			}
+			kept = append(kept, item)
+		}
+		if !changed {
+			return nil
+		}
+		before = pool
+		return kept
+	})
+	if err != nil {
+		return err
+	}
+	if before != nil {
+		u.MediaReleaseRemoved(u.Ctx, before, after)
+	}
+	return nil
+}
+
 func PoolItemIsFresh(item jx.M, at int64) bool {
 	if !jx.Has(item, "pooled_at") {
 		return true
@@ -728,6 +882,7 @@ func (u *U) GalleryCacheFiles(gallery []jx.M, mainImage string) []jx.M {
 		}
 		done++
 		if b := u.HTTPGet(jx.Str(f, "image"), 20*time.Second); b != nil && len(b) <= config.MaxImageBytes {
+			gallery[i]["phash"] = ImagePhash(b)
 			gallery[i]["image_local"] = u.MediaStoreImage(jx.Str(f, "image"), galleryPrepareImage(b))
 		}
 		if v := jx.Str(f, "video"); v != "" {
@@ -936,6 +1091,9 @@ func (a *App) TopicIsRestricted(topic string) bool {
 
 // ContentIsAdult — запись 18+ или «Жесть».
 func (a *App) ContentIsAdult(r jx.M) bool {
+	if jx.Bool(r, "source_sensitive") {
+		return true
+	}
 	cat := a.ContentTagCatalog()
 	for _, k := range jx.Strs(r, "tags") {
 		if t, ok := cat[k]; ok && t.NSFW {
@@ -950,24 +1108,17 @@ func (a *App) ContentIsAdult(r jx.M) bool {
 
 const ContentLewdHumorTag = "adult.lewd_humor"
 
-// ContentAdultBlocked — не пускать в подбор: 18+ при выключенном 18+; в обычной теме — эротику, порно и жесть всегда (кроме пошлого юмора).
+// ContentAdultBlocked — настройка 18+ действует одинаково во всех темах.
+// Соответствие теме отдельно проверяется полным анализом.
 func (u *U) ContentAdultBlocked(r jx.M, topic string) bool {
 	if !u.ContentIsAdult(jx.Defaults(r, jx.M{"topic": topic})) {
 		return false
 	}
-	if !u.AdultAllowed() {
-		return true
-	}
-	if u.TopicIsRestricted(topic) {
-		return false
-	}
-	cat := u.ContentTagCatalog()
-	for _, k := range jx.Strs(r, "tags") {
-		if k != ContentLewdHumorTag && cat[k].NSFW {
-			return true
-		}
-	}
-	return false
+	return u.contentAdultBlocked(r, topic, u.AdultAllowed())
+}
+
+func (a *App) contentAdultBlocked(r jx.M, topic string, allowed bool) bool {
+	return !allowed && a.ContentIsAdult(jx.Defaults(r, jx.M{"topic": topic}))
 }
 
 // ContentRecordByMedia — запись пользователя, у которой этот адрес — картинка, видео или их копия.
@@ -1052,6 +1203,14 @@ func (u *U) ContentMarkPosted(key string) string {
 			}
 			if c == "liked" {
 				if jx.Bool(r, "published_at") {
+					u.HistoryUpdate(func(h History) History {
+						for i, record := range h["liked"] {
+							if ContentItemKey(record) == key {
+								h["liked"][i] = jx.Merge(record, jx.M{"repeat_action_at": now()})
+							}
+						}
+						return h
+					})
 					return "already"
 				}
 				u.HistoryUpdate(func(h History) History { return ContentMarkInLiked(h, key, now()) })

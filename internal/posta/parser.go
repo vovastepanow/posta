@@ -10,9 +10,10 @@ import (
 	"os"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"posta/internal/ch"
 	"posta/internal/config"
@@ -461,7 +462,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 		}
 	}
 	fetchSet := map[string]bool{}
-	for _, k := range SourcePollFetchSet(poll, cachedMap, t, u.TInt("fetches_per_pass")) {
+	for _, k := range sourcePollFetchSet(poll, cachedMap, t, u.TInt("fetches_per_pass"), u.CombinedSourceVerdicts(u.Ctx, topic)) {
 		fetchSet[k] = true
 	}
 	fetched, fromCache := 0, 0
@@ -513,6 +514,10 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 				if _, inPoll := poll[pkey]; inPoll {
 					fetched++
 				}
+			}
+			if sharedSourceEligible(c.Platform, e) {
+				stored := u.publicSourcePosts(u.Ctx, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@")), t-7*config.DaySeconds, 100)
+				posts = mergePublicPosts(posts, stored)
 			}
 			if event != "" {
 				stats[event]++
@@ -585,6 +590,9 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 		}
 		u.Log("Поиск постов: YouTube %d (запросов %d), Telegram %d (запросов %d), VK %d (запросов %d) — после фильтра по словам.",
 			len(search.By[PlatformRSS]), search.Done["youtube"], len(search.By[PlatformTelegram]), search.Done["telegram"], len(search.By[PlatformVK]), search.Done["vk"])
+	}
+	for platform, posts := range u.classifiedPublicPosts(topic) {
+		by[platform] = mergePublicPosts(by[platform], posts)
 	}
 	labels := map[string]string{"other_topic": "другой темы", "skipped_frozen": "заморожено (ждут перепроверки)", "frozen": "заморожено сейчас", "revived": "ожило",
 		"ukraine_source": "украинских источников не собираем"}
@@ -748,11 +756,14 @@ type knownKeys struct {
 func recordKnownKeys(records []jx.M) *knownKeys {
 	k := &knownKeys{keys: map[string]bool{}}
 	for _, r := range records {
-		if img := ContentImageKey(r); img != "" {
+		for _, key := range repeatKeys(r) {
+			k.keys["remember:"+key] = true
+		}
+		if img := ContentImageKey(r); img != "" && !repeatFileIsVideo(r) {
 			k.keys[img] = true
 		}
 		for _, g := range jx.Maps(r, "gallery") {
-			if s := jx.Str(g, "image"); s != "" {
+			if s := jx.Str(g, "image"); s != "" && !repeatFileIsVideo(g) {
 				k.keys[s] = true
 			}
 		}
@@ -776,23 +787,37 @@ func recordKnownKeys(records []jx.M) *knownKeys {
 }
 
 func (u *U) collectKnown() *knownKeys {
-	return recordKnownKeys(append(u.Pool(), u.History().All()...))
+	known := recordKnownKeys(append(u.Pool(), recentRepeatRecords(u.History().All(), now())...))
+	if err := loadRepeatMemory(u.Ctx, u.DB.Pool, u.ID, known, nil); err != nil {
+		u.Log("Не удалось прочитать память повторов: %v", err)
+	}
+	return known
 }
 
 func (u *U) collectKnownHashes() map[string]string {
 	out := map[string]string{}
-	for _, r := range append(u.Pool(), u.History().All()...) {
-		if h := jx.Str(r, "phash"); h != "" {
+	for _, r := range append(u.Pool(), recentRepeatRecords(u.History().All(), now())...) {
+		for _, h := range repeatPhashes(r) {
 			out[h] = jx.Str(r, "source")
 		}
+	}
+	if err := loadRepeatMemory(u.Ctx, u.DB.Pool, u.ID, nil, out); err != nil {
+		u.Log("Не удалось прочитать отпечатки повторов: %v", err)
 	}
 	return out
 }
 
 func candidateIsKnown(item jx.M, k *knownKeys) bool {
-	imgs := []string{jx.Str(item, "image")}
-	for _, g := range jx.Maps(item, "gallery") {
-		imgs = append(imgs, jx.Str(g, "image"))
+	for _, key := range repeatKeys(item) {
+		if k.keys["remember:"+key] {
+			return true
+		}
+	}
+	var imgs []string
+	for _, f := range append([]jx.M{item}, jx.Maps(item, "gallery")...) {
+		if !PostItemHasVideo(f) {
+			imgs = append(imgs, jx.Str(f, "image"))
+		}
 	}
 	for _, i := range imgs {
 		if i != "" && k.keys[i] {
@@ -815,7 +840,7 @@ func candidateIsKnown(item jx.M, k *knownKeys) bool {
 
 // prunePoolAlreadyRated — убирает из пула записи, чей пост уже оценён.
 func (u *U) prunePoolAlreadyRated() int {
-	known := recordKnownKeys(u.History().All())
+	known := recordKnownKeys(recentRepeatRecords(u.History().All(), now()))
 	before := u.Pool()
 	after, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
 		var kept []jx.M
@@ -840,23 +865,32 @@ func (u *U) prunePoolAlreadyRated() int {
 // AddItemToPoolSafely — запись в пул. Полный пул темы: вытесняется самая старая просроченная запись; нет просроченных — не добавляем.
 func (u *U) AddItemToPoolSafely(item jx.M) bool {
 	added := false
+	u.prepareRepeatFiles(item)
 	if !jx.Has(item, "pooled_at") {
 		item["pooled_at"] = now()
 	}
 	before := u.Pool()
 	known := u.collectKnown()
 	target := u.TInt("pool_target")
-	after, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
+	after, err := u.poolUpdate(func(tx pgx.Tx, pool []jx.M) ([]jx.M, error) {
+		memory := recordKnownKeys(recentRepeatRecords(u.historyLoad(u.Ctx, tx, u.ID).All(), now()))
+		hashes := map[string]string{}
+		if err := loadRepeatMemory(u.Ctx, tx, u.ID, memory, hashes); err != nil {
+			return nil, err
+		}
+		if repeatMatches(item, memory, hashes) {
+			return nil, nil
+		}
 		if candidateIsKnown(item, known) {
-			return nil
+			return nil, nil
 		}
 		topic := TopicNorm(jx.Str(item, "topic"))
 		fresh := u.freshPoolItems(pool)
 		if candidateIsKnown(item, recordKnownKeys(pool)) {
-			return nil
+			return nil, nil
 		}
 		if sourcePoolCount(fresh, topic, ContentSourceKey(item)) >= sourcePoolLimit(u.TInt("per_source_pool"), target, topicPoolCount(fresh, topic)) {
-			return nil
+			return nil, nil
 		}
 		var same []int
 		for i, it := range pool {
@@ -872,7 +906,7 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 				}
 			}
 			if len(expired) == 0 {
-				return nil
+				return nil, nil
 			}
 			sort.SliceStable(expired, func(a, b int) bool {
 				return jx.Int(pool[expired[a]], "pooled_at") < jx.Int(pool[expired[b]], "pooled_at")
@@ -880,7 +914,7 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 			pool = append(pool[:expired[0]], pool[expired[0]+1:]...)
 		}
 		added = true
-		return PoolOrder(append(pool, item))
+		return PoolOrder(append(pool, item)), nil
 	})
 	if err != nil {
 		u.Log("Не удалось сохранить запись в пул: %v", err)
@@ -941,16 +975,13 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	platOrder := candidatePlatformOrder(byPlatform)
 	for _, p := range platOrder {
 		for _, item := range ExpandPostImages(byPlatform[p]) {
-			if TopicNorm(topic) == TopicNorm(config.DefaultTopic) && (PostItemHasVideo(item) || jx.Str(item, "video_via") != "") &&
-				!memeYouTubeAllowed(strconv.FormatFloat(jx.Float(item, "duration"), 'f', -1, 64), jx.Str(item, "text")) {
-				skipped["format"]++
-				continue
-			}
 			if !ContentPassesMediaFilters(item, filters) {
+				u.rememberRejected(topic, "filter", item, "Не прошёл фильтры медиа", nil)
 				skipped["filter"]++
 				continue
 			}
 			if ua := u.UAItemBlocked(item); ua != "" {
+				u.rememberRejected(topic, "filter", item, "Фильтр украинского контента: "+ua, nil)
 				skipped["ukraine"]++
 				src := ContentSourceKey(item)
 				uaAll[src] = true
@@ -997,6 +1028,14 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 				reason = "format"
 			}
 			if reason != "" {
+				switch reason {
+				case "rejected_before":
+					u.rememberRejected(topic, "prescreen", item, "Отсеян быстрой оценкой ранее", nil)
+				case "outdated":
+					u.rememberRejected(topic, "filter", item, "Устаревший пост", nil)
+				case "format":
+					u.rememberRejected(topic, "filter", item, "Не подходит по формату", nil)
+				}
 				skipped[reason]++
 				continue
 			}
@@ -1287,7 +1326,8 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 		if TopicWordsHit(text, keywords) {
 			kw = config.HotKeywordBoost
 		}
-		score[i] = heat[i] * mult * kw * boost[i]
+		// Ограничиваем влияние вирусности: популярность не заменяет попадание в тему.
+		score[i] = math.Min(3, math.Max(0.25, heat[i])) * mult * kw * boost[i]
 	}
 	bySrc := map[string][]int{}
 	var srcOrder []string
@@ -1358,7 +1398,12 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 	return append(append(first, InterleaveBySource(hot)...), InterleaveBySource(tailItems)...)
 }
 
-// hotTextJudge — пакетная проверка подписей (темы, где судят по тексту): ниже порога — отброс или в конец.
+// A caption is incomplete evidence when the post also contains media.
+func captionVerdictCanReject(item jx.M, judge string) bool {
+	return judge == "text" && !PostItemHasMedia(item)
+}
+
+// hotTextJudge — пакетная проверка подписей: слабые подписи медиа откладываются до полного анализа.
 func (u *U) hotTextJudge(items []jx.M, topic string) []jx.M {
 	judge := u.TopicFormatOf(topic).Judge
 	if judge != "text" && judge != "both" {
@@ -1385,7 +1430,7 @@ func (u *U) hotTextJudge(items []jx.M, topic string) []jx.M {
 			if r == nil || jx.Int(r, "relevance") >= config.HotTextRejectScore {
 				continue
 			}
-			if judge == "text" {
+			if captionVerdictCanReject(items[idx[off+k]], judge) {
 				drop[idx[off+k]] = true
 			} else {
 				late[idx[off+k]] = true
@@ -1549,7 +1594,11 @@ func (u *U) analysisCacheGet(item jx.M, topic string, h History) jx.M {
 	if err != nil {
 		return nil
 	}
-	return jx.Unmarshal(raw)
+	a := jx.Unmarshal(raw)
+	if _, ok := a["advertising"].(bool); !ok {
+		return nil
+	}
+	return a
 }
 
 func (u *U) analysisCachePut(item jx.M, topic string, h History, an jx.M) {
@@ -1625,6 +1674,9 @@ type prescreenCtx struct {
 }
 
 func (u *U) screen(topic, stage string, item jx.M, score int, passed bool, reason, model string) {
+	if !passed {
+		u.rememberRejected(topic, stage, item, reason, &score)
+	}
 	u.CH.Screening(ch.Screening{TS: time.Now(), UserID: u.ID, Topic: topic, Stage: stage, SourceKey: ContentSourceKey(item), Platform: HotPlatform(item),
 		ImageKey: ContentItemKey(item), Score: score, Passed: passed, Reason: reason, Model: model})
 }
@@ -1646,6 +1698,9 @@ func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline
 			continue
 		}
 		hash := ImagePhash(poster)
+		if repeatFileIsVideo(item) {
+			hash = ""
+		}
 		if hash != "" {
 			if seen, ok := PhashFind(hash, c.knownHashes); ok {
 				c.stats["duplicates"]++
@@ -1662,6 +1717,7 @@ func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline
 		if s, ok := c.cached[jx.Str(item, "image")]; ok {
 			sc := s
 			if u.prescreenIsJunk(&sc, item) {
+				u.rememberRejected(topic, "prescreen", item, "Оценка из кеша", &sc)
 				c.stats["rejected"]++
 			} else {
 				c.passedTotal++
@@ -1671,6 +1727,7 @@ func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline
 		} else if k, ok := PhashFind(hash, c.screenedHashes); hash != "" && ok {
 			sc := c.screenedHashes[k]
 			if u.prescreenIsJunk(&sc, item) {
+				u.rememberRejected(topic, "prescreen", item, "Оценка из кеша", &sc)
 				c.stats["rejected"]++
 			} else {
 				c.passedTotal++
@@ -1734,7 +1791,21 @@ func (u *U) textCandidatesPriority(items []jx.M, topic string) []jx.M {
 
 // admissionReason contains the same content decisions for collection and diagnostics.
 func (u *U) admissionReason(a jx.M, item jx.M, topic, text string) string {
-	if IsSpamContent(CleanPostAttribution(text, item), jx.Str(a, "description")) {
+	if reason := u.contentAdmissionReason(a, item, topic, text); reason != "" {
+		return reason
+	}
+	if u.SearchTopicKey() != topic {
+		return "тема поиска сменилась"
+	}
+	return ""
+}
+
+// contentAdmissionReason is shared by collection and read-only replay diagnostics.
+func (u *U) contentAdmissionReason(a jx.M, item jx.M, topic, text string) string {
+	if ad, ok := a["advertising"].(bool); !ok || ad {
+		return "реклама или не проверена на рекламу"
+	}
+	if PostIsAdvertisement(item) || IsSpamContent(CleanPostAttribution(text, item), jx.Str(a, "description")) {
 		return "спам"
 	}
 	o := DefaultQualityOpts()
@@ -1743,13 +1814,10 @@ func (u *U) admissionReason(a jx.M, item jx.M, topic, text string) string {
 		return reason
 	}
 	if u.ContentAdultBlocked(jx.Merge(item, jx.M{"tags": a["tags"]}), topic) {
-		return "18+ или «Жесть» не по теме"
+		return "18+ и чувствительный контент выключены"
 	}
 	if a["ukraine"] == true && u.UAFilterOn() {
 		return "украинский контент"
-	}
-	if u.SearchTopicKey() != topic {
-		return "тема поиска сменилась"
 	}
 	return ""
 }
@@ -1797,7 +1865,7 @@ func analysisRecord(a, item jx.M, topic, defFormat string) jx.M {
 	}
 	rec := jx.Copy(item)
 	for k, v := range (jx.M{"description": desc, "why_relevant": why, "relevance": a["relevance"], "rating": nil, "format": format, "tags": orList(jx.List(a, "tags")),
-		"entity": jx.Str(a, "entity"), "source_hashtags": PostSourceHashtags(item), "topic": topic, "analysis_model": jx.Str(a, "model")}) {
+		"quote": jx.Bool(a, "quote"), "entity": jx.Str(a, "entity"), "source_hashtags": PostSourceHashtags(item), "topic": topic, "analysis_model": jx.Str(a, "model")}) {
 		rec[k] = v
 	}
 	// Метка — по содержанию поста (place от модели); нет места — поля geo в записи нет
@@ -1839,10 +1907,10 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 			return false
 		}
 		a = res[0]
-		a["model"] = u.LLM.ModelFor(u.Ctx, "text")
 		u.analysisCachePut(item, topic, h, a)
 	}
 	verdict := fmt.Sprintf("соответствие теме %d%%", jx.Int(a, "relevance"))
+	u.classifyPublicPost(item, a, topic, h)
 	if !u.admit(a, item, topic, verdict, "text", text) {
 		return false
 	}
@@ -1903,6 +1971,7 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 		u.analysisCachePut(item, topic, h, a)
 	}
 	verdict := fmt.Sprintf("соответствие теме %d%%", jx.Int(a, "relevance"))
+	u.classifyPublicPost(item, a, topic, h)
 	if !u.admit(a, item, topic, verdict, "analysis", caption) {
 		return false
 	}
@@ -2062,7 +2131,7 @@ func (u *U) RunCollector() bool {
 		byPlatform = u.collectPostsByPlatform(key)
 	}
 	u.ParserStage("filter")
-	candidates, skipped := u.buildCandidateQueue(byPlatform, seen, rejected, u.TopicVerdictStats(key), &format, u.ContentFilterValues(), key)
+	candidates, skipped := u.buildCandidateQueue(byPlatform, seen, rejected, u.CombinedSourceVerdicts(u.Ctx, key), &format, u.ContentFilterValues(), key)
 	if hs := u.run.HotStats; hs != nil {
 		var per []string
 		for p, n := range hs["per"].(map[string]int) {

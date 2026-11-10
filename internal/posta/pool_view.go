@@ -16,7 +16,7 @@ func (u *U) poolItemMatchesTopic(i jx.M, topic, key string) bool {
 
 // PoolItemInTopic — запись можно показать: подходит теме, не скрыта фильтром Украины и не 18+ без флага.
 func (u *U) PoolItemInTopic(i jx.M, topic, key string, adult bool) bool {
-	if u.UARecordHidden(i) || (!adult && u.ContentIsAdult(i)) {
+	if PostIsAdvertisement(i) || u.UARecordHidden(i) || (!adult && u.ContentIsAdult(i)) {
 		return false
 	}
 	return u.poolItemMatchesTopic(i, topic, key)

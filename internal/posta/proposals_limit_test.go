@@ -14,7 +14,7 @@ func TestPruneSelectedHistoryKeepsLatestAndRatings(t *testing.T) {
 	}
 	h["liked"] = append(h["liked"], jx.M{"image": "other", "topic": "dogs", "timestamp": 0})
 	h["undecided"] = append(h["undecided"], jx.M{"image": "maybe", "topic": "cats"})
-	removed := pruneSelectedHistory(h, "cats", func(a, b string) bool { return a == b })
+	removed := pruneSelectedHistory(h, "cats", func(a, b string) bool { return a == b }, 103)
 	if len(removed) != 3 {
 		t.Fatalf("removed %d posts, want 3", len(removed))
 	}
@@ -30,7 +30,21 @@ func TestPruneSelectedHistoryKeepsLatestAndRatings(t *testing.T) {
 	if jx.Str(h["liked"][3], "image") != "image-3" || jx.Str(h["liked"][103], "image") != "other" || jx.Str(h["undecided"][0], "image") != "maybe" {
 		t.Fatal("new posts, other topics and undecided votes must remain unchanged")
 	}
-	if n := len(pruneSelectedHistory(h, "cats", func(a, b string) bool { return a == b })); n != 0 {
+	if n := len(pruneSelectedHistory(h, "cats", func(a, b string) bool { return a == b }, 103)); n != 0 {
 		t.Fatalf("second pass removed %d", n)
+	}
+}
+
+func TestPruneSelectedHistoryExpiresAcrossTopics(t *testing.T) {
+	h := EmptyHistory()
+	at := int64(2000000)
+	h["liked"] = []jx.M{
+		{"image": "old", "topic": "dogs", "timestamp": at - selectedPostMaxAge - 1, "text": "old"},
+		{"image": "boundary", "topic": "cats", "timestamp": at - selectedPostMaxAge},
+		{"image": "new", "topic": "cats", "timestamp": at},
+	}
+	removed := pruneSelectedHistory(h, "cats", func(a, b string) bool { return a == b }, at)
+	if len(removed) != 1 || !jx.Bool(h["liked"][0], "content_deleted") || jx.Str(h["liked"][1], "image") != "boundary" {
+		t.Fatalf("unexpected expiration: %#v", h["liked"])
 	}
 }

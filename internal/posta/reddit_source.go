@@ -86,14 +86,24 @@ func redditListingPosts(data []byte, community string, count int, withText bool)
 		Data struct {
 			Children []struct {
 				Data struct {
-					Title       string  `json:"title"`
-					Selftext    string  `json:"selftext"`
-					Permalink   string  `json:"permalink"`
-					Subreddit   string  `json:"subreddit"`
-					Created     float64 `json:"created_utc"`
-					Over18      bool    `json:"over_18"`
-					Removed     string  `json:"removed_by_category"`
-					URL         string  `json:"url"`
+					Title     string  `json:"title"`
+					Selftext  string  `json:"selftext"`
+					Permalink string  `json:"permalink"`
+					Subreddit string  `json:"subreddit"`
+					Created   float64 `json:"created_utc"`
+					Over18    bool    `json:"over_18"`
+					Removed   string  `json:"removed_by_category"`
+					URL       string  `json:"url"`
+					Media     struct {
+						RedditVideo struct {
+							FallbackURL string `json:"fallback_url"`
+						} `json:"reddit_video"`
+					} `json:"media"`
+					SecureMedia struct {
+						RedditVideo struct {
+							FallbackURL string `json:"fallback_url"`
+						} `json:"reddit_video"`
+					} `json:"secure_media"`
 					GalleryData struct {
 						Items []struct {
 							MediaID string `json:"media_id"`
@@ -122,7 +132,7 @@ func redditListingPosts(data []byte, community string, count int, withText bool)
 	var out []jx.M
 	for _, row := range response.Data.Children {
 		p := row.Data
-		if p.Over18 || p.Removed != "" || !strings.EqualFold(p.Subreddit, community) || !strings.HasPrefix(p.Permalink, "/r/") || p.Title == "" {
+		if p.Removed != "" || !strings.EqualFold(p.Subreddit, community) || !strings.HasPrefix(p.Permalink, "/r/") || p.Title == "" {
 			continue
 		}
 		var images []string
@@ -139,13 +149,27 @@ func redditListingPosts(data []byte, community string, count int, withText bool)
 			images = append(images, p.URL)
 		}
 		text := strings.TrimSpace(p.Title + "\n" + p.Selftext)
-		if len(images) == 0 && (!withText || runeLen(text) < 120) {
+		video := html.UnescapeString(p.SecureMedia.RedditVideo.FallbackURL)
+		if video == "" {
+			video = html.UnescapeString(p.Media.RedditVideo.FallbackURL)
+		}
+		if !strings.HasPrefix(video, "https://v.redd.it/") {
+			video = ""
+		}
+		if len(images) == 0 && video == "" && (!withText || runeLen(text) < 120) {
 			continue
 		}
 		link := "https://www.reddit.com" + p.Permalink
 		post := searchPost("Reddit", "reddit:"+strings.ToLower(community), "https://www.reddit.com/r/"+community+"/.rss", p.Title, text, "", "", link, int64(p.Created))
+		post["source_sensitive"] = p.Over18
 		if len(images) > 0 {
-			post["image"], post["images"], post["text_post"] = images[0], images, false
+			post["image"], post["images"] = images[0], images
+		}
+		if video != "" {
+			post["video"] = video
+		}
+		if len(images) > 0 || video != "" {
+			post["text_post"] = false
 		}
 		out = append(out, post)
 		if len(out) >= count {

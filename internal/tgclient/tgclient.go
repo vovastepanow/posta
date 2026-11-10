@@ -105,24 +105,24 @@ var ErrUnauthorized = errors.New("Вход устарел: подключите 
 var ErrNeedsPassword = errors.New("Нужен пароль двухэтапной защиты.")
 
 var errorTexts = map[string]string{
-	"API_ID_INVALID":         "api_id или api_hash не подходят: проверьте их на my.telegram.org.",
-	"API_ID_PUBLISHED_FLOOD": "api_id или api_hash не подходят: проверьте их на my.telegram.org.",
-	"PHONE_NUMBER_INVALID":   "Номер телефона указан неверно: нужен формат +79991234567.",
-	"PHONE_NUMBER_BANNED":    "Этот номер заблокирован в Telegram.",
-	"PHONE_CODE_INVALID":     "Код неверный.",
-	"PHONE_CODE_EXPIRED":     "Код устарел: запросите новый.",
-	"PASSWORD_HASH_INVALID":  "Пароль двухэтапной защиты неверный.",
+	"API_ID_INVALID":          "api_id или api_hash не подходят: проверьте их на my.telegram.org.",
+	"API_ID_PUBLISHED_FLOOD":  "api_id или api_hash не подходят: проверьте их на my.telegram.org.",
+	"PHONE_NUMBER_INVALID":    "Номер телефона указан неверно: нужен формат +79991234567.",
+	"PHONE_NUMBER_BANNED":     "Этот номер заблокирован в Telegram.",
+	"PHONE_CODE_INVALID":      "Код неверный.",
+	"PHONE_CODE_EXPIRED":      "Код устарел: запросите новый.",
+	"PASSWORD_HASH_INVALID":   "Пароль двухэтапной защиты неверный.",
 	"SESSION_PASSWORD_NEEDED": "Нужен пароль двухэтапной защиты.",
-	"AUTH_KEY_UNREGISTERED":  "Вход устарел: подключите аккаунт заново.",
-	"SESSION_REVOKED":        "Сессия завершена в Telegram: подключите аккаунт заново.",
-	"USER_DEACTIVATED":       "Аккаунт удалён или заблокирован.",
-	"USER_DEACTIVATED_BAN":   "Аккаунт удалён или заблокирован.",
-	"SCHEDULE_TOO_MUCH":      "В канале уже слишком много отложенных постов (лимит Telegram — 100).",
-	"CHAT_ADMIN_REQUIRED":    "У вашего аккаунта нет права публиковать в этом канале.",
-	"CHAT_WRITE_FORBIDDEN":   "У вашего аккаунта нет права публиковать в этом канале.",
-	"CHANNEL_PRIVATE":        "Канал закрыт для этого аккаунта.",
-	"USERNAME_NOT_OCCUPIED":  "Такого канала нет.",
-	"USERNAME_INVALID":       "Такого канала нет.",
+	"AUTH_KEY_UNREGISTERED":   "Вход устарел: подключите аккаунт заново.",
+	"SESSION_REVOKED":         "Сессия завершена в Telegram: подключите аккаунт заново.",
+	"USER_DEACTIVATED":        "Аккаунт удалён или заблокирован.",
+	"USER_DEACTIVATED_BAN":    "Аккаунт удалён или заблокирован.",
+	"SCHEDULE_TOO_MUCH":       "В канале уже слишком много отложенных постов (лимит Telegram — 100).",
+	"CHAT_ADMIN_REQUIRED":     "У вашего аккаунта нет права публиковать в этом канале.",
+	"CHAT_WRITE_FORBIDDEN":    "У вашего аккаунта нет права публиковать в этом канале.",
+	"CHANNEL_PRIVATE":         "Канал закрыт для этого аккаунта.",
+	"USERNAME_NOT_OCCUPIED":   "Такого канала нет.",
+	"USERNAME_INVALID":        "Такого канала нет.",
 }
 
 // Describe — ошибка Telegram понятным текстом.
@@ -158,7 +158,9 @@ func fail(format string, a ...any) error { return &textError{fmt.Sprintf(format,
 // FloodError — Telegram просит подождать.
 type FloodError struct{ Seconds int }
 
-func (e *FloodError) Error() string { return fmt.Sprintf("Telegram просит подождать %d с и повторить.", e.Seconds) }
+func (e *FloodError) Error() string {
+	return fmt.Sprintf("Telegram просит подождать %d с и повторить.", e.Seconds)
+}
 
 // ---- Вход ----
 
@@ -302,7 +304,7 @@ func groupInfo(ch tg.ChatClass, query string) *Group {
 	return &Group{Username: c.Username, Title: c.Title, Members: int64(n), Query: query}
 }
 
-func searchChats(ctx context.Context, api *tg.Client, queries []string, limit, maxQueries int, each func(ch tg.ChatClass, q string)) error {
+func searchChats(ctx context.Context, api *tg.Client, queries []string, limit, maxQueries int, each func(ch tg.ChatClass, q string), observe func(string, int, error)) error {
 	for i, q := range queries {
 		if i >= maxQueries {
 			break
@@ -313,10 +315,16 @@ func searchChats(ctx context.Context, api *tg.Client, queries []string, limit, m
 		}
 		res, err := api.ContactsSearch(ctx, &tg.ContactsSearchRequest{Q: q, Limit: min(limit, 100)})
 		if err != nil {
+			if observe != nil {
+				observe(q, 0, err)
+			}
 			if _, flood := tgerr.AsFloodWait(err); flood {
 				break // лимит поиска исчерпан: возвращаем, что успели найти
 			}
 			return err
+		}
+		if observe != nil {
+			observe(q, len(res.Chats), nil)
 		}
 		for _, ch := range res.Chats {
 			each(ch, q)
@@ -327,6 +335,11 @@ func searchChats(ctx context.Context, api *tg.Client, queries []string, limit, m
 
 // SearchChannels — глобальный поиск: реально существующие каналы в порядке, в каком их ранжирует Telegram.
 func SearchChannels(ctx context.Context, acc *Account, queries []string, limit int) ([]Channel, error) {
+	return SearchChannelsObserved(ctx, acc, queries, limit, nil)
+}
+
+// SearchChannelsObserved reports only queries actually attempted by Telegram.
+func SearchChannelsObserved(ctx context.Context, acc *Account, queries []string, limit int, observe func(string, int, error)) ([]Channel, error) {
 	var out []Channel
 	seen := map[string]bool{}
 	err := RunAuthorized(ctx, acc, func(ctx context.Context, api *tg.Client) error {
@@ -335,7 +348,7 @@ func SearchChannels(ctx context.Context, acc *Account, queries []string, limit i
 				seen[strings.ToLower(c.Username)] = true
 				out = append(out, *c)
 			}
-		})
+		}, observe)
 	})
 	return out, err
 }
@@ -350,7 +363,7 @@ func SearchGroups(ctx context.Context, acc *Account, queries []string, limit int
 				seen[strings.ToLower(g.Username)] = true
 				out = append(out, *g)
 			}
-		})
+		}, nil)
 	})
 	return out, err
 }

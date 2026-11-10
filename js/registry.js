@@ -36,7 +36,7 @@ function registryCard(row) {
     const checked = row.checked_at ? `проверен ${formatAgo(row.checked_at)}, проверок ${row.check_count}` : '';
     return el('article', { className: 'sp-card is-text registry-card' },
         el('header', {}, el('strong', { textContent: row.name || row.source_id }),
-            el('span', { className: 'source-status', textContent: ` ${row.platform || ''} · ${STATUS_LABEL[row.status] || row.status}` })),
+            el('span', { className: 'source-status', textContent: ` ${row.platform_label || row.platform || ''} · ${STATUS_LABEL[row.status] || row.status}` })),
         row.reason ? el('p', { className: 'registry-reason', textContent: row.reason }) : null,
         lines.length ? el('ul', { className: 'registry-topics' }, ...lines.map(text => el('li', { textContent: text }))) : null,
         el('p', { className: 'registry-meta', textContent: [checked, origin].filter(Boolean).join(' · ') }),

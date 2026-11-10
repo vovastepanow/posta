@@ -20,16 +20,16 @@ import (
 // модель роли «радар» решает, ищет ли автор то, что делает Posta.
 
 const (
-	leadBatch          = 15
-	radarMinMembers    = 50
-	radarAutoInterval  = 600
-	radarMaxChats      = 50
-	radarMaxQueries    = 15
+	leadBatch         = 15
+	radarMinMembers   = 50
+	radarAutoInterval = 600
+	radarMaxChats     = 50
+	radarMaxQueries   = 15
 )
 
 var (
-	RadarLeadStatuses    = []string{"new", "interested", "replied", "spam", "ignored"}
-	radarDefaultQueries  = []string{"автопостинг", "чат админов телеграм", "админы каналов", "smm чат", "продвижение телеграм канала",
+	RadarLeadStatuses   = []string{"new", "interested", "replied", "spam", "ignored"}
+	radarDefaultQueries = []string{"автопостинг", "чат админов телеграм", "админы каналов", "smm чат", "продвижение телеграм канала",
 		"контент для канала", "отложенный постинг", "владельцы каналов", "ведение телеграм канала", "реклама в телеграм каналах"}
 	leadKeywords = []string{"контент", "пост", "автопост", "отложен", "расписан", "канал", "паблик", "группу вк", "админ", "smm", "смм", "наполн", "мем", "рерайт", "бот"}
 	leadAskRe    = regexp.MustCompile(`(?i)[?]|ищу|посоветуй|подскажи|нужен|нужна|кто знает|как |где |чем |помогите|помощь`)
@@ -84,30 +84,10 @@ func LeadPrefilter(text string) bool {
 	return hit && leadAskRe.MatchString(text)
 }
 
-func leadPrompt(text string) string {
-	return `Ты отбираешь потенциальных клиентов для сервиса Posta. Сервис сам находит свежий контент по теме (посты, мемы, видео из Telegram, VK, форумов) и публикует его в канал владельца по расписанию.
-
-Лид (1) — автор САМ ищет такое решение или жалуется на эту боль: ищет, где брать контент для канала, чем автоматизировать постинг, как вести канал без затрат времени, просит посоветовать сервис/бота для отложенных постов или подбора контента, ищет админа/контент-менеджера для наполнения канала.
-Не лид (0) — реклама своих услуг (SMM-специалист предлагает себя), продажа каналов, спам, флуд, вопросы не про контент и постинг, сообщения без запроса.
-
-Примеры:
-«Посоветуйте бота, чтобы посты сами выходили по расписанию» → 1
-«Где брать мемы для паблика каждый день? Устал искать вручную» → 1
-«Ищу человека, который будет наполнять мой телеграм-канал про авто» → 1
-«Веду ваши соцсети под ключ, пишите в лс» → 0
-«Продам канал 5к подписчиков» → 0
-«Кто-нибудь знает, когда обновят тарифы?» → 0
-
-Сообщение:
-"""` + trimRunes(text, 1500) + `"""
-
-Ответь JSON: {"lead": 0 или 1, "reason": "до 12 слов, почему"}`
-}
-
 // LeadClassify — модель роли «радар»: lead 0|1 и причина.
 func (a *App) LeadClassify(ctx context.Context, uid, text string) (int, string, error) {
 	schema := jx.M{"type": "object", "properties": jx.M{"lead": jx.M{"type": "integer", "enum": []int{0, 1}}, "reason": jx.M{"type": "string"}}, "required": []string{"lead", "reason"}}
-	resp, err := a.LLM.Generate(ctx, &llm.Request{Role: llm.RoleRadar, Prompt: leadPrompt(text), Schema: schema, MaxTokens: 120, Temperature: 0, UserID: uid, Quiet: true,
+	resp, err := a.LLM.Generate(ctx, &llm.Request{Role: llm.RoleRadar, Prompt: a.User(ctx, uid, nil).prompt("radar_lead", map[string]string{"text": trimRunes(text, 1500)}), Schema: schema, MaxTokens: 120, Temperature: 0, UserID: uid, Quiet: true,
 		Timeout: 2 * time.Minute})
 	if err != nil {
 		return 0, "", fmt.Errorf("модель не ответила: %w", err)
@@ -133,7 +113,9 @@ func radarStateOf(uid string) *radarState {
 	return s.(*radarState)
 }
 
-func (a *App) radarLogPath(uid string) string { return filepath.Join(a.UsersDir(), ".radar-"+uid+".log") }
+func (a *App) radarLogPath(uid string) string {
+	return filepath.Join(a.UsersDir(), ".radar-"+uid+".log")
+}
 
 func (a *App) RadarRunning(uid string) bool {
 	s := radarStateOf(uid)

@@ -20,19 +20,21 @@ const (
 	RoleAnalysis  Role = "analysis"  // полный анализ записи по теме
 	RoleJudge     Role = "judge"     // «есть ли шутка», выбор подтемы: короткий ответ по картинке
 	RoleSmart     Role = "smart"     // профиль темы, классификация, план подбора, проверка канала
+	RoleClassify  Role = "classify"  // independent content labels
 	RoleText      Role = "text"      // пачки текстовых записей, подписи постов, стиль канала
 	RoleRadar     Role = "radar"     // классификация сообщений радара лидов
 	RoleTranslate Role = "translate" // перевод (если перевод моделью включён)
 	RoleEmbed     Role = "embed"     // эмбеддинги: сходство тем
 )
 
-var Roles = []Role{RolePrescreen, RoleAnalysis, RoleJudge, RoleSmart, RoleText, RoleRadar, RoleTranslate, RoleEmbed}
+var Roles = []Role{RolePrescreen, RoleAnalysis, RoleJudge, RoleSmart, RoleClassify, RoleText, RoleRadar, RoleTranslate, RoleEmbed}
 
 var RoleTitles = map[Role]string{
 	RolePrescreen: "Быстрая оценка (мусор ли)",
 	RoleAnalysis:  "Полный анализ записи",
 	RoleJudge:     "Проверка шутки и подтемы",
 	RoleSmart:     "Умные задачи (профиль темы, подбор)",
+	RoleClassify:  "Темы постов",
 	RoleText:      "Тексты и подписи",
 	RoleRadar:     "Радар лидов",
 	RoleTranslate: "Перевод",
@@ -40,27 +42,31 @@ var RoleTitles = map[Role]string{
 }
 
 // Vision — роли, которым нужны картинки.
-func (r Role) Vision() bool { return r == RolePrescreen || r == RoleAnalysis || r == RoleJudge || r == RoleSmart }
+func (r Role) Vision() bool {
+	return r == RolePrescreen || r == RoleAnalysis || r == RoleJudge || r == RoleSmart
+}
 
 type Request struct {
-	Role        Role
-	Prompt      string
-	System      string
-	Images      [][]byte       // JPEG/PNG; уменьшать заранее
-	Schema      map[string]any // JSON Schema ответа (structured output); nil — свободный текст
-	JSON        bool           // ответ JSON-объектом без схемы
-	MaxTokens   int
-	Temperature float64
-	Seed        *int
-	Think       bool // разрешить размышления (если модель умеет)
-	Logprobs    bool // вероятности первых токенов ответа (для «да/нет» и выбора буквы)
-	TopLogprobs int
-	Timeout     time.Duration
-	UserID      string // для журнала и статистики
-	Topic       string
-	Quiet       bool                // не писать обмен в журнал (служебные проверки)
-	Private     bool                // только локально: 18+ и прочее, что нельзя отправлять в облако
-	OnThinking  func(chunk string) // размышления по мере генерации
+	Role               Role
+	MaxPromptPrice     float64
+	MaxCompletionPrice float64
+	Prompt             string
+	System             string
+	Images             [][]byte       // JPEG/PNG; уменьшать заранее
+	Schema             map[string]any // JSON Schema ответа (structured output); nil — свободный текст
+	JSON               bool           // ответ JSON-объектом без схемы
+	MaxTokens          int
+	Temperature        float64
+	Seed               *int
+	Think              bool // разрешить размышления (если модель умеет)
+	Logprobs           bool // вероятности первых токенов ответа (для «да/нет» и выбора буквы)
+	TopLogprobs        int
+	Timeout            time.Duration
+	UserID             string // для журнала и статистики
+	Topic              string
+	Quiet              bool               // не писать обмен в журнал (служебные проверки)
+	Private            bool               // только локально: 18+ и прочее, что нельзя отправлять в облако
+	OnThinking         func(chunk string) // размышления по мере генерации
 }
 
 type Alt struct {

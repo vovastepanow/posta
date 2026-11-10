@@ -18,9 +18,21 @@ import (
 // Вкладка «Источники»: кандидаты по одному, превью, решения, источники темы.
 
 var SourcePlatformFilters = map[string]string{"any": "", "telegram": PlatformTelegram, "vk": PlatformVK, "tiktok": PlatformTikTok, "youtube": PlatformRSS,
-	"shorts": PlatformRSS, "ok": PlatformOK, "pinterest": PlatformRSS, "tumblr": PlatformRSS, "rss": PlatformRSS, "fourchan": Platform4chan, "dvach": PlatformDvach}
+	"shorts": PlatformRSS, "ok": PlatformOK, "pinterest": PlatformRSS, "tumblr": PlatformRSS, "rss": PlatformRSS, "fourchan": Platform4chan, "dvach": PlatformDvach,
+	"dzen": PlatformRSS, "reddit": PlatformRSS, "bluesky": PlatformRSS, "pikabu": PlatformRSS, "habr": PlatformRSS, "joyreactor": PlatformRSS,
+	"rutube": PlatformRSS, "medium": PlatformRSS, "substack": PlatformRSS, "livejournal": PlatformRSS, "threads": PlatformRSS, "instagram": PlatformRSS, "x": PlatformRSS}
 
-var sourceKindFilters = map[string]string{"youtube": "YouTube", "shorts": "YouTube Shorts", "pinterest": "Pinterest", "tumblr": "Tumblr", "rss": "RSS"}
+var sourceKindFilters = map[string]string{"youtube": "YouTube", "shorts": "YouTube Shorts", "pinterest": "Pinterest", "tumblr": "Tumblr", "rss": "RSS",
+	"dzen": "Дзен", "reddit": "Reddit", "bluesky": "Bluesky", "pikabu": "Пикабу", "habr": "Хабр", "joyreactor": "JoyReactor",
+	"rutube": "Rutube", "medium": "Medium", "substack": "Substack", "livejournal": "LiveJournal", "threads": "Threads", "instagram": "Instagram", "x": "X"}
+
+func sourceMatchesKind(c jx.M, kind string) bool {
+	k := jx.Str(c, "kind")
+	if kind == "" || k == kind || (kind == "RSS" && strings.HasPrefix(k, "Сайт · ")) {
+		return true
+	}
+	return kind != "RSS" && jx.Str(c, "platform") == PlatformRSS && RSSPlatformLabel(jx.Str(c, "id")) == kind
+}
 
 var SourceRejectReasons = []string{"off_topic", "dead", "other"}
 
@@ -124,6 +136,7 @@ func (u *U) catalogSourceCandidates(d *SourceDB, platform string, voted map[stri
 				extra["kind"] = NewsSiteKind(id)
 			} else {
 				extra["kind"] = RSSFeedKind(id)
+				extra["platform_label"] = RSSPlatformLabel(id)
 			}
 		}
 		out = append(out, sourceCandidate(sid, platform, SourceDisplayName(platform, name), reason, extra))
@@ -156,9 +169,10 @@ func (u *U) suggestionSourceCandidates(d *SourceDB, platform string, voted map[s
 	sort.SliceStable(list, func(i, j int) bool { return rank(list[i]) > rank(list[j]) })
 	out := []jx.M{}
 	for _, s := range list {
-		extra := jx.M{"id": s["id"], "suggested": true, "score": s["score"]}
+		extra := jx.M{"id": s["id"], "suggested": true, "score": s["score"], "timestamp": s["timestamp"]}
 		if jx.Str(s, "platform") == PlatformRSS {
 			extra["kind"] = RSSFeedKind(jx.Str(s, "id"))
+			extra["platform_label"] = RSSPlatformLabel(jx.Str(s, "id"))
 		}
 		out = append(out, sourceCandidate(jx.Str(s, "source_id"), jx.Str(s, "platform"), jx.Str(s, "name"), DiscoveryReasonWithRefs(jx.Str(s, "reason"), jx.Strs(s, "refs")), extra))
 	}
@@ -173,6 +187,11 @@ func postedTimes(posts []jx.M) []int64 {
 		}
 	}
 	return out
+}
+
+// telegramSourcePreviewFeed requests posts and allows enough pages to fill a preview.
+func (a *App) telegramSourcePreviewFeed(channel string, count int) jx.M {
+	return a.TelegramChannelMediaPosts(channel, max(1, count), telegramPreviewPages)
 }
 
 // BuildSourcePreview — посты и сводка карточки кандидата: url, description, subscribers, view_rate, posts_per_week, last_post, dead.
@@ -214,7 +233,7 @@ func (u *U) BuildSourcePreview(c jx.M, count int) jx.M {
 			stats["dead"] = "канала нет или он закрыт"
 			return jx.M{"posts": []jx.M{}, "stats": stats}
 		}
-		feed := u.TelegramChannelMediaPosts(jx.Str(info, "id"), 0, 0)
+		feed := u.telegramSourcePreviewFeed(jx.Str(info, "id"), count)
 		posts = u.TelegramBigVideosViaAccount(jx.Maps(feed, "posts"))
 		textPosts = jx.Maps(feed, "text_posts")
 		var times []int64
@@ -285,7 +304,7 @@ func deadOr(posts []jx.M, reason, empty string) any {
 // SourcePreviewPost — пост превью в одном виде для всех площадок.
 func (u *U) SourcePreviewPost(p jx.M) jx.M {
 	eng := jx.Map(p, "engagement")
-	text := CleanPostAttribution(jx.Str(p, "text"), p)
+	text := CleanPostDisplayText(jx.Str(p, "text"), p)
 	if text == EmptyPostText {
 		text = ""
 	}
@@ -320,9 +339,18 @@ func (u *U) sourcePreviewMedia(p jx.M) []jx.M {
 	page := jx.Str(p, "url")
 	out := []jx.M{}
 	if g := jx.Maps(p, "gallery"); len(g) > 0 {
-		for _, x := range g {
+		videoPage := jx.Str(p, "video_page")
+		for i, x := range g {
 			poster, video := https(jx.Str(x, "image")), https(jx.Str(x, "video"))
-			if video != "" {
+			if i == 0 && video == "" && videoPage != "" {
+				video = https(jx.Str(p, "video"))
+				if video == "" {
+					video = u.MediaExisting(jx.Str(p, "video_local"))
+				}
+			}
+			if i == 0 && video == "" && videoPage != "" {
+				out = append(out, item("video", "", poster, videoPage, jx.Bool(p, "video_pending"), jx.Bool(p, "video_unavailable")))
+			} else if video != "" {
 				out = append(out, item("video", video, poster, page, false, false))
 			} else if poster != "" {
 				out = append(out, item("image", poster, "", "", false, false))
@@ -359,7 +387,11 @@ func (u *U) sourcePreviewMedia(p jx.M) []jx.M {
 		start = 1
 	}
 	for _, img := range images[min(start, len(images)):] {
-		out = append(out, item("image", img, "", "", false, false))
+		media := item("image", img, "", "", false, false)
+		if img == poster {
+			media["fallback"] = https(jx.Str(p, "image_fallback"))
+		}
+		out = append(out, media)
 	}
 	return out
 }
@@ -618,7 +650,7 @@ func (u *U) SuggestSources(in jx.M) (jx.M, int, error) {
 	topic := u.CurrentTopic()
 	var votes []jx.M
 	for _, v := range d.Votes {
-		if t := jx.Str(v, "topic"); t == "" || u.TopicSame(t, topic) {
+		if t := jx.Str(v, "topic"); t == "" || u.TopicsAreEquivalent(t, topic) {
 			votes = append(votes, v)
 		}
 	}
@@ -649,14 +681,10 @@ func (u *U) SuggestSources(in jx.M) (jx.M, int, error) {
 		}
 	}
 	kind := sourceKindFilters[filter]
-	kindOK := func(c jx.M) bool {
-		k := jx.Str(c, "kind")
-		return kind == "" || k == kind || (kind == "RSS" && strings.HasPrefix(k, "Сайт · "))
-	}
 	filterKind := func(l []jx.M) []jx.M {
 		var out []jx.M
 		for _, c := range l {
-			if kindOK(c) {
+			if sourceMatchesKind(c, kind) {
 				out = append(out, c)
 			}
 		}
@@ -809,6 +837,17 @@ func (u *U) addApprovedSource(d *SourceDB, s jx.M, topic string) {
 		if !strings.EqualFold(jx.Str(e, "id"), id) {
 			continue
 		}
+		var excluded []any
+		for _, t := range jx.List(e, "excluded_topics") {
+			if !u.TopicSame(jx.ToStr(t), topic) {
+				excluded = append(excluded, t)
+			}
+		}
+		if len(excluded) == 0 {
+			delete(e, "excluded_topics")
+		} else {
+			e["excluded_topics"] = excluded
+		}
 		topics := jx.List(e, "topics")
 		has := false
 		for _, t := range topics {
@@ -837,6 +876,21 @@ func (u *U) removeRejectedSource(d *SourceDB, s jx.M, topic string) {
 	var kept []jx.M
 	for _, e := range *list {
 		if strings.EqualFold(jx.Str(e, "id"), id) {
+			if len(jx.List(e, "topics")) == 0 {
+				excluded := jx.List(e, "excluded_topics")
+				found := false
+				for _, t := range excluded {
+					if u.TopicSame(jx.ToStr(t), topic) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					e["excluded_topics"] = append(excluded, topic)
+				}
+				kept = append(kept, e)
+				continue
+			}
 			var topics []any
 			for _, t := range jx.List(e, "topics") {
 				if !u.TopicSame(jx.ToStr(t), topic) {
@@ -908,6 +962,11 @@ func (u *U) SourceVote(vote string, source jx.M, reason string) error {
 			}
 			if jx.Str(s, "source_id") == sid && u.TopicSame(st, topic) {
 				src, srcTopic = jx.M{"platform": s["platform"], "id": s["id"], "name": s["name"]}, st
+				if jx.Str(s, "platform") == PlatformRSS {
+					if _, missing := pendingRSSName(jx.Str(s, "name"), "", jx.Str(s, "id")); missing && strings.TrimSpace(jx.Str(source, "name")) != "" {
+						src["name"] = jx.Str(source, "name")
+					}
+				}
 				continue
 			}
 			keep = append(keep, s)
@@ -999,8 +1058,12 @@ func (u *U) RemoveTopicSource(platform, id, name string) error {
 
 // TopicSources — источники текущей темы для вкладки.
 func (u *U) TopicSources() []jx.M {
+	return u.TopicSourcesFor(u.CurrentTopic())
+}
+
+// TopicSourcesFor uses the same catalog and inheritance rules as the current-topic view.
+func (u *U) TopicSourcesFor(topic string) []jx.M {
 	d := u.Catalog()
-	topic := u.CurrentTopic()
 	cards := []jx.M{}
 	for _, ck := range CatalogKinds {
 		platform := ck.Platform
@@ -1035,7 +1098,10 @@ func (u *U) TopicSources() []jx.M {
 				link, handle, kind = "https://vk.com/"+url.PathEscape(id), "vk.com/"+id, platform
 			}
 			name := jx.Str(e, "name")
-			if name == "" {
+			needsTitle := false
+			if platform == PlatformRSS {
+				name, needsTitle = pendingRSSName(name, "", id)
+			} else if name == "" {
 				name = id
 			}
 			var score, rate any
@@ -1054,7 +1120,12 @@ func (u *U) TopicSources() []jx.M {
 			}
 			preview := jx.List(e, "preview")
 			cards = append(cards, jx.M{"source_id": SourceIDFor(platform, id), "platform": platform, "id": id, "name": name, "url": link, "handle": handle,
-				"topics": orAny(jx.List(e, "topics")), "kind": kind, "own": len(jx.List(e, "topics")) > 0 && u.CatalogEntryMatchesTopic(e, topic, true),
+				"topics": orAny(jx.List(e, "topics")), "kind": kind, "needs_title": needsTitle, "platform_label": func() string {
+					if platform == PlatformRSS {
+						return RSSPlatformLabel(id)
+					}
+					return platform
+				}(), "own": len(jx.List(e, "topics")) > 0 && u.CatalogEntryMatchesTopic(e, topic, true),
 				"auto": jx.Bool(e, "auto"), "score": score, "muted": false, "subscribers": subs, "subscribers_label": label, "view_rate": rate, "activity": activity,
 				"frozen": jx.Has(e, "frozen_until"), "frozen_reason": jx.Str(e, "frozen_reason"), "avatar": jx.Str(e, "avatar"), "preview": orAny(preview[:min(4, len(preview))])})
 		}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"posta/internal/config"
+	"posta/internal/jx"
 )
 
 // Решения реестра: каждый статус и каждая тема — без сети, кроме явно разрешённой перепроверки.
@@ -22,26 +23,32 @@ func TestRegistryDecide(t *testing.T) {
 		why  string
 	}{
 		{"нет в реестре", nil, regNew, ""},
-		{"в каталоге — всегда", &registryRow{Status: RegStatusCatalog}, regSkip, "уже в каталоге"},
-		{"предложен — не предлагать снова", &registryRow{Status: RegStatusSuggested}, regSkip, "уже предлагался"},
-		{"решение владельца «да»", &registryRow{Status: RegStatusOwnerYes}, regSkip, "владелец одобрил"},
-		{"решение владельца «нет»", &registryRow{Status: RegStatusOwnerNo}, regSkip, "владелец отклонил"},
-		{"«не знаю» владельца", &registryRow{Status: RegStatusOwnerMaybe}, regSkip, "владелец отметил «не знаю»"},
+		{"в каталоге — всегда", &registryRow{Status: RegStatusCatalog}, regNew, ""},
+		{"предложен — не предлагать снова", &registryRow{Status: RegStatusSuggested}, regNew, ""},
+		{"решение владельца «да»", &registryRow{Status: RegStatusOwnerYes}, regNew, ""},
+		{"решение владельца «нет»", &registryRow{Status: RegStatusOwnerNo}, regNew, ""},
+		{"«не знаю» владельца", &registryRow{Status: RegStatusOwnerMaybe}, regNew, ""},
 		{"мёртвый", &registryRow{Status: RegStatusDead}, regSkip, "мёртвый, пустой или закрытый источник"},
 		{"украинский", &registryRow{Status: RegStatusUkraine}, regSkip, "украинский источник"},
-		{"не загрузился, повтор через сутки ещё рано", &registryRow{Status: RegStatusFailed, FailCount: 1, CheckedAt: at - day/2}, regSkip, "не загрузился — повтор через сутки"},
+		{"не загрузился, повтор через сутки ещё рано", &registryRow{Status: RegStatusFailed, FailCount: 1, CheckedAt: at - day/2}, regSkip, "не загрузился — повтор через 1 дн."},
 		{"не загрузился, сутки прошли", &registryRow{Status: RegStatusFailed, FailCount: 1, CheckedAt: at - 2*day}, regNew, ""},
-		{"не загрузился трижды", &registryRow{Status: RegStatusFailed, FailCount: 3, CheckedAt: at - 2*day}, regSkip, "не загрузился трижды"},
+		{"не загрузился трижды", &registryRow{Status: RegStatusFailed, FailCount: 3, CheckedAt: at - 2*day}, regSkip, "не загрузился — повтор через 4 дн."},
 		{"отказ по этой теме — пропуск", rejected, regSkip, "уже проверен по этой теме и не подошёл"},
 		{"отказ по другой теме, сэмпл свежий — без сети", &registryRow{Status: RegStatusRejected, HasSample: true, SampleAt: at - day}, regSample, ""},
-		{"отказ по другой теме, сэмпл старый — пропуск", &registryRow{Status: RegStatusRejected, HasSample: true, SampleAt: at - 90*day}, regSkip, "отклонён по другой теме, сохранённый сэмпл устарел"},
-		{"отказ по другой теме, сэмпла нет — пропуск", &registryRow{Status: RegStatusRejected}, regSkip, "отклонён по другой теме, сохранённый сэмпл устарел"},
+		{"отказ по другой теме, сэмпл старый — пропуск", &registryRow{Status: RegStatusRejected, HasSample: true, SampleAt: at - 90*day}, regNew, ""},
+		{"отказ по другой теме, сэмпла нет — пропуск", &registryRow{Status: RegStatusRejected}, regNew, ""},
 	}
 	for _, c := range cases {
 		v, why := registryDecide(c.row, topic, at, 0, 60)
 		if v != c.want || why != c.why {
 			t.Errorf("%s: получили (%v, %q), ждали (%v, %q)", c.name, v, why, c.want, c.why)
 		}
+	}
+	if v, _ := registryDecide(&registryRow{Status: RegStatusDead, Reason: "не загрузился трижды", FailCount: 3, CheckedAt: at - 8*day}, topic, at, 0, 60); v != regNew {
+		t.Error("старые ошибочно заблокированные временные ошибки должны перепроверяться")
+	}
+	if v, _ := registryDecide(&registryRow{Status: RegStatusFailed, FailCount: 5, CheckedAt: at - 8*day}, topic, at, 0, 60); v != regNew {
+		t.Error("временная ошибка должна повторяться после максимальной задержки")
 	}
 	// перепроверка отказа через registry_recheck_days — только если включена
 	if v, _ := registryDecide(rejected, topic, at, 3, 60); v != regNew {
@@ -105,5 +112,23 @@ func TestPlatformOfSourceID(t *testing.T) {
 		if got := platformOfSourceID(sid); got != want {
 			t.Errorf("%q → %q, ждали %q", sid, got, want)
 		}
+	}
+}
+
+func TestSourceRejectionIsTopicScoped(t *testing.T) {
+	u := &U{App: &App{catalog: &Catalog{idx: buildTopicIndex(nil)}}}
+	d := &SourceDB{Telegram: []jx.M{{"id": "example", "name": "Example"}}}
+	source := jx.M{"id": "example", "platform": PlatformTelegram}
+	u.removeRejectedSource(d, source, "Мемы")
+	if len(d.Telegram) != 1 || u.CatalogEntryMatchesTopic(d.Telegram[0], "Мемы", true) || !u.CatalogEntryMatchesTopic(d.Telegram[0], "Новости", true) {
+		t.Fatalf("отказ должен исключать только одну тему: %#v", d.Telegram)
+	}
+	d.Votes = []jx.M{{"source_id": "telegram:example", "vote": "reject", "topic": "Мемы"}, {"source_id": "telegram:other", "vote": "reject", "topic": "Мемы"}}
+	if !u.discoveryTopicKnown(d, "Мемы")["telegram:other"] || u.discoveryTopicKnown(d, "Новости")["telegram:other"] {
+		t.Fatal("голос должен учитываться только в своей теме")
+	}
+	u.addApprovedSource(d, source, "Мемы")
+	if !u.CatalogEntryMatchesTopic(d.Telegram[0], "Мемы", true) || !u.CatalogEntryMatchesTopic(d.Telegram[0], "Новости", true) {
+		t.Fatal("повторное одобрение должно вернуть источник в тему")
 	}
 }

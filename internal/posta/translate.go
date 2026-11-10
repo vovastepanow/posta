@@ -19,11 +19,11 @@ import (
 // Кэш общий (таблица cache), квота MyMemory учитывается до конца суток UTC.
 
 const (
-	translateMaxChars  = 2000
-	translateChunk     = 450
-	translateTimeout   = 4 * time.Second
-	translateRetry     = time.Hour
-	translateCacheTTL  = 30 * 24 * time.Hour
+	translateMaxChars = 2000
+	translateChunk    = 450
+	translateTimeout  = 4 * time.Second
+	translateRetry    = time.Hour
+	translateCacheTTL = 30 * 24 * time.Hour
 )
 
 var (
@@ -160,13 +160,17 @@ type translateHit struct {
 
 // TranslateToRussian — перевод на русский или nil (русский, квота, сбой, бюджет, перевод совпал с исходником).
 func (u *U) TranslateToRussian(text string, budget time.Duration) *translateHit {
-	text = trimRunes(strings.TrimSpace(text), translateMaxChars)
+	text = strings.TrimSpace(text)
+	// A partial translation would replace the complete original in the card.
+	if runeLen(text) > translateMaxChars {
+		return nil
+	}
 	guess := TextLanguageGuess(text)
 	if text == "" || guess == "" || guess == "ru" || (guess == "uk" && u.UAFilterOn()) {
 		return nil
 	}
 	sum := md5.Sum([]byte(translateNormalize(text)))
-	key := "translate:" + hex.EncodeToString(sum[:])
+	key := "translate:v2:" + hex.EncodeToString(sum[:])
 	var hit translateHit
 	if u.CacheGet(u.Ctx, key, &hit) {
 		if hit.OK {
@@ -181,20 +185,14 @@ func (u *U) TranslateToRussian(text string, budget time.Duration) *translateHit 
 	// Модель для перевода включена — переводит она (бесплатная модель OpenRouter или локальная)
 	if u.LLM.Enabled(u.Ctx, llm.RoleTranslate) {
 		r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleTranslate, Quiet: true, UserID: u.ID, MaxTokens: 1200, Temperature: 0.2, Timeout: budget + 20*time.Second,
-			Prompt: "Переведи текст поста на русский язык. Сохрани ссылки, @упоминания, #хэштеги и переносы строк. Мемный и разговорный тон сохрани. Если текст уже на русском — верни его без изменений. Ответь только переводом, без пояснений.\n\nТекст:\n" + text})
+			Prompt: u.prompt("translate", map[string]string{"text": text})})
 		if err == nil {
 			out := strings.TrimSpace(r.Text)
-			if out == "" || translateNormalize(out) == translateNormalize(text) || TextLanguageGuess(out) != "ru" {
-				remember(never)
-				return nil
+			if out != "" && translateNormalize(out) != translateNormalize(text) && TextLanguageGuess(out) == "ru" {
+				h := translateHit{OK: true, Text: out, Lang: guess}
+				remember(h)
+				return &h
 			}
-			lang := guess
-			if lang == "?" {
-				lang = "en"
-			}
-			h := translateHit{OK: true, Text: out, Lang: lang}
-			remember(h)
-			return &h
 		}
 	}
 	if until := KV(u.App, u.Ctx, "translate_quota_until", int64(0)); until > now() {
@@ -289,7 +287,8 @@ func (u *U) TranslateDisplay(resp jx.M) jx.M {
 
 // TranslateWarmCache — перевод заранее, сразу после попадания записи в пул.
 func (u *U) TranslateWarmCache(item jx.M) {
-	if jx.Bool(u.Settings(), "auto_translate") && strings.TrimSpace(jx.Str(item, "text")) != "" {
-		u.TranslateToRussian(jx.Str(item, "text"), 4*time.Second)
+	text := CleanPostDisplayText(jx.Str(item, "text"), item)
+	if jx.Bool(u.Settings(), "auto_translate") && strings.TrimSpace(text) != "" {
+		u.TranslateToRussian(text, 4*time.Second)
 	}
 }

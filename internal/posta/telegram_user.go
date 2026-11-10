@@ -104,6 +104,10 @@ func (u *U) tguCall(timeout time.Duration, fn func(ctx context.Context, acc *tgc
 
 // TelegramUserFindChannels — поиск каналов (queries) или похожих (similarTo).
 func (u *U) TelegramUserFindChannels(queries, similarTo []string) ([]TGChannel, error) {
+	return u.telegramUserFindChannelsObserved(queries, similarTo, nil)
+}
+
+func (u *U) telegramUserFindChannelsObserved(queries, similarTo []string, observe func(string, int, error)) ([]TGChannel, error) {
 	if (len(queries) == 0 && len(similarTo) == 0) || !u.TelegramUserConnected() {
 		return nil, nil
 	}
@@ -111,7 +115,7 @@ func (u *U) TelegramUserFindChannels(queries, similarTo []string) ([]TGChannel, 
 	err := u.tguCall(2*time.Minute, func(ctx context.Context, acc *tgclient.Account) error {
 		var err error
 		if len(queries) > 0 {
-			out, err = tgclient.SearchChannels(ctx, acc, queries, 30)
+			out, err = tgclient.SearchChannelsObserved(ctx, acc, queries, 30, observe)
 		} else {
 			out, err = tgclient.SimilarChannels(ctx, acc, similarTo)
 		}
@@ -251,10 +255,10 @@ func (a *App) TelegramUserDownloadVideo(ctx context.Context, uid, channel string
 // ---- Вход в аккаунт: код, пароль, QR ----
 
 var (
-	apiIDRe   = regexp.MustCompile(`^\d{3,10}$`)
-	apiHashRe = regexp.MustCompile(`(?i)^[a-f0-9]{32}$`)
-	nonDigitsRe  = regexp.MustCompile(`\D+`)
-	phoneRe   = regexp.MustCompile(`^\+\d{8,15}$`)
+	apiIDRe     = regexp.MustCompile(`^\d{3,10}$`)
+	apiHashRe   = regexp.MustCompile(`(?i)^[a-f0-9]{32}$`)
+	nonDigitsRe = regexp.MustCompile(`\D+`)
+	phoneRe     = regexp.MustCompile(`^\+\d{8,15}$`)
 )
 
 // TelegramUserKeysFromInput — ключи из формы или сохранённые (пустые поля или мусор от менеджера паролей).

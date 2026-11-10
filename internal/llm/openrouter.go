@@ -218,6 +218,9 @@ func (o *OpenRouter) Generate(ctx context.Context, model string, req *Request) (
 		payload["top_logprobs"] = max(min(req.TopLogprobs, 20), 1)
 		payload["provider"] = map[string]any{"require_parameters": true}
 	}
+	if req.MaxPromptPrice > 0 {
+		payload["provider"] = map[string]any{"max_price": map[string]any{"prompt": req.MaxPromptPrice, "completion": req.MaxCompletionPrice}}
+	}
 	timeout := req.Timeout
 	if timeout == 0 {
 		timeout = 120 * time.Second

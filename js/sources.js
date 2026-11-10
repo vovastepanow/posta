@@ -1,6 +1,6 @@
 // sources.js — вкладка «Источники»: кандидат карточкой (мозаика свежих медиа, сводка, панель решений), автоподбор
 // и уже добавленные источники темы карточками в стиле «Предложки».
-import { $, ask, COUNT, DEBUG_MODE, VIDEO_ICON, cleanCaption, api, bindMenu, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, pluralRu, qualityText, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
+import { $, ask, COUNT, DEBUG_MODE, VIDEO_ICON, cleanCaption, api, bindMenu, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, onTopicChange, pluralRu, qualityText, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
 import { BIG_VIDEO_NOTE, closePostView, openPostView, shownText } from './post-view.js';
 import { fromSourcePost } from './post-adapters.js';
 import { videoPageFor } from './viewer.js';
@@ -13,8 +13,308 @@ import { initRegistry, loadRegistry } from './registry.js';
 import { prepareOwnImage } from './image-prepare.js';
 
 const REASONS = { off_topic: 'не по теме', dead: 'мёртвый', other: 'другое' };
-const state = { source: null, skipped: [], loading: false, voting: false, discovering: false, mosaic: null, poll: null, emptyAction: '' };
+const state = { source: null, skipped: [], loading: false, request: 0, voting: false, discovering: false, mosaic: null, poll: null, emptyAction: '' };
 const topicSources = { sources: [], topic: '', filter: 'all', loading: false };
+
+// Сохранённые предложения показываются сразу; сетевые примеры догружаются только у видимых карточек.
+const pendingSources = { generation: 0, sources: [], observer: null, pageObserver: null, seen: [], total: 0, hasMore: false, pageLoading: false, lastScroll: 0, queue: [], active: 0 };
+const pendingImageObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+    for (const entry of entries) if (entry.isIntersecting) {
+        pendingImageObserver.unobserve(entry.target);
+        entry.target._startImageTimeout?.();
+    }
+}, { rootMargin: '150px' }) : null;
+
+function pendingPost(post, source, index, posts, onImageError) {
+    const file = post.media?.[0];
+    const image = file?.kind === 'video' ? file.poster : file?.src;
+    const tile = el('button', { className: 'pending-post', type: 'button', title: 'Открыть пост' });
+    if (image) {
+        const img = el('img', { src: image, alt: '', loading: 'lazy', decoding: 'async', referrerPolicy: 'no-referrer' });
+        let imageTimer;
+        const failed = () => {
+            clearTimeout(imageTimer);
+            pendingImageObserver?.unobserve(tile);
+            if (!img.isConnected) return;
+            if (file?.kind === 'image' && file.fallback && img.src !== file.fallback) { img.src = file.fallback; startTimeout(); return; }
+            img.remove();
+            if (!tile.querySelector('.pending-post-text')) tile.append(el('span', { className: 'pending-post-text', textContent: 'Открыть пост' }));
+            onImageError();
+        };
+        const startTimeout = () => { clearTimeout(imageTimer); if (!img.complete || !img.naturalWidth) imageTimer = setTimeout(failed, 5000); };
+        img.addEventListener('load', () => { clearTimeout(imageTimer); pendingImageObserver?.unobserve(tile); });
+        img.addEventListener('error', failed);
+        tile.append(img);
+        tile._startImageTimeout = startTimeout;
+        if (pendingImageObserver) pendingImageObserver.observe(tile);
+        else requestAnimationFrame(startTimeout);
+    }
+    if (file?.kind === 'video') tile.append(el('span', { className: 'pending-post-video', textContent: '▶' }));
+    const text = cleanCaption(post.text || '');
+    if (text) tile.append(el('span', { className: 'pending-post-text', textContent: shortText(text, 130) }));
+    if (!image && !text) tile.append(el('span', { className: 'pending-post-text', textContent: 'Открыть пост' }));
+    tile.addEventListener('click', () => {
+        const meta = { name: source.name, url: source.url || '' };
+        openPostView(posts.map(p => fromSourcePost(p, meta)), index, { title: source.name, translate: true });
+    });
+    return tile;
+}
+
+function pendingRenderPosts(card, source) {
+    const grid = card.querySelector('.pending-posts');
+    const posts = (source.posts || []).filter(p => p.text || p.media?.length).slice(0, 6);
+    grid.replaceChildren(...posts.map((post, index) => pendingPost(post, source, index, posts, () => {
+        if (card.dataset.previewRefreshed) {
+            card.querySelector('.pending-preview-note').textContent = 'Некоторые изображения недоступны у источника.';
+            return;
+        }
+        card.dataset.previewBroken = '1';
+        requestAnimationFrame(() => { if (card.isConnected) queuePendingPreview(card, source, pendingSources.generation); });
+    })));
+    card.querySelector('.pending-preview-note').textContent = posts.length ? `Примеры постов: ${posts.length}` : 'Сохранённых примеров нет.';
+    // Старые сохранённые примеры Lemmy могли содержать оригинал и превью как альбом.
+    const oldLemmyPreview = posts.some(post => {
+        try {
+            const page = new URL(post.url);
+            const media = post.media || [];
+            return /^\/post\/\d+\/?$/.test(page.pathname) && media.length === 2 && media.every(m => m.kind === 'image') &&
+                new URL(media[1].src).host === page.host && new URL(media[1].src).pathname.startsWith('/pictrs/image/') && !media[0].fallback;
+        } catch { return false; }
+    });
+    if (oldLemmyPreview && !card.dataset.previewRefreshed) {
+        card.dataset.previewBroken = '1';
+        requestAnimationFrame(() => { if (card.isConnected) queuePendingPreview(card, source, pendingSources.generation); });
+    }
+    return posts.length;
+}
+
+async function pendingPreviewRequest(sourceId, titleOnly = false) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+        return await api('pending_source_preview', { body: { source_id: sourceId, title_only: titleOnly }, signal: controller.signal });
+    } finally { clearTimeout(timer); }
+}
+
+function queuePendingPreview(card, source, generation) {
+    if (card.dataset.previewQueued) return;
+    card.dataset.previewQueued = '1';
+    const job = { card, source, generation };
+    if (card.dataset.previewBroken) pendingSources.queue.unshift(job);
+    else pendingSources.queue.push(job);
+    runPendingPreviews();
+}
+
+function runPendingPreviews() {
+    while (pendingSources.active < 6 && pendingSources.queue.length) {
+        const job = pendingSources.queue.shift();
+        if (job.generation !== pendingSources.generation || !job.card.isConnected) continue;
+        pendingSources.active++;
+        const note = job.card.querySelector('.pending-preview-note');
+        const titleOnly = Boolean(job.source.platform !== 'Telegram' && !job.card.dataset.previewBroken && !job.source.needs_media_refresh && job.source.needs_title && (job.source.posts || []).length >= 4);
+        if (!titleOnly) job.card.dataset.previewRefreshed = '1';
+        if (!titleOnly) note.textContent = 'Загружаем примеры постов…';
+        pendingPreviewRequest(job.source.source_id, titleOnly).then(data => {
+            if (job.generation !== pendingSources.generation || !job.card.isConnected) return;
+            if (data.name) {
+                job.source.name = data.name;
+                const name = job.card.querySelector('.pending-source-title strong a, .pending-source-title strong span');
+                if (name) name.textContent = data.name;
+                job.source.needs_title = false;
+            }
+            if (titleOnly) {
+                if (job.card.dataset.previewBroken) {
+                    delete job.card.dataset.previewQueued;
+                    queuePendingPreview(job.card, job.source, job.generation);
+                }
+                return;
+            }
+            const fetched = data.posts || [];
+            if (fetched.length) job.source.posts = fetched;
+            if (!pendingRenderPosts(job.card, job.source)) {
+                note.textContent = 'Не удалось найти примеры. Источник можно открыть по ссылке.';
+                const retry = el('button', { type: 'button', className: 'pending-preview-retry', textContent: 'Повторить' });
+                retry.addEventListener('click', () => { delete job.card.dataset.previewQueued; retry.remove(); queuePendingPreview(job.card, job.source, job.generation); });
+                note.append(' ', retry);
+            }
+        }).catch(() => {
+            if (job.generation !== pendingSources.generation || !job.card.isConnected) return;
+            note.textContent = titleOnly ? 'Название временно недоступно.' : 'Примеры временно недоступны.';
+            const retry = el('button', { type: 'button', className: 'pending-preview-retry', textContent: 'Повторить' });
+            retry.addEventListener('click', () => { delete job.card.dataset.previewQueued; retry.remove(); queuePendingPreview(job.card, job.source, job.generation); });
+            note.append(' ', retry);
+        }).finally(() => { pendingSources.active--; runPendingPreviews(); });
+    }
+}
+
+// Подробности открываются сразу по сохранённым данным и дополняются свежей аналитикой.
+function openPendingDetails(source, card) {
+    const dlg = el('dialog', { className: 'pending-detail-dialog', ariaLabel: `Информация об источнике ${source.name || ''}` });
+    const close = el('button', { type: 'button', className: 'pending-detail-close', textContent: '×', ariaLabel: 'Закрыть' });
+    const title = el('h2', { className: 'pending-detail-title', textContent: source.name || source.id || 'Источник' });
+    const platform = el('p', { className: 'pending-source-platform', textContent: source.platform_label || source.kind || source.platform || '' });
+    const status = el('p', { className: 'pending-detail-status', role: 'status', textContent: 'Загружаем свежие сведения…' });
+    const metrics = el('div', { className: 'pending-detail-metrics', ariaLabel: 'Аналитика источника' });
+    const desc = el('p', { className: 'pending-detail-description' });
+    const reason = el('p', { className: 'pending-detail-reason', textContent: source.reason || 'Найден автоподбором по теме.' });
+    const examples = el('div', { className: 'pending-detail-examples' });
+    const url = safeSourcePostUrl({ source_url: source.url || '' });
+    const link = url ? el('a', { className: 'pending-detail-link', href: url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть источник ↗' }) : null;
+    close.addEventListener('click', () => dlg.close());
+    dlg.addEventListener('click', event => { if (event.target === dlg) dlg.close(); });
+    dlg.addEventListener('close', () => dlg.remove(), { once: true });
+    dlg.append(el('div', { className: 'pending-detail-head' }, el('div', {}, title, platform), close));
+    if (link) dlg.append(link);
+    dlg.append(status, el('h3', { textContent: 'Аналитика' }), metrics, desc, el('h3', { textContent: 'Почему предложен' }), reason,
+        el('h3', { textContent: 'Примеры постов' }), examples);
+    document.body.append(dlg);
+    dlg.showModal();
+    function render(data = {}) {
+        const saved = source.metrics || {}, fresh = data.stats || {}, activity = saved.activity || {};
+        const fields = [];
+        const add = (label, value) => { if (value !== null && value !== undefined && value !== '') fields.push(el('div', {}, el('span', { textContent: label }), el('b', { textContent: String(value) }))); };
+        if (source.score != null) add('Оценка подбора', `${source.score}%`);
+        const subscribers = Number(fresh.subscribers || saved.subscribers || 0);
+        if (subscribers > 0) add('Подписчики', COUNT.format(subscribers));
+        const rate = fresh.view_rate ?? saved.view_rate;
+        if (rate !== null && rate !== undefined && Number.isFinite(Number(rate))) add('Охват подписчиков', `${Math.round(Number(rate) * 100)}%`);
+        const perWeek = fresh.posts_per_week ?? activity.per_week;
+        if (perWeek !== null && perWeek !== undefined && Number.isFinite(Number(perWeek))) add('Постов в неделю', `≈ ${Math.round(Number(perWeek))}`);
+        const last = fresh.last_post || activity.last_post;
+        if (last) add('Последний пост', formatAgo(last));
+        if (saved.content != null) add('Соответствие теме', `${saved.content}%`);
+        if (data.quality?.quality != null) add('Оценки постов', qualityText(data.quality));
+        const posts = data.posts?.length ? data.posts : (source.posts || []);
+        const views = posts.map(p => p.views).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number).sort((a, b) => a - b);
+        if (views.length) {
+            const mid = Math.floor(views.length / 2);
+            const median = views.length % 2 ? views[mid] : (views[mid - 1] + views[mid]) / 2;
+            add(`Медиана просмотров · ${views.length} пост.`, COUNT.format(median));
+        }
+        metrics.replaceChildren(...(fields.length ? fields : [el('p', { className: 'pending-sources-hint', textContent: 'Метрик пока нет.' })]));
+        desc.textContent = fresh.description || '';
+        examples.replaceChildren(...(posts.length ? posts.slice(0, 6).map((post, index) => {
+            const postUrl = safeSourcePostUrl({ source_url: post.url || '' });
+            const label = cleanCaption(post.text || '').slice(0, 110) || `Пост ${index + 1}`;
+            return postUrl ? el('a', { href: postUrl, target: '_blank', rel: 'noopener noreferrer', textContent: label }) : el('span', { textContent: label });
+        }) : [el('p', { className: 'pending-sources-hint', textContent: 'Примеры пока недоступны.' })]));
+    }
+    render();
+    pendingPreviewRequest(source.source_id).then(data => {
+        if (!dlg.isConnected) return;
+        if (data.name) {
+            source.name = data.name;
+            source.needs_title = false;
+            title.textContent = data.name;
+            const node = card?.querySelector('.pending-source-title strong a, .pending-source-title strong span');
+            if (node) node.textContent = data.name;
+        }
+        render(data);
+        status.textContent = data.posts?.length ? 'Данные обновлены.' : 'Свежие примеры не получены; показаны доступные сведения.';
+    }).catch(error => { if (dlg.isConnected) status.textContent = `Не удалось обновить сведения: ${error.message}`; });
+}
+
+function pendingCard(source, generation) {
+    const card = el('article', { className: 'pending-source-card', tabIndex: 0, role: 'button', ariaLabel: `Подробнее об источнике ${source.name || ''}` });
+    card.addEventListener('click', event => { if (!event.target.closest('button, a, details') && !window.getSelection()?.toString()) openPendingDetails(source, card); });
+    card.addEventListener('keydown', event => { if (event.target === card && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openPendingDetails(source, card); } });
+    const url = safeSourcePostUrl({ source_url: source.url || '' });
+    const name = url ? el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', textContent: source.name || source.id }) : el('span', { textContent: source.name || source.id });
+    const head = el('div', { className: 'pending-source-title' }, el('strong', {}, name), source.score != null ? el('span', { className: 'pending-score', textContent: `${source.score}%` }) : null);
+    const platform = el('p', { className: 'pending-source-platform', textContent: source.platform_label || source.kind || source.platform || '' });
+    const note = el('p', { className: 'pending-preview-note' });
+    const grid = el('div', { className: 'pending-posts', ariaLabel: 'Примеры постов' });
+    const actions = el('div', { className: 'pending-source-actions' });
+    const error = el('p', { className: 'pending-source-error', role: 'alert' });
+    actions.append(el('button', { type: 'button', className: 'secondary-button', textContent: 'Подробнее', onclick: () => openPendingDetails(source, card) }));
+    for (const [voteType, label] of [['approve', 'Одобрить'], ['maybe', 'Не знаю'], ['reject', 'Отклонить']]) {
+        const button = el('button', { type: 'button', className: voteType === 'approve' ? 'primary-button' : 'secondary-button', textContent: label });
+        button.addEventListener('click', async () => {
+            actions.querySelectorAll('button').forEach(b => { b.disabled = true; });
+            try {
+                await api('source_vote', { body: { vote: voteType, source: Object.fromEntries(['source_id', 'platform', 'name', 'id', 'suggested', 'score'].filter(k => source[k] !== undefined).map(k => [k, source[k]])) } });
+                pendingSources.observer?.unobserve(card);
+                card.remove();
+                const index = pendingSources.sources.findIndex(s => s.source_id === source.source_id);
+                if (index >= 0) { pendingSources.sources.splice(index, 1); pendingSources.total = Math.max(0, pendingSources.total - 1); }
+                updatePendingCount();
+                loadDiscoveryStatus();
+                if (voteType !== 'maybe') loadTopicSources();
+                log(`${label}: ${source.name}`);
+            } catch (e) { error.textContent = `Не удалось сохранить решение: ${e.message}`; actions.querySelectorAll('button').forEach(b => { b.disabled = false; }); }
+        });
+        actions.append(button);
+    }
+    const why = el('details', { className: 'pending-source-why' }, el('summary', { textContent: 'Почему предложен' }), el('p', { textContent: source.reason || 'Найден автоподбором по теме.' }));
+    card.append(head, platform, note, grid, why, actions, error);
+    const cachedCount = pendingRenderPosts(card, source);
+    // Работающие сохранённые примеры не занимают очередь сетевых запросов.
+    if (cachedCount < 4 || source.needs_title || source.needs_media_refresh) {
+        if (cachedCount < 4) note.textContent = cachedCount ? `Примеры постов: ${cachedCount} · ищем ещё` : 'Примеры загрузятся при просмотре карточки.';
+        if (pendingSources.observer) pendingSources.observer.observe(card);
+        else requestAnimationFrame(() => queuePendingPreview(card, source, generation));
+        card._pendingSource = source;
+    }
+    return card;
+}
+
+function updatePendingCount() {
+    const n = pendingSources.total;
+    $('pending-sources-count').textContent = `${n} ${pluralRu(n, 'источник ожидает', 'источника ожидают', 'источников ожидают')} решения`;
+    $('pending-sources-empty').hidden = n > 0;
+    if (!n) $('pending-sources-empty').textContent = 'Для этой темы и площадки пока нет источников, ожидающих решения.';
+}
+
+async function appendPendingBatch(generation) {
+    if (generation !== pendingSources.generation || pendingSources.pageLoading || !pendingSources.hasMore) return;
+    pendingSources.pageLoading = true;
+    const more = $('pending-sources-more');
+    more.disabled = true;
+    more.textContent = 'Загружаем…';
+    const width = $('pending-sources-grid').clientWidth || 900;
+    const columns = Math.max(1, Math.floor((width + 14) / 384));
+    const rows = Math.max(2, Math.ceil(window.innerHeight / 420) + 1);
+    try {
+        const data = await api('pending_sources_page', { body: { platform: $('source-platform').value, sort: $('source-sort').value, exclude: pendingSources.seen, limit: Math.min(40, columns * rows) } });
+        if (generation !== pendingSources.generation) return;
+        const incoming = (data.sources || []).filter(s => !pendingSources.seen.includes(s.source_id));
+        pendingSources.sources.push(...incoming);
+        pendingSources.seen.push(...incoming.map(s => s.source_id));
+        pendingSources.total = Number(data.total) || 0;
+        pendingSources.hasMore = Boolean(data.has_more) && incoming.length > 0;
+        $('pending-sources-grid').append(...incoming.map(source => pendingCard(source, generation)));
+        more.hidden = !pendingSources.hasMore;
+        updatePendingCount();
+        pendingSources.lastScroll = window.scrollY;
+    } catch (error) {
+        if (generation === pendingSources.generation) {
+            more.hidden = false;
+            $('pending-sources-empty').hidden = false;
+            $('pending-sources-empty').textContent = `Не удалось загрузить источники: ${error.message}`;
+        }
+    } finally {
+        if (generation === pendingSources.generation) { pendingSources.pageLoading = false; more.disabled = false; more.textContent = 'Показать ещё'; }
+    }
+}
+
+async function loadPendingSources() {
+    const generation = ++pendingSources.generation;
+    pendingSources.observer?.disconnect();
+    pendingSources.pageObserver?.disconnect();
+    Object.assign(pendingSources, { sources: [], seen: [], total: 0, hasMore: true, pageLoading: false, queue: [] });
+    $('pending-sources-count').textContent = 'Загружаем сохранённые источники…';
+    $('pending-sources-empty').hidden = true;
+    $('pending-sources-grid').replaceChildren();
+    $('pending-sources-more').hidden = true;
+    pendingSources.observer = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+        for (const entry of entries) if (entry.isIntersecting && entry.target._pendingSource) {
+            pendingSources.observer?.unobserve(entry.target);
+            queuePendingPreview(entry.target, entry.target._pendingSource, generation);
+        }
+    }, { rootMargin: '250px' }) : null;
+    pendingSources.lastScroll = window.scrollY;
+    await appendPendingBatch(generation);
+}
 
 // ---- Лента постов кандидата: компактные строки (миниатюра и текст), по клику — просмотрщик постов ----
 
@@ -206,7 +506,7 @@ function renderSource(source) {
     const s = source.stats || {};
     const url = safeSourcePostUrl({ source_url: s.url });
     $('source-name').replaceChildren('Источник: ', url ? el('a', { className: 'source-name-link', href: url, target: '_blank', rel: 'noopener noreferrer', textContent: source.name }) : source.name);
-    $('source-platform-label').textContent = (source.kind || source.platform) + (source.suggested ? ' · найден автоподбором' : '') + (['Двач', '4chan'].includes(source.platform) ? ` · Тред по теме: ${qualityText(source.quality)} · Доска по теме: ${qualityText(source.board_quality)}` : ' · Оценки постов источника: ' + qualityText(source.quality));
+    $('source-platform-label').textContent = (source.platform_label || source.kind || source.platform) + (source.suggested ? ' · найден автоподбором' : '') + (['Двач', '4chan'].includes(source.platform) ? ` · Тред по теме: ${qualityText(source.quality)} · Доска по теме: ${qualityText(source.board_quality)}` : ' · Оценки постов источника: ' + qualityText(source.quality));
     setMessage('source-score', source.score != null ? `${source.score}%` : '');
     renderStats(s);
     renderCoverage(source);
@@ -250,13 +550,19 @@ export function clearDiscoveredSource() { Object.assign(state, { source: null, s
 async function loadNextSource({ quiet = false } = {}) {
     if (state.loading) return;
     state.loading = true;
+    const request = ++state.request;
     if (!quiet) { state.source = null; hide('source-card-wrapper'); hide('source-empty'); setMessage('source-error', ''); show('source-loading'); }
+    let timer;
     try {
-        const data = await api('suggest_sources', { body: { platform: $('source-platform').value, skip: state.skipped, ...(quiet ? { suggested_only: true } : {}) } });
+        const data = await Promise.race([
+            api('suggest_sources', { body: { platform: $('source-platform').value, skip: state.skipped, ...(quiet ? { suggested_only: true } : {}) } }),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('поиск занимает слишком много времени, попробуйте ещё раз')), 30000); })
+        ]);
+        if (request !== state.request) return;
         if (data.discovered) renderSource(data.discovered);
         else if (!quiet) { state.emptyAction = data.action || ''; showArea('empty', data.message, state.emptyAction); }
-    } catch (error) { if (!quiet) showArea('empty', `Не удалось загрузить источник: ${error.message}`); }
-    finally { state.loading = false; }
+    } catch (error) { if (!quiet && request === state.request) showArea('empty', `Не удалось загрузить источник: ${error.message}`); }
+    finally { clearTimeout(timer); if (request === state.request) state.loading = false; }
 }
 
 async function vote(type, reason = '') {
@@ -295,6 +601,7 @@ async function loadDiscoveryStatus() {
         $('discovery-status').textContent = [`Тема «${d.topic}».`,
             (d.last_topic || '').toLowerCase() === (d.topic || '').toLowerCase() && d.last_run ? `Последний подбор: ${formatAgo(d.last_run)}.` : 'По этой теме подбора ещё не было.',
             `В каталоге найденных: ${d.auto_added}, ждут вашего решения: ${d.suggestions}.`,
+            d.batch_target ? `Подбор: ${d.batch_found} из ${d.batch_target}, в очереди ${d.batch_pending}.${d.batch_active && !d.running ? " Поиск продолжится в фоне." : ""}` : '',
             d.frozen ? `Заморожено из-за редких постов: ${d.frozen} (перепроверяются раз в несколько дней).` : '',
             d.requested ? 'Подбор заказан — начнётся при запуске парсера.' : '', d.vk_connected ? '' : 'Открытые сообщества VK доступны без подключения; для поиска через VK API нужен ключ.'].filter(Boolean).join(' ');
     } catch (error) { $('discovery-status').textContent = `Сведения недоступны: ${error.message}`; }
@@ -303,7 +610,7 @@ async function loadDiscoveryStatus() {
 async function startDiscovery() {
     $('discovery-button').disabled = true;
     try {
-        log((await api('discover_sources', { body: null })).message);
+        log((await api('discover_sources', { body: { platform: $('discovery-platform').value } })).message);
         state.discovering = true;
         if (!state.source) showArea('empty');
         watchParser();
@@ -374,6 +681,33 @@ function openSourcePreview(source, index, anchorOf) {
     place();
 }
 
+// Названия старых RSS-источников уточняются по мере появления карточек на экране.
+const topicTitles = { observer: null, queue: [], active: 0, generation: 0 };
+function queueTopicTitle(card, source, generation) {
+    topicTitles.queue.push({ card, source, generation });
+    while (topicTitles.active < 2 && topicTitles.queue.length) {
+        const job = topicTitles.queue.shift();
+        if (job.generation !== topicTitles.generation || !job.card.isConnected) continue;
+        topicTitles.active++;
+        let timer;
+        Promise.race([
+            api('rss_source_title', { body: { source_id: job.source.source_id } }),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Источнику нужно больше времени')), 35000); })
+        ]).then(data => {
+            if (job.generation !== topicTitles.generation || !job.card.isConnected || !data.name) return;
+            job.source.name = data.name;
+            job.source.needs_title = false;
+            const node = job.card.querySelector('.source-head-text strong');
+            if (node) { node.textContent = data.name; node.title = data.name; }
+        }).catch(() => {}).finally(() => { clearTimeout(timer); topicTitles.active--; drainTopicTitles(); });
+    }
+}
+function drainTopicTitles() {
+    if (!topicTitles.queue.length || topicTitles.active >= 2) return;
+    const job = topicTitles.queue.shift();
+    queueTopicTitle(job.card, job.source, job.generation);
+}
+
 function topicSourceCard(source) {
     const cover = () => el('div', { className: 'source-cover' }, avatar(source));
     const slides = source.preview.map(src => ({ kind: 'image', src, poster: src, sourceUrl: source.url, alt: source.name }));
@@ -394,7 +728,7 @@ function topicSourceCard(source) {
     const card = el('article', { className: `proposal-card source-tile-card${source.frozen ? ' is-frozen' : ''}` }, media,
         el('div', { className: 'source-head' }, avatar(source), el('div', { className: 'source-head-text' }, el('strong', { textContent: source.name, title: source.name }),
             el('a', { href: source.url, target: '_blank', rel: 'noopener noreferrer', textContent: source.handle })),
-            el('span', { className: 'source-platform-tag', textContent: source.kind || { 'ВКонтакте': 'VK', 'Одноклассники': 'ОК', 'TikTok': 'TikTok' }[source.platform] || source.platform })),
+            el('span', { className: 'source-platform-tag', textContent: source.platform_label || source.kind || { 'ВКонтакте': 'VK', 'Одноклассники': 'ОК', 'TikTok': 'TikTok' }[source.platform] || source.platform })),
         chips.length ? el('div', { className: 'source-chips' }, ...chips) : null,
         el('span', { className: `source-status${source.frozen ? ' is-frozen' : ''}`, textContent: ['Двач', '4chan'].includes(source.platform) ? 'тред имиджборда'
             : source.frozen ? `заморожен: ${source.frozen_reason || 'не активен'}` : source.activity || 'активен' }),
@@ -423,6 +757,11 @@ function topicSourceCard(source) {
         } catch (error) { card.classList.remove('is-removing'); log(`Не удалось убрать источник: ${error.message}`); }
     } }));
     card.append(actions);
+    if (source.needs_title) {
+        card._titleSource = source;
+        if (topicTitles.observer) topicTitles.observer.observe(card);
+        else requestAnimationFrame(() => queueTopicTitle(card, source, topicTitles.generation));
+    }
     return card;
 }
 
@@ -432,12 +771,21 @@ function renderTopicSources() {
     $('topic-sources-title').textContent = topic ? `Источники темы «${topic}»` : 'Источники темы';
     $('topic-sources-count').textContent = sources.length ? `${visible.length} из ${sources.length}` : '';
     $('topic-sources-status').textContent = visible.length ? '' : sources.length ? 'На этой площадке источников темы нет.' : 'У темы пока нет источников: нажмите «Подобрать источники» или одобряйте предложенные выше.';
+    const generation = ++topicTitles.generation;
+    topicTitles.observer?.disconnect();
+    topicTitles.queue = [];
+    topicTitles.observer = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+        for (const entry of entries) if (entry.isIntersecting && entry.target._titleSource) {
+            topicTitles.observer?.unobserve(entry.target);
+            queueTopicTitle(entry.target, entry.target._titleSource, generation);
+        }
+    }, { rootMargin: '250px' }) : null;
     $('topic-sources-grid').replaceChildren(...visible.map(topicSourceCard));
     document.querySelectorAll('[data-topic-source-filter]').forEach(b => b.classList.toggle('active', b.dataset.topicSourceFilter === filter));
 }
 
 async function loadTopicSources() {
-    if (topicSources.loading) return;
+    if (!$('topic-sources-section').open || topicSources.loading) return;
     topicSources.loading = true;
     try {
         const data = await api('topic_sources');
@@ -784,6 +1132,11 @@ function initializeMirror() {
 }
 
 export function initializeSourceTab() {
+    const toolsDialog = $('source-tools-dialog');
+    const openTools = () => { if (!toolsDialog.open) toolsDialog.showModal(); };
+    $('source-tools-open').addEventListener('click', openTools);
+    $('source-tools-close').addEventListener('click', () => toolsDialog.close());
+    toolsDialog.addEventListener('click', event => { if (event.target === toolsDialog) toolsDialog.close(); });
     $('source-posts-more').addEventListener('click', () => showFeed(feed.posts.length));   // «Ещё N постов» — все оставшиеся
     initializeOwnContent();
     initializeOwnFolder();
@@ -793,22 +1146,38 @@ export function initializeSourceTab() {
     document.querySelectorAll('#source-tab [data-source-vote]').forEach(b => b.addEventListener('click', () => vote(b.dataset.sourceVote)));
     bindMenu($('source-complaint-button'), $('source-complaint-menu'), item => vote('reject', item.dataset.sourceReason));
     const retry = () => { state.skipped = []; loadNextSource(); };
-    $('source-platform').addEventListener('change', retry);
+    $('source-platform').addEventListener('change', () => { state.request++; state.loading = false; state.source = null; hide('source-loading'); hide('source-card-wrapper'); hide('source-empty'); loadPendingSources(); });
+    $('source-sort').addEventListener('change', loadPendingSources);
+    $('source-find-other').addEventListener('click', retry);
+    $('pending-sources-refresh').addEventListener('click', loadPendingSources);
+    $('pending-sources-more').addEventListener('click', () => appendPendingBatch(pendingSources.generation));
+    let pendingScrollFrame = 0;
+    window.addEventListener('scroll', () => {
+        if (pendingScrollFrame || !isTabActive('source-tab')) return;
+        pendingScrollFrame = requestAnimationFrame(() => {
+            pendingScrollFrame = 0;
+            const more = $('pending-sources-more');
+            if (!more.hidden && window.scrollY > pendingSources.lastScroll + 40 && more.getBoundingClientRect().top < window.innerHeight + 300) appendPendingBatch(pendingSources.generation);
+        });
+    }, { passive: true });
+    onTopicChange(() => { state.request++; state.loading = false; state.source = null; hide('source-loading'); hide('source-card-wrapper'); hide('source-empty'); if (isTabActive('source-tab')) { loadPendingSources(); loadDiscoveryStatus(); } });
     $('source-empty-retry').addEventListener('click', retry);
     $('source-empty-discover').addEventListener('click', startDiscovery);
     $('source-empty-vk').addEventListener('click', () => openAccountSection('social'));
-    $('source-empty-add').addEventListener('click', () => { $('source-add-link').focus(); });
+    $('source-empty-add').addEventListener('click', () => { openTools(); $('source-add-link').focus(); });
     $('discovery-button').addEventListener('click', startDiscovery);
     document.querySelectorAll('[data-topic-source-filter]').forEach(b => b.addEventListener('click', () => { topicSources.filter = b.dataset.topicSourceFilter; renderTopicSources(); }));
     $('topic-sources-refresh').addEventListener('click', loadTopicSources);
     initRegistry();
-    onTabOpen('source-tab', () => { loadDiscoveryStatus(); loadTopicSources(); loadRegistry(); loadMirrors(); loadMirrorChannels(); if (!state.source && !state.loading) loadNextSource(); });
+    $('topic-sources-section').addEventListener('toggle', () => { if ($('topic-sources-section').open) loadTopicSources(); });
+    $('registry-section').addEventListener('toggle', () => { if ($('registry-section').open) loadRegistry(); });
+    onTabOpen('source-tab', () => { loadDiscoveryStatus(); loadTopicSources(); if ($('registry-section').open) loadRegistry(); loadMirrors(); loadMirrorChannels(); loadPendingSources(); });
     onParserStateChange(running => {   // парсер закончил: подбор мог найти источники, сбор — обновить аудиторию
         if (running) return;
         state.discovering = false;
         if (!isTabActive('source-tab')) return;
         loadDiscoveryStatus();
         loadTopicSources();
-        if (!state.source && !state.loading) loadNextSource();
+        loadPendingSources();
     });
 }

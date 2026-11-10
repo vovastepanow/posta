@@ -124,6 +124,29 @@ function collectTunables() {
     return values;
 }
 
+function renderPrompts(prompts) {
+    const box = $('admin-prompts');
+    box.replaceChildren(...prompts.map(p => {
+        const field = el('textarea', { rows: 9, value: p.value, spellcheck: false });
+        const note = el('p', { className: 'account-muted', textContent: p.variables?.length ? `Обязательные переменные: ${p.variables.map(v => `{{${v}}}`).join(', ')}` : 'Переменных нет.' });
+        const save = el('button', { type: 'button', className: 'primary-button', textContent: 'Сохранить' });
+        const reset = el('button', { type: 'button', className: 'secondary-button', textContent: 'Вернуть исходный' });
+        const send = async resetValue => {
+            save.disabled = reset.disabled = true;
+            try {
+                const d = await api('admin_prompt_save', { body: { id: p.id, value: field.value, reset: resetValue } });
+                field.value = d.prompts.find(item => item.id === p.id).value;
+                $('admin-prompts-note').textContent = `«${p.title}»: сохранено.`;
+            } catch (e) { $('admin-prompts-note').textContent = `Ошибка: ${e.message}`; }
+            finally { save.disabled = reset.disabled = false; }
+        };
+        save.onclick = () => send(false);
+        reset.onclick = () => send(true);
+        return el('fieldset', { className: 'tunable-group' }, el('legend', { textContent: p.title }), note, field, el('div', { className: 'admin-action' }, save, reset));
+    }));
+}
+const loadPrompts = () => api('admin_prompts').then(d => renderPrompts(d.prompts)).catch(e => { $('admin-prompts-note').textContent = `Ошибка: ${e.message}`; });
+
 export function initializeAdminSettings() {
     $('admin-llm-save').onclick = saveCustom;
     $('admin-llm-free-only').onchange = () => llm && renderLLM(llm);
@@ -132,6 +155,7 @@ export function initializeAdminSettings() {
         if (!Object.keys(values).length) { $('admin-tunables-note').textContent = 'Изменений нет.'; return; }
         saveTunables(values, `Сохранено параметров: ${Object.keys(values).length}. Действует для всех пользователей.`);
     };
+    adminSections.prompts = loadPrompts;
     adminSections.models = loadLLM;
     adminSections.behavior = loadTunables;
 }
