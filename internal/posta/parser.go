@@ -1884,6 +1884,9 @@ func (u *U) contentAdmissionReason(a jx.M, item jx.M, topic, text string) string
 	if reason := u.QualityReasons(a, item, topic, o); reason != "" {
 		return reason
 	}
+	if u.professionalValueTopic(topic) && professionalAnalysisLowValue(a) {
+		return "нет конкретной пользы, фактов или интересного вывода"
+	}
 	if u.ContentAdultBlocked(jx.Merge(item, jx.M{"tags": a["tags"]}), topic) {
 		return "18+ и чувствительный контент выключены"
 	}
@@ -1942,7 +1945,8 @@ func analysisRecord(a, item jx.M, topic, defFormat string) jx.M {
 	rec := jx.Copy(item)
 	for k, v := range (jx.M{"description": desc, "why_relevant": why, "relevance": a["relevance"], "rating": nil, "format": format, "tags": orList(jx.List(a, "tags")),
 		"tags_classification_pending": jx.Bool(a, "tags_classification_pending"), "tags_classification_reason": jx.Str(a, "tags_classification_reason"),
-		"quote": jx.Bool(a, "quote"), "entity": jx.Str(a, "entity"), "source_hashtags": PostSourceHashtags(item), "topic": topic, "analysis_model": jx.Str(a, "model")}) {
+		"quote": jx.Bool(a, "quote"), "entity": jx.Str(a, "entity"), "source_hashtags": PostSourceHashtags(item), "topic": topic, "analysis_model": jx.Str(a, "model"),
+		"interest": a["interest"], "practical_value": a["practical_value"], "specificity": a["specificity"]}) {
 		rec[k] = v
 	}
 	// Метка — по содержанию поста (place от модели); нет места — поля geo в записи нет
