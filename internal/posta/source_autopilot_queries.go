@@ -68,7 +68,7 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	// query on every run instead of repeating the same unproven query four
 	// times. Once yield is observed, keep the slower exploit/explore cadence.
 	choice := autopilotSelectQuery(clean, nil, turn)
-	if turn%4 != 0 {
+	if true {
 		rows, err := a.DB.Pool.Query(ctx, `SELECT q.query,count(DISTINCT e.content_hash) FILTER (WHERE e.eligible AND e.content_hash<>'' AND NOT EXISTS
 			(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful
 			FROM source_autopilot_query_sources q JOIN source_autopilot_sources s ON s.scope=q.scope AND s.topic_key=q.topic_key AND s.source_id=q.source_id AND s.state IN ('probation','active')
