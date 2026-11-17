@@ -42,9 +42,9 @@ func TestAutopilotSafePostHintsBounded(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		posts = append(posts, jx.M{
 			"source_url": "https://t.me/marketing_digest",
-			"url": "https://t.me/marketing_digest/" + string(rune('a'+i)),
-			"posted_at": at,
-			"text": "Полезная публикация",
+			"url":        "https://t.me/marketing_digest/" + string(rune('a'+i)),
+			"posted_at":  at,
+			"text":       "Полезная публикация",
 		})
 	}
 	if got := len(autopilotSafePostHints("telegram:marketing_digest", posts, at)); got != autopilotPostHintLimit {
