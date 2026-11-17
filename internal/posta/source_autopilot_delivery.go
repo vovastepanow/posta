@@ -110,14 +110,26 @@ func (a *App) deliverAutopilotTopicContent(ctx context.Context, job *autopilotJo
 	if job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind {
 		return nil
 	}
-	rows, err := a.DB.Pool.Query(ctx, `SELECT DISTINCT r.source_id FROM source_autopilot_content_results r JOIN source_autopilot_sources s ON s.scope=r.scope AND s.topic_key=r.topic_key AND s.source_id=r.source_id WHERE r.scope=$1 AND r.topic_key=$2 AND s.state IN ('probation','active') ORDER BY r.source_id`, job.Scope, job.TopicKey)
+	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,direct FROM (
+		SELECT DISTINCT r.source_id,false AS direct FROM source_autopilot_content_results r
+		JOIN source_autopilot_sources s ON s.scope=r.scope AND s.topic_key=r.topic_key AND s.source_id=r.source_id
+		WHERE r.scope=$1 AND r.topic_key=$2 AND s.state IN ('probation','active')
+		UNION ALL
+		SELECT DISTINCT source_id,true AS direct FROM source_autopilot_direct_results
+		WHERE scope=$1 AND topic_key=$2 AND published_at >= $3 AND assessed_at >= $3
+	) ready ORDER BY direct DESC,source_id`,
+		job.Scope, job.TopicKey, time.Now().Add(-autopilotDirectMaxAge).Unix())
 	if err != nil {
 		return err
 	}
-	var sources []string
+	type sourceRow struct {
+		id     string
+		direct bool
+	}
+	var sources []sourceRow
 	for rows.Next() {
-		var source string
-		if err := rows.Scan(&source); err != nil {
+		var source sourceRow
+		if err := rows.Scan(&source.id, &source.direct); err != nil {
 			rows.Close()
 			return err
 		}
@@ -129,7 +141,7 @@ func (a *App) deliverAutopilotTopicContent(ctx context.Context, job *autopilotJo
 		return err
 	}
 	for _, source := range sources {
-		if err := a.deliverAutopilotContent(ctx, job, source); err != nil {
+		if err := a.deliverAutopilotSourceContent(ctx, job, source.id, source.direct); err != nil {
 			return err
 		}
 	}
@@ -140,10 +152,23 @@ func (a *App) deliverAutopilotTopicContent(ctx context.Context, job *autopilotJo
 // final pool transaction rechecks that owner's demand, override, source state
 // and lease; no user history or private content enters the public evidence.
 func (a *App) deliverAutopilotContent(ctx context.Context, job *autopilotJob, source string) error {
+	return a.deliverAutopilotSourceContent(ctx, job, source, false)
+}
+
+func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJob, source string, direct bool) error {
 	if job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind {
 		return nil
 	}
-	rows, err := a.DB.Pool.Query(ctx, `SELECT post,analysis,assessed_at FROM source_autopilot_content_results WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND published_at >= $4 AND policy_version=$5 ORDER BY published_at DESC LIMIT 100`, job.Scope, job.TopicKey, source, time.Now().Add(-time.Duration(config.ContentMaxAgeDays)*24*time.Hour).Unix(), TopicProfileVersion)
+	table := "source_autopilot_content_results"
+	age := time.Duration(config.ContentMaxAgeDays) * 24 * time.Hour
+	if direct {
+		table, age = "source_autopilot_direct_results", autopilotDirectMaxAge
+	}
+	// Both table names are constants owned by this function.
+	rows, err := a.DB.Pool.Query(ctx, `SELECT post,analysis,assessed_at FROM `+table+`
+		WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND published_at >= $4
+		AND policy_version=$5 ORDER BY published_at DESC LIMIT 100`,
+		job.Scope, job.TopicKey, source, time.Now().Add(-age).Unix(), TopicProfileVersion)
 	if err != nil {
 		return err
 	}
@@ -222,7 +247,9 @@ func (a *App) deliverAutopilotContent(ctx context.Context, job *autopilotJob, so
 				break
 			}
 			post, analysis := item.post, item.analysis
-			if post == nil || analysis == nil || jx.Bool(analysis, "tags_classification_pending") {
+			if post == nil || analysis == nil || jx.Bool(analysis, "tags_classification_pending") ||
+				(direct && (item.at < time.Now().Add(-autopilotDirectMaxAge).Unix() ||
+					!autopilotDirectPostEligible(u, source, s.topic, post, analysis, time.Now().Unix()))) {
 				continue
 			}
 			isVideo := PostItemHasVideo(post)
@@ -271,7 +298,11 @@ func (a *App) deliverAutopilotContent(ctx context.Context, job *autopilotJob, so
 			if !u.PoolItemInTopic(rec, s.topic, s.topic, u.AdultAllowed()) || !poolMatchesDisplayFilters(rec, filters, frozen) {
 				continue
 			}
-			delivery := a.User(withAutopilotDelivery(u.Ctx, s.owner, source, s.topic, post, analysis), s.owner, nil)
+			deliveryCtx := withAutopilotDelivery(u.Ctx, s.owner, source, s.topic, post, analysis)
+			if direct {
+				deliveryCtx = withAutopilotDirectDelivery(u.Ctx, s.owner, source, s.topic, post, analysis)
+			}
+			delivery := a.User(deliveryCtx, s.owner, nil)
 			if delivery.AddItemToPoolSafely(rec) {
 				remaining--
 			}
