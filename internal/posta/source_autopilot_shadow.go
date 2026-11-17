@@ -353,12 +353,24 @@ func autopilotCandidatesFromPosts(by map[string][]jx.M, at int64, limit int) []D
 	}
 	var out []DiscoveryCandidate
 	seen := map[string]bool{}
-	for _, platform := range sortedKeys(by) {
-		for _, post := range by[platform] {
+	platforms := sortedKeys(by)
+	maxRows := 0
+	for _, platform := range platforms {
+		maxRows = max(maxRows, len(by[platform]))
+	}
+	// Round-robin prevents the first platform alphabetically from consuming
+	// every nomination slot. Source IDs are still deduplicated globally.
+	for row := 0; row < maxRows; row++ {
+		for _, platform := range platforms {
+			if row >= len(by[platform]) {
+				continue
+			}
+			post := by[platform][row]
 			published := jx.Int(post, "posted_at")
 			if !autopilotPublicPostURL(jx.Str(post, "url"), false) ||
 				published <= 0 || published > at+300 || IsPostOutdated(published, at, config.ContentMaxAgeDays) ||
-				jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 || jx.Bool(post, "advertising") || PostIsAdvertisement(post) || PostSearchIsAd(post) {
+				jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 ||
+				jx.Bool(post, "advertising") || PostIsAdvertisement(post) || PostSearchIsAd(post) {
 				continue
 			}
 			candidate := PostSearchAuthor(post)
