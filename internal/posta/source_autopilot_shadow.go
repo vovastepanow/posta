@@ -280,10 +280,15 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		}
 		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
 		candidates := autopilotRunSearchBackends(ctx, turn, backends)
-		if job.Scope == autopilotAutoScope && len(candidates) < 3 && ctx.Err() == nil && autopilotBudgetError(ctx) == nil {
-			postCandidates, postErr := a.autopilotFindSourcesFromPosts(ctx, job, query, 6-len(candidates))
+		if job.Scope == autopilotAutoScope && (len(candidates) < 3 || turn%3 == 0) && ctx.Err() == nil && autopilotBudgetError(ctx) == nil {
+			// Periodic direct post exploration continues even when broad
+			// source search reports plenty of unverified candidates.
+			postCandidates, postErr := a.autopilotFindSourcesFromPosts(ctx, job, query, 6)
 			if postErr != nil {
 				return candidates, postErr
+			}
+			if err := a.autopilotAssessDirectPosts(ctx, job, postCandidates); err != nil {
+				return candidates, err
 			}
 			candidates = append(candidates, postCandidates...)
 		}
