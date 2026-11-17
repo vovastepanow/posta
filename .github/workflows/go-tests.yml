@@ -23,3 +23,31 @@ jobs:
           test -z "$files" || { printf '%s\n' "$files"; exit 1; }
       - name: Unit tests
         run: go test ./...
+
+  autopilot-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: posta_test
+          POSTGRES_USER: posta
+          POSTGRES_PASSWORD: posta_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U posta -d posta_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTA_AUTOPILOT_TEST_DSN: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify public source hint staging and owner-safe delivery
+        run: go test ./internal/posta -run '^(TestAutopilotConsumesAcceptedSourceHintsPostgres|TestAutopilotDeliversContentPerOwnerPostgres)$' -count=1 -timeout=12m
