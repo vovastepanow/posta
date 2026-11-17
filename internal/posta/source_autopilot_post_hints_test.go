@@ -90,6 +90,7 @@ func TestAutopilotPostMatchesSourceRejectsImpersonation(t *testing.T) {
 		{"telegram:marketing_digest", "https://evil.example.org/post/1", "https://t.me/marketing_digest", false},
 		{"telegram:marketing_digest", "https://t.me/other_channel/1", "https://t.me/marketing_digest", false},
 		{"vk:club12345", "https://vk.com/wall-12345_8", "https://vk.com/club12345", true},
+		{"vk:club12345", "https://vk.com/wall-99999_8", "https://vk.com/club12345", false},
 		{"vk:club12345", "https://other.example.org/post", "https://vk.com/club12345", false},
 	}
 	for _, tc := range cases {
