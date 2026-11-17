@@ -2135,6 +2135,13 @@ func (u *U) parserPhaseWithTopic(phase, topic string) {
 }
 
 // RunCollector — один проход. Возвращает true, если тема сменилась и сбор нужно начать заново.
+// When fresh topic supply is low, search posts directly instead of
+// blocking the collector on source vetting. The existing candidate, full
+// analysis, safety, source-override and deduplication checks remain in place.
+func shouldFastTopicSearch(hasQuery, discoveryEnabled, restricted bool, sources, requiredSources, available, target int) bool {
+	return !hasQuery && discoveryEnabled && !restricted && requiredSources > 0 && sources < requiredSources && target > 0 && available < target
+}
+
 func (u *U) RunCollector() bool {
 	u.run = newRun(u.App)
 	started := time.Now()
@@ -2171,16 +2178,28 @@ func (u *U) RunCollector() bool {
 	due := u.SourceDiscoveryDue(d, topic)
 	discovered := false
 	var tDiscovery time.Duration
+	fastTopicSearch := shouldFastTopicSearch(u.CurrentQuery() != "", u.TBool("discovery"), u.TopicIsRestricted(topic),
+		u.TopicUsableSources(d, topic), u.TInt("min_sources"), u.PoolTopicCount(key), u.TInt("pool_target"))
 	if usable := u.TopicUsableSources(d, topic); usable < u.TInt("min_sources") && u.TBool("discovery") {
 		last := DiscoveryLastRun(d, topic)
 		if jx.Bool(d.Discovery, "requested") || now()-last >= config.DiscoveryShortageInterval {
-			u.Log("Источников по теме %d из %d — сначала ищу новые (до %d мин).", usable, u.TInt("min_sources"), config.DiscoveryBlockingSeconds/60)
-			t0 := time.Now()
-			u.RunSourceDiscovery(topic, config.DiscoveryBlockingSeconds)
-			tDiscovery += time.Since(t0)
-			due, discovered = false, true
-			if u.CurrentTopic() != topic {
-				return true
+			if fastTopicSearch {
+				// Discovery continues independently; immediate post search no longer
+				// waits for a fully approved source catalog on cold start.
+				_, result := u.startSourceDiscovery(topic, 0, false, "")
+				if result == "started" || result == "running" || result == "auto_managed" {
+					discovered, due = true, false
+				}
+				u.Log("Источников %d из %d — ищу публикации сразу; подбор источников: %s.", usable, u.TInt("min_sources"), result)
+			} else {
+				u.Log("Источников по теме %d из %d — сначала ищу новые (до %d мин).", usable, u.TInt("min_sources"), config.DiscoveryBlockingSeconds/60)
+				t0 := time.Now()
+				u.RunSourceDiscovery(topic, config.DiscoveryBlockingSeconds)
+				tDiscovery += time.Since(t0)
+				due, discovered = false, true
+				if u.CurrentTopic() != topic {
+					return true
+				}
 			}
 		} else {
 			u.Log("Источников по теме %d из %d — автоподбор уже был в %s — собираю из того, что есть.", usable, u.TInt("min_sources"), time.Unix(last, 0).Format("15:04"))
@@ -2220,6 +2239,11 @@ func (u *U) RunCollector() bool {
 		byPlatform = u.QuerySearchCollect(key) // поиск по запросу сам включает каталог темы
 	} else {
 		byPlatform = u.collectPostsByPlatform(key)
+		if fastTopicSearch && u.Alive() && u.CurrentTopic() == topic {
+			for platform, posts := range u.TopicFastSearchCollect(topic) {
+				byPlatform[platform] = append(byPlatform[platform], posts...)
+			}
+		}
 	}
 	u.ParserStage("filter")
 	candidates, skipped := u.buildCandidateQueue(byPlatform, seen, rejected, u.CombinedSourceVerdicts(u.Ctx, key), &format, u.ContentFilterValues(), key)
