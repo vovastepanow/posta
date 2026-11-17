@@ -268,6 +268,10 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 			if !autopilotFormatAllowsItem(u, s.topic, post) {
 				continue
 			}
+			// Preserve the independently verified author evidence for the
+			// final leased transaction. The display record may normalize its
+			// source URL, but cannot change what was assessed.
+			verifiedPost := post
 			post = jx.Copy(post)
 			post["source_key"], post["source_url"] = source, jx.Str(post, "url")
 			if jx.Str(post, "source") == "" {
@@ -300,7 +304,7 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 			}
 			deliveryCtx := withAutopilotDelivery(u.Ctx, s.owner, source, s.topic, post, analysis)
 			if direct {
-				deliveryCtx = withAutopilotDirectDelivery(u.Ctx, s.owner, source, s.topic, post, analysis)
+				deliveryCtx = withAutopilotDirectDelivery(u.Ctx, s.owner, source, s.topic, verifiedPost, analysis)
 			}
 			delivery := a.User(deliveryCtx, s.owner, nil)
 			if delivery.AddItemToPoolSafely(rec) {
