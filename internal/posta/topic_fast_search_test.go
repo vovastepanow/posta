@@ -1,8 +1,8 @@
 package posta
 
 import (
-	"testing"
 	"slices"
+	"testing"
 
 	"posta/internal/jx"
 )
