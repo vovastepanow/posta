@@ -7,10 +7,10 @@ import (
 
 func TestAutopilotRetryInterval(t *testing.T) {
 	tests := []struct {
-		name string
-		mode string
+		name    string
+		mode    string
 		covered bool
-		want time.Duration
+		want    time.Duration
 	}{
 		{"new topic", "bootstrap", false, time.Hour},
 		{"bootstrap with observed yield", "bootstrap", true, time.Hour},
