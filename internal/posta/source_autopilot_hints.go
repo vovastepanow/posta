@@ -47,8 +47,8 @@ func (u *U) suggestAutopilotSource(topic string, candidate DiscoveryCandidate) {
 	}
 	added := false
 	_, err = KVUpdate(u.App, u.Ctx, autopilotSourceHintKey(topic), autopilotSourceHintTTL, func(current []string, _ bool) *[]string {
+		added = !contains(current, source)
 		updated := appendAutopilotSourceHint(current, source)
-		added = len(updated) > len(current)
 		return &updated
 	})
 	if err != nil {
