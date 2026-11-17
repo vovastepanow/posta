@@ -14,6 +14,22 @@ import (
 	"posta/internal/llm"
 )
 
+func TestAutopilotDirectSeenKeyIsScoped(t *testing.T) {
+	first := autopilotDirectSeenKey("business", "telegram:marketing_digest", "hash-1")
+	if first != autopilotDirectSeenKey("business", "telegram:marketing_digest", "hash-1") {
+		t.Fatal("assessment cache key unstable")
+	}
+	for _, variant := range []string{
+		autopilotDirectSeenKey("marketing", "telegram:marketing_digest", "hash-1"),
+		autopilotDirectSeenKey("business", "telegram:other_digest", "hash-1"),
+		autopilotDirectSeenKey("business", "telegram:marketing_digest", "hash-2"),
+	} {
+		if first == variant {
+			t.Fatal("independent assessments share a cache key")
+		}
+	}
+}
+
 func TestAutopilotDirectPostRejectsImpersonationAndMedia(t *testing.T) {
 	u := taxonomyTestUser()
 	u.LLM = llm.NewRouter(llm.NewOllama("http://127.0.0.1:1"), llm.NewOpenRouter("", "", "", ""))
