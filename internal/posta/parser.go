@@ -2178,9 +2178,10 @@ func (u *U) RunCollector() bool {
 	due := u.SourceDiscoveryDue(d, topic)
 	discovered := false
 	var tDiscovery time.Duration
+	usableSources := u.TopicUsableSources(d, topic)
 	fastTopicSearch := shouldFastTopicSearch(u.CurrentQuery() != "", u.TBool("discovery"), u.TopicIsRestricted(topic),
-		u.TopicUsableSources(d, topic), u.TInt("min_sources"), u.PoolTopicCount(key), u.TInt("pool_target"))
-	if usable := u.TopicUsableSources(d, topic); usable < u.TInt("min_sources") && u.TBool("discovery") {
+		usableSources, u.TInt("min_sources"), u.PoolTopicCount(key), u.TInt("pool_target"))
+	if usable := usableSources; usable < u.TInt("min_sources") && u.TBool("discovery") {
 		last := DiscoveryLastRun(d, topic)
 		if jx.Bool(d.Discovery, "requested") || now()-last >= config.DiscoveryShortageInterval {
 			if fastTopicSearch {
@@ -2228,10 +2229,14 @@ func (u *U) RunCollector() bool {
 	h := u.History()
 	format := u.TopicFormatOf(key)
 	var byPlatform map[string][]jx.M
-	u.parserPhaseWithTopic("ожидание общего сбора", topic)
-	u.ParserProgress(jx.M{"shared_wait": true}, false)
-	u.waitSharedCollection(u.Ctx, topic)
-	u.ParserProgress(jx.M{"shared_wait": false}, false)
+	if fastTopicSearch && usableSources == 0 {
+		u.Log("У новой темы пока нет источников — не жду общий опрос, ищу публикации напрямую.")
+	} else {
+		u.parserPhaseWithTopic("ожидание общего сбора", topic)
+		u.ParserProgress(jx.M{"shared_wait": true}, false)
+		u.waitSharedCollection(u.Ctx, topic)
+		u.ParserProgress(jx.M{"shared_wait": false}, false)
+	}
 	if !u.Alive() {
 		return false
 	}
