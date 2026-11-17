@@ -382,7 +382,7 @@ func autopilotCandidatesFromPosts(by map[string][]jx.M, at int64, limit int) []D
 				continue
 			}
 			id, ok := autopilotCandidateID(*candidate)
-			if !ok || seen[id] {
+			if !ok || seen[id] || !autopilotPostMatchesSource(id, post) {
 				continue
 			}
 			seen[id] = true
