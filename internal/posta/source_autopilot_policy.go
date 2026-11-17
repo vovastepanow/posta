@@ -22,6 +22,16 @@ func (a *App) autopilotSourcePolicy() sourcePolicy {
 		MaxAdvertisingRate: float64(a.TInt("autopilot_max_ads_percent")) / 100, MaxDuplicateRate: float64(a.TInt("autopilot_max_duplicates_percent")) / 100}
 }
 
+// Professional sources must produce posts that survive the full admission
+// pipeline, not just posts containing the topic's keywords. Other topics
+// retain their existing relevance-based policy.
+func effectiveSourceRelevant(relevant, eligible int, professional bool) int {
+	if !professional {
+		return relevant
+	}
+	return min(relevant, max(0, eligible))
+}
+
 // decideSourceState uses different promotion and demotion thresholds. Unknown
 // or insufficient evidence retains the current state.
 func decideSourceState(state string, e sourceEvidence, p sourcePolicy) (string, string) {
