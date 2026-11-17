@@ -2,6 +2,7 @@ package posta
 
 import (
 	"testing"
+	"slices"
 
 	"posta/internal/jx"
 )
@@ -49,5 +50,22 @@ func TestTagFastTopicResults(t *testing.T) {
 	}
 	if got := jx.Str(posts["rss"][1], "found_by"); got != "publisher search" {
 		t.Fatalf("existing search origin overwritten: %q", got)
+	}
+}
+
+func TestTopicFastQueryPlanUsesCuratedVocabulary(t *testing.T) {
+	entry := &Topic{Title: "SMM", Queries: []string{"контент стратегия", "рост аудитории"}, Aliases: []string{"смм", "smm"}}
+	plan := topicFastQueryPlan(QueryPlan{RU: []string{"SMM", "публикации в соцсетях"}}, entry)
+	if !slices.Contains(plan.RU, "контент стратегия") || !slices.Contains(plan.RU, "рост аудитории") {
+		t.Fatalf("curated topic terms missing: %v", plan.RU)
+	}
+	if !slices.Contains(plan.EN, "smm") {
+		t.Fatalf("latin alias missing from English search: %v", plan.EN)
+	}
+	if plan.RU[0] != "smm" {
+		t.Fatalf("original query no longer searched first: %v", plan.RU)
+	}
+	if got := topicFastQueryPlan(QueryPlan{RU: []string{"cats"}}, nil); len(got.RU) != 1 {
+		t.Fatalf("unknown topic should keep existing plan: %v", got.RU)
 	}
 }
