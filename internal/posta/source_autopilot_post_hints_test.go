@@ -82,9 +82,9 @@ func TestAutopilotMergePostHintsPrioritizesFreshIndependentPosts(t *testing.T) {
 func TestAutopilotPostMatchesSourceRejectsImpersonation(t *testing.T) {
 	cases := []struct {
 		source string
-		link string
+		link   string
 		author string
-		want bool
+		want   bool
 	}{
 		{"telegram:marketing_digest", "https://t.me/marketing_digest/1", "https://t.me/marketing_digest", true},
 		{"telegram:marketing_digest", "https://evil.example.org/post/1", "https://t.me/marketing_digest", false},
