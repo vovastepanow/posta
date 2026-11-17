@@ -92,13 +92,24 @@ func (a *App) autopilotAutoInterval(ctx context.Context, job *autopilotJob) (tim
 		}
 	}
 	job.Checkpoint = jx.Marshal(checkpoint)
-	if mode == "refill" && len(observed) > 0 && jx.Float(checkpoint, "expected_coverage") >= 1 {
-		return 12 * time.Hour, nil
+	return autopilotRetryInterval(mode, len(observed) > 0 && jx.Float(checkpoint, "expected_coverage") >= 1), nil
+}
+
+// Bootstrap retries more frequently so newly created topics are not left
+// without discovery for hours. Refill is less urgent; healthy topics keep
+// their existing daily cadence. Worker budgets and rate limits still apply.
+func autopilotRetryInterval(mode string, coveredByObservedYield bool) time.Duration {
+	switch mode {
+	case "bootstrap":
+		return time.Hour
+	case "refill":
+		if coveredByObservedYield {
+			return 12 * time.Hour
+		}
+		return 2 * time.Hour
+	default:
+		return 24 * time.Hour
 	}
-	if mode == "bootstrap" || mode == "refill" {
-		return 6 * time.Hour, nil
-	}
-	return 24 * time.Hour, nil
 }
 
 // Count only eligible, non-cloned content from active sources with at least
