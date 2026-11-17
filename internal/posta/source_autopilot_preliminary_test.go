@@ -4,9 +4,9 @@ import "testing"
 
 func TestAutopilotPreliminaryPass(t *testing.T) {
 	tests := []struct {
-		name string
+		name                      string
 		score, threshold, samples int
-		want bool
+		want                      bool
 	}{
 		{"no samples", 100, 85, 0, false},
 		{"single post", 100, 85, 1, false},
