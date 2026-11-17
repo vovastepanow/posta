@@ -67,7 +67,6 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	// Cold-start topics have no observed useful posts. Explore a different
 	// query on every run instead of repeating the same unproven query four
 	// times. Once yield is observed, keep the slower exploit/explore cadence.
-	choice := autopilotSelectQuery(clean, nil, turn)
 	rows, err := a.DB.Pool.Query(ctx, `SELECT q.query,count(DISTINCT e.content_hash) FILTER (WHERE e.eligible AND e.content_hash<>'' AND NOT EXISTS
 		(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful
 		FROM source_autopilot_query_sources q JOIN source_autopilot_sources s ON s.scope=q.scope AND s.topic_key=q.topic_key AND s.source_id=q.source_id AND s.state IN ('probation','active')
@@ -91,7 +90,7 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	if err != nil {
 		return "", err
 	}
-	choice = autopilotSelectQuery(clean, scores, turn)
+	choice := autopilotSelectQuery(clean, scores, turn)
 	checkpoint["query_turn"] = turn + 1
 	job.Checkpoint = jx.Marshal(checkpoint)
 	return choice, nil
