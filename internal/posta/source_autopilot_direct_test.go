@@ -25,12 +25,12 @@ func TestAutopilotDirectPostRejectsImpersonationAndMedia(t *testing.T) {
 	}
 	for name, patch := range map[string]jx.M{
 		"forged author": {"source_url": "https://t.me/other_digest"},
-		"forged url": {"url": "https://evil.example.org/post"},
-		"private url": {"url": "https://t.me/marketing_digest/100?token=secret"},
-		"stale post": {"posted_at": now - 4*86400},
-		"image": {"image": "https://example.org/image.jpg"},
-		"video": {"video": "https://example.org/video.mp4"},
-		"nsfw": {"nsfw": true},
+		"forged url":    {"url": "https://evil.example.org/post"},
+		"private url":   {"url": "https://t.me/marketing_digest/100?token=secret"},
+		"stale post":    {"posted_at": now - 4*86400},
+		"image":         {"image": "https://example.org/image.jpg"},
+		"video":         {"video": "https://example.org/video.mp4"},
+		"nsfw":          {"nsfw": true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			post := jx.Merge(base, patch)
