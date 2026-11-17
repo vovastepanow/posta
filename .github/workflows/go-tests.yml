@@ -19,7 +19,7 @@ jobs:
           cache: true
       - name: Check formatting
         run: |
-          files=$(gofmt -l internal/posta/source_autopilot_auto.go internal/posta/source_autopilot_auto_interval_test.go internal/posta/source_autopilot_queries.go internal/posta/source_autopilot_queries_selection_test.go internal/posta/source_autopilot_shadow.go internal/posta/source_autopilot_preliminary_test.go internal/posta/analysis.go internal/posta/parser.go internal/posta/professional_value_test.go internal/posta/topic_fast_search_test.go internal/posta/source_autopilot_hints.go internal/posta/source_autopilot_hints_test.go internal/posta/post_search.go internal/posta/query_search.go internal/posta/source_autopilot_post_hints.go internal/posta/source_autopilot_post_hints_test.go)
+          files=$(gofmt -l internal/posta/source_autopilot_auto.go internal/posta/source_autopilot_auto_interval_test.go internal/posta/source_autopilot_queries.go internal/posta/source_autopilot_queries_selection_test.go internal/posta/source_autopilot_shadow.go internal/posta/source_autopilot_preliminary_test.go internal/posta/analysis.go internal/posta/parser.go internal/posta/professional_value_test.go internal/posta/topic_fast_search_test.go internal/posta/source_autopilot_hints.go internal/posta/source_autopilot_hints_test.go internal/posta/post_search.go internal/posta/query_search.go internal/posta/source_autopilot_post_hints.go internal/posta/source_autopilot_post_hints_test.go internal/posta/source_autopilot_direct.go internal/posta/source_autopilot_direct_test.go internal/posta/source_autopilot_delivery.go internal/posta/source_autopilot_queue.go)
           test -z "$files" || { printf '%s\n' "$files"; exit 1; }
       - name: Unit tests
         run: go test ./...
@@ -50,4 +50,5 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Verify public source hint staging and owner-safe delivery
-        run: go test ./internal/posta -run '^(TestAutopilotConsumesAcceptedSourceHintsPostgres|TestAutopilotDeliversContentPerOwnerPostgres)$' -count=1 -timeout=12m
+        run: go test ./internal/posta -run '^(TestAutopilotConsumesAcceptedSourceHintsPostgres|TestAutopilotDeliversContentPerOwnerPostgres|TestAutopilotDirectDeliversWithoutApprovedSourcePostgres) -count=1 -timeout=12m
+ -count=1 -timeout=12m
