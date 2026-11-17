@@ -1,0 +1,25 @@
+name: Go tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check formatting
+        run: |
+          files=$(gofmt -l internal/posta/source_autopilot_auto.go internal/posta/source_autopilot_auto_interval_test.go internal/posta/source_autopilot_queries.go internal/posta/source_autopilot_queries_selection_test.go internal/posta/source_autopilot_shadow.go internal/posta/source_autopilot_preliminary_test.go internal/posta/analysis.go internal/posta/parser.go internal/posta/professional_value_test.go)
+          test -z "$files" || { printf '%s\n' "$files"; exit 1; }
+      - name: Unit tests
+        run: go test ./internal/posta
