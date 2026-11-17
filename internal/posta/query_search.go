@@ -185,12 +185,26 @@ func (u *U) TopicFastSearchCollect(topic string) map[string][]jx.M {
 	seconds := max(15, min(90, u.TInt("query_search_seconds")))
 	got, _ := u.SearchEngineRun(plan, off, time.Duration(seconds)*time.Second)
 	ranked := rankQuerySearch(got, plan, u.TInt("content_max_age"), func(it jx.M) bool { return u.UAItemBlocked(it) != "" })
+	tagFastTopicResults(ranked, topic)
 	count := 0
 	for _, posts := range ranked {
 		count += len(posts)
 	}
 	u.Log("Быстрый поиск по теме «%s»: %d публикаций для стандартной проверки.", topic, count)
 	return ranked
+}
+
+// A post that passes the collector's full checks can suggest its author as
+// a source through PostSearchSuggest. Keep the search origin even when a
+// platform backend did not add its own found_by label.
+func tagFastTopicResults(by map[string][]jx.M, topic string) {
+	for _, posts := range by {
+		for _, post := range posts {
+			if jx.Str(post, "found_by") == "" {
+				post["found_by"] = "быстрый поиск по теме «" + topic + "»"
+			}
+		}
+	}
 }
 
 func (u *U) querySearchTelegramChannels(ru, must []string) []jx.M {
