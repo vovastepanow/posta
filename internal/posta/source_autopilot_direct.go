@@ -2,6 +2,7 @@ package posta
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -13,6 +14,10 @@ import (
 // restriction, content filter and repeat guard rechecked transactionally.
 const autopilotDirectMaxPerRun = 6
 const autopilotDirectMaxAge = 48 * time.Hour
+
+func autopilotDirectSeenKey(topicKey, source, postHash string) string {
+	return "autopilot:direct_seen:" + strconv.Itoa(TopicProfileVersion) + ":" + topicKey + ":" + repeatDigest(source+":"+postHash)
+}
 
 func autopilotDirectPostEligible(u *U, source, topic string, post, analysis jx.M, at int64) bool {
 	if u == nil || u.LLM == nil || post == nil || analysis == nil ||
@@ -45,7 +50,11 @@ func (a *App) saveAutopilotDirectResult(ctx context.Context, job *autopilotJob, 
 		_, err := tx.Exec(ctx, `INSERT INTO source_autopilot_direct_results
 			(scope,topic_key,source_id,post_hash,post,analysis,published_at,assessed_at,policy_version)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-			ON CONFLICT(scope,topic_key,source_id,post_hash) DO NOTHING`,
+			ON CONFLICT(scope,topic_key,source_id,post_hash) DO UPDATE SET
+			post=EXCLUDED.post,analysis=EXCLUDED.analysis,published_at=EXCLUDED.published_at,
+			assessed_at=EXCLUDED.assessed_at,policy_version=EXCLUDED.policy_version
+			WHERE source_autopilot_direct_results.policy_version<>EXCLUDED.policy_version
+			   OR source_autopilot_direct_results.assessed_at < EXCLUDED.assessed_at - 172800`,
 			job.Scope, job.TopicKey, source, repeatDigest(CandidatePostKey(post)), jx.Marshal(post),
 			jx.Marshal(analysis), jx.Int(post, "posted_at"), time.Now().Unix(), TopicProfileVersion)
 		return err
@@ -83,12 +92,18 @@ func (a *App) autopilotAssessDirectPosts(ctx context.Context, job *autopilotJob,
 			var saved bool
 			err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(
 				SELECT 1 FROM source_autopilot_direct_results
-				WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5)`,
-				job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&saved)
+				WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4
+				AND policy_version=$5 AND assessed_at >= $6)`,
+				job.Scope, job.TopicKey, source, postHash, TopicProfileVersion,
+				time.Now().Add(-autopilotDirectMaxAge).Unix()).Scan(&saved)
 			if err != nil {
 				return err
 			}
 			if saved {
+				continue
+			}
+			var assessed bool
+			if a.KVGet(ctx, autopilotDirectSeenKey(job.TopicKey, source, postHash), &assessed) && assessed {
 				continue
 			}
 			posts = append(posts, post)
