@@ -18,6 +18,8 @@ func TestAutopilotCandidatesFromPosts(t *testing.T) {
 			{"source_url": "https://t.me/private_digest", "url": "https://t.me/private_digest/1", "posted_at": at, "nsfw": true},
 			{"source_url": "https://t.me/future_digest", "url": "https://t.me/future_digest/1", "posted_at": at + 900},
 			{"source_url": "https://t.me/growth_digest", "url": "https://t.me/growth_digest/1", "posted_at": at},
+			{"source_url": "https://t.me/private_link", "url": "https://t.me/private_link/1?token=secret", "posted_at": at},
+			{"source_url": "https://t.me/missing_post", "posted_at": at},
 		},
 	}
 	got := autopilotCandidatesFromPosts(posts, at, 10)
