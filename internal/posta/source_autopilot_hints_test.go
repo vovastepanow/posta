@@ -74,6 +74,7 @@ func TestAutopilotConsumesAcceptedSourceHintsPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := &App{DB: d}
+	defer a.KVDelete(context.Background(), autopilotSourceHintKey(topic))
 	if err := a.reconcileAutopilotMode(ctx, true, "auto", autopilotAutoScope, autopilotAutoKind); err != nil {
 		t.Fatal(err)
 	}
