@@ -168,6 +168,37 @@ func (u *U) QuerySearchCollect(key string) map[string][]jx.M {
 }
 
 // querySearchTelegramChannels — каналы Telegram по запросу через аккаунт владельца; читаем их посты, в каталог каналы не добавляем.
+// Seed cold-start post search with curated topic vocabulary even when the
+// query-planning model is unavailable or returns only the broad title.
+func topicFastQueryPlan(plan QueryPlan, topic *Topic) QueryPlan {
+	if topic == nil || len(plan.RU) == 0 {
+		return plan
+	}
+	terms := []string{plan.RU[0]}
+	terms = append(terms, topic.Queries...)
+	if topic.Profile != nil {
+		terms = append(terms, topic.Profile.Queries...)
+	}
+	terms = append(terms, topic.Aliases...)
+	terms = append(terms, plan.RU[1:]...)
+	var cleaned []string
+	for _, term := range terms {
+		if phrase := DiscoveryCleanQuery(term); phrase != "" {
+			cleaned = append(cleaned, phrase)
+		}
+	}
+	if len(cleaned) > 0 {
+		plan.RU = cleanPhrases(cleaned, 8)
+	}
+	for _, alias := range topic.Aliases {
+		if alias = DiscoveryCleanQuery(alias); alias != "" && !cyrRe.MatchString(alias) {
+			plan.EN = append(plan.EN, alias)
+		}
+	}
+	plan.EN = cleanPhrases(plan.EN, 3)
+	return plan
+}
+
 // TopicFastSearchCollect searches public posts while discovery is still
 // establishing sources for a new topic. Results enter the normal collector
 // admission pipeline; no newly found source is automatically trusted.
@@ -175,7 +206,7 @@ func (u *U) TopicFastSearchCollect(topic string) map[string][]jx.M {
 	if !u.TBool("discovery") || u.TopicIsRestricted(topic) || strings.TrimSpace(topic) == "" {
 		return nil
 	}
-	plan := u.QuerySearchPlan(TopicBase(topic), topic)
+	plan := topicFastQueryPlan(u.QuerySearchPlan(TopicBase(topic), topic), u.TopicLookup(TopicBase(topic)))
 	if len(plan.RU) == 0 {
 		return nil
 	}
