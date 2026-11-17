@@ -280,6 +280,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		}
 		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
 		candidates := autopilotRunSearchBackends(ctx, turn, backends)
+		if job.Scope == autopilotAutoScope && len(candidates) < 3 && ctx.Err() == nil && autopilotBudgetError(ctx) == nil {
+			candidates = append(candidates, a.autopilotFindSourcesFromPosts(ctx, job, query, 6-len(candidates))...)
+		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -338,6 +341,56 @@ func autopilotRunSearchBackends(ctx context.Context, turn int64, backends []func
 		out = append(out, backends[(start+i)%len(backends)]()...)
 	}
 	return out
+}
+
+// Find additional source candidates through recent public posts when a topic
+// has weak source-search coverage. This only nominates authors: individual
+// posts cannot be delivered until the source has passed probation and each
+// post has been assessed by the normal public pipeline.
+func autopilotCandidatesFromPosts(by map[string][]jx.M, at int64, limit int) []DiscoveryCandidate {
+	if limit <= 0 {
+		return nil
+	}
+	var out []DiscoveryCandidate
+	seen := map[string]bool{}
+	for _, platform := range sortedKeys(by) {
+		for _, post := range by[platform] {
+			published := jx.Int(post, "posted_at")
+			if published <= 0 || published > at+300 || IsPostOutdated(published, at, config.ContentMaxAgeDays) ||
+				jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 || PostSearchIsAd(post) {
+				continue
+			}
+			candidate := PostSearchAuthor(post)
+			if candidate == nil {
+				continue
+			}
+			id, ok := autopilotCandidateID(*candidate)
+			if !ok || seen[id] {
+				continue
+			}
+			seen[id] = true
+			candidate.Origin = "public_post:" + jx.Str(post, "url")
+			out = append(out, *candidate)
+			if len(out) == limit {
+				return out
+			}
+		}
+	}
+	return out
+}
+
+func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJob, query string, limit int) []DiscoveryCandidate {
+	if job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind || strings.TrimSpace(query) == "" || limit <= 0 || ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
+		return nil
+	}
+	u := a.User(ctx, "", nil)
+	plan := QueryPlan{RU: []string{query}, EN: []string{query}}
+	only := map[string]bool{"Telegram": true, "VK": true, "Lemmy": true, "Mastodon": true}
+	posts, _ := u.searchEngineRun(plan, 0, 25*time.Second, only)
+	if ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
+		return nil
+	}
+	return autopilotCandidatesFromPosts(posts, time.Now().Unix(), limit)
 }
 
 func (a *App) autopilotShadowSearchWith(ctx context.Context, job *autopilotJob, find func(context.Context) ([]DiscoveryCandidate, error)) error {
