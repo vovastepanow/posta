@@ -356,7 +356,8 @@ func autopilotCandidatesFromPosts(by map[string][]jx.M, at int64, limit int) []D
 	for _, platform := range sortedKeys(by) {
 		for _, post := range by[platform] {
 			published := jx.Int(post, "posted_at")
-			if published <= 0 || published > at+300 || IsPostOutdated(published, at, config.ContentMaxAgeDays) ||
+			if !autopilotPublicPostURL(jx.Str(post, "url"), false) ||
+				published <= 0 || published > at+300 || IsPostOutdated(published, at, config.ContentMaxAgeDays) ||
 				jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 || jx.Bool(post, "advertising") || PostIsAdvertisement(post) || PostSearchIsAd(post) {
 				continue
 			}
