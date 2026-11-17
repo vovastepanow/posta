@@ -78,28 +78,31 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	// Cold-start topics have no observed useful posts. Explore a different
 	// query on every run instead of repeating the same unproven query four
 	// times. Once yield is observed, keep the slower exploit/explore cadence.
-	rows, err := a.DB.Pool.Query(ctx, `SELECT q.query,count(DISTINCT e.content_hash) FILTER (WHERE e.eligible AND e.content_hash<>'' AND NOT EXISTS
-		(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful
-		FROM source_autopilot_query_sources q JOIN source_autopilot_sources s ON s.scope=q.scope AND s.topic_key=q.topic_key AND s.source_id=q.source_id AND s.state IN ('probation','active')
-		LEFT JOIN source_autopilot_post_evidence e ON e.scope=q.scope AND e.topic_key=q.topic_key AND e.source_id=q.source_id AND e.published_at >= $3
-		WHERE q.scope=$1 AND q.topic_key=$2 GROUP BY q.query`, job.Scope, job.TopicKey, time.Now().Add(-30*24*time.Hour).Unix())
-	if err != nil {
-		return "", err
-	}
 	scores := map[string]int64{}
-	for rows.Next() {
-		var q string
-		var score int64
-		if err := rows.Scan(&q, &score); err != nil {
-			rows.Close()
+	// Exploration turns and model-gate tests must not require a database.
+	if turn%4 != 0 && a.DB != nil {
+		rows, err := a.DB.Pool.Query(ctx, `SELECT q.query,count(DISTINCT e.content_hash) FILTER (WHERE e.eligible AND e.content_hash<>'' AND NOT EXISTS
+			(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful
+			FROM source_autopilot_query_sources q JOIN source_autopilot_sources s ON s.scope=q.scope AND s.topic_key=q.topic_key AND s.source_id=q.source_id AND s.state IN ('probation','active')
+			LEFT JOIN source_autopilot_post_evidence e ON e.scope=q.scope AND e.topic_key=q.topic_key AND e.source_id=q.source_id AND e.published_at >= $3
+			WHERE q.scope=$1 AND q.topic_key=$2 GROUP BY q.query`, job.Scope, job.TopicKey, time.Now().Add(-30*24*time.Hour).Unix())
+		if err != nil {
 			return "", err
 		}
-		scores[q] = score
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return "", err
+		for rows.Next() {
+			var q string
+			var score int64
+			if err := rows.Scan(&q, &score); err != nil {
+				rows.Close()
+				return "", err
+			}
+			scores[q] = score
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return "", err
+		}
 	}
 	choice := autopilotSelectQuery(clean, scores, turn)
 	checkpoint["query_turn"] = turn + 1
