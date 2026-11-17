@@ -2241,6 +2241,8 @@ func (u *U) RunCollector() bool {
 	if !u.Alive() {
 		return false
 	}
+	fastPostKeys := map[string]bool{}
+	fastPostFound := 0
 	if u.CurrentQuery() != "" {
 		byPlatform = u.QuerySearchCollect(key) // поиск по запросу сам включает каталог темы
 	} else {
@@ -2250,6 +2252,12 @@ func (u *U) RunCollector() bool {
 		}
 		if fastTopicSearch && u.Alive() && u.CurrentTopic() == topic {
 			for platform, posts := range u.TopicFastSearchCollect(topic) {
+				fastPostFound += len(posts)
+				for _, post := range posts {
+					if postKey := CandidatePostKey(post); postKey != "" {
+						fastPostKeys[postKey] = true
+					}
+				}
 				byPlatform[platform] = append(byPlatform[platform], posts...)
 			}
 		}
@@ -2294,7 +2302,13 @@ func (u *U) RunCollector() bool {
 	u.Log("%s Быстрая оценка по картинке %d px: отсев мусора при уверенности от %d%%, тему не проверяет.", notes, config.PrescreenMaxSide, u.TInt("prescreen_junk"))
 	pc := &prescreenCtx{stats: map[string]int{}, cached: scores, newCache: map[string]screenedEntry{}, knownHashes: u.collectKnownHashes(), screenedHashes: screenedHashes}
 	analyzed, added, done := 0, 0, 0
-	funnel := func() jx.M { return passFunnel(collected, len(candidates), skipped, pc.stats, analyzed, added) }
+	fastPostAdded := 0
+	funnel := func() jx.M {
+		f := passFunnel(collected, len(candidates), skipped, pc.stats, analyzed, added)
+		f["fast_search_found"] = fastPostFound
+		f["fast_search_added"] = fastPostAdded
+		return f
+	}
 	stop := ""
 	restart := false
 	var queue []prescreenRow
@@ -2364,6 +2378,9 @@ outer:
 			t0 := time.Now()
 			if u.analyzeCandidate(c.Item, c.Poster, u.History(), key) {
 				added++
+				if fastPostKeys[CandidatePostKey(c.Item)] {
+					fastPostAdded++
+				}
 				if src := ContentSourceKey(c.Item); sourcePoolCount(u.freshPoolItems(u.Pool()), key, src) >= sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), u.PoolTopicCount(key)) {
 					takenSrc[src] = true
 				}
@@ -2389,6 +2406,9 @@ outer:
 		pc.stats["rejected"], pc.stats["duplicates"])
 	total := time.Since(started)
 	u.Log("Время прохода: автоподбор %.1f мин, сбор %.1f мин, анализ %.1f мин.", tDiscovery.Minutes(), max(0, (total-tDiscovery-tAnalyze).Minutes()), tAnalyze.Minutes())
+	if fastTopicSearch {
+		u.Log("Быстрый поиск: найдено %d кандидатов, после полного отбора добавлено %d.", fastPostFound, fastPostAdded)
+	}
 	u.Log("")
 	_ = h
 	if !restart && !discovered && (added == 0 || len(candidates) < u.TInt("pool_target")) && u.PoolTopicCount(key) < u.TInt("pool_target") && u.Alive() && u.CurrentTopic() == topic &&
