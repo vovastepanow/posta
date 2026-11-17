@@ -50,5 +50,4 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Verify public source hint staging and owner-safe delivery
-        run: go test ./internal/posta -run '^(TestAutopilotConsumesAcceptedSourceHintsPostgres|TestAutopilotDeliversContentPerOwnerPostgres|TestAutopilotDirectDeliversWithoutApprovedSourcePostgres) -count=1 -timeout=12m
- -count=1 -timeout=12m
+        run: go test ./internal/posta -run '^(TestAutopilotConsumesAcceptedSourceHintsPostgres|TestAutopilotDeliversContentPerOwnerPostgres|TestAutopilotDirectDeliversWithoutApprovedSourcePostgres)$' -count=1 -timeout=12m
