@@ -197,7 +197,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	}
 	// Existing trials get first access to the budget; broad search must not
 	// indefinitely starve their evaluation or projection after a restart.
-	if err := a.autopilotReviewShadowCandidates(ctx, job, 8); err != nil {
+	if err := a.autopilotReviewShadowCandidates(ctx, job, 4); err != nil {
 		return err
 	}
 	if job.Scope == autopilotAutoScope {
