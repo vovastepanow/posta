@@ -2243,6 +2243,7 @@ func (u *U) RunCollector() bool {
 	}
 	fastPostKeys := map[string]bool{}
 	fastPostFound := 0
+	fastSearchSeconds := 0.0
 	if u.CurrentQuery() != "" {
 		byPlatform = u.QuerySearchCollect(key) // поиск по запросу сам включает каталог темы
 	} else {
@@ -2251,7 +2252,10 @@ func (u *U) RunCollector() bool {
 			byPlatform = map[string][]jx.M{}
 		}
 		if fastTopicSearch && u.Alive() && u.CurrentTopic() == topic {
-			for platform, posts := range u.TopicFastSearchCollect(topic) {
+			fastStarted := time.Now()
+			fastPosts := u.TopicFastSearchCollect(topic)
+			fastSearchSeconds = time.Since(fastStarted).Seconds()
+			for platform, posts := range fastPosts {
 				fastPostFound += len(posts)
 				for _, post := range posts {
 					if postKey := CandidatePostKey(post); postKey != "" {
@@ -2303,10 +2307,15 @@ func (u *U) RunCollector() bool {
 	pc := &prescreenCtx{stats: map[string]int{}, cached: scores, newCache: map[string]screenedEntry{}, knownHashes: u.collectKnownHashes(), screenedHashes: screenedHashes}
 	analyzed, added, done := 0, 0, 0
 	fastPostAdded := 0
+	firstAddedSeconds := 0.0
 	funnel := func() jx.M {
 		f := passFunnel(collected, len(candidates), skipped, pc.stats, analyzed, added)
 		f["fast_search_found"] = fastPostFound
 		f["fast_search_added"] = fastPostAdded
+		f["fast_search_seconds"] = fastSearchSeconds
+		if added > 0 {
+			f["first_added_seconds"] = firstAddedSeconds
+		}
 		return f
 	}
 	stop := ""
@@ -2378,6 +2387,9 @@ outer:
 			t0 := time.Now()
 			if u.analyzeCandidate(c.Item, c.Poster, u.History(), key) {
 				added++
+				if added == 1 {
+					firstAddedSeconds = time.Since(started).Seconds()
+				}
 				if fastPostKeys[CandidatePostKey(c.Item)] {
 					fastPostAdded++
 				}
