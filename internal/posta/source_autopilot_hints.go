@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"posta/internal/jx"
 )
 
 // Accepted public posts can nominate their authors without bypassing the
@@ -95,7 +94,3 @@ func (a *App) autopilotConsumeSourceHints(ctx context.Context, job *autopilotJob
 	})
 	return err
 }
-
-// Accepted results are only hints. The public worker still fetches and
-// assesses fresh content before any source becomes probationary or active.
-var _ = jx.M{}
