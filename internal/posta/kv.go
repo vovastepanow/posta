@@ -125,6 +125,9 @@ func (a *App) CacheGC(ctx context.Context) {
 	a.DB.Pool.Exec(ctx, `DELETE FROM content_repeat_memory WHERE expires_at <= $1`, t)
 	a.DB.Pool.Exec(ctx, `DELETE FROM cache WHERE expires_at <= $1`, t)
 	a.DB.Pool.Exec(ctx, `DELETE FROM kv WHERE expires_at > 0 AND expires_at <= $1`, t)
+	// Directly verified posts are ephemeral; retain no stale public
+	// assessments after their permitted 48-hour delivery window.
+	a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_direct_results WHERE assessed_at < $1 OR published_at < $1`, t-int64(autopilotDirectMaxAge/time.Second))
 }
 
 // ---- MemCache: сырые ответы площадок и прочее на минуты — только в памяти процесса. ----
