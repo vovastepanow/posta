@@ -64,7 +64,10 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	if turn < 0 {
 		turn = 0
 	}
-	choice := clean[int((turn/4)%int64(len(clean)))]
+	// Cold-start topics have no observed useful posts. Explore a different
+	// query on every run instead of repeating the same unproven query four
+	// times. Once yield is observed, keep the slower exploit/explore cadence.
+	choice := autopilotSelectQuery(clean, nil, turn)
 	if turn%4 != 0 {
 		rows, err := a.DB.Pool.Query(ctx, `SELECT q.query,count(DISTINCT e.content_hash) FILTER (WHERE e.eligible AND e.content_hash<>'' AND NOT EXISTS
 			(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful
@@ -89,16 +92,36 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 		if err != nil {
 			return "", err
 		}
-		best := int64(0)
-		for _, q := range clean {
-			if scores[q] > best {
-				best, choice = scores[q], q
-			}
-		}
+		choice = autopilotSelectQuery(clean, scores, turn)
 	}
 	checkpoint["query_turn"] = turn + 1
 	job.Checkpoint = jx.Marshal(checkpoint)
 	return choice, nil
+}
+
+// Explore rapidly until at least one query produces eligible unique posts.
+// With evidence, reserve every fourth turn for exploration and otherwise
+// prefer the highest-yield query.
+func autopilotSelectQuery(queries []string, scores map[string]int64, turn int64) string {
+	if len(queries) == 0 {
+		return ""
+	}
+	if turn < 0 {
+		turn = 0
+	}
+	best, bestScore := "", int64(0)
+	for _, query := range queries {
+		if scores[query] > bestScore {
+			best, bestScore = query, scores[query]
+		}
+	}
+	if bestScore == 0 {
+		return queries[int(turn%int64(len(queries)))]
+	}
+	if turn%4 == 0 {
+		return queries[int((turn/4)%int64(len(queries)))]
+	}
+	return best
 }
 
 func recordAutopilotQuerySource(ctx context.Context, a *App, job *autopilotJob, source string) error {
