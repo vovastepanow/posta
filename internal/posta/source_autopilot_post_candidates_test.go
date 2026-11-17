@@ -1,0 +1,38 @@
+package posta
+
+import (
+	"testing"
+	"time"
+
+	"posta/internal/jx"
+)
+
+func TestAutopilotCandidatesFromPosts(t *testing.T) {
+	at := time.Now().Unix()
+	posts := map[string][]jx.M{
+		PlatformTelegram: {
+			{"source_url": "https://t.me/s/marketing_digest", "url": "https://t.me/marketing_digest/1", "posted_at": at, "text": "Анализ кампании"},
+			{"source_url": "https://t.me/s/marketing_digest", "url": "https://t.me/marketing_digest/2", "posted_at": at, "text": "Ещё разбор"},
+			{"source_url": "https://t.me/s/reklama_digest", "url": "https://t.me/reklama_digest/1", "posted_at": at, "advertising": true},
+			{"source_url": "https://t.me/s/old_digest", "url": "https://t.me/old_digest/1", "posted_at": at - 400*86400},
+			{"source_url": "https://t.me/s/private_digest", "url": "https://t.me/private_digest/1", "posted_at": at, "nsfw": true},
+			{"source_url": "https://t.me/s/future_digest", "url": "https://t.me/future_digest/1", "posted_at": at + 900},
+			{"source_url": "https://t.me/s/growth_digest", "url": "https://t.me/growth_digest/1", "posted_at": at},
+		},
+	}
+	got := autopilotCandidatesFromPosts(posts, at, 10)
+	if len(got) != 2 {
+		t.Fatalf("candidates = %d, want two unique safe recent authors: %+v", len(got), got)
+	}
+	for _, candidate := range got {
+		if _, ok := autopilotCandidateID(candidate); !ok {
+			t.Fatalf("invalid source bypassed validator: %+v", candidate)
+		}
+	}
+	if len(autopilotCandidatesFromPosts(posts, at, 1)) != 1 {
+		t.Fatal("post candidate limit was not enforced")
+	}
+	if len(autopilotCandidatesFromPosts(posts, at, 0)) != 0 {
+		t.Fatal("zero limit must return no sources")
+	}
+}
