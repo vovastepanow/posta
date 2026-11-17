@@ -11,13 +11,13 @@ func TestAutopilotCandidatesFromPosts(t *testing.T) {
 	at := time.Now().Unix()
 	posts := map[string][]jx.M{
 		PlatformTelegram: {
-			{"source_url": "https://t.me/s/marketing_digest", "url": "https://t.me/marketing_digest/1", "posted_at": at, "text": "Анализ кампании"},
-			{"source_url": "https://t.me/s/marketing_digest", "url": "https://t.me/marketing_digest/2", "posted_at": at, "text": "Ещё разбор"},
-			{"source_url": "https://t.me/s/reklama_digest", "url": "https://t.me/reklama_digest/1", "posted_at": at, "advertising": true},
-			{"source_url": "https://t.me/s/old_digest", "url": "https://t.me/old_digest/1", "posted_at": at - 400*86400},
-			{"source_url": "https://t.me/s/private_digest", "url": "https://t.me/private_digest/1", "posted_at": at, "nsfw": true},
-			{"source_url": "https://t.me/s/future_digest", "url": "https://t.me/future_digest/1", "posted_at": at + 900},
-			{"source_url": "https://t.me/s/growth_digest", "url": "https://t.me/growth_digest/1", "posted_at": at},
+			{"source_url": "https://t.me/marketing_digest", "url": "https://t.me/marketing_digest/1", "posted_at": at, "text": "Анализ кампании"},
+			{"source_url": "https://t.me/marketing_digest", "url": "https://t.me/marketing_digest/2", "posted_at": at, "text": "Ещё разбор"},
+			{"source_url": "https://t.me/reklama_digest", "url": "https://t.me/reklama_digest/1", "posted_at": at, "advertising": true},
+			{"source_url": "https://t.me/old_digest", "url": "https://t.me/old_digest/1", "posted_at": at - 400*86400},
+			{"source_url": "https://t.me/private_digest", "url": "https://t.me/private_digest/1", "posted_at": at, "nsfw": true},
+			{"source_url": "https://t.me/future_digest", "url": "https://t.me/future_digest/1", "posted_at": at + 900},
+			{"source_url": "https://t.me/growth_digest", "url": "https://t.me/growth_digest/1", "posted_at": at},
 		},
 	}
 	got := autopilotCandidatesFromPosts(posts, at, 10)
