@@ -753,7 +753,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			// Only after source verification: the staged public-search posts
 			// pass the same full analysis and admission checks as feed posts.
 			if job.Scope == autopilotAutoScope {
-				samples = autopilotFreshRSSSamples(append(samples, a.autopilotPendingPublicPosts(ctx, job, source)...), at.Unix())
+				samples = autopilotMergePostHints(source, samples, a.autopilotPendingPublicPosts(ctx, job, source), at.Unix())
 			}
 			if err := assess(ctx, source, samples); err != nil {
 				if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
