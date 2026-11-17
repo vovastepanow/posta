@@ -32,7 +32,10 @@ func TestProfessionalAnalysisLowValue(t *testing.T) {
 
 func TestProfessionalValueTopic(t *testing.T) {
 	u := taxonomyTestUser()
-	for _, tc := range []struct { topic string; want bool }{
+	for _, tc := range []struct {
+		topic string
+		want  bool
+	}{
 		{"Бизнес", true},
 		{"Маркетинг и реклама", true},
 		{"SMM и блогинг", true},
@@ -41,5 +44,24 @@ func TestProfessionalValueTopic(t *testing.T) {
 		if got := u.professionalValueTopic(tc.topic); got != tc.want {
 			t.Errorf("topic %q: got %v want %v", tc.topic, got, tc.want)
 		}
+	}
+}
+
+func TestContentAnalysisSchemaProfessionalSignals(t *testing.T) {
+	schema := ContentAnalysisSchema("", false)
+	properties := jx.Map(schema, "properties")
+	for _, key := range []string{"interest", "practical_value", "specificity"} {
+		if _, ok := properties[key]; !ok {
+			t.Fatalf("missing optional score %s", key)
+		}
+	}
+	for _, value := range jx.Strs(schema, "required") {
+		if value == "interest" || value == "practical_value" || value == "specificity" {
+			t.Fatalf("legacy analyses must remain compatible: %s required", value)
+		}
+	}
+	humor := jx.Map(ContentAnalysisSchema("", true), "properties")
+	if _, ok := humor["interest"]; ok {
+		t.Fatal("meme analysis unexpectedly requires professional scores")
 	}
 }
