@@ -20,8 +20,8 @@ func TestAutopilotDirectPostRejectsImpersonationAndMedia(t *testing.T) {
 	now := time.Now().Unix()
 	analysis := jx.M{"advertising": false, "relevance": 95, "topic_match": true, "model": "test", "description": "Полезный разбор", "why_relevant": "Тема", "tags": []any{}}
 	base := jx.M{"source_url": "https://t.me/marketing_digest", "url": "https://t.me/marketing_digest/100", "posted_at": now, "text": "Практический подробный анализ результатов маркетингового эксперимента."}
-	if !autopilotDirectPostEligible(u, "telegram:marketing_digest", "Маркетинг и реклама", base, analysis, now) {
-		t.Fatal("safe, relevant public text was rejected")
+	if len(autopilotSafePostHints("telegram:marketing_digest", []jx.M{base}, now)) != 1 {
+		t.Fatal("safe public text could not enter independent candidate staging")
 	}
 	for name, patch := range map[string]jx.M{
 		"forged author": {"source_url": "https://t.me/other_digest"},
