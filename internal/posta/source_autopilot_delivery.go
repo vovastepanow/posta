@@ -143,7 +143,7 @@ func (a *App) deliverAutopilotContent(ctx context.Context, job *autopilotJob, so
 	if job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind {
 		return nil
 	}
-	rows, err := a.DB.Pool.Query(ctx, `SELECT post,analysis,assessed_at FROM source_autopilot_content_results WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND published_at >= $4 AND policy_version=$5 ORDER BY published_at DESC LIMIT 20`, job.Scope, job.TopicKey, source, time.Now().Add(-time.Duration(config.ContentMaxAgeDays)*24*time.Hour).Unix(), TopicProfileVersion)
+	rows, err := a.DB.Pool.Query(ctx, `SELECT post,analysis,assessed_at FROM source_autopilot_content_results WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND published_at >= $4 AND policy_version=$5 ORDER BY published_at DESC LIMIT 100`, job.Scope, job.TopicKey, source, time.Now().Add(-time.Duration(config.ContentMaxAgeDays)*24*time.Hour).Unix(), TopicProfileVersion)
 	if err != nil {
 		return err
 	}
