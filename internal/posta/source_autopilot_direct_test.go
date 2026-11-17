@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"posta/internal/config"
 	"posta/internal/db"
 	"posta/internal/jx"
