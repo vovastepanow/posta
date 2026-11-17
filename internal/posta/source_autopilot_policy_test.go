@@ -23,3 +23,20 @@ func TestAutopilotSourcePolicy(t *testing.T) {
 		}
 	}
 }
+
+func TestProfessionalSourceYieldUsesEligiblePosts(t *testing.T) {
+	if got := effectiveSourceRelevant(9, 2, true); got != 2 {
+		t.Fatalf("professional eligible yield=%d, want 2", got)
+	}
+	if got := effectiveSourceRelevant(9, 2, false); got != 9 {
+		t.Fatalf("general source relevance was changed: %d", got)
+	}
+	if got := effectiveSourceRelevant(3, 7, true); got != 3 {
+		t.Fatalf("eligible count cannot exceed relevant evidence: %d", got)
+	}
+	p := sourcePolicy{MinEvaluated: 10, MinPasses: 3, MinFreshUnique: 3, PromoteRate: .8, DemoteRate: .4, MaxAdvertisingRate: .2, MaxDuplicateRate: .5}
+	e := sourceEvidence{Evaluated: 10, Relevant: effectiveSourceRelevant(9, 2, true), FreshUnique: 3, SuccessfulPasses: 3}
+	if state, _ := decideSourceState("probation", e, p); state != "rejected" {
+		t.Fatalf("professional source with mostly unusable posts became %s", state)
+	}
+}
