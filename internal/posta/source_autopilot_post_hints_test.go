@@ -78,3 +78,24 @@ func TestAutopilotMergePostHintsPrioritizesFreshIndependentPosts(t *testing.T) {
 		t.Fatalf("original feed order changed: %+v", merged)
 	}
 }
+
+func TestAutopilotPostMatchesSourceRejectsImpersonation(t *testing.T) {
+	cases := []struct {
+		source string
+		link string
+		author string
+		want bool
+	}{
+		{"telegram:marketing_digest", "https://t.me/marketing_digest/1", "https://t.me/marketing_digest", true},
+		{"telegram:marketing_digest", "https://evil.example.org/post/1", "https://t.me/marketing_digest", false},
+		{"telegram:marketing_digest", "https://t.me/other_channel/1", "https://t.me/marketing_digest", false},
+		{"vk:club12345", "https://vk.com/wall-12345_8", "https://vk.com/club12345", true},
+		{"vk:club12345", "https://other.example.org/post", "https://vk.com/club12345", false},
+	}
+	for _, tc := range cases {
+		post := jx.M{"url": tc.link, "source_url": tc.author}
+		if got := autopilotPostMatchesSource(tc.source, post); got != tc.want {
+			t.Errorf("source=%s post=%s: got %t, want %t", tc.source, tc.link, got, tc.want)
+		}
+	}
+}
