@@ -357,7 +357,7 @@ func autopilotCandidatesFromPosts(by map[string][]jx.M, at int64, limit int) []D
 		for _, post := range by[platform] {
 			published := jx.Int(post, "posted_at")
 			if published <= 0 || published > at+300 || IsPostOutdated(published, at, config.ContentMaxAgeDays) ||
-				jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 || PostSearchIsAd(post) {
+				jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 || jx.Bool(post, "advertising") || PostIsAdvertisement(post) || PostSearchIsAd(post) {
 				continue
 			}
 			candidate := PostSearchAuthor(post)
@@ -385,7 +385,9 @@ func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJ
 	}
 	u := a.User(ctx, "", nil)
 	plan := QueryPlan{RU: []string{query}, EN: []string{query}}
-	only := map[string]bool{"Telegram": true, "VK": true, "Lemmy": true, "Mastodon": true}
+	// The public worker has no personal Telegram login. Use only backends
+	// that can search without a subscriber's private account.
+	only := map[string]bool{"VK": true, "vc/dtf": true, "Lemmy": true, "Mastodon": true}
 	posts, _ := u.searchEngineRun(plan, 0, 25*time.Second, only)
 	if ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
 		return nil
