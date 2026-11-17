@@ -65,3 +65,26 @@ func TestContentAnalysisSchemaProfessionalSignals(t *testing.T) {
 		t.Fatal("meme analysis unexpectedly requires professional scores")
 	}
 }
+
+func TestProfessionalValueSchemasRequiredForBusiness(t *testing.T) {
+	u := taxonomyTestUser()
+	for _, topic := range []string{"Бизнес", "SMM и блогинг", "Маркетинг и реклама"} {
+		schema := u.contentAnalysisSchemaForTopic("", topic)
+		for _, key := range []string{"interest", "practical_value", "specificity"} {
+			if !contains(jx.Strs(schema, "required"), key) {
+				t.Errorf("vision %q missing required score %q", topic, key)
+			}
+		}
+		batch := professionalTextBatchSchema("", false, u.professionalValueTopic(topic))
+		item := jx.Map(jx.Map(jx.Map(batch, "properties"), "items"), "items")
+		for _, key := range []string{"interest", "practical_value", "specificity"} {
+			if !contains(jx.Strs(item, "required"), key) || jx.Map(item, "properties")[key] == nil {
+				t.Errorf("text %q missing score %q", topic, key)
+			}
+		}
+	}
+	meme := u.contentAnalysisSchemaForTopic("", "Мемы")
+	if contains(jx.Strs(meme, "required"), "interest") {
+		t.Fatal("professional scores unexpectedly required for memes")
+	}
+}
