@@ -168,6 +168,31 @@ func (u *U) QuerySearchCollect(key string) map[string][]jx.M {
 }
 
 // querySearchTelegramChannels — каналы Telegram по запросу через аккаунт владельца; читаем их посты, в каталог каналы не добавляем.
+// TopicFastSearchCollect searches public posts while discovery is still
+// establishing sources for a new topic. Results enter the normal collector
+// admission pipeline; no newly found source is automatically trusted.
+func (u *U) TopicFastSearchCollect(topic string) map[string][]jx.M {
+	if !u.TBool("discovery") || u.TopicIsRestricted(topic) || strings.TrimSpace(topic) == "" {
+		return nil
+	}
+	plan := u.QuerySearchPlan(TopicBase(topic), topic)
+	if len(plan.RU) == 0 {
+		return nil
+	}
+	// Broad topics have no single mandatory keyword.
+	plan.Must = nil
+	off := u.querySearchOffset("topic-fast:" + TopicNorm(topic))
+	seconds := max(15, min(90, u.TInt("query_search_seconds")))
+	got, _ := u.SearchEngineRun(plan, off, time.Duration(seconds)*time.Second)
+	ranked := rankQuerySearch(got, plan, u.TInt("content_max_age"), func(it jx.M) bool { return u.UAItemBlocked(it) != "" })
+	count := 0
+	for _, posts := range ranked {
+		count += len(posts)
+	}
+	u.Log("Быстрый поиск по теме «%s»: %d публикаций для стандартной проверки.", topic, count)
+	return ranked
+}
+
 func (u *U) querySearchTelegramChannels(ru, must []string) []jx.M {
 	chans := u.discoveryTelegramAccountChannels(ru[:min(len(ru), 2)], nil)
 	var out []jx.M
