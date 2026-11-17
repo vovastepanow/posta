@@ -56,6 +56,31 @@ func autopilotSafePostHints(source string, posts []jx.M, at int64) []jx.M {
 	return out
 }
 
+// Give independently discovered posts their first chance at assessment
+// after probation, then retain the usual spread of feed posts. The two
+// sources are deduplicated by canonical post key, without reducing feed checks
+// or raising the normal per-run model budget.
+func autopilotMergePostHints(source string, feed, hinted []jx.M, at int64) []jx.M {
+	staged := autopilotSafePostHints(source, hinted, at)
+	seen := map[string]bool{}
+	out := make([]jx.M, 0, len(staged)+len(feed))
+	for _, post := range staged {
+		key := CandidatePostKey(post)
+		if key != "" && !seen[key] {
+			seen[key] = true
+			out = append(out, post)
+		}
+	}
+	for _, post := range feed {
+		key := CandidatePostKey(post)
+		if key != "" && !seen[key] {
+			seen[key] = true
+			out = append(out, post)
+		}
+	}
+	return out
+}
+
 func (a *App) autopilotStagePublicPosts(ctx context.Context, job *autopilotJob, source string, posts []jx.M) error {
 	if job == nil || job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind {
 		return nil
