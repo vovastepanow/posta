@@ -124,14 +124,41 @@ func (a *App) autopilotAssessDirectPosts(ctx context.Context, job *autopilotJob,
 	if err := autopilotBudgetError(ctx); err != nil {
 		return err
 	}
+	accepted, rejected := 0, 0
 	for i, post := range posts {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if i >= len(analyses) || !autopilotDirectPostEligible(u, sources[i], job.Topic, post, analyses[i], time.Now().Unix()) {
+		if i >= len(analyses) || analyses[i] == nil || jx.Bool(analyses[i], "tags_classification_pending") {
+			// Incomplete model results remain eligible for retry.
 			continue
 		}
-		if err := a.saveAutopilotDirectResult(ctx, job, sources[i], post, analyses[i]); err != nil {
+		eligible := autopilotDirectPostEligible(u, sources[i], job.Topic, post, analyses[i], time.Now().Unix())
+		if eligible {
+			if err := a.saveAutopilotDirectResult(ctx, job, sources[i], post, analyses[i]); err != nil {
+				return err
+			}
+			accepted++
+		} else {
+			rejected++
+		}
+		// A fully classified rejection should not consume another model
+		// request on every discovery cycle. Keys are topic/policy scoped.
+		key := autopilotDirectSeenKey(job.TopicKey, sources[i], repeatDigest(CandidatePostKey(post)))
+		if err := a.KVSet(contextWithAutopilotLease(ctx, job), key, true, autopilotDirectMaxAge); err != nil {
+			return err
+		}
+	}
+	if accepted+rejected > 0 {
+		checkpoint := jx.Unmarshal(job.Checkpoint)
+		if checkpoint == nil {
+			checkpoint = jx.M{}
+		}
+		checkpoint["direct_reviewed_total"] = jx.Int(checkpoint, "direct_reviewed_total") + int64(accepted+rejected)
+		checkpoint["direct_accepted_total"] = jx.Int(checkpoint, "direct_accepted_total") + int64(accepted)
+		checkpoint["direct_rejected_total"] = jx.Int(checkpoint, "direct_rejected_total") + int64(rejected)
+		job.Checkpoint = jx.Marshal(checkpoint)
+		if err := saveAutopilotCheckpoint(ctx, a.DB, job); err != nil {
 			return err
 		}
 	}
