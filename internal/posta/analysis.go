@@ -69,6 +69,38 @@ func ContentAnalysisSchema(query string, humor bool) jx.M {
 	return jx.M{"type": "object", "properties": props, "required": req}
 }
 
+// Require the three professional quality dimensions only for applicable
+// topics. Global schemas and previously cached analyses remain compatible.
+func (u *U) contentAnalysisSchemaForTopic(query, topic string) jx.M {
+	schema := ContentAnalysisSchema(query, u.TopicIsHumor(topic))
+	if u.professionalValueTopic(topic) {
+		return requireProfessionalValueScores(schema)
+	}
+	return schema
+}
+
+func requireProfessionalValueScores(schema jx.M) jx.M {
+	props := jx.Map(schema, "properties")
+	required := jx.Strs(schema, "required")
+	for _, key := range []string{"interest", "practical_value", "specificity"} {
+		props[key] = jx.M{"type": "integer", "minimum": 0, "maximum": 100}
+		if !contains(required, key) {
+			required = append(required, key)
+		}
+	}
+	schema["required"] = required
+	return schema
+}
+
+func professionalTextBatchSchema(query string, humor, professional bool) jx.M {
+	schema := TextBatchSchema(query, humor)
+	if professional {
+		array := jx.Map(jx.Map(schema, "properties"), "items")
+		requireProfessionalValueScores(jx.Map(array, "items"))
+	}
+	return schema
+}
+
 // Отдельные признаки позволяют применять прежние правила 18+ без полного словаря тем.
 const contentSafetyPrompt = "safety: массив признаков контента: lewd_humor — пошлые шутки без откровенных кадров; adult — обнажённое тело, эротика или явный секс, включая рисунки; shock — насилие, травмы, кровь, аварии или катастрофы в момент события. Укажи все подходящие признаки; если их нет — пустой массив.\n"
 
@@ -351,7 +383,7 @@ func (u *U) AnalyzeContentWithVision(images [][]byte, caption string, h History,
 	var lastErr error
 	for _, at := range attempts {
 		seed := config.AnalysisSeed
-		r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleAnalysis, Prompt: prompt, Images: encoded, Schema: ContentAnalysisSchema(query, u.TopicIsHumor(topic)),
+		r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleAnalysis, Prompt: prompt, Images: encoded, Schema: u.contentAnalysisSchemaForTopic(query, topic),
 			MaxTokens: at.tokens, Temperature: 0, Seed: &seed, Think: at.think, UserID: u.ID, Topic: topic, Private: private,
 			OnThinking: u.thinkingLogger()})
 		if err == nil {
@@ -676,7 +708,7 @@ func (u *U) TextBatchPrompt(topic string, texts []string, h History) string {
 func (u *U) AnalyzeTextBatch(texts []string, topic string, h History) ([]Analysis, error) {
 	query := TopicQueryOf(topic)
 	humor := u.TopicIsHumor(topic)
-	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, Prompt: u.editableTextPrompt(topic, texts, h), Schema: TextBatchSchema(query, humor),
+	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, Prompt: u.editableTextPrompt(topic, texts, h), Schema: professionalTextBatchSchema(query, humor, u.professionalValueTopic(topic)),
 		MaxTokens: config.AnalysisMaxTokens * max(1, min(len(texts), 6)), Temperature: 0.1, UserID: u.ID, Topic: topic, Private: u.TopicIsRestricted(topic)})
 	if err != nil {
 		return nil, err
