@@ -25,6 +25,7 @@ type autopilotDeliveryContextKey struct{}
 type autopilotDeliveryGuard struct {
 	owner, source, topic string
 	post, analysis       jx.M
+	direct               bool
 }
 
 func databaseAppCatalogEntryMatches(job *autopilotJob, entry jx.M) bool {
@@ -54,6 +55,13 @@ func databaseAppCatalogEntryMatches(job *autopilotJob, entry jx.M) bool {
 
 func withAutopilotDelivery(ctx context.Context, owner, source, topic string, post, analysis jx.M) context.Context {
 	return context.WithValue(ctx, autopilotDeliveryContextKey{}, autopilotDeliveryGuard{owner: owner, source: source, topic: topic, post: post, analysis: analysis})
+}
+
+// Direct posts are individually assessed; they never authorize the
+// source's other posts. The leased pool transaction confirms the saved
+// assessment and still checks subscriber demand, votes and overrides.
+func withAutopilotDirectDelivery(ctx context.Context, owner, source, topic string, post, analysis jx.M) context.Context {
+	return context.WithValue(ctx, autopilotDeliveryContextKey{}, autopilotDeliveryGuard{owner: owner, source: source, topic: topic, post: post, analysis: analysis, direct: true})
 }
 
 type autopilotProjectionGuard struct {
@@ -109,15 +117,39 @@ func autopilotEffectTx(ctx context.Context, database *db.DB, fn func(pgx.Tx) err
 				if job.Kind != autopilotAutoKind || job.Scope != autopilotAutoScope || guard.owner == "" || guard.source == "" {
 					return errAutopilotLeaseLost
 				}
-				if err := lockAutopilotSource(ctx, tx, job.Scope, job.TopicKey, guard.source); err != nil {
-					return err
-				}
-				var state string
-				if err := tx.QueryRow(ctx, `SELECT state FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, job.TopicKey, guard.source).Scan(&state); err != nil {
-					return err
-				}
-				if state != "probation" && state != "active" {
-					return errAutopilotSourceChanged
+				if guard.direct {
+					if !autopilotPostMatchesSource(guard.source, guard.post) ||
+						PostItemHasVideo(guard.post) || ContentImageKey(guard.post) != "" {
+						return errAutopilotSourceOverride
+					}
+					var verified bool
+					if err := tx.QueryRow(ctx, `SELECT EXISTS(
+						SELECT 1 FROM source_autopilot_direct_results
+						WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4
+						AND policy_version=$5 AND published_at >= $6 AND assessed_at >= $7
+						AND post->>'url'=$8 AND analysis->>'model'=$9
+						AND analysis->>'advertising'='false')`,
+						job.Scope, job.TopicKey, guard.source,
+						repeatDigest(CandidatePostKey(guard.post)), TopicProfileVersion,
+						time.Now().Add(-autopilotDirectMaxAge).Unix(),
+						time.Now().Add(-autopilotDirectMaxAge).Unix(),
+						jx.Str(guard.post, "url"), jx.Str(guard.analysis, "model")).Scan(&verified); err != nil {
+						return err
+					}
+					if !verified {
+						return errAutopilotSourceChanged
+					}
+				} else {
+					if err := lockAutopilotSource(ctx, tx, job.Scope, job.TopicKey, guard.source); err != nil {
+						return err
+					}
+					var state string
+					if err := tx.QueryRow(ctx, `SELECT state FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, job.TopicKey, guard.source).Scan(&state); err != nil {
+						return err
+					}
+					if state != "probation" && state != "active" {
+						return errAutopilotSourceChanged
+					}
 				}
 				var globallyExcluded bool
 				if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_overrides WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND owner_id='' AND decision='excluded')`, job.Scope, job.TopicKey, guard.source).Scan(&globallyExcluded); err != nil {
@@ -132,24 +164,26 @@ func autopilotEffectTx(ctx context.Context, database *db.DB, fn func(pgx.Tx) err
 				if err := tx.QueryRow(ctx, `SELECT version FROM catalog_revision WHERE id=true FOR SHARE`).Scan(&catalogRevision); err != nil {
 					return err
 				}
-				var catalogRaw []byte
-				_, id, kind, valid := autopilotSourceParts(guard.source)
-				if !valid {
-					return errAutopilotSourceOverride
-				}
-				alternateID := id
-				if _, youtube := canonicalYouTubeFeed(id); youtube {
-					alternateID = strings.Replace(id, "https://www.youtube.com/", "https://youtube.com/", 1)
-				}
-				if err := tx.QueryRow(ctx, `SELECT data FROM catalog_sources WHERE kind=$1 AND (source_id=$2 OR source_id=$3) ORDER BY (source_id=$2) DESC LIMIT 1`, kind, id, alternateID).Scan(&catalogRaw); err != nil {
-					if errors.Is(err, pgx.ErrNoRows) {
+				if !guard.direct {
+					var catalogRaw []byte
+					_, id, kind, valid := autopilotSourceParts(guard.source)
+					if !valid {
 						return errAutopilotSourceOverride
 					}
-					return err
-				}
-				entry := jx.Unmarshal(catalogRaw)
-				if entry == nil || !databaseAppCatalogEntryMatches(job, entry) {
-					return errAutopilotSourceOverride
+					alternateID := id
+					if _, youtube := canonicalYouTubeFeed(id); youtube {
+						alternateID = strings.Replace(id, "https://www.youtube.com/", "https://youtube.com/", 1)
+					}
+					if err := tx.QueryRow(ctx, `SELECT data FROM catalog_sources WHERE kind=$1 AND (source_id=$2 OR source_id=$3) ORDER BY (source_id=$2) DESC LIMIT 1`, kind, id, alternateID).Scan(&catalogRaw); err != nil {
+						if errors.Is(err, pgx.ErrNoRows) {
+							return errAutopilotSourceOverride
+						}
+						return err
+					}
+					entry := jx.Unmarshal(catalogRaw)
+					if entry == nil || !databaseAppCatalogEntryMatches(job, entry) {
+						return errAutopilotSourceOverride
+					}
 				}
 				oldID := legacyYouTubeSourceKey(guard.source)
 				oldShortHost := strings.Replace(oldID, "rss:https://www.youtube.com/", "rss:https://youtube.com/", 1)
