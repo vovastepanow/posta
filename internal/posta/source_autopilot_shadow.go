@@ -429,6 +429,19 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 		}, a.autopilotSourcePolicy())
 }
 
+// A source with only two fresh posts can enter probation when the model is
+// exceptionally confident. Single-post feeds remain unverified; probation
+// still requires per-post assessments before content can be delivered.
+func autopilotPreliminaryPass(score, threshold, freshSamples int) bool {
+	if freshSamples < 2 || threshold < 0 || threshold > 100 {
+		return false
+	}
+	if freshSamples == 2 {
+		threshold = min(100, threshold+10)
+	}
+	return score >= threshold
+}
+
 func autopilotStreamUnavailableReason(err error) string {
 	if errors.Is(err, errAutopilotTikTokStreamUnavailable) {
 		return "tiktok_stream_unavailable"
@@ -568,7 +581,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			} else if !rssIsFeed(rssLoad(res.Bytes)) {
 				reason = "unrecognized_feed"
 			} else {
-				posts, err = RSSParse(res.Bytes, 10, "", res.URL, true, true, 0)
+				posts, err = RSSParse(res.Bytes, 20, "", res.URL, true, true, 0)
 			}
 			if err != nil {
 				reason = "feed_parse_failed"
@@ -586,10 +599,10 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 		}
 		samples = safeSamples
-		if reason == "" && state == "candidate" && len(samples) < 3 {
+		if reason == "" && state == "candidate" && len(samples) < 2 {
 			reason = "insufficient_fresh_samples"
 		}
-		evidence := jx.M{"fresh_samples": len(samples), "sample_limit": 10}
+		evidence := jx.M{"fresh_samples": len(samples), "sample_limit": 20}
 		if res.Status > 0 {
 			evidence["http_status"] = res.Status
 		}
@@ -609,7 +622,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				reason = "assessment_unavailable"
 			} else {
 				evidence["preliminary_score"] = evaluation.Score
-				if evaluation.Score >= threshold {
+				if autopilotPreliminaryPass(evaluation.Score, threshold, len(samples)) {
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate", "probation", "shadow_preliminary_pass", jx.Marshal(evidence), at, at.Add(24*time.Hour)); err != nil {
 						if errors.Is(err, errAutopilotSourceChanged) || errors.Is(err, errAutopilotSourceOverride) || errors.Is(err, errAutopilotProbationLimit) {
 							continue
