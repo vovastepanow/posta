@@ -49,7 +49,17 @@ func autopilotPostMatchesSource(source string, post jx.M) bool {
 		path = strings.TrimPrefix(path, "s/")
 		return strings.EqualFold(strings.SplitN(path, "/", 2)[0], id)
 	case PlatformVK:
-		return host == "vk.com" || host == "m.vk.com" || host == "www.vk.com"
+		if host != "vk.com" && host != "m.vk.com" && host != "www.vk.com" {
+			return false
+		}
+		// PostSearchAuthor resolves public communities to clubNNN. Require
+		// the wall post's numeric owner to match that community, not just
+		// the host vk.com, which contains posts from unrelated authors.
+		if strings.HasPrefix(id, "club") {
+			number := strings.TrimPrefix(id, "club")
+			return number != "" && strings.HasPrefix(strings.Trim(link.Path, "/"), "wall-"+number+"_")
+		}
+		return false
 	case PlatformTikTok:
 		return host == "tiktok.com" || strings.HasSuffix(host, ".tiktok.com")
 	case PlatformOK:
