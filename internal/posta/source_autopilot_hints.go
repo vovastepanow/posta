@@ -45,13 +45,36 @@ func (u *U) suggestAutopilotSource(topic string, candidate DiscoveryCandidate) {
 	if err != nil || !active {
 		return
 	}
+	added := false
 	_, err = KVUpdate(u.App, u.Ctx, autopilotSourceHintKey(topic), autopilotSourceHintTTL, func(current []string, _ bool) *[]string {
 		updated := appendAutopilotSourceHint(current, source)
+		added = len(updated) > len(current)
 		return &updated
 	})
 	if err != nil {
 		u.Log("Автопилот: источник %s не удалось поставить в очередь: %v", source, err)
+		return
 	}
+	if added {
+		if err := u.App.wakeAutopilotForAcceptedSource(u.Ctx, topic); err != nil {
+			u.Log("Автопилот: не удалось ускорить проверку источника %s: %v", source, err)
+		}
+	}
+}
+
+// When a genuinely new accepted author appears, advance an idle healthy
+// public job by at most one scheduler cycle. Never bypass an active lease or
+// explicit error/backoff, and never create or enable an inactive job.
+func (a *App) wakeAutopilotForAcceptedSource(ctx context.Context, topic string) error {
+	next := time.Now().Add(10 * time.Minute).Unix()
+	_, err := a.DB.Pool.Exec(ctx, `UPDATE source_autopilot_jobs
+		SET next_run_at=$4,requested_at=$4
+		WHERE scope=$1 AND topic_key=$2 AND kind=$3
+		AND enabled AND demand_active AND last_error=''
+		AND lease_until <= extract(epoch FROM clock_timestamp())::bigint
+		AND next_run_at > $4`,
+		autopilotAutoScope, autopilotTopicKey(topic), autopilotAutoKind, next)
+	return err
 }
 
 // Register hints only inside the public auto worker's fenced lease. Do not
