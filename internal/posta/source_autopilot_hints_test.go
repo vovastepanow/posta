@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"posta/internal/db"
+	"posta/internal/jx"
 )
 
 func TestAppendAutopilotSourceHint(t *testing.T) {
@@ -83,13 +84,22 @@ func TestAutopilotConsumesAcceptedSourceHintsPostgres(t *testing.T) {
 		t.Fatalf("autopilot claim=%+v err=%v", job, err)
 	}
 	hint := "telegram:marketing_digest"
+	defer a.KVDelete(context.Background(), autopilotPostHintKey(key, hint))
 	if err := a.KVSet(ctx, autopilotSourceHintKey(topic), []string{hint, "invalid:source"}, time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	if err := runAutopilotLeased(ctx, d, job, time.Minute, 10*time.Second, 5, 5, 5, 5, func(work context.Context) error {
+		if err := a.autopilotStagePublicPosts(work, job, hint, []jx.M{
+			{"url": "https://t.me/marketing_digest/77", "source_url": "https://t.me/marketing_digest", "posted_at": time.Now().Unix(), "text": "Подробная статистика профессионального проекта"},
+		}); err != nil {
+			return err
+		}
 		return a.autopilotConsumeSourceHints(work, job, 20)
 	}); err != nil {
 		t.Fatal(err)
+	}
+	if posts := a.autopilotPendingPublicPosts(ctx, job, hint); len(posts) != 1 {
+		t.Fatalf("new source post did not survive leased staging: %+v", posts)
 	}
 	var state string
 	if err := d.Pool.QueryRow(ctx, `SELECT state FROM source_autopilot_sources WHERE scope='public' AND topic_key=$1 AND source_id=$2`, key, hint).Scan(&state); err != nil || state != "candidate" {
