@@ -188,6 +188,11 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		return errors.New("restricted_profile")
 	}
 	if job.Scope == autopilotAutoScope {
+		// Source suggestions originating from fully accepted posts enter the
+		// same candidate verification queue as backend discoveries.
+		if err := a.autopilotConsumeSourceHints(ctx, job, 20); err != nil {
+			return err
+		}
 		if err := a.reconcileAutopilotProjections(ctx, job); err != nil {
 			return err
 		}
