@@ -8,12 +8,12 @@ import (
 
 func TestShouldFastTopicSearch(t *testing.T) {
 	tests := []struct {
-		name                  string
-		hasQuery, enabled     bool
-		restricted            bool
-		sources, minimum      int
-		available, target     int
-		want                  bool
+		name              string
+		hasQuery, enabled bool
+		restricted        bool
+		sources, minimum  int
+		available, target int
+		want              bool
 	}{
 		{"new public topic", false, true, false, 0, 3, 0, 20, true},
 		{"some sources still missing", false, true, false, 2, 3, 5, 20, true},
