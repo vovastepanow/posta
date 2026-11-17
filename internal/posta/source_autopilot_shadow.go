@@ -446,10 +446,22 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 	if fetch == nil || evaluate == nil || assess == nil || threshold < 0 || threshold > 100 {
 		return errors.New("invalid shadow review policy")
 	}
-	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,state,resume_state FROM source_autopilot_sources
-		WHERE scope=$1 AND topic_key=$2 AND state IN ('candidate','probation','active','rejected','cooldown') AND next_check_at <= $3
-		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=source_autopilot_sources.source_id AND o.decision='excluded')
-		ORDER BY checked_at,first_seen_at,source_id LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit)
+	// Interleave untested candidates with established sources. A large discovery
+	// backlog must not starve healthy feeds of collection, nor should frequent
+	// active-source checks prevent new topics from finding a first source.
+	rows, err := a.DB.Pool.Query(ctx, `WITH due AS (
+		SELECT s.source_id,s.state,s.resume_state,s.checked_at,s.first_seen_at,
+			CASE WHEN s.state IN ('candidate','probation') THEN 0 ELSE 1 END AS lane
+		FROM source_autopilot_sources s
+		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown') AND s.next_check_at <= $3
+		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
+	), ranked AS (
+		SELECT source_id,state,resume_state,lane,
+			row_number() OVER (PARTITION BY lane ORDER BY checked_at,first_seen_at,source_id) AS lane_rank
+		FROM due
+	)
+	SELECT source_id,state,resume_state FROM ranked
+	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit)
 	if err != nil {
 		return err
 	}
