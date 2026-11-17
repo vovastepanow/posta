@@ -133,6 +133,10 @@ func (a *App) autopilotAssessDirectPosts(ctx context.Context, job *autopilotJob,
 			// Incomplete model results remain eligible for retry.
 			continue
 		}
+		if _, ok := analyses[i]["advertising"].(bool); !ok || jx.Str(analyses[i], "model") == "" || analyses[i]["relevance"] == nil {
+			// Do not cache a transient schema or model failure as a rejection.
+			continue
+		}
 		eligible := autopilotDirectPostEligible(u, sources[i], job.Topic, post, analyses[i], time.Now().Unix())
 		if eligible {
 			if err := a.saveAutopilotDirectResult(ctx, job, sources[i], post, analyses[i]); err != nil {
