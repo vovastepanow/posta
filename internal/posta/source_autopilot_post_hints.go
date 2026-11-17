@@ -2,6 +2,7 @@ package posta
 
 import (
 	"context"
+	"net/url"
 	"strings"
 	"time"
 
@@ -16,6 +17,51 @@ const autopilotPostHintLimit = 4
 
 func autopilotPostHintKey(topicKey, source string) string {
 	return "autopilot:post_hints:" + topicKey + ":" + repeatDigest(source)
+}
+
+// A search result's source_url is untrusted. The post itself must originate
+// from the same public platform as the nominated author; an unrelated page
+// cannot impersonate a Telegram channel or a publisher.
+func autopilotPostMatchesSource(source string, post jx.M) bool {
+	candidate := PostSearchAuthor(post)
+	if candidate == nil {
+		return false
+	}
+	canonical, ok := autopilotCandidateID(*candidate)
+	if !ok || canonical != source {
+		return false
+	}
+	platform, id, _, ok := autopilotSourceParts(source)
+	if !ok {
+		return false
+	}
+	link, err := url.Parse(jx.Str(post, "url"))
+	if err != nil || link.Hostname() == "" || link.User != nil {
+		return false
+	}
+	host := strings.ToLower(link.Hostname())
+	switch platform {
+	case PlatformTelegram:
+		if host != "t.me" && host != "telegram.me" {
+			return false
+		}
+		path := strings.Trim(link.Path, "/")
+		path = strings.TrimPrefix(path, "s/")
+		return strings.EqualFold(strings.SplitN(path, "/", 2)[0], id)
+	case PlatformVK:
+		return host == "vk.com" || host == "m.vk.com" || host == "www.vk.com"
+	case PlatformTikTok:
+		return host == "tiktok.com" || strings.HasSuffix(host, ".tiktok.com")
+	case PlatformOK:
+		return host == "ok.ru" || strings.HasSuffix(host, ".ok.ru")
+	case PlatformRSS:
+		feed, err := url.Parse(id)
+		if err != nil || feed.Hostname() == "" {
+			return false
+		}
+		return strings.EqualFold(host, feed.Hostname()) || strings.EqualFold(strings.TrimPrefix(host, "www."), strings.TrimPrefix(strings.ToLower(feed.Hostname()), "www."))
+	}
+	return false
 }
 
 // Validate every post against its extracted public author, not the mutable
@@ -37,12 +83,7 @@ func autopilotSafePostHints(source string, posts []jx.M, at int64) []jx.M {
 			ContentImageKey(post) != "" {
 			continue
 		}
-		candidate := PostSearchAuthor(post)
-		if candidate == nil {
-			continue
-		}
-		id, ok := autopilotCandidateID(*candidate)
-		if !ok || id != source {
+		if !autopilotPostMatchesSource(source, post) {
 			continue
 		}
 		key := CandidatePostKey(post)
