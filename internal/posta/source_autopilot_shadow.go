@@ -432,6 +432,23 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 // A source with only two fresh posts can enter probation when the model is
 // exceptionally confident. Single-post feeds remain unverified; probation
 // still requires per-post assessments before content can be delivered.
+// Frequent auto-discovery is useful only if known feeds are revisited too.
+// Healthy topics still run at their normal scheduler cadence, and explicit
+// 429/unavailable backoff is never shortened by these intervals.
+func autopilotSourceReviewInterval(job *autopilotJob, state string) time.Duration {
+	if job != nil && job.Scope == autopilotAutoScope && job.Kind == autopilotAutoKind {
+		switch state {
+		case "candidate":
+			return 12 * time.Hour
+		case "probation":
+			return 6 * time.Hour
+		case "active":
+			return 3 * time.Hour
+		}
+	}
+	return 24 * time.Hour
+}
+
 func autopilotPreliminaryPass(score, threshold, freshSamples int) bool {
 	if freshSamples < 2 || threshold < 0 || threshold > 100 {
 		return false
@@ -558,7 +575,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			return err
 		}
 		reason := ""
-		nextCheck := at.Add(24 * time.Hour)
+		nextCheck := at.Add(autopilotSourceReviewInterval(job, state))
 		var posts []jx.M
 		if !res.OK {
 			reason = "feed_unavailable"
@@ -623,13 +640,14 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			} else {
 				evidence["preliminary_score"] = evaluation.Score
 				if autopilotPreliminaryPass(evaluation.Score, threshold, len(samples)) {
-					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate", "probation", "shadow_preliminary_pass", jx.Marshal(evidence), at, at.Add(24*time.Hour)); err != nil {
+					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate", "probation", "shadow_preliminary_pass", jx.Marshal(evidence), at, at.Add(autopilotSourceReviewInterval(job, "probation"))); err != nil {
 						if errors.Is(err, errAutopilotSourceChanged) || errors.Is(err, errAutopilotSourceOverride) || errors.Is(err, errAutopilotProbationLimit) {
 							continue
 						}
 						return err
 					}
 					state = "probation"
+					nextCheck = at.Add(autopilotSourceReviewInterval(job, state))
 				} else {
 					reason = "preliminary_match_uncertain"
 				}
@@ -658,7 +676,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				evidence = jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "successful_passes": stats.SuccessfulPasses}
 				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: stats.Relevant, FreshUnique: stats.FreshUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates}, policy)
 				if next != state {
-					nextCheck := at.Add(24 * time.Hour)
+					nextCheck := at.Add(autopilotSourceReviewInterval(job, next))
 					if next == "rejected" {
 						nextCheck = at.Add(30 * 24 * time.Hour)
 					}
