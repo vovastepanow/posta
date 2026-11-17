@@ -281,7 +281,11 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
 		candidates := autopilotRunSearchBackends(ctx, turn, backends)
 		if job.Scope == autopilotAutoScope && len(candidates) < 3 && ctx.Err() == nil && autopilotBudgetError(ctx) == nil {
-			candidates = append(candidates, a.autopilotFindSourcesFromPosts(ctx, job, query, 6-len(candidates))...)
+			postCandidates, postErr := a.autopilotFindSourcesFromPosts(ctx, job, query, 6-len(candidates))
+			if postErr != nil {
+				return candidates, postErr
+			}
+			candidates = append(candidates, postCandidates...)
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -392,9 +396,9 @@ func autopilotCandidatesFromPosts(by map[string][]jx.M, at int64, limit int) []D
 	return out
 }
 
-func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJob, query string, limit int) []DiscoveryCandidate {
-	if job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind || strings.TrimSpace(query) == "" || limit <= 0 || ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
-		return nil
+func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJob, query string, limit int) ([]DiscoveryCandidate, error) {
+	if job == nil || job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind || strings.TrimSpace(query) == "" || limit <= 0 || ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
+		return nil, autopilotBudgetError(ctx)
 	}
 	u := a.User(ctx, "", nil)
 	plan := QueryPlan{RU: []string{query}, EN: []string{query}}
@@ -402,10 +406,29 @@ func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJ
 	// that can search without a subscriber's private account.
 	only := map[string]bool{"VK": true, "vc/dtf": true, "Lemmy": true, "Mastodon": true}
 	posts, _ := u.searchEngineRun(plan, 0, 25*time.Second, only)
-	if ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
-		return nil
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	return autopilotCandidatesFromPosts(posts, time.Now().Unix(), limit)
+	if err := autopilotBudgetError(ctx); err != nil {
+		return nil, err
+	}
+	candidates := autopilotCandidatesFromPosts(posts, time.Now().Unix(), limit)
+	// Store only small, public text candidates tied to the verified author
+	// identity. Media never enters this staging queue.
+	for _, candidate := range candidates {
+		source, ok := autopilotCandidateID(candidate)
+		if !ok {
+			continue
+		}
+		var sourcePosts []jx.M
+		for _, platform := range sortedKeys(posts) {
+			sourcePosts = append(sourcePosts, posts[platform]...)
+		}
+		if err := a.autopilotStagePublicPosts(ctx, job, source, sourcePosts); err != nil {
+			return candidates, err
+		}
+	}
+	return candidates, nil
 }
 
 func (a *App) autopilotShadowSearchWith(ctx context.Context, job *autopilotJob, find func(context.Context) ([]DiscoveryCandidate, error)) error {
@@ -727,6 +750,11 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 		}
 		if reason == "" && (state == "probation" || state == "active") {
+			// Only after source verification: the staged public-search posts
+			// pass the same full analysis and admission checks as feed posts.
+			if job.Scope == autopilotAutoScope {
+				samples = autopilotFreshRSSSamples(append(samples, a.autopilotPendingPublicPosts(ctx, job, source)...), at.Unix())
+			}
 			if err := assess(ctx, source, samples); err != nil {
 				if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
 					return budgetErr
