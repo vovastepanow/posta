@@ -2139,7 +2139,8 @@ func (u *U) parserPhaseWithTopic(phase, topic string) {
 // blocking the collector on source vetting. The existing candidate, full
 // analysis, safety, source-override and deduplication checks remain in place.
 func shouldFastTopicSearch(hasQuery, discoveryEnabled, restricted bool, sources, requiredSources, available, target int) bool {
-	return !hasQuery && discoveryEnabled && !restricted && requiredSources > 0 && sources < requiredSources && target > 0 && available < target
+	return !hasQuery && discoveryEnabled && !restricted && target > 0 && available < target &&
+		((requiredSources > 0 && sources < requiredSources) || available < max(1, (target+3)/4))
 }
 
 func (u *U) RunCollector() bool {
@@ -2229,7 +2230,7 @@ func (u *U) RunCollector() bool {
 	h := u.History()
 	format := u.TopicFormatOf(key)
 	var byPlatform map[string][]jx.M
-	if fastTopicSearch && usableSources == 0 {
+	if fastTopicSearch && u.PoolTopicCount(key) == 0 {
 		u.Log("У новой темы пока нет источников — не жду общий опрос, ищу публикации напрямую.")
 	} else {
 		u.parserPhaseWithTopic("ожидание общего сбора", topic)
