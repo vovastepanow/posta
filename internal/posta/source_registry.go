@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
 	"posta/internal/config"
 	"posta/internal/jx"
 )
@@ -142,8 +144,22 @@ func scanRegistryRow(rows interface{ Scan(...any) error }) (*registryRow, error)
 // RegistryVerdict — решение реестра по кандидату темы; до любого сетевого запроса.
 func (u *U) RegistryVerdict(sid, topic string) (registryVerdict, string, *registryRow) {
 	r := u.registryGet(sid)
-	if u.discoveryTopicKnown(u.Catalog(), topic)[sid] {
+	if sourceKnownWithLegacy(u.discoveryTopicKnown(u.Catalog(), topic), sid) {
 		return regSkip, "уже известен по этой теме", r
+	}
+	if r == nil {
+		oldID := legacyYouTubeSourceKey(sid)
+		if oldID != sid {
+			old := u.registryGet(oldID)
+			if old == nil {
+				old = u.registryGet(strings.Replace(oldID, "rss:https://www.youtube.com/", "rss:https://youtube.com/", 1))
+			}
+			if old != nil {
+				// An old folded key may represent multiple channels; do not
+				// reuse its sample or silently discard an earlier decision.
+				return regSkip, "неоднозначный старый ключ YouTube", nil
+			}
+		}
 	}
 	v, reason := registryDecide(r, topic, now(), int64(u.TInt("registry_recheck_days")), int64(u.TInt("registry_sample_days")))
 	return v, reason, r
@@ -295,7 +311,8 @@ func (u *U) registryUpsert(w registryWrite) error {
 	}
 	// $1 источник · $2 площадка · $3 название · $4 адрес · $5 статус · $6 причина · $7 время · $8 проверок · $9 неудач
 	// $10 темы · $11 метрики · $12 происхождение · $13 сэмпл · $14 решение владельца
-	_, err := u.DB.Pool.Exec(u.Ctx, `INSERT INTO source_registry (source_id, platform, name, url, status, reason, first_seen_at, checked_at, check_count,
+	err := autopilotEffectTx(u.Ctx, u.DB, func(tx pgx.Tx) error {
+		_, err := tx.Exec(u.Ctx, `INSERT INTO source_registry (source_id, platform, name, url, status, reason, first_seen_at, checked_at, check_count,
 			fail_count, topics, metrics, origin, sample, sample_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7::bigint, CASE WHEN $8::int > 0 THEN $7::bigint ELSE 0 END, $8::int, $9::int, $10::jsonb, $11::jsonb,
 			$12::jsonb, $13::jsonb, CASE WHEN $13::jsonb IS NULL THEN 0 ELSE $7::bigint END)
@@ -318,8 +335,10 @@ func (u *U) registryUpsert(w registryWrite) error {
 			origin = CASE WHEN source_registry.origin = '{}'::jsonb THEN EXCLUDED.origin ELSE source_registry.origin END,
 			sample = COALESCE(EXCLUDED.sample, source_registry.sample),
 			sample_at = CASE WHEN EXCLUDED.sample IS NOT NULL THEN EXCLUDED.sample_at ELSE source_registry.sample_at END`,
-		w.SourceID, w.Platform, w.Name, w.URL, w.Status, w.Reason, at, checkCount, failCount,
-		string(jx.Marshal(topics)), string(jx.Marshal(orEmptyM(w.Metrics))), string(jx.Marshal(orEmptyM(w.Origin))), sample, w.Owner)
+			w.SourceID, w.Platform, w.Name, w.URL, w.Status, w.Reason, at, checkCount, failCount,
+			string(jx.Marshal(topics)), string(jx.Marshal(orEmptyM(w.Metrics))), string(jx.Marshal(orEmptyM(w.Origin))), sample, w.Owner)
+		return err
+	})
 	return err
 }
 

@@ -28,6 +28,11 @@ type sharedPosts struct {
 }
 
 func sharedSourceKey(platform, id string) string {
+	if platform == PlatformRSS {
+		if feed, ok := canonicalYouTubeFeed(id); ok {
+			return "public_collection:v2:" + sha1Short(platform+"|"+feed, 40)
+		}
+	}
 	return "public_collection:v1:" + sha1Short(platform+"|"+strings.ToLower(id), 40)
 }
 
@@ -251,6 +256,15 @@ func (a *App) collectPublicTopic(ctx context.Context, topic string, lastDone int
 				}
 			}
 			a.storePublicPosts(ctx, s.platform, SourceIDFor(s.platform, id), posts)
+			observationSource := SourceIDFor(s.platform, id)
+			if s.platform == PlatformRSS {
+				if scoped, ok := autopilotPublicRSSID(id); ok {
+					observationSource = scoped
+				}
+			}
+			if err := recordAutopilotPublicFetch(ctx, a.DB.Pool, topic, observationSource, now(), len(posts)); err != nil && ctx.Err() == nil {
+				log.Printf("наблюдение общего сбора: %v", err)
+			}
 			a.CacheSet(ctx, key, sharedPosts{At: now(), Posts: posts}, sharedCollectionInterval)
 			return true
 		}) {

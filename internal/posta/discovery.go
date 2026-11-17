@@ -114,7 +114,24 @@ type discoveryProgress struct {
 }
 
 func (u *U) discoveryProgressKey(topic string) string {
+	if job, ok := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); ok && job != nil {
+		return "discovery_progress:v2:" + repeatDigest(job.Scope+"\x00"+autopilotTopicKey(topic))
+	}
 	return "discovery_progress:" + sha1Short(TopicNorm(topic), 40)
+}
+
+func (u *U) discoveryScopedKey(key string) string {
+	if job, ok := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); ok && job != nil {
+		return key + ":v2:" + repeatDigest(job.Scope)
+	}
+	return key
+}
+
+func (u *U) discoveryScopedTopic(topic string) string {
+	if job, ok := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); ok && job != nil {
+		return autopilotTopicKey(topic)
+	}
+	return TopicNorm(topic)
 }
 
 func (u *U) DiscoveryProgress(topic string) (found, target, pending int, active bool) {
@@ -394,7 +411,7 @@ func (u *U) RunQueryDiscovery(key string) {
 	stats := map[string]int{}
 	known := u.discoveryKnownIDs(u.Catalog(), key)
 	for _, ch := range found {
-		if known[SourceIDFor(PlatformTelegram, ch.Username)] {
+		if sourceKnownWithLegacy(known, SourceIDFor(PlatformTelegram, ch.Username)) {
 			continue
 		}
 		u.checkDiscoveryCandidate(DiscoveryCandidate{Platform: PlatformTelegram, ID: ch.Username, Origin: "поиск по уточнению «" + q + "»", OriginKind: "tg_name"}, key, stats)
@@ -1306,7 +1323,7 @@ func (u *U) discoveryRejectedNames(votes []jx.M, topic string) []string {
 
 // discoveryModelHandles — адреса каналов, которые знает умная модель (кэш по теме на 14 дней). Каждый потом проверяется.
 func (u *U) discoveryModelHandles(topic string, plan discoveryPlan) []string {
-	key := "discovery_handles:" + TopicNorm(topic)
+	key := u.discoveryScopedKey("discovery_handles:" + u.discoveryScopedTopic(topic))
 	var cached []string
 	if u.CacheGet(u.Ctx, key, &cached) {
 		return uniqueStrings(append(cached, plan.Telegram...))
@@ -1462,17 +1479,46 @@ func (u *U) RunSourceDiscovery(topic string, maxSeconds int) {
 		select {
 		case <-run.done:
 		case <-u.Ctx.Done():
+			// A leased caller must not finish its job while discovery still runs.
+			if _, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); leased {
+				<-run.done
+			}
 		}
 	}
 }
 
 // StartSourceDiscovery starts a manual run immediately, independently of the collector.
-func (u *U) StartSourceDiscovery(topic, platform string) bool {
+func (u *U) StartSourceDiscovery(topic, platform string) string {
 	_, result := u.startSourceDiscovery(topic, 0, true, platform)
-	return result == "started"
+	return result
 }
 
 func (u *U) startSourceDiscovery(topic string, maxSeconds int, manual bool, platform string) (*discoveryRun, string) {
+	if job, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); leased && !autopilotMayUseSharedDiscovery(job, u.ID) {
+		return nil, "invalid_scope"
+	}
+	// When a public profile is managed by the new worker, do not let the
+	// legacy account-bound discovery independently mutate the same topic.
+	if _, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); !leased && u.TBool("autopilot_auto") {
+		var managed, active bool
+		err := u.DB.Pool.QueryRow(u.Ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_demands WHERE topic_key=$1 AND mode='auto'), EXISTS(SELECT 1 FROM source_autopilot_demands WHERE topic_key=$1 AND mode='auto' AND NOT paused AND posts_per_day>0)`, autopilotTopicKey(topic)).Scan(&managed, &active)
+		if err != nil {
+			return nil, "unavailable"
+		}
+		if managed {
+			if manual {
+				if !active {
+					return nil, "paused"
+				}
+				// The persistent scheduler creates the job if it does not yet exist.
+				if err := u.App.reconcileAutopilotMode(u.Ctx, true, "auto", autopilotAutoScope, autopilotAutoKind); err != nil {
+					return nil, "unavailable"
+				}
+				return nil, "queued_auto"
+			}
+			return nil, "auto_managed"
+		}
+	}
 	key := TopicNorm(topic)
 	u.parsers.mu.Lock()
 	if u.parsers.discoveryRuns[key] != nil {
@@ -1489,7 +1535,13 @@ func (u *U) startSourceDiscovery(topic string, maxSeconds int, manual bool, plat
 	if maxSeconds <= 0 {
 		maxSeconds = u.TInt("discovery_minutes") * 60
 	}
-	ctx, cancel := context.WithCancel(u.App.Context())
+	parent := u.App.Context()
+	_, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob)
+	if leased {
+		// Preserve both fencing and cancellation when a worker loses its lease.
+		parent = u.Ctx
+	}
+	ctx, cancel := context.WithCancel(parent)
 	run := &discoveryRun{cancel: cancel, done: make(chan struct{})}
 	u.parsers.discoveryRuns[key] = run
 	u.parsers.mu.Unlock()
@@ -1502,8 +1554,15 @@ func (u *U) startSourceDiscovery(topic string, maxSeconds int, manual bool, plat
 			close(run.done)
 			u.parsers.mu.Unlock()
 		}()
+		release, owned, err := u.App.trySourceTopicOwnership(ctx, topic)
+		if err != nil || !owned {
+			u.Log("Подбор этой темы уже выполняется или временно недоступен.")
+			return
+		}
+		defer release()
 		w := u.App.User(ctx, uid, u.App.ParserLogger(uid))
 		w.run = newRun(u.App)
+		w.run.FixedTopic = leased
 		w.runSourceDiscovery(topic, maxSeconds, manual, platform)
 	})
 	return run, "started"
@@ -1532,13 +1591,13 @@ func (u *U) StopSourceDiscovery(topic string) (bool, bool) {
 
 func (u *U) runSourceDiscovery(topic string, maxSeconds int, manual bool, platform string) {
 	u.UpdateCatalog(u.Ctx, func(d *SourceDB) bool { d.Discovery["running_since"] = now(); return true })
-	defer u.UpdateCatalog(u.App.Context(), func(d *SourceDB) bool { d.Discovery["running_since"] = 0; return true })
+	defer u.UpdateCatalog(autopilotCleanupContext(u.Ctx, u.App.Context()), func(d *SourceDB) bool { d.Discovery["running_since"] = 0; return true })
 	u.runSourceDiscoveryLocked(topic, u.TInt("discovery_checks"), maxSeconds, manual, platform)
 }
 
 // DiscoveryDefer — отложенный кандидат (t.me не отдал страницу или пост прошёл отбор): проверится первым в следующем прогоне.
 func (u *U) DiscoveryDefer(topic string, c DiscoveryCandidate, why string) {
-	key := TopicNorm(topic)
+	key := u.discoveryScopedTopic(topic)
 	type deferred struct {
 		Platform string `json:"platform"`
 		ID       string `json:"id"`
@@ -1546,7 +1605,7 @@ func (u *U) DiscoveryDefer(topic string, c DiscoveryCandidate, why string) {
 		Depth    int    `json:"depth"`
 		At       int64  `json:"at"`
 	}
-	KVUpdate(u.App, u.Ctx, "discovery_deferred", 0, func(all map[string][]deferred, _ bool) *map[string][]deferred {
+	KVUpdate(u.App, u.Ctx, u.discoveryScopedKey("discovery_deferred"), 0, func(all map[string][]deferred, _ bool) *map[string][]deferred {
 		if all == nil {
 			all = map[string][]deferred{}
 		}
@@ -1566,7 +1625,7 @@ func (u *U) DiscoveryDefer(topic string, c DiscoveryCandidate, why string) {
 }
 
 func (u *U) discoveryTakeDeferred(topic string) []DiscoveryCandidate {
-	key := TopicNorm(topic)
+	key := u.discoveryScopedTopic(topic)
 	var taken []DiscoveryCandidate
 	type deferred struct {
 		Platform string `json:"platform"`
@@ -1575,7 +1634,7 @@ func (u *U) discoveryTakeDeferred(topic string) []DiscoveryCandidate {
 		Depth    int    `json:"depth"`
 		At       int64  `json:"at"`
 	}
-	KVUpdate(u.App, u.Ctx, "discovery_deferred", 0, func(all map[string][]deferred, _ bool) *map[string][]deferred {
+	KVUpdate(u.App, u.Ctx, u.discoveryScopedKey("discovery_deferred"), 0, func(all map[string][]deferred, _ bool) *map[string][]deferred {
 		for _, d := range all[key] {
 			if now()-d.At < config.DiscoveryDeferDays*config.DaySeconds {
 				taken = append(taken, DiscoveryCandidate{Platform: d.Platform, ID: d.ID, Origin: d.Origin, Depth: d.Depth, Deferred: true, OriginKind: "deferred"})
@@ -1611,7 +1670,7 @@ func (u *U) runSourceDiscoveryLocked(topic string, limit, maxSeconds int, manual
 	for _, retry := range progress.Retries {
 		c := retry.Candidate
 		sid := SourceIDFor(c.Platform, c.ID)
-		if retry.NextAt <= now() && known[sid] {
+		if retry.NextAt <= now() && sourceKnownWithLegacy(known, sid) {
 			r := u.registryGet(sid)
 			if r == nil || (r.Status != RegStatusFailed && !(r.Status == RegStatusDead && r.Reason == "не загрузился трижды")) {
 				continue
@@ -1631,7 +1690,7 @@ func (u *U) runSourceDiscoveryLocked(topic string, limit, maxSeconds int, manual
 			parked = append(parked, c)
 			continue
 		}
-		if !known[SourceIDFor(c.Platform, c.ID)] {
+		if !sourceKnownWithLegacy(known, SourceIDFor(c.Platform, c.ID)) {
 			known[SourceIDFor(c.Platform, c.ID)] = true
 			queue.add(DiscoveryGroupOf(c.Platform, c.ID), c, false)
 		}
@@ -1665,7 +1724,7 @@ func (u *U) runSourceDiscoveryLocked(topic string, limit, maxSeconds int, manual
 		for _, group := range discoveryGroupOrder {
 			progress.Pending = append(progress.Pending, queue.groups[group]...)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(autopilotCleanupContext(u.Ctx, context.Background()), 5*time.Second)
 		defer cancel()
 		if err := u.KVSet(ctx, u.discoveryProgressKey(topic), progress, 0); err != nil {
 			u.Log("Не удалось сохранить ход поиска источников: %v", err)
@@ -1711,7 +1770,7 @@ func (u *U) runSourceDiscoveryLocked(topic string, limit, maxSeconds int, manual
 		}
 		sid := SourceIDFor(c.Platform, c.ID)
 		group := DiscoveryGroupOf(c.Platform, c.ID)
-		if known[sid] {
+		if sourceKnownWithLegacy(known, sid) {
 			refs[sid] = append(refs[sid], c.Origin)
 			bumpReport(group, "known", 1)
 			return

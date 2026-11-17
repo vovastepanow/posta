@@ -1,0 +1,200 @@
+{
+  "version": 2,
+  "user_confirmed": false,
+  "cases": {
+    "17880": {
+      "required": [
+        "business.career"
+      ],
+      "allowed": [],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17883": {
+      "required": [
+        "environment.energy"
+      ],
+      "allowed": [
+        "news.world"
+      ],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17888": {
+      "required": [
+        "tech.ai",
+        "business.product"
+      ],
+      "allowed": [],
+      "forbidden": [
+        "tech.code"
+      ],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17889": {
+      "required": [
+        "finance.taxes"
+      ],
+      "allowed": [],
+      "forbidden": [
+        "news.russia",
+        "news.crime"
+      ],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17890": {
+      "required": [
+        "business.marketing"
+      ],
+      "allowed": [],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17891": {
+      "required": [
+        "business.marketing"
+      ],
+      "allowed": [],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Видеопубликация. Заголовок указывает на маркетинг; оценивать полноценный ответ после передачи содержания ролика. Отказ по одному заголовку не равен неверной теме."
+    },
+    "17893": {
+      "required": [
+        "business.marketing",
+        "tech.ai"
+      ],
+      "allowed": [],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17896": {
+      "required": [
+        "business.legal"
+      ],
+      "allowed": [],
+      "forbidden": [
+        "business.marketing"
+      ],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17899": {
+      "required": [
+        "tech.ai"
+      ],
+      "allowed": [
+        "tech.software"
+      ],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17900": {
+      "required": [],
+      "allowed": [
+        "science.engineering",
+        "business.owners",
+        "business.sales"
+      ],
+      "forbidden": [
+        "tech.code"
+      ],
+      "status": "disputed",
+      "note": "Пост об индивидуальной цене изготовления. Инженерия, предпринимательство и работа с клиентом обоснованы; единственный обязательный набор не установлен. Исключён из строгой оценки."
+    },
+    "17902": {
+      "required": [
+        "business.logistics"
+      ],
+      "allowed": [],
+      "forbidden": [
+        "style.tattoo"
+      ],
+      "status": "provisional",
+      "note": "Основная тема — логистика. Налоги оцениваются отдельно как спорное дополнение.",
+      "disputed_topics": {
+        "finance.taxes": "Допустимость дополнительной метки для публикации о таможенных пошлинах требует редакционного решения; не считать автоматически лишней."
+      }
+    },
+    "17906": {
+      "required": [
+        "business.career"
+      ],
+      "allowed": [
+        "business.management"
+      ],
+      "forbidden": [
+        "tech.code"
+      ],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17877": {
+      "required": [
+        "business.marketing"
+      ],
+      "allowed": [],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17903": {
+      "required": [
+        "finance.invest"
+      ],
+      "allowed": [],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17884": {
+      "required": [
+        "tech.security"
+      ],
+      "allowed": [
+        "tech.ai"
+      ],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17879": {
+      "required": [
+        "business.marketing"
+      ],
+      "allowed": [],
+      "forbidden": [
+        "people.work"
+      ],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17885": {
+      "required": [
+        "business.marketing"
+      ],
+      "allowed": [],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    },
+    "17901": {
+      "required": [
+        "business.career"
+      ],
+      "allowed": [
+        "people.work"
+      ],
+      "forbidden": [],
+      "status": "provisional",
+      "note": "Предварительная разметка; не подтверждена пользователем."
+    }
+  }
+}

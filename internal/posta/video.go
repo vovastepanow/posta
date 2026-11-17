@@ -42,7 +42,11 @@ func acquireFFmpeg(ctx context.Context) bool {
 func releaseFFmpeg() { <-ffmpegSlots }
 
 func (a *App) ffprobe(path string, args ...string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	return a.ffprobeContext(context.Background(), path, args...)
+}
+
+func (a *App) ffprobeContext(parent context.Context, path string, args ...string) string {
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 	out, _ := exec.CommandContext(ctx, a.Cfg.FFprobe, append(append([]string{"-v", "error"}, args...), path)...).Output()
 	return strings.TrimSpace(string(out))
@@ -211,10 +215,14 @@ func (a *App) VideoStoryboard(path string) *Storyboard {
 }
 
 func (a *App) videoStoryboard(path string, limit int) *Storyboard {
+	return a.videoStoryboardContext(a.ctxOrBg(), path, limit)
+}
+
+func (a *App) videoStoryboardContext(parent context.Context, path string, limit int) *Storyboard {
 	if !a.HasFFmpeg() || !fileExists(path) {
 		return nil
 	}
-	duration, _ := strconv.ParseFloat(a.ffprobe(path, "-show_entries", "format=duration", "-of", "csv=p=0"), 64)
+	duration, _ := strconv.ParseFloat(a.ffprobeContext(parent, path, "-show_entries", "format=duration", "-of", "csv=p=0"), 64)
 	if math.IsNaN(duration) || math.IsInf(duration, 0) || duration < 0 {
 		duration = 0
 	}
@@ -232,7 +240,7 @@ func (a *App) videoStoryboard(path string, limit int) *Storyboard {
 	interval := span / float64(count)
 	filter := fmt.Sprintf("select='gte(t,(selected_n+0.5)*%.9f)',showinfo,scale='if(gt(iw,ih),%d,-2)':'if(gt(iw,ih),-2,%d)'", interval, config.VideoFrameMaxSide, config.VideoFrameMaxSide)
 	pattern := filepath.Join(dir, "frame-%03d.jpg")
-	ctx, cancel := context.WithTimeout(a.ctxOrBg(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
 	defer cancel()
 	if !acquireFFmpeg(ctx) {
 		return nil

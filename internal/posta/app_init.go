@@ -84,11 +84,14 @@ func (a *App) Close() {
 
 // StartBackground — фоновые задачи сервера (бывшие cron-скрипты).
 func (a *App) StartBackground() {
+	a.Go("catalog-refresh", a.runCatalogRefresh)
 	a.Go("publisher", a.RunPublisher)
 	a.Go("video-worker", a.RunVideoWorker)
 	if !a.Cfg.Dev || os.Getenv("POSTA_DEV_PARSERS") == "1" {
 		a.Go("shared-collection", a.runSharedCollection)
 		a.Go("source-discovery", a.runSourceDiscoveryWorker)
+		a.Go("source-autopilot-shadow", a.runAutopilotShadowWorker)
+		a.Go("source-autopilot-auto", a.runAutopilotAutoWorker)
 		a.Go("public-classification-backfill", func(ctx context.Context) {
 			a.backfillPublicClassifications(ctx)
 			ticker := time.NewTicker(5 * time.Minute)
@@ -110,6 +113,14 @@ func (a *App) StartBackground() {
 		a.DB.Pool.Exec(ctx, `DELETE FROM login_requests WHERE created_at < $1`, now()-86400)
 		a.DB.Pool.Exec(ctx, `DELETE FROM login_failures WHERE at < $1`, now()-86400)
 		a.DB.Pool.Exec(ctx, `DELETE FROM post_usage WHERE at < $1`, now()-2*86400)
+		a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_admissions WHERE observed_at < $1`, now()-90*86400)
+		a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_collection_passes WHERE fetched_at < $1`, now()-90*86400)
+		a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_post_evidence WHERE observed_at < $1`, now()-90*86400)
+		a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_content_results WHERE assessed_at < $1`, now()-90*86400)
+		a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_decisions WHERE at < $1`, now()-180*86400)
+		a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_query_sources WHERE discovered_at < $1`, now()-180*86400)
+		a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_reservations WHERE day < (now() AT TIME ZONE 'UTC')::date - 90`)
+		a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_budget WHERE day < (now() AT TIME ZONE 'UTC')::date - 90`)
 		a.DB.Pool.Exec(ctx, `DELETE FROM telegram_lead_queue q WHERE status = 'processed' AND processed_at < now() - interval '30 days'
 			AND NOT EXISTS (SELECT 1 FROM telegram_leads l WHERE l.queue_id = q.id)`)
 	})

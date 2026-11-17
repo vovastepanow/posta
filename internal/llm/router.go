@@ -15,6 +15,21 @@ type Target struct {
 	Model    string `json:"model"`
 }
 
+type callGateKey struct{}
+
+// WithCallGate checks every actual provider attempt, including fallbacks.
+// A failed check prevents the provider call; existing router limits still apply.
+func WithCallGate(ctx context.Context, gate func(context.Context, Target) error) context.Context {
+	return context.WithValue(ctx, callGateKey{}, gate)
+}
+
+func checkCallGate(ctx context.Context, target Target) error {
+	if gate, ok := ctx.Value(callGateKey{}).(func(context.Context, Target) error); ok && gate != nil {
+		return gate(ctx, target)
+	}
+	return nil
+}
+
 func (t Target) Empty() bool { return t.Provider == "" || t.Provider == "off" || t.Model == "" }
 
 // Free — бесплатная цель: локальная модель или :free-модель OpenRouter.
@@ -30,8 +45,9 @@ func (t Target) String() string {
 }
 
 type RoleConfig struct {
-	Primary  Target `json:"primary"`
-	Fallback Target `json:"fallback"`
+	ProviderOrder []string `json:"provider_order,omitempty"`
+	Primary       Target   `json:"primary"`
+	Fallback      Target   `json:"fallback"`
 	// Threshold — порог «по теме» для роли analysis под эту модель (0 — общий 80): у моделей разная шкала.
 	Threshold int `json:"threshold,omitempty"`
 }
@@ -73,8 +89,10 @@ func Preset(name string) Settings {
 	s := Settings{Preset: name, Roles: map[Role]RoleConfig{}, DailyBudgetUSD: 0, FreeDailyLimit: 1000}
 	set := func(r Role, p, f Target) { s.Roles[r] = RoleConfig{Primary: p, Fallback: f} }
 	set(RoleClassify, Off, Off)
+	set(RoleClassifyVerify, Off, Off)
 	switch name {
 	case "free":
+		set(RoleClassify, FreeVision, Off)
 		set(RolePrescreen, LocalFast, Off)
 		set(RoleAnalysis, FreeVision, LocalSmart)
 		s.Roles[RoleAnalysis] = RoleConfig{Primary: FreeVision, Fallback: LocalSmart, Threshold: 65}
@@ -86,6 +104,7 @@ func Preset(name string) Settings {
 		set(RoleEmbed, LocalEmbed, Off)
 	case "cloud":
 		set(RoleClassify, Target{"openrouter", "nvidia/nemotron-3.5-super-vl"}, Off)
+		set(RoleClassifyVerify, CloudSmart, Off)
 		s.DailyBudgetUSD = 0.5
 		set(RolePrescreen, CloudFast, Off)
 		set(RoleAnalysis, CloudVision, Off)
@@ -159,6 +178,7 @@ type Router struct {
 	// Log — строки в журнал сборщика или ответа API.
 	Log func(userID, line string)
 
+	classificationSlots   chan struct{}
 	mu                    sync.Mutex
 	freeDay               string
 	freeUsed              int
@@ -170,7 +190,7 @@ type Router struct {
 }
 
 func NewRouter(ol *Ollama, or *OpenRouter) *Router {
-	r := &Router{Ollama: ol, OpenRouter: or, timeouts: map[Role]int{}, slowTill: map[Role]time.Time{}}
+	r := &Router{classificationSlots: make(chan struct{}, 1), Ollama: ol, OpenRouter: or, timeouts: map[Role]int{}, slowTill: map[Role]time.Time{}}
 	ol.ProjectModels = r.projectModels
 	return r
 }
@@ -254,6 +274,9 @@ func (r *Router) blocked(t Target, req *Request, s Settings) string {
 	if t.Empty() {
 		return "выключено"
 	}
+	if req.FreeOnly && !t.Free() {
+		return "для запроса разрешены только бесплатные модели"
+	}
 	if t.Provider != "openrouter" {
 		return ""
 	}
@@ -301,7 +324,7 @@ func (r *Router) countFree(t Target, err error) {
 			r.freeBlocked = map[string]time.Time{}
 		}
 		pause := 2 * time.Minute // «в минуту» — короткая пауза; перегрузка поставщика — дольше
-		if !strings.Contains(err.Error(), "per-min") {
+		if !strings.Contains(err.Error(), "per-min") && !strings.Contains(err.Error(), "tpm_rate_limit_exceeded") {
 			pause = 15 * time.Minute
 		}
 		r.freeBlocked[t.Model] = time.Now().Add(pause)
@@ -340,6 +363,15 @@ func (r *Router) provider(t Target) (Provider, error) {
 
 // Generate — запрос к модели роли; нельзя или не вышло — к резервной; 18+ и пустые цели — к локальной быстрой.
 func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) {
+	// Classification sweeps must not burst into a shared free-provider pool.
+	if (req.Role == RoleClassify || req.Role == RoleClassifyVerify) && r.classificationSlots != nil {
+		select {
+		case r.classificationSlots <- struct{}{}:
+			defer func() { <-r.classificationSlots }()
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	s := r.Settings()
 	primary, fallback, note := r.Resolve(ctx, req.Role)
 	logf := func(line string) {
@@ -378,7 +410,19 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 		if i > 0 && lastErr != nil && !strings.HasPrefix(lastErr.Error(), "нет доступной модели") {
 			logf(fmt.Sprintf("-> пробую резерв %s.", t))
 		}
+		var settle func(float64)
+		if !t.Free() && req.ReservePaid != nil {
+			var ok bool
+			settle, ok = req.ReservePaid()
+			if !ok {
+				lastErr = errors.New("исчерпан бюджет классификации")
+				continue
+			}
+		}
 		resp, err := r.try(ctx, req, t, i > 0)
+		if err == nil && settle != nil {
+			settle(resp.CostUSD)
+		}
 		r.countFree(t, err)
 		if err == nil {
 			if i == 0 {
@@ -413,9 +457,12 @@ func (r *Router) try(ctx context.Context, req *Request, t Target, isFallback boo
 	if err != nil {
 		return nil, err
 	}
+	if err := checkCallGate(ctx, t); err != nil {
+		return nil, err
+	}
 	call := Call{Role: req.Role, Target: t, Req: req, Fallback: isFallback, Started: time.Now()}
 	if !req.Quiet && r.Log != nil {
-		r.Log(req.UserID, exchangeLine("→", t.Model, requestSummary(req)))
+		r.Log(req.UserID, exchangeLine("→", t.Model, requestSummary(req, t)))
 	}
 	resp, err := p.Generate(ctx, t.Model, req)
 	if err == nil && strings.TrimSpace(resp.Text) == "" && len(resp.Logprobs) == 0 {
@@ -440,9 +487,9 @@ func (r *Router) try(ctx context.Context, req *Request, t Target, isFallback boo
 	return resp, err
 }
 
-func requestSummary(req *Request) string {
+func requestSummary(req *Request, target Target) string {
 	prefix := ""
-	if !req.Think {
+	if !req.Think && !(target.Provider == "openrouter" && req.Role == RoleClassify && strings.HasPrefix(target.Model, "baidu/ernie-5.5")) {
 		prefix = "[без размышлений] "
 	}
 	if n := len(req.Images); n > 0 {

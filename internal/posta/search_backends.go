@@ -374,6 +374,16 @@ func joyAgo(card string, at time.Time) int64 {
 // --- сеть: одна страница запроса ---
 
 func (u *U) searchGetJSON(raw string) ([]byte, error) {
+	if _, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); leased {
+		result, err := u.FetchPublic(raw, FetchOpts{MaxBytes: 3 << 20, Timeout: 12 * time.Second, UserAgent: HTTPUA, Headers: map[string]string{"Accept": "application/json"}})
+		if err != nil {
+			return nil, err
+		}
+		if !result.OK {
+			return nil, fmt.Errorf("ответ %d", result.Status)
+		}
+		return result.Bytes, nil
+	}
 	body, status, err := u.App.HTTPGetStatus(raw, 12*time.Second, map[string]string{"Accept": "application/json"})
 	if err != nil {
 		return nil, err

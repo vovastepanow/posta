@@ -32,13 +32,15 @@ type App struct {
 	Mem  *MemCache
 	HTTP *http.Client
 
-	catalog       *Catalog
-	parsers       *ParserManager
-	discoveryLive sync.Map // текущий проход подбора по теме → снимок состояния
-	userLocks     sync.Map // id пользователя → *sync.Mutex: пул и история пользователя меняются по очереди
-	bg            sync.WaitGroup
-	ctx           context.Context
-	cancel        context.CancelFunc
+	catalog                 *Catalog
+	parsers                 *ParserManager
+	discoveryLive           sync.Map // текущий проход подбора по теме → снимок состояния
+	discoveryOwnershipOnce  sync.Once
+	discoveryOwnershipSlots chan struct{}
+	userLocks               sync.Map // id пользователя → *sync.Mutex: пул и история пользователя меняются по очереди
+	bg                      sync.WaitGroup
+	ctx                     context.Context
+	cancel                  context.CancelFunc
 
 	topicEmbMu      sync.Mutex
 	topicEmbKey     string
@@ -82,6 +84,9 @@ func StatusOf(err error) int {
 
 // U — работа от имени пользователя: запрос API, сборщик, фоновая задача. Бывший app_user_bind().
 type U struct {
+	classificationReason      string
+	classificationMediaSafety []string
+	classificationErr         error // last classifier transport/routing failure, not a semantic verdict
 	*App
 	ID  string
 	Ctx context.Context

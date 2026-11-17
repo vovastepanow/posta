@@ -1,0 +1,2 @@
+ALTER TABLE source_autopilot_text_results RENAME TO source_autopilot_content_results;
+ALTER INDEX source_autopilot_text_results_recent RENAME TO source_autopilot_content_results_recent;

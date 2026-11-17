@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"context"
 	"math"
 	"os"
 	"os/exec"
@@ -40,6 +41,11 @@ func TestStoryboardRealVideo(t *testing.T) {
 		t.Skip(err)
 	}
 	a := &App{Cfg: config.Server{FFmpeg: ffmpeg, FFprobe: ffprobe}}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if board := a.videoStoryboardContext(canceled, path, 30); board != nil {
+		t.Fatal("canceled storyboard unexpectedly succeeded")
+	}
 	for _, duration := range []int{10, 15, 20, 60} {
 		clip := filepath.Join(t.TempDir(), "clip.mp4")
 		cmd := exec.Command(ffmpeg, "-v", "error", "-i", path, "-t", strconv.Itoa(duration), "-c", "copy", "-y", clip)

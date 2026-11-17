@@ -45,6 +45,30 @@ func (a *App) RSSGet(raw string, maxBytes int64, timeout time.Duration, ua strin
 	return FetchResultURL{FetchResult{Error: "слишком много перенаправлений"}, raw}
 }
 
+// RSSGet applies the autopilot's fetch budget to each redirect hop. Legacy
+// user calls keep the existing path and behaviour.
+func (u *U) RSSGet(raw string, maxBytes int64, timeout time.Duration, ua string) FetchResultURL {
+	if u.Ctx == nil {
+		return u.App.RSSGet(raw, maxBytes, timeout, ua)
+	}
+	_, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob)
+	if !leased {
+		return u.App.RSSGet(raw, maxBytes, timeout, ua)
+	}
+	for hop := 0; hop <= 3; hop++ {
+		r, err := u.FetchPublic(raw, FetchOpts{MaxBytes: maxBytes, Timeout: timeout, UserAgent: ua})
+		if err != nil {
+			return FetchResultURL{FetchResult: FetchResult{Error: err.Error()}, URL: raw}
+		}
+		if (r.Status == 301 || r.Status == 302 || r.Status == 303 || r.Status == 307 || r.Status == 308) && r.Location != "" {
+			raw = RSSAbsoluteURL(raw, r.Location)
+			continue
+		}
+		return FetchResultURL{FetchResult: r, URL: raw}
+	}
+	return FetchResultURL{FetchResult: FetchResult{Error: "слишком много перенаправлений"}, URL: raw}
+}
+
 // RSSAbsoluteURL — адрес href относительно страницы base.
 func RSSAbsoluteURL(base, href string) string {
 	href = htmlAttr(strings.TrimSpace(href))
@@ -199,14 +223,26 @@ func rssHTTPS(raw, base string) string {
 	return u
 }
 
-func rssItemLink(item *xnode) string {
+func rssItemLink(item *xnode, base string) string {
+	// Atom may list self, feed and media links before the HTML alternate.
 	for _, l := range item.kids("link") {
-		if strings.TrimSpace(l.T) != "" {
-			return strings.TrimSpace(l.T)
+		rel := strings.ToLower(strings.TrimSpace(l.A["rel"]))
+		typ := strings.ToLower(strings.TrimSpace(strings.Split(l.A["type"], ";")[0]))
+		if (rel != "" && rel != "alternate") || (typ != "" && typ != "text/html" && typ != "application/xhtml+xml") {
+			continue
 		}
-		if rel := l.A["rel"]; rel == "" || rel == "alternate" {
-			return strings.TrimSpace(l.A["href"])
+		raw := strings.TrimSpace(l.T)
+		if raw == "" {
+			raw = strings.TrimSpace(l.A["href"])
 		}
+		if link := rssHTTPS(raw, base); link != "" {
+			return link
+		}
+	}
+	// RSS GUIDs are permalinks by default, unless explicitly marked otherwise.
+	guid := item.kid("guid")
+	if guid != nil && !strings.EqualFold(strings.TrimSpace(guid.A["isPermaLink"]), "false") {
+		return rssHTTPS(guid.text(), "")
 	}
 	return ""
 }
@@ -341,7 +377,7 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 	}
 	posts := []jx.M{}
 	for _, item := range items {
-		link := rssHTTPS(rssItemLink(item), "")
+		link := rssItemLink(item, feedURL)
 		base := link
 		if base == "" {
 			base = feedURL
@@ -491,6 +527,33 @@ func hostOf(raw string) string {
 
 // RSSFetchPosts — свежие посты ленты по адресу (YouTube без ленты — через yt-dlp).
 func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, withText bool) ([]jx.M, error) {
+	if _, ok := autopilotMastodonFeed(feedURL); ok {
+		if count <= 0 {
+			return nil, nil
+		}
+		r := u.autopilotMastodonListing(feedURL)
+		if !r.OK {
+			return nil, Bad("Mastodon: публичная лента недоступна: %s", fetchFailure(r.FetchResult))
+		}
+		posts, err := autopilotMastodonSafeStatuses(r.Bytes, feedURL)
+		if err != nil {
+			return nil, err
+		}
+		var out []jx.M
+		for _, post := range posts {
+			if !PostItemHasMedia(post) && !keepNoImage && (!withText || runeLen(strings.TrimSpace(jx.Str(post, "text"))) < 120) {
+				continue
+			}
+			if name != "" {
+				post["source"] = name
+			}
+			out = append(out, post)
+			if len(out) >= count {
+				break
+			}
+		}
+		return out, nil
+	}
 	if id := dzenChannelID(feedURL); id != "" {
 		r := u.RSSGet("https://dzen.ru/api/v3/launcher/more?channel_id="+id, rssMaxBytes, 15*time.Second, BrowserUA)
 		if !r.OK {
@@ -689,7 +752,15 @@ func attrOf(tag, name string) string {
 
 // RSSDiscover — адрес ленты по адресу сайта: сам адрес или <link rel="alternate">.
 func (a *App) RSSDiscover(raw string) (string, error) {
-	r := a.RSSGet(raw, 3<<20, 15*time.Second, HTTPUA)
+	return rssDiscover(raw, a.RSSGet)
+}
+
+func (u *U) RSSDiscover(raw string) (string, error) {
+	return rssDiscover(raw, u.RSSGet)
+}
+
+func rssDiscover(raw string, fetch func(string, int64, time.Duration, string) FetchResultURL) (string, error) {
+	r := fetch(raw, 3<<20, 15*time.Second, HTTPUA)
 	if !r.OK {
 		msg := "Страница не загрузилась"
 		if r.Error != "" {
@@ -888,11 +959,24 @@ func RSSFeedKind(feedURL string) string {
 }
 
 func (u *U) RSSPreviewPosts(src jx.M, count int) []jx.M {
-	posts, err := u.RSSFetchPosts(jx.Str(src, "id"), count, jx.Str(src, "name"), false, u.TopicsAcceptText([]string{u.CurrentTopic()}))
+	acceptText := u.TopicsAcceptText([]string{u.CurrentTopic()})
+	posts, err := u.RSSFetchPosts(jx.Str(src, "id"), count, jx.Str(src, "name"), true, acceptText)
 	if err != nil {
 		return []jx.M{}
 	}
-	return posts
+	var out []jx.M
+	for _, p := range posts {
+		if jx.Bool(p, "article_source") {
+			p = u.ArticleEnrich(p, false)
+		}
+		if jx.Str(p, "image") != "" || (acceptText && runeLen(jx.Str(p, "text")) >= 120) {
+			if jx.Str(p, "image") == "" {
+				p["text_post"] = true
+			}
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // RSSPostURLTrusted — ссылка записи RSS-источника безопасна: https, хост совпадает с хостом ленты или их поддомены.

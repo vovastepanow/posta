@@ -28,18 +28,21 @@ type Server struct {
 	OpenRouterURL   string
 	OpenRouterTitle string // заголовок X-Title для статистики OpenRouter
 
-	VKClientID     string
-	VKRedirectURI  string
-	VKServiceToken string
-	VKOAuthScope   string
-	NetworkKeys    map[string]string // REDDIT_CLIENT_ID, X_CLIENT_SECRET… — ключи приложений соцсетей
+	VKClientID      string
+	VKRedirectURI   string
+	VKServiceToken  string
+	VKOAuthScope    string
+	TelegramAPIID   string
+	TelegramAPIHash string
+	NetworkKeys     map[string]string // REDDIT_CLIENT_ID, X_CLIENT_SECRET… — ключи приложений соцсетей
 
 	FFmpeg  string
 	FFprobe string
 	YtDlp   string
 	Chrome  string
 
-	Dev bool // режим разработки: подробные ошибки, без запуска сборщиков из вкладок (POSTA_DEV=1)
+	Dev              bool   // режим разработки: подробные ошибки, без запуска сборщиков из вкладок (POSTA_DEV=1)
+	LocalNoAuthOwner string // временный вход без пароля только с этого компьютера
 }
 
 func LoadServer() Server {
@@ -49,31 +52,39 @@ func LoadServer() Server {
 	}
 	loadEnvFile(filepath.Join(root, "posta.env"))
 	s := Server{
-		Root:            root,
-		Listen:          env("POSTA_LISTEN", "127.0.0.1:8090"),
-		BasePath:        strings.TrimRight(env("POSTA_BASE_PATH", ""), "/"),
-		PostgresDSN:     env("POSTA_PG", "postgres://posta@127.0.0.1:5432/posta?sslmode=disable"),
-		ClickHouse:      env("POSTA_CH", ""),
-		CHDatabase:      env("POSTA_CH_DB", "posta"),
-		MediaDir:        env("POSTA_MEDIA_DIR", filepath.Join(root, "media_cache")),
-		MediaURL:        env("POSTA_MEDIA_URL", "media_cache"),
-		DataDir:         env("POSTA_DATA_DIR", filepath.Join(root, "data")),
-		SecretKeyFile:   env("POSTA_SECRET_KEY_FILE", filepath.Join(root, "secret.key")),
-		PublicURL:       strings.TrimRight(env("POSTA_PUBLIC_URL", ""), "/"),
-		OllamaURL:       strings.TrimRight(env("OLLAMA_URL", "http://localhost:11434"), "/"),
-		OpenRouterKey:   env("OPENROUTER_API_KEY", ""),
-		OpenRouterURL:   strings.TrimRight(env("OPENROUTER_URL", "https://openrouter.ai/api/v1"), "/"),
-		OpenRouterTitle: env("OPENROUTER_TITLE", "Posta"),
-		VKClientID:      vkClientID(root),
-		VKRedirectURI:   env("VK_REDIRECT_URI", ""),
-		VKServiceToken:  env("VK_SERVICE_TOKEN", ""),
-		VKOAuthScope:    env("VK_OAUTH_SCOPE", ""),
-		FFmpeg:          env("FFMPEG", "ffmpeg"),
-		FFprobe:         env("FFPROBE", "ffprobe"),
-		YtDlp:           env("YTDLP", filepath.Join(root, "tools/bin/yt-dlp")),
-		Chrome:          env("CHROME", "google-chrome"),
-		Dev:             env("POSTA_DEV", "") == "1",
-		NetworkKeys:     map[string]string{},
+		Root:             root,
+		Listen:           env("POSTA_LISTEN", "127.0.0.1:8090"),
+		BasePath:         strings.TrimRight(env("POSTA_BASE_PATH", ""), "/"),
+		PostgresDSN:      env("POSTA_PG", "postgres://posta@127.0.0.1:5432/posta?sslmode=disable"),
+		ClickHouse:       env("POSTA_CH", ""),
+		CHDatabase:       env("POSTA_CH_DB", "posta"),
+		MediaDir:         env("POSTA_MEDIA_DIR", filepath.Join(root, "media_cache")),
+		MediaURL:         env("POSTA_MEDIA_URL", "media_cache"),
+		DataDir:          env("POSTA_DATA_DIR", filepath.Join(root, "data")),
+		SecretKeyFile:    env("POSTA_SECRET_KEY_FILE", filepath.Join(root, "secret.key")),
+		PublicURL:        strings.TrimRight(env("POSTA_PUBLIC_URL", ""), "/"),
+		OllamaURL:        strings.TrimRight(env("OLLAMA_URL", "http://localhost:11434"), "/"),
+		OpenRouterKey:    env("OPENROUTER_API_KEY", ""),
+		OpenRouterURL:    strings.TrimRight(env("OPENROUTER_URL", "https://openrouter.ai/api/v1"), "/"),
+		OpenRouterTitle:  env("OPENROUTER_TITLE", "Posta"),
+		VKClientID:       vkClientID(root),
+		VKRedirectURI:    env("VK_REDIRECT_URI", ""),
+		VKServiceToken:   env("VK_SERVICE_TOKEN", ""),
+		VKOAuthScope:     env("VK_OAUTH_SCOPE", ""),
+		TelegramAPIID:    env("POSTA_TELEGRAM_API_ID", ""),
+		TelegramAPIHash:  env("POSTA_TELEGRAM_API_HASH", ""),
+		FFmpeg:           env("FFMPEG", "ffmpeg"),
+		FFprobe:          env("FFPROBE", "ffprobe"),
+		YtDlp:            env("YTDLP", filepath.Join(root, "tools/bin/yt-dlp")),
+		Chrome:           env("CHROME", "google-chrome"),
+		Dev:              env("POSTA_DEV", "") == "1",
+		LocalNoAuthOwner: env("POSTA_LOCAL_NO_AUTH_OWNER", ""),
+		NetworkKeys:      map[string]string{},
+	}
+	if s.LocalNoAuthOwner == "" {
+		if b, err := os.ReadFile(filepath.Join(root, ".local-no-auth-owner")); err == nil {
+			s.LocalNoAuthOwner = strings.TrimSpace(string(b))
+		}
 	}
 	for _, name := range []string{"REDDIT", "TUMBLR", "LINKEDIN", "PINTEREST", "YOUTUBE", "X"} {
 		for _, part := range []string{"_CLIENT_ID", "_CLIENT_SECRET"} {

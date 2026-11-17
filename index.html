@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@700;800;900&display=swap">
 <link rel="stylesheet" href="css/shell.css?v=warm-paper-1">
-<link rel="stylesheet" href="css/app.css?v=source-tools-8">
+<link rel="stylesheet" href="css/app.css?v=console-readable-1-telegram-auth-1">
 <link rel="stylesheet" href="css/studio.css?v=rejected-page-1">
 <script type="module" src="js/main.js?v=rejected-page-1"></script>
 <script type="module" src="js/studio.js?v=rejected-page-1"></script>
@@ -56,8 +56,11 @@
     </header>
 
 <section id="activity-console" class="activity-console" aria-label="Журнал приложения">
-  <div class="activity-console-header"><span class="console-indicator"></span><span class="console-title">Сводка</span><span id="activity-console-status">ничего не делается</span><button id="debug-toggle" class="debug-toggle" type="button" aria-pressed="false">🐞 Демо</button><button id="activity-console-follow" class="activity-console-follow" type="button" hidden>К концу ↓</button><button id="console-toggle" class="console-toggle" type="button" aria-expanded="true" aria-label="Свернуть журнал" title="Свернуть журнал">—</button></div>
-  <div id="activity-track" class="activity-console-output" role="log" aria-live="polite"></div>
+  <div class="activity-console-header"><span class="console-indicator"></span><span class="console-title">Сводка</span><span id="activity-console-status">ничего не делается</span><button id="debug-toggle" class="debug-toggle" type="button" aria-pressed="false">🐞 Демо</button><button id="console-toggle" class="console-toggle" type="button" aria-expanded="true" aria-label="Свернуть журнал" title="Свернуть журнал">—</button></div>
+  <div class="activity-console-log">
+    <div id="activity-track" class="activity-console-output" role="log" aria-live="polite"></div>
+    <button id="activity-console-follow" class="activity-console-follow" type="button" aria-label="Прокрутить к последним записям" title="К последним записям" hidden>↓ К новым</button>
+  </div>
   <details id="model-panel" class="model-panel">
     <summary><span class="model-panel-title">Модель</span><span id="model-summary">…</span></summary>
     <div class="model-panel-body">
@@ -234,6 +237,18 @@
     <div class="discovery-text"><strong>Автоподбор по теме</strong><span id="discovery-status">Загружаю сведения…</span></div>
     <label class="source-platform-filter" for="discovery-platform"><span>Искать на площадке</span><select id="discovery-platform"><option value="">Все площадки</option><option value="telegram">Telegram</option><option value="vk">ВКонтакте</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="ok">Одноклассники</option><option value="dzen">Дзен</option><option value="reddit">Reddit</option><option value="bluesky">Bluesky</option><option value="pikabu">Пикабу</option><option value="habr">Хабр</option><option value="joyreactor">JoyReactor</option><option value="pinterest">Pinterest</option><option value="tumblr">Tumblr</option><option value="threads">Threads</option><option value="instagram">Instagram</option><option value="x">X</option><option value="rss">Сайты и блоги</option></select></label>
     <button id="discovery-button" class="primary-button" type="button">Подобрать источники</button>
+  </section>
+  <section class="autopilot-panel" aria-labelledby="autopilot-title">
+    <div><strong id="autopilot-title">Автопилот источников</strong><p>Теневой режим проверяет источники; автоматический подключает прошедшие предварительную проверку RSS-ленты.</p></div>
+    <form id="autopilot-form" class="autopilot-form">
+      <label>Тема <input id="autopilot-topic" type="text" maxlength="100" required></label>
+      <label>Режим <select id="autopilot-mode"><option value="shadow">Теневой</option><option value="auto">Автоматический</option><option value="off">Выключен</option></select></label>
+      <label>Постов в день <input id="autopilot-rate" type="number" min="0" max="1000" step="0.1" value="5" required></label>
+      <label>Запас, дней <input id="autopilot-horizon" type="number" min="0.1" max="365" step="0.1" value="3" required></label>
+      <button class="secondary-button" type="submit">Сохранить настройки</button>
+    </form>
+    <p id="autopilot-status" role="status">Загружаю сведения…</p>
+    <div id="autopilot-topics" class="autopilot-topics"></div>
   </section>
   <label class="source-platform-filter" for="source-platform"><span>Платформа</span>
     <select id="source-platform"><option value="any">Все источники</option><option value="telegram">Telegram</option><option value="dzen">Дзен</option><option value="vk">ВКонтакте</option><option value="ok">Одноклассники</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="shorts">YouTube Shorts</option><option value="rutube">Rutube</option><option value="reddit">Reddit</option><option value="bluesky">Bluesky</option><option value="pikabu">Пикабу</option><option value="habr">Хабр</option><option value="joyreactor">JoyReactor</option><option value="pinterest">Pinterest</option><option value="tumblr">Tumblr</option><option value="threads">Threads</option><option value="instagram">Instagram</option><option value="x">X</option><option value="medium">Medium</option><option value="substack">Substack</option><option value="livejournal">LiveJournal</option><option value="rss">Сайты и блоги</option><option value="fourchan">4chan</option><option value="dvach">Двач</option></select>
@@ -770,14 +785,15 @@
         <button id="telegram-connect" class="primary-button" type="submit">Проверить и подключить</button>
         <div id="telegram-status" class="account-muted" role="status"></div>
       </form>
-      <div id="tgu-card" class="tgu-card" hidden>
-        <h4>Отложенные посты средствами Telegram</h4>
-        <p class="account-muted">Нужны, чтобы публиковать по расписанию. У бота нет отложенной отправки, а у вашего аккаунта есть: пост встанет в «Отложенные» канала и выйдет сам в назначенное время, даже если этот сайт выключен. Аккаунт должен быть владельцем канала или администратором с правом публикации. Данные для входа хранятся на сервере в зашифрованном виде. Без этого шага посты можно публиковать только сразу.</p>
+      <div id="tgu-card-anchor">
+      <div id="tgu-card" class="tgu-card">
+        <h4>Личный аккаунт Telegram</h4>
+        <p class="account-muted">Подключите аккаунт, чтобы скачивать большие видео из Telegram и, при необходимости, планировать публикации средствами Telegram. Вход подтверждается Telegram; сессия хранится на сервере в зашифрованном виде отдельно для вашего аккаунта.</p>
         <div id="tgu-connected" class="telegram-connected" hidden><div id="tgu-summary" class="telegram-summary"></div><button id="tgu-disconnect" class="account-secondary" type="button">Отключить</button></div>
         <form id="tgu-start" class="telegram-form" hidden>
           <ol class="telegram-steps account-muted">
-            <li id="tgu-step-keys"><b>Получите ключи (один раз для всего сайта).</b> Откройте <a href="https://my.telegram.org/apps" target="_blank" rel="noopener noreferrer">my.telegram.org/apps</a>, войдите по номеру телефона (код придёт в Telegram), нажмите «Create application» (название и короткое имя любые, платформа — Desktop) и скопируйте <b>api_id</b> и <b>api_hash</b>.</li>
-            <li><b>Войдите в аккаунт.</b> Введите ключи и номер телефона владельца канала и нажмите «Получить код»: код придёт в Telegram (чат «Telegram»). Если код не приходит — «Войти по QR-коду»: Telegram на телефоне → Настройки → Устройства → Подключить устройство.</li>
+            <li id="tgu-step-keys"><b>Ключи приложения настраиваются один раз для сайта.</b> Владелец сайта задаёт <code>POSTA_TELEGRAM_API_ID</code> и <code>POSTA_TELEGRAM_API_HASH</code> в настройках сервера, получив их на <a href="https://my.telegram.org/apps" target="_blank" rel="noopener noreferrer">my.telegram.org/apps</a>. Для локальной установки ключи можно ввести ниже.</li>
+            <li><b>Войдите в аккаунт.</b> Введите ключи и номер телефона и нажмите «Получить код»: код придёт в Telegram (чат «Telegram»). Можно также войти по QR-коду: Telegram на телефоне → Настройки → Устройства → Подключить устройство.</li>
           </ol>
           <div id="tgu-keys" class="tgu-keys">
             <label><span>api_id</span><input id="tgu-api-id" type="text" inputmode="numeric" autocomplete="off" data-lpignore="true" data-1p-ignore placeholder="Число из my.telegram.org" required></label>
@@ -802,6 +818,7 @@
           </div>
         </form>
         <div id="tgu-status" class="account-muted" role="status"></div>
+      </div>
       </div>
       <div id="telegram-queue" class="telegram-queue" hidden></div>
     </div>
@@ -938,6 +955,17 @@
         <a id="article-reader-open" class="article-reader-link" target="_blank" rel="noopener noreferrer">Открыть на сайте ↗</a>
         <button id="article-reader-post" class="btn btn-main" type="button">🚀 Запостить</button><button id="article-reader-draft-add" class="btn" type="button" title="Добавить статью в черновик">+🚀</button>
       </footer>
+    </div>
+  </div>
+
+  <div id="telegram-auth-modal" class="telegram-auth-modal" role="dialog" aria-modal="true" aria-labelledby="telegram-auth-title" hidden>
+    <div class="telegram-auth-panel">
+      <button id="telegram-auth-close" class="telegram-auth-close" type="button" aria-label="Закрыть окно">×</button>
+      <div class="telegram-auth-brand"><span class="telegram-auth-logo" aria-hidden="true">➤</span><span>Безопасный вход Telegram</span></div>
+      <h2 id="telegram-auth-title">Подключите свой аккаунт</h2>
+      <p class="telegram-auth-lead">После подтверждения Telegram Posta сможет получить большое видео, доступное вашему аккаунту. Это займёт около минуты.</p>
+      <div id="telegram-auth-slot"></div>
+      <p class="telegram-auth-foot">Сессия шифруется и привязана к вашему аккаунту Posta. Не сообщайте коды входа никому.</p>
     </div>
   </div>
 

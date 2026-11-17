@@ -7,8 +7,9 @@ import { articleCover, articleMeta, siteBadge } from './card.js';
 import { blockNode } from './article.js';
 import { api } from './core.js';
 import { analyzePost, needsFetch } from './post-adapters.js';
+import { openTelegramAuth } from './account.js';
 
-export const BIG_VIDEO_NOTE = 'Большое видео: Telegram не отдаёт его в веб-версии. Подключите личный аккаунт Telegram, и оно будет скачиваться само.';
+export const BIG_VIDEO_NOTE = 'Большое видео: Telegram не показывает файл в веб-версии. Нажмите на видео, чтобы подключить личный аккаунт и скачать его.';
 const TEXT_BIG = 280;        // короткий текст (до 280 символов) — крупно
 const TOKEN = /(https?:\/\/[^\s<>"']*[^\s<>"'.,;:!?)\]]|#[\p{L}\p{N}_]+|@[A-Za-z0-9_]{3,})/u;
 
@@ -239,7 +240,7 @@ function tileNode(m, i, media, ctx) {
     const youtube = youtubeVideoId(m.page);
     if (youtube) return youtubeTile(m, youtube);
     if (m.pending && m.page) return pendingTile(m, i, media, ctx);
-    if (m.unavailable) return el('button', { type: 'button', className: 'pv-cell', ariaLabel: 'Большое видео', onclick: event => showNote(event.currentTarget) },
+    if (m.unavailable) return el('button', { type: 'button', className: 'pv-cell', ariaLabel: 'Большое видео', onclick: event => showNote(event.currentTarget, m, i, media, ctx) },
         posterNode(m.poster), el('span', { className: 'pv-cell-mark', textContent: 'большое видео' }), videoMark());
     if (needsFetch(m, ctx.watchPending)) return fetchTile(m, i, media, ctx);
     if (m.page) return el('a', { className: 'pv-cell pv-cell-link', href: m.page, target: '_blank', rel: 'noopener noreferrer', textContent: 'Смотреть на сайте ↗' });
@@ -394,7 +395,7 @@ function fetchTile(m, i, media, ctx) {
             }));
         } catch (error) {
             bar.stop();
-            if (error.status === 409) return show(linkCell(m, error.message));
+            if (error.status === 409) return show(connectTelegramTile(m, error.message, start));
             show(retryTile(m, error.message, start));
         }
     };
@@ -409,9 +410,10 @@ function retryTile(m, note, start) {
         el('small', { textContent: note }), el('a', { href: m.page, target: '_blank', rel: 'noopener noreferrer', textContent: 'Смотреть на сайте ↗' }));
 }
 
-/** Ссылка на сайт с пояснением: ролик скачать нельзя, пока не подключён нужный аккаунт. */
-function linkCell(m, note) {
-    return el('div', { className: 'pv-cell pv-cell-link' }, el('a', { href: m.page, target: '_blank', rel: 'noopener noreferrer', textContent: 'Смотреть на сайте ↗' }),
+function connectTelegramTile(m, note, retry) {
+    return el('div', { className: 'pv-cell pv-cell-link pv-cell-tg-login' }, posterNode(m.poster),
+        el('span', { className: 'pv-cell-plate', textContent: 'Подключите Telegram, чтобы скачать видео' }),
+        el('button', { type: 'button', className: 'pv-retry', textContent: 'Подключить аккаунт', onclick: event => { event.stopPropagation(); openTelegramAuth(retry); } }),
         el('small', { textContent: note }));
 }
 
@@ -440,10 +442,20 @@ function plainTile(poster, text) {
 }
 
 /** Большое видео: пояснение — под сеткой, текстом (виден на телефоне без наведения). */
-function showNote(tile) {
+function showNote(tile, mediaItem, index, media, ctx) {
     const note = tile.closest('.pv-media')?.querySelector('.pv-mosaic-note');
     if (!note) return;
-    note.textContent = BIG_VIDEO_NOTE;
+    const message = el('span', { textContent: 'Telegram не показывает это видео в веб-версии. Подключите личный аккаунт, чтобы скачать его.' });
+    const button = el('button', { type: 'button', className: 'pv-tg-connect', textContent: 'Подключить Telegram', onclick: event => {
+        event.stopPropagation();
+        openTelegramAuth(() => {
+            if (!tile.isConnected) return;
+            mediaItem.unavailable = false;
+            mediaItem.pending = true;
+            tile.replaceWith(pendingTile(mediaItem, index, media, ctx));
+        });
+    } });
+    note.replaceChildren(message, button);
     note.hidden = false;
 }
 
@@ -520,7 +532,7 @@ function textBlock(post, big) {
     if (!post.text) return el('div', { className: big ? 'pv-text-big pv-text-empty' : 'pv-text pv-text-empty', ariaHidden: 'true' });
     const tr = post.translation;
     const shown = tr && !post.showOriginal ? tr.text : post.text;
-    const text = el('div', { className: big ? 'pv-text-big' : 'pv-text' }, ...richText(shown));
+    const text = el('div', { className: big ? 'pv-text-big' : 'pv-text' }, ...(post.textHtml && !post.translation ? safeRichHTML(post.textHtml) : richText(shown)));
     if (!tr) return text;
     const wrap = el('div', { className: 'pv-translated' });
     const toggle = el('button', { type: 'button', className: 'pv-mini', textContent: post.showOriginal ? 'Показать перевод' : 'Показать оригинал', onclick: () => {
@@ -529,6 +541,23 @@ function textBlock(post, big) {
     } });
     wrap.append(text, el('p', { className: 'pv-facts', style: 'margin:6px 0 0' }, `🌐 ${tr.note} · `, toggle));
     return wrap;
+}
+
+// Keep source formatting while rebuilding only safe inline elements; source HTML is never inserted directly.
+function safeRichHTML(markup) {
+    const parsed = new DOMParser().parseFromString(`<body>${markup}</body>`, 'text/html');
+    const allowed = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'DEL', 'CODE', 'PRE', 'BR', 'A']);
+    const copy = node => {
+        if (node.nodeType === Node.TEXT_NODE) return [document.createTextNode(node.nodeValue || '')];
+        if (node.nodeType !== Node.ELEMENT_NODE) return [];
+        const tag = node.tagName;
+        const children = [...node.childNodes].flatMap(copy);
+        if (tag === 'A' && allowed.has(tag)) {
+            try { const url = new URL(node.getAttribute('href') || '', location.href); if (['http:', 'https:'].includes(url.protocol)) return [el('a', { href: url.href, target: '_blank', rel: 'noopener noreferrer' }, ...children)]; } catch {}
+        }
+        return allowed.has(tag) ? [el(tag.toLowerCase(), {}, ...children)] : children;
+    };
+    return [...parsed.body.childNodes].flatMap(copy);
 }
 
 /** Опрос из очереди: вопрос и варианты строками, без голосования. */

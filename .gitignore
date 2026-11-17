@@ -1,5 +1,6 @@
 # Секреты
 posta.env
+/.local-no-auth-owner
 /vk-client-id
 config.local.php
 secret.key

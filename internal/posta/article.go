@@ -96,6 +96,9 @@ func articleSemanticText(page string) string {
 		if strings.Contains(classes, " article__body ") || strings.Contains(classes, " article-formatted-body ") {
 			priority = 2
 		}
+		if strings.Contains(classes, " article_text_wrapper ") {
+			priority = 3
+		}
 		if n.Type == xhtml.ElementNode && priority > 0 {
 			var parts []string
 			var collect func(*xhtml.Node)
@@ -104,9 +107,18 @@ func articleSemanticText(page string) string {
 					if articleStripTags[c.Data] {
 						return
 					}
+					// Exclude related-story and metadata widgets embedded in article wrappers.
+					for _, a := range c.Attr {
+						if a.Key == "data-testid" && a.Val == "topic-list" ||
+							a.Key == "data-block" && a.Val == "promoList" ||
+							a.Key == "data-print-layout" && a.Val == "hide" ||
+							a.Key == "class" && strings.Contains(a.Val, "MetadataStrip") {
+							return
+						}
+					}
 					if c.Data == "div" {
 						for _, a := range c.Attr {
-							if a.Key == "class" && strings.Contains(" "+a.Val+" ", " article__text ") {
+							if a.Key == "class" && (strings.Contains(" "+a.Val+" ", " article__text ") || strings.Contains(" "+a.Val+" ", " doc-text-block__paragraph ")) {
 								if t := strings.TrimSpace(nodeText(c)); t != "" {
 									parts = append(parts, t)
 								}
@@ -333,12 +345,14 @@ type articleData struct {
 	Description string `json:"description"`
 	Published   int64  `json:"published"`
 	ArticleText string `json:"article_text"`
+	SourceURL   string `json:"source_url,omitempty"`
 }
 
 func articleParse(page string) articleData {
 	_, body, ldImage := articleJSONLD(page)
-	text := articleMainText(page)
-	if semantic := articleSemanticText(page); semantic != "" {
+	body = articleCleanPromotions(body)
+	text := articleCleanPromotions(articleMainText(page))
+	if semantic := articleCleanPromotions(articleSemanticText(page)); semantic != "" {
 		text = semantic
 	}
 	if runeLen(body) > runeLen(text) {
@@ -352,7 +366,10 @@ func articleParse(page string) articleData {
 	if desc == "" {
 		desc = articleMeta(page, "description")
 	}
-	return articleData{img, trimRunes(desc, 1000), articlePublished(page), text}
+	if articleRestricted(page) || articleIncomplete(text) {
+		text = ""
+	}
+	return articleData{Image: img, Description: trimRunes(desc, 1000), Published: articlePublished(page), ArticleText: text}
 }
 
 func articleDecode(data []byte, contentType string) string {
@@ -428,7 +445,7 @@ func (a *App) ArticleEnrich(post jx.M, force bool) jx.M {
 	if os := a.OsnovaArticle(link, force); os != nil {
 		return articleApplyOsnova(jx.Copy(post), os, link)
 	}
-	key := "article:v3:" + sha1Short(link, 40)
+	key := "article:v5:" + sha1Short(link, 40)
 	var data *articleData
 	var cached struct {
 		Data *articleData `json:"data"`
@@ -439,9 +456,30 @@ func (a *App) ArticleEnrich(post jx.M, force bool) jx.M {
 		HostThrottle(hostOf(link), time.Second)
 		r := a.RSSGet(link, articleMaxBytes, 10*time.Second, HTTPUA)
 		ttl := time.Hour
-		if r.OK {
-			d := articleParse(articleDecode(r.Bytes, r.Type))
-			data, ttl = &d, articleCacheTTL
+		if r.OK && r.Status != 206 {
+			page := articleDecode(r.Bytes, r.Type)
+			resolved := r.URL
+			if googleNewsURL(resolved) {
+				resolved = a.googleNewsOriginal(resolved, page)
+				if resolved != "" {
+					r = a.RSSGet(resolved, articleMaxBytes, 10*time.Second, HTTPUA)
+					if r.OK && r.Status != 206 {
+						resolved = r.URL
+						page = articleDecode(r.Bytes, r.Type)
+					} else {
+						page = ""
+					}
+				} else {
+					page = ""
+				}
+			}
+			if page != "" {
+				d := articleParse(page)
+				if d.ArticleText != "" {
+					d.SourceURL = resolved
+					data, ttl = &d, articleCacheTTL
+				}
+			}
 		}
 		a.CacheSet(a.ctxOrBg(), key, jx.M{"data": data}, ttl)
 	}
@@ -453,6 +491,9 @@ func (a *App) ArticleEnrich(post jx.M, force bool) jx.M {
 
 func articleApplyData(post jx.M, data *articleData) jx.M {
 	post = jx.Copy(post)
+	if data.SourceURL != "" {
+		post["url"] = data.SourceURL
+	}
 	if jx.Str(post, "image") == "" && data.Image != "" {
 		post["image"], post["images"] = data.Image, []any{data.Image}
 	}
@@ -808,8 +849,11 @@ func (u *U) NewsEnrichPosts(posts []jx.M, entry jx.M) []jx.M {
 			}
 			p = u.ArticleEnrich(p, false)
 		}
-		if jx.Str(p, "image") == "" && !(jx.Bool(p, "article") && u.TopicsAcceptText(jx.Strs(entry, "topics"))) {
+		if jx.Str(p, "image") == "" && !(u.TopicsAcceptText(jx.Strs(entry, "topics")) && runeLen(jx.Str(p, "text")) >= 120) {
 			continue
+		}
+		if jx.Str(p, "image") == "" {
+			p["text_post"] = true
 		}
 		if jx.Bool(entry, "news") {
 			p["news"] = true

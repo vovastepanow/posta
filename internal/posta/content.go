@@ -239,7 +239,7 @@ func ContentGallery(item jx.M) []jx.M {
 
 // ContentHistoryRecord — запись для истории оценок.
 func (a *App) ContentHistoryRecord(item jx.M, complaintReason any) jx.M {
-	rec := jx.M{"image": ContentImageKey(item), "text": jx.Str(item, "text"), "description": item["description"], "why_relevant": item["why_relevant"],
+	rec := jx.M{"image": ContentImageKey(item), "text": jx.Str(item, "text"), "text_html": item["text_html"], "forwarded": item["forwarded"], "forwarded_from": item["forwarded_from"], "forwarded_url": item["forwarded_url"], "description": item["description"], "why_relevant": item["why_relevant"],
 		"relevance": item["relevance"], "rating_assigned": item["rating"], "format": jx.Str(item, "format"), "tags": a.ContentTagsClean(item["tags"]),
 		"entity": jx.Str(item, "entity"), "source_hashtags": orList(jx.List(item, "source_hashtags")), "topic": item["topic"], "source": item["source"],
 		"source_key": ContentSourceKey(item), "board": item["board"], "thread_id": item["thread_id"], "post_id": item["post_id"],

@@ -119,6 +119,12 @@ var ytdlpSlots = make(chan struct{}, 2)
 
 // YtdlpRun — yt-dlp с общими аргументами проекта; адрес — после «--» у вызывающего.
 func (a *App) YtdlpRun(ctx context.Context, args []string, timeout time.Duration, js bool, onProgress func(done, total int64, format string)) ExecResult {
+	// A yt-dlp process can make multiple opaque network requests, so charging a
+	// single call before starting it would bypass the per-request budget. Keep
+	// leased autopilot jobs closed until requests can be metered individually.
+	if job, leased := ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); leased && job != nil {
+		return ExecResult{Code: -1, Stderr: "autopilot yt-dlp network budget unavailable"}
+	}
 	select {
 	case ytdlpSlots <- struct{}{}:
 		defer func() { <-ytdlpSlots }()

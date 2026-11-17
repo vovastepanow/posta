@@ -255,7 +255,7 @@ func googleNewsPublishers(doc *xnode) map[string]string {
 		if src == nil || src.A["url"] == "" {
 			continue
 		}
-		if link := rssItemLink(item); link != "" {
+		if link := rssItemLink(item, ""); link != "" {
 			out[link] = hostOf(src.A["url"])
 		}
 	}

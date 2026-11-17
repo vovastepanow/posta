@@ -1,0 +1,56 @@
+package posta
+
+import "math"
+
+// sourceEvidence contains only completed content evaluations. Network and
+// model failures are tracked separately and never enter the denominator.
+type sourceEvidence struct {
+	Evaluated, Relevant, FreshUnique, SuccessfulPasses int
+	Advertising, Duplicates                            int
+	TechnicalFailure                                   bool
+}
+
+type sourcePolicy struct {
+	MinEvaluated, MinPasses, MinFreshUnique int
+	PromoteRate, DemoteRate                 float64
+	MaxAdvertisingRate, MaxDuplicateRate    float64
+}
+
+func (a *App) autopilotSourcePolicy() sourcePolicy {
+	return sourcePolicy{MinEvaluated: a.TInt("autopilot_min_evaluations"), MinPasses: a.TInt("autopilot_min_passes"), MinFreshUnique: a.TInt("autopilot_min_unique"),
+		PromoteRate: float64(a.TInt("autopilot_promote_percent")) / 100, DemoteRate: float64(a.TInt("autopilot_demote_percent")) / 100,
+		MaxAdvertisingRate: float64(a.TInt("autopilot_max_ads_percent")) / 100, MaxDuplicateRate: float64(a.TInt("autopilot_max_duplicates_percent")) / 100}
+}
+
+// decideSourceState uses different promotion and demotion thresholds. Unknown
+// or insufficient evidence retains the current state.
+func decideSourceState(state string, e sourceEvidence, p sourcePolicy) (string, string) {
+	if e.TechnicalFailure {
+		return state, "access_unavailable"
+	}
+	if p.MinEvaluated <= 0 || p.MinPasses <= 0 || p.MinFreshUnique <= 0 || math.IsNaN(p.PromoteRate) || math.IsNaN(p.DemoteRate) || math.IsNaN(p.MaxAdvertisingRate) || math.IsNaN(p.MaxDuplicateRate) || p.DemoteRate < 0 || p.PromoteRate > 1 || p.DemoteRate >= p.PromoteRate || p.MaxAdvertisingRate < 0 || p.MaxAdvertisingRate > 1 || p.MaxDuplicateRate < 0 || p.MaxDuplicateRate > 1 || e.Evaluated < 0 || e.Relevant < 0 || e.Relevant > e.Evaluated || e.FreshUnique < 0 || e.FreshUnique > e.Evaluated || e.SuccessfulPasses < 0 || e.Advertising < 0 || e.Advertising > e.Evaluated || e.Duplicates < 0 || e.Duplicates > e.Evaluated {
+		return state, "invalid_evidence_or_policy"
+	}
+	if e.Evaluated < p.MinEvaluated || e.SuccessfulPasses < p.MinPasses {
+		return state, "insufficient_evidence"
+	}
+	rate := float64(e.Relevant) / float64(e.Evaluated)
+	poorQuality := float64(e.Advertising)/float64(e.Evaluated) > p.MaxAdvertisingRate || float64(e.Duplicates)/float64(e.Evaluated) > p.MaxDuplicateRate
+	switch state {
+	case "probation":
+		if !poorQuality && rate >= p.PromoteRate && e.FreshUnique >= p.MinFreshUnique {
+			return "active", "observed_useful"
+		}
+		if poorQuality {
+			return "rejected", "observed_ad_or_duplicates"
+		}
+		if rate < p.DemoteRate {
+			return "rejected", "observed_irrelevant"
+		}
+	case "active":
+		if rate < p.DemoteRate || poorQuality {
+			return "probation", "quality_drift"
+		}
+	}
+	return state, "retain"
+}

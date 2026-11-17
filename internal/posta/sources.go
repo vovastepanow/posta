@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	xhtml "golang.org/x/net/html"
 	"posta/internal/config"
 	"posta/internal/jx"
 )
@@ -85,6 +86,11 @@ func IsValidSourceID(platform, id string) bool {
 
 // SourceIDFor — ключ источника «telegram:имя».
 func SourceIDFor(platform, id string) string {
+	if platform == PlatformRSS {
+		if feed, ok := canonicalYouTubeFeed(id); ok {
+			return "rss:" + feed
+		}
+	}
 	prefix := map[string]string{PlatformTelegram: "telegram:", PlatformVK: "vk:", PlatformRSS: "rss:", PlatformOK: "ok:", PlatformTikTok: "tiktok:"}[platform]
 	if prefix == "" {
 		prefix = "source:"
@@ -549,9 +555,111 @@ var (
 	videoPosterRe  = regexp.MustCompile(`(?i)<video[^>]*?\sposter="([^"]+)"`)
 	bgImageRe      = regexp.MustCompile(`(?i)background-image:\s*url\(['"]?(https://[^'")\s]+)`)
 	linkPreviewRe  = regexp.MustCompile(`(?is)tgme_widget_message_link_preview.*?background-image:\s*url\(['"]?(https://[^'")\s]+)`)
-	msgTextRe      = regexp.MustCompile(`(?is)<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>`)
 	videoPlayerRe  = regexp.MustCompile(`tgme_widget_message_(?:round)?video_player`)
 )
+
+func telegramHasClass(n *xhtml.Node, class string) bool {
+	for _, c := range strings.Fields(telegramAttr(n, "class")) {
+		if c == class {
+			return true
+		}
+	}
+	return false
+}
+
+func telegramAttr(n *xhtml.Node, key string) string {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return a.Val
+		}
+	}
+	return ""
+}
+
+func telegramFindClass(n *xhtml.Node, class string) *xhtml.Node {
+	if n.Type == xhtml.ElementNode && telegramHasClass(n, class) {
+		return n
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if found := telegramFindClass(c, class); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func telegramDirectChildClass(n *xhtml.Node, class string) *xhtml.Node {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == xhtml.ElementNode && telegramHasClass(c, class) {
+			return c
+		}
+	}
+	return nil
+}
+
+func telegramInnerHTML(n *xhtml.Node) string {
+	var b strings.Builder
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		_ = xhtml.Render(&b, c)
+	}
+	return b.String()
+}
+
+func telegramPlainText(n *xhtml.Node) string {
+	var b strings.Builder
+	var walk func(*xhtml.Node)
+	walk = func(node *xhtml.Node) {
+		if node.Type == xhtml.TextNode {
+			b.WriteString(node.Data)
+			return
+		}
+		if node.Type == xhtml.ElementNode && node.Data == "br" {
+			b.WriteByte('\n')
+			return
+		}
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+		if node.Type == xhtml.ElementNode && (node.Data == "p" || node.Data == "div" || node.Data == "li") {
+			b.WriteByte('\n')
+		}
+	}
+	walk(n)
+	lines := strings.Split(b.String(), "\n")
+	for i := range lines {
+		lines[i] = strings.TrimSpace(lines[i])
+	}
+	return strings.TrimSpace(regexp.MustCompile(`\n{3,}`).ReplaceAllString(strings.Join(lines, "\n"), "\n\n"))
+}
+
+func telegramPostTextFields(content string) (text, markup, forwardedFrom, forwardedURL string) {
+	doc, err := xhtml.Parse(strings.NewReader(content))
+	if err != nil {
+		return
+	}
+	root := telegramFindClass(doc, "tgme_widget_message_bubble")
+	if root == nil {
+		root = doc
+	}
+	node := telegramDirectChildClass(root, "tgme_widget_message_text")
+	if node == nil {
+		node = telegramFindClass(root, "tgme_widget_message_text")
+	}
+	if node != nil {
+		markup = telegramInnerHTML(node)
+		text = telegramPlainText(node)
+	}
+	if node := telegramFindClass(doc, "tgme_widget_message_forwarded_from_name"); node != nil {
+		forwardedFrom = strings.TrimSpace(telegramPlainText(node))
+		forwardedURL = telegramAttr(node, "href")
+	}
+	if forwardedFrom == "" {
+		if node := telegramFindClass(doc, "tgme_widget_message_forwarded_from_author"); node != nil {
+			forwardedFrom = strings.TrimSpace(telegramPlainText(node))
+		}
+	}
+	return
+}
 
 // TelegramPostMedia — медиа сообщения по плиткам альбома.
 func TelegramPostMedia(content string, maxN int) []jx.M {
@@ -598,10 +706,7 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 	posts := []jx.M{}
 	for i := len(blocks) - 1; i >= 0 && len(posts) < count; i-- {
 		b := blocks[i]
-		text := ""
-		if m := msgTextRe.FindStringSubmatch(b.Content); m != nil {
-			text = CleanHTMLText(m[1])
-		}
+		text, textHTML, forwardedFrom, forwardedURL := telegramPostTextFields(b.Content)
 		media := TelegramPostMedia(b.Content, 10)
 		var imgs []string
 		for _, m := range media {
@@ -639,7 +744,8 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 			linkImage = htmlAttr(m[1])
 		}
 		posts = append(posts, jx.M{"image": main, "images": images[:min(10, len(images))], "link_image": linkImage, "gallery": gallery, "video": video,
-			"text": text, "text_post": textOnly, "source": name, "post_id": b.ID, "posted_at": t, "url": "https://t.me/" + url.PathEscape(channel) + "/" + b.ID,
+			"text": text, "text_html": textHTML, "forwarded": forwardedFrom != "", "forwarded_from": forwardedFrom, "forwarded_url": forwardedURL,
+			"text_post": textOnly, "source": name, "post_id": b.ID, "posted_at": t, "url": "https://t.me/" + url.PathEscape(channel) + "/" + b.ID,
 			"video_unavailable": unavailable, "engagement": telegramEngagementSnapshot(eng, b.ID, t)})
 	}
 	return posts
@@ -1518,6 +1624,10 @@ func (a *App) CombinedSourceRates(ctx context.Context, pass map[string]float64, 
 
 // CatalogEntryMatchesTopic — подходит ли источник теме: без topics — всем; strict — только сама тема и синонимы.
 func (a *App) CatalogEntryMatchesTopic(entry jx.M, topic string, strict bool) bool {
+	if jx.Bool(entry, "autopilot_managed") && !jx.Bool(entry, "autopilot_manual") {
+		profile := jx.Map(jx.Map(entry, "autopilot_profiles"), autopilotTopicKey(topic))
+		return profile != nil && (jx.Str(profile, "state") == "probation" || jx.Str(profile, "state") == "active")
+	}
 	if q := strings.TrimSpace(jx.Str(entry, "query")); q != "" && strings.ToLower(q) != strings.ToLower(TopicQueryOf(topic)) {
 		return false
 	}

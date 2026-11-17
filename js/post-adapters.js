@@ -94,6 +94,7 @@ export function fromRecord(item) {
         date: Number(item?.posted_at) > 0 ? Number(item.posted_at) : null,
         url,
         text: plainText(item?.text),
+        textHtml: typeof item?.text_html === 'string' ? item.text_html : '',
         media: items,
         article: articleOf(item),
         poll: null,

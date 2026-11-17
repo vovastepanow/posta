@@ -281,6 +281,9 @@ func (s *Server) bindUser(c *Ctx) error {
 	if res.DropLegacy {
 		http.SetCookie(c.W, &http.Cookie{Name: config.UserCookie, Value: "", Path: s.cookiePath(), MaxAge: -1})
 	}
+	if res.UID == "" && s.A.Cfg.LocalNoAuthOwner != "" && localNoAuthRequest(c.R) && s.A.IsOwner(ctx, s.A.Cfg.LocalNoAuthOwner) {
+		res.UID = s.A.Cfg.LocalNoAuthOwner
+	}
 	if res.UID == "" {
 		if !authActions[c.Action] {
 			return fail(401, "Войдите: логин и пароль или Telegram. Новые профили на этом сайте сейчас не создаются.")
@@ -301,6 +304,37 @@ func (s *Server) bindUser(c *Ctx) error {
 		c.U = s.A.User(ctx, res.UID, nil)
 	}
 	return nil
+}
+
+// Only a loopback client using a loopback host may use the temporary mode.
+// A local reverse proxy appends the actual client to X-Forwarded-For, so every
+// address in that chain must also be loopback.
+func localNoAuthRequest(r *http.Request) bool {
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	if !strings.EqualFold(host, "localhost") && !isLoopbackIP(host) {
+		return false
+	}
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil || !isLoopbackIP(peer) {
+		return false
+	}
+	for _, line := range r.Header.Values("X-Forwarded-For") {
+		for _, ip := range strings.Split(line, ",") {
+			if !isLoopbackIP(strings.TrimSpace(ip)) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isLoopbackIP(s string) bool {
+	ip := net.ParseIP(s)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (s *Server) cookiePath() string { return strings.TrimRight(s.A.Cfg.BasePath, "/") + "/" }

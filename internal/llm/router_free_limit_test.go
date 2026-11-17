@@ -28,3 +28,13 @@ func TestOpenRouterMinuteLimitDoesNotBlockOtherModels(t *testing.T) {
 		t.Fatalf("unrelated model blocked: %q", reason)
 	}
 }
+
+func TestUpstreamTokenLimitUsesShortCooldown(t *testing.T) {
+	r := &Router{}
+	model := Target{"openrouter", "test:free"}
+	r.countFree(model, errors.New("HTTP 429; code=tpm_rate_limit_exceeded; limit=upstream_provider_shared_pool"))
+	remaining := time.Until(r.freeBlocked[model.Model])
+	if remaining < time.Minute || remaining > 3*time.Minute {
+		t.Fatalf("unexpected upstream cooldown: %s", remaining)
+	}
+}

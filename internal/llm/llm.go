@@ -16,29 +16,31 @@ import (
 type Role string
 
 const (
-	RolePrescreen Role = "prescreen" // быстрый отсев мусора по картинке
-	RoleAnalysis  Role = "analysis"  // полный анализ записи по теме
-	RoleJudge     Role = "judge"     // «есть ли шутка», выбор подтемы: короткий ответ по картинке
-	RoleSmart     Role = "smart"     // профиль темы, классификация, план подбора, проверка канала
-	RoleClassify  Role = "classify"  // independent content labels
-	RoleText      Role = "text"      // пачки текстовых записей, подписи постов, стиль канала
-	RoleRadar     Role = "radar"     // классификация сообщений радара лидов
-	RoleTranslate Role = "translate" // перевод (если перевод моделью включён)
-	RoleEmbed     Role = "embed"     // эмбеддинги: сходство тем
+	RolePrescreen      Role = "prescreen"       // быстрый отсев мусора по картинке
+	RoleAnalysis       Role = "analysis"        // полный анализ записи по теме
+	RoleJudge          Role = "judge"           // «есть ли шутка», выбор подтемы: короткий ответ по картинке
+	RoleSmart          Role = "smart"           // профиль темы, классификация, план подбора, проверка канала
+	RoleClassify       Role = "classify"        // independent content labels
+	RoleClassifyVerify Role = "classify_verify" // independent subject/context validation
+	RoleText           Role = "text"            // пачки текстовых записей, подписи постов, стиль канала
+	RoleRadar          Role = "radar"           // классификация сообщений радара лидов
+	RoleTranslate      Role = "translate"       // перевод (если перевод моделью включён)
+	RoleEmbed          Role = "embed"           // эмбеддинги: сходство тем
 )
 
-var Roles = []Role{RolePrescreen, RoleAnalysis, RoleJudge, RoleSmart, RoleClassify, RoleText, RoleRadar, RoleTranslate, RoleEmbed}
+var Roles = []Role{RolePrescreen, RoleAnalysis, RoleJudge, RoleSmart, RoleClassify, RoleClassifyVerify, RoleText, RoleRadar, RoleTranslate, RoleEmbed}
 
 var RoleTitles = map[Role]string{
-	RolePrescreen: "Быстрая оценка (мусор ли)",
-	RoleAnalysis:  "Полный анализ записи",
-	RoleJudge:     "Проверка шутки и подтемы",
-	RoleSmart:     "Умные задачи (профиль темы, подбор)",
-	RoleClassify:  "Темы постов",
-	RoleText:      "Тексты и подписи",
-	RoleRadar:     "Радар лидов",
-	RoleTranslate: "Перевод",
-	RoleEmbed:     "Сходство тем (эмбеддинги)",
+	RolePrescreen:      "Быстрая оценка (мусор ли)",
+	RoleAnalysis:       "Полный анализ записи",
+	RoleJudge:          "Проверка шутки и подтемы",
+	RoleSmart:          "Умные задачи (профиль темы, подбор)",
+	RoleClassify:       "Темы постов",
+	RoleClassifyVerify: "Проверка тем постов",
+	RoleText:           "Тексты и подписи",
+	RoleRadar:          "Радар лидов",
+	RoleTranslate:      "Перевод",
+	RoleEmbed:          "Сходство тем (эмбеддинги)",
 }
 
 // Vision — роли, которым нужны картинки.
@@ -47,12 +49,16 @@ func (r Role) Vision() bool {
 }
 
 type Request struct {
+	ProviderOrder      []string // optional OpenRouter endpoint preference
+	FreeOnly           bool     // never use a paid primary or fallback
 	Role               Role
 	MaxPromptPrice     float64
 	MaxCompletionPrice float64
 	Prompt             string
 	System             string
-	Images             [][]byte       // JPEG/PNG; уменьшать заранее
+	Images             [][]byte // JPEG/PNG; уменьшать заранее
+	VideoData          []byte   // complete public video; never a poster or sampled frames
+	VideoMIME          string
 	Schema             map[string]any // JSON Schema ответа (structured output); nil — свободный текст
 	JSON               bool           // ответ JSON-объектом без схемы
 	MaxTokens          int
@@ -64,9 +70,10 @@ type Request struct {
 	Timeout            time.Duration
 	UserID             string // для журнала и статистики
 	Topic              string
-	Quiet              bool               // не писать обмен в журнал (служебные проверки)
-	Private            bool               // только локально: 18+ и прочее, что нельзя отправлять в облако
-	OnThinking         func(chunk string) // размышления по мере генерации
+	Quiet              bool                         // не писать обмен в журнал (служебные проверки)
+	Private            bool                         // только локально: 18+ и прочее, что нельзя отправлять в облако
+	OnThinking         func(chunk string)           // размышления по мере генерации
+	ReservePaid        func() (func(float64), bool) // резерв бюджета перед каждой платной попыткой
 }
 
 type Alt struct {

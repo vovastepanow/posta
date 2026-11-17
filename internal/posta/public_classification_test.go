@@ -19,6 +19,7 @@ func TestPublicClassificationInput(t *testing.T) {
 	}{
 		{"image without caption", jx.M{"image": "https://example.com/post.jpg"}, true},
 		{"short caption without image", jx.M{"text": "кот"}, false},
+		{"meaningful short title", jx.M{"text": "Как оформить налоговый вычет"}, true},
 		{"long caption", jx.M{"text": "Подробное описание события, которого достаточно для определения темы записи."}, true},
 		{"sensitive image", jx.M{"image": "https://example.com/post.jpg", "source_sensitive": true}, false},
 		{"adult image", jx.M{"image": "https://example.com/post.jpg", "nsfw": true}, false},
@@ -63,14 +64,16 @@ func TestPublicClassificationRealPost(t *testing.T) {
 		s := llm.Preset("local")
 		s.Roles[llm.RoleEmbed] = llm.RoleConfig{Primary: llm.Target{Provider: "ollama", Model: "bge-m3:latest"}}
 		s.Roles[llm.RoleText] = llm.RoleConfig{Primary: llm.Target{Provider: "ollama", Model: "qwen3-vl:2b-instruct"}}
+		s.Roles[llm.RoleClassify] = llm.RoleConfig{Primary: llm.Target{Provider: "ollama", Model: "qwen3-vl:2b-instruct"}}
 		return s
 	}
 	a := &App{LLM: router, catalog: &Catalog{idx: buildTopicIndex(topics)}}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	post := fixture.Discovered.Posts[1].Text
-	tags := a.User(ctx, "", nil).classifyShortlist(post, "")
-	t.Logf("post: %s; tags: %v", post, tags)
+	u := a.User(ctx, "", nil)
+	tags := u.classifyShortlist(post, "")
+	t.Logf("tags: %v; reason: %s; error: %v", tags, u.classificationReason, u.classificationErr)
 	found := false
 	for _, tag := range tags {
 		if tag == "news.politics" || tag == "news.world" || tag == "news" {

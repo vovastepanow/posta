@@ -45,25 +45,31 @@ func (a *App) KVSet(ctx context.Context, key string, value any, ttl time.Duratio
 	if ttl > 0 {
 		exp = time.Now().Add(ttl).Unix()
 	}
-	_, err := a.DB.Pool.Exec(ctx, `INSERT INTO kv (key, value, expires_at, updated_at) VALUES ($1, $2, $3, now())
-		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at, updated_at = now()`, key, db.JSON(value), exp)
-	return err
+	return autopilotEffectTx(ctx, a.DB, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO kv (key, value, expires_at, updated_at) VALUES ($1, $2, $3, now())
+			ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at, updated_at = now()`, key, db.JSON(value), exp)
+		return err
+	})
 }
 
 func (a *App) KVDelete(ctx context.Context, key string) error {
-	_, err := a.DB.Pool.Exec(ctx, `DELETE FROM kv WHERE key = $1`, key)
-	return err
+	return autopilotEffectTx(ctx, a.DB, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `DELETE FROM kv WHERE key = $1`, key)
+		return err
+	})
 }
 
 func (a *App) KVDeletePrefix(ctx context.Context, prefix string) error {
-	_, err := a.DB.Pool.Exec(ctx, `DELETE FROM kv WHERE key LIKE $1`, strings.ReplaceAll(prefix, "%", `\%`)+"%")
-	return err
+	return autopilotEffectTx(ctx, a.DB, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `DELETE FROM kv WHERE key LIKE $1`, strings.ReplaceAll(prefix, "%", `\%`)+"%")
+		return err
+	})
 }
 
 // KVUpdate — изменить значение под блокировкой строки: fn получает текущее (nil — нет) и возвращает новое; nil — не менять.
 func KVUpdate[T any](a *App, ctx context.Context, key string, ttl time.Duration, fn func(cur T, exists bool) *T) (T, error) {
 	var result T
-	err := a.DB.Tx(ctx, func(tx pgx.Tx) error {
+	err := autopilotEffectTx(ctx, a.DB, func(tx pgx.Tx) error {
 		var raw []byte
 		var exp int64
 		err := tx.QueryRow(ctx, `SELECT value, expires_at FROM kv WHERE key = $1 FOR UPDATE`, key).Scan(&raw, &exp)
@@ -101,8 +107,16 @@ func (a *App) CacheGet(ctx context.Context, key string, dest any) bool {
 }
 
 func (a *App) CacheSet(ctx context.Context, key string, value any, ttl time.Duration) {
-	a.DB.Pool.Exec(ctx, `INSERT INTO cache (key, value, expires_at) VALUES ($1, $2, $3)
-		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at`, key, db.JSON(value), time.Now().Add(ttl).Unix())
+	write := func(q db.Querier) error {
+		_, err := q.Exec(ctx, `INSERT INTO cache (key, value, expires_at) VALUES ($1, $2, $3)
+			ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at`, key, db.JSON(value), time.Now().Add(ttl).Unix())
+		return err
+	}
+	if _, leased := ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); leased {
+		_ = autopilotEffectTx(ctx, a.DB, func(tx pgx.Tx) error { return write(tx) })
+		return
+	}
+	_ = write(a.DB.Pool)
 }
 
 // CacheGC — уборка просроченного kv, cache и памяти повторов (раз в час).

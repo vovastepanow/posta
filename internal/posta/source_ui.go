@@ -475,7 +475,14 @@ func (u *U) rememberSourceExclusion(topic, kind, id string, duration time.Durati
 // A displayed source is withheld until a deliberate postponement expires.
 // Recommendation identity joins a YouTube channel's videos and Shorts feeds.
 func recommendationSourceKey(id string) string {
-	id = strings.ToLower(strings.TrimSpace(id))
+	id = strings.TrimSpace(id)
+	if strings.HasPrefix(id, "rss:") {
+		if feed, ok := canonicalYouTubeFeed(strings.TrimPrefix(id, "rss:")); ok {
+			channel, _, _ := YouTubeFeedChannel(feed)
+			return "youtube-channel:" + channel
+		}
+	}
+	id = strings.ToLower(id)
 	if strings.HasPrefix(id, "rss:") {
 		if u, err := url.Parse(strings.TrimPrefix(id, "rss:")); err == nil && (u.Hostname() == "youtube.com" || u.Hostname() == "www.youtube.com") && u.Path == "/feeds/videos.xml" {
 			q := u.Query()
@@ -489,6 +496,17 @@ func recommendationSourceKey(id string) string {
 		}
 	}
 	return id
+}
+
+func recommendationExcluded(excluded map[string]bool, id string) bool {
+	key := recommendationSourceKey(id)
+	if excluded[key] {
+		return true
+	}
+	if strings.HasPrefix(key, "youtube-channel:UC") {
+		return excluded["youtube-channel:"+strings.ToLower(strings.TrimPrefix(key, "youtube-channel:"))]
+	}
+	return false
 }
 
 // Historical post ratings predate impression tracking. Never recommend an
@@ -696,7 +714,7 @@ func (u *U) SuggestSources(in jx.M) (jx.M, int, error) {
 	filterRated := func(cands []jx.M) []jx.M {
 		out := make([]jx.M, 0, len(cands))
 		for _, c := range cands {
-			if !rated[recommendationSourceKey(jx.Str(c, "source_id"))] {
+			if !recommendationExcluded(rated, jx.Str(c, "source_id")) {
 				out = append(out, c)
 			}
 		}
@@ -822,6 +840,19 @@ func (a *App) approvedImageboardThreads(d *SourceDB, topic string) []jx.M {
 	return out
 }
 
+// YouTube channel IDs are case-sensitive even though handles on other
+// platforms and the historical source-key format are case-insensitive.
+func sameCatalogSource(platform, a, b string) bool {
+	if platform == PlatformRSS {
+		aCanonical, aYouTube := canonicalYouTubeFeed(a)
+		bCanonical, bYouTube := canonicalYouTubeFeed(b)
+		if aYouTube || bYouTube {
+			return aYouTube && bYouTube && aCanonical == bCanonical
+		}
+	}
+	return strings.EqualFold(a, b)
+}
+
 func (u *U) addApprovedSource(d *SourceDB, s jx.M, topic string) {
 	id := strings.TrimLeft(strings.TrimSpace(jx.Str(s, "id")), "@")
 	if jx.Str(s, "platform") == PlatformDvach || jx.Str(s, "platform") == Platform4chan {
@@ -834,8 +865,11 @@ func (u *U) addApprovedSource(d *SourceDB, s jx.M, topic string) {
 		return
 	}
 	for _, e := range *list {
-		if !strings.EqualFold(jx.Str(e, "id"), id) {
+		if !sameCatalogSource(platform, jx.Str(e, "id"), id) {
 			continue
+		}
+		if jx.Bool(e, "autopilot_managed") {
+			e["autopilot_manual"] = true
 		}
 		var excluded []any
 		for _, t := range jx.List(e, "excluded_topics") {
@@ -875,7 +909,17 @@ func (u *U) removeRejectedSource(d *SourceDB, s jx.M, topic string) {
 	}
 	var kept []jx.M
 	for _, e := range *list {
-		if strings.EqualFold(jx.Str(e, "id"), id) {
+		if sameCatalogSource(jx.Str(s, "platform"), jx.Str(e, "id"), id) {
+			if jx.Bool(e, "autopilot_managed") && !jx.Bool(e, "autopilot_manual") {
+				profiles := jx.Map(e, "autopilot_profiles")
+				delete(profiles, autopilotTopicKey(topic))
+				if len(profiles) != 0 {
+					e["autopilot_profiles"] = profiles
+					e["topics"] = autopilotProjectionTopics(profiles)
+					kept = append(kept, e)
+				}
+				continue
+			}
 			if len(jx.List(e, "topics")) == 0 {
 				excluded := jx.List(e, "excluded_topics")
 				found := false
@@ -918,6 +962,21 @@ func (u *U) SourceVote(vote string, source jx.M, reason string) error {
 		return err
 	}
 	record["topic"] = topic
+	if kind := CatalogKind(jx.Str(record, "platform")); kind != "" {
+		sid := jx.Str(record, "source_id")
+		for _, entry := range *u.catalogWithPersonalPins(topic).List(kind) {
+			if jx.Bool(entry, "autopilot_managed") && SourceIDFor(jx.Str(record, "platform"), jx.Str(entry, "id")) == sid && u.CatalogEntryMatchesTopic(entry, topic, false) {
+				switch vote {
+				case "reject":
+					return u.SourceOverrideSet(sid, false)
+				case "approve":
+					return u.SourcePersonalPin(sid, true)
+				default:
+					return nil
+				}
+			}
+		}
+	}
 	if jx.Str(record, "platform") == PlatformDvach || jx.Str(record, "platform") == Platform4chan {
 		board, thread := jx.Str(record, "board"), jx.Str(record, "thread_id")
 		prefix := "dvach:"
@@ -1033,6 +1092,13 @@ func (u *U) RemoveTopicSource(platform, id, name string) error {
 	if CatalogKind(platform) == "" || id == "" || len(id) > 500 {
 		return Bad("Некорректный источник.")
 	}
+	if kind := CatalogKind(platform); kind != "" {
+		for _, entry := range *u.catalogWithPersonalPins(topic).List(kind) {
+			if SourceIDFor(platform, jx.Str(entry, "id")) == SourceIDFor(platform, id) && jx.Bool(entry, "autopilot_managed") {
+				return u.SourceOverrideSet(SourceIDFor(platform, id), false)
+			}
+		}
+	}
 	if name == "" {
 		name = id
 	}
@@ -1063,7 +1129,21 @@ func (u *U) TopicSources() []jx.M {
 
 // TopicSourcesFor uses the same catalog and inheritance rules as the current-topic view.
 func (u *U) TopicSourcesFor(topic string) []jx.M {
-	d := u.Catalog()
+	d := u.catalogWithPersonalPins(topic)
+	overrides := u.sourceOverridesForTopic(topic)
+	pins := u.personalSourcePins(topic)
+	autopilot := map[string]jx.M{}
+	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id,state,reason,evidence FROM source_autopilot_sources WHERE scope='public' AND topic_key=$1`, autopilotTopicKey(topic))
+	if err == nil {
+		for rows.Next() {
+			var source, state, reason string
+			var raw []byte
+			if rows.Scan(&source, &state, &reason, &raw) == nil {
+				autopilot[source] = jx.M{"state": state, "reason": reason, "evidence": jx.Unmarshal(raw)}
+			}
+		}
+		rows.Close()
+	}
 	cards := []jx.M{}
 	for _, ck := range CatalogKinds {
 		platform := ck.Platform
@@ -1119,14 +1199,14 @@ func (u *U) TopicSourcesFor(topic string) []jx.M {
 				activity = DescribeSourceActivity(a)
 			}
 			preview := jx.List(e, "preview")
-			cards = append(cards, jx.M{"source_id": SourceIDFor(platform, id), "platform": platform, "id": id, "name": name, "url": link, "handle": handle,
+			cards = append(cards, jx.M{"source_id": SourceIDFor(platform, id), "platform": platform, "id": id, "name": name, "url": link, "handle": handle, "autopilot": autopilot[SourceIDFor(platform, id)],
 				"topics": orAny(jx.List(e, "topics")), "kind": kind, "needs_title": needsTitle, "platform_label": func() string {
 					if platform == PlatformRSS {
 						return RSSPlatformLabel(id)
 					}
 					return platform
 				}(), "own": len(jx.List(e, "topics")) > 0 && u.CatalogEntryMatchesTopic(e, topic, true),
-				"auto": jx.Bool(e, "auto"), "score": score, "muted": false, "subscribers": subs, "subscribers_label": label, "view_rate": rate, "activity": activity,
+				"auto": jx.Bool(e, "auto"), "autopilot_managed": jx.Bool(e, "autopilot_managed"), "score": score, "muted": sourceExcludedByOverride(overrides, SourceIDFor(platform, id)), "pinned": jx.Has(pins, SourceIDFor(platform, id)), "subscribers": subs, "subscribers_label": label, "view_rate": rate, "activity": activity,
 				"frozen": jx.Has(e, "frozen_until"), "frozen_reason": jx.Str(e, "frozen_reason"), "avatar": jx.Str(e, "avatar"), "preview": orAny(preview[:min(4, len(preview))])})
 		}
 	}
@@ -1136,7 +1216,7 @@ func (u *U) TopicSourcesFor(topic string) []jx.M {
 		if platform == Platform4chan {
 			link = fourchanPostURL(board, jx.ToInt(thread), jx.ToInt(thread))
 		}
-		cards = append(cards, jx.M{"source_id": sid, "platform": platform, "id": sid, "name": jx.Str(t, "name"), "url": link, "handle": "/" + board + "/ · #" + thread,
+		cards = append(cards, jx.M{"source_id": sid, "platform": platform, "id": sid, "name": jx.Str(t, "name"), "url": link, "handle": "/" + board + "/ · #" + thread, "muted": sourceExcludedByOverride(overrides, sid),
 			"topics": []any{topic}, "kind": "Тред", "own": true, "auto": false, "score": nil, "subscribers": 0, "view_rate": nil, "frozen": false, "preview": []any{}})
 	}
 

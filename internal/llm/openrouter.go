@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -82,6 +83,10 @@ func (o *OpenRouter) do(ctx context.Context, path string, payload any, timeout t
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusForbidden {
+		// Capture routing headers without logging credentials or request content.
+		log.Printf("OpenRouter HTTP 403: server=%q cf-ray=%q openrouter-release=%q", resp.Header.Get("Server"), resp.Header.Get("Cf-Ray"), resp.Header.Get("X-OpenRouter-Release"))
+	}
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	return raw, resp.StatusCode, err
 }
@@ -94,6 +99,9 @@ func (o *OpenRouter) Models(ctx context.Context) (map[string]ORModel, error) {
 		return o.models, nil
 	}
 	o.mu.Unlock()
+	if err := checkCallGate(ctx, Target{Provider: "openrouter", Model: "__models__"}); err != nil {
+		return nil, err
+	}
 	raw, status, err := o.do(ctx, "/models", nil, 30*time.Second)
 	if err != nil {
 		return nil, err
@@ -173,8 +181,13 @@ func imageMime(b []byte) string {
 
 type orError struct {
 	Error *struct {
-		Message string `json:"message"`
-		Code    any    `json:"code"`
+		Message  string `json:"message"`
+		Code     any    `json:"code"`
+		Metadata struct {
+			ProviderName      string `json:"provider_name"`
+			ProviderErrorCode string `json:"provider_error_code"`
+			LimitSource       string `json:"limit_source"`
+		} `json:"metadata"`
 	} `json:"error"`
 }
 
@@ -188,6 +201,12 @@ func (o *OpenRouter) Generate(ctx context.Context, model string, req *Request) (
 		content = append(content, map[string]any{"type": "image_url", "image_url": map[string]any{
 			"url": "data:" + imageMime(img) + ";base64," + base64.StdEncoding.EncodeToString(img)}})
 	}
+	if len(req.VideoData) > 0 {
+		if req.VideoMIME != "video/mp4" && req.VideoMIME != "video/webm" && req.VideoMIME != "video/mpeg" {
+			return nil, fmt.Errorf("OpenRouter: unsupported video format")
+		}
+		content = append(content, map[string]any{"type": "video_url", "video_url": map[string]any{"url": "data:" + req.VideoMIME + ";base64," + base64.StdEncoding.EncodeToString(req.VideoData)}})
+	}
 	var messages []map[string]any
 	if req.System != "" {
 		messages = append(messages, map[string]any{"role": "system", "content": req.System})
@@ -200,7 +219,8 @@ func (o *OpenRouter) Generate(ctx context.Context, model string, req *Request) (
 	if req.Seed != nil {
 		payload["seed"] = *req.Seed
 	}
-	if req.Think {
+	think := req.Think || (req.Role == RoleClassify && strings.HasPrefix(model, "baidu/ernie-5.5"))
+	if think {
 		payload["reasoning"] = map[string]any{"effort": "medium"}
 		if req.MaxTokens > 0 {
 			payload["max_tokens"] = req.MaxTokens + 2000 // размышления тоже тратят токены ответа
@@ -221,6 +241,14 @@ func (o *OpenRouter) Generate(ctx context.Context, model string, req *Request) (
 	if req.MaxPromptPrice > 0 {
 		payload["provider"] = map[string]any{"max_price": map[string]any{"prompt": req.MaxPromptPrice, "completion": req.MaxCompletionPrice}}
 	}
+	if len(req.ProviderOrder) > 0 {
+		provider, ok := payload["provider"].(map[string]any)
+		if !ok {
+			provider = map[string]any{}
+			payload["provider"] = provider
+		}
+		provider["order"] = req.ProviderOrder
+	}
 	timeout := req.Timeout
 	if timeout == 0 {
 		timeout = 120 * time.Second
@@ -229,6 +257,11 @@ func (o *OpenRouter) Generate(ctx context.Context, model string, req *Request) (
 	var status int
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			if err := checkCallGate(ctx, Target{Provider: "openrouter", Model: model}); err != nil {
+				return nil, err
+			}
+		}
 		raw, status, err = o.do(ctx, "/chat/completions", payload, timeout)
 		if err == nil && status == 404 && req.Logprobs {
 			// у модели нет поставщика с logprobs — тот же запрос без них (ответ словом)
@@ -238,14 +271,18 @@ func (o *OpenRouter) Generate(ctx context.Context, model string, req *Request) (
 			req.Logprobs = false
 			continue
 		}
-		if status == 429 && strings.Contains(strings.ToLower(string(raw)), "free-models-per-day") {
-			break // суточный лимит не исчезнет за несколько секунд
+		if status == 429 && (strings.Contains(strings.ToLower(string(raw)), "free-models-per-day") || strings.Contains(string(raw), "tpm_rate_limit_exceeded") || strings.Contains(string(raw), "upstream_provider_shared_pool")) {
+			break // neither a daily limit nor shared TPM exhaustion clears in seconds
 		}
 		if err != nil || status == 429 || status >= 500 {
 			if ctx.Err() != nil {
 				break
 			}
-			time.Sleep(time.Duration(attempt+1) * 2 * time.Second)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(attempt+1) * 2 * time.Second):
+			}
 			continue
 		}
 		break
@@ -255,6 +292,19 @@ func (o *OpenRouter) Generate(ctx context.Context, model string, req *Request) (
 	}
 	var e orError
 	if json.Unmarshal(raw, &e) == nil && e.Error != nil {
+		var details []string
+		if e.Error.Metadata.ProviderName != "" {
+			details = append(details, "provider="+e.Error.Metadata.ProviderName)
+		}
+		if e.Error.Metadata.ProviderErrorCode != "" {
+			details = append(details, "code="+e.Error.Metadata.ProviderErrorCode)
+		}
+		if e.Error.Metadata.LimitSource != "" {
+			details = append(details, "limit="+e.Error.Metadata.LimitSource)
+		}
+		if len(details) > 0 {
+			return nil, fmt.Errorf("OpenRouter: %s (HTTP %d; %s)", e.Error.Message, status, strings.Join(details, "; "))
+		}
 		return nil, fmt.Errorf("OpenRouter: %s (HTTP %d)", e.Error.Message, status)
 	}
 	if status != 200 {

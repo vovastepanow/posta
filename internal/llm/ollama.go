@@ -199,6 +199,9 @@ func (o *Ollama) CanThink(ctx context.Context, model string) bool {
 // Generate — потоковый запрос /api/generate. Размышления приходят полем thinking или текстом до </think>
 // (шаблон Qwen 3.5 сам открывает <think>) — они уходят в req.OnThinking.
 func (o *Ollama) Generate(ctx context.Context, model string, req *Request) (*Response, error) {
+	if len(req.VideoData) > 0 {
+		return nil, ErrUnsupported // never silently substitute a text-only response
+	}
 	o.prepare(ctx, model)
 	started := time.Now()
 	think := req.Think && o.CanThink(ctx, model)
@@ -247,6 +250,9 @@ func (o *Ollama) Generate(ctx context.Context, model string, req *Request) (*Res
 	}
 	r, err := o.stream(ctx, payload, timeout, think, req.OnThinking)
 	if err != nil && think && strings.Contains(strings.ToLower(err.Error()), "think") {
+		if err := checkCallGate(ctx, Target{Provider: "ollama", Model: model}); err != nil {
+			return nil, err
+		}
 		delete(payload, "think") // модель не поддерживает размышления — повтор без них
 		r, err = o.stream(ctx, payload, timeout, false, req.OnThinking)
 	}

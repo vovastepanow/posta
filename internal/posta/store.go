@@ -217,11 +217,14 @@ func (u *U) PoolUpdate(fn func(pool []jx.M) []jx.M) ([]jx.M, error) {
 }
 
 func (u *U) poolUpdate(fn func(pgx.Tx, []jx.M) ([]jx.M, error)) ([]jx.M, error) {
+	if guard, ok := u.Ctx.Value(autopilotDeliveryContextKey{}).(autopilotDeliveryGuard); ok && guard.owner != u.ID {
+		return nil, errAutopilotLeaseLost
+	}
 	lock := u.userLock(u.ID)
 	lock.Lock()
 	defer lock.Unlock()
 	var result []jx.M
-	err := u.DB.Tx(u.Ctx, func(tx pgx.Tx) error {
+	err := autopilotEffectTx(u.Ctx, u.DB, func(tx pgx.Tx) error {
 		if err := ensureUser(u.Ctx, tx, u.ID); err != nil {
 			return err
 		}

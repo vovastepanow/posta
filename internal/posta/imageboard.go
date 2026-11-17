@@ -62,7 +62,18 @@ func AnalysisText(item jx.M) string {
 	if a := jx.Map(item, "article"); a != nil && strings.TrimSpace(jx.Str(a, "title")) != "" {
 		return articleAnalysisText(item)
 	}
-	return strings.TrimSpace(jx.Str(item, "text"))
+	text := strings.TrimSpace(jx.Str(item, "text"))
+	if text == EmptyPostText {
+		text = ""
+	}
+	if jx.Bool(item, "forwarded") {
+		from := jx.Str(item, "forwarded_from")
+		if from == "" {
+			from = "неизвестен"
+		}
+		text = "[Это пересланное сообщение из «" + from + "». Оценивай содержание самого пересланного сообщения и авторский комментарий отдельно; не приписывай пересланный текст текущему каналу и не считай сам факт репоста доказательством релевантности.]\n" + text
+	}
+	return text
 }
 
 // AnalysisContextBlock — заголовок статьи перед «Запись:»; для имиджборд оценивается только медиа.

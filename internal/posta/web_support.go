@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"posta/internal/ch"
 	"posta/internal/config"
 	"posta/internal/db"
@@ -103,20 +104,60 @@ func (u *U) ArticleURLIsOwn(link string) bool {
 var _ = config.DaySeconds
 
 // SourceOverrideSet — включить или выключить источник для текущей темы у этого пользователя (общий каталог не трогаем).
+func sourceExcludedByOverride(overrides jx.M, sourceID string) bool {
+	if value := jx.Str(overrides, sourceID); value != "" {
+		return value == "off"
+	}
+	for key, value := range overrides {
+		if sourceIDMatchesLegacy(key, sourceID) && jx.ToStr(value) == "off" {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *U) sourceOverridesForTopic(topic string) jx.M {
+	settings := u.Settings()
+	legacy := jx.Map(jx.Map(settings, "source_overrides"), TopicNorm(topic))
+	exact := jx.Map(jx.Map(settings, "source_overrides_v2"), autopilotTopicKey(topic))
+	combined := jx.M{}
+	for id, value := range legacy {
+		combined[id] = value
+	}
+	for id, value := range exact {
+		combined[id] = value
+	}
+	return combined
+}
+
 func (u *U) SourceOverrideSet(sid string, on bool) error {
-	s := u.settingsRaw(u.Ctx, u.ID)
-	all := jx.Map(s, "source_overrides")
-	if all == nil {
-		all = jx.M{}
-	}
-	topic := TopicNorm(u.CurrentTopic())
-	m := jx.Map(all, topic)
-	if m == nil {
-		m = jx.M{}
-	}
-	m[sid] = map[bool]string{true: "on", false: "off"}[on]
-	all[topic] = m
-	return u.SaveSettings(jx.M{"source_overrides": all})
+	topic := autopilotTopicKey(u.CurrentTopic())
+	return u.DB.Tx(u.Ctx, func(tx pgx.Tx) error {
+		if err := ensureUser(u.Ctx, tx, u.ID); err != nil {
+			return err
+		}
+		var raw []byte
+		if err := tx.QueryRow(u.Ctx, `SELECT settings FROM users WHERE id=$1 FOR UPDATE`, u.ID).Scan(&raw); err != nil {
+			return err
+		}
+		s := jx.Unmarshal(raw)
+		if s == nil {
+			s = jx.M{}
+		}
+		all := jx.Map(s, "source_overrides_v2")
+		if all == nil {
+			all = jx.M{}
+		}
+		m := jx.Map(all, topic)
+		if m == nil {
+			m = jx.M{}
+		}
+		m[sid] = map[bool]string{true: "on", false: "off"}[on]
+		all[topic] = m
+		s["source_overrides_v2"] = all
+		_, err := tx.Exec(u.Ctx, `UPDATE users SET settings=$2 WHERE id=$1`, u.ID, db.JSON(s))
+		return err
+	})
 }
 
 func (u *U) BillingOnceAvailable() bool { return u.billingOnceAvailable(u.Ctx, u.DB.Pool, u.ID) }

@@ -29,7 +29,14 @@ func PostCaptionForAI(item jx.M) string {
 	}
 	t := strings.TrimSpace(jx.Str(item, "text"))
 	if t == EmptyPostText {
-		return ""
+		t = ""
+	}
+	if jx.Bool(item, "forwarded") {
+		from := jx.Str(item, "forwarded_from")
+		if from == "" {
+			from = "неизвестен"
+		}
+		t = "[Это пересланное сообщение из «" + from + "». Оценивай содержание самого пересланного сообщения и авторский комментарий отдельно; не приписывай пересланный текст текущему каналу и не считай сам факт репоста доказательством релевантности.]\n" + t
 	}
 	return t
 }
@@ -395,6 +402,7 @@ func platformSummaryLine(rep map[string]*platReport, vk bool) string {
 // collectPostsByPlatform — посты всех источников темы по площадкам.
 func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	by := map[string][]jx.M{}
+	overrides := u.sourceOverridesForTopic(topic)
 	stats := map[string]int{}
 	updates := map[string]jx.M{}
 	rep := map[string]*platReport{}
@@ -403,6 +411,9 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	}
 	// Boards are discovery locations; only explicitly approved threads are collected.
 	for _, thread := range u.approvedImageboardThreads(u.Catalog(), topic) {
+		if sourceExcludedByOverride(overrides, jx.Str(thread, "source_id")) {
+			continue
+		}
 		if !u.Alive() {
 			return by
 		}
@@ -428,7 +439,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 
 	vk := true
 	activeOnly := jx.Bool(u.ContentFilterValues(), "active_sources_only")
-	d := u.Catalog()
+	d := u.catalogWithPersonalPins(topic)
 	t := now()
 	poll := map[string]jx.M{}
 	sharedCache := map[string]sharedPosts{}
@@ -437,6 +448,9 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 			continue
 		}
 		for _, e := range *d.List(c.Kind) {
+			if sourceExcludedByOverride(overrides, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) {
+				continue
+			}
 			if u.CatalogEntryMatchesTopic(e, topic, false) && !IsSourceFrozen(e, 0) {
 				id := strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@")
 				var shared sharedPosts
@@ -477,6 +491,9 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 			}
 			if !u.CatalogEntryMatchesTopic(e, topic, false) {
 				stats["other_topic"]++
+				continue
+			}
+			if sourceExcludedByOverride(overrides, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) {
 				continue
 			}
 			if u.UASourceBlocked(SourceIDFor(c.Platform, jx.Str(e, "id")), jx.M{"title": jx.Str(e, "name")}) != "" {
@@ -544,6 +561,13 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	byPlat := map[string][]jx.M{}
 	for _, s := range u.Catalog().Suggestions {
 		p := jx.Str(s, "platform")
+		sid := jx.Str(s, "source_id")
+		if sid == "" {
+			sid = SourceIDFor(p, jx.Str(s, "id"))
+		}
+		if sourceExcludedByOverride(overrides, sid) {
+			continue
+		}
 		if CatalogKind(p) == "" || (p == PlatformVK && !vk) || !u.TopicSame(jx.Str(s, "topic"), topic) || int(jx.Int(s, "score")) < u.TInt("suggest_score") {
 			continue
 		}
@@ -873,6 +897,22 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 	known := u.collectKnown()
 	target := u.TInt("pool_target")
 	after, err := u.poolUpdate(func(tx pgx.Tx, pool []jx.M) ([]jx.M, error) {
+		if guard, ok := u.Ctx.Value(autopilotDeliveryContextKey{}).(autopilotDeliveryGuard); ok {
+			if PostItemHasVideo(item) && u.MediaExisting(jx.Str(item, "video_local")) == "" {
+				return nil, nil
+			}
+			if !PostItemHasVideo(item) && ContentImageKey(item) != "" && u.MediaExisting(jx.Str(item, "image_local")) == "" {
+				return nil, nil
+			}
+			filters := u.ContentFilterValues()
+			frozen := map[string]bool{}
+			if jx.Bool(filters, "active_sources_only") {
+				frozen = u.FrozenSourceLabels()
+			}
+			if !autopilotFormatAllowsItem(u, guard.topic, guard.post) || u.contentAdmissionReason(guard.analysis, guard.post, guard.topic, AnalysisText(guard.post)) != "" || !u.PoolItemInTopic(item, guard.topic, guard.topic, u.AdultAllowed()) || !poolMatchesDisplayFilters(item, filters, frozen) {
+				return nil, nil
+			}
+		}
 		memory := recordKnownKeys(recentRepeatRecords(u.historyLoad(u.Ctx, tx, u.ID).All(), now()))
 		hashes := map[string]string{}
 		if err := loadRepeatMemory(u.Ctx, tx, u.ID, memory, hashes); err != nil {
@@ -884,13 +924,37 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 		if candidateIsKnown(item, known) {
 			return nil, nil
 		}
-		topic := TopicNorm(jx.Str(item, "topic"))
+		topicKey := jx.Str(item, "topic")
+		topic := TopicNorm(topicKey)
 		fresh := u.freshPoolItems(pool)
 		if candidateIsKnown(item, recordKnownKeys(pool)) {
 			return nil, nil
 		}
 		if sourcePoolCount(fresh, topic, ContentSourceKey(item)) >= sourcePoolLimit(u.TInt("per_source_pool"), target, topicPoolCount(fresh, topic)) {
 			return nil, nil
+		}
+		if strings.HasPrefix(ContentSourceKey(item), "rss:") {
+			rows, err := tx.Query(u.Ctx, `SELECT source_id FROM source_autopilot_sources WHERE scope='public' AND topic_key=$1 AND state='probation'`, autopilotTopicKey(topicKey))
+			if err != nil {
+				return nil, err
+			}
+			probation := map[string]bool{}
+			for rows.Next() {
+				var source string
+				if err := rows.Scan(&source); err != nil {
+					rows.Close()
+					return nil, err
+				}
+				probation[source] = true
+			}
+			err = rows.Err()
+			rows.Close()
+			if err != nil {
+				return nil, err
+			}
+			if !autopilotProbationPoolAllowed(fresh, topicKey, ContentSourceKey(item), probation, target, u.TInt("autopilot_probation_pool_percent")) {
+				return nil, nil
+			}
 		}
 		var same []int
 		for i, it := range pool {
@@ -913,6 +977,11 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 			})
 			pool = append(pool[:expired[0]], pool[expired[0]+1:]...)
 		}
+		if guard, ok := u.Ctx.Value(autopilotDeliveryContextKey{}).(autopilotDeliveryGuard); ok {
+			if err := recordAutopilotAdmission(u.Ctx, tx, u.ID, guard.topic, guard.post, true, now()); err != nil {
+				return nil, err
+			}
+		}
 		added = true
 		return PoolOrder(append(pool, item)), nil
 	})
@@ -922,8 +991,10 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 	}
 	u.MediaReleaseRemoved(u.Ctx, before, after)
 	if added {
-		u.PoolItemsEnqueueVideos(u.Ctx, []jx.M{item}, u.ID)
-		go u.TranslateWarmCache(item)
+		if _, autopilot := u.Ctx.Value(autopilotDeliveryContextKey{}).(autopilotDeliveryGuard); !autopilot {
+			u.PoolItemsEnqueueVideos(u.Ctx, []jx.M{item}, u.ID)
+			go u.TranslateWarmCache(item)
+		}
 	}
 	return added
 }
@@ -1824,6 +1895,11 @@ func (u *U) contentAdmissionReason(a jx.M, item jx.M, topic, text string) string
 
 func (u *U) admit(a jx.M, item jx.M, topic, verdict, stage, text string) bool {
 	reason := u.admissionReason(a, item, topic, text)
+	if u.DB != nil && reason != "тема поиска сменилась" {
+		if err := recordAutopilotAdmission(u.Ctx, u.DB.Pool, u.ID, topic, item, reason == "", now()); err != nil {
+			u.Log("Не удалось сохранить наблюдение автопилота: %v", err)
+		}
+	}
 	if reason != "спам" {
 		threshold := u.LLM.ThresholdForModel(jx.Str(a, "model"), u.TInt("relevance_threshold"))
 		passed := int(jx.Int(a, "relevance")) >= threshold
@@ -1865,6 +1941,7 @@ func analysisRecord(a, item jx.M, topic, defFormat string) jx.M {
 	}
 	rec := jx.Copy(item)
 	for k, v := range (jx.M{"description": desc, "why_relevant": why, "relevance": a["relevance"], "rating": nil, "format": format, "tags": orList(jx.List(a, "tags")),
+		"tags_classification_pending": jx.Bool(a, "tags_classification_pending"), "tags_classification_reason": jx.Str(a, "tags_classification_reason"),
 		"quote": jx.Bool(a, "quote"), "entity": jx.Str(a, "entity"), "source_hashtags": PostSourceHashtags(item), "topic": topic, "analysis_model": jx.Str(a, "model")}) {
 		rec[k] = v
 	}
@@ -1908,6 +1985,9 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 		}
 		a = res[0]
 		u.analysisCachePut(item, topic, h, a)
+	}
+	if PostItemHasVideo(item) {
+		u.applyVideoClassification(a, item, "", PostCaptionForAI(item), u.analysisPrivate(topic, item))
 	}
 	verdict := fmt.Sprintf("соответствие теме %d%%", jx.Int(a, "relevance"))
 	u.classifyPublicPost(item, a, topic, h)
@@ -1969,6 +2049,13 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 			return false
 		}
 		u.analysisCachePut(item, topic, h, a)
+	}
+	if isVideo {
+		localVideo := ""
+		if video != nil {
+			localVideo = video.File
+		}
+		u.applyVideoClassification(a, item, localVideo, PostCaptionForAI(item), u.analysisPrivate(topic, item))
 	}
 	verdict := fmt.Sprintf("соответствие теме %d%%", jx.Int(a, "relevance"))
 	u.classifyPublicPost(item, a, topic, h)

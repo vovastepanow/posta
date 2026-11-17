@@ -1,0 +1,653 @@
+package posta
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"hash/fnv"
+	"log"
+	"net/http"
+	"net/url"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+
+	"posta/internal/config"
+	"posta/internal/jx"
+)
+
+const autopilotShadowKind = "shadow_discovery"
+const autopilotShadowScope = "public:shadow"
+const autopilotAutoKind = "auto_discovery"
+const autopilotAutoScope = "public"
+
+func validAutopilotPublicJob(job *autopilotJob) bool {
+	return job != nil && ((job.Scope == autopilotShadowScope && job.Kind == autopilotShadowKind) || (job.Scope == autopilotAutoScope && job.Kind == autopilotAutoKind)) && autopilotTopicKey(job.Topic) == job.TopicKey
+}
+
+// SourceIDFor lowercases whole URLs. A feed path can be case-sensitive, so
+// the autopilot normalizes only scheme/host and preserves the escaped path.
+func autopilotPublicRSSID(raw string) (string, bool) {
+	if feed, ok := canonicalYouTubeFeed(raw); ok {
+		return "rss:" + feed, true
+	}
+	if !sharedSourceEligible(PlatformRSS, jx.M{"id": raw}) && !autopilotPublicRedditFeed(raw) {
+		return "", false
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", false
+	}
+	u.Scheme, u.Host = strings.ToLower(u.Scheme), strings.ToLower(u.Host)
+	return "rss:" + u.String(), true
+}
+
+// reconcileAutopilotShadow creates one public job per active topic profile.
+// Demand eligibility is independent of an explicit persistent pause.
+func (a *App) reconcileAutopilotShadow(ctx context.Context) error {
+	return a.reconcileAutopilotShadowEnabled(ctx, a.TBool("autopilot_shadow"))
+}
+
+func (a *App) reconcileAutopilotShadowEnabled(ctx context.Context, enabled bool) error {
+	return a.reconcileAutopilotMode(ctx, enabled, "shadow", autopilotShadowScope, autopilotShadowKind)
+}
+
+func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, scope, kind string) error {
+	return a.DB.Tx(ctx, func(tx pgx.Tx) error {
+		if enabled {
+			_, err := tx.Exec(ctx, `INSERT INTO source_autopilot_jobs(scope,topic_key,kind,topic,reason,next_run_at,requested_at)
+				SELECT $2,topic_key,$1,min(topic),$3,floor(extract(epoch FROM clock_timestamp()))::bigint,floor(extract(epoch FROM clock_timestamp()))::bigint
+				FROM source_autopilot_demands WHERE mode=$3 AND NOT paused AND ($3<>'auto' OR posts_per_day>0) GROUP BY topic_key
+				ON CONFLICT(scope,topic_key,kind) DO UPDATE SET demand_active=true`, kind, scope, mode)
+			if err != nil {
+				return err
+			}
+		}
+		_, err := tx.Exec(ctx, `UPDATE source_autopilot_jobs j SET demand_active=false,lease_token='',lease_until=0,generation=generation+1
+			WHERE j.scope=$3 AND j.kind=$1 AND j.demand_active AND
+			(NOT $2 OR NOT EXISTS (SELECT 1 FROM source_autopilot_demands d WHERE d.topic_key=j.topic_key AND d.mode=$4 AND NOT d.paused AND ($4<>'auto' OR d.posts_per_day>0)))`, kind, enabled, scope, mode)
+		return err
+	})
+}
+
+func (a *App) runAutopilotShadowWorker(ctx context.Context) {
+	a.runAutopilotWorker(ctx, "shadow", autopilotShadowScope, autopilotShadowKind, "autopilot_shadow")
+}
+
+func (a *App) runAutopilotAutoWorker(ctx context.Context) {
+	a.runAutopilotWorker(ctx, "auto", autopilotAutoScope, autopilotAutoKind, "autopilot_auto")
+}
+
+func (a *App) runAutopilotWorker(ctx context.Context, mode, scope, kind, setting string) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	var done <-chan struct{}
+	defer func() {
+		if done != nil {
+			<-done
+		}
+	}()
+	for {
+		enabled := a.TBool(setting)
+		err := a.reconcileAutopilotMode(ctx, enabled, mode, scope, kind)
+		if err != nil && ctx.Err() == nil {
+			log.Printf("автопилот: планирование: %v", err)
+		}
+		if done != nil {
+			select {
+			case <-done:
+				done = nil
+			default:
+			}
+		}
+		if err == nil && enabled && ctx.Err() == nil && done == nil {
+			finished := make(chan struct{})
+			done = finished
+			go func() {
+				defer close(finished)
+				defer func() {
+					if recovered := recover(); recovered != nil {
+						log.Printf("автопилот: ошибка исполнителя: %v", recovered)
+					}
+				}()
+				a.runNextAutopilotKind(ctx, kind)
+			}()
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (a *App) runNextAutopilotShadow(ctx context.Context) {
+	a.runNextAutopilotKind(ctx, autopilotShadowKind)
+}
+
+func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
+	job, err := claimAutopilotJobKind(ctx, a.DB.Pool, time.Now(), 10*time.Minute, kind)
+	if err != nil {
+		if ctx.Err() == nil {
+			log.Printf("теневой автопилот: очередь: %v", err)
+		}
+		return
+	}
+	if job == nil {
+		return
+	}
+	if kind == autopilotAutoKind {
+		release, owned, ownershipErr := a.trySourceTopicOwnership(ctx, job.Topic)
+		if ownershipErr != nil || !owned {
+			if err := finishAutopilotJob(ctx, a.DB, job, time.Now().Add(5*time.Minute), job.Checkpoint, "topic_busy"); err != nil && !errors.Is(err, errAutopilotLeaseLost) && ctx.Err() == nil {
+				log.Printf("автопилот: завершение: %v", err)
+			}
+			return
+		}
+		defer release()
+	}
+	job.MaxProbation = a.TInt("autopilot_max_probation")
+	nextInterval := 24 * time.Hour
+	if kind == autopilotAutoKind {
+		interval, demandErr := a.autopilotAutoInterval(ctx, job)
+		if demandErr != nil {
+			if finishErr := finishAutopilotJob(ctx, a.DB, job, time.Now().Add(time.Hour), job.Checkpoint, "supply_unavailable"); finishErr != nil && !errors.Is(finishErr, errAutopilotLeaseLost) {
+				log.Printf("автопилот: завершение: %v", finishErr)
+			}
+			return
+		}
+		nextInterval = interval
+	}
+	err = runAutopilotLeased(ctx, a.DB, job, 10*time.Minute, 2*time.Minute,
+		int64(a.TInt("autopilot_model_server_daily")), int64(a.TInt("autopilot_model_topic_daily")),
+		int64(a.TInt("autopilot_fetch_server_daily")), int64(a.TInt("autopilot_fetch_topic_daily")),
+		func(workCtx context.Context) error { return a.autopilotShadowSearch(workCtx, job) })
+	if ctx.Err() != nil || errors.Is(err, errAutopilotLeaseLost) {
+		return
+	}
+	reason := ""
+	if err != nil {
+		reason = err.Error()
+	}
+	if err != nil {
+		nextInterval = 24 * time.Hour
+	}
+	if finishErr := finishAutopilotJob(ctx, a.DB, job, time.Now().Add(nextInterval), job.Checkpoint, reason); finishErr != nil && !errors.Is(finishErr, errAutopilotLeaseLost) && ctx.Err() == nil {
+		log.Printf("теневой автопилот: завершение: %v", finishErr)
+	}
+}
+
+func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) error {
+	if !validAutopilotPublicJob(job) {
+		return errors.New("invalid public topic job")
+	}
+	if a.TopicIsRestricted(job.Topic) {
+		return errors.New("restricted_profile")
+	}
+	if job.Scope == autopilotAutoScope {
+		if err := a.reconcileAutopilotProjections(ctx, job); err != nil {
+			return err
+		}
+		if err := a.deliverAutopilotTopicContent(ctx, job); err != nil {
+			return err
+		}
+	}
+	// Existing trials get first access to the budget; broad search must not
+	// indefinitely starve their evaluation or projection after a restart.
+	if err := a.autopilotReviewShadowCandidates(ctx, job, 3); err != nil {
+		return err
+	}
+	if job.Scope == autopilotAutoScope {
+		if err := a.reconcileAutopilotProjections(ctx, job); err != nil {
+			return err
+		}
+		if err := a.deliverAutopilotTopicContent(ctx, job); err != nil {
+			return err
+		}
+	}
+	var unavailable bool
+	if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND reason='assessment_unavailable' AND checked_at >= $3)`, job.Scope, job.TopicKey, time.Now().Add(-2*time.Minute).Unix()).Scan(&unavailable); err != nil {
+		return err
+	}
+	if unavailable {
+		return errors.New("classifier_unavailable")
+	}
+	query, err := a.autopilotChooseQuery(ctx, job)
+	if err != nil {
+		return err
+	}
+	job.SearchQuery = query
+	if err := saveAutopilotCheckpoint(ctx, a.DB, job); err != nil {
+		return err
+	}
+	var searchErr error
+	err = a.autopilotShadowSearchWith(ctx, job, func(ctx context.Context) ([]DiscoveryCandidate, error) {
+		u := a.User(ctx, "", nil)
+		statuses := map[string]string{}
+		u.discoverySearchObservation = func(backend, _ string, result string) {
+			if statuses[backend] == "" || statuses[backend] == "unavailable" || result != "unavailable" {
+				statuses[backend] = result
+			}
+		}
+		var backends []func() []DiscoveryCandidate
+		if a.TBool("search_telegram") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindPublicSocial(query, PlatformTelegram) })
+		}
+		if a.TBool("search_vk") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindPublicSocial(query, PlatformVK) })
+		}
+		if a.TBool("search_youtube") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindYouTube(query) })
+		}
+		if a.TBool("autopilot_search_tiktok") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindPublicSocial(query, PlatformTikTok) })
+		}
+		if a.TBool("autopilot_search_ok") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindOK([]string{query}, job.Topic) })
+		}
+		if a.TBool("search_bluesky") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindBluesky([]string{query}) })
+		}
+		if a.TBool("search_lemmy") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindLemmy([]string{query}) })
+		}
+		if a.TBool("search_mastodon") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindMastodon(query) })
+		}
+		if a.TBool("search_reddit") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindReddit(query) })
+		}
+		if a.TBool("autopilot_search_habr") {
+			turn := int(jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn") % 11)
+			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindHabr(query, turn) })
+		}
+		if a.TBool("autopilot_search_tumblr") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindTumblr(query) })
+		}
+		if a.TBool("search_news") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindNewsFeeds([]string{query}) })
+		}
+		if len(backends) == 0 {
+			searchErr = errors.New("news_search_disabled")
+		}
+		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
+		candidates := autopilotRunSearchBackends(ctx, turn, backends)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if err := autopilotBudgetError(ctx); err != nil {
+			return candidates, err
+		}
+		available := false
+		for _, status := range statuses {
+			if status == "ok" || status == "empty" {
+				available = true
+			}
+		}
+		if len(statuses) > 0 && !available && len(candidates) == 0 {
+			searchErr = errors.New("search_unavailable")
+		}
+		return candidates, nil
+	})
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
+		return budgetErr
+	}
+	if reviewErr := a.autopilotReviewShadowCandidates(ctx, job, 3); reviewErr != nil {
+		return reviewErr
+	}
+	if job.Scope == autopilotAutoScope {
+		if projectionErr := a.reconcileAutopilotProjections(ctx, job); projectionErr != nil {
+			return projectionErr
+		}
+		if deliveryErr := a.deliverAutopilotTopicContent(ctx, job); deliveryErr != nil {
+			return deliveryErr
+		}
+	}
+	if err != nil {
+		return err
+	}
+	return searchErr
+}
+
+// Rotate first access to the shared budget; otherwise an early backend can
+// repeatedly consume every request before later platforms get a chance.
+func autopilotRunSearchBackends(ctx context.Context, turn int64, backends []func() []DiscoveryCandidate) []DiscoveryCandidate {
+	if len(backends) == 0 {
+		return nil
+	}
+	if turn < 0 {
+		turn = 0
+	}
+	start := int(turn % int64(len(backends)))
+	var out []DiscoveryCandidate
+	for i := 0; i < len(backends); i++ {
+		if ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
+			break
+		}
+		out = append(out, backends[(start+i)%len(backends)]()...)
+	}
+	return out
+}
+
+func (a *App) autopilotShadowSearchWith(ctx context.Context, job *autopilotJob, find func(context.Context) ([]DiscoveryCandidate, error)) error {
+	if !validAutopilotPublicJob(job) || find == nil {
+		return errors.New("invalid public topic job")
+	}
+	candidates, findErr := find(ctx)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	for _, candidate := range candidates {
+		sourceID, ok := autopilotCandidateID(candidate)
+		if !ok {
+			continue
+		}
+		if err := registerAutopilotCandidate(ctx, a.DB, job, sourceID, time.Now()); err != nil {
+			return err
+		}
+		if err := recordAutopilotQuerySource(ctx, a, job, sourceID); err != nil {
+			return err
+		}
+	}
+	return findErr
+}
+
+func autopilotFreshRSSSamples(posts []jx.M, at int64) []jx.M {
+	seen := map[string]bool{}
+	var out []jx.M
+	for _, post := range posts {
+		if jx.Str(post, "url") == "" || jx.Int(post, "posted_at") <= 0 || jx.Int(post, "posted_at") > at+300 || IsPostOutdated(jx.Int(post, "posted_at"), at, config.ContentMaxAgeDays) {
+			continue
+		}
+		key := CandidatePostKey(post)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, post)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return jx.Int(out[i], "posted_at") > jx.Int(out[j], "posted_at") })
+	spread := make([]jx.M, 0, len(out))
+	for left, right := 0, len(out)-1; left <= right; left, right = left+1, right-1 {
+		spread = append(spread, out[left])
+		if left != right {
+			spread = append(spread, out[right])
+		}
+	}
+	return spread
+}
+
+func autopilotRetryAt(at time.Time, source, retryAfter string) time.Time {
+	delay := 24 * time.Hour
+	if seconds, err := strconv.ParseInt(strings.TrimSpace(retryAfter), 10, 64); err == nil && seconds > 0 {
+		if seconds > int64((365 * 24 * time.Hour).Seconds()) {
+			seconds = int64((365 * 24 * time.Hour).Seconds())
+		}
+		delay = max(delay, time.Duration(seconds)*time.Second)
+	} else if date, err := http.ParseTime(retryAfter); err == nil && date.After(at) {
+		delay = max(delay, min(date.Sub(at), 365*24*time.Hour))
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(source))
+	return at.Add(delay + time.Duration(h.Sum32()%3600)*time.Second)
+}
+
+// Review only public feed data. An unavailable feed, model error or small
+// sample remains uncertain; none of them proves poor source quality.
+func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilotJob, limit int) error {
+	u := a.User(ctx, "", nil)
+	return a.autopilotReviewShadowCandidatesWith(ctx, job, limit, a.TInt("autopilot_preliminary_score"),
+		func(feed string) FetchResultURL {
+			if platform, id, _, ok := autopilotSourceParts(feed); ok {
+				switch platform {
+				case PlatformTelegram:
+					return u.RSSGet("https://t.me/s/"+id, rssMaxBytes, 15*time.Second, BrowserUA)
+				case PlatformVK:
+					return u.RSSGet("https://vk.com/"+id, rssMaxBytes, 15*time.Second, BrowserUA)
+				case PlatformOK:
+					return u.RSSGet(okGroupURL(id), rssMaxBytes, 15*time.Second, BrowserUA)
+				case PlatformTikTok:
+					return u.autopilotTikTokListing(id)
+				}
+			}
+			if autopilotPublicRedditFeed(feed) {
+				return u.RSSGet("https://www.reddit.com/r/"+redditSourceName(feed)+"/new.json?limit=25", rssMaxBytes, 15*time.Second, HTTPUA)
+			}
+			if _, ok := autopilotMastodonFeed(feed); ok {
+				return u.autopilotMastodonListing(feed)
+			}
+			return u.RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
+		}, u.evaluateSource,
+		func(ctx context.Context, source string, posts []jx.M) error {
+			return a.assessAutopilotPublicPosts(ctx, job, source, posts)
+		}, a.autopilotSourcePolicy())
+}
+
+func autopilotStreamUnavailableReason(err error) string {
+	if errors.Is(err, errAutopilotTikTokStreamUnavailable) {
+		return "tiktok_stream_unavailable"
+	}
+	if errors.Is(err, errAutopilotYouTubeStreamUnavailable) {
+		return "youtube_stream_unavailable"
+	}
+	return ""
+}
+
+func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *autopilotJob, limit, threshold int, fetch func(string) FetchResultURL, evaluate func(jx.M, []jx.M, string) *sourceEvaluation, assess func(context.Context, string, []jx.M) error, policy sourcePolicy) error {
+	if !validAutopilotPublicJob(job) || limit < 1 {
+		return errors.New("invalid shadow review")
+	}
+	if fetch == nil || evaluate == nil || assess == nil || threshold < 0 || threshold > 100 {
+		return errors.New("invalid shadow review policy")
+	}
+	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,state,resume_state FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND state IN ('candidate','probation','active','rejected','cooldown') AND next_check_at <= $3
+		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=source_autopilot_sources.source_id AND o.decision='excluded')
+		ORDER BY checked_at,first_seen_at,source_id LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit)
+	if err != nil {
+		return err
+	}
+	type sourceRow struct{ id, state, resume string }
+	var ids []sourceRow
+	for rows.Next() {
+		var row sourceRow
+		if err := rows.Scan(&row.id, &row.state, &row.resume); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, row)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, row := range ids {
+		source, state := row.id, row.state
+		newTrial := state == "candidate"
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if state == "cooldown" {
+			at := time.Now()
+			if job.Scope == autopilotAutoScope && a.autopilotProjectionPossible(job, source) != nil {
+				if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, "projection_conflict", []byte(`{}`), at, at.Add(7*24*time.Hour)); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
+					return err
+				}
+				continue
+			}
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, "cooldown", row.resume, "cooldown_elapsed", []byte(`{}`), at, at); err != nil && !errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) && !errors.Is(err, errAutopilotProbationLimit) {
+				return err
+			}
+			continue
+		}
+		if state == "rejected" {
+			at := time.Now()
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, "rejected", "candidate", "periodic_reconsideration", []byte(`{}`), at, at); err != nil && !errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+			continue
+		}
+		if state == "candidate" {
+			if job.Scope == autopilotAutoScope {
+				if err := a.autopilotProjectionPossible(job, source); err != nil {
+					at := time.Now()
+					if saveErr := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, "projection_conflict", []byte(`{}`), at, at.Add(7*24*time.Hour)); saveErr != nil && !errors.Is(saveErr, errAutopilotSourceChanged) {
+						return saveErr
+					}
+					continue
+				}
+			}
+			var probation int
+			if job.MaxProbation < 1 {
+				return errors.New("invalid probation limit")
+			}
+			if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state='probation'`, job.Scope, job.TopicKey).Scan(&probation); err != nil {
+				return err
+			}
+			if probation >= job.MaxProbation {
+				at := time.Now()
+				if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, "candidate", "probation_full", jx.Marshal(jx.M{"limit": job.MaxProbation}), at, at.Add(24*time.Hour)); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
+					return err
+				}
+				continue
+			}
+		}
+		platform, id, _, ok := autopilotSourceParts(source)
+		if !ok {
+			continue
+		}
+		feed := id
+		if platform != PlatformRSS {
+			feed = source
+		}
+		at := time.Now()
+		res := fetch(feed)
+		if err := autopilotBudgetError(ctx); err != nil {
+			return err
+		}
+		reason := ""
+		nextCheck := at.Add(24 * time.Hour)
+		var posts []jx.M
+		if !res.OK {
+			reason = "feed_unavailable"
+			if res.Status == http.StatusTooManyRequests {
+				reason = "rate_limited"
+			}
+			if res.Status == http.StatusNotFound || res.Status == http.StatusGone {
+				reason = "source_not_found"
+			}
+			nextCheck = autopilotRetryAt(at, source, res.RetryAfter)
+		} else {
+			if platform == PlatformTikTok {
+				err = json.Unmarshal(res.Bytes, &posts)
+			} else if platform == PlatformTelegram || platform == PlatformVK || platform == PlatformOK {
+				posts, err = autopilotPublicSocialPosts(platform, id, res)
+			} else if autopilotPublicRedditFeed(feed) {
+				posts, err = autopilotRedditListing(res.Bytes, feed, res.URL)
+			} else if _, ok := autopilotMastodonFeed(feed); ok {
+				posts, err = autopilotMastodonSafeStatuses(res.Bytes, feed)
+			} else if !rssIsFeed(rssLoad(res.Bytes)) {
+				reason = "unrecognized_feed"
+			} else {
+				posts, err = RSSParse(res.Bytes, 10, "", res.URL, true, true, 0)
+			}
+			if err != nil {
+				reason = "feed_parse_failed"
+			} else if reason == "" {
+				if err := recordAutopilotShadowFetch(ctx, a.DB, job, source, at.Unix(), len(posts)); err != nil {
+					return err
+				}
+			}
+		}
+		samples := autopilotFreshRSSSamples(posts, at.Unix())
+		safeSamples := samples[:0]
+		for _, post := range samples {
+			if !jx.Bool(post, "source_sensitive") && !jx.Bool(post, "nsfw") && len(jx.ToStrs(post["safety"])) == 0 && !a.ContentIsAdult(post) {
+				safeSamples = append(safeSamples, post)
+			}
+		}
+		samples = safeSamples
+		if reason == "" && state == "candidate" && len(samples) < 3 {
+			reason = "insufficient_fresh_samples"
+		}
+		evidence := jx.M{"fresh_samples": len(samples), "sample_limit": 10}
+		if res.Status > 0 {
+			evidence["http_status"] = res.Status
+		}
+		if reason == "" && state == "candidate" {
+			title := id
+			if platform == PlatformRSS {
+				title = hostOf(feed)
+			}
+			evaluation := evaluate(jx.M{"id": id, "title": title}, samples, job.Topic)
+			if err := autopilotBudgetError(ctx); err != nil {
+				return err
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if evaluation == nil {
+				reason = "assessment_unavailable"
+			} else {
+				evidence["preliminary_score"] = evaluation.Score
+				if evaluation.Score >= threshold {
+					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate", "probation", "shadow_preliminary_pass", jx.Marshal(evidence), at, at.Add(24*time.Hour)); err != nil {
+						if errors.Is(err, errAutopilotSourceChanged) || errors.Is(err, errAutopilotSourceOverride) || errors.Is(err, errAutopilotProbationLimit) {
+							continue
+						}
+						return err
+					}
+					state = "probation"
+				} else {
+					reason = "preliminary_match_uncertain"
+				}
+			}
+		}
+		if reason == "" && (state == "probation" || state == "active") {
+			if err := assess(ctx, source, samples); err != nil {
+				if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
+					return budgetErr
+				}
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				if reason := autopilotStreamUnavailableReason(err); newTrial && reason != "" {
+					if transitionErr := transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown", reason, jx.Marshal(evidence), at, at.Add(24*time.Hour)); transitionErr != nil && !errors.Is(transitionErr, errAutopilotSourceChanged) && !errors.Is(transitionErr, errAutopilotSourceOverride) {
+						return transitionErr
+					}
+					continue
+				}
+				reason = "assessment_unavailable"
+			} else {
+				stats, err := autopilotEvidenceWindow(ctx, a.DB.Pool, job.Scope, job.TopicKey, source, at.Add(-30*24*time.Hour), at.Add(time.Second))
+				if err != nil {
+					return err
+				}
+				evidence = jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "successful_passes": stats.SuccessfulPasses}
+				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: stats.Relevant, FreshUnique: stats.FreshUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates}, policy)
+				if next != state {
+					nextCheck := at.Add(24 * time.Hour)
+					if next == "rejected" {
+						nextCheck = at.Add(30 * 24 * time.Hour)
+					}
+					if err := transitionAutopilotSource(ctx, a.DB, job, source, state, next, why, jx.Marshal(evidence), at, nextCheck); err != nil && !errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+						return err
+					}
+					continue
+				}
+				reason = why
+			}
+		}
+		if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, reason, jx.Marshal(evidence), at, nextCheck); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
+			return err
+		}
+	}
+	return nil
+}

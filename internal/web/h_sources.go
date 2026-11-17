@@ -15,6 +15,33 @@ import (
 // Вкладка «Источники», «Свой контент», «Лучшие посты», «Зеркало», ролики по кнопке.
 
 func init() {
+	get("source_autopilot_status", func(c *Ctx) (any, error) { return c.U.SourceAutopilotStatus() })
+	get("source_autopilot_history", func(c *Ctx) (any, error) {
+		before, err := strconv.ParseInt(c.Q("before"), 10, 64)
+		if err != nil && c.Q("before") != "" {
+			return nil, fail(400, "Некорректный курсор истории.")
+		}
+		limit, _ := strconv.Atoi(c.Q("limit"))
+		return c.U.SourceAutopilotHistory(c.Q("topic"), c.Q("mode"), before, limit)
+	})
+	post("source_autopilot_demand", func(c *Ctx) (any, error) {
+		if err := c.U.SourceAutopilotDemandSave(c.Str("topic"), c.Str("mode"), jx.Float(c.In, "posts_per_day"), jx.Float(c.In, "horizon_days")); err != nil {
+			return nil, err
+		}
+		return c.U.SourceAutopilotStatus()
+	})
+	post("source_autopilot_request", func(c *Ctx) (any, error) {
+		if err := c.U.SourceAutopilotRequest(c.Str("topic")); err != nil {
+			return nil, err
+		}
+		return c.U.SourceAutopilotStatus()
+	})
+	post("source_autopilot_pause", func(c *Ctx) (any, error) {
+		if err := c.U.SourceAutopilotPause(c.Str("topic"), jx.Bool(c.In, "paused")); err != nil {
+			return nil, err
+		}
+		return c.U.SourceAutopilotStatus()
+	})
 	post("suggest_sources", func(c *Ctx) (any, error) {
 		u, cancel := c.userDetached(30 * time.Second)
 		defer cancel()
@@ -79,7 +106,17 @@ func init() {
 				return nil, fail(400, "Неизвестная площадка для поиска источников.")
 			}
 		}
-		if !c.U.StartSourceDiscovery(c.U.CurrentTopic(), platform) {
+		result := c.U.StartSourceDiscovery(c.U.CurrentTopic(), platform)
+		if result == "queued_auto" {
+			return jx.M{"status": "success", "message": "Эта тема обслуживается автоматической очередью RSS. Сохранены текущие сроки и лимиты поиска."}, nil
+		}
+		if result == "unavailable" {
+			return nil, fail(503, "Не удалось проверить состояние автопилота. Попробуйте позже.")
+		}
+		if result == "paused" {
+			return jx.M{"status": "success", "message": "Автопилот темы приостановлен или частота публикаций равна нулю."}, nil
+		}
+		if result != "started" {
 			return jx.M{"status": "success", "message": "Подбор источников по этой теме уже идёт."}, nil
 		}
 		return jx.M{"status": "success", "message": "Подбор источников запущен. Ход поиска — в панели поиска источников."}, nil
@@ -134,6 +171,13 @@ func init() {
 		}
 		on := jx.Bool(c.In, "on")
 		return ok(jx.M{"source_id": sid, "on": on}), c.U.SourceOverrideSet(sid, on)
+	})
+	post("source_personal_pin", func(c *Ctx) (any, error) {
+		sid := c.Str("source_id")
+		if !registrySID.MatchString(sid) {
+			return nil, fail(400, "Некорректный источник.")
+		}
+		return ok(nil), c.U.SourcePersonalPin(sid, jx.Bool(c.In, "pinned"))
 	})
 	get("topic_sources", func(c *Ctx) (any, error) {
 		topic := c.U.CurrentTopic()

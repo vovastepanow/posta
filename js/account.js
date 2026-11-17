@@ -13,6 +13,38 @@ let adminCurrent = 'control';
 let vkMessage = '';
 let qrTimer = 0;
 let loginTimer = 0;
+let telegramUserConnected = false;
+let telegramAccountLoaded = false;
+let telegramAuthDone = null;
+let telegramAuthModal = null;
+
+/** Открыть красивый вход из карточки недоступного большого видео. */
+export async function openTelegramAuth(onConnected = null) {
+    if (!telegramAccountLoaded) await loadAccount();
+    if (telegramUserConnected) { onConnected?.(); return; }
+    telegramAuthDone = onConnected;
+    const card = $('tgu-card');
+    if (!card || !telegramAuthModal) return openAccountSection('social');
+    $('telegram-auth-slot').append(card);
+    telegramAuthModal.hidden = false;
+    document.body.classList.add('telegram-auth-open');
+    $('telegram-auth-close').focus();
+}
+
+function closeTelegramAuth() {
+    if (!telegramAuthModal || telegramAuthModal.hidden) return;
+    $('tgu-card-anchor').append($('tgu-card'));
+    telegramAuthModal.hidden = true;
+    document.body.classList.remove('telegram-auth-open');
+    telegramAuthDone = null;
+}
+
+function telegramAuthSuccess() {
+    const done = telegramAuthDone;
+    if (!done) return;
+    closeTelegramAuth();
+    done();
+}
 
 export function openAccountSection(name) {
     current = name;
@@ -421,9 +453,9 @@ async function loadTelegramQueue() {
 }
 
 /** Блок «Отложенные посты средствами Telegram»: ключи (если не сохранены), телефон, код, пароль, QR. */
-function renderTelegramUser(info, botConnected = true) {
-    $('tgu-card').hidden = !botConnected;
-    if (!botConnected) return;
+function renderTelegramUser(info) {
+    telegramAccountLoaded = true;
+    telegramUserConnected = Boolean(info?.connected);
     const keys = Boolean(info?.app_keys);
     $('tgu-keys').hidden = $('tgu-step-keys').hidden = keys;
     $('tgu-api-id').required = $('tgu-api-hash').required = !keys;
@@ -434,8 +466,9 @@ function renderTelegramUser(info, botConnected = true) {
     $('tgu-confirm').hidden = !awaiting;
     if (connected) {
         $('tgu-summary').replaceChildren(el('strong', { textContent: `Аккаунт ${info.name || ''}${info.username ? ' @' + info.username : ''} подключён` }),
-            el('span', { className: 'account-muted', textContent: `с ${formatDate(info.connected_at)} · отложенные посты ставятся в «Отложенные» канала` }),
+            el('span', { className: 'account-muted', textContent: `с ${formatDate(info.connected_at)} · используется для скачивания больших видео Telegram` }),
             ...(info.warning ? [el('span', { className: 'queue-error', textContent: info.warning })] : []));
+        telegramAuthSuccess();
     } else if (awaiting) {
         $('tgu-code').closest('label').hidden = info.qr;
         if (info.qr) { $('tgu-password-row').hidden = false; $('tgu-resend').hidden = true; return status('tgu-status', 'Вход по QR принят. В аккаунте включена двухэтапная защита: введите пароль.'); }
@@ -480,7 +513,7 @@ async function startQr() {
         if (!d || d.status === 'busy') return;
         if (d.status === 'waiting') return d.svg && $('tgu-qr-image').replaceChildren(el('img', { src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(d.svg)}`, alt: 'QR-код', width: 220, height: 220 }));
         stopQr();
-        if (d.status === 'success') { status('tgu-status', ''); renderTelegramUser(d.telegram_user); log('Telegram: аккаунт подключён по QR-коду, отложенные посты теперь ставятся в «Отложенные» канала.'); }
+        if (d.status === 'success' || d.status === 'ok') { status('tgu-status', ''); renderTelegramUser(d.telegram_user); log('Telegram: личный аккаунт подключён.'); }
         else if (d.status === 'needs_password') loadAccount();
         else {
             $('tgu-start').hidden = false;
@@ -491,6 +524,9 @@ async function startQr() {
 }
 
 function initializeTelegram() {
+    telegramAuthModal = $('telegram-auth-modal');
+    telegramAuthModal.addEventListener('click', e => { if (e.target === telegramAuthModal || e.target.closest('#telegram-auth-close')) closeTelegramAuth(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTelegramAuth(); });
     $('telegram-bot').addEventListener('change', syncTokenRow);
     $('telegram-form').addEventListener('submit', e => { e.preventDefault(); busy($('telegram-connect'), 'telegram-status', async () => {
         status('telegram-status', 'Проверяю бота и канал в Telegram…');
@@ -514,13 +550,13 @@ function initializeTelegram() {
         renderTelegramUser(d.telegram_user);
     }); });
     $('tgu-confirm').addEventListener('submit', e => { e.preventDefault(); busy(e.submitter, 'tgu-status', async () => {
-        status('tgu-status', 'Проверяю код и права в канале…');
+        status('tgu-status', 'Подтверждаю вход Telegram…');
         const d = await api('telegram_user_confirm', { body: { code: $('tgu-code').value, password: $('tgu-password').value } });
         if (d.status === 'needs_password') { $('tgu-password-row').hidden = false; $('tgu-password').focus(); return status('tgu-status', 'В аккаунте включена двухэтапная защита: введите пароль.'); }
         $('tgu-code').value = $('tgu-password').value = '';
         status('tgu-status', '');
         renderTelegramUser(d.telegram_user);
-        log('Telegram: аккаунт подключён, отложенные посты теперь ставятся в «Отложенные» канала.');
+        log('Telegram: личный аккаунт подключён.');
     }); });
     $('tgu-resend').addEventListener('click', e => busy(e.currentTarget, 'tgu-status', async () => {
         status('tgu-status', 'Запрашиваю код другим способом…');
@@ -572,7 +608,7 @@ async function loadAccount() {
         renderProfile(info);
         renderTelegram(info.channels);
         renderChannelLimit(info.channels.length);
-        renderTelegramUser(info.telegram_user, Boolean(info.telegram));
+        renderTelegramUser(info.telegram_user);
         renderExposure(info);
         if (info.telegram) loadTelegramQueue();
         renderPrivacy(info);

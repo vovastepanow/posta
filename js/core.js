@@ -214,7 +214,7 @@ function initializeConsole() {
     const [track, follow] = [$('activity-track'), $('activity-console-follow')];
     const update = () => { console_.followsTail = track.scrollHeight - track.scrollTop - track.clientHeight <= 24; follow.hidden = console_.followsTail; };
     track.addEventListener('scroll', update, { passive: true });
-    follow.addEventListener('click', () => { console_.followsTail = true; track.scrollTop = track.scrollHeight; follow.hidden = true; });
+    follow.addEventListener('click', () => { console_.followsTail = true; track.scrollTo({ top: track.scrollHeight, behavior: 'smooth' }); follow.hidden = true; });
     update();
 }
 
@@ -319,7 +319,64 @@ export function switchTab(tab) {
 // Журнал — всплывающая панель поверх страницы, вёрстка от неё не зависит: одно состояние на приложение, в localStorage. По умолчанию — свёрнут.
 // Кнопка #console-mini в шапке видна всегда и открывает/закрывает панель. Ошибки хранилища не мешают работе.
 const CONSOLE_KEY = 'postaConsoleCollapsed';
+const CONSOLE_POSITION_KEY = 'postaConsolePosition';
 const consoleCollapsedPref = () => { try { return localStorage.getItem(CONSOLE_KEY) !== '0'; } catch (e) { return true; } };
+let consolePosition = null;
+let consoleDrag = null;
+
+function clampConsolePosition(left, top) {
+    const panel = $('activity-console');
+    if (!panel) return { left, top };
+    const width = panel.getBoundingClientRect().width || Math.min(420, innerWidth - 24);
+    return {
+        left: Math.round(Math.max(0, Math.min(left, innerWidth - width))),
+        top: Math.round(Math.max(0, Math.min(top, innerHeight - 80)))
+    };
+}
+
+function setConsolePosition(position, persist = false) {
+    const panel = $('activity-console');
+    if (!panel) return;
+    consolePosition = clampConsolePosition(position.left, position.top);
+    panel.classList.add('is-positioned');
+    panel.style.left = `${consolePosition.left}px`;
+    document.documentElement.style.setProperty('--console-top', `${consolePosition.top}px`);
+    if (persist) {
+        try { localStorage.setItem(CONSOLE_POSITION_KEY, JSON.stringify(consolePosition)); } catch (e) { /* позиция действует до перезагрузки */ }
+    }
+}
+
+function initializeConsoleDragging() {
+    const panel = $('activity-console');
+    const header = panel?.querySelector('.activity-console-header');
+    if (!panel || !header) return;
+    try {
+        const saved = JSON.parse(localStorage.getItem(CONSOLE_POSITION_KEY) || 'null');
+        if (Number.isFinite(saved?.left) && Number.isFinite(saved?.top)) setConsolePosition(saved);
+    } catch (e) { /* повреждённое сохранённое значение игнорируем */ }
+    header.addEventListener('pointerdown', event => {
+        if (event.button !== 0 || event.target.closest('button, a, input, select, textarea')) return;
+        const rect = panel.getBoundingClientRect();
+        consoleDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
+        header.setPointerCapture(event.pointerId);
+    });
+    header.addEventListener('pointermove', event => {
+        if (!consoleDrag || event.pointerId !== consoleDrag.id) return;
+        const dx = event.clientX - consoleDrag.x;
+        const dy = event.clientY - consoleDrag.y;
+        if (!consoleDrag.moved && Math.hypot(dx, dy) < 4) return;
+        consoleDrag.moved = true;
+        setConsolePosition({ left: consoleDrag.left + dx, top: consoleDrag.top + dy });
+    });
+    const finishDrag = event => {
+        if (!consoleDrag || event.pointerId !== consoleDrag.id) return;
+        if (consoleDrag.moved) setConsolePosition(consolePosition, true);
+        consoleDrag = null;
+    };
+    header.addEventListener('pointerup', finishDrag);
+    header.addEventListener('pointercancel', finishDrag);
+    window.addEventListener('resize', () => { if (consolePosition) setConsolePosition(consolePosition, true); });
+}
 
 function applyConsoleState() {
     const collapsed = consoleCollapsedPref();
@@ -338,6 +395,7 @@ function applyConsoleState() {
 
 // Панель журнала — под шапкой с вкладками; при прокрутке шапка уходит, панель поднимается к краю окна.
 function placeConsole() {
+    if (consolePosition) return;
     const top = document.querySelector('.app-top')?.getBoundingClientRect().bottom ?? 0;
     document.documentElement.style.setProperty('--console-top', `${Math.max(12, Math.round(top) + 8)}px`);
 }
@@ -382,6 +440,7 @@ export async function startTabSession() {
 
 export function initializeCore() {
     initializeConsole();
+    initializeConsoleDragging();
     document.querySelectorAll('.tab-btn[data-tab]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
     $('console-toggle').addEventListener('click', toggleConsole);
     $('console-mini').addEventListener('click', toggleConsole);

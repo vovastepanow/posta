@@ -34,13 +34,16 @@ func (a *App) decryptAny(enc, aad string) (string, bool) {
 
 // TelegramAppKeys — api_id и api_hash приложения: вводятся один раз, дальше подставляются сами.
 func (a *App) TelegramAppKeys(ctx context.Context) (int, string) {
+	if id, err := strconv.Atoi(strings.TrimSpace(a.Cfg.TelegramAPIID)); err == nil && id != 0 && apiHashRe.MatchString(strings.TrimSpace(a.Cfg.TelegramAPIHash)) {
+		return id, strings.TrimSpace(a.Cfg.TelegramAPIHash)
+	}
 	d := KV(a, ctx, "telegram_app_keys", jx.M{})
 	hash, ok := a.decryptAny(jx.Str(d, "api_hash_enc"), "telegram_app_keys")
 	id, _ := strconv.Atoi(jx.Str(d, "api_id"))
-	if !ok || id == 0 {
-		return 0, ""
+	if ok && id != 0 {
+		return id, hash
 	}
-	return id, hash
+	return 0, ""
 }
 
 func (a *App) TelegramAppKeysSave(ctx context.Context, id int, hash string) {
@@ -354,9 +357,6 @@ func tguErr(err error) error {
 
 // TelegramUserStart — {api_id, api_hash, phone}: Telegram присылает код входа.
 func (u *U) TelegramUserStart(in jx.M) error {
-	if _, err := u.requireBot(); err != nil {
-		return err
-	}
 	id, hash, err := u.TelegramUserKeysFromInput(in)
 	if err != nil {
 		return err
@@ -402,24 +402,25 @@ func channelWarning(c tgclient.ChannelCheck) string {
 		". Нужен владелец или администратор с правом публикации — иначе отложенные посты будут идти через очередь приложения."
 }
 
-// telegramUserFinish — сохраняет вошедший аккаунт после проверки прав в канале.
+// telegramUserFinish — сохраняет личную сессию; проверка прав публикации влияет только на подсказку.
 func (u *U) telegramUserFinish(acc *tgclient.Account, user *tgclient.User) error {
-	bot, err := u.requireBot()
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(u.Ctx, time.Minute)
-	defer cancel()
-	check, err := tgclient.CheckChannel(ctx, acc, TelegramUserChannelRef(bot))
-	if err != nil {
-		return tguErr(err)
+	var warning string
+	if bot := u.TelegramConnection(""); bot != nil {
+		ctx, cancel := context.WithTimeout(u.Ctx, time.Minute)
+		defer cancel()
+		check, err := tgclient.CheckChannel(ctx, acc, TelegramUserChannelRef(bot))
+		if err != nil {
+			warning = "Не удалось проверить права аккаунта в канале: " + err.Error()
+		} else {
+			warning = channelWarning(check)
+		}
 	}
 	if user == nil {
 		user = &tgclient.User{}
 	}
 	e := jx.M{"api_id": strconv.Itoa(acc.AppID), "api_hash_enc": u.Box.Encrypt(acc.AppHash, tguAAD(u.ID, "api_hash")),
-		"session_enc": u.Box.Encrypt(acc.Session, tguAAD(u.ID, "session")), "name": user.Name, "username": user.Username, "connected_at": now(), "warning": channelWarning(check)}
-	_, err = u.ConnectionsUpdate(func(c jx.M) jx.M {
+		"session_enc": u.Box.Encrypt(acc.Session, tguAAD(u.ID, "session")), "name": user.Name, "username": user.Username, "connected_at": now(), "warning": warning}
+	_, err := u.ConnectionsUpdate(func(c jx.M) jx.M {
 		delete(c, "telegram_user_pending")
 		delete(c, "telegram_user_qr")
 		c["telegram_user"] = e
@@ -433,9 +434,6 @@ func (u *U) telegramUserFinish(acc *tgclient.Account, user *tgclient.User) error
 
 // TelegramUserConfirm — {code, password?}: завершает вход; при двухэтапной защите — needs_password=true.
 func (u *U) TelegramUserConfirm(in jx.M) (needsPassword bool, err error) {
-	if _, err := u.requireBot(); err != nil {
-		return false, err
-	}
 	acc, p, err := u.tguPending()
 	if err != nil {
 		return false, err
@@ -485,9 +483,6 @@ var qrRuns = struct {
 }{m: map[string]*qrRun{}}
 
 func (u *U) TelegramUserQRStart(in jx.M) error {
-	if _, err := u.requireBot(); err != nil {
-		return err
-	}
 	id, hash, err := u.TelegramUserKeysFromInput(in)
 	if err != nil {
 		return err
@@ -526,7 +521,7 @@ func (u *U) TelegramUserQRStatus() jx.M {
 		}
 	}
 	qrRuns.Unlock()
-	if run == nil || u.TelegramConnection("") == nil {
+	if run == nil {
 		return jx.M{"status": "none"}
 	}
 	switch st.Status {

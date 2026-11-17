@@ -1,0 +1,243 @@
+package posta
+
+import (
+	"context"
+	"errors"
+	"sort"
+	"time"
+
+	"posta/internal/jx"
+)
+
+var errAutopilotProjectionConflict = errors.New("source conflicts with a manual source or a case-sensitive alias")
+
+func (a *App) autopilotProjectionPossible(job *autopilotJob, source string) error {
+	platform, feed, kind, ok := autopilotSourceParts(source)
+	if !ok {
+		return errAutopilotProjectionConflict
+	}
+	d := a.Catalog()
+	for _, vote := range d.Votes {
+		if sourceIDMatchesLegacy(jx.Str(vote, "source_id"), source) && autopilotTopicKey(jx.Str(vote, "topic")) == job.TopicKey && jx.Str(vote, "vote") == "reject" {
+			return errAutopilotSourceOverride
+		}
+	}
+	for _, entry := range *d.List(kind) {
+		existing := jx.Str(entry, "id")
+		if !sameCatalogSource(platform, existing, feed) {
+			continue
+		}
+		if id, ok := autopilotCandidateID(DiscoveryCandidate{Platform: platform, ID: existing}); !ok || id != source {
+			return errAutopilotProjectionConflict
+		}
+		if (!jx.Bool(entry, "autopilot_managed") || jx.Bool(entry, "autopilot_manual")) && !a.CatalogEntryMatchesTopic(entry, job.Topic, false) {
+			return errAutopilotProjectionConflict
+		}
+	}
+	return nil
+}
+
+func autopilotProjectionTopics(profiles jx.M) []any {
+	seen := make(map[string]bool)
+	for _, value := range profiles {
+		profile, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		topic := TopicBase(jx.Str(profile, "topic"))
+		if topic != "" {
+			seen[topic] = true
+		}
+	}
+	keys := make([]string, 0, len(seen))
+	for topic := range seen {
+		keys = append(keys, topic)
+	}
+	sort.Strings(keys)
+	out := make([]any, 0, len(keys))
+	for _, topic := range keys {
+		out = append(out, topic)
+	}
+	return out
+}
+
+func (a *App) autopilotProjectedCounts(ctx context.Context, topic string) (int, int, error) {
+	visible := map[string]bool{}
+	for _, kind := range CatalogKinds {
+		for _, entry := range *a.Catalog().List(kind.Kind) {
+			if a.CatalogEntryMatchesTopic(entry, topic, false) {
+				visible[SourceIDFor(kind.Platform, jx.Str(entry, "id"))] = true
+			}
+		}
+	}
+	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,state FROM source_autopilot_sources WHERE scope='public' AND topic_key=$1 AND state IN ('probation','active')`, autopilotTopicKey(topic))
+	if err != nil {
+		return 0, 0, err
+	}
+	defer rows.Close()
+	active, probation := 0, 0
+	for rows.Next() {
+		var source, state string
+		if err := rows.Scan(&source, &state); err != nil {
+			return 0, 0, err
+		}
+		if visible[source] {
+			if state == "active" {
+				active++
+			} else {
+				probation++
+			}
+		}
+	}
+	return active, probation, rows.Err()
+}
+
+// projectAutopilotSource connects an already admitted public RSS source. The
+// source record remains authoritative; rerunning repairs a missing projection.
+func (a *App) projectAutopilotSource(ctx context.Context, job *autopilotJob, source, state string) error {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope || (state != "probation" && state != "active") {
+		return errors.New("invalid source projection")
+	}
+	platform, feed, kind, ok := autopilotSourceParts(source)
+	if !ok {
+		return errors.New("invalid public source")
+	}
+	ctx = withAutopilotProjection(contextWithAutopilotLease(ctx, job), source, state, false)
+	var conflict error
+	_, err := a.UpdateCatalog(ctx, func(d *SourceDB) bool {
+		for _, vote := range d.Votes {
+			if sourceIDMatchesLegacy(jx.Str(vote, "source_id"), source) && autopilotTopicKey(jx.Str(vote, "topic")) == job.TopicKey && jx.Str(vote, "vote") == "reject" {
+				conflict = errAutopilotSourceOverride
+				return false
+			}
+		}
+		list := d.List(kind)
+		for _, entry := range *list {
+			existing := jx.Str(entry, "id")
+			if !sameCatalogSource(platform, existing, feed) {
+				continue
+			}
+			if existingID, ok := autopilotCandidateID(DiscoveryCandidate{Platform: platform, ID: existing}); !ok || existingID != source {
+				conflict = errAutopilotProjectionConflict
+				return false
+			}
+			if !jx.Bool(entry, "autopilot_managed") || jx.Bool(entry, "autopilot_manual") {
+				if !a.CatalogEntryMatchesTopic(entry, job.Topic, false) {
+					conflict = errAutopilotProjectionConflict
+				}
+				return false
+			}
+			profiles := jx.Map(entry, "autopilot_profiles")
+			if profiles == nil {
+				profiles = jx.M{}
+			}
+			current := jx.Map(profiles, job.TopicKey)
+			if jx.Str(current, "state") == state && jx.Str(current, "topic") == job.Topic {
+				return false
+			}
+			profiles[job.TopicKey] = jx.M{"topic": job.Topic, "state": state}
+			entry["autopilot_profiles"] = profiles
+			entry["topics"] = autopilotProjectionTopics(profiles)
+			return true
+		}
+		name := feed
+		if platform == PlatformRSS {
+			name = hostOf(feed)
+		}
+		*list = append(*list, jx.M{"id": feed, "name": name, "topics": []any{TopicBase(job.Topic)}, "auto": true,
+			"autopilot_managed": true, "autopilot_profiles": jx.M{job.TopicKey: jx.M{"topic": job.Topic, "state": state}}})
+		return true
+	})
+	if err != nil {
+		return err
+	}
+	return conflict
+}
+
+// unprojectAutopilotSource removes only the rejected profile and never removes
+// a manually adopted source or another profile's projection.
+func (a *App) unprojectAutopilotSource(ctx context.Context, job *autopilotJob, source string) error {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope {
+		return errors.New("invalid source projection")
+	}
+	_, feed, kind, ok := autopilotSourceParts(source)
+	if !ok {
+		return errors.New("invalid public source")
+	}
+	ctx = withAutopilotProjection(contextWithAutopilotLease(ctx, job), source, "rejected", true)
+	_, err := a.UpdateCatalog(ctx, func(d *SourceDB) bool {
+		list := d.List(kind)
+		for i, entry := range *list {
+			if jx.Str(entry, "id") != feed || !jx.Bool(entry, "autopilot_managed") || jx.Bool(entry, "autopilot_manual") {
+				continue
+			}
+			for _, vote := range d.Votes {
+				if sourceIDMatchesLegacy(jx.Str(vote, "source_id"), source) && (jx.Str(vote, "vote") == "approve" || jx.Str(vote, "vote") == "maybe") {
+					entry["autopilot_manual"] = true
+					return true
+				}
+			}
+			profiles := jx.Map(entry, "autopilot_profiles")
+			if _, exists := profiles[job.TopicKey]; !exists {
+				return false
+			}
+			delete(profiles, job.TopicKey)
+			if len(profiles) == 0 {
+				*list = append((*list)[:i], (*list)[i+1:]...)
+			} else {
+				entry["autopilot_profiles"] = profiles
+				entry["topics"] = autopilotProjectionTopics(profiles)
+			}
+			return true
+		}
+		return false
+	})
+	return err
+}
+
+// reconcileAutopilotProjections also repairs a process crash between recording
+// a source decision and updating the catalog.
+func (a *App) reconcileAutopilotProjections(ctx context.Context, job *autopilotJob) error {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope {
+		return errors.New("invalid projection job")
+	}
+	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,state FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND state IN ('probation','active','rejected') ORDER BY source_id`, job.Scope, job.TopicKey)
+	if err != nil {
+		return err
+	}
+	type projection struct{ source, state string }
+	var projections []projection
+	for rows.Next() {
+		var p projection
+		if err := rows.Scan(&p.source, &p.state); err != nil {
+			rows.Close()
+			return err
+		}
+		projections = append(projections, p)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, p := range projections {
+		if p.state == "rejected" {
+			err = a.unprojectAutopilotSource(ctx, job, p.source)
+		} else {
+			err = a.projectAutopilotSource(ctx, job, p.source, p.state)
+		}
+		if errors.Is(err, errAutopilotProjectionConflict) && p.state != "rejected" {
+			at := time.Now()
+			transitionErr := transitionAutopilotSource(ctx, a.DB, job, p.source, p.state, "cooldown", "projection_conflict", []byte(`{}`), at, at.Add(7*24*time.Hour))
+			if transitionErr != nil && !errors.Is(transitionErr, errAutopilotSourceChanged) && !errors.Is(transitionErr, errAutopilotSourceOverride) {
+				return transitionErr
+			}
+			continue
+		}
+		if err != nil && !errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) && !errors.Is(err, errAutopilotProjectionConflict) {
+			return err
+		}
+	}
+	return nil
+}

@@ -1,0 +1,667 @@
+{
+  "purpose": "independent blind annotation",
+  "samples": [
+    {
+      "profile": "Роботакси",
+      "sample_id": "f32b3af386f40acb",
+      "text": "#SilentHill@memesboxess[МИВА]",
+      "posted_at": 1792047690,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/ZDZ-q1y2uLa-cyIfYpGz84MraOtV0fMC7AtPYpSTIYvRDdK8UUdqAVDQ6TqpL7tspHG-UFZE5VaqExp4ndCmDK8SeMc8_Upvq5DMbmCIVElmY7YVSukbYVVks2c6ijxBNkGjcaw1L5syu2czZtUDerbYCdRGToTWvm7Vu-Ii_qjgk5ud7rwfd3Qg6PlrbnwRsSZaY7zpkpmAgc1rfI0ARn0gCAe-FnGdPMwM-KNoZPb1nTaDn5XpLo2CCo8zjc3FkvcExkjuREBnBQz9fqKUh27PEj9vJGxUa-WxImG10t17Npj1ertnFdcMVwIkHE6XAdQ105IDbAQ7SE1ikQMZKw.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "bc27d64dd0132878",
+      "text": "#Политика Стив Уиткофф и зять Дональда Трампа Джаред Кушнер действительно в ближайшее время прибудут в Москву с очередным визитом. Об этом сообщает ТАСС со ссылкой на источники. По информации источника, американские переговорщики могут посетить Россию в ближайшие две недели. «Такая вероятность, действительно, есть. Детали будут согласованы», — заявил собеседник агентства.",
+      "posted_at": 1791697644,
+      "media_kinds": [],
+      "media": []
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "acdaefaf991be3b8",
+      "text": "Unitree представила человекоподобного «робота-телохранителя» H2-X — в рекламном ролике он разбивает дверь автомобиля ногой и «защищает» человека\nСтоимость и сроки выхода устройства в компании не назвали.",
+      "posted_at": 1792586295,
+      "media_kinds": [
+        "video"
+      ],
+      "media": [
+        {
+          "kind": "video",
+          "src": "https://leonardo.osnova.io/4dba5193-42be-5b8c-a45c-2f88cf73d2a5/-/format/mp4/",
+          "poster": "https://leonardo.osnova.io/4dba5193-42be-5b8c-a45c-2f88cf73d2a5/-/resize/1300/"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "1ee001537d393d4e",
+      "text": "Правительство внесло в Госдуму законопроект о повышении штрафов за езду без прав — с 5-15 тысяч рублей до 15-30 тысяч рублей\nНапример, если водитель вообще их не получал.",
+      "posted_at": 1792742224,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/6cbab8a9-9946-58f5-8114-c6453a1b42a3/"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "f6f8fb6950450649",
+      "text": "The Browser Company закроет браузер Arc\nКомпания призывает переходить на ИИ-браузер Dia, на разработке которого сосредоточилась в 2025 году.",
+      "posted_at": 1792691336,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/0618575e-9832-5d72-b200-824ae38ed6c1/"
+        }
+      ]
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "5c85f4908aca05c4",
+      "text": "Тимлид рассказал на Reddit, как откликнулся на вакансию в своей компании и получил отказ — не прошёл автоматический фильтр\nОн не указал название компании и не прикрепил скриншоты, но история вызвала обсуждения в соцсетях.",
+      "posted_at": 1792576948,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/86533406-7b9a-5a06-9f2c-e63c675ff0b7/"
+        }
+      ]
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "acdaefaf991be3b8",
+      "text": "Unitree представила человекоподобного «робота-телохранителя» H2-X — в рекламном ролике он разбивает дверь автомобиля ногой и «защищает» человека\nСтоимость и сроки выхода устройства в компании не назвали.",
+      "posted_at": 1792586295,
+      "media_kinds": [
+        "video"
+      ],
+      "media": [
+        {
+          "kind": "video",
+          "src": "https://leonardo.osnova.io/4dba5193-42be-5b8c-a45c-2f88cf73d2a5/-/format/mp4/",
+          "poster": "https://leonardo.osnova.io/4dba5193-42be-5b8c-a45c-2f88cf73d2a5/-/resize/1300/"
+        }
+      ]
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "0cbacf8e267ebd34",
+      "text": "Дептранс Москвы начал тестировать ровера-заправщика для электромобилей\nВместе с «Росатомом».",
+      "posted_at": 1792580380,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/3b48dfd0-28ab-52dd-a589-b01e9d4c2b4a/"
+        }
+      ]
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "bc27d64dd0132878",
+      "text": "#Политика Стив Уиткофф и зять Дональда Трампа Джаред Кушнер действительно в ближайшее время прибудут в Москву с очередным визитом. Об этом сообщает ТАСС со ссылкой на источники. По информации источника, американские переговорщики могут посетить Россию в ближайшие две недели. «Такая вероятность, действительно, есть. Детали будут согласованы», — заявил собеседник агентства.",
+      "posted_at": 1791697644,
+      "media_kinds": [],
+      "media": []
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "4be130ab341bb187",
+      "text": "#Shitpost@memesboxess",
+      "posted_at": 1792479598,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/W4QngtTF0-uv45GArPRqWodiEO_KW44kNT6_cOteCJWLq9kGZi0NJDsMnYrOuUACU-Uxd0BNUXXkOfhJahv3Gfrgjl-5VxUl3Pbgon4KJZoFuoiNe_DVFfkUaTKS9tNfayUF0SsYsobMiR3bDnqHW371BTyB5U29AL40Bc_d80JTkzSJkfmdv4e4G22kYDJOe4waGJJJPDdfd2WAEHF_yiXy_NRwAiHJh2bs8BM4QXg5CE5x8U-KOAL5qK0MxBzxiBpdhSf6caoHjTzpfObnw9kd5MNhDb1gRYafM4Qr0sKWxnifUm543iex0BdnLrlINA-BmxMQFgGWpjjUEjicYA.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "f20e14662a8378b0",
+      "text": "#ПолитикаТрамп призвал Зеленского прекратить удары по российскому дизельному топливу, заявив, что эти атаки вызывают его дефицит — APТрампа спросили журналисты, разговаривал ли он с Зеленским после недавней беседы с президентом России Владимиром Путиным.В ответ Трамп призвал Зеленского прекратить удары по России:«Зеленский должен сделать одну вещь: прекратить выводить из строя дизельное топливо в России»❗️ «Пусть он наносит удары по другим целям, но не по дизельному топливу, потому что это приводит к его дефициту».",
+      "posted_at": 1789310081,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/bsFdANsoz9RaWSXfP3_4tyrY8UvQxXGOUu3IE6iDjYdpolzj3S4Ma5PIvw0YK2evp-ay7vRMbCN-Ws86Qpsss7T-TmTbIX11adH8s1rCnEEe02rNSoKUxsPd7ATQVMdQlXgnikY5qQS_QXmvB7o9S7l4nwkzfVG6ilHuOah1bmhd9l1alOW9Mpdcl2TLbFqZNF5L9mgg99d3v1EDoyFqUq5arYqkk3F4qZ5YinrTPgWUSKuliSBwigttDCw-gFGhQIKyGHcpwnvBtWcL9pF9mkOZDBhrjJ8yn9YiNhUHg3cjfnnPYDOX9EuHbbwsRJIu3lln2_GSlka23z0PqfDOEA.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "4eef3e743bd4b7b9",
+      "text": "#УтомленныеСолнцем@memesboxess[МИВА]",
+      "posted_at": 1792307094,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/rKK4eguaaAQL0E18Kzsn-QQrgyGD3a1K1H1hQHmQsxcQdP4NbeE2Dlg5nnZ7i5H1_agOrbyUCAITPULAiAb2OnvnC9RUdMTroCWsbqAJuywO4N7lo-i5vPBREDJP-A2iIsk1OltTxN7ScEgZKs8mF6gAcsJ5W1s4mHiZte4ikF-eACfjDMwo1FV7YWnMjsE6ATd9pG1tr6Ykny9WVzRiMKgzYcbX2RvtkrtdJOSCG9JSTD_o-wz0COZ3lIReQJ4ZLCiuoT9UA7UcF4QhbeVACA4Fy_dItvDb9LZNOJYCH39zGaHJeXttQQ2ieY-qQ8WatHZZnZ3cWiIyYcypXJtQ2w.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "60d8576f4d9be8bf",
+      "text": "Уйти в отставку призвал Зеленского экс-депутат Рады Вадим Новинский — после неудачи переговоров в Майами и российско-американского соглашения по нефтепродуктам. Он обвинил Зеленского в «нездоровых амбициях» и предложил парламенту начать прямые переговоры с Москвой без предварительных условий и посредников.",
+      "posted_at": 1791651519,
+      "media_kinds": [],
+      "media": []
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "b32ac21e7574dbff",
+      "text": "«Яндекс Пэй» рассказал, что восстановил оформление карт, оплату по QR-коду, накопление кешбэка и обмен баллов «Плюса»\nПлатежи и переводы работают уже больше недели.",
+      "posted_at": 1792667799,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/9bcc71be-092e-5542-ba5a-48919a4b2dfa/"
+        }
+      ]
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "60d8576f4d9be8bf",
+      "text": "Уйти в отставку призвал Зеленского экс-депутат Рады Вадим Новинский — после неудачи переговоров в Майами и российско-американского соглашения по нефтепродуктам. Он обвинил Зеленского в «нездоровых амбициях» и предложил парламенту начать прямые переговоры с Москвой без предварительных условий и посредников.",
+      "posted_at": 1791651519,
+      "media_kinds": [],
+      "media": []
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "3142183cf893f0a0",
+      "text": "#ПолитикаДАЙТЕ УКРАИНЕ ПРЕИМУЩЕСТВО В НЕБЕ-И ПУТИН СЯДЕТ ЗА СТОЛ ПЕРЕГОВОРОВ — ЗЕЛЕНСКИЙ",
+      "posted_at": 1791630416,
+      "media_kinds": [
+        "video"
+      ],
+      "media": [
+        {
+          "kind": "video",
+          "poster": "https://cdn4.telesco.pe/file/WmtBPTPoaf1eFoW5uhx6gHwLPp5-1SK1IX7OvfCZJ5nyIuShgBKmDy77tCd2SsV1GZsUcM0cYoP3SujsvLzOJkx3xJbmz__a6z3o49ccdwrA57keHl1Lm8eADM837LKREpnDwLM4H1ueUzqlO3IEUkK0yrewHi7P6feKxIduqIoYE5gdcxGK62UDzvD_Un7azecC0PXHVCHWZK4koDr4xgWSF6GirBThZaHcGT17qxUbi3NHCal_Oh1A5vOpSe3ozcEAWDplM9W9iQCpYP_8bFIBJ0_VNojpQHzqWT7IsKXapO6hnbewbSEBfwfcAxOfuGqoVmTYkzRlBGj18ZM35Q",
+          "page": "https://t.me/investor4444/4369"
+        }
+      ]
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "4be130ab341bb187",
+      "text": "#Shitpost@memesboxess",
+      "posted_at": 1792479598,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/W4QngtTF0-uv45GArPRqWodiEO_KW44kNT6_cOteCJWLq9kGZi0NJDsMnYrOuUACU-Uxd0BNUXXkOfhJahv3Gfrgjl-5VxUl3Pbgon4KJZoFuoiNe_DVFfkUaTKS9tNfayUF0SsYsobMiR3bDnqHW371BTyB5U29AL40Bc_d80JTkzSJkfmdv4e4G22kYDJOe4waGJJJPDdfd2WAEHF_yiXy_NRwAiHJh2bs8BM4QXg5CE5x8U-KOAL5qK0MxBzxiBpdhSf6caoHjTzpfObnw9kd5MNhDb1gRYafM4Qr0sKWxnifUm543iex0BdnLrlINA-BmxMQFgGWpjjUEjicYA.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "bc27d64dd0132878",
+      "text": "#Политика Стив Уиткофф и зять Дональда Трампа Джаред Кушнер действительно в ближайшее время прибудут в Москву с очередным визитом. Об этом сообщает ТАСС со ссылкой на источники. По информации источника, американские переговорщики могут посетить Россию в ближайшие две недели. «Такая вероятность, действительно, есть. Детали будут согласованы», — заявил собеседник агентства.",
+      "posted_at": 1791697644,
+      "media_kinds": [],
+      "media": []
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "f20e14662a8378b0",
+      "text": "#ПолитикаТрамп призвал Зеленского прекратить удары по российскому дизельному топливу, заявив, что эти атаки вызывают его дефицит — APТрампа спросили журналисты, разговаривал ли он с Зеленским после недавней беседы с президентом России Владимиром Путиным.В ответ Трамп призвал Зеленского прекратить удары по России:«Зеленский должен сделать одну вещь: прекратить выводить из строя дизельное топливо в России»❗️ «Пусть он наносит удары по другим целям, но не по дизельному топливу, потому что это приводит к его дефициту».",
+      "posted_at": 1789310081,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/bsFdANsoz9RaWSXfP3_4tyrY8UvQxXGOUu3IE6iDjYdpolzj3S4Ma5PIvw0YK2evp-ay7vRMbCN-Ws86Qpsss7T-TmTbIX11adH8s1rCnEEe02rNSoKUxsPd7ATQVMdQlXgnikY5qQS_QXmvB7o9S7l4nwkzfVG6ilHuOah1bmhd9l1alOW9Mpdcl2TLbFqZNF5L9mgg99d3v1EDoyFqUq5arYqkk3F4qZ5YinrTPgWUSKuliSBwigttDCw-gFGhQIKyGHcpwnvBtWcL9pF9mkOZDBhrjJ8yn9YiNhUHg3cjfnnPYDOX9EuHbbwsRJIu3lln2_GSlka23z0PqfDOEA.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "4be130ab341bb187",
+      "text": "#Shitpost@memesboxess",
+      "posted_at": 1792479598,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/W4QngtTF0-uv45GArPRqWodiEO_KW44kNT6_cOteCJWLq9kGZi0NJDsMnYrOuUACU-Uxd0BNUXXkOfhJahv3Gfrgjl-5VxUl3Pbgon4KJZoFuoiNe_DVFfkUaTKS9tNfayUF0SsYsobMiR3bDnqHW371BTyB5U29AL40Bc_d80JTkzSJkfmdv4e4G22kYDJOe4waGJJJPDdfd2WAEHF_yiXy_NRwAiHJh2bs8BM4QXg5CE5x8U-KOAL5qK0MxBzxiBpdhSf6caoHjTzpfObnw9kd5MNhDb1gRYafM4Qr0sKWxnifUm543iex0BdnLrlINA-BmxMQFgGWpjjUEjicYA.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "415b28d44efb5518",
+      "text": "Украине пора назначить нового лидера, — заявил Трамп. По его словам, Зеленский мог завершить конфликт уже несколько раз, а теперь он может делать всё, что хочет, но должен прекратить удары по российским НПЗ, добавил президент США.",
+      "posted_at": 1791651556,
+      "media_kinds": [],
+      "media": []
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "497d4dc85f196617",
+      "text": "#Курьер@memesboxess Курьерская братва",
+      "posted_at": 1791788558,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/XS66Qd-Bjc4hVXCIgPIsajE3osSu_peVdgjOFZpgB9ANXA-s7Mq7Mcpw4HltC__u-7AiXJZe2sYq329dbVs1T6X5lziCjSaSmIgTA3w9DtQNhlv8whz9pyZ562HFCA61HNZ9u0gYhUGEB4nf9kAZNf_Ns_3QV3bJRF9j6sDyUEnYqyG8vwxPd02NjYIe1nhmR0kmvQ5pEHcYQvqwvd3yrrh0J-JbPz71hwfmm3kB7xkeupds_smJHydOBOFe8wsE6wsFK9wXecWub5cb7PeSZSWAAweNDVB5FP5xBCOY3rfnTXClyBh_P5S7-DCjZ2PAffaWj1NjqyV_x3oLUHOA4g.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "f6f8fb6950450649",
+      "text": "The Browser Company закроет браузер Arc\nКомпания призывает переходить на ИИ-браузер Dia, на разработке которого сосредоточилась в 2025 году.",
+      "posted_at": 1792691336,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/0618575e-9832-5d72-b200-824ae38ed6c1/"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "9f500d1fe707a406",
+      "text": "#ПолитикаНе знаю, насколько мы приближаемся к завершению конфликта, но дело идет к этому — Ушаков",
+      "posted_at": 1792601876,
+      "media_kinds": [],
+      "media": []
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "7255634503743161",
+      "text": "",
+      "posted_at": 1792048415,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/TVSlQDYrDwaX1n_lIUDBi8N9qhvB7SAWPjTZ7f5CbdZXf17BuUV6978ycIeTeu2QjK7YMQbUChLr6pmd3FAfXS2h4W4n_FoKzIgld5tlPm5nqCsKPCs9TPp5myflAbLvo9gQ5swP5FEQCtPVPiAZG-zV-txoXM6rFiQ74oCP0fMoDf0PO1LDuXxRWDNoWvXX0-w5BsmvIzlDLBdyvMZb4LfefpZ2wggJu4KEMHoE64HL-i6hi2FMJXjT49Qj8CU9YX3yE-lif5NmVpk_ETQ_nntLbtm8mRo_zMW6F2SDbSmnZmbkLS4Q8OpkiUi_1ScFiyVgeastT2dtcelb7iI4yQ.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "4c5454a6bef574a7",
+      "text": "#mfb_memeSopranout: New Jersey 😎",
+      "posted_at": 1791786699,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/RtblNU0dNvPtDaOCAunRwrVP6jaN2qAaZ8zdRYMHoyO1xqiAAKB1Gt54DpU7uL5snlD-3JxuUxx3GunDO2pC4cQbSxZ3raYjgwuRJY05uE6rPhDsTgZOdDKh0FzMXVovgrAgCizqTl1g1ONVPnVrd8LJEBMPKwCKTc24i2DAndH17gn8sbxlQdLjzffAMoZOMVvFnzs67ZjtOznUR_crX3gRg0c43uOMPHcp6er6k-1BMZJN8GFeVUjh9AeKAhcKZKUUI9j6mCiLAnKBe3wlXiUtV2HKhDVxN6thJgUf60pBwn6VBMZKF5mQmjo9er1uOGVFzunAD_FGFanBx_gHYA.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "415b28d44efb5518",
+      "text": "Украине пора назначить нового лидера, — заявил Трамп. По его словам, Зеленский мог завершить конфликт уже несколько раз, а теперь он может делать всё, что хочет, но должен прекратить удары по российским НПЗ, добавил президент США.",
+      "posted_at": 1791651556,
+      "media_kinds": [],
+      "media": []
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "4be130ab341bb187",
+      "text": "#Shitpost@memesboxess",
+      "posted_at": 1792479598,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/W4QngtTF0-uv45GArPRqWodiEO_KW44kNT6_cOteCJWLq9kGZi0NJDsMnYrOuUACU-Uxd0BNUXXkOfhJahv3Gfrgjl-5VxUl3Pbgon4KJZoFuoiNe_DVFfkUaTKS9tNfayUF0SsYsobMiR3bDnqHW371BTyB5U29AL40Bc_d80JTkzSJkfmdv4e4G22kYDJOe4waGJJJPDdfd2WAEHF_yiXy_NRwAiHJh2bs8BM4QXg5CE5x8U-KOAL5qK0MxBzxiBpdhSf6caoHjTzpfObnw9kd5MNhDb1gRYafM4Qr0sKWxnifUm543iex0BdnLrlINA-BmxMQFgGWpjjUEjicYA.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "1ee001537d393d4e",
+      "text": "Правительство внесло в Госдуму законопроект о повышении штрафов за езду без прав — с 5-15 тысяч рублей до 15-30 тысяч рублей\nНапример, если водитель вообще их не получал.",
+      "posted_at": 1792742224,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/6cbab8a9-9946-58f5-8114-c6453a1b42a3/"
+        }
+      ]
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "00fe95ac6b0a3300",
+      "text": "#ПолитикаРоссия постоянно наносит удары по Киеву и призывает иностранных дипломатов покинуть столицу Украины. США будут сами решать, когда это сделать — Рубио",
+      "posted_at": 1791219053,
+      "media_kinds": [],
+      "media": []
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "f20e14662a8378b0",
+      "text": "#ПолитикаТрамп призвал Зеленского прекратить удары по российскому дизельному топливу, заявив, что эти атаки вызывают его дефицит — APТрампа спросили журналисты, разговаривал ли он с Зеленским после недавней беседы с президентом России Владимиром Путиным.В ответ Трамп призвал Зеленского прекратить удары по России:«Зеленский должен сделать одну вещь: прекратить выводить из строя дизельное топливо в России»❗️ «Пусть он наносит удары по другим целям, но не по дизельному топливу, потому что это приводит к его дефициту».",
+      "posted_at": 1789310081,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/bsFdANsoz9RaWSXfP3_4tyrY8UvQxXGOUu3IE6iDjYdpolzj3S4Ma5PIvw0YK2evp-ay7vRMbCN-Ws86Qpsss7T-TmTbIX11adH8s1rCnEEe02rNSoKUxsPd7ATQVMdQlXgnikY5qQS_QXmvB7o9S7l4nwkzfVG6ilHuOah1bmhd9l1alOW9Mpdcl2TLbFqZNF5L9mgg99d3v1EDoyFqUq5arYqkk3F4qZ5YinrTPgWUSKuliSBwigttDCw-gFGhQIKyGHcpwnvBtWcL9pF9mkOZDBhrjJ8yn9YiNhUHg3cjfnnPYDOX9EuHbbwsRJIu3lln2_GSlka23z0PqfDOEA.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "bd5d9628e5036c48",
+      "text": "три Каплана переглядываются",
+      "posted_at": 1791614642,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/YPuRAshMPfL-tcICEt-PcTANSblbVxQ28jq-5ZvXFFgAGbw6tnyh5_miChFpM4OUBe7-SJKxxrE6gvmm2HgyYqDzxibpEIXHoKBdmtmf8RHvnCRQ7RD5MCJ4OeS20li6pQrvTSGaPBO2_jBcGxQDMqda7Y9nQZYgRqp5yPimmMzF73Fra6kbD_46p9Zqu4FYA31KeEFCd7vWVScLHkGb2skw3CLbf9Q8nqJM4B3YLkFwGAZnyPA1CJ9U9xYVjKu4WSWSnp_LSu-UJHUxJWhNz5ezBAll9RJ6uxi-q8BheTtin66zPyvY-FoWBgIDfd8Q__wJpuFJCDnnUyI761qM3A.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "0cbacf8e267ebd34",
+      "text": "Дептранс Москвы начал тестировать ровера-заправщика для электромобилей\nВместе с «Росатомом».",
+      "posted_at": 1792580380,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/3b48dfd0-28ab-52dd-a589-b01e9d4c2b4a/"
+        }
+      ]
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "b32ac21e7574dbff",
+      "text": "«Яндекс Пэй» рассказал, что восстановил оформление карт, оплату по QR-коду, накопление кешбэка и обмен баллов «Плюса»\nПлатежи и переводы работают уже больше недели.",
+      "posted_at": 1792667799,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/9bcc71be-092e-5542-ba5a-48919a4b2dfa/"
+        }
+      ]
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "ca7a13807069b038",
+      "text": "по мемам зашарил дедуля",
+      "posted_at": 1792321184,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/lc7Ea3wgkM6jPDT2e-VJABZWx_bnlzsVEb1DrAWM5mfn4AwIzz52kuKPRRO8CF30TZQ83lxWQdU1NSpxMiarybAzQgOxtlI4oTLhytLJRZ3aplw-B3urAJATdfVCJxGJCzMIznvONMX8AgPtnO_cpM-r3mkr5clRdj9RmPwLzQboEOx5JhoxVZmOuxN6FCvMxiwUod4Tksd0UftZ8R5I-PxJdfWyz_FpbvSByNQLvSD_Q48S0bnx31V8fTS3gvSx0VnIqJsPkA14Wwj_kX-rcUdyaeBi7wfPU0fcDxGuUqBdRlJFzSDiybW0d8gwdihh4FlixStAPzfpJniaVWZYSg.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "f6f8fb6950450649",
+      "text": "The Browser Company закроет браузер Arc\nКомпания призывает переходить на ИИ-браузер Dia, на разработке которого сосредоточилась в 2025 году.",
+      "posted_at": 1792691336,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/0618575e-9832-5d72-b200-824ae38ed6c1/"
+        }
+      ]
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "1c51b249026e167d",
+      "text": "",
+      "posted_at": 1792428034,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/ruqE0aCOaB-uc2Gf8JLoqw2gC_moCJW8hjve3l1TDBbd7gdlCtBxpg_zomEfIwelFF3Ok8SJTKaPjk6MfTT-uTsmoTpltjeDkEzsTc4DW_agOl0Hcnz3GyorI9CEMpHwGZMz9iVqXMm5UGP8zfhmZ-z2TZ3xVVK65ylKG2ag7Ph5ikgDB3Otx4rAdSlQzqRp1HWWr7VlI3vwwAuEx2Ejk4Wt5E6A_QBj2Ihj2gYvBW6ZP8KI53g9oRblvukXIje0cuYOSL_5jW6nN9YWHgluwyjNlwrSqWy_xA-DIHsk9Qt2jFJjQ1LEeMByR-1gy7nrs1UWPVxFRrAL4aKbWUWGkQ.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "3142183cf893f0a0",
+      "text": "#ПолитикаДАЙТЕ УКРАИНЕ ПРЕИМУЩЕСТВО В НЕБЕ-И ПУТИН СЯДЕТ ЗА СТОЛ ПЕРЕГОВОРОВ — ЗЕЛЕНСКИЙ",
+      "posted_at": 1791630416,
+      "media_kinds": [
+        "video"
+      ],
+      "media": [
+        {
+          "kind": "video",
+          "poster": "https://cdn4.telesco.pe/file/WmtBPTPoaf1eFoW5uhx6gHwLPp5-1SK1IX7OvfCZJ5nyIuShgBKmDy77tCd2SsV1GZsUcM0cYoP3SujsvLzOJkx3xJbmz__a6z3o49ccdwrA57keHl1Lm8eADM837LKREpnDwLM4H1ueUzqlO3IEUkK0yrewHi7P6feKxIduqIoYE5gdcxGK62UDzvD_Un7azecC0PXHVCHWZK4koDr4xgWSF6GirBThZaHcGT17qxUbi3NHCal_Oh1A5vOpSe3ozcEAWDplM9W9iQCpYP_8bFIBJ0_VNojpQHzqWT7IsKXapO6hnbewbSEBfwfcAxOfuGqoVmTYkzRlBGj18ZM35Q",
+          "page": "https://t.me/investor4444/4369"
+        }
+      ]
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "8db59d54128a6a77",
+      "text": "День 1703: пошлину на иностранный крепкий алкоголь могут повысить уже в ноябре 2026 года\nСобираем новости, события и мнения о рынках, банках и реакциях компаний.",
+      "posted_at": 1792732882,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/de9a796d-51d7-5d2c-8420-9cc8e612f2bc/"
+        }
+      ]
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "a8f4b2f962e507b1",
+      "text": "📣 Если по счастливой случайности вы живете в Дагестане, за диванами приходите только в мой магазин! https://www.instagram.com/divan.mhk цены постепенно буду выкладывать в Инсте.",
+      "posted_at": 1789053832,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn5.telesco.pe/file/rufWMH3csYmbnxf38KKsjtfPXXWmIUX5E-HBJK7aDmVAVnddkDUDf5Tq-7fUQa_nJ-0pTA5Zh0FtnYR0hm-QrgIVXfb3QKGZTtoUopiqiUCraQk37ioT6frsz_mQab8N9cLxDqpkrN-XP00KUPDYBmcbvoDymTPPPqbQD3pAKA-zrcAaTBouKhE3TqH3knGZpBatWNZjMBGyd7I35SktRTLmPjmTXq1gAqurlKfQChaAjpGKIsmeRn2yiSadanlH2ABt0RVWABYyiP83ETpHAITTmgAcnzx4PXxtOLQ9cPsxFSJMT3QAmenSmjeNBO54cZbfeXZNRcZmxZSBv3C2eg.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "aac7dca02f72043a",
+      "text": "Минпромторг добавил в список автомобилей для такси ещё две модели Haval\nВсего в перечне свыше 30 моделей.",
+      "posted_at": 1792687176,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/2b2d2112-c73d-5bb3-9101-f934504e82a1/"
+        }
+      ]
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "ad217288d9843af8",
+      "text": "#madeinshitpostiya",
+      "posted_at": 1792214186,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/jLS90_uoa9nXZ-JhNvxIHxfvyx-5eKkcxXygH69Dwe_S-BtWTeHS3njmXsS7pZ1tsUSjQ9y7t-aDpbtTkWxXmU23y1gp7WCxTwhtoVWPKUdkU7pKUZW5y-ugiE7YK_t_IHVPP795v8bZafa3YHHovDLjeoV1M3eIE1zO6d5XuIO_nKfznrJiCnNqNKpyIEG8Rv1h6Aap9-adFzTzHthLZN8tEZst-mE_Qzna7I72m2VpcCmZnWEls7BwAniqtuMEF2djOexKClNcR7aREJnVjTT62uJdvbFPvSSV2yoLg95APmv2pTkqg_9PmpOXMuPM3d3Wxts0B0aYCEPsJLNQEw.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "5c85f4908aca05c4",
+      "text": "Тимлид рассказал на Reddit, как откликнулся на вакансию в своей компании и получил отказ — не прошёл автоматический фильтр\nОн не указал название компании и не прикрепил скриншоты, но история вызвала обсуждения в соцсетях.",
+      "posted_at": 1792576948,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/86533406-7b9a-5a06-9f2c-e63c675ff0b7/"
+        }
+      ]
+    },
+    {
+      "profile": "Мемы",
+      "sample_id": "4c5454a6bef574a7",
+      "text": "#mfb_memeSopranout: New Jersey 😎",
+      "posted_at": 1791786699,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/RtblNU0dNvPtDaOCAunRwrVP6jaN2qAaZ8zdRYMHoyO1xqiAAKB1Gt54DpU7uL5snlD-3JxuUxx3GunDO2pC4cQbSxZ3raYjgwuRJY05uE6rPhDsTgZOdDKh0FzMXVovgrAgCizqTl1g1ONVPnVrd8LJEBMPKwCKTc24i2DAndH17gn8sbxlQdLjzffAMoZOMVvFnzs67ZjtOznUR_crX3gRg0c43uOMPHcp6er6k-1BMZJN8GFeVUjh9AeKAhcKZKUUI9j6mCiLAnKBe3wlXiUtV2HKhDVxN6thJgUf60pBwn6VBMZKF5mQmjo9er1uOGVFzunAD_FGFanBx_gHYA.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Роботакси",
+      "sample_id": "3142183cf893f0a0",
+      "text": "#ПолитикаДАЙТЕ УКРАИНЕ ПРЕИМУЩЕСТВО В НЕБЕ-И ПУТИН СЯДЕТ ЗА СТОЛ ПЕРЕГОВОРОВ — ЗЕЛЕНСКИЙ",
+      "posted_at": 1791630416,
+      "media_kinds": [
+        "video"
+      ],
+      "media": [
+        {
+          "kind": "video",
+          "poster": "https://cdn4.telesco.pe/file/WmtBPTPoaf1eFoW5uhx6gHwLPp5-1SK1IX7OvfCZJ5nyIuShgBKmDy77tCd2SsV1GZsUcM0cYoP3SujsvLzOJkx3xJbmz__a6z3o49ccdwrA57keHl1Lm8eADM837LKREpnDwLM4H1ueUzqlO3IEUkK0yrewHi7P6feKxIduqIoYE5gdcxGK62UDzvD_Un7azecC0PXHVCHWZK4koDr4xgWSF6GirBThZaHcGT17qxUbi3NHCal_Oh1A5vOpSe3ozcEAWDplM9W9iQCpYP_8bFIBJ0_VNojpQHzqWT7IsKXapO6hnbewbSEBfwfcAxOfuGqoVmTYkzRlBGj18ZM35Q",
+          "page": "https://t.me/investor4444/4369"
+        }
+      ]
+    },
+    {
+      "profile": "Новости Москвы",
+      "sample_id": "f6f8fb6950450649",
+      "text": "The Browser Company закроет браузер Arc\nКомпания призывает переходить на ИИ-браузер Dia, на разработке которого сосредоточилась в 2025 году.",
+      "posted_at": 1792691336,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://leonardo.osnova.io/0618575e-9832-5d72-b200-824ae38ed6c1/"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "497d4dc85f196617",
+      "text": "#Курьер@memesboxess Курьерская братва",
+      "posted_at": 1791788558,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/XS66Qd-Bjc4hVXCIgPIsajE3osSu_peVdgjOFZpgB9ANXA-s7Mq7Mcpw4HltC__u-7AiXJZe2sYq329dbVs1T6X5lziCjSaSmIgTA3w9DtQNhlv8whz9pyZ562HFCA61HNZ9u0gYhUGEB4nf9kAZNf_Ns_3QV3bJRF9j6sDyUEnYqyG8vwxPd02NjYIe1nhmR0kmvQ5pEHcYQvqwvd3yrrh0J-JbPz71hwfmm3kB7xkeupds_smJHydOBOFe8wsE6wsFK9wXecWub5cb7PeSZSWAAweNDVB5FP5xBCOY3rfnTXClyBh_P5S7-DCjZ2PAffaWj1NjqyV_x3oLUHOA4g.jpg"
+        }
+      ]
+    },
+    {
+      "profile": "Технологии",
+      "sample_id": "8476d6a5d0730abb",
+      "text": "",
+      "posted_at": 1792743919,
+      "media_kinds": [
+        "image"
+      ],
+      "media": [
+        {
+          "kind": "image",
+          "src": "https://cdn4.telesco.pe/file/MNGWrfBLfR-Lo5EV53lmcF_YJZRvQc0xTJXK7fV_b5aBSYlly_JCNUR3kWQ7f0DwfQNBXAtipjMxI4zCgYNTe5sgmezUJDKUQtP4-LCIvy1jl-Q0ESs6Z471_CI3eLwTkxfqLWfjzAdNi1DlSapKXJU6XgUyrSvQzdWZYcn9m88zOD7iyz7yZg1UKm6BuNN4XkqzluG9eMwioHMLqa3rN1mrC06E8LjRsgSCE8oWoOpHhlqYxHZJyMKUInGknijngGy4sZ64S9HEb5VlZMQ7P3H4_HcVDbw1IHX29JpC4NoZq7Xrl31Tb9MzUV6jK565sTYFodjPXtJpII_UO2efRw.jpg"
+        }
+      ]
+    }
+  ]
+}

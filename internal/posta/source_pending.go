@@ -139,7 +139,7 @@ func (u *U) decidedSourceKeys(votes []jx.M, topic string) map[string]bool {
 func excludeDecidedSourceCandidates(cands []jx.M, decided map[string]bool) []jx.M {
 	out := make([]jx.M, 0, len(cands))
 	for _, c := range cands {
-		if !decided[recommendationSourceKey(jx.Str(c, "source_id"))] {
+		if !recommendationExcluded(decided, jx.Str(c, "source_id")) {
 			out = append(out, c)
 		}
 	}

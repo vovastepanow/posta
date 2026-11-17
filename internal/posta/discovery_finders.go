@@ -35,7 +35,7 @@ func discoveryNewsSites(data []byte) []string {
 			raw = source.A["url"]
 		}
 		if raw == "" {
-			raw = rssItemLink(item)
+			raw = rssItemLink(item, "")
 		}
 		parsed, err := url.Parse(raw)
 		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Hostname() == "" || parsed.User != nil || parsed.Port() != "" {
@@ -226,13 +226,22 @@ func (u *U) discoveryFindLemmy(queries []string) []DiscoveryCandidate {
 	for _, q := range queries[:min(3, len(queries))] {
 		body, err := u.searchGetJSON("https://lemmy.world/api/v3/search?type_=Communities&limit=30&q=" + url.QueryEscape(q))
 		if err != nil {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("lemmy", q, "unavailable")
+			}
 			u.Log("-> Lemmy «%s»: %s", q, err)
 			continue
 		}
 		found, err := discoveryLemmyCommunities(body)
 		if err != nil {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("lemmy", q, "unavailable")
+			}
 			u.Log("-> Lemmy «%s»: %s", q, err)
 			continue
+		}
+		if u.discoverySearchObservation != nil {
+			u.discoverySearchObservation("lemmy", q, "ok")
 		}
 		for _, c := range found {
 			c.Origin, c.OriginKind = "поиск сообществ Lemmy «"+q+"»", "other"
@@ -312,6 +321,9 @@ func (u *U) discoveryFindBluesky(queries []string) []DiscoveryCandidate {
 		if err == nil {
 			var found []DiscoveryCandidate
 			found, err = discoveryBlueskyActors(body)
+			if err == nil && u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("bluesky", q, "ok")
+			}
 			for _, c := range found {
 				c.Origin, c.OriginKind = "поиск аккаунтов Bluesky «"+q+"»", "other"
 				out = append(out, c)
@@ -319,17 +331,29 @@ func (u *U) discoveryFindBluesky(queries []string) []DiscoveryCandidate {
 			u.Log("-> Поиск аккаунтов Bluesky «%s»: найдено %d.", q, len(found))
 		}
 		if err != nil {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("bluesky", q, "unavailable")
+			}
 			u.Log("-> Bluesky «%s»: %s", q, err)
 		}
 		body, err = u.searchGetJSON("https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?limit=25&q=" + url.QueryEscape(q))
 		if err != nil {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("bluesky", q, "unavailable")
+			}
 			u.Log("-> Посты Bluesky «%s»: %s", q, err)
 			continue
 		}
 		authors, err := discoveryBlueskyPostAuthors(body)
 		if err != nil {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("bluesky", q, "unavailable")
+			}
 			u.Log("-> Посты Bluesky «%s»: %s", q, err)
 			continue
+		}
+		if u.discoverySearchObservation != nil {
+			u.discoverySearchObservation("bluesky", q, "ok")
 		}
 		for _, c := range authors {
 			c.Origin, c.OriginKind = "автор поста Bluesky «"+q+"»", "post_search"
@@ -1325,12 +1349,27 @@ func (u *U) discoveryFindOK(queries []string, topic string) []DiscoveryCandidate
 		feed := "https://ok.ru/atom-feed/" + name
 		r := u.RSSGet(feed, 3<<20, 15*time.Second, BrowserUA)
 		if !r.OK {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("ok", topic, "unavailable")
+			}
 			u.Log("-> ОК: лента «%s» не отвечает: %s.", name, fetchFailure(r.FetchResult))
+			continue
+		}
+		if !rssIsFeed(rssLoad(r.Bytes)) {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("ok", topic, "unavailable")
+			}
 			continue
 		}
 		posts, err := RSSParse(r.Bytes, 100, PlatformOK, feed, true, false, 120)
 		if err != nil {
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation("ok", topic, "unavailable")
+			}
 			continue
+		}
+		if u.discoverySearchObservation != nil {
+			u.discoverySearchObservation("ok", topic, "ok")
 		}
 		for _, p := range posts {
 			m := okGroupLinkRe.FindStringSubmatch(jx.Str(p, "url"))

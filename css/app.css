@@ -117,13 +117,15 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 
 
 /* ---- Журнал ---- */
-.activity-console { display: flex; flex-direction: column; box-sizing: border-box; width: min(100%, 900px); height: 850px; margin: 0 0 20px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 5px 5px 18px rgba(5, 6, 14, .45); font: 12px/1.55 var(--mono); }
+.activity-console { display: flex; flex-direction: column; box-sizing: border-box; width: min(100%, 900px); height: 850px; margin: 0 0 20px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 5px 5px 18px rgba(5, 6, 14, .45); font: 13px/1.55 var(--font-ui); }
 .activity-console-header { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
 /* Плашка статуса: серая «Ожидание», в эфире красная «● В ЭФИРЕ»; текст статуса задаёт JS */
 #activity-console-status { margin-left: 0; padding: 3px 8px; border-radius: 4px; background: var(--surface-3); color: var(--muted); font: 700 11px/1.2 var(--font-ui); }
 .console-title { font: 16px/1 var(--font-ui); }
 #debug-toggle { margin-left: auto; }
-.activity-console-follow { padding: 4px 6px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--surface-2); font-size: 10px; }
+.activity-console-log { position: relative; flex: 1; min-height: 0; }
+.activity-console-follow { position: absolute; z-index: 2; right: 14px; bottom: 12px; padding: 8px 12px; border: 1px solid #62656f; border-radius: 999px; background: #343740; color: #fffdf7; box-shadow: 0 3px 12px rgba(0, 0, 0, .3); font: 600 12px/1.2 var(--font-ui); }
+.activity-console-follow:hover { background: #454954; }
 .console-indicator { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
 .activity-console.is-active .console-indicator { background: var(--accent); animation: console-pulse 1.2s ease-in-out infinite; }
 /* Надпись мигает тем же ритмом, что и кружок: одинаковая анимация запускается с одним классом .is-active */
@@ -149,19 +151,19 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .cal-pool-row { list-style: none; }
 .cal-pool-item { display: grid; grid-template-columns: 44px 1fr; gap: 8px; width: 100%; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); text-align: left; }
 .cal-pool-item > img { grid-row: 1 / span 2; width: 44px; height: 44px; object-fit: cover; border-radius: 6px; }
-.activity-console-output { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px; scrollbar-color: var(--line-strong) transparent; }
-.activity-console-line { margin: 0 0 4px; padding-left: 1.5em; text-indent: -1.5em; color: var(--muted); overflow-wrap: anywhere; }
-.console-time { color: var(--faint); }
+.activity-console-output { box-sizing: border-box; height: 100%; overflow-y: auto; padding: 8px 12px; scrollbar-color: var(--line-strong) transparent; }
+.activity-console-line { margin: 0 0 7px; padding-left: 1.5em; text-indent: -1.5em; color: var(--text); overflow-wrap: anywhere; }
+.console-time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .activity-console-line::before { content: '> '; color: var(--faint); }
 .console-link { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
 /* Обмен с моделью — «пузыри»: запрос, ответ (белая полоса), размышления (пунктир) */
-.ai-message { margin: 6px 0; padding: 6px 8px; border-left: 2px solid var(--line-strong); border-radius: 3px; background: var(--surface); cursor: pointer; }
+.ai-message { margin: 6px 0; padding: 6px 8px; text-indent: 0; border-left: 2px solid var(--line-strong); border-radius: 3px; background: var(--surface); cursor: pointer; }
 .ai-message::before { content: none; }
 .ai-response { border-left-color: var(--accent); }
 .ai-thinking { border-left: 2px dashed var(--muted); background: transparent; }
 .ai-thinking .ai-message-text { color: var(--muted); font-style: italic; }
-.ai-message-meta { display: block; margin-bottom: 2px; color: var(--faint); font-size: 10px; }
-.ai-message-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; color: var(--text); }
+.ai-message-meta { display: block; margin-bottom: 3px; color: var(--muted); font-size: 11px; }
+.ai-message-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; color: var(--text); line-height: 1.5; }
 .ai-thinking.is-live .ai-message-text, .ai-message.is-expanded .ai-message-text { display: block; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
 .ai-thinking.is-live .ai-message-meta::after { content: ' · думает…'; }
 .model-panel { flex: none; border-top: 1px solid var(--line); background: var(--surface); }
@@ -181,7 +183,8 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .model-loaded-details { grid-column: 1; color: var(--faint); }
 .model-loaded button { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 .model-panel-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.model-panel button { padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--surface-2); font-size: 11px; }
+.model-panel button { padding: 4px 8px; border: 1px solid #62656f; border-radius: 3px; background: #343740; color: #fffdf7; font-size: 11px; font-weight: 600; }
+.model-panel button:disabled { opacity: 0.78; }
 
 /* ---- Кнопки: основное действие — белая, второстепенное — тёмная с рамкой ---- */
 .primary-button, .secondary-button, .refresh-button, .danger-button, .topic-row button, .debug-banner button, .database-record-actions button {
@@ -434,6 +437,10 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
     #source-card-wrapper > .card { grid-column: 2; }
     #source-card-wrapper > .controls { grid-column: 3; justify-self: start; width: 330px; }
 }
+/* Карточка ленты уже на четверть на широких экранах, чтобы длинный текст читался легче. */
+@media (min-width: 720px) {
+    #item-card-wrapper > .card { width: 75%; margin-inline: auto; justify-self: center; }
+}
 @media (min-width: 1240px) and (max-width: 1499px) {
     #content-tab > .topic-form { grid-column: 1 / -1; grid-row: 1; justify-self: center; width: min(100%, 460px); position: static; }
     #item-card-wrapper > .card, #item-card-wrapper > .controls { grid-row: 2; }
@@ -450,6 +457,14 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 /* ---- Источники ---- */
 .discovery-panel { display: flex; align-items: center; justify-content: space-between; gap: 12px; box-sizing: border-box; width: 100%; margin-bottom: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .discovery-text { display: grid; gap: 4px; min-width: 0; font-size: 13px; }
+.autopilot-panel { box-sizing: border-box; width: 100%; margin-bottom: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.autopilot-panel p { margin: 6px 0; color: var(--muted); font-size: 13px; }
+.autopilot-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 12px 0; }
+.autopilot-form label { display: grid; gap: 4px; flex: 1 1 120px; color: var(--muted); font-size: 12px; }
+.autopilot-form input, .autopilot-form select, .autopilot-topic-row select { min-width: 0; max-width: 100%; padding: 9px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: inherit; }
+.autopilot-topics { display: grid; gap: 8px; }
+.autopilot-topic-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.autopilot-topic-row details { flex-basis: 100%; overflow-wrap: anywhere; }
 #discovery-status { color: var(--muted); font-size: 12px; line-height: 1.45; }
 @media (max-width: 480px) { .discovery-panel { flex-direction: column; align-items: stretch; } }
 .source-platform-filter { display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; color: var(--muted); font-size: 13px; }
@@ -1969,6 +1984,8 @@ body.console-collapsed .activity-console { display: none; }
 /* Журнал — всплывающая панель поверх страницы: открытие и закрытие не двигают вёрстку */
 .activity-console { position: fixed; z-index: 950; left: 12px; top: var(--console-top, 12px); width: min(420px, calc(100vw - 24px)); height: calc(100vh - var(--console-top, 12px) - 12px); margin: 0; }
 @media (min-width: 761px) { .activity-console { left: 262px; } }
+.activity-console-header { cursor: grab; touch-action: none; }
+.activity-console-header:active { cursor: grabbing; }
 
 /* Часы обрезаны: тонкая тень у верхнего и нижнего края сетки (есть ещё часы за краем) */
 .cal-body.is-cut-top::before, .cal-body.is-cut-bottom::after { content: ''; position: absolute; left: 0; right: 0; height: 22px; z-index: 5; pointer-events: none; }
@@ -2536,3 +2553,25 @@ body.pv-open { overflow: hidden; }
   .source-tools-body .source-add-form { flex-wrap: wrap; }
   .source-tools-body .source-add-form input { flex-basis: 100%; }
 }
+
+/* Быстрый вход Telegram для загрузки недоступного в вебе видео. */
+.telegram-auth-modal { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: 20px; background: rgb(13 23 35 / 62%); backdrop-filter: blur(8px); }
+.telegram-auth-modal[hidden] { display: none; }
+.telegram-auth-panel { position: relative; width: min(100%, 560px); max-height: min(90vh, 820px); overflow-y: auto; padding: 30px clamp(20px, 5vw, 38px); border: 1px solid color-mix(in srgb, var(--line-strong) 75%, #34a9e8); border-radius: 24px; background: var(--surface); box-shadow: 0 28px 90px rgb(0 0 0 / 32%); animation: tg-auth-in .22s ease-out; }
+.telegram-auth-close { position: absolute; top: 14px; right: 16px; width: 36px; height: 36px; border: 0; border-radius: 50%; color: var(--muted); background: var(--surface-2); font-size: 25px; cursor: pointer; }
+.telegram-auth-brand { display: flex; align-items: center; gap: 10px; color: #279bd7; font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+.telegram-auth-logo { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 12px; color: white; background: linear-gradient(145deg,#35b9ef,#168acb); font-size: 17px; transform: rotate(-18deg); }
+.telegram-auth-panel h2 { margin: 18px 0 7px; font-size: clamp(22px, 5vw, 29px); letter-spacing: -.025em; }
+.telegram-auth-lead, .telegram-auth-foot { color: var(--muted); line-height: 1.55; }
+.telegram-auth-foot { margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; }
+.telegram-auth-panel .tgu-card { margin-top: 16px; padding: 0; border: 0; }
+.telegram-auth-panel .tgu-card > h4, .telegram-auth-panel .tgu-card > p:first-of-type { display: none; }
+.telegram-auth-panel .telegram-steps { padding-left: 20px; }
+.telegram-auth-panel .tgu-card form { max-width: none; }
+.telegram-auth-open { overflow: hidden; }
+.pv-mosaic-note { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.pv-tg-connect { flex: 0 0 auto; padding: 8px 14px; border: 0; border-radius: 999px; color: white; background: #229ed9; font: inherit; font-weight: 650; cursor: pointer; }
+.pv-tg-connect:hover { background: #1689c0; }
+@keyframes tg-auth-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+@media (max-width: 560px) { .telegram-auth-modal { padding: 10px; align-items: end; } .telegram-auth-panel { max-height: 92vh; padding: 25px 18px 20px; border-radius: 22px 22px 12px 12px; } }
+@media (prefers-reduced-motion: reduce) { .telegram-auth-panel { animation: none; } }

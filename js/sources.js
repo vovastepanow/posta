@@ -618,6 +618,107 @@ async function startDiscovery() {
     finally { $('discovery-button').disabled = false; loadDiscoveryStatus(); }
 }
 
+function renderAutopilot(data) {
+    const container = $('autopilot-topics');
+    container.replaceChildren();
+    const backends = (data.backends || []).filter(backend => backend.enabled).map(backend => backend.name).join(', ') || 'не включены';
+    $('autopilot-status').textContent = `Теневой режим на сервере: ${data.shadow_enabled ? 'включён' : 'выключен'}; автоматический: ${data.auto_enabled ? 'включён' : 'выключен'}. Настроенные площадки: ${backends}.`;
+    for (const topic of data.topics || []) {
+        const failure = { budget_exhausted: 'суточный лимит исчерпан', news_search_disabled: 'поиск источников выключен', news_search_unavailable: 'поиск новостей недоступен', search_unavailable: 'площадки поиска недоступны', topic_busy: 'тема уже проверяется', supply_unavailable: 'не удалось проверить запас', classifier_unavailable: 'оценка материалов недоступна', restricted_profile: 'публичный поиск для этой темы недоступен', other_error: 'ошибка проверки' }[topic.failure];
+        const status = topic.mode === 'off' ? 'выключено'
+            : !(topic.mode === 'auto' ? data.auto_enabled : data.shadow_enabled) ? 'ожидает включения на сервере'
+            : topic.mode === 'auto' && topic.posts_per_day === 0 ? 'нет плановых публикаций'
+            : topic.paused || topic.job_paused ? 'приостановлено'
+            : failure ? failure
+            : topic.running ? 'идёт проверка'
+            : topic.mode === 'auto' && topic.auto_probation > 0 ? 'источники на проверке'
+            : topic.mode === 'auto' && topic.supply_mode === 'healthy' ? 'запас достаточный'
+            : topic.mode === 'auto' && topic.supply_mode === 'bootstrap' ? 'ищем первые источники'
+            : 'ожидает следующей проверки';
+        const counts = topic.mode === 'auto' ? `Действующих источников: ${topic.active_sources || 0}, на проверке: ${topic.auto_probation || 0}.` : `Кандидатов: ${topic.shadow_candidates || 0}, на проверке: ${topic.shadow_probation || 0}, подтверждено в тесте: ${topic.shadow_confirmed || 0}.`;
+        const details = `${counts} Тематический лимит на сегодня: ${topic.fetch_remaining ?? 0} загрузок и ${topic.model_remaining ?? 0} обращений к модели; также действует общий лимит сервера.`;
+        const next = topic.next_run_at && !topic.running ? ` Следующая проверка: ${new Date(topic.next_run_at * 1000).toLocaleString('ru-RU')}.` : '';
+        const last = topic.last_success ? ` Последняя успешная загрузка: ${formatAgo(topic.last_success)}.` : ' Успешных загрузок пока нет.';
+        const description = el('span', { textContent: `${topic.topic} (${topic.mode}): ${status}. Доступно постов: ${topic.available ?? 0} из ${topic.target ?? 0}${topic.capacity_limited ? ' (ограничено размером пула)' : ''}. ${details}${last}${next}` });
+        const modeSelect = el('select');
+        modeSelect.setAttribute('aria-label', `Режим для темы ${topic.topic}`);
+        for (const [value, label] of [['off', 'Выключен'], ['shadow', 'Теневой'], ['auto', 'Автоматический']]) {
+            const option = el('option', { value, textContent: label });
+            option.selected = topic.mode === value;
+            modeSelect.append(option);
+        }
+        modeSelect.addEventListener('change', async () => {
+            modeSelect.disabled = true;
+            try {
+                const result = await api('source_autopilot_demand', { body: { topic: topic.topic, mode: modeSelect.value, posts_per_day: topic.posts_per_day, horizon_days: topic.horizon_days } });
+                renderAutopilot(result);
+            } catch (error) { $('autopilot-status').textContent = `Настройки не сохранены: ${error.message}`; modeSelect.value = topic.mode; modeSelect.disabled = false; }
+        });
+        const history = el('details', {}, el('summary', { textContent: 'История решений' }));
+        history.hidden = topic.mode === 'off';
+        const historyList = el('div', { textContent: 'Откройте историю, чтобы загрузить решения.' });
+        const more = el('button', { className: 'secondary-button', type: 'button', textContent: 'Показать ещё', hidden: true });
+        history.append(historyList, more);
+        let historyLoaded = false, historyLoading = false, before = 0;
+        const loadHistoryPage = async () => {
+            if (historyLoading) return;
+            historyLoading = true;
+            more.disabled = true;
+            try {
+                const result = await api('source_autopilot_history', { params: { topic: topic.topic, mode: topic.mode, before, limit: 20 } });
+                if (!historyLoaded) historyList.replaceChildren();
+                historyLoaded = true;
+                for (const decision of result.decisions || []) {
+                    const states = { candidate: 'кандидат', probation: 'испытание', active: 'подтверждён', rejected: 'отклонён', cooldown: 'ожидание' };
+                    const reasons = { discovered: 'найден', shadow_preliminary_pass: 'прошёл предварительную проверку', observed_useful: 'подтверждена полезность', observed_ad_or_duplicates: 'слишком много рекламы или дублей', observed_irrelevant: 'недостаточно материалов по теме', quality_drift: 'качество снизилось' };
+                    const text = `${decision.source_id}: ${states[decision.old_state] || 'найден'} → ${states[decision.new_state] || decision.new_state}; ${reasons[decision.reason] || decision.reason}. ${formatAgo(decision.at)}.`;
+                    historyList.append(el('p', { textContent: text }));
+                }
+                if (!before && !(result.decisions || []).length) historyList.textContent = 'Решений пока нет.';
+                before = result.next_before || 0;
+                more.hidden = !before;
+            } catch (error) { $('autopilot-status').textContent = `История недоступна: ${error.message}`; }
+            finally { historyLoading = false; more.disabled = false; }
+        };
+        more.addEventListener('click', loadHistoryPage);
+        history.addEventListener('toggle', () => {
+            if (history.open && !historyLoaded && topic.mode !== 'off') loadHistoryPage();
+        });
+        const request = el('button', { className: 'secondary-button', type: 'button', textContent: 'Запросить проверку', disabled: topic.mode === 'off' || topic.paused });
+        request.addEventListener('click', async () => {
+            request.disabled = true;
+            try {
+                renderAutopilot(await api('source_autopilot_request', { body: { topic: topic.topic } }));
+                $('autopilot-status').textContent = 'Проверка запрошена. Срок повтора и суточные лимиты сохранены.';
+            } catch (error) { $('autopilot-status').textContent = `Не удалось запросить проверку: ${error.message}`; request.disabled = false; }
+        });
+        const pause = el('button', { className: 'secondary-button', type: 'button', textContent: topic.paused ? 'Продолжить' : 'Пауза', disabled: topic.mode === 'off' });
+        pause.addEventListener('click', async () => {
+            pause.disabled = true;
+            try { renderAutopilot(await api('source_autopilot_pause', { body: { topic: topic.topic, paused: !topic.paused } })); }
+            catch (error) { $('autopilot-status').textContent = `Не удалось изменить паузу: ${error.message}`; pause.disabled = false; }
+        });
+        container.append(el('div', { className: 'autopilot-topic-row' }, description, modeSelect, pause, request, history));
+    }
+}
+
+async function loadAutopilot() {
+    if (DEBUG_MODE) { $('autopilot-status').textContent = 'В демо-режиме проверка недоступна.'; return; }
+    try { renderAutopilot(await api('source_autopilot_status')); }
+    catch (error) { $('autopilot-status').textContent = `Сведения недоступны: ${error.message}`; }
+}
+
+async function saveAutopilot(event) {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector('button');
+    button.disabled = true;
+    try {
+        const result = await api('source_autopilot_demand', { body: { topic: $('autopilot-topic').value.trim(), mode: $('autopilot-mode').value, posts_per_day: Number($('autopilot-rate').value), horizon_days: Number($('autopilot-horizon').value) } });
+        renderAutopilot(result);
+    } catch (error) { $('autopilot-status').textContent = `Настройки не сохранены: ${error.message}`; }
+    finally { button.disabled = false; }
+}
+
 // ---- Источники темы ----
 
 function avatar(source) {
@@ -724,7 +825,11 @@ function topicSourceCard(source) {
     }
     const chips = [source.subscribers > 0 && chip('подписчики', COUNT.format(source.subscribers)), source.view_rate != null && chip('просмотры', `${Math.round(source.view_rate * 100)}%`, 'Какая доля подписчиков видит пост'),
         source.score != null && chip('оценка', `${source.score}%`, 'Оценка автоподбора: по теме, аудитория, доля просмотров')].filter(Boolean);
-    const notes = [!source.own && (source.topics.length ? `из общей темы: ${source.topics.join(', ')}` : 'источник для всех тем'), source.auto && 'найден автоподбором'].filter(Boolean);
+    const stateLabels = { candidate: 'кандидат', probation: 'на испытании', active: 'подтверждён', rejected: 'отклонён', cooldown: 'ожидает проверки' };
+    const healthLabels = { rate_limited: 'площадка ограничила запросы', feed_unavailable: 'лента временно недоступна', source_not_found: 'лента не найдена', assessment_unavailable: 'оценка временно недоступна', insufficient_evidence: 'мало наблюдений', probation_full: 'места на испытании заняты' };
+    const evidence = source.autopilot?.evidence;
+    const observation = evidence?.evaluated ? `оценено постов: ${evidence.evaluated}, по теме: ${evidence.relevant ?? 0}, проходов: ${evidence.successful_passes ?? 0}` : '';
+    const notes = [!source.own && (source.topics.length ? `из общей темы: ${source.topics.join(', ')}` : 'источник для всех тем'), source.auto && 'найден автоподбором', stateLabels[source.autopilot?.state], healthLabels[source.autopilot?.reason], observation].filter(Boolean);
     const card = el('article', { className: `proposal-card source-tile-card${source.frozen ? ' is-frozen' : ''}` }, media,
         el('div', { className: 'source-head' }, avatar(source), el('div', { className: 'source-head-text' }, el('strong', { textContent: source.name, title: source.name }),
             el('a', { href: source.url, target: '_blank', rel: 'noopener noreferrer', textContent: source.handle })),
@@ -734,6 +839,14 @@ function topicSourceCard(source) {
             : source.frozen ? `заморожен: ${source.frozen_reason || 'не активен'}` : source.activity || 'активен' }),
         notes.length ? el('p', { className: 'source-note', textContent: notes.join(' · ') }) : null);
     const actions = el('div', { className: 'proposal-actions' }, el('a', { className: 'proposal-action', href: source.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть ↗' }));
+    if (!DEBUG_MODE && ['RSS', 'Telegram', 'ВКонтакте', 'Одноклассники', 'TikTok'].includes(source.platform)) actions.append(el('button', { className: 'proposal-action', type: 'button', textContent: source.pinned ? 'Открепить' : 'Закрепить для меня', onclick: async () => {
+        try {
+            await api('source_personal_pin', { body: { source_id: source.source_id, pinned: !source.pinned } });
+            source.pinned = !source.pinned;
+            if (!source.pinned) await loadTopicSources();
+            else renderTopicSources();
+        } catch (error) { log(`Не удалось изменить закрепление: ${error.message}`); }
+    } }));
     if (source.muted) {   // выключен по оценкам пользователя (TOPICS_SEARCH_PROMPT.md, часть F)
         card.classList.add('is-frozen');
         card.querySelector('.source-status')?.replaceChildren(document.createTextNode('выключен по вашим оценкам'));
@@ -745,8 +858,16 @@ function topicSourceCard(source) {
                 renderTopicSources();
             } catch (error) { log(`Не удалось включить источник: ${error.message}`); }
         } }));
+    } else if (!DEBUG_MODE) {
+        actions.append(el('button', { className: 'proposal-action', type: 'button', textContent: 'Исключить для меня', onclick: async () => {
+            try {
+                await api('source_mute', { body: { source_id: source.source_id, on: false } });
+                source.muted = true;
+                renderTopicSources();
+            } catch (error) { log(`Не удалось исключить источник: ${error.message}`); }
+        } }));
     }
-    if (!DEBUG_MODE && source.own) actions.append(el('button', { className: 'proposal-action proposal-hide', type: 'button', textContent: '✕ Убрать', title: `Убрать из темы «${topicSources.topic}»`, onclick: async () => {
+    if (!DEBUG_MODE && source.own && !source.autopilot_managed) actions.append(el('button', { className: 'proposal-action proposal-hide', type: 'button', textContent: '✕ Убрать', title: `Убрать из темы «${topicSources.topic}»`, onclick: async () => {
         if (!(await ask('Посты из него перестанут попадать в подбор по этой теме.', { title: `Убрать «${source.name}» из темы «${topicSources.topic}»?`, ok: 'Убрать', danger: true }))) return;
         card.classList.add('is-removing');
         try {
@@ -1166,12 +1287,14 @@ export function initializeSourceTab() {
     $('source-empty-vk').addEventListener('click', () => openAccountSection('social'));
     $('source-empty-add').addEventListener('click', () => { openTools(); $('source-add-link').focus(); });
     $('discovery-button').addEventListener('click', startDiscovery);
+    $('autopilot-form').addEventListener('submit', saveAutopilot);
+    window.setInterval(() => { if (isTabActive('source-tab')) loadAutopilot(); }, 30000);
     document.querySelectorAll('[data-topic-source-filter]').forEach(b => b.addEventListener('click', () => { topicSources.filter = b.dataset.topicSourceFilter; renderTopicSources(); }));
     $('topic-sources-refresh').addEventListener('click', loadTopicSources);
     initRegistry();
     $('topic-sources-section').addEventListener('toggle', () => { if ($('topic-sources-section').open) loadTopicSources(); });
     $('registry-section').addEventListener('toggle', () => { if ($('registry-section').open) loadRegistry(); });
-    onTabOpen('source-tab', () => { loadDiscoveryStatus(); loadTopicSources(); if ($('registry-section').open) loadRegistry(); loadMirrors(); loadMirrorChannels(); loadPendingSources(); });
+    onTabOpen('source-tab', () => { loadDiscoveryStatus(); loadAutopilot(); loadTopicSources(); if ($('registry-section').open) loadRegistry(); loadMirrors(); loadMirrorChannels(); loadPendingSources(); });
     onParserStateChange(running => {   // парсер закончил: подбор мог найти источники, сбор — обновить аудиторию
         if (running) return;
         state.discovering = false;

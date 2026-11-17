@@ -49,6 +49,7 @@ const usage = `posta — сервер и служебные команды Posta
   leads-scan [id]                    проход радара лидов
   outbox-repair [--dry-run] [id]     починить очередь постов
   classify-text <текст>              проверить метки текста без сохранения
+  audit-classifications <directory>  снимок и проверка пула и каталога без замены меток
   reclassify-saved                    повторно определить метки сохранённых постов
   media-repair <id> [--dry-run]      исправить ссылки на кэш медиа
   users-gc                           удалить пустые анонимные профили
@@ -211,11 +212,31 @@ func command(ctx context.Context, cfg config.Server, args []string) error {
 		}
 		fmt.Println(strings.Join(tags, ", "))
 		return nil
+	case "audit-classifications":
+		if len(args) < 2 {
+			return errors.New("audit-classifications <directory> [--snapshot-only] [--limit=N]")
+		}
+		snapshotOnly := false
+		limit := 25
+		for _, arg := range args[2:] {
+			if arg == "--snapshot-only" {
+				snapshotOnly = true
+			} else if strings.HasPrefix(arg, "--limit=") {
+				n, err := strconv.Atoi(strings.TrimPrefix(arg, "--limit="))
+				if err != nil || n < 0 {
+					return errors.New("invalid audit limit")
+				}
+				limit = n
+			} else {
+				return fmt.Errorf("unknown audit option: %s", arg)
+			}
+		}
+		return a.AuditClassifications(ctx, args[1], snapshotOnly, limit, print)
 	case "reclassify-saved":
 		if model := os.Getenv("POSTA_RECLASSIFY_MODEL"); model != "" {
 			a.LLM.LoadSettings = func() llm.Settings {
 				s := a.LLMSettings()
-				s.Roles[llm.RoleText] = llm.RoleConfig{Primary: llm.Target{Provider: "ollama", Model: model}}
+				s.Roles[llm.RoleClassify] = llm.RoleConfig{Primary: llm.Target{Provider: "ollama", Model: model}}
 				return s
 			}
 		}

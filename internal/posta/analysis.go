@@ -323,11 +323,9 @@ func (u *U) AnalyzeContentWithVision(images [][]byte, caption string, h History,
 				if text := PostCaptionForAI(item); text != "" {
 					tagCaption = text
 				}
-				tags := u.verifyContentTags(result["tags"], jx.Str(result, "description"), tagCaption, private)
-				if tags == nil && !private {
-					return nil, errors.New("Классификация тем недоступна; запись не принимается с неподтверждёнными метками.")
+				if !PostItemHasVideo(item) {
+					u.applyContentClassification(result, jx.Str(result, "description"), tagCaption, private)
 				}
-				result["tags"] = tags
 				return result, nil
 			}
 			err = errors.New("Модель вернула некорректный JSON-анализ.")
@@ -651,12 +649,7 @@ func (u *U) AnalyzeTextBatch(texts []string, topic string, h History) ([]Analysi
 		if row != nil {
 			out[i] = u.finishTextAnalysis(row, topic, r.Model)
 			// Verify against this record only, after batch alignment.
-			tags := u.verifyContentTags(out[i]["tags"], "", texts[i], u.TopicIsRestricted(topic))
-			if tags == nil && !u.TopicIsRestricted(topic) {
-				out[i] = nil
-			} else {
-				out[i]["tags"] = tags
-			}
+			u.applyContentClassification(out[i], "", texts[i], u.TopicIsRestricted(topic))
 		} else if len(texts) > 1 {
 			// An incomplete or conflicting batch must not silently lose a post.
 			single, retryErr := u.AnalyzeTextBatch([]string{texts[i]}, topic, h)

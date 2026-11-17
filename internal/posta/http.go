@@ -130,6 +130,10 @@ func publicIP(ip net.IP) bool {
 
 // publicResolve проверяет ссылку: только http(s) на стандартном порту и публичные IPv4. Возвращает адрес для подключения.
 func publicResolve(raw string) (*url.URL, string, error) {
+	return publicResolveWithLookup(raw, lookupPublicHost)
+}
+
+func publicResolveWithLookup(raw string, lookup func(string) ([]net.IP, error)) (*url.URL, string, error) {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil {
 		return nil, "", Bad("Укажите прямую публичную ссылку на изображение.")
@@ -146,7 +150,7 @@ func publicResolve(raw string) (*url.URL, string, error) {
 		}
 		return u, net.JoinHostPort(host, std), nil
 	}
-	ips, err := net.LookupIP(host)
+	ips, err := lookup(host)
 	if err != nil || len(ips) == 0 {
 		return nil, "", Bad("Не удалось найти адрес сайта из ссылки.")
 	}
@@ -168,6 +172,38 @@ func publicResolve(raw string) (*url.URL, string, error) {
 	return u, net.JoinHostPort(first.String(), std), nil
 }
 
+// A fallback is opt-in because directing DNS queries outside the configured
+// resolver can disclose hostnames, including while a VPN is active. It never
+// changes system settings and resolved addresses still pass publicIP checks.
+func lookupPublicHost(host string) ([]net.IP, error) {
+	return lookupPublicHostWith(host, os.Getenv("POSTA_PUBLIC_DNS_FALLBACK"), net.LookupIP, lookupPublicFallbackDNS)
+}
+
+func lookupPublicHostWith(host, server string, primary func(string) ([]net.IP, error), fallback func(string, net.IP) ([]net.IP, error)) ([]net.IP, error) {
+	ips, err := primary(host)
+	if err == nil {
+		for _, ip := range ips {
+			if ip.To4() != nil {
+				return ips, nil
+			}
+		}
+	}
+	ip := net.ParseIP(strings.TrimSpace(server))
+	if ip == nil || ip.To4() == nil || ip.IsUnspecified() || ip.IsMulticast() {
+		return nil, err
+	}
+	return fallback(host, ip)
+}
+
+func lookupPublicFallbackDNS(host string, ip net.IP) ([]net.IP, error) {
+	resolver := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, net.JoinHostPort(ip.String(), "53"))
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	return resolver.LookupIP(ctx, "ip4", host)
+}
+
 type FetchResult struct {
 	OK           bool
 	Bytes        []byte
@@ -177,6 +213,7 @@ type FetchResult struct {
 	Status       int
 	Location     string
 	LastModified string
+	RetryAfter   string
 }
 
 type FetchOpts struct {
@@ -185,6 +222,8 @@ type FetchOpts struct {
 	Timeout   time.Duration
 	UserAgent string
 	Headers   map[string]string
+	Method    string
+	Body      string
 }
 
 // fetchFailure describes only information actually returned by the request.
@@ -210,6 +249,32 @@ func fetchFailure(r FetchResult) string {
 
 // FetchPublic скачивает публичный файл без перенаправлений и не больше MaxBytes, подключаясь к проверенному адресу.
 func (a *App) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
+	return a.fetchPublicContext(a.ctxOrBg(), raw, o)
+}
+
+// FetchPublic from a user operation is cancelled with the operation, including
+// when a leased discovery worker loses ownership.
+func (u *U) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
+	ctx := u.Ctx
+	if ctx == nil {
+		ctx = u.App.ctxOrBg()
+	}
+	if _, leased := ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); leased {
+		gate, ok := ctx.Value(autopilotNetworkGateKey{}).(func(context.Context) error)
+		if !ok || gate == nil {
+			return FetchResult{}, errors.New("autopilot fetch budget unavailable")
+		}
+		if err := gate(ctx); err != nil {
+			return FetchResult{}, err
+		}
+	}
+	return u.App.fetchPublicContext(ctx, raw, o)
+}
+
+func (a *App) fetchPublicContext(parent context.Context, raw string, o FetchOpts) (FetchResult, error) {
+	if err := parent.Err(); err != nil {
+		return FetchResult{}, err
+	}
 	u, addr, err := publicResolve(raw)
 	if err != nil {
 		return FetchResult{}, err
@@ -231,9 +296,16 @@ func (a *App) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
 		},
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
-	ctx, cancel := context.WithTimeout(a.ctxOrBg(), o.Timeout)
+	ctx, cancel := context.WithTimeout(parent, o.Timeout)
 	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	method := o.Method
+	if method == "" {
+		method = http.MethodGet
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), strings.NewReader(o.Body))
+	if err != nil {
+		return FetchResult{}, err
+	}
 	req.Header.Set("User-Agent", o.UserAgent)
 	for k, v := range o.Headers {
 		req.Header.Set(k, v)
@@ -252,6 +324,7 @@ func (a *App) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
 	defer resp.Body.Close()
 	r.Status, r.Type = resp.StatusCode, strings.ToLower(resp.Header.Get("Content-Type"))
 	r.Location, r.LastModified = resp.Header.Get("Location"), resp.Header.Get("Last-Modified")
+	r.RetryAfter = resp.Header.Get("Retry-After")
 	limited := io.LimitReader(resp.Body, o.MaxBytes+1)
 	var size int64
 	if o.Dest != "" {
@@ -284,7 +357,15 @@ func (a *App) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
 
 // FetchPublicImage — картинка по прямой ссылке.
 func (a *App) FetchPublicImage(raw string) ([]byte, error) {
-	r, err := a.FetchPublic(raw, FetchOpts{MaxBytes: 10 << 20})
+	return fetchPublicImage(raw, a.FetchPublic)
+}
+
+func (u *U) FetchPublicImage(raw string) ([]byte, error) {
+	return fetchPublicImage(raw, u.FetchPublic)
+}
+
+func fetchPublicImage(raw string, fetch func(string, FetchOpts) (FetchResult, error)) ([]byte, error) {
+	r, err := fetch(raw, FetchOpts{MaxBytes: 10 << 20})
 	if err != nil {
 		return nil, err
 	}
