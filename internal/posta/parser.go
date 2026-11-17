@@ -2239,6 +2239,9 @@ func (u *U) RunCollector() bool {
 		byPlatform = u.QuerySearchCollect(key) // поиск по запросу сам включает каталог темы
 	} else {
 		byPlatform = u.collectPostsByPlatform(key)
+		if byPlatform == nil {
+			byPlatform = map[string][]jx.M{}
+		}
 		if fastTopicSearch && u.Alive() && u.CurrentTopic() == topic {
 			for platform, posts := range u.TopicFastSearchCollect(topic) {
 				byPlatform[platform] = append(byPlatform[platform], posts...)
