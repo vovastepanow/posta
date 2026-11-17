@@ -1,6 +1,9 @@
 package posta
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestAutopilotPreliminaryPass(t *testing.T) {
 	tests := []struct {
@@ -24,5 +27,26 @@ func TestAutopilotPreliminaryPass(t *testing.T) {
 				t.Fatalf("autopilotPreliminaryPass(%d, %d, %d) = %t, want %t", tt.score, tt.threshold, tt.samples, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAutopilotSourceReviewInterval(t *testing.T) {
+	auto := &autopilotJob{Scope: autopilotAutoScope, Kind: autopilotAutoKind}
+	shadow := &autopilotJob{Scope: autopilotShadowScope, Kind: autopilotShadowKind}
+	for _, tc := range []struct {
+		job   *autopilotJob
+		state string
+		want  time.Duration
+	}{
+		{auto, "candidate", 12 * time.Hour},
+		{auto, "probation", 6 * time.Hour},
+		{auto, "active", 3 * time.Hour},
+		{auto, "rejected", 24 * time.Hour},
+		{shadow, "active", 24 * time.Hour},
+		{nil, "active", 24 * time.Hour},
+	} {
+		if got := autopilotSourceReviewInterval(tc.job, tc.state); got != tc.want {
+			t.Errorf("state=%s job=%+v got=%v want=%v", tc.state, tc.job, got, tc.want)
+		}
 	}
 }
