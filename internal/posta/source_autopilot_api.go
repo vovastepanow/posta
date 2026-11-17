@@ -49,6 +49,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		var next, lease int64
 		var enabled, eligible bool
 		var lastError string
+		var checkpoint []byte
 		scope, kind := autopilotShadowScope, autopilotShadowKind
 		if d.Mode == "auto" {
 			scope, kind = autopilotAutoScope, autopilotAutoKind
@@ -58,7 +59,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			return nil, err
 		}
 		row["last_success"] = lastSuccess
-		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&next, &lease, &enabled, &eligible, &lastError)
+		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&next, &lease, &enabled, &eligible, &lastError, &checkpoint)
 		if err == nil {
 			failure := ""
 			switch {
@@ -82,6 +83,20 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 				failure = "other_error"
 			}
 			row["next_run_at"], row["running"], row["job_paused"], row["eligible"], row["failure"] = next, lease > now() && !d.Paused, !enabled, eligible && !d.Paused, failure
+			if d.Mode == "auto" {
+				stats := jx.Unmarshal(checkpoint)
+				row["direct_reviewed_total"] = jx.Int(stats, "direct_reviewed_total")
+				row["direct_accepted_total"] = jx.Int(stats, "direct_accepted_total")
+				row["direct_rejected_total"] = jx.Int(stats, "direct_rejected_total")
+				var recent int
+				err := u.DB.Pool.QueryRow(u.Ctx, `SELECT count(*) FROM source_autopilot_direct_results
+					WHERE scope='public' AND topic_key=$1 AND published_at >= $2 AND assessed_at >= $2 AND policy_version=$3`,
+					key, time.Now().Add(-autopilotDirectMaxAge).Unix(), TopicProfileVersion).Scan(&recent)
+				if err != nil {
+					return nil, err
+				}
+				row["direct_qualified_recent"] = recent
+			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
 		}
