@@ -43,6 +43,12 @@ func ContentAnalysisSchema(query string, humor bool) jx.M {
 		props["query_match"] = jx.M{"type": "integer", "minimum": 0, "maximum": 100}
 		req = append(req, "query_match")
 	}
+	if !humor {
+		// Optional, backwards-compatible signals: older cached analyses remain valid.
+		for _, key := range []string{"interest", "practical_value", "specificity"} {
+			props[key] = jx.M{"type": "integer", "minimum": 0, "maximum": 100}
+		}
+	}
 	if humor {
 		props["meme_kind"] = jx.M{"type": "string", "enum": []string{"finished_meme", "template_or_reaction", "funny_situation", "not_meme"}}
 		props["joke"] = jx.M{"type": "string"}
@@ -126,6 +132,36 @@ const ukraineRule = "ukraine: true — если запись явно из ук�
 const humorVerdictRule = "meme_kind: finished_meme — самостоятельная шутка, в том числе короткий текст на однотонном фоне, скриншот поста или переписки, каламбур, ироничное сопоставление или абсурд; funny_situation — смешная реальная ситуация или видео; template_or_reaction — пустой шаблон или обычная реакция без собственной шутки; not_meme — содержание без шутки или комического несоответствия. Шаблон с новым текстом, сравнением или игрой слов, которые создают шутку, — finished_meme. Краткость, текстовый вид и отсутствие узнаваемого шаблона не повод для отказа.\n" +
 	"joke: коротко объясни комическое несоответствие, игру слов, иронию или намеренный абсурд. Не требуй отдельного классического панчлайна. Используй общеизвестные значения слов, географию и культурные отсылки; не выдумывай отсутствующие события. Оцени соответствие юмористической теме, а не силу личного смеха. Если шутки нет — пустая строка. Для template_or_reaction и not_meme relevance не выше 30; без объяснимой шутки — не выше 40.\n"
 
+// Additional signals for professional and factual posts. Topic relevance
+// alone cannot distinguish a concrete case study from generic advice.
+const professionalValuePrompt = "Для темы бизнеса, маркетинга или SMM добавь поля interest, practical_value, specificity (каждое 0–100). interest — есть ли необычный факт, вывод, развитие событий или полезный разбор, а не банальная общая фраза; practical_value — можно ли применить совет или извлечь предметный вывод; specificity — подтверждённые цифры, шаги, примеры, факты, названия или измеримый результат. Не выдумывай цифры и доказательства. Релевантность теме оцени отдельно. Новость или сильный разбор могут быть интересны без практического совета.\n"
+
+func (u *U) professionalValueTopic(topic string) bool {
+	entry := u.TopicLookup(TopicBase(topic))
+	return entry != nil && (entry.Key == "business" || strings.HasPrefix(entry.Key, "business."))
+}
+
+// Fail open for legacy or incomplete model responses. Only clearly generic
+// professional posts with all three independently low scores are filtered.
+func professionalAnalysisLowValue(a jx.M) bool {
+	for _, key := range []string{"interest", "practical_value", "specificity"} {
+		value, exists := a[key]
+		if !exists {
+			return false
+		}
+		switch value.(type) {
+		case int, int64, float64, float32:
+		default:
+			return false
+		}
+		score := jx.Int(a, key)
+		if score < 0 || score >= 35 {
+			return false
+		}
+	}
+	return true
+}
+
 const textOnlyEvidenceRule = "Передан только текст записи. Изображения, видео и страницы по ссылкам не переданы: URL и Markdown-вложение не раскрывают их содержимое. Не утверждай, что видишь фото, кадры, состав, шаги или действия, которых нет в тексте. Оценивай подтверждённое содержание полученного текста, а не предполагаемое содержание вложений. format всегда text.\n"
 
 // ContentAnalysisPrompt — инструкции, тема с профилем и жалобами, затем запись.
@@ -136,6 +172,9 @@ func (u *U) ContentAnalysisPrompt(topic, caption string, h History, video *Story
 	b.WriteString("Оценивай только то, что есть в записи. «Могло бы подойти», «возможный контекст», «может быть частью мема» — значит не подходит.\n\n")
 	b.WriteString("Верни JSON с полями в таком порядке:\n")
 	b.WriteString(rule)
+	if u.professionalValueTopic(topic) {
+		b.WriteString(professionalValuePrompt)
+	}
 	if u.TopicIsHumor(topic) {
 		b.WriteString(humorVerdictRule)
 	}
@@ -370,7 +409,7 @@ func (u *U) finishAnalysis(a jx.M, topic, query string, isVideo bool, firstImage
 	}
 	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(a, "description")), config.AnalysisDescriptionMax), "why_relevant": evidence, "format": format,
 		"tags": u.contentAnalysisTags(topic, a["tags"], a["safety"]), "quote": a["quote"] == true, "entity": ContentEntityClean(a["entity"]), "geo": GeoFromAnalysis(a), "evidence": evidence, "joke": trimRunes(llm.StripCJK(jx.Str(a, "joke")), config.AnalysisEvidenceMax), "meme_kind": jx.Str(a, "meme_kind"), "relevance": rel, "topic_match": a["topic_match"], "rating": nil,
-		"ukraine": a["ukraine"] == true, "advertising": a["advertising"], "subtopic": nil, "subtopic_p": nil, "model": model}
+		"ukraine": a["ukraine"] == true, "advertising": a["advertising"], "subtopic": nil, "subtopic_p": nil, "model": model, "interest": a["interest"], "practical_value": a["practical_value"], "specificity": a["specificity"]}
 }
 
 // memeRelevanceCap makes the model's meme classification enforceable: a known
@@ -737,7 +776,7 @@ func (u *U) finishTextAnalysis(it jx.M, topic, model string) Analysis {
 
 	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(it, "description")), config.AnalysisDescriptionMax), "why_relevant": evidence, "format": format,
 		"tags": u.contentAnalysisTags(topic, it["tags"], it["safety"]), "quote": it["quote"] == true, "entity": ContentEntityClean(it["entity"]), "geo": GeoFromAnalysis(it), "evidence": evidence, "joke": joke, "meme_kind": jx.Str(it, "meme_kind"),
-		"ukraine": it["ukraine"] == true, "advertising": it["advertising"], "relevance": rel, "topic_match": it["topic_match"], "rating": nil, "model": model}
+		"ukraine": it["ukraine"] == true, "advertising": it["advertising"], "relevance": rel, "topic_match": it["topic_match"], "rating": nil, "model": model, "interest": it["interest"], "practical_value": it["practical_value"], "specificity": it["specificity"]}
 }
 
 var _ = sort.Strings
@@ -762,7 +801,11 @@ func (u *U) editableVisionPrompt(topic, caption string, h History, video *Storyb
 	if caption != "" {
 		record += "\nПодпись: " + trimRunes(caption, 6000)
 	}
-	return "tags: пустой массив; тематические метки определяет отдельный классификатор.\n" + "quote (boolean): true, если запись в основном цитата или афоризм; её смысл укажи в tags.\n" + u.prompt("vision_analysis", map[string]string{"relevance_rule": rule, "humor_rule": humor, "formats": contentFormatsLine(), "entity_rule": u.prompt("entity_rule", nil), "place_rule": u.prompt("place_rule", nil), "topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "complaints": u.complaintPrompt(topic, h), "query_rule": query, "context": context, "record": record}) + advertisingPrompt
+	valueRule := ""
+	if u.professionalValueTopic(topic) {
+		valueRule = professionalValuePrompt
+	}
+	return valueRule + "tags: пустой массив; тематические метки определяет отдельный классификатор.\n" + "quote (boolean): true, если запись в основном цитата или афоризм; её смысл укажи в tags.\n" + u.prompt("vision_analysis", map[string]string{"relevance_rule": rule, "humor_rule": humor, "formats": contentFormatsLine(), "entity_rule": u.prompt("entity_rule", nil), "place_rule": u.prompt("place_rule", nil), "topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "complaints": u.complaintPrompt(topic, h), "query_rule": query, "context": context, "record": record}) + advertisingPrompt
 }
 
 func (u *U) editableTextPrompt(topic string, texts []string, h History) string {
@@ -777,5 +820,9 @@ func (u *U) editableTextPrompt(topic string, texts []string, h History) string {
 	for i, t := range texts {
 		lines = append(lines, fmt.Sprintf("[%d] %s", i, trimRunes(strings.TrimSpace(t), 6000)))
 	}
-	return textOnlyEvidenceRule + "tags: пустой массив; тематические метки определяет отдельный классификатор.\n" + "quote (boolean): true для цитаты или афоризма; смысл — в tags.\n" + u.relevanceRule(topic) + "\n" + u.prompt("text_analysis", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "query_rule": query, "humor_rule": humor, "formats": "text — текстовая запись", "entity_rule": u.prompt("entity_rule", nil), "place_rule": u.prompt("place_rule", nil), "complaints": u.complaintPrompt(topic, h), "records": strings.Join(lines, "\n")}) + "\nДля каждой записи сохрани исходный index из квадратных скобок. Не перенумеровывай записи при сортировке. evidence — цитата именно из записи с этим index, а не из соседней записи.\n" + advertisingPrompt
+	valueRule := ""
+	if u.professionalValueTopic(topic) {
+		valueRule = professionalValuePrompt
+	}
+	return textOnlyEvidenceRule + valueRule + "tags: пустой массив; тематические метки определяет отдельный классификатор.\n" + "quote (boolean): true для цитаты или афоризма; смысл — в tags.\n" + u.relevanceRule(topic) + "\n" + u.prompt("text_analysis", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "query_rule": query, "humor_rule": humor, "formats": "text — текстовая запись", "entity_rule": u.prompt("entity_rule", nil), "place_rule": u.prompt("place_rule", nil), "complaints": u.complaintPrompt(topic, h), "records": strings.Join(lines, "\n")}) + "\nДля каждой записи сохрани исходный index из квадратных скобок. Не перенумеровывай записи при сортировке. evidence — цитата именно из записи с этим index, а не из соседней записи.\n" + advertisingPrompt
 }
