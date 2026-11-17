@@ -99,4 +99,32 @@ func TestAutopilotConsumesAcceptedSourceHintsPostgres(t *testing.T) {
 	if !a.KVGet(ctx, autopilotSourceHintKey(topic), &remaining) || len(remaining) != 0 {
 		t.Fatalf("hint queue not drained: %v", remaining)
 	}
+	// A fresh accepted author may advance a healthy idle job, but must
+	// never override a backoff caused by a failed public discovery cycle.
+	if err := finishAutopilotJob(ctx, d, job, time.Now().Add(24*time.Hour), job.Checkpoint, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.wakeAutopilotForAcceptedSource(ctx, topic); err != nil {
+		t.Fatal(err)
+	}
+	var next int64
+	if err := d.Pool.QueryRow(ctx, `SELECT next_run_at FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, autopilotAutoScope, key, autopilotAutoKind).Scan(&next); err != nil {
+		t.Fatal(err)
+	}
+	if next > time.Now().Add(11*time.Minute).Unix() {
+		t.Fatalf("healthy job was not advanced: %d", next)
+	}
+	future := time.Now().Add(24 * time.Hour).Unix()
+	if _, err := d.Pool.Exec(ctx, `UPDATE source_autopilot_jobs SET next_run_at=$4,last_error='classifier_unavailable' WHERE scope=$1 AND topic_key=$2 AND kind=$3`, autopilotAutoScope, key, autopilotAutoKind, future); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.wakeAutopilotForAcceptedSource(ctx, topic); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Pool.QueryRow(ctx, `SELECT next_run_at FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, autopilotAutoScope, key, autopilotAutoKind).Scan(&next); err != nil {
+		t.Fatal(err)
+	}
+	if next != future {
+		t.Fatalf("error backoff was overridden: got %d want %d", next, future)
+	}
 }
