@@ -678,8 +678,10 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				if err != nil {
 					return err
 				}
-				evidence = jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "successful_passes": stats.SuccessfulPasses}
-				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: stats.Relevant, FreshUnique: stats.FreshUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates}, policy)
+				professional := a.User(ctx, "", nil).professionalValueTopic(job.Topic)
+				effectiveRelevant := effectiveSourceRelevant(stats.Relevant, stats.Eligible, professional)
+				evidence = jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "effective_relevant": effectiveRelevant, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "successful_passes": stats.SuccessfulPasses}
+				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: effectiveRelevant, FreshUnique: stats.FreshUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates}, policy)
 				if next != state {
 					nextCheck := at.Add(autopilotSourceReviewInterval(job, next))
 					if next == "rejected" {
