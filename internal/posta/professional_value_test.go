@@ -8,9 +8,9 @@ import (
 
 func TestProfessionalAnalysisLowValue(t *testing.T) {
 	tests := []struct {
-		name string
+		name     string
 		analysis jx.M
-		want bool
+		want     bool
 	}{
 		{"generic advice", jx.M{"interest": 10, "practical_value": 20, "specificity": 30}, true},
 		{"useful instruction", jx.M{"interest": 20, "practical_value": 80, "specificity": 40}, false},
