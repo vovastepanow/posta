@@ -22,4 +22,4 @@ jobs:
           files=$(gofmt -l internal/posta/source_autopilot_auto.go internal/posta/source_autopilot_auto_interval_test.go internal/posta/source_autopilot_queries.go internal/posta/source_autopilot_queries_selection_test.go internal/posta/source_autopilot_shadow.go internal/posta/source_autopilot_preliminary_test.go internal/posta/analysis.go internal/posta/parser.go internal/posta/professional_value_test.go internal/posta/topic_fast_search_test.go internal/posta/source_autopilot_hints.go internal/posta/source_autopilot_hints_test.go internal/posta/post_search.go internal/posta/query_search.go)
           test -z "$files" || { printf '%s\n' "$files"; exit 1; }
       - name: Unit tests
-        run: go test ./internal/posta
+        run: go test ./...
