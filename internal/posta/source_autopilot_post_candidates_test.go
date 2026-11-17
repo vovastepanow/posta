@@ -47,7 +47,7 @@ func TestAutopilotCandidatesFromPostsBalancesPlatforms(t *testing.T) {
 			{"source_url": "https://t.me/growth_digest", "url": "https://t.me/growth_digest/1", "posted_at": at},
 		},
 		"b": {
-			{"source_url": "https://vk.com/growth_people", "url": "https://vk.com/wall-123_42", "posted_at": at},
+			{"source_url": "https://vk.com/club12345", "url": "https://vk.com/wall-123_42", "posted_at": at},
 		},
 	}
 	got := autopilotCandidatesFromPosts(posts, at, 2)
