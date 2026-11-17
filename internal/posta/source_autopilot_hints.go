@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"time"
-
 )
 
 // Accepted public posts can nominate their authors without bypassing the
