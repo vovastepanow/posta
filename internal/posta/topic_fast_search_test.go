@@ -1,6 +1,10 @@
 package posta
 
-import "testing"
+import (
+	"testing"
+
+	"posta/internal/jx"
+)
 
 func TestShouldFastTopicSearch(t *testing.T) {
 	tests := []struct {
@@ -27,5 +31,21 @@ func TestShouldFastTopicSearch(t *testing.T) {
 				t.Fatalf("shouldFastTopicSearch(%+v) = %v, want %v", tt, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTagFastTopicResults(t *testing.T) {
+	posts := map[string][]jx.M{
+		"rss": {
+			{"url": "https://example.org/post/1"},
+			{"url": "https://example.org/post/2", "found_by": "publisher search"},
+		},
+	}
+	tagFastTopicResults(posts, "SMM")
+	if jx.Str(posts["rss"][0], "found_by") == "" {
+		t.Fatal("untagged search result cannot suggest its source")
+	}
+	if got := jx.Str(posts["rss"][1], "found_by"); got != "publisher search" {
+		t.Fatalf("existing search origin overwritten: %q", got)
 	}
 }
