@@ -38,3 +38,20 @@ func TestAutopilotCandidatesFromPosts(t *testing.T) {
 		t.Fatal("zero limit must return no sources")
 	}
 }
+
+func TestAutopilotCandidatesFromPostsBalancesPlatforms(t *testing.T) {
+	at := time.Now().Unix()
+	posts := map[string][]jx.M{
+		"a": {
+			{"source_url": "https://t.me/marketing_digest", "url": "https://t.me/marketing_digest/1", "posted_at": at},
+			{"source_url": "https://t.me/growth_digest", "url": "https://t.me/growth_digest/1", "posted_at": at},
+		},
+		"b": {
+			{"source_url": "https://vk.com/growth_people", "url": "https://vk.com/wall-123_42", "posted_at": at},
+		},
+	}
+	got := autopilotCandidatesFromPosts(posts, at, 2)
+	if len(got) != 2 || got[0].Platform == got[1].Platform {
+		t.Fatalf("expected two independent source platforms before consuming a second author from one: %+v", got)
+	}
+}
