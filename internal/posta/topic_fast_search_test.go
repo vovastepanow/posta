@@ -17,7 +17,9 @@ func TestShouldFastTopicSearch(t *testing.T) {
 	}{
 		{"new public topic", false, true, false, 0, 3, 0, 20, true},
 		{"some sources still missing", false, true, false, 2, 3, 5, 20, true},
-		{"enough sources", false, true, false, 3, 3, 0, 20, false},
+		{"enough sources but empty pool", false, true, false, 3, 3, 0, 20, true},
+		{"enough sources and a healthy buffer", false, true, false, 3, 3, 12, 20, false},
+		{"many sources but few viable posts", false, true, false, 10, 3, 2, 20, true},
 		{"full pool", false, true, false, 0, 3, 20, 20, false},
 		{"private topic", false, true, true, 0, 3, 0, 20, false},
 		{"discovery disabled", false, false, false, 0, 3, 0, 20, false},
