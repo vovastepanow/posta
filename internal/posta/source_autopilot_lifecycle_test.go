@@ -125,4 +125,29 @@ func TestAutopilotCandidateToActiveLifecyclePostgres(t *testing.T) {
 	if preliminary != 1 || assessCalls != 2 {
 		t.Fatalf("preliminary calls=%d assessments=%d; want 1 and 2", preliminary, assessCalls)
 	}
+
+	// Repeated checks of the same feed must not inflate evidence or collection
+	// passes, revert the active source, or rerun preliminary classification.
+	// Force the source due without advancing the real-world collection slot.
+	for cycle := 0; cycle < 8; cycle++ {
+		if _, err := d.Pool.Exec(ctx, `UPDATE source_autopilot_sources SET next_check_at=0 WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, key, source); err != nil {
+			t.Fatal(err)
+		}
+		if err := runAutopilotLeased(ctx, d, job, time.Minute, 10*time.Second, 100, 100, 100, 100, func(work context.Context) error {
+			return a.autopilotReviewShadowCandidatesWith(work, job, 1, 85, fetch, evaluate, assess, policy)
+		}); err != nil {
+			t.Fatalf("cycle %d: %v", cycle, err)
+		}
+		verifyState("active")
+		stats, err := autopilotEvidenceWindow(ctx, d.Pool, job.Scope, key, source, at.Add(-30*24*time.Hour), time.Now().Add(time.Minute))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stats.Evaluated != 12 || stats.Eligible != 12 || stats.FreshUnique != 12 || stats.SuccessfulPasses != 2 {
+			t.Fatalf("cycle %d inflated evidence or passes: %+v", cycle, stats)
+		}
+	}
+	if preliminary != 1 || assessCalls != 10 {
+		t.Fatalf("repeated cycles: preliminary=%d, assessments=%d; want 1 and 10", preliminary, assessCalls)
+	}
 }
