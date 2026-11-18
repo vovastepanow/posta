@@ -8,20 +8,22 @@ import (
 
 func TestAutopilotDiscoveryOutcome(t *testing.T) {
 	for _, tc := range []struct {
-		name string
+		name                      string
 		backends, sources, direct int
-		available bool
-		want string
+		observed, available, directAttempted bool
+		want                      string
 	}{
-		{"all disabled", 0, 0, 0, false, "disabled"},
-		{"all unavailable", 3, 0, 0, false, "unavailable"},
-		{"healthy empty search", 3, 0, 0, true, "empty"},
-		{"normal source results", 3, 2, 0, true, "results"},
-		{"public post results", 0, 0, 2, false, "results"},
-		{"partial platform failure", 3, 1, 0, false, "results"},
+		{"all disabled", 0, 0, 0, false, false, false, "disabled"},
+		{"all unavailable", 3, 0, 0, true, false, false, "unavailable"},
+		{"unobserved search", 3, 0, 0, false, false, false, "unknown"},
+		{"healthy empty search", 3, 0, 0, true, true, false, "empty"},
+		{"normal source results", 3, 2, 0, true, true, false, "results"},
+		{"public post results", 0, 0, 2, false, false, true, "results"},
+		{"only direct search empty", 0, 0, 0, false, false, true, "empty"},
+		{"partial platform failure", 3, 1, 0, true, false, false, "results"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := autopilotDiscoveryOutcome(tc.backends, tc.sources, tc.direct, tc.available); got != tc.want {
+			if got := autopilotDiscoveryOutcome(tc.backends, tc.sources, tc.direct, tc.observed, tc.available, tc.directAttempted); got != tc.want {
 				t.Fatalf("outcome = %q, want %q", got, tc.want)
 			}
 		})
