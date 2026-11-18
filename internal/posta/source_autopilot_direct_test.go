@@ -160,8 +160,28 @@ func TestAutopilotDirectDeliversWithoutApprovedSourcePostgres(t *testing.T) {
 	}
 	post := jx.M{"source_url": "https://t.me/marketing_digest", "url": "https://t.me/marketing_digest/1337", "posted_at": time.Now().Unix(), "text": "Подробное объяснение решения, конкретные результаты эксперимента и этапы работы."}
 	analysis := jx.M{"advertising": false, "relevance": 95, "topic_match": true, "model": "test", "description": "Содержательная публикация", "why_relevant": "Соответствует теме", "tags": []any{}}
-	if err := a.saveAutopilotDirectResult(ctx, job, source, post, analysis); err != nil {
+	defer a.KVDelete(context.Background(), autopilotPostHintKey(key, source))
+	defer a.KVDelete(context.Background(), autopilotDirectSeenKey(key, source, repeatDigest(CandidatePostKey(post))))
+	if err := a.autopilotStagePublicPosts(ctx, job, source, []jx.M{post}); err != nil {
 		t.Fatal(err)
+	}
+	modelCalls := 0
+	assess := func(texts []string) ([]Analysis, error) {
+		modelCalls++
+		if len(texts) != 1 || texts[0] != AnalysisText(post) {
+			t.Fatalf("unexpected model batch: %v", texts)
+		}
+		return []Analysis{analysis}, nil
+	}
+	candidate := DiscoveryCandidate{Platform: PlatformTelegram, ID: "marketing_digest"}
+	if err := a.autopilotAssessDirectPostsWith(ctx, job, []DiscoveryCandidate{candidate}, assess); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.autopilotAssessDirectPostsWith(ctx, job, []DiscoveryCandidate{candidate}, assess); err != nil {
+		t.Fatal(err)
+	}
+	if modelCalls != 1 {
+		t.Fatalf("already analyzed public post used model %d times", modelCalls)
 	}
 	var count int
 	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_direct_results WHERE topic_key=$1`, key).Scan(&count); err != nil || count != 1 {
