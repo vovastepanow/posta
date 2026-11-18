@@ -17,7 +17,7 @@ func TestAutopilotLivePublicRSS(t *testing.T) {
 	if dsn == "" || os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
 		t.Skip("requires POSTA_AUTOPILOT_LIVE=1 and an isolated PostgreSQL")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 85*time.Second)
 	defer cancel()
 	d, err := db.Open(ctx, dsn)
 	if err != nil {
@@ -43,13 +43,35 @@ func TestAutopilotLivePublicRSS(t *testing.T) {
 	if err != nil || job == nil {
 		t.Fatalf("claim: %+v %v", job, err)
 	}
-	err = runAutopilotLeased(ctx, d, job, time.Minute, 10*time.Second, 1, 1, 3, 3, func(work context.Context) error {
-		result := a.User(work, "", nil).RSSGet("https://www.bing.com/news/search?q=technology&format=rss", rssMaxBytes, 15*time.Second, HTTPUA)
-		if !result.OK || !rssIsFeed(rssLoad(result.Bytes)) {
-			return fmt.Errorf("RSS unavailable or unrecognized: status=%d error=%s", result.Status, result.Error)
+	err = runAutopilotLeased(ctx, d, job, time.Minute, 10*time.Second, 1, 1, 4, 4, func(work context.Context) error {
+		// Independent public publishers, not private accounts. Failure of
+		// one feed does not masquerade as a systemic search outage.
+		feeds := []string{
+			"https://hnrss.org/frontpage",
+			"https://feeds.bbci.co.uk/news/technology/rss.xml",
+			"https://www.bing.com/news/search?q=technology&format=rss",
 		}
-		t.Logf("public RSS HTTP %d; items=%d", result.Status, len(rssItems(rssLoad(result.Bytes))))
-		return nil
+		u := a.User(work, "", nil)
+		var observations []string
+		for _, feed := range feeds {
+			if err := work.Err(); err != nil {
+				return err
+			}
+			result := u.RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
+			if !result.OK || !rssIsFeed(rssLoad(result.Bytes)) {
+				observations = append(observations, fmt.Sprintf("%s: status=%d error=%s", feed, result.Status, result.Error))
+				continue
+			}
+			items := rssItems(rssLoad(result.Bytes))
+			t.Logf("Public feed %s: HTTP %d; items=%d", feed, result.Status, len(items))
+			if len(items) > 0 {
+				// Confirm the network response is actual content, not an
+				// empty/error page which happens to look like RSS.
+				return nil
+			}
+			observations = append(observations, fmt.Sprintf("%s: valid but empty feed", feed))
+		}
+		return fmt.Errorf("no public RSS endpoint returned posts: %v", observations)
 	})
 	if err != nil {
 		t.Fatal(err)
