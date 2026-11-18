@@ -33,9 +33,18 @@ git diff --quiet && git diff --cached --quiet || fail "Tracked local changes pre
 git fetch --quiet origin main
 current="$(git rev-parse HEAD)"
 target="$(git rev-parse refs/remotes/origin/main)"
-if [ "$current" = "$target" ]; then exit 0; fi
+deployed_file="${HOME}/.posta-auto-update-deployed"
+deployed="$(cat "$deployed_file" 2>/dev/null || true)"
+if [ "$deployed" = "$target" ]; then exit 0; fi
 git merge-base --is-ancestor "$current" "$target" || fail "Main cannot fast-forward."
-if git diff --name-only "$current" "$target" | grep -q '^internal/db/migrations/'; then
+# A first install requires manual review if migrations exist in the target
+# update; subsequent installs compare from the last successfully deployed SHA.
+if [ -n "$deployed" ] && git cat-file -e "$deployed^{commit}" 2>/dev/null; then
+    baseline="$deployed"
+else
+    baseline="$current"
+fi
+if git diff --name-only "$baseline" "$target" | grep -q '^internal/db/migrations/'; then
     fail "Database migration changed; deploy manually after backup."
 fi
 
@@ -96,4 +105,4 @@ if ! sudo -n /usr/bin/systemctl restart posta ||
     sudo -n /usr/bin/systemctl restart posta || true
     fail "Deployment failed; inspect journalctl -u posta."
 fi
-log "Deployed ${target:0:8}; service active."
+printf "%s\n" "$target" > "$deployed_file"\nlog "Deployed ${target:0:8}; service active."
