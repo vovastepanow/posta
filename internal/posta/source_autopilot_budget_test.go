@@ -227,3 +227,15 @@ func TestAutopilotSearchFetchCap(t *testing.T) {
 		t.Fatalf("candidate review budget was blocked: %d", charged.Load())
 	}
 }
+
+func TestAutopilotPaidDailyThreshold(t *testing.T) {
+	if got := autopilotPaidLimitMicro(withAutopilotPaidLimit(context.Background(), 2)); got != 2000000 {
+		t.Fatalf("paid threshold: got %d; want 2000000", got)
+	}
+	if got := autopilotPaidLimitMicro(withAutopilotPaidLimit(context.Background(), 0)); got != 0 {
+		t.Fatalf("disabled paid calls should have zero threshold: %d", got)
+	}
+	if got := autopilotPaidLimitMicro(context.Background()); got != -1 {
+		t.Fatalf("unset legacy context should not block: %d", got)
+	}
+}
