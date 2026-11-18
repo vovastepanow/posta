@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -254,6 +255,25 @@ func (a *App) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
 
 // FetchPublic from a user operation is cancelled with the operation, including
 // when a leased discovery worker loses ownership.
+// Public autopilot fetches share one in-flight slot per site, even across
+// separate topic workers. A site's 429 temporarily closes only that site.
+type autopilotSiteGate struct {
+	mu sync.Mutex
+	retryAt time.Time
+}
+var autopilotSites sync.Map
+
+func autopilotSiteRetryDelay(value string, now time.Time) time.Duration {
+	value = strings.TrimSpace(value)
+	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil && seconds >= 0 {
+		return min(max(time.Duration(seconds)*time.Second, time.Minute), 24*time.Hour)
+	}
+	if date, err := http.ParseTime(value); err == nil {
+		return min(max(date.Sub(now), time.Minute), 24*time.Hour)
+	}
+	return time.Minute
+}
+
 func (u *U) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
 	ctx := u.Ctx
 	if ctx == nil {
@@ -264,9 +284,29 @@ func (u *U) FetchPublic(raw string, o FetchOpts) (FetchResult, error) {
 		if !ok || gate == nil {
 			return FetchResult{}, errors.New("autopilot fetch budget unavailable")
 		}
+		parsed, err := url.Parse(raw)
+		if err != nil || parsed.Hostname() == "" {
+			return FetchResult{}, errors.New("invalid autopilot fetch URL")
+		}
+		site := strings.ToLower(parsed.Hostname())
+		entry, _ := autopilotSites.LoadOrStore(site, &autopilotSiteGate{})
+		limiter := entry.(*autopilotSiteGate)
+		limiter.mu.Lock()
+		defer limiter.mu.Unlock()
+		if err := ctx.Err(); err != nil {
+			return FetchResult{}, err
+		}
+		if time.Now().Before(limiter.retryAt) {
+			return FetchResult{Status: http.StatusTooManyRequests, RetryAfter: limiter.retryAt.UTC().Format(http.TimeFormat)}, nil
+		}
 		if err := gate(ctx); err != nil {
 			return FetchResult{}, err
 		}
+		result, err := u.App.fetchPublicContext(ctx, raw, o)
+		if err == nil && (result.Status == http.StatusTooManyRequests || result.Status == http.StatusServiceUnavailable) {
+			limiter.retryAt = time.Now().Add(autopilotSiteRetryDelay(result.RetryAfter, time.Now()))
+		}
+		return result, err
 	}
 	return u.App.fetchPublicContext(ctx, raw, o)
 }
