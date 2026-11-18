@@ -592,7 +592,7 @@ func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJ
 	if err := autopilotBudgetError(ctx); err != nil {
 		return nil, err
 	}
-	candidates := autopilotCandidatesFromPosts(posts, time.Now().Unix(), limit)
+	candidates := autopilotCandidatesFromPosts(posts, time.Now().Unix(), limit, job.MaxProbation)
 	// Store only small, public text candidates tied to the verified author
 	// identity. Media never enters this staging queue.
 	for _, candidate := range candidates {
@@ -763,6 +763,11 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		FROM source_autopilot_sources s
 		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown') AND s.next_check_at <= $3
 		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
+		-- Candidates cannot enter probation while all trial slots are used.
+		-- Do not consume a review slot merely to postpone them for 24 hours;
+		-- keep them due so the next worker can review them when a slot opens.
+		AND (s.state <> 'candidate' OR (SELECT count(*) FROM source_autopilot_sources trial
+			WHERE trial.scope=$1 AND trial.topic_key=$2 AND trial.state='probation') < $5)
 	), ranked AS (
 		SELECT source_id,state,resume_state,lane,
 			row_number() OVER (PARTITION BY lane ORDER BY checked_at,first_seen_at,source_id) AS lane_rank
