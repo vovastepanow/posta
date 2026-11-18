@@ -20,3 +20,7 @@ data/
 tools/bin/yt-dlp
 tools/bin/deno
 tools/bin/YT_DLP_VERSION
+
+# Python artefacts are not part of the Go application
+__pycache__/
+*.pyc
