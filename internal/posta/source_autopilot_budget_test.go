@@ -194,3 +194,36 @@ func TestAutopilotNetworkBudgetAtomicPostgres(t *testing.T) {
 		t.Fatalf("partial reservation: server=%d topic=%d", serverUsed, topicUsed)
 	}
 }
+
+
+func TestAutopilotSearchFetchCap(t *testing.T) {
+	var charged atomic.Int32
+	ctx := context.WithValue(context.Background(), autopilotNetworkGateKey{}, func(context.Context) error {
+		charged.Add(1)
+		return nil
+	})
+	searchCtx := withAutopilotSearchFetchCap(ctx, 3)
+	gate := searchCtx.Value(autopilotNetworkGateKey{}).(func(context.Context) error)
+	for i := 0; i < 3; i++ {
+		if err := gate(searchCtx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if autopilotSearchFetchCapReached(searchCtx) {
+		t.Fatal("cap reached before an extra request")
+	}
+	if err := gate(searchCtx); !errors.Is(err, errAutopilotSearchFetchCap) {
+		t.Fatalf("unexpected cap error: %v", err)
+	}
+	if !autopilotSearchFetchCapReached(searchCtx) || charged.Load() != 3 {
+		t.Fatalf("cap=%v charged=%d", autopilotSearchFetchCapReached(searchCtx), charged.Load())
+	}
+	// Candidate checks use the original context, not the search sub-budget.
+	original := ctx.Value(autopilotNetworkGateKey{}).(func(context.Context) error)
+	if err := original(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if charged.Load() != 4 {
+		t.Fatalf("candidate review budget was blocked: %d", charged.Load())
+	}
+}
