@@ -287,10 +287,12 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			if postErr != nil {
 				return candidates, postErr
 			}
+			// Preserve source candidates even if the separate text model
+			// fails: the search result can still enter normal vetting.
+			candidates = append(candidates, postCandidates...)
 			if err := a.autopilotAssessDirectPosts(ctx, job, postCandidates); err != nil {
 				return candidates, err
 			}
-			candidates = append(candidates, postCandidates...)
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
