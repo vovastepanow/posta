@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"math"
 	"sync"
 	"time"
 
@@ -128,10 +129,58 @@ func autopilotSearchFetchCapReached(ctx context.Context) bool {
 	return cap.reached
 }
 
+// Paid OpenRouter calls use a separate server-wide autopilot spend counter.
+// Provider prices are reported only after a call, so this is a circuit
+// breaker at the observed daily cost, not a guaranteed prepaid dollar cap.
+// In-flight calls can overshoot, and provider errors may have unknown cost.
+type autopilotPaidLimitKey struct{}
+
+func withAutopilotPaidLimit(ctx context.Context, usd float64) context.Context {
+	return context.WithValue(ctx, autopilotPaidLimitKey{}, usd)
+}
+
+func autopilotPaidLimitMicro(ctx context.Context) int64 {
+	usd, ok := ctx.Value(autopilotPaidLimitKey{}).(float64)
+	if !ok || usd < 0 || math.IsNaN(usd) || math.IsInf(usd, 0) {
+		return -1 // legacy callers without a configured paid limit
+	}
+	return int64(math.Round(usd * 1e6))
+}
+
+func autopilotPaidUsageTx(ctx context.Context, tx pgx.Tx, at time.Time) (int64, error) {
+	var spent int64
+	err := tx.QueryRow(ctx, `SELECT COALESCE((SELECT used FROM source_autopilot_budget
+		WHERE scope='autopilot_paid' AND resource='usd_micro' AND day=$1),0)`,
+		at.UTC().Format("2006-01-02")).Scan(&spent)
+	return spent, err
+}
+
+func autopilotReportModelCost(ctx context.Context, database *db.DB, job *autopilotJob, target llm.Target, resp *llm.Response, _ error) error {
+	if target.Free() || resp == nil || resp.CostUSD <= 0 {
+		return nil
+	}
+	if math.IsNaN(resp.CostUSD) || math.IsInf(resp.CostUSD, 0) {
+		return errors.New("invalid model cost")
+	}
+	amount := int64(math.Ceil(resp.CostUSD * 1e6))
+	if amount < 1 {
+		amount = 1
+	}
+	return withAutopilotLease(ctx, database, job, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO source_autopilot_budget(scope,resource,day,used)
+			VALUES('autopilot_paid','usd_micro',(clock_timestamp() AT TIME ZONE 'UTC')::date,$1)
+			ON CONFLICT(scope,resource,day) DO UPDATE SET used=source_autopilot_budget.used+EXCLUDED.used`, amount)
+		return err
+	})
+}
+
 // autopilotModelBudget gates every actual router attempt, including fallback.
 // Server and topic limits are reserved atomically under the same lease.
 func autopilotModelBudget(ctx context.Context, database *db.DB, job *autopilotJob, serverLimit, topicLimit int64) context.Context {
-	return llm.WithCallGate(ctx, func(ctx context.Context, _ llm.Target) error {
+	ctx = llm.WithCallReport(ctx, func(ctx context.Context, target llm.Target, response *llm.Response, err error) error {
+		return noteAutopilotBudgetError(ctx, autopilotReportModelCost(ctx, database, job, target, response, err))
+	})
+	return llm.WithCallGate(ctx, func(ctx context.Context, target llm.Target) error {
 		var nonce [16]byte
 		if _, err := rand.Read(nonce[:]); err != nil {
 			return noteAutopilotBudgetError(ctx, err)
@@ -144,6 +193,18 @@ func autopilotModelBudget(ctx context.Context, database *db.DB, job *autopilotJo
 			var at time.Time
 			if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&at); err != nil {
 				return err
+			}
+			if !target.Free() {
+				limitMicro := autopilotPaidLimitMicro(ctx)
+				if limitMicro >= 0 {
+					spent, spentErr := autopilotPaidUsageTx(ctx, tx, at)
+					if spentErr != nil {
+						return spentErr
+					}
+					if spent >= limitMicro {
+						return errAutopilotBudgetExhausted
+					}
+				}
 			}
 			if err := reserveAutopilotBudgetTx(ctx, tx, id+":server", "server", "llm_attempt", at, 1, serverLimit); err != nil {
 				return err
