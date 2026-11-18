@@ -280,7 +280,17 @@ func (u *U) SourceAutopilotRequest(topic string) error {
 	if err := u.App.reconcileAutopilotMode(u.Ctx, true, mode, scope, kind); err != nil {
 		return err
 	}
-	return enqueueAutopilotJob(u.Ctx, u.DB.Pool, scope, autopilotTopicKey(topic), kind, topic, "requested", 10, time.Now())
+	// An explicit user request may advance a scheduled check. The job lease,
+	// daily network/model budgets and per-source rate-limit backoffs still apply.
+	at := time.Now()
+	if err := enqueueAutopilotJob(u.Ctx, u.DB.Pool, scope, autopilotTopicKey(topic), kind, topic, "requested", 10, at); err != nil {
+		return err
+	}
+	_, err = u.DB.Pool.Exec(u.Ctx, `UPDATE source_autopilot_jobs
+		SET next_run_at=LEAST(next_run_at,$4), requested_at=$4
+		WHERE scope=$1 AND topic_key=$2 AND kind=$3 AND enabled AND demand_active`,
+		scope, autopilotTopicKey(topic), kind, at.Unix())
+	return err
 }
 
 func (u *U) SourceAutopilotPause(topic string, paused bool) error {
