@@ -61,6 +61,59 @@ func (a *App) saveAutopilotDirectResult(ctx context.Context, job *autopilotJob, 
 	})
 }
 
+type autopilotDirectCandidate struct {
+	source string
+	post   jx.M
+}
+
+// Assess one post per source before taking a second. A prolific author
+// must not consume the entire model budget while other public sources
+// remain untested. The same post cannot be selected twice.
+func autopilotInterleaveDirectPosts(candidates []DiscoveryCandidate, pending func(string) []jx.M, limit int) []autopilotDirectCandidate {
+	if limit <= 0 {
+		return nil
+	}
+	sources := make([]string, 0, len(candidates))
+	postsBySource := map[string][]jx.M{}
+	for _, candidate := range candidates {
+		source, ok := autopilotCandidateID(candidate)
+		if !ok {
+			continue
+		}
+		if _, exists := postsBySource[source]; exists {
+			continue
+		}
+		postsBySource[source] = pending(source)
+		sources = append(sources, source)
+	}
+	selected := make([]autopilotDirectCandidate, 0, limit)
+	seen := map[string]bool{}
+	for round := 0; len(selected) < limit; round++ {
+		more := false
+		for _, source := range sources {
+			posts := postsBySource[source]
+			if round >= len(posts) {
+				continue
+			}
+			more = true
+			post := posts[round]
+			key := CandidatePostKey(post)
+			if key == "" || seen[key] {
+				continue
+			}
+			seen[key] = true
+			selected = append(selected, autopilotDirectCandidate{source: source, post: post})
+			if len(selected) == limit {
+				break
+			}
+		}
+		if !more {
+			break
+		}
+	}
+	return selected
+}
+
 // Run only with the public worker's leased context. Read independently found
 // posts from the bounded, expiring staging queue. Never use personal accounts,
 // source histories, or any cached private user content for model evidence.
@@ -74,45 +127,31 @@ func (a *App) autopilotAssessDirectPosts(ctx context.Context, job *autopilotJob,
 	}
 	var posts []jx.M
 	var texts, sources []string
-	seen := map[string]bool{}
-	for _, candidate := range candidates {
-		if len(posts) == autopilotDirectMaxPerRun {
-			break
+	for _, candidate := range autopilotInterleaveDirectPosts(candidates, func(source string) []jx.M {
+		return a.autopilotPendingPublicPosts(ctx, job, source)
+	}, autopilotDirectMaxPerRun) {
+		post, source := candidate.post, candidate.source
+		postHash := repeatDigest(CandidatePostKey(post))
+		var saved bool
+		err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(
+			SELECT 1 FROM source_autopilot_direct_results
+			WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4
+			AND policy_version=$5 AND assessed_at >= $6)`,
+			job.Scope, job.TopicKey, source, postHash, TopicProfileVersion,
+			time.Now().Add(-autopilotDirectMaxAge).Unix()).Scan(&saved)
+		if err != nil {
+			return err
 		}
-		source, ok := autopilotCandidateID(candidate)
-		if !ok {
+		if saved {
 			continue
 		}
-		for _, post := range a.autopilotPendingPublicPosts(ctx, job, source) {
-			postHash := repeatDigest(CandidatePostKey(post))
-			if seen[postHash] {
-				continue
-			}
-			seen[postHash] = true
-			var saved bool
-			err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(
-				SELECT 1 FROM source_autopilot_direct_results
-				WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4
-				AND policy_version=$5 AND assessed_at >= $6)`,
-				job.Scope, job.TopicKey, source, postHash, TopicProfileVersion,
-				time.Now().Add(-autopilotDirectMaxAge).Unix()).Scan(&saved)
-			if err != nil {
-				return err
-			}
-			if saved {
-				continue
-			}
-			var assessed bool
-			if a.KVGet(ctx, autopilotDirectSeenKey(job.TopicKey, source, postHash), &assessed) && assessed {
-				continue
-			}
-			posts = append(posts, post)
-			texts = append(texts, AnalysisText(post))
-			sources = append(sources, source)
-			if len(posts) == autopilotDirectMaxPerRun {
-				break
-			}
+		var assessed bool
+		if a.KVGet(ctx, autopilotDirectSeenKey(job.TopicKey, source, postHash), &assessed) && assessed {
+			continue
 		}
+		posts = append(posts, post)
+		texts = append(texts, AnalysisText(post))
+		sources = append(sources, source)
 	}
 	if len(posts) == 0 {
 		return nil
