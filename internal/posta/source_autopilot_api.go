@@ -145,6 +145,8 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 				row["direct_reviewed_total"] = jx.Int(stats, "direct_reviewed_total")
 				row["direct_accepted_total"] = jx.Int(stats, "direct_accepted_total")
 				row["direct_rejected_total"] = jx.Int(stats, "direct_rejected_total")
+				row["pipeline_phase"] = jx.Str(stats, "pipeline_phase")
+				row["pipeline_phase_at"] = jx.Int(stats, "pipeline_phase_at")
 				row["last_search_at"] = jx.Int(stats, "last_search_at")
 				row["last_search_outcome"] = jx.Str(stats, "last_search_outcome")
 				row["last_source_candidates"] = jx.Int(stats, "last_source_candidates")
