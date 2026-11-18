@@ -190,9 +190,10 @@ func TestAutopilotDirectDeliversWithoutApprovedSourcePostgres(t *testing.T) {
 	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE topic_key=$1`, key).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("direct assessment unexpectedly approved source: count=%d err=%v", count, err)
 	}
-	if err := a.deliverAutopilotTopicContent(ctx, job); err != nil {
+	if err := a.deliverAutopilotDirectTopicContent(ctx, job); err != nil {
 		t.Fatal(err)
 	}
+	// The later combined source + post delivery must remain idempotent.
 	if err := a.deliverAutopilotTopicContent(ctx, job); err != nil {
 		t.Fatal(err)
 	}
