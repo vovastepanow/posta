@@ -600,7 +600,7 @@ async function loadDiscoveryStatus() {
         state.discovering = Boolean(d.requested || d.running);
         $('discovery-status').textContent = [`Тема «${d.topic}».`,
             (d.last_topic || '').toLowerCase() === (d.topic || '').toLowerCase() && d.last_run ? `Последний подбор: ${formatAgo(d.last_run)}.` : 'По этой теме подбора ещё не было.',
-            `В каталоге найденных: ${d.auto_added}, ждут вашего решения: ${d.suggestions}.`,
+            `Ручной подбор (отдельный механизм): всего найдено в каталоге ${d.auto_added}, ждут вашего решения ${d.suggestions}. Это накопленный итог, а не находки AI-автопилота за один запуск.`,
             d.batch_target ? `Подбор: ${d.batch_found} из ${d.batch_target}, в очереди ${d.batch_pending}.${d.batch_active && !d.running ? " Поиск продолжится в фоне." : ""}` : '',
             d.frozen ? `Заморожено из-за редких постов: ${d.frozen} (перепроверяются раз в несколько дней).` : '',
             d.requested ? 'Подбор заказан — начнётся при запуске парсера.' : '', d.vk_connected ? '' : 'Открытые сообщества VK доступны без подключения; для поиска через VK API нужен ключ.'].filter(Boolean).join(' ');
@@ -667,7 +667,7 @@ function renderAutopilot(data) {
                 el('strong', { textContent: topic.topic }),
                 el('span', { className: 'autopilot-state' + (topic.running ? ' is-running' : ''), textContent: status })),
             el('div', { className: 'autopilot-metrics' },
-                stat('Найдено источников', found, 'За последний поисковый проход'),
+                stat('Найдено за 1 цикл', found, 'Автопилот; не сумма находок ручного подбора'),
                 stat('Ожидают проверки', sourceCandidates, 'Сохранено в очереди'),
                 stat('На испытании', sourcesReview, 'Проверка качества'),
                 stat('Подтверждено', sourcesActive, 'Действующие источники')),
@@ -693,6 +693,8 @@ function renderAutopilot(data) {
                     ' HTTP-загрузок · ' + number(topic.model_remaining) + ' AI-вызовов по теме' }),
                 el('span', { textContent: 'Сервер: ' + number(topic.server_fetch_remaining ?? 0) +
                     ' HTTP · ' + number(topic.server_model_remaining ?? 0) + ' AI' }),
+                el('span', { textContent: 'Запусков задания: ' + number(topic.attempts) +
+                    (topic.pipeline_phase_at ? ' · последний этап: ' + dateTime(topic.pipeline_phase_at) : '') }),
                 el('span', { textContent: topic.running ? 'Текущий цикл выполняется' :
                     'Следующая проверка: ' + dateTime(topic.next_run_at) })),
             staleError);
