@@ -2,6 +2,7 @@ package posta
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -49,6 +50,33 @@ func TestAutopilotSourceReviewInterval(t *testing.T) {
 		if got := autopilotSourceReviewInterval(tc.job, tc.state); got != tc.want {
 			t.Errorf("state=%s job=%+v got=%v want=%v", tc.state, tc.job, got, tc.want)
 		}
+	}
+}
+
+// Auto discovery must inspect several independent platforms even when one
+// early backend is already prolific, while staying bounded for a cycle.
+func TestAutopilotWideSearchCoversSixPlatformsAndStopsAtTarget(t *testing.T) {
+	calls := 0
+	backends := make([]func() []DiscoveryCandidate, 10)
+	for i := range backends {
+		index := i
+		backends[i] = func() []DiscoveryCandidate {
+			calls++
+			found := make([]DiscoveryCandidate, 11)
+			for j := range found {
+				found[j] = DiscoveryCandidate{Platform: PlatformRSS, ID: fmt.Sprintf("https://example.org/%d/%d.xml", index, j)}
+			}
+			return found
+		}
+	}
+	out := autopilotRunSearchBackendsAdaptive(context.Background(), 0, backends, 6, 64)
+	if calls != 6 || len(out) != 66 {
+		t.Fatalf("calls=%d candidates=%d; want six platform calls and 66 candidates", calls, len(out))
+	}
+	calls = 0
+	out = autopilotRunSearchBackendsAdaptive(context.Background(), 4, backends, 6, 64)
+	if calls != 6 || len(out) != 66 || out[0].ID != "https://example.org/4/0.xml" {
+		t.Fatalf("rotation failed: calls=%d candidates=%d first=%+v", calls, len(out), out[0])
 	}
 }
 
