@@ -127,13 +127,13 @@ func autopilotEffectTx(ctx context.Context, database *db.DB, fn func(pgx.Tx) err
 						SELECT 1 FROM source_autopilot_direct_results
 						WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4
 						AND policy_version=$5 AND published_at >= $6 AND assessed_at >= $7
-						AND post->>'url'=$8 AND analysis->>'model'=$9
+						AND post=$8::jsonb AND analysis=$9::jsonb
 						AND analysis->>'advertising'='false')`,
 						job.Scope, job.TopicKey, guard.source,
 						repeatDigest(CandidatePostKey(guard.post)), TopicProfileVersion,
 						time.Now().Add(-autopilotDirectMaxAge).Unix(),
 						time.Now().Add(-autopilotDirectMaxAge).Unix(),
-						jx.Str(guard.post, "url"), jx.Str(guard.analysis, "model")).Scan(&verified); err != nil {
+						string(jx.Marshal(guard.post)), string(jx.Marshal(guard.analysis))).Scan(&verified); err != nil {
 						return err
 					}
 					if !verified {
