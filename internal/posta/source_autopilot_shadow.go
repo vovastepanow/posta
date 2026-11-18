@@ -178,7 +178,7 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 		// appear frozen even when there was ample daily budget left.
 		// A real daily quota exhaustion waits for the next UTC budget reset.
 		if errors.Is(err, errAutopilotBudgetExhausted) {
-			nextInterval = time.Until(time.Now().UTC().Truncate(24*time.Hour).Add(24*time.Hour + 2*time.Minute))
+			nextInterval = time.Until(time.Now().UTC().Truncate(24 * time.Hour).Add(24*time.Hour + 2*time.Minute))
 		} else {
 			nextInterval = time.Hour
 		}
