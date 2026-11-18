@@ -124,6 +124,11 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 				row["direct_reviewed_total"] = jx.Int(stats, "direct_reviewed_total")
 				row["direct_accepted_total"] = jx.Int(stats, "direct_accepted_total")
 				row["direct_rejected_total"] = jx.Int(stats, "direct_rejected_total")
+				row["last_search_at"] = jx.Int(stats, "last_search_at")
+				row["last_search_outcome"] = jx.Str(stats, "last_search_outcome")
+				row["last_source_candidates"] = jx.Int(stats, "last_source_candidates")
+				row["last_direct_sources"] = jx.Int(stats, "last_direct_sources")
+				row["last_search_backends"] = jx.Int(stats, "last_search_backends")
 				var recent int
 				err := u.DB.Pool.QueryRow(u.Ctx, `SELECT count(*) FROM source_autopilot_direct_results
 					WHERE scope='public' AND topic_key=$1 AND published_at >= $2 AND assessed_at >= $2 AND policy_version=$3`,
