@@ -465,6 +465,31 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .autopilot-topics { display: grid; gap: 8px; }
 .autopilot-topic-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
 .autopilot-topic-row details { flex-basis: 100%; overflow-wrap: anywhere; }
+/* Source autopilot: explain the actual pipeline instead of a status paragraph. */
+.autopilot-topic-row { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); align-items: stretch; gap: 14px; }
+.autopilot-overview { flex-basis: 100%; min-width: 0; display: grid; gap: 14px; }
+.autopilot-overview-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: 16px; }
+.autopilot-state { font-size: 12px; font-weight: 600; padding: 5px 9px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--muted); }
+.autopilot-state.is-running { color: var(--text); border-color: currentColor; }
+.autopilot-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.autopilot-metric { display: grid; align-content: start; gap: 3px; min-width: 0; padding: 12px; background: var(--surface, var(--bg)); border: 1px solid var(--line); border-radius: 10px; }
+.autopilot-metric-value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.autopilot-metric-label { font-weight: 600; }
+.autopilot-metric small, .autopilot-phase small { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.autopilot-pipeline { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.autopilot-phase { display: grid; grid-template-columns: 12px 1fr; gap: 10px; padding: 12px; align-items: start; }
+.autopilot-phase + .autopilot-phase { border-top: 1px solid var(--line); }
+.autopilot-phase > div { display: grid; gap: 4px; min-width: 0; }
+.autopilot-phase > div > span { font-size: 13px; }
+.autopilot-phase-dot { width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; border: 1px solid var(--muted); }
+.autopilot-phase-dot.done { background: #46ad82; border-color: #46ad82; }
+.autopilot-phase-dot.active { background: #d5a64c; border-color: #d5a64c; }
+.autopilot-footnotes { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--muted); }
+.autopilot-footnotes span { max-width: 100%; overflow-wrap: anywhere; }
+.autopilot-alert { margin: 0; padding: 10px 12px; border-left: 2px solid #d5a64c; background: var(--surface, var(--bg)); border-radius: 5px; font-size: 12px; line-height: 1.5; }
+.autopilot-topic-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+@media (max-width: 700px) { .autopilot-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .autopilot-topic-row { padding: 12px; } }
+
 #discovery-status { color: var(--muted); font-size: 12px; line-height: 1.45; }
 @media (max-width: 480px) { .discovery-panel { flex-direction: column; align-items: stretch; } }
 .source-platform-filter { display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; color: var(--muted); font-size: 13px; }
