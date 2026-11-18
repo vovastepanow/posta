@@ -107,17 +107,33 @@ func (a *App) saveAutopilotContentResult(ctx context.Context, job *autopilotJob,
 }
 
 func (a *App) deliverAutopilotTopicContent(ctx context.Context, job *autopilotJob) error {
+	return a.deliverAutopilotTopicContentMode(ctx, job, false)
+}
+
+// Direct public posts need no source promotion. Deliver them immediately
+// after independent assessment, before slow feed verification runs.
+func (a *App) deliverAutopilotDirectTopicContent(ctx context.Context, job *autopilotJob) error {
+	return a.deliverAutopilotTopicContentMode(ctx, job, true)
+}
+
+func (a *App) deliverAutopilotTopicContentMode(ctx context.Context, job *autopilotJob, directOnly bool) error {
 	if job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind {
 		return nil
 	}
-	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,direct FROM (
+	query := `SELECT source_id,direct FROM (
 		SELECT DISTINCT r.source_id,false AS direct FROM source_autopilot_content_results r
 		JOIN source_autopilot_sources s ON s.scope=r.scope AND s.topic_key=r.topic_key AND s.source_id=r.source_id
 		WHERE r.scope=$1 AND r.topic_key=$2 AND s.state IN ('probation','active')
 		UNION ALL
 		SELECT DISTINCT source_id,true AS direct FROM source_autopilot_direct_results
 		WHERE scope=$1 AND topic_key=$2 AND published_at >= $3 AND assessed_at >= $3
-	) ready ORDER BY direct DESC,source_id`,
+	) ready ORDER BY direct DESC,source_id`
+	if directOnly {
+		query = `SELECT DISTINCT source_id,true AS direct FROM source_autopilot_direct_results
+			WHERE scope=$1 AND topic_key=$2 AND published_at >= $3 AND assessed_at >= $3
+			ORDER BY source_id`
+	}
+	rows, err := a.DB.Pool.Query(ctx, query,
 		job.Scope, job.TopicKey, time.Now().Add(-autopilotDirectMaxAge).Unix())
 	if err != nil {
 		return err
