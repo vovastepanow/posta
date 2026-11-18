@@ -78,7 +78,10 @@ func TestAutopilotProbationNotStarvedByCandidateBacklogPostgres(t *testing.T) {
 				seen = feed
 				return FetchResultURL{URL: feed, FetchResult: FetchResult{Status: http.StatusNotFound}}
 			},
-			func(jx.M, []jx.M, string) *sourceEvaluation { t.Fatal("unexpected new candidate evaluation"); return nil },
+			func(jx.M, []jx.M, string) *sourceEvaluation {
+				t.Fatal("unexpected new candidate evaluation")
+				return nil
+			},
 			func(context.Context, string, []jx.M) error { return nil },
 			sourcePolicy{MinEvaluated: 10, MinPasses: 2, MinFreshUnique: 3, PromoteRate: .85, DemoteRate: .5, MaxAdvertisingRate: .2, MaxDuplicateRate: .5})
 	})
