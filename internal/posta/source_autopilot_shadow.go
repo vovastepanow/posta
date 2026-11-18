@@ -230,6 +230,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	}
 	var searchErr error
 	var sourceSearchCount, directSourceCount, enabledBackends int
+	directAttempted := false
 	searchOutcome := "not_started"
 	err = a.autopilotShadowSearchWith(ctx, job, func(ctx context.Context) ([]DiscoveryCandidate, error) {
 		u := a.User(ctx, "", nil)
@@ -282,6 +283,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		candidates := autopilotRunSearchBackends(ctx, turn, backends)
 		sourceSearchCount = len(candidates)
 		if job.Scope == autopilotAutoScope && (len(candidates) < 3 || turn%3 == 0) && ctx.Err() == nil && autopilotBudgetError(ctx) == nil {
+			directAttempted = true
 			// Periodic direct post exploration continues even when broad
 			// source search reports plenty of unverified candidates.
 			postCandidates, postErr := a.autopilotFindSourcesFromPosts(ctx, job, query, 6)
@@ -308,7 +310,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 				available = true
 			}
 		}
-		searchOutcome = autopilotDiscoveryOutcome(enabledBackends, sourceSearchCount, directSourceCount, available)
+		searchOutcome = autopilotDiscoveryOutcome(enabledBackends, sourceSearchCount, directSourceCount, len(statuses) > 0, available, directAttempted)
 		switch searchOutcome {
 		case "disabled":
 			searchErr = errors.New("news_search_disabled")
@@ -355,12 +357,18 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 
 // The result distinguishes a broken platform from a healthy but empty
 // search, and a fully disabled source search from a working post search.
-func autopilotDiscoveryOutcome(backends, sourceCount, directCount int, available bool) string {
+func autopilotDiscoveryOutcome(backends, sourceCount, directCount int, observed, available, directAttempted bool) string {
 	if sourceCount+directCount > 0 {
 		return "results"
 	}
 	if backends == 0 {
+		if directAttempted {
+			return "empty"
+		}
 		return "disabled"
+	}
+	if !observed {
+		return "unknown"
 	}
 	if !available {
 		return "unavailable"
