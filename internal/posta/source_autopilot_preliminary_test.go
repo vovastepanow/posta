@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -48,5 +49,31 @@ func TestAutopilotSourceReviewInterval(t *testing.T) {
 		if got := autopilotSourceReviewInterval(tc.job, tc.state); got != tc.want {
 			t.Errorf("state=%s job=%+v got=%v want=%v", tc.state, tc.job, got, tc.want)
 		}
+	}
+}
+
+
+func TestAutopilotAdaptiveSearchStopsAfterEnoughUniqueCandidates(t *testing.T) {
+	calls := 0
+	makeBackend := func(url string) func() []DiscoveryCandidate {
+		return func() []DiscoveryCandidate {
+			calls++
+			return []DiscoveryCandidate{{Platform: PlatformRSS, ID: url}}
+		}
+	}
+	backends := []func() []DiscoveryCandidate{
+		makeBackend("https://example.com/a"),
+		makeBackend("https://example.com/b"),
+		makeBackend("https://example.com/c"),
+		makeBackend("https://example.com/d"),
+	}
+	out := autopilotRunSearchBackendsAdaptive(context.Background(), 0, backends, 2, 2)
+	if calls != 2 || len(out) != 2 {
+		t.Fatalf("called=%d candidates=%d; want 2,2", calls, len(out))
+	}
+	calls = 0
+	out = autopilotRunSearchBackendsAdaptive(context.Background(), 2, backends, 3, 3)
+	if calls != 3 || len(out) != 3 || out[0].ID != "https://example.com/c" {
+		t.Fatalf("rotation/candidate goal failed: called=%d out=%+v", calls, out)
 	}
 }
