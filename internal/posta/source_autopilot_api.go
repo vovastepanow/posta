@@ -94,6 +94,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		row["model_remaining"] = max(0, int64(u.TInt("autopilot_model_topic_daily"))-modelUsed)
 		row["server_fetch_remaining"], row["server_model_remaining"] = serverFetchRemaining, serverModelRemaining
 		var next, lease int64
+		var attempts int
 		var enabled, eligible bool
 		var lastError string
 		var checkpoint []byte
@@ -116,7 +117,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			lastSuccess = max(lastSuccess, directSuccess)
 		}
 		row["last_success"] = lastSuccess
-		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&next, &lease, &enabled, &eligible, &lastError, &checkpoint)
+		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint,attempts FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&next, &lease, &enabled, &eligible, &lastError, &checkpoint, &attempts)
 		if err == nil {
 			failure := ""
 			switch {
@@ -140,6 +141,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 				failure = "other_error"
 			}
 			row["next_run_at"], row["running"], row["job_paused"], row["eligible"], row["failure"] = next, lease > now() && !d.Paused, !enabled, eligible && !d.Paused, failure
+			row["attempts"] = attempts
 			if d.Mode == "auto" {
 				stats := jx.Unmarshal(checkpoint)
 				row["direct_reviewed_total"] = jx.Int(stats, "direct_reviewed_total")
