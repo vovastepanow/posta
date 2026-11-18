@@ -234,7 +234,10 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	directAttempted := false
 	searchOutcome := "not_started"
 	err = a.autopilotShadowSearchWith(ctx, job, func(ctx context.Context) ([]DiscoveryCandidate, error) {
-		u := a.User(ctx, "", nil)
+		// Only a bounded slice of the daily network budget is available to
+		// broad discovery; leave the rest for source review and delivery.
+		searchCtx := withAutopilotSearchFetchCap(ctx, 12)
+		u := a.User(searchCtx, "", nil)
 		statuses = map[string]string{}
 		u.discoverySearchObservation = func(backend, _ string, result string) {
 			if statuses[backend] == "" || statuses[backend] == "unavailable" || result != "unavailable" {
@@ -281,9 +284,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		}
 		enabledBackends = len(backends)
 		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
-		candidates := autopilotRunSearchBackends(ctx, turn, backends)
+		candidates := autopilotRunSearchBackends(searchCtx, turn, backends)
 		sourceSearchCount = len(candidates)
-		if job.Scope == autopilotAutoScope && (len(candidates) < 3 || turn%3 == 0) && ctx.Err() == nil && autopilotBudgetError(ctx) == nil {
+		if job.Scope == autopilotAutoScope && (len(candidates) < 3 || turn%3 == 0) && ctx.Err() == nil && autopilotBudgetError(ctx) == nil && !autopilotSearchFetchCapReached(searchCtx) {
 			directAttempted = true
 			// Periodic direct post exploration continues even when broad
 			// source search reports plenty of unverified candidates.
@@ -416,7 +419,7 @@ func autopilotRunSearchBackends(ctx context.Context, turn int64, backends []func
 	start := int(turn % int64(len(backends)))
 	var out []DiscoveryCandidate
 	for i := 0; i < len(backends); i++ {
-		if ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
+		if ctx.Err() != nil || autopilotBudgetError(ctx) != nil || autopilotSearchFetchCapReached(ctx) {
 			break
 		}
 		out = append(out, backends[(start+i)%len(backends)]()...)
