@@ -52,7 +52,6 @@ func TestAutopilotSourceReviewInterval(t *testing.T) {
 	}
 }
 
-
 func TestAutopilotAdaptiveSearchStopsAfterEnoughUniqueCandidates(t *testing.T) {
 	calls := 0
 	makeBackend := func(url string) func() []DiscoveryCandidate {
