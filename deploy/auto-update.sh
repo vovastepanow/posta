@@ -105,4 +105,5 @@ if ! sudo -n /usr/bin/systemctl restart posta ||
     sudo -n /usr/bin/systemctl restart posta || true
     fail "Deployment failed; inspect journalctl -u posta."
 fi
-printf "%s\n" "$target" > "$deployed_file"\nlog "Deployed ${target:0:8}; service active."
+printf "%s\n" "$target" > "$deployed_file"
+log "Deployed ${target:0:8}; service active."
