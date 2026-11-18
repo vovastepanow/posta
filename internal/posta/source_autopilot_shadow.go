@@ -230,11 +230,12 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	}
 	var searchErr error
 	var sourceSearchCount, directSourceCount, enabledBackends int
+	var statuses map[string]string
 	directAttempted := false
 	searchOutcome := "not_started"
 	err = a.autopilotShadowSearchWith(ctx, job, func(ctx context.Context) ([]DiscoveryCandidate, error) {
 		u := a.User(ctx, "", nil)
-		statuses := map[string]string{}
+		statuses = map[string]string{}
 		u.discoverySearchObservation = func(backend, _ string, result string) {
 			if statuses[backend] == "" || statuses[backend] == "unavailable" || result != "unavailable" {
 				statuses[backend] = result
@@ -324,7 +325,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	}
 	// Record an explicit outcome even when the source-review phase later
 	// fails. These aggregate fields contain no user or source identifiers.
-	autopilotRecordDiscoveryMetrics(job, sourceSearchCount, directSourceCount, enabledBackends, searchOutcome, time.Now().Unix())
+	autopilotRecordDiscoveryMetrics(job, sourceSearchCount, directSourceCount, enabledBackends, searchOutcome, time.Now().Unix(), statuses)
 	if checkpointErr := saveAutopilotCheckpoint(ctx, a.DB, job); checkpointErr != nil {
 		return checkpointErr
 	}
@@ -376,7 +377,7 @@ func autopilotDiscoveryOutcome(backends, sourceCount, directCount int, observed,
 	return "empty"
 }
 
-func autopilotRecordDiscoveryMetrics(job *autopilotJob, sourceCount, directCount, backends int, outcome string, at int64) {
+func autopilotRecordDiscoveryMetrics(job *autopilotJob, sourceCount, directCount, backends int, outcome string, at int64, statuses map[string]string) {
 	checkpoint := jx.Unmarshal(job.Checkpoint)
 	if checkpoint == nil {
 		checkpoint = jx.M{}
@@ -386,6 +387,20 @@ func autopilotRecordDiscoveryMetrics(job *autopilotJob, sourceCount, directCount
 	checkpoint["last_source_candidates"] = max(0, sourceCount)
 	checkpoint["last_direct_sources"] = max(0, directCount)
 	checkpoint["last_search_backends"] = max(0, backends)
+	okCount, emptyCount, unavailableCount := 0, 0, 0
+	for _, status := range statuses {
+		switch status {
+		case "ok":
+			okCount++
+		case "empty":
+			emptyCount++
+		case "unavailable":
+			unavailableCount++
+		}
+	}
+	checkpoint["last_backends_ok"] = okCount
+	checkpoint["last_backends_empty"] = emptyCount
+	checkpoint["last_backends_unavailable"] = unavailableCount
 	job.Checkpoint = jx.Marshal(checkpoint)
 }
 
