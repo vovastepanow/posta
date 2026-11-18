@@ -71,6 +71,9 @@ func TestAutopilotProbationNotStarvedByCandidateBacklogPostgres(t *testing.T) {
 	if err := transitionAutopilotSource(ctx, d, job, trial, "candidate", "probation", "test_preliminary_pass", []byte(`{}`), at, at); err != nil {
 		t.Fatal(err)
 	}
+	// The only probation slot is occupied. Untested candidates must remain
+	// due instead of being pushed back by a full-day probation_full verdict.
+	job.MaxProbation = 1
 	seen := ""
 	err = runAutopilotLeased(ctx, d, job, time.Minute, 10*time.Second, 100, 100, 100, 100, func(work context.Context) error {
 		return a.autopilotReviewShadowCandidatesWith(work, job, 1, 85,
@@ -90,5 +93,9 @@ func TestAutopilotProbationNotStarvedByCandidateBacklogPostgres(t *testing.T) {
 	}
 	if seen != "https://example.org/trial" {
 		t.Fatalf("reviewed %q instead of the due probation source; candidates starved probation", seen)
+	}
+	var deferred int
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state='candidate' AND (reason='probation_full' OR next_check_at>0)`, job.Scope, key).Scan(&deferred); err != nil || deferred != 0 {
+		t.Fatalf("full probation delayed %d unreviewed candidates: %v", deferred, err)
 	}
 }
