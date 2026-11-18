@@ -229,6 +229,8 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		return err
 	}
 	var searchErr error
+	var sourceSearchCount, directSourceCount, enabledBackends int
+	searchOutcome := "not_started"
 	err = a.autopilotShadowSearchWith(ctx, job, func(ctx context.Context) ([]DiscoveryCandidate, error) {
 		u := a.User(ctx, "", nil)
 		statuses := map[string]string{}
@@ -275,11 +277,10 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		if a.TBool("search_news") {
 			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindNewsFeeds([]string{query}) })
 		}
-		if len(backends) == 0 {
-			searchErr = errors.New("news_search_disabled")
-		}
+		enabledBackends = len(backends)
 		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
 		candidates := autopilotRunSearchBackends(ctx, turn, backends)
+		sourceSearchCount = len(candidates)
 		if job.Scope == autopilotAutoScope && (len(candidates) < 3 || turn%3 == 0) && ctx.Err() == nil && autopilotBudgetError(ctx) == nil {
 			// Periodic direct post exploration continues even when broad
 			// source search reports plenty of unverified candidates.
@@ -290,6 +291,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			// Preserve source candidates even if the separate text model
 			// fails: the search result can still enter normal vetting.
 			candidates = append(candidates, postCandidates...)
+			directSourceCount = len(postCandidates)
 			if err := a.autopilotAssessDirectPosts(ctx, job, postCandidates); err != nil {
 				return candidates, err
 			}
@@ -306,13 +308,23 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 				available = true
 			}
 		}
-		if len(statuses) > 0 && !available && len(candidates) == 0 {
+		searchOutcome = autopilotDiscoveryOutcome(enabledBackends, sourceSearchCount, directSourceCount, available)
+		switch searchOutcome {
+		case "disabled":
+			searchErr = errors.New("news_search_disabled")
+		case "unavailable":
 			searchErr = errors.New("search_unavailable")
 		}
 		return candidates, nil
 	})
 	if ctx.Err() != nil {
 		return ctx.Err()
+	}
+	// Record an explicit outcome even when the source-review phase later
+	// fails. These aggregate fields contain no user or source identifiers.
+	autopilotRecordDiscoveryMetrics(job, sourceSearchCount, directSourceCount, enabledBackends, searchOutcome, time.Now().Unix())
+	if checkpointErr := saveAutopilotCheckpoint(ctx, a.DB, job); checkpointErr != nil {
+		return checkpointErr
 	}
 	// A completed independent assessment is ready even if source review
 	// subsequently slows down or consumes the remaining model budget.
@@ -339,6 +351,34 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		return err
 	}
 	return searchErr
+}
+
+// The result distinguishes a broken platform from a healthy but empty
+// search, and a fully disabled source search from a working post search.
+func autopilotDiscoveryOutcome(backends, sourceCount, directCount int, available bool) string {
+	if sourceCount+directCount > 0 {
+		return "results"
+	}
+	if backends == 0 {
+		return "disabled"
+	}
+	if !available {
+		return "unavailable"
+	}
+	return "empty"
+}
+
+func autopilotRecordDiscoveryMetrics(job *autopilotJob, sourceCount, directCount, backends int, outcome string, at int64) {
+	checkpoint := jx.Unmarshal(job.Checkpoint)
+	if checkpoint == nil {
+		checkpoint = jx.M{}
+	}
+	checkpoint["last_search_at"] = at
+	checkpoint["last_search_outcome"] = outcome
+	checkpoint["last_source_candidates"] = max(0, sourceCount)
+	checkpoint["last_direct_sources"] = max(0, directCount)
+	checkpoint["last_search_backends"] = max(0, backends)
+	job.Checkpoint = jx.Marshal(checkpoint)
 }
 
 // Rotate first access to the shared budget; otherwise an early backend can
