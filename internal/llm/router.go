@@ -16,6 +16,21 @@ type Target struct {
 }
 
 type callGateKey struct{}
+type callReportKey struct{}
+
+// WithCallReport receives the actual provider-reported cost for each attempt.
+// It is scoped to the request context and is called even when the provider
+// returns an error. A nil response reports zero (cost is unknown).
+func WithCallReport(ctx context.Context, report func(context.Context, Target, *Response, error) error) context.Context {
+	return context.WithValue(ctx, callReportKey{}, report)
+}
+
+func reportCall(ctx context.Context, target Target, resp *Response, err error) error {
+	if report, ok := ctx.Value(callReportKey{}).(func(context.Context, Target, *Response, error) error); ok && report != nil {
+		return report(ctx, target, resp, err)
+	}
+	return nil
+}
 
 // WithCallGate checks every actual provider attempt, including fallbacks.
 // A failed check prevents the provider call; existing router limits still apply.
@@ -469,6 +484,12 @@ func (r *Router) try(ctx context.Context, req *Request, t Target, isFallback boo
 		err = errors.New("модель вернула пустой ответ")
 	}
 	call.Resp, call.Err = resp, err
+	// Record spend before delivering the response. This cannot undo a charge
+	// already incurred at the provider, but blocks subsequent requests.
+	if reportErr := reportCall(ctx, t, resp, err); reportErr != nil && err == nil {
+		err = reportErr
+		call.Err = err
+	}
 	if r.OnCall != nil {
 		r.OnCall(call)
 	}
