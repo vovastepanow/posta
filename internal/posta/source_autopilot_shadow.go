@@ -240,13 +240,10 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			return err
 		}
 	}
-	var unavailable bool
-	if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND reason='assessment_unavailable' AND checked_at >= $3)`, job.Scope, job.TopicKey, time.Now().Add(-2*time.Minute).Unix()).Scan(&unavailable); err != nil {
-		return err
-	}
-	if unavailable {
-		return errors.New("classifier_unavailable")
-	}
+	// An unavailable assessment is inconclusive for that source, not proof that
+	// discovery as a whole is unavailable. Continue to public search so a single
+	// failed model call cannot starve all new candidates. The model and fetch
+	// budgets still bound subsequent work in this cycle.
 	if err := a.autopilotMarkPhase(ctx, job, "search"); err != nil {
 		return err
 	}
