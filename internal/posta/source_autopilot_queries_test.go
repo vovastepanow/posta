@@ -40,6 +40,45 @@ func TestAutopilotGeneratesQueriesThroughModelGate(t *testing.T) {
 	}
 }
 
+// A transient OpenRouter failure must not mark query generation as successful
+// for seven days. The following run should retry without exhausting the
+// discovery worker's existing local query options.
+func TestAutopilotQueryGenerationRetriesAfterProviderFailure(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"message":"temporarily unavailable"}}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(jx.M{"choices": []any{jx.M{"message": jx.M{"content": `{"queries":["новый поисковый запрос"]}`}}}})
+	}))
+	defer server.Close()
+	a := taxonomyTestUser().App
+	a.LLM = llm.NewRouter(llm.NewOllama("http://127.0.0.1:1"), llm.NewOpenRouter(server.URL, "test", "", ""))
+	a.LLM.LoadSettings = func() llm.Settings {
+		s := llm.Preset("free")
+		s.Roles[llm.RoleSmart] = llm.RoleConfig{Primary: llm.Target{Provider: "openrouter", Model: "example:free"}, Fallback: llm.Off}
+		return s
+	}
+	job := &autopilotJob{Scope: autopilotAutoScope, Kind: autopilotAutoKind, Topic: "Необычная тема", TopicKey: autopilotTopicKey("Необычная тема"), Checkpoint: []byte(`{}`)}
+	if _, err := a.autopilotChooseQuery(context.Background(), job); err != nil {
+		t.Fatal(err)
+	}
+	failed := jx.Unmarshal(job.Checkpoint)
+	if jx.Int(failed, "query_generated_at") != 0 {
+		t.Fatalf("failed provider call advanced generation timestamp: %+v", failed)
+	}
+	if _, err := a.autopilotChooseQuery(context.Background(), job); err != nil {
+		t.Fatal(err)
+	}
+	recovered := jx.Unmarshal(job.Checkpoint)
+	if calls != 2 || jx.Int(recovered, "query_generated_at") == 0 || len(jx.Strs(recovered, "generated_queries")) != 1 {
+		t.Fatalf("calls=%d checkpoint=%+v", calls, recovered)
+	}
+}
+
 func TestAutopilotQueryUsesObservedYieldAndExploresPostgres(t *testing.T) {
 	dsn := os.Getenv("POSTA_AUTOPILOT_TEST_DSN")
 	if dsn == "" {
