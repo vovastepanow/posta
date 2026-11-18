@@ -473,12 +473,28 @@ func autopilotCandidatesFromPosts(by map[string][]jx.M, at int64, limit int) []D
 	return out
 }
 
+// Public post backends use different term types: Mastodon searches tags,
+// Lemmy searches English phrases, while VK and vc/dtf use Russian phrases.
+// Without these, a bare RU term silently disables Mastodon altogether.
+func autopilotPublicPostQueryPlan(query string) QueryPlan {
+	query = strings.TrimSpace(query)
+	plan := QueryPlan{RU: []string{query}}
+	if query == "" {
+		return plan
+	}
+	plan.Hashtags = hashtagsFrom([]string{query})
+	if !cyrRe.MatchString(query) {
+		plan.EN = []string{query}
+	}
+	return plan
+}
+
 func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJob, query string, limit int) ([]DiscoveryCandidate, error) {
 	if job == nil || job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind || strings.TrimSpace(query) == "" || limit <= 0 || ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
 		return nil, autopilotBudgetError(ctx)
 	}
 	u := a.User(ctx, "", nil)
-	plan := QueryPlan{RU: []string{query}, EN: []string{query}}
+	plan := autopilotPublicPostQueryPlan(query)
 	// The public worker has no personal Telegram login. Use only backends
 	// that can search without a subscriber's private account.
 	only := map[string]bool{"VK": true, "vc/dtf": true, "Lemmy": true, "Mastodon": true}
