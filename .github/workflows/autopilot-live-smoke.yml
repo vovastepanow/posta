@@ -1,0 +1,42 @@
+name: Public discovery smoke (isolated)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/autopilot-live-smoke.yml
+      - internal/posta/source_autopilot_live_test.go
+
+permissions:
+  contents: read
+
+jobs:
+  public-rss-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: posta_public_smoke
+          POSTGRES_USER: posta
+          POSTGRES_PASSWORD: ephemeral_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U posta -d posta_public_smoke"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTA_AUTOPILOT_TEST_DSN: postgres://posta:ephemeral_ci_only@localhost:5432/posta_public_smoke?sslmode=disable
+      POSTA_AUTOPILOT_LIVE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Fetch actual public RSS under an isolated worker lease
+        run: go test ./internal/posta -run '^TestAutopilotLivePublicRSS$' -v -count=1 -timeout=3m
