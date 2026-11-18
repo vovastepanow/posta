@@ -15,10 +15,10 @@ import (
 // A stable, machine-readable reason makes empty supply actionable without
 // exposing other subscribers' activity or the worker's internal errors.
 type autopilotStatusInput struct {
-	Paused, Enabled, Eligible, Running bool
-	Failure string
+	Paused, Enabled, Eligible, Running                    bool
+	Failure                                               string
 	Available, Target, Deficit, Candidates, ActiveSources int
-	FetchRemaining, ModelRemaining int64
+	FetchRemaining, ModelRemaining                        int64
 }
 
 func autopilotStatusReason(in autopilotStatusInput) string {
@@ -148,7 +148,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 					Paused: d.Paused, Enabled: enabled, Eligible: eligible,
 					Running: lease > now(), Failure: failure,
 					Available: available, Target: supply.Demand.Target,
-					Deficit: supply.Demand.Deficit, Candidates: autoCandidates+autoProbation,
+					Deficit: supply.Demand.Deficit, Candidates: autoCandidates + autoProbation,
 					ActiveSources: autoActive, FetchRemaining: jx.Int(row, "fetch_remaining"),
 					ModelRemaining: jx.Int(row, "model_remaining"),
 				})
