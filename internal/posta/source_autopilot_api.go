@@ -188,9 +188,18 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		topics = append(topics, row)
 	}
 	backends := []jx.M{
+		{"name": "Telegram", "enabled": u.TBool("search_telegram"), "access": "public"},
+		{"name": "ВКонтакте", "enabled": u.TBool("search_vk"), "access": "public"},
+		{"name": "YouTube", "enabled": u.TBool("search_youtube"), "access": "public"},
+		{"name": "TikTok", "enabled": u.TBool("autopilot_search_tiktok"), "access": "public"},
+		{"name": "Одноклассники", "enabled": u.TBool("autopilot_search_ok"), "access": "public"},
+		{"name": "Bluesky", "enabled": u.TBool("search_bluesky"), "access": "public"},
+		{"name": "Lemmy", "enabled": u.TBool("search_lemmy"), "access": "public"},
+		{"name": "Mastodon", "enabled": u.TBool("search_mastodon"), "access": "public"},
+		{"name": "Reddit", "enabled": u.TBool("search_reddit"), "access": "public"},
+		{"name": "Хабр", "enabled": u.TBool("autopilot_search_habr"), "access": "public"},
+		{"name": "Tumblr", "enabled": u.TBool("autopilot_search_tumblr"), "access": "public"},
 		{"name": "Новости RSS", "enabled": u.TBool("search_news"), "access": "public"},
-		{"name": "Bluesky RSS", "enabled": u.TBool("search_bluesky"), "access": "public"},
-		{"name": "Lemmy RSS", "enabled": u.TBool("search_lemmy"), "access": "public"},
 	}
 	return jx.M{"topics": topics, "shadow_enabled": u.TBool("autopilot_shadow"), "auto_enabled": u.TBool("autopilot_auto"), "auto_available": true, "backends": backends}, nil
 }
