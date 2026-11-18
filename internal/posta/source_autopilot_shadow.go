@@ -174,7 +174,14 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 		reason = err.Error()
 	}
 	if err != nil {
-		nextInterval = 24 * time.Hour
+		// Most failures are transient. Retrying only after 24h made a topic
+		// appear frozen even when there was ample daily budget left.
+		// A real daily quota exhaustion waits for the next UTC budget reset.
+		if errors.Is(err, errAutopilotBudgetExhausted) {
+			nextInterval = time.Until(time.Now().UTC().Truncate(24*time.Hour).Add(24*time.Hour + 2*time.Minute))
+		} else {
+			nextInterval = time.Hour
+		}
 	}
 	if finishErr := finishAutopilotJob(ctx, a.DB, job, time.Now().Add(nextInterval), job.Checkpoint, reason); finishErr != nil && !errors.Is(finishErr, errAutopilotLeaseLost) && ctx.Err() == nil {
 		log.Printf("теневой автопилот: завершение: %v", finishErr)
