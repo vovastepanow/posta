@@ -268,9 +268,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		u := a.User(searchCtx, "", nil)
 		statuses = map[string]string{}
 		u.discoverySearchObservation = func(backend, _ string, result string) {
-			if statuses[backend] == "" || statuses[backend] == "unavailable" || result != "unavailable" {
-				statuses[backend] = result
-			}
+			recordAutopilotBackendStatus(statuses, backend, result)
 		}
 		var backends []func() []DiscoveryCandidate
 		if a.TBool("search_telegram") {
@@ -439,6 +437,22 @@ func autopilotRecordDiscoveryMetrics(job *autopilotJob, sourceCount, directCount
 	checkpoint["last_backends_empty"] = emptyCount
 	checkpoint["last_backends_unavailable"] = unavailableCount
 	job.Checkpoint = jx.Marshal(checkpoint)
+}
+
+// A backend may be queried more than once in a discovery pass. Preserve
+// evidence of a successful response instead of replacing "ok" with a later
+// empty or unavailable response. Unknown values never hide known failures.
+func recordAutopilotBackendStatus(statuses map[string]string, backend, status string) {
+	if backend == "" || statuses == nil {
+		return
+	}
+	rank := map[string]int{"unavailable": 1, "empty": 2, "ok": 3}
+	if rank[status] == 0 {
+		return
+	}
+	if rank[status] > rank[statuses[backend]] {
+		statuses[backend] = status
+	}
 }
 
 // Rotate first access to the shared budget; otherwise an early backend can
