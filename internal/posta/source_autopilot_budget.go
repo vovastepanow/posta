@@ -82,6 +82,52 @@ func autopilotNetworkBudget(ctx context.Context, database *db.DB, job *autopilot
 	})
 }
 
+// withAutopilotSearchFetchCap limits discovery requests within one cycle, leaving
+// the remaining daily fetch budget for candidate verification and collection.
+// Exhausting this local cap is a normal search boundary, not a job failure.
+type autopilotSearchFetchCap struct {
+	mu sync.Mutex
+	used int
+	max int
+	reached bool
+}
+
+var errAutopilotSearchFetchCap = errors.New("autopilot search fetch cap reached")
+
+func withAutopilotSearchFetchCap(ctx context.Context, maxFetches int) context.Context {
+	parentGate, ok := ctx.Value(autopilotNetworkGateKey{}).(func(context.Context) error)
+	if !ok || parentGate == nil || maxFetches <= 0 {
+		return ctx
+	}
+	cap := &autopilotSearchFetchCap{max: maxFetches}
+	capped := context.WithValue(ctx, autopilotSearchFetchCapKey{}, cap)
+	return context.WithValue(capped, autopilotNetworkGateKey{}, func(callCtx context.Context) error {
+		cap.mu.Lock()
+		defer cap.mu.Unlock()
+		if cap.used >= cap.max {
+			cap.reached = true
+			return errAutopilotSearchFetchCap
+		}
+		if err := parentGate(callCtx); err != nil {
+			return err
+		}
+		cap.used++
+		return nil
+	})
+}
+
+type autopilotSearchFetchCapKey struct{}
+
+func autopilotSearchFetchCapReached(ctx context.Context) bool {
+	cap, ok := ctx.Value(autopilotSearchFetchCapKey{}).(*autopilotSearchFetchCap)
+	if !ok {
+		return false
+	}
+	cap.mu.Lock()
+	defer cap.mu.Unlock()
+	return cap.reached
+}
+
 // autopilotModelBudget gates every actual router attempt, including fallback.
 // Server and topic limits are reserved atomically under the same lease.
 func autopilotModelBudget(ctx context.Context, database *db.DB, job *autopilotJob, serverLimit, topicLimit int64) context.Context {
