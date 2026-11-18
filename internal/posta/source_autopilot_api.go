@@ -94,6 +94,16 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		if err = u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(max(fetched_at),0) FROM source_autopilot_collection_passes WHERE scope=$1 AND topic_key=$2`, scope, key).Scan(&lastSuccess); err != nil {
 			return nil, err
 		}
+		if d.Mode == "auto" {
+			var directSuccess int64
+			if err = u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(max(assessed_at),0)
+				FROM source_autopilot_direct_results WHERE scope='public' AND topic_key=$1
+				AND published_at >= $2 AND assessed_at >= $2 AND policy_version=$3`,
+				key, time.Now().Add(-autopilotDirectMaxAge).Unix(), TopicProfileVersion).Scan(&directSuccess); err != nil {
+				return nil, err
+			}
+			lastSuccess = max(lastSuccess, directSuccess)
+		}
 		row["last_success"] = lastSuccess
 		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&next, &lease, &enabled, &eligible, &lastError, &checkpoint)
 		if err == nil {
