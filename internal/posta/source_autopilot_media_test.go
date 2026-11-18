@@ -1,9 +1,14 @@
 package posta
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"posta/internal/jx"
+	"posta/internal/llm"
 )
 
 func TestSourcePostsHaveImages(t *testing.T) {
@@ -23,5 +28,35 @@ func TestSourcePostsHaveImages(t *testing.T) {
 				t.Fatalf("sourcePostsHaveImages() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestEvaluateTextOnlySourceWithoutImage(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/chat/completions" {
+			http.NotFound(w, r)
+			return
+		}
+		calls++
+		_ = json.NewEncoder(w).Encode(jx.M{"choices": []any{jx.M{"message": jx.M{"content": `{"score":92,"reason":"По теме"}`}}}})
+	}))
+	defer srv.Close()
+
+	u := taxonomyTestUser()
+	u.Ctx = context.Background()
+	u.LLM = llm.NewRouter(llm.NewOllama("http://127.0.0.1:1"), llm.NewOpenRouter(srv.URL, "test", "", ""))
+	u.LLM.LoadSettings = func() llm.Settings {
+		s := llm.Preset("free")
+		s.Roles[llm.RoleSmart] = llm.RoleConfig{Primary: llm.Target{Provider: "openrouter", Model: "example:free"}, Fallback: llm.Off}
+		return s
+	}
+	posts := []jx.M{{"text": "Подробный практический разбор рекламной кампании с измеримыми результатами."}}
+	ev := u.evaluateSource(jx.M{"title": "Практика маркетинга"}, posts, "Маркетинг и реклама")
+	if ev == nil || ev.Score != 92 || ev.Text == nil || *ev.Text != 92 {
+		t.Fatalf("text-only feed did not receive text model score: %+v", ev)
+	}
+	if calls != 1 {
+		t.Fatalf("text-only source should use one text model call, got %d", calls)
 	}
 }
