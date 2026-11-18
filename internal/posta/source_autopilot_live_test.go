@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"posta/internal/db"
+	"posta/internal/jx"
 )
 
 // Explicit opt-in; this reaches one public search endpoint and never calls a
@@ -63,13 +64,25 @@ func TestAutopilotLivePublicRSS(t *testing.T) {
 				continue
 			}
 			items := rssItems(rssLoad(result.Bytes))
-			t.Logf("Public feed %s: HTTP %d; items=%d", feed, result.Status, len(items))
-			if len(items) > 0 {
-				// Confirm the network response is actual content, not an
-				// empty/error page which happens to look like RSS.
+			posts, parseErr := RSSParse(result.Bytes, 20, "", feed, true, true, 0)
+			if parseErr != nil {
+				observations = append(observations, fmt.Sprintf("%s: RSS parse error: %v", feed, parseErr))
+				continue
+			}
+			valid := 0
+			for _, post := range posts {
+				if CandidatePostKey(post) != "" && jx.Str(post, "url") != "" && AnalysisText(post) != "" {
+					valid++
+				}
+			}
+			t.Logf("Public feed %s: HTTP %d; raw items=%d; Posta posts=%d; valid=%d",
+				feed, result.Status, len(items), len(posts), valid)
+			if valid > 0 {
+				// Validate not just XML availability, but translation into
+				// usable, deduplicatable Posta candidate items.
 				return nil
 			}
-			observations = append(observations, fmt.Sprintf("%s: valid but empty feed", feed))
+			observations = append(observations, fmt.Sprintf("%s: parsed feed has no usable Posta posts", feed))
 		}
 		return fmt.Errorf("no public RSS endpoint returned posts: %v", observations)
 	})
