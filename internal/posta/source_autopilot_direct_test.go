@@ -190,6 +190,25 @@ func TestAutopilotDirectDeliversWithoutApprovedSourcePostgres(t *testing.T) {
 	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE topic_key=$1`, key).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("direct assessment unexpectedly approved source: count=%d err=%v", count, err)
 	}
+	status, err := a.User(ctx, owners[0], nil).SourceAutopilotStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundStatus := false
+	for _, row := range status["topics"].([]jx.M) {
+		if jx.Str(row, "topic") != topic {
+			continue
+		}
+		foundStatus = true
+		if jx.Int(row, "direct_qualified_recent") != 1 ||
+			jx.Int(row, "direct_accepted_total") != 1 ||
+			jx.Str(row, "diagnosis") == "" {
+			t.Fatalf("public direct status missing quality metrics: %v", row)
+		}
+	}
+	if !foundStatus {
+		t.Fatalf("auto topic missing from status: %v", status)
+	}
 	if err := a.deliverAutopilotDirectTopicContent(ctx, job); err != nil {
 		t.Fatal(err)
 	}
