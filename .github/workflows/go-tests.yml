@@ -24,6 +24,13 @@ jobs:
             for file in $files; do gofmt -d "$file"; done
             exit 1
           fi
+      - name: Check production health command formatting
+        run: |
+          files=$(gofmt -l cmd/posta/autopilot_health.go cmd/posta/autopilot_health_test.go cmd/posta/main.go)
+          if [ -n "$files" ]; then
+            for file in $files; do gofmt -d "$file"; done
+            exit 1
+          fi
       - name: Check autopilot interface JavaScript
         run: node --check js/sources.js
       - name: Unit tests
