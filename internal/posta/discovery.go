@@ -595,7 +595,7 @@ func (u *U) evaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluat
 	// unavailable classifier result. Image-required topics remain strict.
 	if text != nil && judge != "image" && !sourcePostsHaveImages(posts) {
 		s := text.Score
-		return &sourceEvaluation{Score: s, Text: &s, TextOnly: true, Reason: text.Reason}
+		return &sourceEvaluation{Score: s, Text: &s, TextOnly: s < config.DiscoveryTextRejectScore, Reason: text.Reason}
 	}
 	review := u.sourceImagesReview(title, topic, posts)
 	if review == nil {
