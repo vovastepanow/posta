@@ -44,6 +44,7 @@ const usage = `posta — сервер и служебные команды Posta
   balance-add <id> <₽> [заметка]     пополнить баланс
   ua-filter on|off                   фильтр украинского контента
   discovery-run <id> [тема]          прогон автоподбора источников: по теме профиля или по указанной
+  autopilot-health [тема]            read-only состояние публичного автопилота (без AI и изменений БД)
   search-test <запрос> [тема]        проверка поиска по площадкам без записи в пул
   discovery-origins [тема]           откуда берутся предложения источников и как их решают
   leads-scan [id]                    проход радара лидов
@@ -73,6 +74,8 @@ func main() {
 		err = serve(ctx, cfg)
 	case "migrate":
 		err = migrate(ctx, cfg)
+	case "autopilot-health":
+		err = autopilotHealth(ctx, cfg, args[1:])
 	case "import-sqlite":
 		err = importSQLite(ctx, cfg, args[1:])
 	default:
