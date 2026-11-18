@@ -129,7 +129,10 @@ func (a *App) autopilotAssessDirectPosts(ctx context.Context, job *autopilotJob,
 	var texts, sources []string
 	for _, candidate := range autopilotInterleaveDirectPosts(candidates, func(source string) []jx.M {
 		return a.autopilotPendingPublicPosts(ctx, job, source)
-	}, autopilotDirectMaxPerRun) {
+	}, autopilotDirectMaxPerRun*autopilotPostHintLimit) {
+		if len(posts) == autopilotDirectMaxPerRun {
+			break
+		}
 		post, source := candidate.post, candidate.source
 		postHash := repeatDigest(CandidatePostKey(post))
 		var saved bool
