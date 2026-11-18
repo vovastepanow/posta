@@ -32,12 +32,16 @@ func TestAutopilotDiscoveryOutcome(t *testing.T) {
 
 func TestAutopilotRecordDiscoveryMetricsPreservesCheckpoint(t *testing.T) {
 	job := &autopilotJob{Checkpoint: jx.Marshal(jx.M{"query_turn": 13, "direct_accepted_total": 5})}
-	autopilotRecordDiscoveryMetrics(job, 3, 2, 4, "results", 12345)
+	autopilotRecordDiscoveryMetrics(job, 3, 2, 4, "results", 12345, map[string]string{
+		"VK": "ok", "Lemmy": "empty", "Mastodon": "unavailable",
+	})
 	got := jx.Unmarshal(job.Checkpoint)
 	for key, want := range map[string]int64{
 		"query_turn": 13, "direct_accepted_total": 5,
 		"last_search_at": 12345, "last_source_candidates": 3,
 		"last_direct_sources": 2, "last_search_backends": 4,
+		"last_backends_ok": 1, "last_backends_empty": 1,
+		"last_backends_unavailable": 1,
 	} {
 		if jx.Int(got, key) != want {
 			t.Errorf("%s = %d, want %d", key, jx.Int(got, key), want)
