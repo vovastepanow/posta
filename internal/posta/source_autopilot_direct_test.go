@@ -202,6 +202,7 @@ func TestAutopilotDirectDeliversWithoutApprovedSourcePostgres(t *testing.T) {
 		foundStatus = true
 		if jx.Int(row, "direct_qualified_recent") != 1 ||
 			jx.Int(row, "direct_accepted_total") != 1 ||
+			jx.Int(row, "last_success") < jx.Int(post, "posted_at") ||
 			jx.Str(row, "diagnosis") == "" {
 			t.Fatalf("public direct status missing quality metrics: %v", row)
 		}
