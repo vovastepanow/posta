@@ -314,6 +314,13 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
+	// A completed independent assessment is ready even if source review
+	// subsequently slows down or consumes the remaining model budget.
+	if job.Scope == autopilotAutoScope {
+		if deliveryErr := a.deliverAutopilotDirectTopicContent(ctx, job); deliveryErr != nil {
+			return deliveryErr
+		}
+	}
 	if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
 		return budgetErr
 	}
