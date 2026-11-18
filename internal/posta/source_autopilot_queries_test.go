@@ -67,9 +67,19 @@ func TestAutopilotQueryGenerationRetriesAfterProviderFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	failed := jx.Unmarshal(job.Checkpoint)
-	if jx.Int(failed, "query_generated_at") != 0 {
-		t.Fatalf("failed provider call advanced generation timestamp: %+v", failed)
+	if jx.Int(failed, "query_generated_at") != 0 || jx.Int(failed, "query_attempted_at") == 0 {
+		t.Fatalf("failed provider call must store retry backoff, not a successful generation: %+v", failed)
 	}
+	attempts := calls
+	if _, err := a.autopilotChooseQuery(context.Background(), job); err != nil {
+		t.Fatal(err)
+	}
+	if calls != attempts {
+		t.Fatalf("provider retried during one-hour backoff: before=%d after=%d", attempts, calls)
+	}
+	failed = jx.Unmarshal(job.Checkpoint)
+	failed["query_attempted_at"] = time.Now().Add(-2 * time.Hour).Unix()
+	job.Checkpoint = jx.Marshal(failed)
 	if _, err := a.autopilotChooseQuery(context.Background(), job); err != nil {
 		t.Fatal(err)
 	}
