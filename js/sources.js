@@ -624,46 +624,76 @@ function renderAutopilot(data) {
     const backends = (data.backends || []).filter(backend => backend.enabled).map(backend => backend.name).join(', ') || 'не включены';
     $('autopilot-status').textContent = `Теневой режим на сервере: ${data.shadow_enabled ? 'включён' : 'выключен'}; автоматический: ${data.auto_enabled ? 'включён' : 'выключен'}. Настроенные площадки: ${backends}.`;
     for (const topic of data.topics || []) {
-        const failure = { budget_exhausted: 'суточный лимит исчерпан', news_search_disabled: 'поиск источников выключен', news_search_unavailable: 'поиск новостей недоступен', search_unavailable: 'площадки поиска недоступны', topic_busy: 'тема уже проверяется', supply_unavailable: 'не удалось проверить запас', classifier_unavailable: 'оценка материалов недоступна', restricted_profile: 'публичный поиск для этой темы недоступен', other_error: 'ошибка проверки' }[topic.failure];
-        const status = topic.mode === 'off' ? 'выключено'
-            : !(topic.mode === 'auto' ? data.auto_enabled : data.shadow_enabled) ? 'ожидает включения на сервере'
-            : topic.mode === 'auto' && topic.posts_per_day === 0 ? 'нет плановых публикаций'
-            : topic.paused || topic.job_paused ? 'приостановлено'
-            : failure ? failure
-            : topic.running ? 'идёт проверка'
-            : topic.mode === 'auto' && topic.auto_probation > 0 ? 'источники на проверке'
-            : topic.mode === 'auto' && topic.supply_mode === 'healthy' ? 'запас достаточный'
-            : topic.mode === 'auto' && topic.supply_mode === 'bootstrap' ? 'ищем первые источники'
-            : 'ожидает следующей проверки';
-        const counts = topic.mode === 'auto' ? `Действующих источников: ${topic.active_sources || 0}, на проверке: ${topic.auto_probation || 0}.` : `Кандидатов: ${topic.shadow_candidates || 0}, на проверке: ${topic.shadow_probation || 0}, подтверждено в тесте: ${topic.shadow_confirmed || 0}.`;
-        const details = `${counts} Тематический лимит на сегодня: ${topic.fetch_remaining ?? 0} загрузок и ${topic.model_remaining ?? 0} обращений к модели; также действует общий лимит сервера.`;
-        const diagnosisNames = {
-            paused: 'приостановлено пользователем', disabled: 'автопилот неактивен',
-            running: 'проверка выполняется', supplied: 'запас публикаций достаточный',
-            pool_full: 'пул заполнен', fetch_budget_exhausted: 'закончился лимит загрузок',
-            model_budget_exhausted: 'закончился лимит AI-анализа',
-            no_sources_found: 'подходящие источники пока не найдены',
-            sources_under_review: 'новые источники ещё проверяются',
-            low_eligible_yield: 'источники найдены, но мало публикаций проходит отбор',
-            search_unavailable: 'поисковые площадки не отвечают',
-            news_search_disabled: 'поиск источников отключён',
-            classifier_unavailable: 'AI-анализ недоступен',
-            topic_busy: 'тема уже обрабатывается',
-            restricted_profile: 'публичный поиск для темы недоступен',
-            supply_unavailable: 'не удалось измерить запас',
-            budget_exhausted: 'достигнут общий суточный лимит'
+        const number = value => Number(value || 0).toLocaleString('ru-RU');
+        const dateTime = stamp => stamp ? new Date(stamp * 1000).toLocaleString('ru-RU') : 'ещё нет';
+        const failureNames = {
+            budget_exhausted: 'Исчерпан бюджет одного из ресурсов во время прошлого цикла',
+            news_search_disabled: 'Поиск источников отключён',
+            news_search_unavailable: 'Новостной поиск недоступен',
+            search_unavailable: 'Поисковые площадки не ответили',
+            topic_busy: 'Тема занята другим процессом',
+            supply_unavailable: 'Не удалось проверить запас',
+            classifier_unavailable: 'Модель анализа недоступна',
+            restricted_profile: 'Тема не допускает публичный поиск',
+            other_error: 'Последний цикл завершился с ошибкой'
         };
-        const outcomeNames = { results: 'есть кандидаты', empty: 'ничего не найдено', unavailable: 'площадки недоступны', disabled: 'поиск выключен', unknown: 'нет ответа от площадок' };
-        const diagnosis = topic.mode === 'auto' && topic.diagnosis ? ` Причина: ${diagnosisNames[topic.diagnosis] || 'требуется проверка'}.` : '';
-        const search = topic.mode === 'auto' && topic.last_search_at
-            ? ` Последний поиск (${formatAgo(topic.last_search_at)}): ${outcomeNames[topic.last_search_outcome] || 'статус неизвестен'}; источников-кандидатов ${topic.last_source_candidates ?? 0}, из поиска постов ${topic.last_direct_sources ?? 0}. Площадки: успешных ${topic.last_backends_ok ?? 0}, пустых ${topic.last_backends_empty ?? 0}, недоступных ${topic.last_backends_unavailable ?? 0}.`
-            : '';
-        const qualified = topic.mode === 'auto'
-            ? ` Прямой AI-отбор: проверено ${topic.direct_reviewed_total ?? 0}, принято ${topic.direct_accepted_total ?? 0}, отклонено ${topic.direct_rejected_total ?? 0}; свежих проверенных постов ${topic.direct_qualified_recent ?? 0}.`
-            : '';
-        const next = topic.next_run_at && !topic.running ? ` Следующая проверка: ${new Date(topic.next_run_at * 1000).toLocaleString('ru-RU')}.` : '';
-        const last = topic.last_success ? ` Последняя успешная загрузка: ${formatAgo(topic.last_success)}.` : ' Успешных загрузок пока нет.';
-        const description = el('span', { textContent: `${topic.topic} (${topic.mode}): ${status}. Доступно постов: ${topic.available ?? 0} из ${topic.target ?? 0}${topic.capacity_limited ? ' (ограничено размером пула)' : ''}. ${details}${diagnosis}${search}${qualified}${last}${next}` });
+        const disabled = topic.mode === 'off' || topic.paused || topic.job_paused ||
+            !(topic.mode === 'auto' ? data.auto_enabled : data.shadow_enabled);
+        const status = disabled ? (topic.paused ? 'На паузе' : 'Выключен')
+            : topic.running ? 'Выполняется проверка'
+            : topic.failure ? 'Ожидает повтора после ошибки'
+            : topic.mode === 'auto' && topic.available >= topic.target && topic.target > 0 ? 'Запас собран'
+            : 'Ожидает следующего цикла';
+        const sourceCandidates = topic.mode === 'auto' ? topic.auto_candidates : topic.shadow_candidates;
+        const sourcesReview = topic.mode === 'auto' ? topic.auto_sources_probation : topic.shadow_probation;
+        const sourcesActive = topic.mode === 'auto' ? topic.auto_sources_active : topic.shadow_confirmed;
+        const stat = (label, value, hint) => el('div', { className: 'autopilot-metric' },
+            el('span', { className: 'autopilot-metric-value', textContent: number(value) }),
+            el('span', { className: 'autopilot-metric-label', textContent: label }),
+            hint ? el('small', { textContent: hint }) : '');
+        const phase = (name, value, detail, state) => el('div', { className: 'autopilot-phase' },
+            el('span', { className: 'autopilot-phase-dot ' + state, 'aria-hidden': 'true' }),
+            el('div', {}, el('strong', { textContent: name }), el('span', { textContent: value }),
+                el('small', { textContent: detail })));
+        const found = Number(topic.last_source_candidates || 0);
+        const totalChecked = Number(topic.direct_reviewed_total || 0);
+        const failure = failureNames[topic.failure];
+        const staleError = failure ? el('p', { className: 'autopilot-alert', textContent:
+            'Последняя ошибка: ' + failure + '. Это история предыдущего цикла, а не обязательно текущий лимит.' }) : '';
+        const description = el('div', { className: 'autopilot-overview' },
+            el('div', { className: 'autopilot-overview-head' },
+                el('strong', { textContent: topic.topic }),
+                el('span', { className: 'autopilot-state' + (topic.running ? ' is-running' : ''), textContent: status })),
+            el('div', { className: 'autopilot-metrics' },
+                stat('Найдено источников', found, 'За последний поисковый проход'),
+                stat('Ожидают проверки', sourceCandidates, 'Сохранено в очереди'),
+                stat('На испытании', sourcesReview, 'Проверка качества'),
+                stat('Подтверждено', sourcesActive, 'Действующие источники')),
+            el('div', { className: 'autopilot-pipeline', 'aria-label': 'Этапы подбора источников' },
+                phase('1. Поиск', topic.last_search_at ? number(found) + ' кандидатов' : 'Нет данных',
+                    topic.last_search_at ? 'Последний поиск: ' + dateTime(topic.last_search_at) +
+                        ' · площадки: ' + number(topic.last_backends_ok) + ' с результатами, ' +
+                        number(topic.last_backends_empty) + ' пустых, ' + number(topic.last_backends_unavailable) + ' недоступны'
+                        : 'Поиск ещё не проводился', topic.last_search_at ? 'done' : 'waiting'),
+                phase('2. Проверка источников', number(sourceCandidates) + ' в очереди · ' + number(sourcesReview) + ' на испытании',
+                    'Источник подключается после проверки качества; найденный кандидат ещё не одобрен.',
+                    sourcesActive > 0 ? 'done' : sourcesReview > 0 ? 'active' : 'waiting'),
+                phase('3. AI-отбор постов', number(totalChecked) + ' проверено',
+                    number(topic.direct_accepted_total) + ' принято · ' + number(topic.direct_rejected_total) +
+                        ' отклонено. Счётчики относятся к прямому поиску постов.',
+                    totalChecked > 0 ? 'done' : 'waiting'),
+                phase('4. Контент в пуле', number(topic.available) + ' из ' + number(topic.target) + ' постов',
+                    topic.capacity_limited ? 'Цель ограничена вместимостью пула.' :
+                        'Это текущий запас публикаций по теме, не число найденных кандидатов.',
+                    topic.available > 0 ? 'done' : 'waiting')),
+            el('div', { className: 'autopilot-footnotes' },
+                el('span', { textContent: 'Сегодня осталось: ' + number(topic.fetch_remaining) +
+                    ' HTTP-загрузок · ' + number(topic.model_remaining) + ' AI-вызовов по теме' }),
+                el('span', { textContent: 'Сервер: ' + number(topic.server_fetch_remaining ?? 0) +
+                    ' HTTP · ' + number(topic.server_model_remaining ?? 0) + ' AI' }),
+                el('span', { textContent: topic.running ? 'Текущий цикл выполняется' :
+                    'Следующая проверка: ' + dateTime(topic.next_run_at) })),
+            staleError);
         const modeSelect = el('select');
         modeSelect.setAttribute('aria-label', `Режим для темы ${topic.topic}`);
         for (const [value, label] of [['off', 'Выключен'], ['shadow', 'Теневой'], ['auto', 'Автоматический']]) {
@@ -722,7 +752,8 @@ function renderAutopilot(data) {
             try { renderAutopilot(await api('source_autopilot_pause', { body: { topic: topic.topic, paused: !topic.paused } })); }
             catch (error) { $('autopilot-status').textContent = `Не удалось изменить паузу: ${error.message}`; pause.disabled = false; }
         });
-        container.append(el('div', { className: 'autopilot-topic-row' }, description, modeSelect, pause, request, history));
+        container.append(el('div', { className: 'autopilot-topic-row' }, description,
+            el('div', { className: 'autopilot-topic-actions' }, modeSelect, pause, request), history));
     }
 }
 
