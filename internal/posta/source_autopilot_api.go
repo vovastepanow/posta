@@ -55,6 +55,16 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 	if err != nil {
 		return nil, err
 	}
+	var serverFetchUsed, serverModelUsed int64
+	if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT
+		COALESCE(sum(used) FILTER (WHERE resource='public_fetch'),0),
+		COALESCE(sum(used) FILTER (WHERE resource='llm_attempt'),0)
+		FROM source_autopilot_budget
+		WHERE scope='server' AND day=(now() AT TIME ZONE 'UTC')::date`).Scan(&serverFetchUsed, &serverModelUsed); err != nil {
+		return nil, err
+	}
+	serverFetchRemaining := max(int64(0), int64(u.TInt("autopilot_fetch_server_daily"))-serverFetchUsed)
+	serverModelRemaining := max(int64(0), int64(u.TInt("autopilot_model_server_daily"))-serverModelUsed)
 	topics := make([]jx.M, 0, len(demands))
 	for _, d := range demands {
 		key := autopilotTopicKey(d.Topic)
@@ -82,6 +92,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		}
 		row["fetch_remaining"] = max(0, int64(u.TInt("autopilot_fetch_topic_daily"))-fetchUsed)
 		row["model_remaining"] = max(0, int64(u.TInt("autopilot_model_topic_daily"))-modelUsed)
+		row["server_fetch_remaining"], row["server_model_remaining"] = serverFetchRemaining, serverModelRemaining
 		var next, lease int64
 		var enabled, eligible bool
 		var lastError string
