@@ -28,7 +28,11 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	if checkpoint == nil {
 		checkpoint = jx.M{}
 	}
-	if a.LLM != nil && time.Now().Unix()-jx.Int(checkpoint, "query_generated_at") >= 7*86400 {
+	if a.LLM != nil && time.Now().Unix()-jx.Int(checkpoint, "query_generated_at") >= 7*86400 &&
+		time.Now().Unix()-jx.Int(checkpoint, "query_attempted_at") >= 3600 {
+		// A denied or unavailable provider must not be retried on every
+		// discovery cycle. Static topic queries remain available meanwhile.
+		checkpoint["query_attempted_at"] = time.Now().Unix()
 		schema := jx.M{"type": "object", "properties": jx.M{"queries": jx.M{"type": "array", "items": jx.M{"type": "string"}, "maxItems": 5}}, "required": []string{"queries"}}
 		response, err := a.LLM.Generate(ctx, &llm.Request{Role: llm.RoleSmart, FreeOnly: true, Prompt: autopilotQueryGenerationPrompt(job.Topic, a.User(ctx, "", nil).professionalValueTopic(job.Topic)), Schema: schema, MaxTokens: 300, Temperature: 0.2, Timeout: 30 * time.Second, Topic: job.Topic, Quiet: true})
 		if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
