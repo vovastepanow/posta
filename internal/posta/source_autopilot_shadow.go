@@ -592,7 +592,7 @@ func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJ
 	if err := autopilotBudgetError(ctx); err != nil {
 		return nil, err
 	}
-	candidates := autopilotCandidatesFromPosts(posts, time.Now().Unix(), limit, job.MaxProbation)
+	candidates := autopilotCandidatesFromPosts(posts, time.Now().Unix(), limit)
 	// Store only small, public text candidates tied to the verified author
 	// identity. Media never enters this staging queue.
 	for _, candidate := range candidates {
