@@ -37,13 +37,15 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		checkpoint["query_generated_at"] = time.Now().Unix()
 		if err == nil && response != nil {
 			generated := jx.Strs(llm.DecodeJSON(response.Text), "queries")
 			if len(generated) > 5 {
 				generated = generated[:5]
 			}
-			checkpoint["generated_queries"] = generated
+			if len(generated) > 0 {
+				checkpoint["generated_queries"] = generated
+				checkpoint["query_generated_at"] = time.Now().Unix()
+			}
 		}
 	}
 	choices := []string{job.Topic}
