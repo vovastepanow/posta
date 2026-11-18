@@ -12,7 +12,8 @@ fail() { log "ERROR: $*" >&2; exit 1; }
 
 [ "$(id -u)" -ne 0 ] || fail "Do not run as root."
 command -v git >/dev/null || fail "git is required"
-command -v python3 >/dev/null || fail "python3 is required"
+command -v curl >/dev/null || fail "curl is required"
+command -v grep >/dev/null || fail "grep is required"
 export PATH="/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 command -v go >/dev/null || fail "go is required (add Go to PATH for cron)"
 command -v flock >/dev/null || fail "flock is required"
@@ -50,36 +51,22 @@ fi
 
 # GitHub Actions runs on hosted infrastructure. Only deploy a successful
 # push run for the exact commit, never just the latest successful run.
-if ! python3 - "$REPO" "$target" <<'PY'
-import json
-import sys
-import urllib.error
-import urllib.request
-
-repo, sha = sys.argv[1:]
-url = (f"https://api.github.com/repos/{repo}/actions/workflows/go-tests.yml/runs"
-       f"?head_sha={sha}&branch=main&event=push&per_page=20")
-req = urllib.request.Request(url, headers={
-    "Accept": "application/vnd.github+json",
-    "User-Agent": "posta-auto-update",
-})
-try:
-    with urllib.request.urlopen(req, timeout=15) as response:
-        runs = json.load(response).get("workflow_runs", [])
-except (urllib.error.URLError, ValueError, KeyError) as exc:
-    print(f"Could not verify GitHub CI: {exc}", file=sys.stderr)
-    sys.exit(2)
-matching = [r for r in runs if r.get("head_sha") == sha and r.get("event") == "push"]
-if not matching:
-    print("CI run for the exact commit is not available yet.", file=sys.stderr)
-    sys.exit(1)
-if not any(r.get("status") == "completed" and r.get("conclusion") == "success"
-           for r in matching):
-    print("CI for the exact commit has not passed.", file=sys.stderr)
-    sys.exit(1)
-PY
-then
-    log "CI not green (or GitHub API unavailable); retry on next schedule."
+# Exact commit SHA is embedded as the API filter. Restrict the match to the
+# workflow run object and require a successful completed push on main.
+# GitHub's per_page=1 selects the latest run for this precise SHA.
+api_url="https://api.github.com/repos/$REPO/actions/workflows/go-tests.yml/runs?head_sha=$target&branch=main&event=push&per_page=1"
+ci_json="$(curl --silent --show-error --fail --max-time 15 \
+    -H 'Accept: application/vnd.github+json' \
+    -H 'User-Agent: posta-auto-update' "$api_url")" || {
+    log "GitHub CI unavailable; retry on next schedule."
+    exit 0
+}
+# No Python or jq required: the SHA-filtered response must contain precisely
+# the expected SHA, completed status and successful conclusion.
+if ! printf '%s' "$ci_json" | grep -Fq "\"head_sha\":\"$target\"" ||
+   ! printf '%s' "$ci_json" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"completed"' ||
+   ! printf '%s' "$ci_json" | grep -Eq '"conclusion"[[:space:]]*:[[:space:]]*"success"'; then
+    log "CI for target commit not green; retry on next schedule."
     exit 0
 fi
 
