@@ -181,12 +181,28 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 	}
 }
 
+// Persist a coarse active phase so the UI can show which part of the
+// pipeline is currently running. A phase is historical if the lease expires.
+func (a *App) autopilotMarkPhase(ctx context.Context, job *autopilotJob, phase string) error {
+	checkpoint := jx.Unmarshal(job.Checkpoint)
+	if checkpoint == nil {
+		checkpoint = jx.M{}
+	}
+	checkpoint["pipeline_phase"] = phase
+	checkpoint["pipeline_phase_at"] = time.Now().Unix()
+	job.Checkpoint = jx.Marshal(checkpoint)
+	return saveAutopilotCheckpoint(ctx, a.DB, job)
+}
+
 func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) error {
 	if !validAutopilotPublicJob(job) {
 		return errors.New("invalid public topic job")
 	}
 	if a.TopicIsRestricted(job.Topic) {
 		return errors.New("restricted_profile")
+	}
+	if err := a.autopilotMarkPhase(ctx, job, "prepare"); err != nil {
+		return err
 	}
 	if job.Scope == autopilotAutoScope {
 		// Source suggestions originating from fully accepted posts enter the
@@ -200,6 +216,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		if err := a.deliverAutopilotTopicContent(ctx, job); err != nil {
 			return err
 		}
+	}
+	if err := a.autopilotMarkPhase(ctx, job, "review"); err != nil {
+		return err
 	}
 	// Existing trials get first access to the budget; broad search must not
 	// indefinitely starve their evaluation or projection after a restart.
@@ -220,6 +239,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	}
 	if unavailable {
 		return errors.New("classifier_unavailable")
+	}
+	if err := a.autopilotMarkPhase(ctx, job, "search"); err != nil {
+		return err
 	}
 	query, err := a.autopilotChooseQuery(ctx, job)
 	if err != nil {
@@ -344,8 +366,14 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
 		return budgetErr
 	}
+	if phaseErr := a.autopilotMarkPhase(ctx, job, "review"); phaseErr != nil {
+		return phaseErr
+	}
 	if reviewErr := a.autopilotReviewShadowCandidates(ctx, job, 8); reviewErr != nil {
 		return reviewErr
+	}
+	if phaseErr := a.autopilotMarkPhase(ctx, job, "delivery"); phaseErr != nil {
+		return phaseErr
 	}
 	if job.Scope == autopilotAutoScope {
 		if projectionErr := a.reconcileAutopilotProjections(ctx, job); projectionErr != nil {
