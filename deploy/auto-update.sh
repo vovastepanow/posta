@@ -63,7 +63,7 @@ ci_json="$(curl --silent --show-error --fail --max-time 15 \
 }
 # No Python or jq required: the SHA-filtered response must contain precisely
 # the expected SHA, completed status and successful conclusion.
-if ! printf '%s' "$ci_json" | grep -Fq "\"head_sha\":\"$target\"" ||
+if ! printf '%s' "$ci_json" | grep -Eq "\"head_sha\"[[:space:]]*:[[:space:]]*\"$target\"" ||
    ! printf '%s' "$ci_json" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"completed"' ||
    ! printf '%s' "$ci_json" | grep -Eq '"conclusion"[[:space:]]*:[[:space:]]*"success"'; then
     log "CI for target commit not green; retry on next schedule."
