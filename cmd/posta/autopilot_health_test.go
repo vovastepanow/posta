@@ -9,11 +9,11 @@ import (
 
 func TestFormatAutopilotHealthRow(t *testing.T) {
 	stats := jx.M{
-		"last_search_outcome": "empty",
+		"last_search_outcome":    "empty",
 		"last_source_candidates": 3,
-		"last_direct_sources": 2,
-		"direct_accepted_total": 7,
-		"direct_rejected_total": 5,
+		"last_direct_sources":    2,
+		"direct_accepted_total":  7,
+		"direct_rejected_total":  5,
 	}
 	got := formatAutopilotHealthRow("Маркетинг", true, true, 100, 0, "", stats, 50)
 	for _, want := range []string{"Маркетинг", "empty", "кандидаты: 3", "авторы из постов: 2", "AI принято: 7, отклонено: 5"} {
