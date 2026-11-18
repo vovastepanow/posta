@@ -31,6 +31,16 @@ jobs:
             for file in $files; do gofmt -d "$file"; done
             exit 1
           fi
+      - name: Ensure no Python remains in the application repository
+        run: |
+          if find . -type f \( -name '*.py' -o -name '*.pyc' \) -print -quit | grep -q .; then
+            echo "Python files must not be checked in."
+            exit 1
+          fi
+          if grep -q 'python3' deploy/auto-update.sh; then
+            echo "The deploy script must not depend on Python."
+            exit 1
+          fi
       - name: Check deployment shell scripts
         run: bash -n deploy/auto-update.sh deploy/enable-auto-update.sh
       - name: Check autopilot interface JavaScript
