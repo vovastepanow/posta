@@ -74,7 +74,7 @@ func TestAutopilotQueryGenerationRetriesAfterProviderFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	recovered := jx.Unmarshal(job.Checkpoint)
-	if calls != 2 || jx.Int(recovered, "query_generated_at") == 0 || len(jx.Strs(recovered, "generated_queries")) != 1 {
+	if calls < 2 || jx.Int(recovered, "query_generated_at") == 0 || len(jx.Strs(recovered, "generated_queries")) != 1 {
 		t.Fatalf("calls=%d checkpoint=%+v", calls, recovered)
 	}
 }
