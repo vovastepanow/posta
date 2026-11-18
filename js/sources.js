@@ -639,8 +639,10 @@ function renderAutopilot(data) {
         };
         const disabled = topic.mode === 'off' || topic.paused || topic.job_paused ||
             !(topic.mode === 'auto' ? data.auto_enabled : data.shadow_enabled);
+        const activePhase = topic.running ? topic.pipeline_phase : '';
+        const phaseLabels = { prepare: 'Подготовка', search: 'Поиск по площадкам', review: 'Проверка источников', delivery: 'Доставка в пул' };
         const status = disabled ? (topic.paused ? 'На паузе' : 'Выключен')
-            : topic.running ? 'Выполняется проверка'
+            : topic.running ? 'Работает: ' + (phaseLabels[activePhase] || 'запуск цикла')
             : topic.failure ? 'Ожидает повтора после ошибки'
             : topic.mode === 'auto' && topic.available >= topic.target && topic.target > 0 ? 'Запас собран'
             : 'Ожидает следующего цикла';
@@ -674,10 +676,10 @@ function renderAutopilot(data) {
                     topic.last_search_at ? 'Последний поиск: ' + dateTime(topic.last_search_at) +
                         ' · площадки: ' + number(topic.last_backends_ok) + ' с результатами, ' +
                         number(topic.last_backends_empty) + ' пустых, ' + number(topic.last_backends_unavailable) + ' недоступны'
-                        : 'Поиск ещё не проводился', topic.last_search_at ? 'done' : 'waiting'),
+                        : 'Поиск ещё не проводился', activePhase === 'search' ? 'active' : topic.last_search_at ? 'done' : 'waiting'),
                 phase('2. Проверка источников', number(sourceCandidates) + ' в очереди · ' + number(sourcesReview) + ' на испытании',
                     'Источник подключается после проверки качества; найденный кандидат ещё не одобрен.',
-                    sourcesActive > 0 ? 'done' : sourcesReview > 0 ? 'active' : 'waiting'),
+                    activePhase === 'review' ? 'active' : sourcesActive > 0 ? 'done' : sourcesReview > 0 ? 'done' : 'waiting'),
                 phase('3. AI-отбор постов', number(totalChecked) + ' проверено',
                     number(topic.direct_accepted_total) + ' принято · ' + number(topic.direct_rejected_total) +
                         ' отклонено. Счётчики относятся к прямому поиску постов.',
@@ -685,7 +687,7 @@ function renderAutopilot(data) {
                 phase('4. Контент в пуле', number(topic.available) + ' из ' + number(topic.target) + ' постов',
                     topic.capacity_limited ? 'Цель ограничена вместимостью пула.' :
                         'Это текущий запас публикаций по теме, не число найденных кандидатов.',
-                    topic.available > 0 ? 'done' : 'waiting')),
+                    activePhase === 'delivery' ? 'active' : topic.available > 0 ? 'done' : 'waiting')),
             el('div', { className: 'autopilot-footnotes' },
                 el('span', { textContent: 'Сегодня осталось: ' + number(topic.fetch_remaining) +
                     ' HTTP-загрузок · ' + number(topic.model_remaining) + ' AI-вызовов по теме' }),
