@@ -774,7 +774,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		FROM due
 	)
 	SELECT source_id,state,resume_state FROM ranked
-	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit)
+	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit, job.MaxProbation)
 	if err != nil {
 		return err
 	}
