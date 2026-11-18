@@ -118,7 +118,22 @@ func autopilotInterleaveDirectPosts(candidates []DiscoveryCandidate, pending fun
 // posts from the bounded, expiring staging queue. Never use personal accounts,
 // source histories, or any cached private user content for model evidence.
 func (a *App) autopilotAssessDirectPosts(ctx context.Context, job *autopilotJob, candidates []DiscoveryCandidate) error {
-	if job == nil || job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind || len(candidates) == 0 {
+	if job == nil || job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind {
+		return nil
+	}
+	u := a.User(ctx, "", nil)
+	if u.LLM == nil {
+		return nil
+	}
+	return a.autopilotAssessDirectPostsWith(ctx, job, candidates, func(texts []string) ([]Analysis, error) {
+		return u.AnalyzeTextBatch(texts, job.Topic, EmptyHistory())
+	})
+}
+
+// Injecting only the model boundary lets PostgreSQL tests execute the entire
+// public staging -> assessment -> delivery path without external AI services.
+func (a *App) autopilotAssessDirectPostsWith(ctx context.Context, job *autopilotJob, candidates []DiscoveryCandidate, analyze func([]string) ([]Analysis, error)) error {
+	if job == nil || job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind || len(candidates) == 0 || analyze == nil {
 		return nil
 	}
 	u := a.User(ctx, "", nil)
@@ -159,7 +174,7 @@ func (a *App) autopilotAssessDirectPosts(ctx context.Context, job *autopilotJob,
 	if len(posts) == 0 {
 		return nil
 	}
-	analyses, err := u.AnalyzeTextBatch(texts, job.Topic, EmptyHistory())
+	analyses, err := analyze(texts)
 	if err != nil {
 		return err
 	}
