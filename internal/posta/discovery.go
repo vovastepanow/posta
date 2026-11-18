@@ -553,6 +553,17 @@ type sourceEvaluation struct {
 	TasteIncluded bool
 }
 
+// sourcePostsHaveImages checks the presence of media references without fetching
+// or decoding them. Missing pictures should not block text-only feed reviews.
+func sourcePostsHaveImages(posts []jx.M) bool {
+	for _, post := range posts {
+		if strings.TrimSpace(jx.Str(post, "image")) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // evaluateSource — подписи есть — проверка по тексту; нет — коллаж картинок (по формату темы).
 func (u *U) evaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluation {
 	title, desc := jx.Str(info, "title"), jx.Str(info, "description")
@@ -578,6 +589,13 @@ func (u *U) evaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluat
 	if text != nil && judge == "text" {
 		s := text.Score
 		return &sourceEvaluation{Score: s, Text: &s, TextOnly: s < config.DiscoveryTextRejectScore, Reason: text.Reason}
+	}
+	// Text-only feeds have no storyboard to score. An available text review
+	// is sufficient for non-image topics; do not turn missing media into an
+	// unavailable classifier result. Image-required topics remain strict.
+	if text != nil && judge != "image" && !sourcePostsHaveImages(posts) {
+		s := text.Score
+		return &sourceEvaluation{Score: s, Text: &s, TextOnly: true, Reason: text.Reason}
 	}
 	review := u.sourceImagesReview(title, topic, posts)
 	if review == nil {
