@@ -14,6 +14,36 @@ import (
 	"posta/internal/llm"
 )
 
+func TestAutopilotInterleaveDirectPosts(t *testing.T) {
+	candidates := []DiscoveryCandidate{
+		{Platform: PlatformTelegram, ID: "marketing_digest"},
+		{Platform: PlatformTelegram, ID: "growth_digest"},
+		{Platform: PlatformTelegram, ID: "marketing_digest"},
+	}
+	pending := func(source string) []jx.M {
+		if source == "telegram:marketing_digest" {
+			return []jx.M{
+				{"url": "https://t.me/marketing_digest/1"},
+				{"url": "https://t.me/marketing_digest/2"},
+				{"url": "https://t.me/marketing_digest/3"},
+			}
+		}
+		return []jx.M{{"url": "https://t.me/growth_digest/1"}}
+	}
+	out := autopilotInterleaveDirectPosts(candidates, pending, 3)
+	if len(out) != 3 {
+		t.Fatalf("got %d candidates: %+v", len(out), out)
+	}
+	if out[0].source != "telegram:marketing_digest" ||
+		out[1].source != "telegram:growth_digest" ||
+		out[2].source != "telegram:marketing_digest" {
+		t.Fatalf("prolific first source starved the second: %+v", out)
+	}
+	if len(autopilotInterleaveDirectPosts(candidates, pending, 0)) != 0 {
+		t.Fatal("zero model budget should select no posts")
+	}
+}
+
 func TestAutopilotDirectSeenKeyIsScoped(t *testing.T) {
 	first := autopilotDirectSeenKey("business", "telegram:marketing_digest", "hash-1")
 	if first != autopilotDirectSeenKey("business", "telegram:marketing_digest", "hash-1") {
