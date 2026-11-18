@@ -138,13 +138,9 @@ func (a *App) deliverAutopilotTopicContentMode(ctx context.Context, job *autopil
 	if err != nil {
 		return err
 	}
-	type sourceRow struct {
-		id     string
-		direct bool
-	}
-	var sources []sourceRow
+	var sources []autopilotDeliverySource
 	for rows.Next() {
-		var source sourceRow
+		var source autopilotDeliverySource
 		if err := rows.Scan(&source.id, &source.direct); err != nil {
 			rows.Close()
 			return err
@@ -156,12 +152,38 @@ func (a *App) deliverAutopilotTopicContentMode(ctx context.Context, job *autopil
 	if err != nil {
 		return err
 	}
+	return autopilotDeliverEachSource(ctx, sources, func(source autopilotDeliverySource) error {
+		return a.deliverAutopilotSourceContent(ctx, job, source.id, source.direct)
+	})
+}
+
+type autopilotDeliverySource struct {
+	id     string
+	direct bool
+}
+
+// A transient failure while delivering one source should not block other
+// independent sources. Report the first failure so the job can retry later.
+// Cancellation and revoked leases are not recoverable within this iteration.
+func autopilotDeliverEachSource(ctx context.Context, sources []autopilotDeliverySource, deliver func(autopilotDeliverySource) error) error {
+	var firstErr error
 	for _, source := range sources {
-		if err := a.deliverAutopilotSourceContent(ctx, job, source.id, source.direct); err != nil {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
+		if err := deliver(source); err != nil {
+			if errors.Is(err, errAutopilotLeaseLost) || errors.Is(err, errAutopilotBudgetExhausted) {
+				return err
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
 	}
-	return nil
+	return firstErr
 }
 
 // Deliver public, already assessed content separately for each subscriber. The
