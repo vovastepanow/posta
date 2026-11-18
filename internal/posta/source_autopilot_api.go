@@ -12,6 +12,42 @@ import (
 	"posta/internal/jx"
 )
 
+// A stable, machine-readable reason makes empty supply actionable without
+// exposing other subscribers' activity or the worker's internal errors.
+type autopilotStatusInput struct {
+	Paused, Enabled, Eligible, Running bool
+	Failure string
+	Available, Target, Deficit, Candidates, ActiveSources int
+	FetchRemaining, ModelRemaining int64
+}
+
+func autopilotStatusReason(in autopilotStatusInput) string {
+	switch {
+	case in.Paused:
+		return "paused"
+	case !in.Enabled || !in.Eligible:
+		return "disabled"
+	case in.Running:
+		return "running"
+	case in.Failure != "":
+		return in.Failure
+	case in.Deficit <= 0:
+		return "supplied"
+	case in.Target > 0 && in.Available >= in.Target:
+		return "pool_full"
+	case in.FetchRemaining <= 0:
+		return "fetch_budget_exhausted"
+	case in.ModelRemaining <= 0:
+		return "model_budget_exhausted"
+	case in.Candidates == 0 && in.ActiveSources == 0:
+		return "no_sources_found"
+	case in.ActiveSources == 0:
+		return "sources_under_review"
+	default:
+		return "low_eligible_yield"
+	}
+}
+
 // SourceAutopilotStatus returns only this user's demands and public shadow
 // aggregates. It does not expose other owners or private source metadata.
 func (u *U) SourceAutopilotStatus() (jx.M, error) {
@@ -96,6 +132,26 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 					return nil, err
 				}
 				row["direct_qualified_recent"] = recent
+				var autoCandidates, autoProbation, autoActive int
+				if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT
+					count(*) FILTER(WHERE state='candidate'),
+					count(*) FILTER(WHERE state='probation'),
+					count(*) FILTER(WHERE state='active')
+					FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`,
+					autopilotAutoScope, key).Scan(&autoCandidates, &autoProbation, &autoActive); err != nil {
+					return nil, err
+				}
+				row["auto_candidates"] = autoCandidates
+				row["auto_sources_probation"] = autoProbation
+				row["auto_sources_active"] = autoActive
+				row["diagnosis"] = autopilotStatusReason(autopilotStatusInput{
+					Paused: d.Paused, Enabled: enabled, Eligible: eligible,
+					Running: lease > now(), Failure: failure,
+					Available: available, Target: supply.Demand.Target,
+					Deficit: supply.Demand.Deficit, Candidates: autoCandidates+autoProbation,
+					ActiveSources: autoActive, FetchRemaining: jx.Int(row, "fetch_remaining"),
+					ModelRemaining: jx.Int(row, "model_remaining"),
+				})
 			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
