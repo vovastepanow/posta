@@ -637,9 +637,33 @@ function renderAutopilot(data) {
             : 'ожидает следующей проверки';
         const counts = topic.mode === 'auto' ? `Действующих источников: ${topic.active_sources || 0}, на проверке: ${topic.auto_probation || 0}.` : `Кандидатов: ${topic.shadow_candidates || 0}, на проверке: ${topic.shadow_probation || 0}, подтверждено в тесте: ${topic.shadow_confirmed || 0}.`;
         const details = `${counts} Тематический лимит на сегодня: ${topic.fetch_remaining ?? 0} загрузок и ${topic.model_remaining ?? 0} обращений к модели; также действует общий лимит сервера.`;
+        const diagnosisNames = {
+            paused: 'приостановлено пользователем', disabled: 'автопилот неактивен',
+            running: 'проверка выполняется', supplied: 'запас публикаций достаточный',
+            pool_full: 'пул заполнен', fetch_budget_exhausted: 'закончился лимит загрузок',
+            model_budget_exhausted: 'закончился лимит AI-анализа',
+            no_sources_found: 'подходящие источники пока не найдены',
+            sources_under_review: 'новые источники ещё проверяются',
+            low_eligible_yield: 'источники найдены, но мало публикаций проходит отбор',
+            search_unavailable: 'поисковые площадки не отвечают',
+            news_search_disabled: 'поиск источников отключён',
+            classifier_unavailable: 'AI-анализ недоступен',
+            topic_busy: 'тема уже обрабатывается',
+            restricted_profile: 'публичный поиск для темы недоступен',
+            supply_unavailable: 'не удалось измерить запас',
+            budget_exhausted: 'достигнут общий суточный лимит'
+        };
+        const outcomeNames = { results: 'есть кандидаты', empty: 'ничего не найдено', unavailable: 'площадки недоступны', disabled: 'поиск выключен', unknown: 'нет ответа от площадок' };
+        const diagnosis = topic.mode === 'auto' && topic.diagnosis ? ` Причина: ${diagnosisNames[topic.diagnosis] || 'требуется проверка'}.` : '';
+        const search = topic.mode === 'auto' && topic.last_search_at
+            ? ` Последний поиск (${formatAgo(topic.last_search_at)}): ${outcomeNames[topic.last_search_outcome] || 'статус неизвестен'}; источников-кандидатов ${topic.last_source_candidates ?? 0}, из поиска постов ${topic.last_direct_sources ?? 0}. Площадки: успешных ${topic.last_backends_ok ?? 0}, пустых ${topic.last_backends_empty ?? 0}, недоступных ${topic.last_backends_unavailable ?? 0}.`
+            : '';
+        const qualified = topic.mode === 'auto'
+            ? ` Прямой AI-отбор: проверено ${topic.direct_reviewed_total ?? 0}, принято ${topic.direct_accepted_total ?? 0}, отклонено ${topic.direct_rejected_total ?? 0}; свежих проверенных постов ${topic.direct_qualified_recent ?? 0}.`
+            : '';
         const next = topic.next_run_at && !topic.running ? ` Следующая проверка: ${new Date(topic.next_run_at * 1000).toLocaleString('ru-RU')}.` : '';
         const last = topic.last_success ? ` Последняя успешная загрузка: ${formatAgo(topic.last_success)}.` : ' Успешных загрузок пока нет.';
-        const description = el('span', { textContent: `${topic.topic} (${topic.mode}): ${status}. Доступно постов: ${topic.available ?? 0} из ${topic.target ?? 0}${topic.capacity_limited ? ' (ограничено размером пула)' : ''}. ${details}${last}${next}` });
+        const description = el('span', { textContent: `${topic.topic} (${topic.mode}): ${status}. Доступно постов: ${topic.available ?? 0} из ${topic.target ?? 0}${topic.capacity_limited ? ' (ограничено размером пула)' : ''}. ${details}${diagnosis}${search}${qualified}${last}${next}` });
         const modeSelect = el('select');
         modeSelect.setAttribute('aria-label', `Режим для темы ${topic.topic}`);
         for (const [value, label] of [['off', 'Выключен'], ['shadow', 'Теневой'], ['auto', 'Автоматический']]) {
