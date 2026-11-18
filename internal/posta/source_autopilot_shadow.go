@@ -310,7 +310,12 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		}
 		enabledBackends = len(backends)
 		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
-		candidates := autopilotRunSearchBackendsAdaptive(searchCtx, turn, backends, 3, 24)
+		// Broad discovery should not stop after the first three sites
+		// return a handful of candidates. Legacy discovery searches across
+		// platforms and queries, whereas auto runs only one query per cycle.
+		// Inspect up to six different backends before stopping, with the
+		// existing per-cycle 120-fetch ceiling and daily quotas still enforced.
+		candidates := autopilotRunSearchBackendsAdaptive(searchCtx, turn, backends, 6, 64)
 		sourceSearchCount = len(candidates)
 		if job.Scope == autopilotAutoScope && (len(candidates) < 3 || turn%3 == 0) && ctx.Err() == nil && autopilotBudgetError(ctx) == nil && !autopilotSearchFetchCapReached(searchCtx) {
 			directAttempted = true
