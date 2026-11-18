@@ -158,6 +158,28 @@ func TestAutopilotDirectDeliversWithoutApprovedSourcePostgres(t *testing.T) {
 			t.Fatalf("owner %s got %d direct posts, want %d", owner, count, want)
 		}
 	}
+	// The transaction must verify the entire saved post and model response:
+	// a caller cannot substitute a different body or relevance score while
+	// retaining the same URL and model name.
+	for _, tc := range []struct {
+		name     string
+		post     jx.M
+		analysis jx.M
+	}{
+		{"tampered text", jx.Merge(post, jx.M{"text": "Подменённая публикация"}), analysis},
+		{"tampered relevance", post, jx.Merge(analysis, jx.M{"relevance": 100})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			guarded := withAutopilotDirectDelivery(contextWithAutopilotLease(ctx, job), owners[0], source, topic, tc.post, tc.analysis)
+			_, err := a.User(guarded, owners[0], nil).poolUpdate(func(_ pgx.Tx, pool []jx.M) ([]jx.M, error) {
+				t.Error("unverified direct result reached the pool transaction")
+				return pool, nil
+			})
+			if !errors.Is(err, errAutopilotSourceChanged) {
+				t.Fatalf("tampered direct result was not rejected: %v", err)
+			}
+		})
+	}
 	// A stored assessment cannot be used after the worker lease is revoked.
 	if _, err := setAutopilotJobEnabled(ctx, d.Pool, autopilotAutoScope, key, autopilotAutoKind, false); err != nil {
 		t.Fatal(err)
