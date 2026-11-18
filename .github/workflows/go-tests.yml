@@ -31,6 +31,8 @@ jobs:
             for file in $files; do gofmt -d "$file"; done
             exit 1
           fi
+      - name: Check deployment shell scripts
+        run: bash -n deploy/auto-update.sh deploy/enable-auto-update.sh
       - name: Check autopilot interface JavaScript
         run: node --check js/sources.js
       - name: Unit tests
