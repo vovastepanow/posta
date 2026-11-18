@@ -13,6 +13,7 @@ fail() { log "ERROR: $*" >&2; exit 1; }
 [ "$(id -u)" -ne 0 ] || fail "Do not run as root."
 command -v git >/dev/null || fail "git is required"
 command -v python3 >/dev/null || fail "python3 is required"
+export PATH="/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 command -v go >/dev/null || fail "go is required (add Go to PATH for cron)"
 command -v flock >/dev/null || fail "flock is required"
 [ -d "$APP/.git" ] || fail "Not a git checkout: $APP"
@@ -89,7 +90,7 @@ go build -p 2 -o bin/posta.new ./cmd/posta
 cp -p bin/posta bin/posta.previous
 mv -f bin/posta.new bin/posta
 if ! sudo -n /usr/bin/systemctl restart posta ||
-   ! sudo -n /usr/bin/systemctl is-active --quiet posta; then
+   ! /usr/bin/systemctl is-active --quiet posta; then
     log "Service restart/health failed; restoring previous executable."
     cp -p bin/posta.previous bin/posta
     sudo -n /usr/bin/systemctl restart posta || true
