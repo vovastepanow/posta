@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
+	"posta/internal/db"
 	"posta/internal/jx"
 	"posta/internal/llm"
 )
@@ -32,6 +34,18 @@ func TestSourcePostsHaveImages(t *testing.T) {
 }
 
 func TestEvaluateTextOnlySourceWithoutImage(t *testing.T) {
+	dsn := os.Getenv("POSTA_AUTOPILOT_TEST_DSN")
+	if dsn == "" {
+		t.Skip("requires an isolated PostgreSQL database for prompt storage")
+	}
+	database, err := db.Open(context.Background(), dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if _, err := database.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/chat/completions" {
@@ -45,6 +59,7 @@ func TestEvaluateTextOnlySourceWithoutImage(t *testing.T) {
 
 	u := taxonomyTestUser()
 	u.Ctx = context.Background()
+	u.App.DB = database
 	u.LLM = llm.NewRouter(llm.NewOllama("http://127.0.0.1:1"), llm.NewOpenRouter(srv.URL, "test", "", ""))
 	u.LLM.LoadSettings = func() llm.Settings {
 		s := llm.Preset("free")
