@@ -952,6 +952,12 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				reason = why
 			}
 		}
+		// Retry inconclusive model assessments sooner than the normal source
+		// cadence. Keep the source in its existing state and let daily LLM
+		// budgets bound retries rather than silently losing candidates.
+		if reason == "assessment_unavailable" && job.Scope == autopilotAutoScope {
+			nextCheck = at.Add(time.Hour)
+		}
 		if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, reason, jx.Marshal(evidence), at, nextCheck); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
 			return err
 		}
