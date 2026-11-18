@@ -234,9 +234,10 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	directAttempted := false
 	searchOutcome := "not_started"
 	err = a.autopilotShadowSearchWith(ctx, job, func(ctx context.Context) ([]DiscoveryCandidate, error) {
-		// Only a bounded slice of the daily network budget is available to
-		// broad discovery; leave the rest for source review and delivery.
-		searchCtx := withAutopilotSearchFetchCap(ctx, 12)
+		// Explore multiple platforms until a useful pool is found. Keep a
+		// generous per-cycle safety ceiling so a broken backend cannot loop
+		// indefinitely, while reserving the daily budget for source reviews.
+		searchCtx := withAutopilotSearchFetchCap(ctx, 120)
 		u := a.User(searchCtx, "", nil)
 		statuses = map[string]string{}
 		u.discoverySearchObservation = func(backend, _ string, result string) {
@@ -284,7 +285,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		}
 		enabledBackends = len(backends)
 		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
-		candidates := autopilotRunSearchBackends(searchCtx, turn, backends)
+		candidates := autopilotRunSearchBackendsAdaptive(searchCtx, turn, backends, 3, 24)
 		sourceSearchCount = len(candidates)
 		if job.Scope == autopilotAutoScope && (len(candidates) < 3 || turn%3 == 0) && ctx.Err() == nil && autopilotBudgetError(ctx) == nil && !autopilotSearchFetchCapReached(searchCtx) {
 			directAttempted = true
@@ -409,6 +410,37 @@ func autopilotRecordDiscoveryMetrics(job *autopilotJob, sourceCount, directCount
 
 // Rotate first access to the shared budget; otherwise an early backend can
 // repeatedly consume every request before later platforms get a chance.
+// autopilotRunSearchBackendsAdaptive rotates the starting platform on each
+// pass. Once several platforms have contributed enough candidates, stop
+// searching and spend the remaining budget on verifying those candidates.
+// The limits are per pass, never daily; later passes can explore other sites.
+func autopilotRunSearchBackendsAdaptive(ctx context.Context, turn int64, backends []func() []DiscoveryCandidate, minBackends, targetCandidates int) []DiscoveryCandidate {
+	if len(backends) == 0 {
+		return nil
+	}
+	if turn < 0 {
+		turn = 0
+	}
+	start := int(turn % int64(len(backends)))
+	var out []DiscoveryCandidate
+	seen := make(map[string]bool)
+	for i := 0; i < len(backends); i++ {
+		if ctx.Err() != nil || autopilotBudgetError(ctx) != nil || autopilotSearchFetchCapReached(ctx) {
+			break
+		}
+		for _, candidate := range backends[(start+i)%len(backends)]() {
+			out = append(out, candidate)
+			if id, ok := autopilotCandidateID(candidate); ok {
+				seen[id] = true
+			}
+		}
+		if i+1 >= minBackends && len(seen) >= targetCandidates {
+			break
+		}
+	}
+	return out
+}
+
 func autopilotRunSearchBackends(ctx context.Context, turn int64, backends []func() []DiscoveryCandidate) []DiscoveryCandidate {
 	if len(backends) == 0 {
 		return nil
