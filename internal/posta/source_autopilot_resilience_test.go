@@ -94,7 +94,7 @@ func TestAutopilotClassifierFailureDoesNotBlockNextCandidatePostgres(t *testing.
 	}
 	for _, tc := range []struct{ source, wantState, wantReason string }{
 		{failedSource, "candidate", "assessment_unavailable"},
-		{healthySource, "probation", "shadow_preliminary_pass"},
+		{healthySource, "probation", "insufficient_evidence"},
 	} {
 		var state, reason string
 		if err := d.Pool.QueryRow(ctx, `SELECT state,reason FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, key, tc.source).Scan(&state, &reason); err != nil {
