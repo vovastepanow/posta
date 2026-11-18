@@ -55,3 +55,21 @@ func TestAutopilotCandidatesFromPostsBalancesPlatforms(t *testing.T) {
 		t.Fatalf("expected two independent source platforms before consuming a second author from one: %+v", got)
 	}
 }
+
+func TestAutopilotPublicPostQueryPlan(t *testing.T) {
+	ru := autopilotPublicPostQueryPlan("маркетинг")
+	if len(ru.RU) != 1 || ru.RU[0] != "маркетинг" {
+		t.Fatalf("VK and vc/dtf query lost: %+v", ru)
+	}
+	if len(ru.Hashtags) != 1 || ru.Hashtags[0] != "#маркетинг" {
+		t.Fatalf("Mastodon tag missing: %+v", ru)
+	}
+	if len(ru.EN) != 0 {
+		t.Fatalf("Cyrillic-only phrase sent to English Lemmy search: %+v", ru)
+	}
+	en := autopilotPublicPostQueryPlan("social media marketing")
+	if len(en.EN) != 1 || en.EN[0] != "social media marketing" ||
+		len(en.Hashtags) != 1 || en.Hashtags[0] != "#socialmediamarketing" {
+		t.Fatalf("English term not routed to Lemmy/Mastodon: %+v", en)
+	}
+}
