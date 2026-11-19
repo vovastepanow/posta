@@ -17,6 +17,7 @@ import (
 
 	"posta/internal/config"
 	"posta/internal/jx"
+	"posta/internal/llm"
 )
 
 const autopilotShadowKind = "shadow_discovery"
@@ -230,6 +231,7 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 		nextInterval = interval
 	}
 	ctx = withAutopilotPaidLimit(ctx, a.TFloat("autopilot_paid_daily_usd"))
+	ctx = llm.WithSourceAutopilotFreeFallback(ctx)
 	err = runAutopilotLeased(ctx, a.DB, job, 10*time.Minute, 2*time.Minute,
 		int64(a.TInt("autopilot_model_server_daily")), int64(a.TInt("autopilot_model_topic_daily")),
 		int64(a.TInt("autopilot_fetch_server_daily")), int64(a.TInt("autopilot_fetch_topic_daily")),

@@ -17,6 +17,15 @@ type Target struct {
 
 type callGateKey struct{}
 type callReportKey struct{}
+type autopilotFreeFallbackKey struct{}
+
+// WithSourceAutopilotFreeFallback allows a single no-charge OpenRouter free
+// router attempt when a configured OpenRouter model returned HTTP 403.
+// This opt-in is used only by the public source-autopilot worker, never by
+// ordinary chat, publication or private requests.
+func WithSourceAutopilotFreeFallback(ctx context.Context) context.Context {
+	return context.WithValue(ctx, autopilotFreeFallbackKey{}, true)
+}
 
 // WithCallReport receives the actual provider-reported cost for each attempt.
 // It is scoped to the request context and is called even when the provider
@@ -412,6 +421,7 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 		}
 	}
 	var lastErr error
+	forbiddenOpenRouter := false
 	for i, t := range cands {
 		if why := r.blocked(t, req, s); why != "" {
 			if !t.Empty() {
@@ -449,8 +459,34 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 			r.noteFailure(req.Role, err, primary, fallback)
 		}
 		lastErr = err
+		if t.Provider == "openrouter" && err != nil && strings.Contains(err.Error(), "HTTP 403") {
+			forbiddenOpenRouter = true
+		}
 		if ctx.Err() != nil {
 			break
+		}
+	}
+	// Some account/model-specific 403s do not affect the free router. This
+	// attempt costs $0 and goes through the same per-attempt call gate,
+	// budget ledger and structured-output validation as the selected model.
+	// No paid fallback or automatic approval is authorized by this path.
+	if allow, _ := ctx.Value(autopilotFreeFallbackKey{}).(bool); allow && forbiddenOpenRouter && !req.Private && ctx.Err() == nil {
+		free := Target{Provider: "openrouter", Model: "openrouter/free"}
+		alreadyTried := false
+		for _, candidate := range cands {
+			if candidate == free {
+				alreadyTried = true
+				break
+			}
+		}
+		if !alreadyTried && r.OpenRouter != nil && r.OpenRouter.Configured() && r.blocked(free, req, s) == "" {
+			logf("-> выбранная модель вернула 403; пробую бесплатный резерв OpenRouter.")
+			resp, err := r.try(ctx, req, free, true)
+			r.countFree(free, err)
+			if err == nil {
+				return resp, nil
+			}
+			lastErr = err
 		}
 	}
 	if lastErr == nil {
