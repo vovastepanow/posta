@@ -240,12 +240,10 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			return err
 		}
 	}
-	// When the queue grows faster than it can be reviewed, another broad
-	// search only creates more unchecked sources. Spend this cycle draining
-	// due candidates instead. Existing probation sources were reviewed first
-	// above, and remain in the fair-lane review below. Daily budgets and
-	// source-specific next_check_at backoffs still apply.
-	if job.Scope == autopilotAutoScope {
+	// Do not keep searching while the existing candidate queue needs
+	// verification. This applies to shadow and auto modes alike: previously
+	// shadow mode could accumulate hundreds of unreviewed sources.
+	if true {
 		var dueCandidates int
 		if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
 			WHERE scope=$1 AND topic_key=$2 AND state='candidate' AND next_check_at <= $3`,
@@ -256,7 +254,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			if err := a.autopilotMarkPhase(ctx, job, "review"); err != nil {
 				return err
 			}
-			if err := a.autopilotReviewShadowCandidates(ctx, job, 20); err != nil {
+			if err := a.autopilotReviewShadowCandidates(ctx, job, 30); err != nil {
 				return err
 			}
 			if err := a.autopilotMarkPhase(ctx, job, "delivery"); err != nil {
@@ -443,11 +441,10 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 
 // The result distinguishes a broken platform from a healthy but empty
 // search, and a fully disabled source search from a working post search.
-// A full review pass can inspect 24 sources (4 before this decision and
-// 20 afterward). Avoid adding more search candidates until the queue falls
-// below that capacity; do not confuse delayed/backed-off sources with due work.
+// One pass reviews four existing trials and up to 30 more sources. Even
+// modest backlogs should be drained before discovery adds another 64.
 func autopilotShouldDrainCandidateBacklog(dueCandidates int) bool {
-	return dueCandidates >= 24
+	return dueCandidates >= 12
 }
 
 func autopilotDiscoveryOutcome(backends, sourceCount, directCount int, observed, available, directAttempted bool) string {
