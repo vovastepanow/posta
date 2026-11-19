@@ -255,6 +255,8 @@ function renderAutopilot(data) {
             job_missing: 'Задание не создано — проверьте включение режима',
             fetch_budget_exhausted: 'Исчерпан лимит загрузок — повтор после сброса бюджета UTC',
             model_budget_exhausted: 'Исчерпан лимит модели — повтор после сброса бюджета UTC',
+            server_fetch_budget_exhausted: 'Исчерпан общий лимит HTTP сервера — повтор после сброса бюджета UTC',
+            server_model_budget_exhausted: 'Исчерпан общий лимит AI сервера — повтор после сброса бюджета UTC',
             search_unavailable: 'Поисковики недоступны — назначен повтор',
             supply_unavailable: 'Не удалось оценить запас — назначен повтор',
             topic_busy: 'Тема занята другим процессом',
@@ -281,6 +283,10 @@ function renderAutopilot(data) {
             el('span', { className: 'autopilot-metric-value', textContent: number(value) }),
             el('span', { className: 'autopilot-metric-label', textContent: label }),
             hint ? el('small', { textContent: hint }) : '');
+        const scarceServerBudget = [
+            [topic.server_fetch_remaining, topic.server_fetch_limit],
+            [topic.server_model_remaining, topic.server_model_limit]
+        ].some(([remaining, limit]) => Number(limit) > 0 && Number(remaining) / Number(limit) < 0.05);
         const phase = (name, value, detail, state) => el('div', { className: 'autopilot-phase' },
             el('span', { className: 'autopilot-phase-dot ' + state, 'aria-hidden': 'true' }),
             el('div', {}, el('strong', { textContent: name }), el('span', { textContent: value }),
@@ -337,7 +343,11 @@ function renderAutopilot(data) {
                 el('span', { textContent: 'Сегодня осталось: ' + number(topic.fetch_remaining) +
                     ' HTTP-загрузок · ' + number(topic.model_remaining) + ' AI-вызовов по теме' }),
                 el('span', { textContent: 'Сервер: ' + number(topic.server_fetch_remaining ?? 0) +
-                    ' HTTP · ' + number(topic.server_model_remaining ?? 0) + ' AI' }),
+                    ' из ' + number(topic.server_fetch_limit ?? 0) + ' HTTP · ' +
+                    number(topic.server_model_remaining ?? 0) + ' из ' +
+                    number(topic.server_model_limit ?? 0) + ' AI' }),
+                scarceServerBudget ? el('span', { className: 'autopilot-alert',
+                    textContent: 'Внимание: осталось менее 5% одного из ОБЩЕСЕРВЕРНЫХ лимитов. Лимиты одной темы могут быть ещё далеко от исчерпания.' }) : '',
                 el('span', { textContent: 'Очередь: ' + number(topic.queue_ready) + ' готовы к проверке · ' +
                     number(topic.queue_delayed) + ' ожидают повторной попытки · ' +
                     number(topic.queue_unchecked) + ' ещё ни разу не проверялись' }),
@@ -511,7 +521,9 @@ function autopilotDiagnosticReport(data) {
             candidate_reasons: topic.candidate_reasons,
             fetch_remaining: topic.fetch_remaining, model_remaining: topic.model_remaining,
             server_fetch_remaining: topic.server_fetch_remaining,
-            server_model_remaining: topic.server_model_remaining
+            server_model_remaining: topic.server_model_remaining,
+            server_fetch_limit: topic.server_fetch_limit,
+            server_model_limit: topic.server_model_limit
         }))
     }, null, 2);
 }
