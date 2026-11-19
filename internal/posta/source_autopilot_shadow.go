@@ -1048,7 +1048,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			// must not block all other candidates for another 24 hours.
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
 				"cooldown", "sparse_publisher", jx.Marshal(jx.M{
-					"quality_samples": len(samples),
+					"quality_samples":     len(samples),
 					"quality_window_days": autopilotSourceQualityDays,
 				}), at, at.Add(30*24*time.Hour)); err != nil &&
 				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
