@@ -359,7 +359,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindBluesky([]string{query}) })
 		}
 		if a.TBool("search_lemmy") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindLemmy([]string{query}) })
+			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindLemmy([]string{query}, job.Topic) })
 		}
 		if a.TBool("search_mastodon") {
 			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindMastodon(query) })
