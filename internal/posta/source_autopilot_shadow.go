@@ -945,6 +945,18 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				}
 			}
 		}
+		// A confirmed 404/410 is not an inconclusive fetch: reject the
+		// missing source and keep an auditable decision, rather than leaving
+		// a dead feed in the candidate queue forever.
+		if state == "candidate" && reason == "source_not_found" {
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
+				"rejected", reason, jx.Marshal(jx.M{"http_status": res.Status}), at,
+				at.Add(30*24*time.Hour)); err != nil &&
+				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+			continue
+		}
 		samples := autopilotFreshRSSSamples(posts, at.Unix())
 		safeSamples := samples[:0]
 		for _, post := range samples {
@@ -1018,7 +1030,17 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					state = "probation"
 					nextCheck = at.Add(autopilotSourceReviewInterval(job, state))
 				} else {
-					reason = "preliminary_match_uncertain"
+					// A completed preliminary assessment with enough fresh posts
+					// but insufficient topic relevance is a negative decision,
+					// not an indefinitely waiting unverified candidate.
+					evidence["threshold"] = threshold
+					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
+						"rejected", "preliminary_topic_mismatch", jx.Marshal(evidence), at,
+						at.Add(30*24*time.Hour)); err != nil &&
+						!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+						return err
+					}
+					continue
 				}
 			}
 		}
