@@ -140,6 +140,7 @@ func (a *App) runAutopilotWorker(ctx context.Context, mode, scope, kind, setting
 	for {
 		enabled := a.TBool(setting)
 		err := a.reconcileAutopilotMode(ctx, enabled, mode, scope, kind)
+		a.recordAutopilotWorkerTick(mode, err)
 		if err != nil && ctx.Err() == nil {
 			log.Printf("автопилот: планирование: %v", err)
 		}
