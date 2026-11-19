@@ -222,6 +222,19 @@ function pendingCard(source, generation) {
     const name = url ? el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', textContent: source.name || source.id }) : el('span', { textContent: source.name || source.id });
     const head = el('div', { className: 'pending-source-title' }, el('strong', {}, name), source.score != null ? el('span', { className: 'pending-score', textContent: `${source.score}%` }) : null);
     const platform = el('p', { className: 'pending-source-platform', textContent: source.platform_label || source.kind || source.platform || '' });
+    const transferLabels = {
+        autopilot_off: 'Не перенесён: для этой темы автопилот не включён.',
+        autopilot_paused: 'Не перенесён: автопилот темы на паузе.',
+        autopilot_server_disabled: 'Не перенесён: режим автопилота отключён в админке.',
+        autopilot_no_rate: 'Не перенесён: для автоматического режима не задана частота.',
+        unsupported_source_format: 'Не перенесён: автопилот пока не умеет проверять этот тип источника.',
+        invalid_source_identity: 'Не перенесён: старый идентификатор не прошёл проверку безопасности.',
+        topic_mismatch: 'Не перенесён: тема предложения не совпадает с выбранной темой.',
+        awaiting_transfer: 'Соответствует условиям: ожидает передачи в очередь автопилота.'
+    };
+    const transferNote = source.autopilot_transfer_status
+        ? el('p', { className: 'pending-preview-note', textContent: transferLabels[source.autopilot_transfer_status] || 'Неизвестная причина ожидания переноса.' })
+        : null;
     const note = el('p', { className: 'pending-preview-note' });
     const grid = el('div', { className: 'pending-posts', ariaLabel: 'Примеры постов' });
     const actions = el('div', { className: 'pending-source-actions' });
@@ -246,7 +259,7 @@ function pendingCard(source, generation) {
         actions.append(button);
     }
     const why = el('details', { className: 'pending-source-why' }, el('summary', { textContent: 'Почему предложен' }), el('p', { textContent: source.reason || 'Найден автоподбором по теме.' }));
-    card.append(head, platform, note, grid, why, actions, error);
+    card.append(head, platform, transferNote, note, grid, why, actions, error);
     const cachedCount = pendingRenderPosts(card, source);
     // Работающие сохранённые примеры не занимают очередь сетевых запросов.
     if (cachedCount < 4 || source.needs_title || source.needs_media_refresh) {
