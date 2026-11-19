@@ -1398,7 +1398,7 @@ var okGroupLinkRe = regexp.MustCompile(`ok\.ru/group/(\d{10,20})`)
 // These are professional SMM signals, not general words such as "blog",
 // "posts", "video" or "business" which appear in unrelated OK groups.
 // A professional group must advertise this subject in its own title.
-var okSMMProfessionRe = regexp.MustCompile(`(?i)(^|[^\p{L}\p{N}])(smm|смм|таргетинг|таргетолог|интернет-маркетинг|контент-маркетинг|продвижение|маркетинг|соцсети|соцсетей|соцсетях|social media|контент-стратегия)([^\p{L}\p{N}]|$)`)
+var okSMMProfessionRe = regexp.MustCompile(`(?i)(^|[^\p{L}\p{N}])(smm|смм|таргетинг[\p{L}]*|таргетолог[\p{L}]*|интернет-маркетинг[\p{L}]*|контент-маркетинг[\p{L}]*|продвижени[\p{L}]*|маркетинг[\p{L}]*|соцсет[\p{L}]*|social media|контент-стратеги[\p{L}]*)([^\p{L}\p{N}]|$)`)
 
 func okDiscoveryTopicTextMatches(text, topic string, queries []string) bool {
 	if autopilotCanonicalTopic(topic) == "SMM и блогинг" {
