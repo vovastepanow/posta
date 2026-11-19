@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"fmt"
 	"os"
 	"testing"
@@ -193,4 +194,136 @@ func TestAutopilotLiveDiscoveryPersistence(t *testing.T) {
 	if hits == 0 || valid == 0 || stored == 0 || stored != decisions || stored != attributed {
 		t.Fatalf("discovery funnel stalled: hits=%d valid=%d stored=%d decisions=%d attributed=%d", hits, valid, stored, decisions, attributed)
 	}
+}
+
+// A real RSS response passes through the production review function and
+// PostgreSQL evidence tables. Assessment is deterministic because no model
+// credentials are installed in this isolated CI environment.
+func TestAutopilotLiveRSSReviewLifecycle(t *testing.T) {
+	dsn := os.Getenv("POSTA_AUTOPILOT_TEST_DSN")
+	if dsn == "" || os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires isolated PostgreSQL and POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	const owner, topic = "autopilot-live-rss-review", "Technology live source review"
+	const feed = "https://hnrss.org/frontpage"
+	source := "rss:" + feed
+	key := autopilotTopicKey(topic)
+	if _, err := d.Pool.Exec(ctx, `INSERT INTO users(id,created_at) VALUES($1,0) ON CONFLICT DO NOTHING`, owner); err != nil {
+		t.Fatal(err)
+	}
+	defer d.Pool.Exec(context.Background(), `DELETE FROM users WHERE id=$1`, owner)
+	if err := saveAutopilotDemand(ctx, d.Pool, owner, autopilotDemandSettings{
+		Topic: topic, Mode: "shadow", PostsPerDay: 2, HorizonDays: 2,
+	}, time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{DB: d}
+	if err := a.LoadCatalog(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.reconcileAutopilotShadowEnabled(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	job, err := claimAutopilotJobKind(ctx, d.Pool, time.Now().Add(time.Second), 2*time.Minute, autopilotShadowKind)
+	if err != nil || job == nil || job.TopicKey != key {
+		t.Fatalf("claim job=%+v err=%v", job, err)
+	}
+	job.MaxProbation = 3
+	u := a.User(ctx, "", nil)
+	live := u.RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
+	if !live.OK || !rssIsFeed(rssLoad(live.Bytes)) {
+		t.Fatalf("live RSS fetch failed: HTTP %d: %v", live.Status, live.Error)
+	}
+	parsed, err := RSSParse(live.Bytes, 20, "", feed, true, true, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh := autopilotFreshRSSSamples(parsed, time.Now().Unix())
+	if len(fresh) < 10 {
+		t.Fatalf("live RSS provides only %d fresh items; need 10 for lifecycle", len(fresh))
+	}
+	if err := registerAutopilotCandidate(ctx, d, job, source, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	fetch := func(raw string) FetchResultURL {
+		if raw != feed {
+			t.Errorf("unexpected source %q", raw)
+		}
+		return live
+	}
+	classified, assessments := 0, 0
+	evaluate := func(_ jx.M, posts []jx.M, _ string) *sourceEvaluation {
+		classified++
+		return &sourceEvaluation{Score: 95}
+	}
+	assess := func(work context.Context, sourceID string, posts []jx.M) error {
+		assessments++
+		for i, post := range posts {
+			key := CandidatePostKey(post)
+			if key == "" {
+				return fmt.Errorf("empty post key at index %d", i)
+			}
+			e := autopilotPostEvidence{
+				PostHash: repeatDigest(key), ContentHash: repeatDigest(key),
+				PublishedAt: jx.Int(post, "posted_at"), ObservedAt: time.Now().Unix(),
+				Relevant: true, Eligible: true,
+			}
+			if err := recordAutopilotPostEvidence(work, d, job, sourceID, e); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	policy := sourcePolicy{MinEvaluated: 10, MinPasses: 2, MinFreshUnique: 3, PromoteRate: .85, DemoteRate: .5, MaxAdvertisingRate: .2, MaxDuplicateRate: .5}
+	verify := func(want string) error {
+		var got string
+		if err := d.Pool.QueryRow(ctx, `SELECT state FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, key, source).Scan(&got); err != nil {
+			return err
+		}
+		if got != want {
+			return fmt.Errorf("state=%s want=%s", got, want)
+		}
+		return nil
+	}
+	err = runAutopilotLeased(ctx, d, job, 2*time.Minute, 20*time.Second, 50, 50, 50, 50, func(work context.Context) error {
+		if err := a.autopilotReviewShadowCandidatesWith(work, job, 1, 85, fetch, evaluate, assess, policy); err != nil {
+			return err
+		}
+		if err := verify("probation"); err != nil {
+			return err
+		}
+		at := time.Now().Add(-24 * time.Hour).Unix()
+		if _, err := d.Pool.Exec(work, `UPDATE source_autopilot_collection_passes SET slot=$4,fetched_at=$5 WHERE scope=$1 AND topic_key=$2 AND source_id=$3`,
+			job.Scope, key, source, at/int64(sharedCollectionInterval.Seconds()), at); err != nil {
+			return err
+		}
+		if _, err := d.Pool.Exec(work, `UPDATE source_autopilot_sources SET next_check_at=0 WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, key, source); err != nil {
+			return err
+		}
+		return a.autopilotReviewShadowCandidatesWith(work, job, 1, 85, fetch, evaluate, assess, policy)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := verify("active"); err != nil {
+		t.Fatal(err)
+	}
+	stats, err := autopilotEvidenceWindow(ctx, d.Pool, job.Scope, key, source, time.Now().Add(-30*24*time.Hour), time.Now().Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Evaluated < 10 || stats.SuccessfulPasses != 2 || classified != 1 || assessments != 2 {
+		t.Fatalf("unexpected evidence: %+v; classified=%d assessments=%d", stats, classified, assessments)
+	}
+	t.Logf("LIVE LIFECYCLE: feed=%s fresh=%d evaluated=%d passes=%d state=active", strings.TrimPrefix(source, "rss:"), len(fresh), stats.Evaluated, stats.SuccessfulPasses)
 }
