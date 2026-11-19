@@ -1487,6 +1487,7 @@ func (u *U) startSourceDiscovery(topic string, maxSeconds int, manual bool, plat
 	// compatibility, but the pipeline is never launched.
 	return nil, "auto_only"
 }
+
 // retiredSourceDiscoveryImplementation is kept temporarily for historical
 // diagnostics; it must not be called from any public route.
 func (u *U) retiredSourceDiscoveryImplementation(topic string, maxSeconds int, manual bool, platform string) (*discoveryRun, string) {
