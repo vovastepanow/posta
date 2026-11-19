@@ -631,7 +631,7 @@ const autopilotSourceReasonLabels = {
     preliminary_topic_mismatch: 'Проверен и отклонён: не соответствует теме', off_topic_group: 'Группа не соответствует теме',
     assessment_unavailable: 'AI-оценка временно недоступна', probation_full: 'Все места испытания заняты', probation_full_verified: 'Группа проверена; все места испытания заняты', projection_conflict: 'Конфликт подключения',
     shadow_preliminary_pass: 'Прошёл предварительную проверку',
-    observed_useful: 'Полезность подтверждена', insufficient_evidence: 'Недостаточно данных для решения',
+    observed_useful: 'Полезность подтверждена', observed_useful_curation: 'Одобрен как куратор качественных публикаций', insufficient_evidence: 'Недостаточно данных для решения',
     observed_irrelevant: 'Недостаточно публикаций по теме', quality_drift: 'Качество снизилось',
     observed_ad_or_duplicates: 'Слишком много рекламы или дублей'
 };
