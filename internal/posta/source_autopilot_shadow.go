@@ -813,7 +813,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		SELECT s.source_id,s.state,s.resume_state,s.checked_at,s.first_seen_at,
 			CASE s.state WHEN 'probation' THEN 0 WHEN 'candidate' THEN 1 WHEN 'active' THEN 2 ELSE 3 END AS lane
 		FROM source_autopilot_sources s
-		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown') AND s.next_check_at <= $3
+		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown')
+		AND (s.next_check_at <= $3 OR ($6 AND s.state='candidate' AND s.source_id LIKE 'ok:%' AND s.reason='probation_full'))
 		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
 		-- Candidates cannot enter probation while all trial slots are used.
 		-- Do not consume a review slot merely to postpone them for 24 hours;
@@ -960,7 +961,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		// trail by rejecting the source instead of silently deleting it.
 		if (state == "candidate" || state == "probation") && platform == PlatformOK &&
 			autopilotCanonicalTopic(job.Topic) == "SMM и блогинг" {
-			unverified := res.OK && reason == "" && (OKTitleFromHTML(string(res.Bytes), id) == id ||
+			unverified := res.OK && (OKTitleFromHTML(string(res.Bytes), id) == id ||
 				!okDiscoveryGroupTitleMatches(OKTitleFromHTML(string(res.Bytes), id), job.Topic, nil))
 			missing := res.Status == http.StatusNotFound || res.Status == http.StatusGone
 			if unverified || missing {
@@ -987,7 +988,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 			if usedSlots >= job.MaxProbation {
 				if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state,
-					"probation_full", jx.Marshal(jx.M{"limit": job.MaxProbation}),
+					"probation_full_verified", jx.Marshal(jx.M{"limit": job.MaxProbation}),
 					at, at.Add(time.Hour)); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
 					return err
 				}
