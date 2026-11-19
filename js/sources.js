@@ -657,6 +657,86 @@ function renderAutopilot(data) {
             el('span', { className: 'autopilot-phase-dot ' + state, 'aria-hidden': 'true' }),
             el('div', {}, el('strong', { textContent: name }), el('span', { textContent: value }),
                 el('small', { textContent: detail })));
+        // Load a single state on demand: dozens of candidates should not
+        // make the status endpoint or initial page unnecessarily heavy.
+        const sourcePanel = el('div', { className: 'autopilot-source-panel', hidden: true });
+        const sourceHeading = el('strong');
+        const sourceClose = el('button', { type: 'button', className: 'secondary-button', textContent: 'Закрыть' });
+        const sourceList = el('div', { className: 'autopilot-source-list' });
+        const sourceMore = el('button', { type: 'button', className: 'secondary-button', textContent: 'Показать ещё', hidden: true });
+        sourcePanel.append(el('div', { className: 'autopilot-source-heading' }, sourceHeading, sourceClose), sourceList, sourceMore);
+        const stateLabels = { candidate: 'Ожидают проверки', probation: 'На испытании', active: 'Подтверждено' };
+        const sourceReasons = {
+            discovered: 'найден, ещё не проверен', insufficient_fresh_samples: 'мало свежих публикаций',
+            feed_unavailable: 'лента недоступна', rate_limited: 'ограничение площадки',
+            source_not_found: 'источник не найден', unrecognized_feed: 'не распознана лента',
+            feed_parse_failed: 'ошибка разбора', preliminary_match_uncertain: 'не прошёл предварительный порог',
+            assessment_unavailable: 'AI-оценка недоступна', projection_conflict: 'конфликт подключения',
+            shadow_preliminary_pass: 'прошёл предварительную проверку',
+            observed_useful: 'качество подтверждено', insufficient_evidence: 'недостаточно доказательств'
+        };
+        let sourceState = '', sourceAfter = '', sourceLoading = false;
+        const loadSources = async (reset = false) => {
+            if (sourceLoading || !sourceState) return;
+            sourceLoading = true;
+            sourceMore.disabled = true;
+            if (reset) { sourceAfter = ''; sourceList.replaceChildren(); }
+            if (!sourceAfter && !sourceList.children.length) sourceList.textContent = 'Загрузка источников…';
+            try {
+                const result = await api('source_autopilot_sources', {
+                    params: { topic: topic.topic, mode: topic.mode, state: sourceState, after: sourceAfter, limit: 25 }
+                });
+                if (!sourceAfter) sourceList.replaceChildren();
+                for (const item of result.sources || []) {
+                    const raw = String(item.source_id || '');
+                    const link = raw.startsWith('rss:https://') || raw.startsWith('rss:http://')
+                        ? raw.slice(4) : '';
+                    const name = link
+                        ? el('a', { href: link, target: '_blank', rel: 'noopener noreferrer', textContent: raw.slice(4) })
+                        : el('span', { textContent: raw });
+                    const info = [sourceReasons[item.reason] || item.reason || 'ожидает проверки'];
+                    if (item.checked_at) info.push('Проверен: ' + new Date(item.checked_at * 1000).toLocaleString('ru-RU'));
+                    if (item.next_check_at && item.next_check_at > Date.now() / 1000)
+                        info.push('Следующая попытка: ' + new Date(item.next_check_at * 1000).toLocaleString('ru-RU'));
+                    sourceList.append(el('div', { className: 'autopilot-source-item' },
+                        name, el('small', { textContent: info.join(' · ') })));
+                }
+                if (!sourceList.children.length) sourceList.textContent = 'В этой секции пока нет источников.';
+                sourceAfter = result.next_after || '';
+                sourceMore.hidden = !sourceAfter;
+            } catch (error) {
+                sourceList.textContent = 'Не удалось загрузить источники: ' + error.message;
+                sourceMore.hidden = true;
+            } finally { sourceLoading = false; sourceMore.disabled = false; }
+        };
+        const showSources = state => {
+            if (topic.mode === 'off') return;
+            if (!sourcePanel.hidden && sourceState === state) {
+                sourcePanel.hidden = true;
+                return;
+            }
+            sourceState = state;
+            sourceHeading.textContent = stateLabels[state];
+            sourcePanel.hidden = false;
+            loadSources(true);
+        };
+        sourceMore.addEventListener('click', () => loadSources());
+        sourceClose.addEventListener('click', () => { sourcePanel.hidden = true; });
+        const sourceStat = (label, value, hint, state) => {
+            const metric = stat(label, value, hint);
+            metric.classList.add('autopilot-metric-clickable');
+            metric.setAttribute('role', 'button');
+            metric.setAttribute('tabindex', '0');
+            metric.setAttribute('aria-label', 'Показать источники: ' + label);
+            metric.addEventListener('click', () => showSources(state));
+            metric.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    showSources(state);
+                }
+            });
+            return metric;
+        };
         const found = Number(topic.last_source_candidates || 0);
         const totalChecked = Number(topic.direct_reviewed_total || 0);
         const failure = failureNames[topic.failure];
@@ -668,9 +748,9 @@ function renderAutopilot(data) {
                 el('span', { className: 'autopilot-state' + (topic.running ? ' is-running' : ''), textContent: status })),
             el('div', { className: 'autopilot-metrics' },
                 stat('Найдено за 1 цикл', found, 'Автопилот; не сумма находок ручного подбора'),
-                stat('Ожидают проверки', sourceCandidates, 'Сохранено в очереди'),
-                stat('На испытании', sourcesReview, 'Проверка качества'),
-                stat('Подтверждено', sourcesActive, 'Действующие источники')),
+                sourceStat('Ожидают проверки', sourceCandidates, 'Нажмите, чтобы открыть список', 'candidate'),
+                sourceStat('На испытании', sourcesReview, 'Нажмите, чтобы открыть список', 'probation'),
+                sourceStat('Подтверждено', sourcesActive, 'Нажмите, чтобы открыть список', 'active')),
             el('div', { className: 'autopilot-pipeline', 'aria-label': 'Этапы подбора источников' },
                 phase('1. Поиск', topic.last_search_at ? number(found) + ' кандидатов' : 'Нет данных',
                     topic.last_search_at ? 'Последний поиск: ' + dateTime(topic.last_search_at) +
@@ -688,6 +768,7 @@ function renderAutopilot(data) {
                     topic.capacity_limited ? 'Цель ограничена вместимостью пула.' :
                         'Это текущий запас публикаций по теме, не число найденных кандидатов.',
                     activePhase === 'delivery' ? 'active' : topic.available > 0 ? 'done' : 'waiting')),
+            sourcePanel,
             el('div', { className: 'autopilot-footnotes' },
                 el('span', { textContent: 'Сегодня осталось: ' + number(topic.fetch_remaining) +
                     ' HTTP-загрузок · ' + number(topic.model_remaining) + ' AI-вызовов по теме' }),
