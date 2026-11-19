@@ -241,7 +241,7 @@
   <section class="autopilot-panel" aria-labelledby="autopilot-title">
     <div><strong id="autopilot-title">Автопилот источников</strong><p>Теневой режим проверяет источники; автоматический подключает прошедшие предварительную проверку RSS-ленты.</p></div>
     <form id="autopilot-form" class="autopilot-form">
-      <label>Тема <input id="autopilot-topic" type="text" maxlength="100" required></label>
+      <label>Тема <select id="autopilot-topic" required><option value="">Загрузка дерева тем…</option></select></label>
       <label>Режим <select id="autopilot-mode"><option value="shadow">Теневой</option><option value="auto">Автоматический</option><option value="off">Выключен</option></select></label>
       <label>Постов в день <input id="autopilot-rate" type="number" min="0" max="1000" step="0.1" value="5" required></label>
       <label>Запас, дней <input id="autopilot-horizon" type="number" min="0.1" max="365" step="0.1" value="3" required></label>
