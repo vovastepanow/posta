@@ -285,6 +285,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	}
 	var searchErr error
 	var sourceSearchCount, directSourceCount, enabledBackends int
+	var lastSearchSourceIDs []string
 	var statuses map[string]string
 	directAttempted := false
 	searchOutcome := "not_started"
@@ -345,6 +346,19 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		// existing per-cycle 120-fetch ceiling and daily quotas still enforced.
 		candidates := autopilotRunSearchBackendsAdaptive(searchCtx, turn, backends, 6, 64)
 		sourceSearchCount = len(candidates)
+		// Snapshot the actual source identities found by this search pass.
+		// A candidate may already exist or change state later; querying only
+		// today's 'discovered' decisions cannot reconstruct this list.
+		seenSources := map[string]bool{}
+		lastSearchSourceIDs = []string{}
+		for _, candidate := range candidates {
+			id, ok := autopilotCandidateID(candidate)
+			if !ok || seenSources[id] {
+				continue
+			}
+			seenSources[id] = true
+			lastSearchSourceIDs = append(lastSearchSourceIDs, id)
+		}
 		if job.Scope == autopilotAutoScope && (len(candidates) < 3 || turn%3 == 0) && ctx.Err() == nil && autopilotBudgetError(ctx) == nil && !autopilotSearchFetchCapReached(searchCtx) {
 			directAttempted = true
 			// Periodic direct post exploration continues even when broad
@@ -388,6 +402,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	// Record an explicit outcome even when the source-review phase later
 	// fails. These aggregate fields contain no user or source identifiers.
 	autopilotRecordDiscoveryMetrics(job, sourceSearchCount, directSourceCount, enabledBackends, searchOutcome, time.Now().Unix(), statuses)
+	metrics := jx.Unmarshal(job.Checkpoint)
+	metrics["last_search_source_ids"] = lastSearchSourceIDs
+	job.Checkpoint = jx.Marshal(metrics)
 	if checkpointErr := saveAutopilotCheckpoint(ctx, a.DB, job); checkpointErr != nil {
 		return checkpointErr
 	}
