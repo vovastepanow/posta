@@ -60,7 +60,7 @@ func (u *U) autopilotLegacyPendingRoutes(job *autopilotJob) []autopilotLegacyPen
   reason := ""
   if !valid {
    reason = "unsupported_source_format"
-  } else if recommendationSourceKey(sid) != identity {
+  } else if sid != raw || recommendationSourceKey(sid) != identity {
    reason = "invalid_source_identity"
   }
   seen[identity] = true
