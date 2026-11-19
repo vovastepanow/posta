@@ -430,10 +430,12 @@ func (u *U) sourceReviewRequest(prompt string, images [][]byte) *sourceReview {
 		"required": []string{"score", "reason"}}
 	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Images: images, Schema: schema, MaxTokens: 120, Temperature: 0, UserID: u.ID})
 	if err != nil {
+		autopilotNoteAssessmentCause(u.Ctx, autopilotAssessmentCause(err))
 		return nil
 	}
 	a := llm.DecodeJSON(r.Text)
 	if a == nil || a["score"] == nil {
+		autopilotNoteAssessmentCause(u.Ctx, "invalid_model_response")
 		return nil
 	}
 	return &sourceReview{Score: llm.ClampScore(jx.Float(a, "score")), Reason: trimRunes(llm.StripCJK(jx.Str(a, "reason")), 80), PersonalBlog: personalBlogLabelFromReview(jx.Str(a, "personal_blog"))}
@@ -498,11 +500,13 @@ func (u *U) combinedSourceReview(title, desc, topic string, posts []jx.M, caps [
 	required := []string{"text_score", "image_score", "reason"}
 	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Images: StoryboardSheets(frames), Schema: jx.M{"type": "object", "properties": props, "required": required}, MaxTokens: 180, Temperature: 0, UserID: u.ID})
 	if err != nil {
+		autopilotNoteAssessmentCause(u.Ctx, autopilotAssessmentCause(err))
 		u.Log("-> Объединённая оценка: ошибка модели: %v", err)
 		return nil
 	}
 	ev := parseCombinedSourceReview(r.Text, false)
 	if ev == nil {
+		autopilotNoteAssessmentCause(u.Ctx, "invalid_model_response")
 		u.Log("-> Объединённая оценка: модель не вернула все оценки; использую обычную проверку.")
 	}
 	return ev
