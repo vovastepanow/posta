@@ -5,9 +5,9 @@ import "math"
 // sourceEvidence contains only completed content evaluations. Network and
 // model failures are tracked separately and never enter the denominator.
 type sourceEvidence struct {
-	Evaluated, Relevant, FreshUnique, SuccessfulPasses int
-	Advertising, Duplicates                            int
-	TechnicalFailure                                   bool
+	Evaluated, Relevant, FreshUnique, CuratedUnique, SuccessfulPasses int
+	Advertising, Duplicates                                           int
+	TechnicalFailure                                                  bool
 }
 
 type sourcePolicy struct {
@@ -38,18 +38,29 @@ func decideSourceState(state string, e sourceEvidence, p sourcePolicy) (string, 
 	if e.TechnicalFailure {
 		return state, "access_unavailable"
 	}
-	if p.MinEvaluated <= 0 || p.MinPasses <= 0 || p.MinFreshUnique <= 0 || math.IsNaN(p.PromoteRate) || math.IsNaN(p.DemoteRate) || math.IsNaN(p.MaxAdvertisingRate) || math.IsNaN(p.MaxDuplicateRate) || p.DemoteRate < 0 || p.PromoteRate > 1 || p.DemoteRate >= p.PromoteRate || p.MaxAdvertisingRate < 0 || p.MaxAdvertisingRate > 1 || p.MaxDuplicateRate < 0 || p.MaxDuplicateRate > 1 || e.Evaluated < 0 || e.Relevant < 0 || e.Relevant > e.Evaluated || e.FreshUnique < 0 || e.FreshUnique > e.Evaluated || e.SuccessfulPasses < 0 || e.Advertising < 0 || e.Advertising > e.Evaluated || e.Duplicates < 0 || e.Duplicates > e.Evaluated {
+	if p.MinEvaluated <= 0 || p.MinPasses <= 0 || p.MinFreshUnique <= 0 || math.IsNaN(p.PromoteRate) || math.IsNaN(p.DemoteRate) || math.IsNaN(p.MaxAdvertisingRate) || math.IsNaN(p.MaxDuplicateRate) || p.DemoteRate < 0 || p.PromoteRate > 1 || p.DemoteRate >= p.PromoteRate || p.MaxAdvertisingRate < 0 || p.MaxAdvertisingRate > 1 || p.MaxDuplicateRate < 0 || p.MaxDuplicateRate > 1 || e.Evaluated < 0 || e.Relevant < 0 || e.Relevant > e.Evaluated || e.FreshUnique < 0 || e.FreshUnique > e.Evaluated || e.CuratedUnique < 0 || e.CuratedUnique > e.Evaluated || e.SuccessfulPasses < 0 || e.Advertising < 0 || e.Advertising > e.Evaluated || e.Duplicates < 0 || e.Duplicates > e.Evaluated {
 		return state, "invalid_evidence_or_policy"
 	}
 	if e.Evaluated < p.MinEvaluated || e.SuccessfulPasses < p.MinPasses {
 		return state, "insufficient_evidence"
 	}
 	rate := float64(e.Relevant) / float64(e.Evaluated)
-	poorQuality := float64(e.Advertising)/float64(e.Evaluated) > p.MaxAdvertisingRate || float64(e.Duplicates)/float64(e.Evaluated) > p.MaxDuplicateRate
+	excessAds := float64(e.Advertising)/float64(e.Evaluated) > p.MaxAdvertisingRate
+	// Sharing a valuable post is not evidence of authorship. Yet a publisher
+	// consistently selecting diverse, independently assessed useful posts
+	// is a valuable curator. Require the same relevance, minimum sample,
+	// multi-pass observation and advertising protections as original sources.
+	// A single viral repost repeated many times earns no additional credit.
+	valuableCuration := e.CuratedUnique >= p.MinFreshUnique &&
+		rate >= p.PromoteRate && !excessAds
+	poorQuality := excessAds || (float64(e.Duplicates)/float64(e.Evaluated) > p.MaxDuplicateRate && !valuableCuration)
 	switch state {
 	case "probation":
 		if !poorQuality && rate >= p.PromoteRate && e.FreshUnique >= p.MinFreshUnique {
 			return "active", "observed_useful"
+		}
+		if !poorQuality && valuableCuration {
+			return "active", "observed_useful_curation"
 		}
 		if poorQuality {
 			return "rejected", "observed_ad_or_duplicates"
