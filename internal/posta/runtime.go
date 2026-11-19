@@ -318,10 +318,10 @@ func (a *App) parserExpectedSeconds(uid string, finished int64) int64 {
 	return max(60, s[len(s)/2])
 }
 
-// BackgroundContentEnabled is an explicit persistent user opt-in.
-// A missing setting is off: tab opens and heartbeats must never spend AI quota.
+// BackgroundContentEnabled is controlled globally by the administrator.
+// New installs start with the main post parser disabled until manual opt-in.
 func (u *U) BackgroundContentEnabled() bool {
-	return jx.Bool(u.Settings(), "background_content_enabled")
+	return u.App.TBool("background_content_enabled")
 }
 
 // StartParser — started | running | cooldown | no_session | forbidden | disabled.
