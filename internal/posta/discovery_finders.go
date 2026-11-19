@@ -1330,32 +1330,44 @@ func (u *U) discoveryTikTokQueries(queries []string, topic string) []string {
 }
 
 var okGroupLinkRe = regexp.MustCompile(`ok\.ru/group/(\d{10,20})`)
-var okWordSplitRe = regexp.MustCompile(`[\s,;:!?.()/|«»"]+`)
 
-// discoveryFindOK — группы-авторы из общих лент разделов ОК, где слово темы встречается в двух и больше записях.
-func (u *U) discoveryFindOK(queries []string, topic string) []DiscoveryCandidate {
-	var words []string
-	for _, w := range okWordSplitRe.Split(strings.Join(append([]string{topic}, queries...), " "), -1) {
-		w = strings.ToLower(w)
-		if runeLen(w) >= 3 {
-			words = append(words, trimRunes(w, max(4, runeLen(w)-2)))
+// These are professional SMM signals, not general words such as "blog",
+// "posts", "video" or "business" which appear in unrelated OK groups.
+// A professional group must advertise this subject in its own title.
+var okSMMProfessionRe = regexp.MustCompile(`(?i)(^|[^\p{L}\p{N}])(smm|смм|таргетинг|таргетолог|интернет-маркетинг|контент-маркетинг|продвижение|маркетинг|соцсети|соцсетей|соцсетях|social media|контент-стратегия)([^\p{L}\p{N}]|$)`)
+
+func okDiscoveryTopicTextMatches(text, topic string, queries []string) bool {
+	if autopilotCanonicalTopic(topic) == "SMM и блогинг" {
+		return okSMMProfessionRe.MatchString(text)
+	}
+	for _, query := range append([]string{topic}, queries...) {
+		query = strings.TrimSpace(query)
+		// Avoid single-word fragments and overly generic short matches.
+		if runeLen(query) >= 4 && QueryTextHit(text, query) {
+			return true
 		}
 	}
-	words = uniqueStrings(words)
+	return false
+}
+
+func okDiscoveryGroupTitleMatches(title, topic string, queries []string) bool {
+	if autopilotCanonicalTopic(topic) == "SMM и блогинг" {
+		return okSMMProfessionRe.MatchString(title)
+	}
+	return okDiscoveryTopicTextMatches(title, topic, queries)
+}
+
+// discoveryFindOK searches public OK discovery feeds for candidate group IDs,
+// then verifies that each group exists, exposes readable posts, and describes
+// the actual requested subject. A keyword in an unrelated aggregator post is
+// never sufficient evidence that the group itself matches.
+func (u *U) discoveryFindOK(queries []string, topic string) []DiscoveryCandidate {
 	hits := map[string]int{}
-	origin := map[string]string{}
 	var order []string
 	for _, name := range okDiscoveryFeeds {
 		feed := "https://ok.ru/atom-feed/" + name
 		r := u.RSSGet(feed, 3<<20, 15*time.Second, BrowserUA)
-		if !r.OK {
-			if u.discoverySearchObservation != nil {
-				u.discoverySearchObservation("ok", topic, "unavailable")
-			}
-			u.Log("-> ОК: лента «%s» не отвечает: %s.", name, fetchFailure(r.FetchResult))
-			continue
-		}
-		if !rssIsFeed(rssLoad(r.Bytes)) {
+		if !r.OK || !rssIsFeed(rssLoad(r.Bytes)) {
 			if u.discoverySearchObservation != nil {
 				u.discoverySearchObservation("ok", topic, "unavailable")
 			}
@@ -1373,34 +1385,41 @@ func (u *U) discoveryFindOK(queries []string, topic string) []DiscoveryCandidate
 		}
 		for _, p := range posts {
 			m := okGroupLinkRe.FindStringSubmatch(jx.Str(p, "url"))
-			if m == nil {
-				continue
-			}
-			text := strings.ToLower(jx.Str(p, "text"))
-			hit := false
-			for _, w := range words {
-				if strings.Contains(text, w) {
-					hit = true
-					break
-				}
-			}
-			if !hit {
+			if m == nil || !okDiscoveryTopicTextMatches(jx.Str(p, "text"), topic, queries) {
 				continue
 			}
 			if hits[m[1]] == 0 {
 				order = append(order, m[1])
-				origin[m[1]] = "лента ОК «" + name + "»"
 			}
 			hits[m[1]]++
 		}
 	}
 	var out []DiscoveryCandidate
-	for _, g := range order {
-		if hits[g] >= 2 && len(out) < discoveryOKMax {
-			out = append(out, DiscoveryCandidate{Platform: PlatformOK, ID: g, Origin: origin[g], OriginKind: "ok"})
+	probed := 0
+	for _, group := range order {
+		if hits[group] < 2 || len(out) >= discoveryOKMax || probed >= 10 {
+			continue
 		}
+		probed++
+		// A valid-looking numeric ID is not proof that the OK group exists.
+		// Check the actual mobile group page and readable posts before storing.
+		res := u.RSSGet(okGroupURL(group), rssMaxBytes, 15*time.Second, BrowserUA)
+		if !res.OK {
+			continue
+		}
+		groupPosts, err := autopilotPublicSocialPosts(PlatformOK, group, res)
+		if err != nil || len(groupPosts) < 2 {
+			continue
+		}
+		title := OKTitleFromHTML(string(res.Bytes), group)
+		if title == group || !okDiscoveryGroupTitleMatches(title, topic, queries) {
+			continue
+		}
+		out = append(out, DiscoveryCandidate{Platform: PlatformOK, ID: group,
+			Info: jx.M{"title": title}, Origin: "проверенная публичная группа ОК",
+			OriginKind: "ok"})
 	}
-	u.Log("-> Одноклассники: групп по теме в лентах разделов (слово темы в двух записях и больше): %d.", len(out))
+	u.Log("-> Одноклассники: проверено %d групп, подходящих публичных групп %d.", probed, len(out))
 	return out
 }
 
