@@ -67,7 +67,7 @@ func TestAutopilotPrepareSkipsInvalidRejectedProjectionsPostgres(t *testing.T) {
 		_, err = d.Pool.Exec(ctx, `INSERT INTO source_autopilot_sources
 			(scope,topic_key,source_id,state,reason,first_seen_at,policy_version)
 			VALUES($1,$2,$3,$4,'legacy_pending_import',$5,$6)`,
-			autopilotAutoScope, key, candidate.source, time.Now().Unix(), TopicProfileVersion)
+			autopilotAutoScope, key, candidate.source, candidate.state, time.Now().Unix(), TopicProfileVersion)
 		if err != nil {
 			t.Fatal(err)
 		}
