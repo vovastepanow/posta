@@ -831,22 +831,15 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			CASE s.state WHEN 'probation' THEN 0 WHEN 'candidate' THEN 1 WHEN 'active' THEN 2 ELSE 3 END AS lane
 		FROM source_autopilot_sources s
 		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown')
-		AND (s.next_check_at <= $3 OR ($6 AND s.state='candidate' AND s.source_id LIKE 'ok:%' AND s.reason='probation_full'))
+		AND (s.next_check_at <= $3 OR (s.state='candidate' AND s.reason='probation_full'))
 		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
-		-- Candidates cannot enter probation while all trial slots are used.
-		-- Do not consume a review slot merely to postpone them for 24 hours;
-		-- keep them due so the next worker can review them when a slot opens.
-		AND (s.state <> 'candidate' OR (SELECT count(*) FROM source_autopilot_sources trial
-			WHERE trial.scope=$1 AND trial.topic_key=$2 AND trial.state='probation') < $5
-			OR ($6 AND s.source_id LIKE 'ok:%'))
 	), ranked AS (
 		SELECT source_id,state,resume_state,lane,
 			row_number() OVER (PARTITION BY lane ORDER BY checked_at,first_seen_at,source_id) AS lane_rank
 		FROM due
 	)
 	SELECT source_id,state,resume_state FROM ranked
-	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit, job.MaxProbation,
-		autopilotCanonicalTopic(job.Topic) == "SMM и блогинг")
+	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit)
 	if err != nil {
 		return err
 	}
@@ -901,21 +894,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					continue
 				}
 			}
-			var probation int
-			if job.MaxProbation < 1 {
-				return errors.New("invalid probation limit")
-			}
-			if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state='probation'`, job.Scope, job.TopicKey).Scan(&probation); err != nil {
-				return err
-			}
-			if probation >= job.MaxProbation && !(strings.HasPrefix(source, "ok:") &&
-				autopilotCanonicalTopic(job.Topic) == "SMM и блогинг") {
-				at := time.Now()
-				if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, "candidate", "probation_full", jx.Marshal(jx.M{"limit": job.MaxProbation}), at, at.Add(24*time.Hour)); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
-					return err
-				}
-				continue
-			}
+
 		}
 		platform, id, _, ok := autopilotSourceParts(source)
 		if !ok {
@@ -994,24 +973,6 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				continue
 			}
 		}
-		if reason == "" && state == "candidate" && platform == PlatformOK &&
-			autopilotCanonicalTopic(job.Topic) == "SMM и блогинг" {
-			// A genuine matching OK group still cannot bypass the trial cap.
-			var usedSlots int
-			if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
-				WHERE scope=$1 AND topic_key=$2 AND state='probation'`,
-				job.Scope, job.TopicKey).Scan(&usedSlots); err != nil {
-				return err
-			}
-			if usedSlots >= job.MaxProbation {
-				if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state,
-					"probation_full_verified", jx.Marshal(jx.M{"limit": job.MaxProbation}),
-					at, at.Add(time.Hour)); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
-					return err
-				}
-				continue
-			}
-		}
 		if reason == "" && state == "candidate" && len(samples) < 2 {
 			reason = "insufficient_fresh_samples"
 		}
@@ -1037,7 +998,17 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				evidence["preliminary_score"] = evaluation.Score
 				if autopilotPreliminaryPass(evaluation.Score, threshold, len(samples)) {
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate", "probation", "shadow_preliminary_pass", jx.Marshal(evidence), at, at.Add(autopilotSourceReviewInterval(job, "probation"))); err != nil {
-						if errors.Is(err, errAutopilotSourceChanged) || errors.Is(err, errAutopilotSourceOverride) || errors.Is(err, errAutopilotProbationLimit) {
+						if errors.Is(err, errAutopilotProbationLimit) {
+							// Actual source evaluation passed. Keep a record of the
+							// successful prescreen instead of marking it unverified.
+							if saveErr := recordAutopilotSourceCheck(ctx, a.DB, job, source, "candidate",
+								"preliminary_pass_waiting_trial", jx.Marshal(evidence), at, at.Add(30*time.Minute)); saveErr != nil &&
+								!errors.Is(saveErr, errAutopilotSourceChanged) {
+								return saveErr
+							}
+							continue
+						}
+						if errors.Is(err, errAutopilotSourceChanged) || errors.Is(err, errAutopilotSourceOverride) {
 							continue
 						}
 						return err
