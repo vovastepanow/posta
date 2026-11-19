@@ -647,7 +647,7 @@ function autopilotSourceIdentity(raw) {
         const [prefix, label, icon, fallback, color, toURL] = prefixed;
         const id = source.slice(prefix.length);
         const url = toURL(id);
-        return { url, display: id, platform: { label, icon, fallback, color } };
+        return { url, display: url ? url.replace(/^https?:\/\//, '') : source, platform: { label, icon, fallback, color } };
     }
     const rawURL = source.startsWith('rss:') ? source.slice(4) : source;
     let url = '', host = '', pathname = '';
