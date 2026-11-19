@@ -190,13 +190,10 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 	if err == nil {
 		var due int
 		countErr := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources s
-			WHERE s.scope=$1 AND s.topic_key=$2 AND s.next_check_at<= $3
-			AND (s.state='probation' OR (s.state='candidate' AND (
-			(SELECT count(*) FROM source_autopilot_sources p WHERE p.scope=$1
-			AND p.topic_key=$2 AND p.state='probation') < $4 OR
-			($5 AND s.source_id LIKE 'ok:%'))))`,
-			job.Scope, job.TopicKey, time.Now().Unix(), job.MaxProbation,
-			autopilotCanonicalTopic(job.Topic) == "SMM и блогинг").Scan(&due)
+			WHERE s.scope=$1 AND s.topic_key=$2
+			AND s.state IN ('candidate','probation')
+			AND (s.next_check_at <= $3 OR (s.state='candidate' AND s.reason='probation_full'))`,
+			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&due)
 		if countErr == nil && due > 0 {
 			nextInterval = min(nextInterval, 2*time.Minute)
 		} else if countErr != nil && ctx.Err() == nil {
@@ -263,7 +260,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	// Do not keep searching while the existing candidate queue needs
 	// verification. This applies to shadow and auto modes alike: previously
 	// shadow mode could accumulate hundreds of unreviewed sources.
-	if true {
+	{
 		var dueCandidates int
 		if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
 			WHERE scope=$1 AND topic_key=$2 AND state='candidate' AND next_check_at <= $3`,
