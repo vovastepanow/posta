@@ -110,6 +110,15 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 	if err = d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_query_sources WHERE scope='public:shadow' AND topic_key=$1 AND query=$2`, key, job.SearchQuery).Scan(&count); err != nil || count != 2 {
 		t.Fatalf("query attribution=%d err=%v", count, err)
 	}
+	partialErr := a.autopilotShadowSearchWith(ctx, job, func(context.Context) ([]DiscoveryCandidate, error) {
+		return []DiscoveryCandidate{{Platform: PlatformRSS, ID: "https://example.org/partial"}}, errAutopilotBudgetExhausted
+	})
+	if !errors.Is(partialErr, errAutopilotBudgetExhausted) {
+		t.Fatalf("partial search error lost: %v", partialErr)
+	}
+	if err = d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE scope='public:shadow' AND topic_key=$1 AND source_id='rss:https://example.org/partial'`, key).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("partial search candidates lost: %d %v", count, err)
+	}
 	// Authenticated state listings must expose only this topic's public
 	// sources and page them without repeating entries.
 	page, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "candidate", "", 1)
@@ -129,14 +138,9 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 	if _, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "cooldown", "", 10); err == nil {
 		t.Fatal("unlisted source state was accepted")
 	}
-	partialErr := a.autopilotShadowSearchWith(ctx, job, func(context.Context) ([]DiscoveryCandidate, error) {
-		return []DiscoveryCandidate{{Platform: PlatformRSS, ID: "https://example.org/partial"}}, errAutopilotBudgetExhausted
-	})
-	if !errors.Is(partialErr, errAutopilotBudgetExhausted) {
-		t.Fatalf("partial search error lost: %v", partialErr)
-	}
-	if err = d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE scope='public:shadow' AND topic_key=$1 AND source_id='rss:https://example.org/partial'`, key).Scan(&count); err != nil || count != 1 {
-		t.Fatalf("partial search candidates lost: %d %v", count, err)
+	trialPage, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "probation", "", 10)
+	if err != nil || len(jx.Maps(trialPage, "sources")) != 1 || jx.Str(jx.Maps(trialPage, "sources")[0], "source_id") != "rss:https://example.org/feed" {
+		t.Fatalf("probation listing=%v err=%v", trialPage, err)
 	}
 	var state, reason string
 	if err = d.Pool.QueryRow(ctx, `SELECT state,reason FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, autopilotShadowScope, key, "rss:https://example.org/feed").Scan(&state, &reason); err != nil || state != "probation" || evaluations != 1 {
