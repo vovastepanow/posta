@@ -66,6 +66,24 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 				return err
 			}
 		}
+		// One-time migration of an old stuck queue: the previous source
+		// sampler only considered 30-day posts. The worker will convert those
+		// stale candidate reasons to probation/cooldown after reevaluation.
+		// Do not override a failed job's backoff or a disabled mode.
+		if enabled {
+			if _, err := tx.Exec(ctx, `UPDATE source_autopilot_jobs j
+				SET next_run_at=LEAST(j.next_run_at,$3)
+				WHERE j.scope=$1 AND j.kind=$2 AND j.enabled AND j.demand_active
+				AND j.last_error='' AND j.next_run_at>$3
+				AND EXISTS (SELECT 1 FROM source_autopilot_sources s
+				WHERE s.scope=j.scope AND s.topic_key=j.topic_key
+				AND s.state='candidate'
+				AND s.reason IN ('feed_unavailable','insufficient_fresh_samples')
+				AND s.checked_at > 0 AND s.checked_at < $3-3600)`,
+				scope, kind, time.Now().Unix()); err != nil {
+				return err
+			}
+		}
 		_, err := tx.Exec(ctx, `UPDATE source_autopilot_jobs j SET demand_active=false,lease_token='',lease_until=0,generation=generation+1
 			WHERE j.scope=$3 AND j.kind=$1 AND j.demand_active AND
 			(NOT $2 OR NOT EXISTS (SELECT 1 FROM source_autopilot_demands d WHERE d.topic_key=j.topic_key AND d.mode=$4 AND NOT d.paused AND ($4<>'auto' OR d.posts_per_day>0)))`, kind, enabled, scope, mode)
@@ -195,7 +213,9 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 		countErr := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources s
 			WHERE s.scope=$1 AND s.topic_key=$2
 			AND s.state IN ('candidate','probation')
-			AND (s.next_check_at <= $3 OR (s.state='candidate' AND s.reason='probation_full'))`,
+			AND (s.next_check_at <= $3 OR (s.state='candidate' AND
+			(s.reason='probation_full' OR
+			 (s.reason IN ('feed_unavailable','insufficient_fresh_samples') AND s.checked_at < $3-3600))))`,
 			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&due)
 		if countErr == nil && due > 0 {
 			nextInterval = min(nextInterval, 2*time.Minute)
@@ -267,7 +287,8 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		var dueCandidates int
 		if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
 			WHERE scope=$1 AND topic_key=$2 AND state='candidate'
-			AND (next_check_at <= $3 OR reason='probation_full')`,
+			AND (next_check_at <= $3 OR reason='probation_full' OR
+			     (reason IN ('feed_unavailable','insufficient_fresh_samples') AND checked_at < $3-3600))`,
 			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&dueCandidates); err != nil {
 			return err
 		}
@@ -846,7 +867,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			CASE s.state WHEN 'probation' THEN 0 WHEN 'candidate' THEN 1 WHEN 'active' THEN 2 ELSE 3 END AS lane
 		FROM source_autopilot_sources s
 		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown')
-		AND (s.next_check_at <= $3 OR (s.state='candidate' AND s.reason='probation_full'))
+		AND (s.next_check_at <= $3 OR (s.state='candidate' AND
+			(s.reason='probation_full' OR
+			 (s.reason IN ('feed_unavailable','insufficient_fresh_samples') AND s.checked_at < $3-3600))))
 		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
 	), ranked AS (
 		SELECT source_id,state,resume_state,lane,
