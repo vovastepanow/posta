@@ -161,7 +161,7 @@ function openPendingDetails(source, card) {
     const url = safeSourcePostUrl({ source_url: source.url || '' });
     const link = url ? el('a', { className: 'pending-detail-link', href: url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть источник ↗' }) : null;
     close.addEventListener('click', () => dlg.close());
-    dlg.addEventListener('click', event => { if (event.target === dlg) dlg.close(); });
+
     dlg.addEventListener('close', () => dlg.remove(), { once: true });
     dlg.append(el('div', { className: 'pending-detail-head' }, el('div', {}, title, platform), close));
     if (link) dlg.append(link);
@@ -1632,7 +1632,7 @@ export function initializeSourceTab() {
     const openTools = () => { if (!toolsDialog.open) toolsDialog.showModal(); };
     $('source-tools-open').addEventListener('click', openTools);
     $('source-tools-close').addEventListener('click', () => toolsDialog.close());
-    toolsDialog.addEventListener('click', event => { if (event.target === toolsDialog) toolsDialog.close(); });
+
     $('source-posts-more').addEventListener('click', () => showFeed(feed.posts.length));   // «Ещё N постов» — все оставшиеся
     initializeOwnContent();
     initializeOwnFolder();
