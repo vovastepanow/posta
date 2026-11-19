@@ -20,6 +20,7 @@ type autopilotStatusInput struct {
 	Failure                                               string
 	Available, Target, Deficit, Candidates, ActiveSources int
 	FetchRemaining, ModelRemaining                        int64
+	ModelFailures, Promoted24h                           int
 }
 
 func autopilotStatusReason(in autopilotStatusInput) string {
@@ -40,6 +41,8 @@ func autopilotStatusReason(in autopilotStatusInput) string {
 		return "fetch_budget_exhausted"
 	case in.ModelRemaining <= 0:
 		return "model_budget_exhausted"
+	case in.ModelFailures > 0 && in.Promoted24h == 0 && in.Candidates > 0:
+		return "classifier_unavailable"
 	case in.Candidates == 0 && in.ActiveSources == 0:
 		return "no_sources_found"
 	case in.ActiveSources == 0:
@@ -121,7 +124,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			count(*) FILTER (WHERE state='candidate' AND next_check_at > $3 AND reason<>'probation_full'),
 			count(*) FILTER (WHERE state='candidate' AND checked_at=0),
 			count(*) FILTER (WHERE checked_at >= $4),
-			count(*) FILTER (WHERE reason='assessment_unavailable')
+			count(*) FILTER (WHERE reason='assessment_unavailable' AND checked_at >= $4)
 			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`,
 			scope, key, time.Now().Unix(), time.Now().Add(-24*time.Hour).Unix()).Scan(&ready, &delayed, &unchecked, &recentChecks, &aiPending)
 		if err != nil {
@@ -254,6 +257,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 					Deficit: supply.Demand.Deficit, Candidates: autoCandidates + autoProbation,
 					ActiveSources: autoActive, FetchRemaining: jx.Int(row, "fetch_remaining"),
 					ModelRemaining: jx.Int(row, "model_remaining"),
+					ModelFailures: aiPending, Promoted24h: promoted24h,
 				})
 			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
