@@ -159,14 +159,19 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 					WHERE j.scope=$1 AND j.kind=$2 AND j.enabled AND j.demand_active
 					AND j.lease_until <= extract(epoch FROM clock_timestamp())::bigint
 					AND j.last_error=$4 AND j.next_run_at>$3
+					-- Only rescue the historical 1000-fetch cap. Other quota
+					-- backoffs (including paid limits) remain protected.
 					AND COALESCE((SELECT used FROM source_autopilot_budget
-						WHERE scope=j.scope||':'||j.topic_key AND resource='public_fetch'
-						AND day=(now() AT TIME ZONE 'UTC')::date),0) < $5
+						WHERE scope=(CASE WHEN j.scope='public:shadow' THEN 'public' ELSE j.scope END)||':'||j.topic_key
+						AND resource='public_fetch' AND day=(now() AT TIME ZONE 'UTC')::date),0) >= 1000
+					AND COALESCE((SELECT used FROM source_autopilot_budget
+						WHERE scope=(CASE WHEN j.scope='public:shadow' THEN 'public' ELSE j.scope END)||':'||j.topic_key
+						AND resource='public_fetch' AND day=(now() AT TIME ZONE 'UTC')::date),0) < $5
 					AND COALESCE((SELECT used FROM source_autopilot_budget
 						WHERE scope='server' AND resource='public_fetch'
 						AND day=(now() AT TIME ZONE 'UTC')::date),0) < $6
 					AND COALESCE((SELECT used FROM source_autopilot_budget
-						WHERE scope=j.scope||':'||j.topic_key AND resource='llm_attempt'
+						WHERE scope=(CASE WHEN j.scope='public:shadow' THEN 'public' ELSE j.scope END)||':'||j.topic_key AND resource='llm_attempt'
 						AND day=(now() AT TIME ZONE 'UTC')::date),0) < $7
 					AND COALESCE((SELECT used FROM source_autopilot_budget
 						WHERE scope='server' AND resource='llm_attempt'
@@ -174,10 +179,10 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 					AND COALESCE((SELECT used FROM source_autopilot_budget
 						WHERE scope='autopilot_paid' AND resource='usd_micro'
 						AND day=(now() AT TIME ZONE 'UTC')::date),0) < $9`,
-					 scope, kind, time.Now().Add(15*time.Second).Unix(), errAutopilotBudgetExhausted.Error(),
-					 a.TInt("autopilot_fetch_topic_daily"), a.TInt("autopilot_fetch_server_daily"),
-					 a.TInt("autopilot_model_topic_daily"), a.TInt("autopilot_model_server_daily"),
-					 paidLimitMicro); err != nil {
+					scope, kind, time.Now().Add(15*time.Second).Unix(), errAutopilotBudgetExhausted.Error(),
+					a.TInt("autopilot_fetch_topic_daily"), a.TInt("autopilot_fetch_server_daily"),
+					a.TInt("autopilot_model_topic_daily"), a.TInt("autopilot_model_server_daily"),
+					paidLimitMicro); err != nil {
 					return err
 				}
 			}
