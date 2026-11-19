@@ -93,7 +93,7 @@
 
 /* Просмотр поста */
 .preview { width: min(880px, calc(100vw - 32px)); max-height: calc(100vh - 40px); padding: 0; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); color: var(--text); overflow: auto; }
-.preview::backdrop { background: rgba(3, 4, 12, .72); backdrop-filter: blur(4px); }
+
 .preview[open] { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
 .preview-close { position: absolute; right: 12px; top: 10px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: rgba(8, 10, 22, .7); font-size: 20px; cursor: pointer; }
 .preview-media { background: #05060e; display: grid; place-items: center; min-height: 300px; }
@@ -214,7 +214,7 @@ html, body { background:var(--bg); color:var(--text); }
 .tile:hover { transform:none; border-color:#aaa0b5; }.tile-media { background:#272831; }
 .tile-body b { color:var(--text); }.tile-body small { color:var(--muted); }
 .preview[open] { position:fixed; inset:0; z-index:950; margin:auto; width:min(700px,calc(100vw - 32px)); max-width:calc(100vw - 32px); height:auto; max-height:calc(100dvh - 32px); display:flex; flex-direction:column; border-radius:16px; background:#1b1c23; border-color:#787387; }
-.preview-backdrop { position:fixed; inset:0; z-index:949; background:rgba(0,0,0,.3); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); }
+.preview-backdrop { position:fixed; inset:0; z-index:949; background:var(--modal-backdrop-color,rgba(0,0,0,.3)); backdrop-filter:var(--modal-backdrop-blur,blur(4px)); -webkit-backdrop-filter:var(--modal-backdrop-blur,blur(4px)); }
 .preview-backdrop[hidden] { display:none; }
 .preview-media { min-height:0; max-height:45vh; background:#111; }.preview-media img,.preview-media video { width:100%; max-height:45vh; object-fit:contain; }
 .preview-body { flex:1; padding:24px; }.preview-text { font-size:15px; line-height:1.55; }.preview-close { background:#282a32; color:#fff; }.preview-why { background:#292a33; }
