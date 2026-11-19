@@ -48,13 +48,34 @@ if command -v crontab >/dev/null 2>&1; then
 fi
 git fetch --quiet origin main
 current="$(git rev-parse HEAD)"
-target="$(git rev-parse refs/remotes/origin/main)"
+main_tip="$(git rev-parse refs/remotes/origin/main)"
 deployed_file="${HOME}/.posta-auto-update-deployed"
 deployed="$(cat "$deployed_file" 2>/dev/null || true)"
-if [ "$deployed" = "$target" ]; then exit 0; fi
-git merge-base --is-ancestor "$current" "$target" || fail "Main cannot fast-forward."
-# A first install requires manual review if migrations exist in the target
-# update; subsequent installs compare from the last successfully deployed SHA.
+
+# The newest commit is often still running CI, especially during rapid
+# development. Deploy the newest successful main-branch commit instead of
+# indefinitely skipping releases while main keeps advancing.
+api_url="https://api.github.com/repos/$REPO/actions/workflows/go-tests.yml/runs?branch=main&event=push&status=success&per_page=1"
+ci_json="$(curl --silent --show-error --fail --max-time 15 \
+    -H 'Accept: application/vnd.github+json' \
+    -H 'User-Agent: posta-auto-update' "$api_url")" || {
+    log "GitHub CI unavailable; retry on next schedule."
+    exit 0
+}
+target="$(printf '%s' "$ci_json" | grep -oE '"head_sha"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' | head -n 1 | grep -oE '[0-9a-f]{40}' || true)"
+if [ -z "$target" ] || ! printf '%s' "$ci_json" | grep -Eq '"conclusion"[[:space:]]*:[[:space:]]*"success"'; then
+    log "No successful CI run for main; retry."
+    exit 0
+fi
+git cat-file -e "$target^{commit}" 2>/dev/null || fail "Green CI commit not available in fetched main."
+git merge-base --is-ancestor "$target" "$main_tip" || fail "Green CI commit is not an ancestor of main."
+if [ "$current" = "$target" ] && [ "$deployed" = "$target" ]; then exit 0; fi
+if ! git merge-base --is-ancestor "$current" "$target"; then
+    log "Current checkout is ahead of latest green CI; waiting for newer tests."
+    exit 0
+fi
+
+# Migrations must still be reviewed manually before advancing.
 if [ -n "$deployed" ] && git cat-file -e "$deployed^{commit}" 2>/dev/null; then
     baseline="$deployed"
 else
@@ -62,27 +83,6 @@ else
 fi
 if git diff --name-only "$baseline" "$target" | grep -q '^internal/db/migrations/'; then
     fail "Database migration changed; deploy manually after backup."
-fi
-
-# GitHub Actions runs on hosted infrastructure. Only deploy a successful
-# push run for the exact commit, never just the latest successful run.
-# Exact commit SHA is embedded as the API filter. Restrict the match to the
-# workflow run object and require a successful completed push on main.
-# GitHub's per_page=1 selects the latest run for this precise SHA.
-api_url="https://api.github.com/repos/$REPO/actions/workflows/go-tests.yml/runs?head_sha=$target&branch=main&event=push&per_page=1"
-ci_json="$(curl --silent --show-error --fail --max-time 15 \
-    -H 'Accept: application/vnd.github+json' \
-    -H 'User-Agent: posta-auto-update' "$api_url")" || {
-    log "GitHub CI unavailable; retry on next schedule."
-    exit 0
-}
-# No Python or jq required: the SHA-filtered response must contain precisely
-# the expected SHA, completed status and successful conclusion.
-if ! printf '%s' "$ci_json" | grep -Eq "\"head_sha\"[[:space:]]*:[[:space:]]*\"$target\"" ||
-   ! printf '%s' "$ci_json" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"completed"' ||
-   ! printf '%s' "$ci_json" | grep -Eq '"conclusion"[[:space:]]*:[[:space:]]*"success"'; then
-    log "CI for target commit not green; retry on next schedule."
-    exit 0
 fi
 
 # The /tmp tmpfs on this host can fill up; both Go and cgo/GCC must use disk.
@@ -93,7 +93,7 @@ export GOCACHE="${HOME}/.cache/go-build"
 mkdir -p "$TMPDIR" "$GOCACHE"
 
 log "Deploying ${current:0:8} -> ${target:0:8}"
-git pull --ff-only --quiet origin main
+git merge --ff-only --quiet "$target"
 [ "$(git rev-parse HEAD)" = "$target" ] || fail "Working copy changed during pull."
 go build -p 2 -o bin/posta.new ./cmd/posta
 
