@@ -312,6 +312,7 @@ export function switchTab(tab) {
     log(`Открыта вкладка: ${button.textContent.trim()}`);
     document.querySelectorAll('.view-panel').forEach(panel => panel.classList.toggle('active', panel.id === tab));
     document.querySelectorAll('.tab-btn[data-tab]').forEach(b => { b.classList.toggle('active', b === button); b.setAttribute('aria-selected', String(b === button)); });
+    try { sessionStorage.setItem('postaActiveViewTab', tab); } catch { /* browser storage can be disabled */ }
     tabHandlers[tab]?.forEach(handler => handler());
     applyConsoleState();
 }
