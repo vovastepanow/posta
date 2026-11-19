@@ -260,7 +260,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			}
 		}
 	}
-	return jx.M{"topics": topics, "shadow_enabled": u.TBool("autopilot_shadow"), "auto_enabled": u.TBool("autopilot_auto"), "auto_available": true, "backends": backends, "server_revision": revision}, nil
+	return jx.M{"topics": topics, "shadow_enabled": u.TBool("autopilot_shadow"), "auto_enabled": u.TBool("autopilot_auto"), "auto_available": true, "backends": backends, "server_revision": revision, "background_content_enabled": u.BackgroundContentEnabled()}, nil
 }
 
 // SourceAutopilotSources returns a bounded list of public sources in one
