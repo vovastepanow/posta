@@ -481,7 +481,11 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 			forbiddenOpenRouter = true
 		}
 		if t.Provider == "openrouter" && t.Free() && err != nil &&
-			(strings.Contains(err.Error(), "429") || strings.Contains(strings.ToLower(err.Error()), "rate limit") || strings.Contains(err.Error(), "free-models-per-day")) {
+			(strings.Contains(err.Error(), "429") || strings.Contains(err.Error(), "HTTP 403") ||
+				strings.Contains(strings.ToLower(err.Error()), "rate limit") || strings.Contains(err.Error(), "free-models-per-day")) {
+			// Free-model access may fail with HTTP 403 as well as 429.
+			// The paid reserve remains scoped to the public autopilot, the
+			// selected free Nemotron, and the independently enforced spend gate.
 			freeRateLimited = true
 		}
 		if ctx.Err() != nil {
