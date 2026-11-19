@@ -35,7 +35,10 @@ func (u *U) autopilotLegacyPendingCandidates(job *autopilotJob) []string {
 	seen := map[string]bool{}
 	for _, item := range d.Suggestions {
 		topic := jx.Str(item, "topic")
-		if topic == "" || autopilotTopicKey(topic) != job.TopicKey {
+		// Manual approvals use the taxonomy's topic equivalence (parent
+		// branches and aliases), not only exact hashed titles. The handoff
+		// must use the same rule or displayed suggestions get stranded.
+		if topic == "" || !u.TopicsAreEquivalent(topic, job.Topic) {
 			continue
 		}
 		sid, ok := autopilotCandidateID(DiscoveryCandidate{
@@ -101,6 +104,36 @@ func (a *App) autopilotImportLegacyPending(ctx context.Context, job *autopilotJo
 		}
 	}
 	return added, nil
+}
+
+// Explain any remaining item directly in the manual queue, rather than
+// silently leaving it there when migration prerequisites are unmet.
+// This method only reads the user's own configuration; it never starts work.
+func (u *U) pendingSourceAutopilotStatus(topic string, item jx.M, mode string, paused bool) string {
+	if mode != "shadow" && mode != "auto" {
+		return "autopilot_off"
+	}
+	if paused {
+		return "autopilot_paused"
+	}
+	if mode == "shadow" && !u.TBool("autopilot_shadow") ||
+		mode == "auto" && !u.TBool("autopilot_auto") {
+		return "autopilot_server_disabled"
+	}
+	source, ok := autopilotCandidateID(DiscoveryCandidate{
+		Platform: jx.Str(item, "platform"), ID: jx.Str(item, "id"),
+	})
+	if !ok {
+		return "unsupported_source_format"
+	}
+	if jx.Str(item, "source_id") == "" ||
+		recommendationSourceKey(source) != recommendationSourceKey(jx.Str(item, "source_id")) {
+		return "invalid_source_identity"
+	}
+	if !u.TopicsAreEquivalent(jx.Str(item, "suggestion_topic"), topic) {
+		return "topic_mismatch"
+	}
+	return "awaiting_transfer"
 }
 
 // excludeAutopilotTransferredPending keeps the historical suggestion rows
