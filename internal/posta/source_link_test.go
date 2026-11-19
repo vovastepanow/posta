@@ -59,7 +59,7 @@ func TestSourceWebURLPreservesOtherSocialLinks(t *testing.T) {
 	if got := SourceWebURL(PlatformTelegram, "sample_channel"); got != "https://t.me/sample_channel" {
 		t.Fatalf("Telegram channel lost: %q", got)
 	}
-	if got := SourceWebURL(PlatformOK, "123456789"); got != "https://ok.ru/group/123456789" {
+	if got := SourceWebURL(PlatformOK, "1234567890"); got != "https://ok.ru/group/1234567890" {
 		t.Fatalf("OK group lost: %q", got)
 	}
 }
