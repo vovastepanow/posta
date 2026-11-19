@@ -35,6 +35,8 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 	manualVote := SourceIDFor(PlatformRSS, prefix+"voted.xml")
 	alreadyApproved := SourceIDFor(PlatformRSS, prefix+"approved.xml")
 	differentTopic := SourceIDFor(PlatformRSS, prefix+"other.xml")
+	unsupported := SourceIDFor(PlatformRSS, "http://example.org/unsupported-feed.xml")
+	invalidIdentity := SourceIDFor(PlatformRSS, prefix+"identity-mismatch.xml")
 	key := autopilotTopicKey(topic)
 
 	if _, err := d.Pool.Exec(ctx, `INSERT INTO users(id,created_at,settings)
@@ -76,7 +78,11 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 	if _, err := a.UpdateCatalog(ctx, func(c *SourceDB) bool {
 		c.Suggestions = append(c.Suggestions, entry(source, topic), entry(source, topic),
 			entry(manualVote, topic), entry(alreadyApproved, topic),
-			entry(differentTopic, "Совсем другая тема"))
+			entry(differentTopic, "Совсем другая тема"),
+			entry(unsupported, topic), entry(invalidIdentity, topic))
+		// A valid RSS URL with an inconsistent persisted ID must never
+		// become an eligible candidate, even if the suggestion is visible.
+		c.Suggestions[len(c.Suggestions)-1]["id"] = prefix + "different-feed.xml"
 		c.Votes = append(c.Votes,
 			jx.M{"source_id": manualVote, "topic": topic, "vote": "reject"},
 			// A decision on a different topic must not prevent this
@@ -151,7 +157,7 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 	// This must transfer without executing the scheduled AI/source-review
 	// worker, including when the review job is not yet due.
 	added, err := a.reconcileLegacyPendingWithoutLease(ctx, "shadow", autopilotShadowScope, autopilotShadowKind, 60)
-	if err != nil || added != 1 {
+	if err != nil || added != 3 {
 		t.Fatalf("scheduler transfer added=%d err=%v", added, err)
 	}
 	added, err = a.autopilotImportLegacyPending(ctx, job, 60)
@@ -169,14 +175,28 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, item := range after {
-		if jx.Str(item, "source_id") == source {
-			t.Fatal("source still appears in manual approvals after autopilot transfer")
+		id := jx.Str(item, "source_id")
+		if id == source || id == unsupported || id == invalidIdentity {
+			t.Fatalf("source %s still appears in manual approvals after autopilot transfer", id)
 		}
 	}
-	var state string
-	if err := d.Pool.QueryRow(ctx, `SELECT state FROM source_autopilot_sources
-		WHERE scope=$1 AND topic_key=$2 AND source_id=$3`,
-		autopilotShadowScope, key, source).Scan(&state); err != nil || state != "candidate" {
-		t.Fatalf("transferred source state=%q err=%v", state, err)
+	for _, tc := range []struct{ id, wantState, wantReason string }{
+		{source, "candidate", "legacy_pending_import"},
+		{unsupported, "rejected", "unsupported_source_format"},
+		{invalidIdentity, "rejected", "invalid_source_identity"},
+	} {
+		var state, reason string
+		if err := d.Pool.QueryRow(ctx, `SELECT state,reason FROM source_autopilot_sources
+			WHERE scope=$1 AND topic_key=$2 AND source_id=$3`,
+			autopilotShadowScope, key, tc.id).Scan(&state, &reason); err != nil ||
+			state != tc.wantState || reason != tc.wantReason {
+			t.Fatalf("source %q state=%q reason=%q err=%v", tc.id, state, reason, err)
+		}
+		var audits int
+		if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_decisions
+			WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND new_state=$4 AND reason=$5`,
+			autopilotShadowScope, key, tc.id, tc.wantState, tc.wantReason).Scan(&audits); err != nil || audits != 1 {
+			t.Fatalf("source %q audit rows=%d err=%v", tc.id, audits, err)
+		}
 	}
 }
