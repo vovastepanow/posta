@@ -240,13 +240,6 @@
   </section>
   <section class="autopilot-panel" aria-labelledby="autopilot-title">
     <div><strong id="autopilot-title">Автопилот источников</strong><p>Теневой режим проверяет источники; автоматический подключает прошедшие предварительную проверку RSS-ленты.</p></div>
-    <div class="content-search-control" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:10px">
-      <div style="flex:1;min-width:240px">
-        <strong>Фоновый поиск и подбор постов</strong>
-        <p style="margin:4px 0 0;color:var(--muted);font-size:12px">Выключен до ручного включения. Не запускает парсер при открытии страницы; не влияет на проверку источников в автопилоте.</p>
-      </div>
-      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input id="background-content-enabled" type="checkbox"> <span id="background-content-label">Выключен</span></label>
-    </div>
     <form id="autopilot-form" class="autopilot-form">
       <label>Тема <select id="autopilot-topic" required><option value="">Загрузка дерева тем…</option></select></label>
       <label>Режим <select id="autopilot-mode"><option value="shadow">Теневой</option><option value="auto">Автоматический</option><option value="off">Выключен</option></select></label>
