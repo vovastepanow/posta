@@ -146,6 +146,42 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 				return err
 			}
 		}
+		// A previous day-cap failure must not keep the job asleep until
+		// midnight after an administrator increases the cap (or after defaults
+		// are upgraded). Resume only when the persisted ledgers confirm spare
+		// fetch, model AND paid capacity. If the account explicitly retains
+		// the old 1000-fetch limit, its intentional quota remains respected.
+		if enabled {
+			paidLimitMicro := int64(min(0.10, a.TFloat("autopilot_paid_daily_usd"))*1000000 + 0.5)
+			if paidLimitMicro > 0 {
+				if _, err := tx.Exec(ctx, `UPDATE source_autopilot_jobs j
+					SET next_run_at=LEAST(j.next_run_at,$3)
+					WHERE j.scope=$1 AND j.kind=$2 AND j.enabled AND j.demand_active
+					AND j.lease_until <= extract(epoch FROM clock_timestamp())::bigint
+					AND j.last_error=$4 AND j.next_run_at>$3
+					AND COALESCE((SELECT used FROM source_autopilot_budget
+						WHERE scope=j.scope||':'||j.topic_key AND resource='public_fetch'
+						AND day=(now() AT TIME ZONE 'UTC')::date),0) < $5
+					AND COALESCE((SELECT used FROM source_autopilot_budget
+						WHERE scope='server' AND resource='public_fetch'
+						AND day=(now() AT TIME ZONE 'UTC')::date),0) < $6
+					AND COALESCE((SELECT used FROM source_autopilot_budget
+						WHERE scope=j.scope||':'||j.topic_key AND resource='llm_attempt'
+						AND day=(now() AT TIME ZONE 'UTC')::date),0) < $7
+					AND COALESCE((SELECT used FROM source_autopilot_budget
+						WHERE scope='server' AND resource='llm_attempt'
+						AND day=(now() AT TIME ZONE 'UTC')::date),0) < $8
+					AND COALESCE((SELECT used FROM source_autopilot_budget
+						WHERE scope='autopilot_paid' AND resource='usd_micro'
+						AND day=(now() AT TIME ZONE 'UTC')::date),0) < $9`,
+					 scope, kind, time.Now().Add(15*time.Second).Unix(), errAutopilotBudgetExhausted.Error(),
+					 a.TInt("autopilot_fetch_topic_daily"), a.TInt("autopilot_fetch_server_daily"),
+					 a.TInt("autopilot_model_topic_daily"), a.TInt("autopilot_model_server_daily"),
+					 paidLimitMicro); err != nil {
+					return err
+				}
+			}
+		}
 		// One-time recovery from the shadow/auto projection mix-up:
 		// remove only this known deterministic failure, not arbitrary errors
 		// or quota backoffs. Next scheduler tick can review the queue.
