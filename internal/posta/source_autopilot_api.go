@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"runtime/debug"
+	"os"
 	"strings"
 	"time"
 
@@ -95,6 +96,16 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		supply := decideAutopilotSupply(autopilotSupplyInput{Rate: d.PostsPerDay, Horizon: d.HorizonDays, Available: available, Capacity: u.TInt("pool_target"), ConfirmedSources: active, Now: time.Now()})
 		row := jx.M{"topic": d.Topic, "mode": d.Mode, "posts_per_day": d.PostsPerDay, "horizon_days": d.HorizonDays, "personal_blog_mode": u.personalBlogMode(d.Topic), "shadow_candidates": candidates, "shadow_probation": probation, "shadow_confirmed": confirmed,
 			"shadow_cooldown": suspended, "shadow_rejected": rejected}
+		// The mode switch and the PostgreSQL job are not proof that the
+		// background goroutine exists. Expose liveness from the serving
+		// process so an idle queue cannot mask a dead worker.
+		worker := u.App.autopilotWorkerHealth(d.Mode)
+		workerAlive := autopilotWorkerAlive(worker, time.Now().Unix())
+		backgroundEnabled := !u.Cfg.Dev || os.Getenv("POSTA_DEV_PARSERS") == "1"
+		row["worker_alive"], row["worker_last_tick"] = workerAlive, worker.LastTick
+		row["worker_reconcile_error"], row["worker_panics"], row["worker_last_panic"] = worker.ReconcileError, worker.Panics, worker.LastPanic
+		row["background_enabled"] = backgroundEnabled
+		row["job_exists"] = false
 		row["paused"] = d.Paused
 		row["available"], row["target"], row["deficit"], row["capacity_limited"], row["active_sources"] = available, supply.Demand.Target, supply.Demand.Deficit, supply.CapacityLimited, active
 		row["auto_probation"], row["supply_mode"] = autoProbation, supply.Mode
@@ -189,6 +200,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		row["last_success"] = lastSuccess
 		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint,attempts FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&next, &lease, &enabled, &eligible, &lastError, &checkpoint, &attempts)
 		if err == nil {
+			row["job_exists"] = true
 			failure := ""
 			switch {
 			case strings.Contains(lastError, errAutopilotBudgetExhausted.Error()):
@@ -262,6 +274,27 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
+		}
+		// Put scheduler failures ahead of misleading "waiting" summaries.
+		// Pauses and saved administrator OFF settings are intentional and
+		// must not be presented as crashes.
+		if d.Mode != "off" && !d.Paused {
+			setting := "autopilot_shadow"
+			if d.Mode == "auto" {
+				setting = "autopilot_auto"
+			}
+			if u.TBool(setting) {
+				switch {
+				case !backgroundEnabled:
+					row["diagnosis"] = "worker_disabled_in_dev"
+				case !workerAlive:
+					row["diagnosis"] = "worker_not_running"
+				case worker.ReconcileError:
+					row["diagnosis"] = "scheduler_error"
+				case !jx.Bool(row, "job_exists"):
+					row["diagnosis"] = "job_missing"
+				}
+			}
 		}
 		topics = append(topics, row)
 	}
