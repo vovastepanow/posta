@@ -592,15 +592,23 @@ func (u *U) RegistryList(status, platform, topic, q string) ([]registryView, jx.
 			return nil, nil, err
 		}
 		name, label := r.Name, r.Platform
+		webURL := r.URL
 		if r.Platform == PlatformRSS {
-			feed := r.URL
+			// Old registry rows may still store RSS/XML in the URL column.
+			// The source ID remains the authoritative technical feed.
+			feed := registryID(r.SourceID)
 			if feed == "" {
-				feed = registryID(r.SourceID)
+				feed = r.URL
 			}
 			name, _ = pendingRSSName(r.Name, "", feed)
 			label = RSSPlatformLabel(feed)
+			webURL = SourceWebURL(r.Platform, feed)
+		} else if id := registryID(r.SourceID); id != "" {
+			if public := SourceWebURL(r.Platform, id); public != "" {
+				webURL = public
+			}
 		}
-		out = append(out, registryView{SourceID: r.SourceID, Platform: r.Platform, PlatformLabel: label, Name: name, URL: r.URL, Status: r.Status, Reason: r.Reason,
+		out = append(out, registryView{SourceID: r.SourceID, Platform: r.Platform, PlatformLabel: label, Name: name, URL: webURL, Status: r.Status, Reason: r.Reason,
 			FirstSeen: r.FirstSeen, CheckedAt: r.CheckedAt, CheckCount: r.CheckCount, Topics: r.Topics, Metrics: r.Metrics, Origin: r.Origin, HasSample: r.HasSample})
 	}
 	counts := jx.M{}
