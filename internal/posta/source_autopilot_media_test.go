@@ -78,7 +78,7 @@ func TestEvaluateTextOnlySourceWithoutImage(t *testing.T) {
 	// blocks their retrieval. A valid text assessment must not be erased
 	// merely because the optional storyboard cannot be downloaded.
 	withBlockedImage := []jx.M{{
-		"text": "Подробный разбор SMM-стратегии и измерения охвата аудитории.",
+		"text":  "Подробный разбор SMM-стратегии и измерения охвата аудитории.",
 		"image": "http://127.0.0.1:1/unavailable.png",
 	}}
 	ev = u.evaluateSource(jx.M{"title": "Практика SMM"}, withBlockedImage, "SMM и блогинг")
