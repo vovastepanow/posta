@@ -149,7 +149,10 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 		}
 		defer release()
 	}
-	job.MaxProbation = a.TInt("autopilot_max_probation")
+	// Never let an old admin override (often 3) block the public
+	// discovery queue. Network and model budgets, not trial count, throttle
+	// expensive work; the database still guards concurrent transitions.
+	job.MaxProbation = max(1000, a.TInt("autopilot_max_probation"))
 	nextInterval := 24 * time.Hour
 	if kind == autopilotAutoKind {
 		interval, demandErr := a.autopilotAutoInterval(ctx, job)
