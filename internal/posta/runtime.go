@@ -318,8 +318,17 @@ func (a *App) parserExpectedSeconds(uid string, finished int64) int64 {
 	return max(60, s[len(s)/2])
 }
 
+// BackgroundContentEnabled is an explicit persistent user opt-in.
+// A missing setting is off: tab opens and heartbeats must never spend AI quota.
+func (u *U) BackgroundContentEnabled() bool {
+	return jx.Bool(u.Settings(), "background_content_enabled")
+}
+
 // StartParser — started | running | cooldown | no_session | forbidden | disabled.
 func (u *U) StartParser(force bool) string {
+	if !u.BackgroundContentEnabled() {
+		return "disabled"
+	}
 	if u.Cfg.Dev && os.Getenv("POSTA_DEV_PARSERS") != "1" {
 		return "disabled" // режим разработки: сборщики не запускаются
 	}
