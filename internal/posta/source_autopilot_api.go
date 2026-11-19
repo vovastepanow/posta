@@ -189,6 +189,53 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			return nil, outcomeErr
 		}
 		row["candidate_reasons"] = outcomes
+		// Only fixed categories are persisted; never expose raw provider replies,
+		// prompts, credentials or source URLs in the owner-facing diagnostics.
+		assessmentCauses := jx.M{}
+		causeRows, causeErr := u.DB.Pool.Query(u.Ctx, `SELECT COALESCE(NULLIF(evidence->>'assessment_cause',''),'not_recorded'),count(*)
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
+			AND state='candidate' AND reason='assessment_unavailable'
+			GROUP BY 1`, scope, key)
+		if causeErr != nil {
+			return nil, causeErr
+		}
+		for causeRows.Next() {
+			var cause string
+			var count int
+			if err := causeRows.Scan(&cause, &count); err != nil {
+				causeRows.Close()
+				return nil, err
+			}
+			assessmentCauses[cause] = count
+		}
+		causeErr = causeRows.Err()
+		causeRows.Close()
+		if causeErr != nil {
+			return nil, causeErr
+		}
+		row["candidate_assessment_causes"] = assessmentCauses
+		probationReasons := jx.M{}
+		probationRows, probationErr := u.DB.Pool.Query(u.Ctx, `SELECT COALESCE(NULLIF(reason,''),'not_checked'),count(*)
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state='probation'
+			GROUP BY 1`, scope, key)
+		if probationErr != nil {
+			return nil, probationErr
+		}
+		for probationRows.Next() {
+			var reason string
+			var count int
+			if err := probationRows.Scan(&reason, &count); err != nil {
+				probationRows.Close()
+				return nil, err
+			}
+			probationReasons[reason] = count
+		}
+		probationErr = probationRows.Err()
+		probationRows.Close()
+		if probationErr != nil {
+			return nil, probationErr
+		}
+		row["probation_reasons"] = probationReasons
 		var lastSuccess int64
 		if err = u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(max(fetched_at),0) FROM source_autopilot_collection_passes WHERE scope=$1 AND topic_key=$2`, scope, key).Scan(&lastSuccess); err != nil {
 			return nil, err
