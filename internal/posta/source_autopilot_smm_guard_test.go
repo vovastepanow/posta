@@ -23,6 +23,29 @@ func TestAutopilotSMMCanonicalKeyKeepsLegacySources(t *testing.T) {
 	}
 }
 
+func TestAutopilotGeneralTaxonomyAliases(t *testing.T) {
+	for _, tc := range []struct{ input, expected string }{
+		{"маркетинг", "Маркетинг и реклама"},
+		{"реклама", "Маркетинг и реклама"},
+		{"Маркетинг и реклама", "Маркетинг и реклама"},
+		{"smm", "SMM и блогинг"},
+		{"блогинг", "SMM и блогинг"},
+		{"Криптовалюта", "Криптовалюта"},
+		{"крипта", "Криптовалюта"},
+		{"Совершенно новая пользовательская тема", "Совершенно новая пользовательская тема"},
+	} {
+		if got := autopilotCanonicalTopic(tc.input); got != tc.expected {
+			t.Errorf("%q canonicalized to %q, want %q", tc.input, got, tc.expected)
+		}
+		if autopilotTopicKey(tc.input) != autopilotTopicKey(tc.expected) {
+			t.Errorf("different autopilot identity for %q and %q", tc.input, tc.expected)
+		}
+	}
+	if autopilotTopicKey("SMM и блогинг") == autopilotTopicKey("Маркетинг и реклама") {
+		t.Fatal("distinct tree categories were merged")
+	}
+}
+
 func TestOKDiscoveryRequiresProfessionalIdentity(t *testing.T) {
 	for _, tc := range []struct {
 		title string
