@@ -16,6 +16,10 @@ import (
 
 func init() {
 	get("source_autopilot_status", func(c *Ctx) (any, error) { return c.U.SourceAutopilotStatus() })
+	get("source_autopilot_sources", func(c *Ctx) (any, error) {
+		limit, _ := strconv.Atoi(c.Q("limit"))
+		return c.U.SourceAutopilotSources(c.Q("topic"), c.Q("mode"), c.Q("state"), c.Q("after"), limit)
+	})
 	get("source_autopilot_history", func(c *Ctx) (any, error) {
 		before, err := strconv.ParseInt(c.Q("before"), 10, 64)
 		if err != nil && c.Q("before") != "" {
