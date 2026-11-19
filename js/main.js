@@ -127,9 +127,28 @@ if (consumeVkRedirectResult()) openAccountSection('social');
 const sessionReady = startTabSession();   // запрос пула начнём после регистрации вкладки
 // Хеш-ссылки открывают нужную вкладку на единой странице приложения.
 const HASH_TABS = { home: 'home-tab', rejected: 'rejected-tab', content: 'content-tab', proposals: 'home-tab', calendar: 'calendar-tab', sources: 'source-tab', account: 'account-tab' };
-const openHashTab = () => { const tab = HASH_TABS[location.hash.slice(1)]; if (tab) switchTab(tab); };
+const openHashTab = () => {
+    const tab = HASH_TABS[location.hash.slice(1)];
+    if (!tab) return false;
+    const button = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+    if (!button || button.hidden) return false;
+    switchTab(tab);
+    return true;
+};
+const restoreLastTab = () => {
+    let tab = '';
+    try { tab = sessionStorage.getItem('postaActiveViewTab') || ''; } catch { /* storage disabled */ }
+    if (!tab) return false;
+    const button = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+    if (!button || button.hidden) return false;
+    switchTab(tab);
+    return true;
+};
 addEventListener('hashchange', openHashTab);
-openHashTab();
+// A deep link wins on first navigation, but F5 restores the tab the user
+// actually left open (which may differ from the original incoming hash).
+const isReload = performance.getEntriesByType('navigation')[0]?.type === 'reload';
+if (!(isReload && restoreLastTab()) && !openHashTab()) restoreLastTab();
 // Интерфейс доступен сразу; содержимое подбора загружается после регистрации сессии.
 $('app-loading').classList.add('is-done');
 setTimeout(() => $('app-loading')?.remove(), 400);
