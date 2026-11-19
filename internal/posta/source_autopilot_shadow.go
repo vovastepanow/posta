@@ -981,6 +981,23 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				}
 			}
 		}
+		// Older Lemmy community candidates may have entered this queue
+		// solely because its search engine matched "smm" in "womensmma".
+		// Recheck the published community and posts before paying for AI.
+		if reason == "" && res.OK && platform == PlatformRSS &&
+			(state == "candidate" || state == "probation") &&
+			autopilotCanonicalTopic(job.Topic) == "SMM и блогинг" &&
+			lemmySMMFeedOffTopic(feed, res.Bytes, posts) {
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, state,
+				"rejected", "off_topic_group", jx.Marshal(jx.M{
+					"origin": "lemmy", "topic": job.Topic,
+				}), at, at.Add(30*24*time.Hour)); err != nil &&
+				!errors.Is(err, errAutopilotSourceChanged) &&
+				!errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+			continue
+		}
 		// A temporary network/format problem is not a judgement on
 		// content quality. Move unreachable candidates to cooldown, retaining
 		// their history and a scheduled retry instead of clogging the review
