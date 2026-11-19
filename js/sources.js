@@ -693,6 +693,12 @@ function renderAutopilot(data) {
                     ' HTTP-загрузок · ' + number(topic.model_remaining) + ' AI-вызовов по теме' }),
                 el('span', { textContent: 'Сервер: ' + number(topic.server_fetch_remaining ?? 0) +
                     ' HTTP · ' + number(topic.server_model_remaining ?? 0) + ' AI' }),
+                el('span', { textContent: 'Очередь: ' + number(topic.queue_ready) + ' готовы к проверке · ' +
+                    number(topic.queue_delayed) + ' ожидают повторной попытки · ' +
+                    number(topic.queue_unchecked) + ' ещё ни разу не проверялись' }),
+                el('span', { textContent: 'За 24 часа проверено: ' + number(topic.checked_24h) +
+                    ' источников · ошибок AI-оценки в реестре: ' + number(topic.assessment_unavailable) +
+                    ' · мест испытания: ' + number(topic.probation_limit) }),
                 el('span', { textContent: 'Запусков задания: ' + number(topic.attempts) +
                     (topic.pipeline_phase_at ? ' · последний этап: ' + dateTime(topic.pipeline_phase_at) : '') }),
                 el('span', { textContent: topic.running ? 'Текущий цикл выполняется' :
