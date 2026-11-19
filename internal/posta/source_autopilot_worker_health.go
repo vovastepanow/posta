@@ -10,10 +10,10 @@ import (
 // approved. It lets the authenticated status API distinguish a dormant
 // worker from a valid but idle PostgreSQL queue, without a schema change.
 type autopilotWorkerHealth struct {
-	LastTick		int64
-	LastPanic		int64
-	Panics		int64
-	ReconcileError	bool
+	LastTick       int64
+	LastPanic      int64
+	Panics         int64
+	ReconcileError bool
 }
 
 func (a *App) recordAutopilotWorkerTick(mode string, err error) {
