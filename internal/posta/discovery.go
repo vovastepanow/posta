@@ -1900,7 +1900,7 @@ func (u *U) runSourceDiscoveryLocked(topic string, limit, maxSeconds int, manual
 		}
 		if progress.Platform == "" {
 			setStage("search", "Ищем: Lemmy")
-			for _, c := range u.discoveryFindLemmy(plan.Queries) {
+			for _, c := range u.discoveryFindLemmy(plan.Queries, topic) {
 				add(c, false)
 			}
 		}
