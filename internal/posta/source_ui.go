@@ -1160,9 +1160,9 @@ func (u *U) TopicSourcesFor(topic string) []jx.M {
 			var link, handle, kind string
 			switch platform {
 			case PlatformRSS:
-				link = id
-				if pu, err := url.Parse(id); err == nil {
-					handle = pu.Hostname()
+				link = SourceWebURL(platform, id)
+				if pu, err := url.Parse(link); err == nil {
+					handle = pu.Hostname() + pu.EscapedPath()
 				}
 				kind = RSSFeedKind(id)
 				if jx.Bool(e, "news") {
