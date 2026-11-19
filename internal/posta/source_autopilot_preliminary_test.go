@@ -107,7 +107,7 @@ func TestAutopilotAdaptiveSearchStopsAfterEnoughUniqueCandidates(t *testing.T) {
 
 func TestAutopilotCandidateBacklogGetsReviewPriority(t *testing.T) {
 	for _, tc := range []struct {
-		due int
+		due   int
 		drain bool
 	}{
 		{0, false}, {10, false}, {23, false}, {24, true}, {65, true},
