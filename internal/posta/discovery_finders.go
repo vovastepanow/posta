@@ -234,6 +234,49 @@ func discoveryLemmyMatchesTopic(c DiscoveryCandidate, topic string) bool {
 	return okSMMProfessionRe.MatchString(meta)
 }
 
+// Legacy candidates (including those nominated by individual post search)
+// must pass the same topical check before consuming an AI assessment.
+// A community can have a creative name: two independent relevant posts may
+// establish its focus even when title/description don't contain SMM words.
+// Inconclusive feeds stay eligible for later checks; only demonstrably
+// unrelated communities are rejected.
+func lemmySMMFeedOffTopic(feed string, body []byte, posts []jx.M) bool {
+	u, err := url.Parse(feed)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil ||
+		!strings.HasPrefix(u.Path, "/feeds/c/") || !strings.HasSuffix(u.Path, ".xml") {
+		return false
+	}
+	doc := rssLoad(body)
+	if !rssIsFeed(doc) {
+		return false
+	}
+	channel := doc
+	if doc.N != "feed" {
+		channel = doc.kid("channel")
+	}
+	if channel == nil {
+		return false
+	}
+	title := strings.TrimSpace(channel.kid("title").text())
+	if title == "" || len(posts) < 2 {
+		return false
+	}
+	metadata := title + " " + channel.kid("description").text() + " " + channel.kid("subtitle").text()
+	if okSMMProfessionRe.MatchString(metadata) {
+		return false
+	}
+	var matching int
+	for _, post := range posts {
+		if okSMMProfessionRe.MatchString(jx.Str(post, "text")+" "+jx.Str(post, "title")) {
+			matching++
+			if matching >= 2 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (u *U) discoveryFindLemmy(queries []string, topic string) []DiscoveryCandidate {
 	if !u.TBool("search_lemmy") {
 		return nil
