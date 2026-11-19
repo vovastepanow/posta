@@ -473,6 +473,17 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .autopilot-state.is-running { color: var(--text); border-color: currentColor; }
 .autopilot-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .autopilot-metric { display: grid; align-content: start; gap: 3px; min-width: 0; padding: 12px; background: var(--surface, var(--bg)); border: 1px solid var(--line); border-radius: 10px; }
+.autopilot-metric-clickable { cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.autopilot-metric-clickable:hover, .autopilot-metric-clickable:focus-visible { border-color: var(--line-strong); background: var(--surface-2, var(--surface)); }
+.autopilot-metric-clickable:focus-visible { outline: 2px solid var(--accent, #e4b849); outline-offset: 2px; }
+.autopilot-source-panel { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.autopilot-source-panel[hidden] { display: none; }
+.autopilot-source-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.autopilot-source-list { display: grid; gap: 0; font-size: 13px; overflow-wrap: anywhere; }
+.autopilot-source-item { display: grid; gap: 4px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.autopilot-source-item a { color: var(--text); text-decoration: underline; text-decoration-color: var(--line-strong); }
+.autopilot-source-item small { color: var(--muted); font-size: 12px; }
+.autopilot-source-panel > .secondary-button { justify-self: start; }
 .autopilot-metric-value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .autopilot-metric-label { font-weight: 600; }
 .autopilot-metric small, .autopilot-phase small { color: var(--muted); font-size: 11px; line-height: 1.45; }
