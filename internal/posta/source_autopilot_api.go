@@ -296,6 +296,7 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 	}
 	defer rows.Close()
 	items := make([]jx.M, 0, limit)
+	hasMore := false
 	for rows.Next() {
 		var source, reason string
 		var discovered, checked, next int64
@@ -303,24 +304,14 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 			return nil, err
 		}
 		if len(items) == limit {
-			continue
+			hasMore = true
+			break
 		}
 		items = append(items, jx.M{"source_id": source, "reason": reason,
 			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
-	}
-	// Extra row means more pages; never expose a cursor for an exhausted page.
-	var hasMore bool
-	if len(items) > 0 {
-		var exists bool
-		if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT EXISTS(SELECT 1
-			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
-			AND state=$3 AND source_id>$4)`, scope, key, state, jx.Str(items[len(items)-1], "source_id")).Scan(&exists); err != nil {
-			return nil, err
-		}
-		hasMore = exists
 	}
 	cursor := ""
 	if hasMore {
