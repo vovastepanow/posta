@@ -88,4 +88,21 @@ func TestEvaluateTextOnlySourceWithoutImage(t *testing.T) {
 	if calls != 2 {
 		t.Fatalf("optional blocked image should not trigger extra AI attempts: %d", calls)
 	}
+	// A text-rich SMM candidate should be pre-screened with exactly one
+	// text request, without trying the advertised (unavailable) images.
+	// This protects the public-fetch budget without skipping post-level checks.
+	var rich []jx.M
+	for i := 0; i < 3; i++ {
+		rich = append(rich, jx.M{
+			"text":  "Подробный практический разбор SMM-стратегии и результатов рекламной кампании.",
+			"image": "http://127.0.0.1:1/unavailable.png",
+		})
+	}
+	ev = u.autopilotEvaluateSource(jx.M{"title": "Практика SMM"}, rich, "SMM и блогинг")
+	if ev == nil || ev.Score != 92 || ev.Text == nil || !ev.TextOnly {
+		t.Fatalf("text-first prescreen failed for image-advertising feed: %+v", ev)
+	}
+	if calls != 3 {
+		t.Fatalf("text-rich autopilot prescreen should use one model request, got %d total", calls)
+	}
 }
