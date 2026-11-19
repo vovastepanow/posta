@@ -446,6 +446,16 @@ func (u *U) SourceAutopilotDemandSave(topic, mode string, rate, horizon float64)
 	if mode != "off" && mode != "shadow" && mode != "auto" {
 		return Bad("Неизвестный режим автопилота.")
 	}
+	// When a subscriber enables or unpauses a topic, do not leave an
+	// existing 12/24-hour scheduled job idle. A plain save of an unchanged
+	// active mode must not bypass a real worker backoff.
+	var previousMode string
+	var wasPaused bool
+	previousErr := u.DB.Pool.QueryRow(u.Ctx, `SELECT mode,paused FROM source_autopilot_demands
+		WHERE user_id=$1 AND topic_key=$2`, u.ID, autopilotTopicKey(topic)).Scan(&previousMode, &wasPaused)
+	if previousErr != nil && !errors.Is(previousErr, pgx.ErrNoRows) {
+		return previousErr
+	}
 	d := autopilotDemandSettings{Topic: topic, Mode: mode, PostsPerDay: rate, HorizonDays: horizon}
 	if err := saveAutopilotDemand(u.Ctx, u.DB.Pool, u.ID, d, now()); err != nil {
 		if errors.Is(err, errAutopilotInvalidDemand) {
@@ -453,7 +463,27 @@ func (u *U) SourceAutopilotDemandSave(topic, mode string, rate, horizon float64)
 		}
 		return err
 	}
-	return nil
+	if mode == "off" || (mode == "auto" && rate == 0) || (previousErr == nil && previousMode == mode && !wasPaused) {
+		return nil
+	}
+	scope, kind, setting := autopilotShadowScope, autopilotShadowKind, "autopilot_shadow"
+	if mode == "auto" {
+		scope, kind, setting = autopilotAutoScope, autopilotAutoKind, "autopilot_auto"
+	}
+	// Respect a persisted administrator disable; the response explicitly
+	// exposes that switch so users see why no job was started.
+	if !u.TBool(setting) {
+		return nil
+	}
+	if err := u.App.reconcileAutopilotMode(u.Ctx, true, mode, scope, kind); err != nil {
+		return err
+	}
+	_, err := u.DB.Pool.Exec(u.Ctx, `UPDATE source_autopilot_jobs
+		SET next_run_at=LEAST(next_run_at,$4)
+		WHERE scope=$1 AND topic_key=$2 AND kind=$3 AND enabled AND demand_active
+		AND last_error='' AND lease_until <= extract(epoch FROM clock_timestamp())::bigint`,
+		scope, autopilotTopicKey(topic), kind, time.Now().Unix())
+	return err
 }
 
 // SourceAutopilotRequest raises the priority of this user's configured profile
