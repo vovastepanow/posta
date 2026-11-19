@@ -23,6 +23,13 @@ func TestSourceAutopilotFreeFailoverOnModel403(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			models := []string{}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				// OpenRouter may inspect the model catalog before the next
+				// completion. Its GET is independently budget-gated.
+				if req.Method == http.MethodGet && req.URL.Path == "/models" {
+					_, _ = w.Write([]byte(`{"data":[]}`))
+					return
+				}
 				var body struct{ Model string `json:"model"` }
 				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 					t.Errorf("decode request: %v", err)
@@ -60,8 +67,10 @@ func TestSourceAutopilotFreeFailoverOnModel403(t *testing.T) {
 			if !tc.wantSuccess && err == nil {
 				t.Fatalf("unexpected success: %+v", response)
 			}
-			if len(models) != tc.wantCalls || gates != tc.wantCalls {
-				t.Fatalf("models=%v gates=%d want calls=%d", models, gates, tc.wantCalls)
+			// A catalog lookup gets its own gate charge in addition to
+			// the completion calls. Never allow an unmetered model request.
+			if len(models) != tc.wantCalls || gates < tc.wantCalls || gates > tc.wantCalls+1 {
+				t.Fatalf("models=%v gates=%d want calls=%d (+ possible catalog gate)", models, gates, tc.wantCalls)
 			}
 			if tc.wantSuccess && models[1] != "openrouter/free" {
 				t.Fatalf("free router not used: %v", models)
