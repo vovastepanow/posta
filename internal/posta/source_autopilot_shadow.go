@@ -179,6 +179,16 @@ func (a *App) runAutopilotWorker(ctx context.Context, mode, scope, kind, setting
 	}
 }
 
+// autopilotNextReviewDelay never moves a retry ahead of a source's own
+// next_check_at. It does allow a due review to run before a 24-hour general
+// search interval, while leaving enough time to avoid tight retry loops.
+func autopilotNextReviewDelay(base time.Duration, now time.Time, earliest int64) time.Duration {
+	if earliest <= 0 {
+		return base
+	}
+	return min(base, max(2*time.Minute, time.Unix(earliest, 0).Sub(now)))
+}
+
 func (a *App) runNextAutopilotShadow(ctx context.Context) {
 	a.runNextAutopilotKind(ctx, autopilotShadowKind)
 }
@@ -259,7 +269,7 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 			AND NOT (s.state='candidate' AND s.reason='probation_full')`,
 			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&earliest)
 		if checkErr == nil && earliest > 0 {
-			nextInterval = min(nextInterval, max(2*time.Minute, time.Until(time.Unix(earliest, 0))))
+			nextInterval = autopilotNextReviewDelay(nextInterval, time.Now(), earliest)
 		} else if checkErr != nil && ctx.Err() == nil {
 			log.Printf("автопилот: срок проверки источников: %v", checkErr)
 		}
