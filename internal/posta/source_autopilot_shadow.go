@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -19,6 +20,68 @@ import (
 	"posta/internal/jx"
 	"posta/internal/llm"
 )
+
+// Source review diagnostics never store provider responses, prompts, URLs or keys.
+// Only coarse failure categories are persisted for aggregate troubleshooting.
+type autopilotAssessmentProbeKey struct{}
+
+type autopilotAssessmentProbe struct {
+	mu sync.Mutex
+	cause string
+}
+
+func withAutopilotAssessmentProbe(ctx context.Context) context.Context {
+	return context.WithValue(ctx, autopilotAssessmentProbeKey{}, &autopilotAssessmentProbe{})
+}
+
+func autopilotAssessmentProbeOf(ctx context.Context) *autopilotAssessmentProbe {
+	probe, _ := ctx.Value(autopilotAssessmentProbeKey{}).(*autopilotAssessmentProbe)
+	return probe
+}
+
+func autopilotAssessmentCause(err error) string {
+	if err == nil {
+		return ""
+	}
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "free-models-per-day"), strings.Contains(message, "429"), strings.Contains(message, "rate limit"), strings.Contains(message, "суточного лимита"):
+		return "provider_rate_limited"
+	case strings.Contains(message, "403"), strings.Contains(message, "forbidden"):
+		return "provider_forbidden"
+	case strings.Contains(message, "401"), strings.Contains(message, "unauthorized"):
+		return "provider_unauthorized"
+	case strings.Contains(message, "timed out"), strings.Contains(message, "deadline exceeded"):
+		return "model_timeout"
+	case strings.Contains(message, "нет доступной модели"), strings.Contains(message, "модель для этой задачи выключена"), strings.Contains(message, "не настроен"):
+		return "no_model_configured"
+	case strings.Contains(message, "budget"), strings.Contains(message, "бюджет"):
+		return "model_budget_unavailable"
+	default:
+		return "model_error"
+	}
+}
+
+func autopilotNoteAssessmentCause(ctx context.Context, cause string) {
+	if probe := autopilotAssessmentProbeOf(ctx); probe != nil {
+		probe.mu.Lock()
+		probe.cause = cause
+		probe.mu.Unlock()
+	}
+}
+
+func autopilotResetAssessmentCause(ctx context.Context) {
+	autopilotNoteAssessmentCause(ctx, "")
+}
+
+func autopilotReadAssessmentCause(ctx context.Context) string {
+	if probe := autopilotAssessmentProbeOf(ctx); probe != nil {
+		probe.mu.Lock()
+		defer probe.mu.Unlock()
+		return probe.cause
+	}
+	return ""
+}
 
 const autopilotShadowKind = "shadow_discovery"
 const autopilotShadowScope = "public:shadow"
@@ -873,6 +936,7 @@ func autopilotRetryAt(at time.Time, source, retryAfter string) time.Time {
 // Review only public feed data. An unavailable feed, model error or small
 // sample remains uncertain; none of them proves poor source quality.
 func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilotJob, limit int) error {
+	ctx = withAutopilotAssessmentProbe(ctx)
 	u := a.User(ctx, "", nil)
 	return a.autopilotReviewShadowCandidatesWith(ctx, job, limit, a.TInt("autopilot_preliminary_score"),
 		func(feed string) FetchResultURL {
@@ -1207,6 +1271,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			if platform == PlatformRSS {
 				title = hostOf(feed)
 			}
+			autopilotResetAssessmentCause(ctx)
 			evaluation := evaluate(jx.M{"id": id, "title": title}, samples, job.Topic)
 			if err := autopilotBudgetError(ctx); err != nil {
 				return err
@@ -1216,6 +1281,15 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 			if evaluation == nil {
 				reason = "assessment_unavailable"
+				cause := autopilotReadAssessmentCause(ctx)
+				if cause == "" {
+					if sourcePostsHaveImages(samples) {
+						cause = "media_unavailable"
+					} else {
+						cause = "no_reviewable_content"
+					}
+				}
+				evidence["assessment_cause"] = cause
 			} else {
 				evidence["preliminary_score"] = evaluation.Score
 				if format := personalBlogLabelFromReview(evaluation.PersonalBlog); format != personalBlogUnknown {
@@ -1264,6 +1338,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			// Only live-window posts are candidates for delivery. Historical
 			// posts can qualify a publisher but must never be pushed to users.
 			if err := assess(ctx, source, autopilotFreshRSSSamples(samples, at.Unix())); err != nil {
+				evidence["assessment_cause"] = autopilotAssessmentCause(err)
 				if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
 					return budgetErr
 				}
@@ -1303,7 +1378,13 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		// cadence. Keep the source in its existing state and let daily LLM
 		// budgets bound retries rather than silently losing candidates.
 		if reason == "assessment_unavailable" && job.Scope == autopilotAutoScope {
-			nextCheck = at.Add(time.Hour)
+			// No readable media is a fetch/input issue, not an AI quota issue.
+			// Do not hammer the same feed every hour without new evidence.
+			if jx.Str(evidence, "assessment_cause") == "media_unavailable" || jx.Str(evidence, "assessment_cause") == "no_reviewable_content" {
+				nextCheck = at.Add(6 * time.Hour)
+			} else {
+				nextCheck = at.Add(time.Hour)
+			}
 		}
 		if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, reason, jx.Marshal(evidence), at, nextCheck); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
 			return err
