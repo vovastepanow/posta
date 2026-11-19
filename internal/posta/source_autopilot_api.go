@@ -90,7 +90,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			return nil, err
 		}
 		supply := decideAutopilotSupply(autopilotSupplyInput{Rate: d.PostsPerDay, Horizon: d.HorizonDays, Available: available, Capacity: u.TInt("pool_target"), ConfirmedSources: active, Now: time.Now()})
-		row := jx.M{"topic": d.Topic, "mode": d.Mode, "posts_per_day": d.PostsPerDay, "horizon_days": d.HorizonDays, "shadow_candidates": candidates, "shadow_probation": probation, "shadow_confirmed": confirmed,
+		row := jx.M{"topic": d.Topic, "mode": d.Mode, "posts_per_day": d.PostsPerDay, "horizon_days": d.HorizonDays, "personal_blog_mode": u.personalBlogMode(d.Topic), "shadow_candidates": candidates, "shadow_probation": probation, "shadow_confirmed": confirmed,
 			"shadow_cooldown": suspended, "shadow_rejected": rejected}
 		row["paused"] = d.Paused
 		row["available"], row["target"], row["deficit"], row["capacity_limited"], row["active_sources"] = available, supply.Demand.Target, supply.Demand.Deficit, supply.CapacityLimited, active
@@ -337,13 +337,15 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 			return jx.M{"sources": []jx.M{}, "next_after": "", "snapshot_available": false}, nil
 		}
 	}
-	query := `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at
+	query := `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at,
+		COALESCE(evidence->>'personal_blog','unknown')
 		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state=$3 AND source_id>$4
 		ORDER BY source_id LIMIT $5`
 	var rows pgx.Rows
 	var err error
 	if state == "found" {
-		rows, err = u.DB.Pool.Query(u.Ctx, `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at
+		rows, err = u.DB.Pool.Query(u.Ctx, `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at,
+		COALESCE(evidence->>'personal_blog','unknown')
 			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
 			AND source_id=ANY($5) AND source_id>$3
 			ORDER BY source_id LIMIT $4`, scope, key, after, limit+1, latestIDs)
@@ -357,9 +359,9 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 	items := make([]jx.M, 0, limit)
 	hasMore := false
 	for rows.Next() {
-		var source, currentState, reason string
+		var source, currentState, reason, blogKind string
 		var discovered, checked, next int64
-		if err := rows.Scan(&source, &currentState, &reason, &discovered, &checked, &next); err != nil {
+		if err := rows.Scan(&source, &currentState, &reason, &discovered, &checked, &next, &blogKind); err != nil {
 			return nil, err
 		}
 		if len(items) == limit {
@@ -367,7 +369,7 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 			break
 		}
 		items = append(items, jx.M{"source_id": source, "state": currentState, "reason": reason,
-			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next})
+			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next, "personal_blog": personalBlogKind(blogKind)})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
