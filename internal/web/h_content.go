@@ -97,23 +97,6 @@ func init() {
 		stopped := c.U.PauseParser()
 		return ok(jx.M{"stopped": stopped, "stopping": c.A.ParserRunning(c.U.ID)}), nil
 	})
-	// User-specific manual opt-in for the legacy content-search/parser pipeline.
-	// Source autopilot is configured independently and is not affected.
-	post("background_content_toggle", func(c *Ctx) (any, error) {
-		if err := ownerOnly(c); err != nil {
-			return nil, err
-		}
-		enabled := jx.Bool(c.In, "enabled")
-		if err := c.U.SaveSettings(jx.M{"background_content_enabled": enabled}); err != nil {
-			return nil, err
-		}
-		if !enabled {
-			c.U.PauseParser()
-		} else {
-			c.U.ResumeParser()
-		}
-		return jx.M{"enabled": enabled}, nil
-	})
 	get("settings", settings)
 	get("topic_record", topicRecord)
 	get("topics", func(c *Ctx) (any, error) {
