@@ -41,6 +41,23 @@ func TestAutopilotFreshRSSSamplesRejectsUnknownDatesAndDuplicates(t *testing.T) 
 	}
 }
 
+func TestAutopilotSourceQualityAcceptsRareHistoricalPosts(t *testing.T) {
+	at := time.Now().Unix()
+	posts := []jx.M{
+		{"url": "https://example.org/quality-a", "posted_at": at - 46*86400},
+		{"url": "https://example.org/quality-b", "posted_at": at - 150*86400},
+		{"url": "https://example.org/quality-duplicate", "posted_at": at - 500*86400},
+		{"url": "https://example.org/quality-nodate"},
+	}
+	if got := autopilotFreshRSSSamples(posts, at); len(got) != 0 {
+		t.Fatalf("old posts incorrectly treated as live content: %+v", got)
+	}
+	quality := autopilotSourceQualitySamples(posts, at)
+	if len(quality) != 2 {
+		t.Fatalf("rare publisher must retain its dated history for source review: %+v", quality)
+	}
+}
+
 func TestAutopilotFreshRSSSamplesSpreadAcrossTime(t *testing.T) {
 	at := time.Now().Unix()
 	posts := []jx.M{
