@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"posta/internal/config"
 	"posta/internal/db"
+	"posta/internal/llm"
 	"posta/internal/jx"
 )
 
@@ -326,4 +328,126 @@ func TestAutopilotLiveRSSReviewLifecycle(t *testing.T) {
 		t.Fatalf("unexpected evidence: %+v; classified=%d assessments=%d", stats, classified, assessments)
 	}
 	t.Logf("LIVE LIFECYCLE: feed=%s fresh=%d evaluated=%d passes=%d state=active", strings.TrimPrefix(source, "rss:"), len(fresh), stats.Evaluated, stats.SuccessfulPasses)
+}
+
+// Deliver one real public RSS article through the protected auto-mode pool
+// transaction. The classification is fixed because CI has no AI credentials;
+// everything after admission uses production PostgreSQL and catalog logic.
+func TestAutopilotLiveRSSAutoDelivery(t *testing.T) {
+	dsn := os.Getenv("POSTA_AUTOPILOT_TEST_DSN")
+	if dsn == "" || os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires isolated PostgreSQL and POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	const topic, owner, feed = "Live technology dispatch", "autopilot-live-delivery", "https://hnrss.org/frontpage"
+	key, source := autopilotTopicKey(topic), "rss:"+feed
+	router := llm.NewRouter(llm.NewOllama("http://127.0.0.1:1"), llm.NewOpenRouter("", "", "", ""))
+	a := &App{DB: d, LLM: router, Cfg: config.Server{MediaDir: t.TempDir(), MediaURL: "/media"}}
+	if err := a.LoadCatalog(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer a.UpdateCatalog(context.Background(), func(c *SourceDB) bool {
+		var keep []jx.M
+		for _, entry := range c.RSS {
+			if jx.Str(entry, "id") != feed {
+				keep = append(keep, entry)
+			}
+		}
+		c.RSS = keep
+		return true
+	})
+	if _, err := d.Pool.Exec(ctx, `INSERT INTO users(id,created_at) VALUES($1,0) ON CONFLICT DO NOTHING`, owner); err != nil {
+		t.Fatal(err)
+	}
+	defer d.Pool.Exec(context.Background(), `DELETE FROM users WHERE id=$1`, owner)
+	if err := a.User(ctx, owner, nil).SaveSettings(jx.M{
+		"topic": "Other topic", "active_sources_only": false, "text_posts": true,
+		"topic_formats": jx.M{TopicNorm(topic): jx.M{"media": "optional", "text": "optional"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveAutopilotDemand(ctx, d.Pool, owner, autopilotDemandSettings{
+		Topic: topic, Mode: "auto", PostsPerDay: 3, HorizonDays: 2,
+	}, time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.reconcileAutopilotMode(ctx, true, "auto", autopilotAutoScope, autopilotAutoKind); err != nil {
+		t.Fatal(err)
+	}
+	job, err := claimAutopilotJobKind(ctx, d.Pool, time.Now().Add(time.Second), 2*time.Minute, autopilotAutoKind)
+	if err != nil || job == nil || job.TopicKey != key {
+		t.Fatalf("auto job=%+v err=%v", job, err)
+	}
+	job.MaxProbation = 3
+	live := a.User(ctx, "", nil).RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
+	if !live.OK || !rssIsFeed(rssLoad(live.Bytes)) {
+		t.Fatalf("live RSS HTTP %d: %v", live.Status, live.Error)
+	}
+	posts, err := RSSParse(live.Bytes, 20, "", feed, true, true, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var article jx.M
+	for _, post := range autopilotFreshRSSSamples(posts, time.Now().Unix()) {
+		if CandidatePostKey(post) != "" && AnalysisText(post) != "" &&
+			autopilotPublicPostURL(jx.Str(post, "url"), false) && ContentImageKey(post) == "" && !PostItemHasVideo(post) {
+			article = post
+			break
+		}
+	}
+	if article == nil {
+		t.Fatal("live RSS had no eligible text-only article")
+	}
+	analysis := jx.M{
+		"advertising": false, "relevance": 95, "topic_match": true,
+		"model": "deterministic-test", "description": "Technology article",
+		"why_relevant": "Technology topic", "tags": []any{},
+	}
+	err = runAutopilotLeased(ctx, d, job, 2*time.Minute, 20*time.Second, 50, 50, 50, 50, func(work context.Context) error {
+		if err := registerAutopilotCandidate(work, d, job, source, time.Now()); err != nil {
+			return err
+		}
+		if err := transitionAutopilotSource(work, d, job, source, "candidate", "probation", "live_test_preliminary", []byte(`{}`), time.Now(), time.Now()); err != nil {
+			return err
+		}
+		if err := transitionAutopilotSource(work, d, job, source, "probation", "active", "live_test_verified", []byte(`{}`), time.Now(), time.Now()); err != nil {
+			return err
+		}
+		if err := a.reconcileAutopilotProjections(work, job); err != nil {
+			return err
+		}
+		if err := a.saveAutopilotContentResult(work, job, source, article, analysis); err != nil {
+			return err
+		}
+		if err := a.deliverAutopilotTopicContent(work, job); err != nil {
+			return err
+		}
+		return a.deliverAutopilotTopicContent(work, job)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var results, pool, admissions int
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_content_results WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, key, source).Scan(&results); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM pool_items WHERE user_id=$1`, owner).Scan(&pool); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_admissions WHERE user_id=$1 AND topic_key=$2 AND accepted`, owner, key).Scan(&admissions); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("LIVE DELIVERY: source=%s results=%d pool=%d admissions=%d repeated_delivery=2", source, results, pool, admissions)
+	if results != 1 || pool != 1 || admissions != 1 {
+		t.Fatalf("live delivery stalled: results=%d pool=%d admissions=%d", results, pool, admissions)
+	}
 }
