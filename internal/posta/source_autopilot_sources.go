@@ -164,7 +164,7 @@ func transitionAutopilotSource(ctx context.Context, database *db.DB, job *autopi
 		if !nextCheck.IsZero() {
 			nextAt = nextCheck.Unix()
 		}
-		_, err = tx.Exec(ctx, `UPDATE source_autopilot_sources SET state=$4,resume_state=$5,reason=$6,evidence=$7,policy_version=$8,checked_at=$9,next_check_at=$10
+		_, err = tx.Exec(ctx, `UPDATE source_autopilot_sources SET state=$4,resume_state=$5,reason=$6,evidence=source_autopilot_sources.evidence || $7::jsonb,policy_version=$8,checked_at=$9,next_check_at=$10
 			WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, job.TopicKey, source, next, newResume, reason, evidence, TopicProfileVersion, at.Unix(), nextAt)
 		if err != nil {
 			return err
@@ -187,7 +187,7 @@ func recordAutopilotSourceCheck(ctx context.Context, database *db.DB, job *autop
 		if err := lockAutopilotSource(ctx, tx, job.Scope, job.TopicKey, source); err != nil {
 			return err
 		}
-		tag, err := tx.Exec(ctx, `UPDATE source_autopilot_sources SET reason=$4,evidence=$5,policy_version=$6,checked_at=$7,next_check_at=$8
+		tag, err := tx.Exec(ctx, `UPDATE source_autopilot_sources SET reason=$4,evidence=source_autopilot_sources.evidence || $5::jsonb,policy_version=$6,checked_at=$7,next_check_at=$8
 			WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND state=$9`, job.Scope, job.TopicKey, source, reason, evidence, TopicProfileVersion, at.Unix(), nextCheck.Unix(), expected)
 		if err != nil {
 			return err
