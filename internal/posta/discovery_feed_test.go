@@ -89,6 +89,60 @@ func TestDiscoveryLemmyCommunities(t *testing.T) {
 	}
 }
 
+func TestDiscoveryLemmySMMRejectsMMAFalseMatch(t *testing.T) {
+	// The real-world false positive: "womensmma" contains the letters "smm"
+	// but is a community about mixed martial arts, not content marketing.
+	data := []byte(`{"communities":[
+		{"community":{"actor_id":"https://lemmy.today/c/womensmma","name":"womensmma","title":"Women's MMA","description":"Mixed martial arts and fighting"}},
+		{"community":{"actor_id":"https://lemmy.today/c/smm","name":"smm","title":"SMM & content marketing","description":"Social media marketing"}},
+		{"community":{"actor_id":"https://lemmy.today/c/mediaexperts","name":"mediaexperts","title":"Media professionals","description":"Контент-стратегия и продвижение"}}]}`)
+	candidates, err := discoveryLemmyCommunities(data)
+	if err != nil || len(candidates) != 3 {
+		t.Fatalf("Lemmy discovery: %v %+v", err, candidates)
+	}
+	for i, candidate := range candidates {
+		got := discoveryLemmyMatchesTopic(candidate, "smm")
+		want := i != 0
+		if got != want {
+			t.Errorf("SMM match for %s = %t, want %t", candidate.ID, got, want)
+		}
+	}
+	if !discoveryLemmyMatchesTopic(candidates[0], "Единоборства") {
+		t.Fatal("SMM-specific guard incorrectly filters a different topic")
+	}
+	if okSMMProfessionRe.MatchString("womensmma") || okSMMProfessionRe.MatchString("womenSMMathletes") {
+		t.Fatal("SMM matcher matched letters embedded inside an unrelated word")
+	}
+}
+
+func TestLegacyLemmySMMSourcePreliminaryIdentity(t *testing.T) {
+	posts := []jx.M{
+		{"text": "Fight night, takedowns and mixed martial arts"},
+		{"text": "Professional wrestling and championship MMA match"},
+		{"text": "Highlights of a UFC training session"},
+	}
+	feed := "https://lemmy.today/feeds/c/womensmma.xml"
+	mma := []byte(`<rss><channel><title>Women's MMA</title><description>Mixed martial arts</description></channel></rss>`)
+	if !lemmySMMFeedOffTopic(feed, mma, posts) {
+		t.Fatal("old womensmma source was not rejected before AI evaluation")
+	}
+	marketing := []byte(`<rss><channel><title>SMM and blogging</title><description>Social media marketing</description></channel></rss>`)
+	if lemmySMMFeedOffTopic("https://lemmy.today/feeds/c/smm.xml", marketing, posts) {
+		t.Fatal("relevant professional community incorrectly rejected")
+	}
+	curator := []byte(`<rss><channel><title>The Daily Digest</title><description>Various articles</description></channel></rss>`)
+	useful := []jx.M{{"text": "Анализ стратегии SMM для бренда"}, {"text": "Кейс по таргетингу и контент-маркетингу"}}
+	if lemmySMMFeedOffTopic("https://lemmy.today/feeds/c/digest.xml", curator, useful) {
+		t.Fatal("curator covering SMM in multiple posts incorrectly rejected")
+	}
+	if lemmySMMFeedOffTopic(feed, mma, posts[:1]) {
+		t.Fatal("one post is too little to reject a sparse source on content alone")
+	}
+	if lemmySMMFeedOffTopic("https://example.org/feed.xml", mma, posts) {
+		t.Fatal("SMM Lemmy rule must not affect ordinary RSS feeds")
+	}
+}
+
 func TestDiscoveryRedditCommunities(t *testing.T) {
 	data := []byte(`{"data":{"children":[{"data":{"display_name":"Cats","title":"Cats","subreddit_type":"public"}},{"data":{"display_name":"private","subreddit_type":"private"}},{"data":{"display_name":"adult","subreddit_type":"public","over18":true}},{"data":{"display_name":"../bad","subreddit_type":"public"}}]}}`)
 	candidates, err := discoveryRedditCommunities(data)
