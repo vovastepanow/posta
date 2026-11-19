@@ -66,6 +66,22 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 				return err
 			}
 		}
+		// Repair obsolete long delays left by transient classifier/search
+		// failures. The current worker retries such failures in minutes, not
+		// days. Only jobs deferred beyond an hour are rescued; a fresh 15-minute
+		// failure backoff, an operator pause, and real quota exhaustion remain
+		// untouched. Safe and idempotent across every scheduler tick.
+		if enabled {
+			if _, err := tx.Exec(ctx, `UPDATE source_autopilot_jobs j
+				SET next_run_at=LEAST(j.next_run_at,$3)
+				WHERE j.scope=$1 AND j.kind=$2 AND j.enabled AND j.demand_active
+				AND j.lease_until <= extract(epoch FROM clock_timestamp())::bigint
+				AND j.next_run_at > $3+3600
+				AND j.last_error IN ('classifier_unavailable','search_unavailable','supply_unavailable')`,
+				scope, kind, time.Now().Add(time.Minute).Unix()); err != nil {
+				return err
+			}
+		}
 		// One-time recovery from the shadow/auto projection mix-up:
 		// remove only this known deterministic failure, not arbitrary errors
 		// or quota backoffs. Next scheduler tick can review the queue.
@@ -163,6 +179,16 @@ func (a *App) runAutopilotWorker(ctx context.Context, mode, scope, kind, setting
 	}
 }
 
+// autopilotNextReviewDelay never moves a retry ahead of a source's own
+// next_check_at. It does allow a due review to run before a 24-hour general
+// search interval, while leaving enough time to avoid tight retry loops.
+func autopilotNextReviewDelay(base time.Duration, now time.Time, earliest int64) time.Duration {
+	if earliest <= 0 {
+		return base
+	}
+	return min(base, max(2*time.Minute, time.Unix(earliest, 0).Sub(now)))
+}
+
 func (a *App) runNextAutopilotShadow(ctx context.Context) {
 	a.runNextAutopilotKind(ctx, autopilotShadowKind)
 }
@@ -222,26 +248,30 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 		if errors.Is(err, errAutopilotBudgetExhausted) {
 			nextInterval = time.Until(time.Now().UTC().Truncate(24 * time.Hour).Add(24*time.Hour + 2*time.Minute))
 		} else {
-			nextInterval = time.Hour
+			// Network/model outages should be retried regularly, with budgets
+			// still checked before every paid or public request. A one-hour
+			// delay obscured recoveries after the external provider came back.
+			nextInterval = 15 * time.Minute
 		}
 	}
-	// A discovered source does not need to wait for the next hourly/daily
-	// search cycle to be checked. Drain due work in short, budgeted runs.
-	// Exclude candidates blocked by a full probation lane, so that an
-	// unavailable trial slot does not spin the worker every two minutes.
+	// The earliest scheduled source check controls the next run, even when
+	// the overall topic is healthy. This includes active sources: without it,
+	// their requested 3-hour checks silently waited for the 24-hour search
+	// cadence. A due backlog gets a 2-minute retry; future 429/cooldown and
+	// rejection dates are never pulled forward.
 	if err == nil {
-		var due int
-		countErr := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources s
+		var earliest int64
+		checkErr := a.DB.Pool.QueryRow(ctx, `SELECT COALESCE(MIN(
+			CASE WHEN next_check_at <= $3 THEN $3+120 ELSE next_check_at END),0)
+			FROM source_autopilot_sources s
 			WHERE s.scope=$1 AND s.topic_key=$2
-			AND s.state IN ('candidate','probation')
-			AND (s.next_check_at <= $3 OR (s.state='candidate' AND
-			(s.reason='probation_full' OR
-			 (s.reason IN ('feed_unavailable','insufficient_fresh_samples') AND s.checked_at < $3-3600))))`,
-			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&due)
-		if countErr == nil && due > 0 {
-			nextInterval = min(nextInterval, 2*time.Minute)
-		} else if countErr != nil && ctx.Err() == nil {
-			log.Printf("автопилот: подсчёт ожидающих проверок: %v", countErr)
+			AND s.state IN ('candidate','probation','active','cooldown','rejected')
+			AND NOT (s.state='candidate' AND s.reason='probation_full')`,
+			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&earliest)
+		if checkErr == nil && earliest > 0 {
+			nextInterval = autopilotNextReviewDelay(nextInterval, time.Now(), earliest)
+		} else if checkErr != nil && ctx.Err() == nil {
+			log.Printf("автопилот: срок проверки источников: %v", checkErr)
 		}
 	}
 	if finishErr := finishAutopilotJob(ctx, a.DB, job, time.Now().Add(nextInterval), job.Checkpoint, reason); finishErr != nil && !errors.Is(finishErr, errAutopilotLeaseLost) && ctx.Err() == nil {

@@ -245,8 +245,20 @@ function renderAutopilot(data) {
             !(topic.mode === 'auto' ? data.auto_enabled : data.shadow_enabled);
         const activePhase = topic.running ? topic.pipeline_phase : '';
         const phaseLabels = { prepare: 'Подготовка', search: 'Поиск по площадкам', review: 'Проверка источников', delivery: 'Доставка в пул' };
-        const status = disabled ? (topic.paused ? 'На паузе' : 'Выключен')
+        const diagnosisNames = {
+            classifier_unavailable: 'AI-оценка источников недоступна — проверяю повторно',
+            fetch_budget_exhausted: 'Исчерпан лимит загрузок — повтор после сброса бюджета UTC',
+            model_budget_exhausted: 'Исчерпан лимит модели — повтор после сброса бюджета UTC',
+            search_unavailable: 'Поисковики недоступны — назначен повтор',
+            supply_unavailable: 'Не удалось оценить запас — назначен повтор',
+            topic_busy: 'Тема занята другим процессом',
+            no_sources_found: 'Источники пока не найдены',
+            sources_under_review: 'Кандидаты проходят проверку'
+        };
+        const status = disabled ? (topic.paused ? 'На паузе' :
+                !(topic.mode === 'auto' ? data.auto_enabled : data.shadow_enabled) ? 'Выключено на сервере' : 'Выключен')
             : topic.running ? 'Работает: ' + (phaseLabels[activePhase] || 'запуск цикла')
+            : topic.mode === 'auto' && diagnosisNames[topic.diagnosis] ? diagnosisNames[topic.diagnosis]
             : topic.failure ? 'Ожидает повтора после ошибки'
             : topic.mode === 'auto' && topic.available >= topic.target && topic.target > 0 ? 'Запас собран'
             : 'Ожидает следующего цикла';

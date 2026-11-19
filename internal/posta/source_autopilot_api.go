@@ -20,6 +20,7 @@ type autopilotStatusInput struct {
 	Failure                                               string
 	Available, Target, Deficit, Candidates, ActiveSources int
 	FetchRemaining, ModelRemaining                        int64
+	ModelFailures, Promoted24h                            int
 }
 
 func autopilotStatusReason(in autopilotStatusInput) string {
@@ -40,6 +41,8 @@ func autopilotStatusReason(in autopilotStatusInput) string {
 		return "fetch_budget_exhausted"
 	case in.ModelRemaining <= 0:
 		return "model_budget_exhausted"
+	case in.ModelFailures > 0 && in.Promoted24h == 0 && in.Candidates > 0:
+		return "classifier_unavailable"
 	case in.Candidates == 0 && in.ActiveSources == 0:
 		return "no_sources_found"
 	case in.ActiveSources == 0:
@@ -121,7 +124,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			count(*) FILTER (WHERE state='candidate' AND next_check_at > $3 AND reason<>'probation_full'),
 			count(*) FILTER (WHERE state='candidate' AND checked_at=0),
 			count(*) FILTER (WHERE checked_at >= $4),
-			count(*) FILTER (WHERE reason='assessment_unavailable')
+			count(*) FILTER (WHERE reason='assessment_unavailable' AND checked_at >= $4)
 			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`,
 			scope, key, time.Now().Unix(), time.Now().Add(-24*time.Hour).Unix()).Scan(&ready, &delayed, &unchecked, &recentChecks, &aiPending)
 		if err != nil {
@@ -254,6 +257,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 					Deficit: supply.Demand.Deficit, Candidates: autoCandidates + autoProbation,
 					ActiveSources: autoActive, FetchRemaining: jx.Int(row, "fetch_remaining"),
 					ModelRemaining: jx.Int(row, "model_remaining"),
+					ModelFailures:  aiPending, Promoted24h: promoted24h,
 				})
 			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
@@ -446,6 +450,16 @@ func (u *U) SourceAutopilotDemandSave(topic, mode string, rate, horizon float64)
 	if mode != "off" && mode != "shadow" && mode != "auto" {
 		return Bad("Неизвестный режим автопилота.")
 	}
+	// When a subscriber enables or unpauses a topic, do not leave an
+	// existing 12/24-hour scheduled job idle. A plain save of an unchanged
+	// active mode must not bypass a real worker backoff.
+	var previousMode string
+	var wasPaused bool
+	previousErr := u.DB.Pool.QueryRow(u.Ctx, `SELECT mode,paused FROM source_autopilot_demands
+		WHERE user_id=$1 AND topic_key=$2`, u.ID, autopilotTopicKey(topic)).Scan(&previousMode, &wasPaused)
+	if previousErr != nil && !errors.Is(previousErr, pgx.ErrNoRows) {
+		return previousErr
+	}
 	d := autopilotDemandSettings{Topic: topic, Mode: mode, PostsPerDay: rate, HorizonDays: horizon}
 	if err := saveAutopilotDemand(u.Ctx, u.DB.Pool, u.ID, d, now()); err != nil {
 		if errors.Is(err, errAutopilotInvalidDemand) {
@@ -453,7 +467,27 @@ func (u *U) SourceAutopilotDemandSave(topic, mode string, rate, horizon float64)
 		}
 		return err
 	}
-	return nil
+	if mode == "off" || (mode == "auto" && rate == 0) || (previousErr == nil && previousMode == mode && !wasPaused) {
+		return nil
+	}
+	scope, kind, setting := autopilotShadowScope, autopilotShadowKind, "autopilot_shadow"
+	if mode == "auto" {
+		scope, kind, setting = autopilotAutoScope, autopilotAutoKind, "autopilot_auto"
+	}
+	// Respect a persisted administrator disable; the response explicitly
+	// exposes that switch so users see why no job was started.
+	if !u.TBool(setting) {
+		return nil
+	}
+	if err := u.App.reconcileAutopilotMode(u.Ctx, true, mode, scope, kind); err != nil {
+		return err
+	}
+	_, err := u.DB.Pool.Exec(u.Ctx, `UPDATE source_autopilot_jobs
+		SET next_run_at=LEAST(next_run_at,$4)
+		WHERE scope=$1 AND topic_key=$2 AND kind=$3 AND enabled AND demand_active
+		AND last_error='' AND lease_until <= extract(epoch FROM clock_timestamp())::bigint`,
+		scope, autopilotTopicKey(topic), kind, time.Now().Unix())
+	return err
 }
 
 // SourceAutopilotRequest raises the priority of this user's configured profile
