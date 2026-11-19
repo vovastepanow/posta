@@ -114,6 +114,15 @@ func (a *App) runAutopilotWorker(ctx context.Context, mode, scope, kind, setting
 		if err != nil && ctx.Err() == nil {
 			log.Printf("автопилот: планирование: %v", err)
 		}
+		if err == nil && enabled && ctx.Err() == nil {
+			if transferred, importErr := a.reconcileLegacyPendingWithoutLease(ctx, mode, scope, kind, 100); importErr != nil {
+				if ctx.Err() == nil {
+					log.Printf("автопилот: перенос ручных источников: %v", importErr)
+				}
+			} else if transferred > 0 {
+				log.Printf("автопилот: перенесено из ручной очереди в %s: %d источников", mode, transferred)
+			}
+		}
 		if done != nil {
 			select {
 			case <-done:
