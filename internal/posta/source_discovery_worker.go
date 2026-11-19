@@ -49,7 +49,7 @@ func (a *App) runScheduledSourceDiscovery(ctx context.Context) {
 		}
 		u := a.User(ctx, id, func(line string) { log.Printf("фоновый подбор: %s", line) })
 		topic := u.CurrentTopic()
-		if a.ParserRunning(id) || !u.SourceDiscoveryDue(u.Catalog(), topic) {
+		if !u.BackgroundContentEnabled() || a.ParserRunning(id) || !u.SourceDiscoveryDue(u.Catalog(), topic) {
 			continue
 		}
 		log.Printf("фоновый подбор источников: запуск по теме %q", topic)
