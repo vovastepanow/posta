@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"posta/internal/jx"
 )
 
@@ -33,8 +35,7 @@ func (u *U) autopilotLegacyPendingCandidates(job *autopilotJob) []string {
 	seen := map[string]bool{}
 	for _, item := range d.Suggestions {
 		topic := jx.Str(item, "topic")
-		if topic == "" || autopilotTopicKey(topic) != job.TopicKey ||
-			!u.TopicsAreEquivalent(topic, job.Topic) {
+		if topic == "" || autopilotTopicKey(topic) != job.TopicKey {
 			continue
 		}
 		sid, ok := autopilotCandidateID(DiscoveryCandidate{
@@ -151,4 +152,91 @@ func (u *U) excludeAutopilotTransferredPending(candidates []jx.M, topic string) 
 		}
 	}
 	return out, nil
+}
+
+// reconcileLegacyPendingWithoutLease runs during source-autopilot scheduling,
+// even when the job itself is backed off or waiting for an AI budget.
+// This only inserts new, unreviewed candidates; all actual assessments still
+// require a normal fenced worker lease and resource budget.
+func (a *App) reconcileLegacyPendingWithoutLease(ctx context.Context, mode, scope, kind string, limit int) (int, error) {
+	if limit <= 0 {
+		return 0, nil
+	}
+	rows, err := a.DB.Pool.Query(ctx, `SELECT j.topic_key,j.topic FROM source_autopilot_jobs j
+		WHERE j.scope=$1 AND j.kind=$2 AND j.enabled AND j.demand_active
+		AND EXISTS (SELECT 1 FROM source_autopilot_demands d WHERE d.topic_key=j.topic_key AND d.mode=$3 AND NOT d.paused)
+		ORDER BY j.topic_key LIMIT 100`, scope, kind, mode)
+	if err != nil {
+		return 0, err
+	}
+	type target struct{ key, topic string }
+	var jobs []target
+	for rows.Next() {
+		var j target
+		if err := rows.Scan(&j.key, &j.topic); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		jobs = append(jobs, j)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return 0, err
+	}
+	user := a.User(ctx, "", nil)
+	added := 0
+	for _, target := range jobs {
+		job := &autopilotJob{Scope: scope, Kind: kind, TopicKey: target.key, Topic: target.topic}
+		for _, source := range user.autopilotLegacyPendingCandidates(job) {
+			if ctx.Err() != nil {
+				return added, ctx.Err()
+			}
+			// Job and demand are checked again inside the transaction.
+			// No state transitions or existing decisions are overwritten.
+			var inserted bool
+			err := a.DB.Tx(ctx, func(tx pgx.Tx) error {
+				if err := lockAutopilotSource(ctx, tx, scope, target.key, source); err != nil {
+					return err
+				}
+				now := time.Now().Unix()
+				err := tx.QueryRow(ctx, `WITH fresh AS (
+					INSERT INTO source_autopilot_sources(scope,topic_key,source_id,state,reason,policy_version,first_seen_at)
+					SELECT $1,$2,$3,'candidate','legacy_pending_import',$6,$7
+					WHERE EXISTS (SELECT 1 FROM source_autopilot_jobs j WHERE j.scope=$1 AND j.topic_key=$2 AND j.kind=$4 AND j.enabled AND j.demand_active)
+					AND EXISTS (SELECT 1 FROM source_autopilot_demands d WHERE d.topic_key=$2 AND d.mode=$5 AND NOT d.paused)
+					AND NOT EXISTS (SELECT 1 FROM source_votes v WHERE v.source_id=$3)
+					AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o
+						WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=$3 AND o.decision='excluded')
+					ON CONFLICT DO NOTHING RETURNING scope,topic_key,source_id
+				), audit AS (
+					INSERT INTO source_autopilot_decisions(scope,topic_key,source_id,old_state,new_state,reason,policy_version,at)
+					SELECT scope,topic_key,source_id,'','candidate','legacy_pending_import',$6,$7 FROM fresh
+					RETURNING id
+				)
+				SELECT EXISTS(SELECT 1 FROM audit)`,
+					scope, target.key, source, kind, mode, TopicProfileVersion, now).Scan(&inserted)
+				if err != nil || !inserted {
+					return err
+				}
+				// An import with no outstanding error can be checked promptly,
+				// without bypassing a quota backoff or an administrative pause.
+				_, err = tx.Exec(ctx, `UPDATE source_autopilot_jobs
+					SET next_run_at=LEAST(next_run_at,$4)
+					WHERE scope=$1 AND topic_key=$2 AND kind=$3 AND enabled AND demand_active
+					AND last_error=''`, scope, target.key, kind, now+5)
+				return err
+			})
+			if err != nil {
+				return added, err
+			}
+			if inserted {
+				added++
+			}
+			if added >= limit {
+				return added, nil
+			}
+		}
+	}
+	return added, nil
 }
