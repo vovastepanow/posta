@@ -951,6 +951,28 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 		}
 		samples = safeSamples
+		// Previously discovered OK groups were admitted by vague substring
+		// matches in an aggregator feed. Recheck the actual group title before
+		// they can occupy probation slots or be activated. Preserve the audit
+		// trail by rejecting the source instead of silently deleting it.
+		if (state == "candidate" || state == "probation") && platform == PlatformOK &&
+			autopilotCanonicalTopic(job.Topic) == "SMM и блогинг" {
+			unverified := res.OK && reason == "" && (OKTitleFromHTML(string(res.Bytes), id) == id ||
+				!okDiscoveryGroupTitleMatches(OKTitleFromHTML(string(res.Bytes), id), job.Topic, nil))
+			missing := res.Status == http.StatusNotFound || res.Status == http.StatusGone
+			if unverified || missing {
+				why := "off_topic_group"
+				if missing {
+					why = "source_not_found"
+				}
+				if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "rejected",
+					why, jx.Marshal(jx.M{"http_status": res.Status}), at, at.Add(30*24*time.Hour)); err != nil &&
+					!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+					return err
+				}
+				continue
+			}
+		}
 		if reason == "" && state == "candidate" && len(samples) < 2 {
 			reason = "insufficient_fresh_samples"
 		}
