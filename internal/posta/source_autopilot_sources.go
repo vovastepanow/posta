@@ -64,7 +64,13 @@ func ensureAutopilotShadowDemand(ctx context.Context, tx pgx.Tx, job *autopilotJ
 // registerAutopilotCandidate is idempotent and cannot resurrect a rejected or
 // excluded source. Only the current owner of the exact topic job may write it.
 func registerAutopilotCandidate(ctx context.Context, database *db.DB, job *autopilotJob, sourceID string, at time.Time) error {
-	if job == nil || sourceID == "" {
+	return registerAutopilotCandidateWithOrigin(ctx, database, job, sourceID, "discovered", at)
+}
+
+// A legacy pending suggestion is never an approval. Record its origin as an
+// auditable, idempotent candidate; the normal review worker makes the verdict.
+func registerAutopilotCandidateWithOrigin(ctx context.Context, database *db.DB, job *autopilotJob, sourceID, origin string, at time.Time) error {
+	if job == nil || sourceID == "" || (origin != "discovered" && origin != "legacy_pending_import") {
 		return errors.New("invalid source candidate")
 	}
 	return withAutopilotLease(ctx, database, job, func(tx pgx.Tx) error {
@@ -74,12 +80,12 @@ func registerAutopilotCandidate(ctx context.Context, database *db.DB, job *autop
 		if err := lockAutopilotSource(ctx, tx, job.Scope, job.TopicKey, sourceID); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `WITH inserted AS (INSERT INTO source_autopilot_sources(scope,topic_key,source_id,state,policy_version,first_seen_at)
-			SELECT $1,$2,$3,'candidate',$4,$5 WHERE NOT EXISTS (SELECT 1 FROM source_autopilot_overrides
+		_, err := tx.Exec(ctx, `WITH inserted AS (INSERT INTO source_autopilot_sources(scope,topic_key,source_id,state,reason,policy_version,first_seen_at)
+			SELECT $1,$2,$3,'candidate',$6,$4,$5 WHERE NOT EXISTS (SELECT 1 FROM source_autopilot_overrides
 			WHERE (scope=$1 OR ($1='public:shadow' AND scope='public')) AND owner_id='' AND topic_key=$2 AND source_id=$3 AND decision='excluded')
 			ON CONFLICT DO NOTHING RETURNING scope,topic_key,source_id)
 			INSERT INTO source_autopilot_decisions(scope,topic_key,source_id,old_state,new_state,reason,policy_version,at)
-			SELECT scope,topic_key,source_id,'','candidate','discovered',$4,$5 FROM inserted`, job.Scope, job.TopicKey, sourceID, TopicProfileVersion, at.Unix())
+			SELECT scope,topic_key,source_id,'','candidate',$6,$4,$5 FROM inserted`, job.Scope, job.TopicKey, sourceID, TopicProfileVersion, at.Unix(), origin)
 		return err
 	})
 }
