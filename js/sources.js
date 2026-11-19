@@ -674,11 +674,12 @@ function autopilotSourceCard(item) {
     icon.style.backgroundColor = platform.color;
     // Brand SVGs are optional; a contrasting text mark is always available.
     const artwork = el('img', {
-        alt: '', loading: 'lazy', decoding: 'async',
+        alt: '', loading: 'eager', decoding: 'async',
         src: 'https://cdn.simpleicons.org/' + platform.icon + '/ffffff'
     });
-    artwork.addEventListener('load', () => { icon.textContent = ''; icon.append(artwork); });
+    artwork.addEventListener('load', () => icon.classList.add('has-artwork'));
     artwork.addEventListener('error', () => artwork.remove());
+    icon.append(artwork);
     const name = url ? el('a', {
         href: url, target: '_blank', rel: 'noopener noreferrer', textContent: identity.display,
         title: 'Открыть источник в новой вкладке'
@@ -705,6 +706,10 @@ function autopilotSourceCard(item) {
 function openAutopilotSourceDialog(topic, state, count) {
     if (topic.mode === 'off') return;
     if (autopilotSourceDialog?.dialog.open) {
+        if (autopilotSourceDialog.topic === topic.topic && autopilotSourceDialog.state === state && autopilotSourceDialog.mode === topic.mode) {
+            autopilotSourceDialog.dialog.focus();
+            return;
+        }
         autopilotSourceDialog.dialog.close();
     }
     const dialog = el('dialog', { className: 'autopilot-sources-modal' });
@@ -724,7 +729,7 @@ function openAutopilotSourceDialog(topic, state, count) {
         hint, list,
         el('div', { className: 'autopilot-sources-footer' }, more, reload, status));
     document.body.append(dialog);
-    const context = { dialog };
+    const context = { dialog, topic: topic.topic, state, mode: topic.mode };
     autopilotSourceDialog = context;
     let after = '', loading = false, version = 0, loaded = 0;
     const getPage = async (reset = false) => {
@@ -772,11 +777,10 @@ function openAutopilotSourceDialog(topic, state, count) {
     };
     close.addEventListener('click', () => dialog.close());
     dialog.addEventListener('close', dismiss, { once: true });
-    dialog.addEventListener('click', event => {
-        if (event.target === dialog) dialog.close();
-    });
     more.addEventListener('click', () => getPage());
     reload.addEventListener('click', () => getPage(true));
+    close.setAttribute('aria-label', 'Закрыть окно источников');
+    dialog.setAttribute('aria-label', 'Источники: ' + (autopilotSourceStates[state] || state));
     dialog.showModal();
     getPage(true);
 }
