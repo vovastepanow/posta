@@ -10,8 +10,8 @@ command -v crontab >/dev/null || { echo "cron/crontab is missing; install cron b
 existing="$(crontab -l 2>/dev/null || true)"
 {
     printf '%s\n' "$existing" | grep -v -F "$APP/deploy/auto-update.sh" || true
-    printf '*/10 * * * * /bin/bash %s/deploy/auto-update.sh >> %s/posta-auto-update.log 2>&1\n' "$APP" "$HOME"
+    printf '*/3 * * * * /bin/bash %s/deploy/auto-update.sh >> %s/posta-auto-update.log 2>&1\n' "$APP" "$HOME"
 } | sed '/^$/d' | crontab -
-echo "Automatic Posta updates enabled: every 10 minutes after green GitHub CI."
+echo "Automatic Posta updates enabled: every 3 minutes after green GitHub CI."
 echo "Log: $HOME/posta-auto-update.log"
 echo "To disable: crontab -e and remove the posta auto-update line."
