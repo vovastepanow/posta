@@ -471,7 +471,14 @@ export function initializeCore() {
 export function ask(text, { ok = 'Да', cancel = 'Отмена', danger = false, title = '' } = {}) {
     return new Promise(resolve => {
         const dialog = el('dialog', { className: 'ask-dialog' });
-        const done = value => { dialog.close(); dialog.remove(); resolve(value); };
+        let settled = false;
+        const done = value => {
+            if (settled) return;
+            settled = true;
+            if (dialog.open) dialog.close();
+            dialog.remove();
+            resolve(value);
+        };
         const okButton = el('button', { type: 'button', className: danger ? 'ask-ok danger' : 'ask-ok', textContent: ok, onclick: () => done(true) });
         const lines = String(text).split('\n').filter(Boolean).map(line => el('p', { textContent: line }));
         dialog.append(
