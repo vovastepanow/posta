@@ -66,6 +66,18 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 				return err
 			}
 		}
+		// One-time recovery from the shadow/auto projection mix-up:
+		// remove only this known deterministic failure, not arbitrary errors
+		// or quota backoffs. Next scheduler tick can review the queue.
+		if enabled && scope == autopilotShadowScope {
+			if _, err := tx.Exec(ctx, `UPDATE source_autopilot_jobs
+				SET next_run_at=LEAST(next_run_at,$2),last_error=''
+				WHERE scope=$1 AND kind=$3 AND enabled AND demand_active
+				AND last_error='invalid projection job'`,
+				scope, time.Now().Unix(), kind); err != nil {
+				return err
+			}
+		}
 		// One-time migration of an old stuck queue: the previous source
 		// sampler only considered 30-day posts. The worker will convert those
 		// stale candidate reasons to probation/cooldown after reevaluation.
@@ -317,10 +329,16 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			if err := a.autopilotMarkPhase(ctx, job, "delivery"); err != nil {
 				return err
 			}
-			if err := a.reconcileAutopilotProjections(ctx, job); err != nil {
-				return err
+			// Shadow review records decisions but must never run the
+			// auto-only catalog projection. Previously this returned
+			// "invalid projection job" on EVERY backlog cycle.
+			if job.Scope == autopilotAutoScope {
+				if err := a.reconcileAutopilotProjections(ctx, job); err != nil {
+					return err
+				}
+				return a.deliverAutopilotTopicContent(ctx, job)
 			}
-			return a.deliverAutopilotTopicContent(ctx, job)
+			return nil
 		}
 	}
 	// An unavailable assessment is inconclusive for that source, not proof that
