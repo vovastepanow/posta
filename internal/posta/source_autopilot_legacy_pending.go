@@ -101,3 +101,54 @@ func (a *App) autopilotImportLegacyPending(ctx context.Context, job *autopilotJo
 	}
 	return added, nil
 }
+
+// excludeAutopilotTransferredPending keeps the historical suggestion rows
+// intact for audit, while the original manual approval shelf displays only
+// sources not already handed over to a public autopilot topic queue.
+func (u *U) excludeAutopilotTransferredPending(candidates []jx.M, topic string) ([]jx.M, error) {
+	if len(candidates) == 0 {
+		return candidates, nil
+	}
+	ids := make([]string, 0, len(candidates))
+	for _, item := range candidates {
+		id, ok := autopilotCandidateID(DiscoveryCandidate{
+			Platform: jx.Str(item, "platform"), ID: jx.Str(item, "id"),
+		})
+		if ok {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return candidates, nil
+	}
+	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT DISTINCT source_id FROM source_autopilot_sources
+		WHERE topic_key=$1 AND scope IN ('public','public:shadow') AND source_id=ANY($2)`,
+		autopilotTopicKey(topic), ids)
+	if err != nil {
+		return nil, err
+	}
+	transferred := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		transferred[id] = true
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]jx.M, 0, len(candidates))
+	for _, item := range candidates {
+		id, ok := autopilotCandidateID(DiscoveryCandidate{
+			Platform: jx.Str(item, "platform"), ID: jx.Str(item, "id"),
+		})
+		if !ok || !transferred[id] {
+			out = append(out, item)
+		}
+	}
+	return out, nil
+}
