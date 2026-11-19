@@ -66,8 +66,9 @@ func autopilotCanonicalTopic(topic string) string {
 }
 
 func autopilotTopicKey(topic string) string {
-	normalized := strings.ToLower(collapseSpaces(strings.TrimSpace(topic)))
-	if autopilotCanonicalTopic(topic) == "SMM и блогинг" {
+	canonical := autopilotCanonicalTopic(topic)
+	normalized := strings.ToLower(collapseSpaces(strings.TrimSpace(canonical)))
+	if canonical == "SMM и блогинг" {
 		normalized = "smm" // historical key; existing Posta data stays reachable
 	}
 	return fmt.Sprintf("v%d:%s", TopicProfileVersion, repeatDigest(normalized))
