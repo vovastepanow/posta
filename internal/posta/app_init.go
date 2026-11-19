@@ -90,8 +90,12 @@ func (a *App) StartBackground() {
 	if !a.Cfg.Dev || os.Getenv("POSTA_DEV_PARSERS") == "1" {
 		a.Go("shared-collection", a.runSharedCollection)
 		a.Go("source-discovery", a.runSourceDiscoveryWorker)
-		a.Go("source-autopilot-shadow", a.runAutopilotShadowWorker)
-		a.Go("source-autopilot-auto", a.runAutopilotAutoWorker)
+		a.Go("source-autopilot-shadow", func(ctx context.Context) {
+			a.superviseAutopilotWorker(ctx, "shadow", a.runAutopilotShadowWorker)
+		})
+		a.Go("source-autopilot-auto", func(ctx context.Context) {
+			a.superviseAutopilotWorker(ctx, "auto", a.runAutopilotAutoWorker)
+		})
 		a.Go("public-classification-backfill", func(ctx context.Context) {
 			a.backfillPublicClassifications(ctx)
 			ticker := time.NewTicker(5 * time.Minute)
