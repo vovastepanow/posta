@@ -2,6 +2,8 @@ name: Public discovery smoke (isolated)
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
   push:
     branches: [main]
     paths:
@@ -38,5 +40,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Fetch actual public RSS under an isolated worker lease
-        run: go test ./internal/posta -run '^TestAutopilotLivePublicRSS$' -v -count=1 -timeout=3m
+      - name: Verify real public RSS and live Bluesky candidate persistence
+        run: go test ./internal/posta -run '^TestAutopilotLive(PublicRSS|DiscoveryPersistence)
+ -v -count=1 -timeout=5m
