@@ -102,6 +102,24 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		if d.Mode == "auto" {
 			scope, kind = autopilotAutoScope, autopilotAutoKind
 		}
+		// Aggregate queue health for the selected worker only. Unlike the
+		// legacy discovery "found" counter these are persistent source rows,
+		// so operators can distinguish backlog from scheduled retry and AI stalls.
+		var ready, delayed, unchecked, recentChecks, aiPending int
+		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT
+			count(*) FILTER (WHERE state='candidate' AND next_check_at <= $3),
+			count(*) FILTER (WHERE state='candidate' AND next_check_at > $3),
+			count(*) FILTER (WHERE state='candidate' AND checked_at=0),
+			count(*) FILTER (WHERE checked_at >= $4),
+			count(*) FILTER (WHERE reason='assessment_unavailable')
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`,
+			scope, key, time.Now().Unix(), time.Now().Add(-24*time.Hour).Unix()).Scan(&ready, &delayed, &unchecked, &recentChecks, &aiPending)
+		if err != nil {
+			return nil, err
+		}
+		row["queue_ready"], row["queue_delayed"], row["queue_unchecked"] = ready, delayed, unchecked
+		row["checked_24h"], row["assessment_unavailable"] = recentChecks, aiPending
+		row["probation_limit"] = u.TInt("autopilot_max_probation")
 		var lastSuccess int64
 		if err = u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(max(fetched_at),0) FROM source_autopilot_collection_passes WHERE scope=$1 AND topic_key=$2`, scope, key).Scan(&lastSuccess); err != nil {
 			return nil, err
