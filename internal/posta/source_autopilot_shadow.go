@@ -958,6 +958,24 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				}
 			}
 		}
+		// A temporary network/format problem is not a judgement on
+		// content quality. Move unreachable candidates to cooldown, retaining
+		// their history and a scheduled retry instead of clogging the review
+		// queue. Confirmed missing sources are rejected separately below.
+		if state == "candidate" && (reason == "feed_unavailable" || reason == "rate_limited" ||
+			reason == "unrecognized_feed" || reason == "feed_parse_failed") {
+			retry := nextCheck
+			if reason == "unrecognized_feed" || reason == "feed_parse_failed" {
+				retry = at.Add(7 * 24 * time.Hour)
+			}
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
+				"cooldown", reason, jx.Marshal(jx.M{"http_status": res.Status, "retry_reason": reason}),
+				at, retry); err != nil &&
+				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+			continue
+		}
 		// A confirmed 404/410 is not an inconclusive fetch: reject the
 		// missing source and keep an auditable decision, rather than leaving
 		// a dead feed in the candidate queue forever.
@@ -1003,7 +1021,17 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 		}
 		if reason == "" && state == "candidate" && len(samples) < 2 {
-			reason = "insufficient_fresh_samples"
+			// A sparse publisher is worth revisiting, not rejecting. It also
+			// must not block all other candidates for another 24 hours.
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
+				"cooldown", "sparse_publisher", jx.Marshal(jx.M{
+					"quality_samples": len(samples),
+					"quality_window_days": autopilotSourceQualityDays,
+				}), at, at.Add(30*24*time.Hour)); err != nil &&
+				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+			continue
 		}
 		evidence := jx.M{"quality_samples": len(samples), "fresh_samples": len(autopilotFreshRSSSamples(samples, at.Unix())), "sample_limit": 20, "quality_window_days": autopilotSourceQualityDays}
 		if res.Status > 0 {
