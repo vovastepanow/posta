@@ -143,6 +143,11 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 		Scope: autopilotShadowScope, Kind: autopilotShadowKind, Topic: topic,
 		TopicKey: key, Token: token, Generation: 1,
 	}
+	// Regression: a shadow job with pending candidates must never call
+	// the auto-only projection, which previously returned "invalid projection job".
+	if err := a.autopilotFinishBacklog(ctx, job); err != nil {
+		t.Fatalf("shadow backlog completion failed: %v", err)
+	}
 	// This must transfer without executing the scheduled AI/source-review
 	// worker, including when the review job is not yet due.
 	added, err := a.reconcileLegacyPendingWithoutLease(ctx, "shadow", autopilotShadowScope, autopilotShadowKind, 60)
