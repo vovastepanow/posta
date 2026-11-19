@@ -3,6 +3,7 @@ package posta
 import (
 	"encoding/json"
 	"errors"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -120,6 +121,33 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		row["queue_ready"], row["queue_delayed"], row["queue_unchecked"] = ready, delayed, unchecked
 		row["checked_24h"], row["assessment_unavailable"] = recentChecks, aiPending
 		row["probation_limit"] = u.TInt("autopilot_max_probation")
+		// Persisted last outcomes explain why a nonempty candidate queue has
+		// not produced probation sources. Aggregate only; no source IDs leak.
+		outcomes := jx.M{}
+		outcomeRows, outcomeErr := u.DB.Pool.Query(u.Ctx, `SELECT reason,count(*)
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state='candidate'
+			GROUP BY reason`, scope, key)
+		if outcomeErr != nil {
+			return nil, outcomeErr
+		}
+		for outcomeRows.Next() {
+			var reason string
+			var count int
+			if err := outcomeRows.Scan(&reason, &count); err != nil {
+				outcomeRows.Close()
+				return nil, err
+			}
+			if reason == "" {
+				reason = "not_checked"
+			}
+			outcomes[reason] = count
+		}
+		outcomeErr = outcomeRows.Err()
+		outcomeRows.Close()
+		if outcomeErr != nil {
+			return nil, outcomeErr
+		}
+		row["candidate_reasons"] = outcomes
 		var lastSuccess int64
 		if err = u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(max(fetched_at),0) FROM source_autopilot_collection_passes WHERE scope=$1 AND topic_key=$2`, scope, key).Scan(&lastSuccess); err != nil {
 			return nil, err
@@ -223,7 +251,16 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		{"name": "Tumblr", "enabled": u.TBool("autopilot_search_tumblr"), "access": "public"},
 		{"name": "Новости RSS", "enabled": u.TBool("search_news"), "access": "public"},
 	}
-	return jx.M{"topics": topics, "shadow_enabled": u.TBool("autopilot_shadow"), "auto_enabled": u.TBool("autopilot_auto"), "auto_available": true, "backends": backends}, nil
+	revision := "unknown"
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" && len(setting.Value) >= 8 {
+				revision = setting.Value[:8]
+				break
+			}
+		}
+	}
+	return jx.M{"topics": topics, "shadow_enabled": u.TBool("autopilot_shadow"), "auto_enabled": u.TBool("autopilot_auto"), "auto_available": true, "backends": backends, "server_revision": revision}, nil
 }
 
 // SourceAutopilotHistory exposes public decisions only for a profile the
