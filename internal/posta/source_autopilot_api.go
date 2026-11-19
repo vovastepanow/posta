@@ -69,8 +69,15 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 	topics := make([]jx.M, 0, len(demands))
 	for _, d := range demands {
 		key := autopilotTopicKey(d.Topic)
-		var candidates, probation, confirmed int
-		err := u.DB.Pool.QueryRow(u.Ctx, `SELECT count(*) FILTER(WHERE state='candidate'),count(*) FILTER(WHERE state='probation'),count(*) FILTER(WHERE state='active') FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`, autopilotShadowScope, key).Scan(&candidates, &probation, &confirmed)
+		var candidates, probation, confirmed, suspended, rejected int
+		err := u.DB.Pool.QueryRow(u.Ctx, `SELECT
+			count(*) FILTER(WHERE state='candidate'),
+			count(*) FILTER(WHERE state='probation'),
+			count(*) FILTER(WHERE state='active'),
+			count(*) FILTER(WHERE state='cooldown'),
+			count(*) FILTER(WHERE state='rejected')
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`, autopilotShadowScope, key).
+			Scan(&candidates, &probation, &confirmed, &suspended, &rejected)
 		if err != nil {
 			return nil, err
 		}
@@ -83,7 +90,8 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			return nil, err
 		}
 		supply := decideAutopilotSupply(autopilotSupplyInput{Rate: d.PostsPerDay, Horizon: d.HorizonDays, Available: available, Capacity: u.TInt("pool_target"), ConfirmedSources: active, Now: time.Now()})
-		row := jx.M{"topic": d.Topic, "mode": d.Mode, "posts_per_day": d.PostsPerDay, "horizon_days": d.HorizonDays, "shadow_candidates": candidates, "shadow_probation": probation, "shadow_confirmed": confirmed}
+		row := jx.M{"topic": d.Topic, "mode": d.Mode, "posts_per_day": d.PostsPerDay, "horizon_days": d.HorizonDays, "shadow_candidates": candidates, "shadow_probation": probation, "shadow_confirmed": confirmed,
+			"shadow_cooldown": suspended, "shadow_rejected": rejected}
 		row["paused"] = d.Paused
 		row["available"], row["target"], row["deficit"], row["capacity_limited"], row["active_sources"] = available, supply.Demand.Target, supply.Demand.Deficit, supply.CapacityLimited, active
 		row["auto_probation"], row["supply_mode"] = autoProbation, supply.Mode
@@ -108,7 +116,8 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		// so operators can distinguish backlog from scheduled retry and AI stalls.
 		var ready, delayed, unchecked, recentChecks, aiPending int
 		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT
-			count(*) FILTER (WHERE state='candidate' AND (next_check_at <= $3 OR reason='probation_full')),
+			count(*) FILTER (WHERE state='candidate' AND (next_check_at <= $3 OR reason='probation_full' OR
+				(reason IN ('feed_unavailable','insufficient_fresh_samples') AND checked_at < $3-3600))),
 			count(*) FILTER (WHERE state='candidate' AND next_check_at > $3 AND reason<>'probation_full'),
 			count(*) FILTER (WHERE state='candidate' AND checked_at=0),
 			count(*) FILTER (WHERE checked_at >= $4),
@@ -223,18 +232,21 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 					return nil, err
 				}
 				row["direct_qualified_recent"] = recent
-				var autoCandidates, autoProbation, autoActive int
+				var autoCandidates, autoProbation, autoActive, autoCooldown, autoRejected int
 				if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT
 					count(*) FILTER(WHERE state='candidate'),
 					count(*) FILTER(WHERE state='probation'),
-					count(*) FILTER(WHERE state='active')
+					count(*) FILTER(WHERE state='active'),
+					count(*) FILTER(WHERE state='cooldown'),
+					count(*) FILTER(WHERE state='rejected')
 					FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`,
-					autopilotAutoScope, key).Scan(&autoCandidates, &autoProbation, &autoActive); err != nil {
+					autopilotAutoScope, key).Scan(&autoCandidates, &autoProbation, &autoActive, &autoCooldown, &autoRejected); err != nil {
 					return nil, err
 				}
 				row["auto_candidates"] = autoCandidates
 				row["auto_sources_probation"] = autoProbation
 				row["auto_sources_active"] = autoActive
+				row["auto_sources_cooldown"], row["auto_sources_rejected"] = autoCooldown, autoRejected
 				row["diagnosis"] = autopilotStatusReason(autopilotStatusInput{
 					Paused: d.Paused, Enabled: enabled, Eligible: eligible,
 					Running: lease > now(), Failure: failure,
@@ -280,7 +292,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 // Pagination is by stable source ID, without scanning or sending a whole queue.
 func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) (jx.M, error) {
 	if strings.TrimSpace(topic) == "" || (mode != "shadow" && mode != "auto") ||
-		(state != "found" && state != "candidate" && state != "probation" && state != "active") {
+		(state != "found" && state != "candidate" && state != "probation" && state != "active" && state != "cooldown" && state != "rejected") {
 		return nil, Bad("Некорректный список источников.")
 	}
 	// Source explorer loads all rows in one request for normal queues.
