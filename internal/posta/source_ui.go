@@ -169,7 +169,7 @@ func (u *U) suggestionSourceCandidates(d *SourceDB, platform string, voted map[s
 	sort.SliceStable(list, func(i, j int) bool { return rank(list[i]) > rank(list[j]) })
 	out := []jx.M{}
 	for _, s := range list {
-		extra := jx.M{"id": s["id"], "suggested": true, "score": s["score"], "timestamp": s["timestamp"]}
+		extra := jx.M{"id": s["id"], "suggested": true, "score": s["score"], "timestamp": s["timestamp"], "suggestion_topic": jx.Str(s, "topic")}
 		if jx.Str(s, "platform") == PlatformRSS {
 			extra["kind"] = RSSFeedKind(jx.Str(s, "id"))
 			extra["platform_label"] = RSSPlatformLabel(jx.Str(s, "id"))
