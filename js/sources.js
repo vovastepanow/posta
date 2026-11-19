@@ -635,34 +635,47 @@ const autopilotSourceReasonLabels = {
     observed_ad_or_duplicates: 'Слишком много рекламы или дублей'
 };
 function autopilotSourceIdentity(raw) {
-    const source = String(raw || '');
-    const rawURL = source.startsWith('rss:') ? source.slice(4) : (/^https?:\/\//i.test(source) ? source : '');
-    let url = '';
-    let host = '';
-    let pathname = '';
+    const source = String(raw || '').trim();
+    const prefixes = [
+        ['ok:', 'Одноклассники', 'odnoklassniki', 'OK', '#f58220', id => /^\\d+$/.test(id) ? 'https://ok.ru/group/' + id : ''],
+        ['vk:', 'ВКонтакте', 'vk', 'VK', '#0077ff', id => /^[a-z0-9_.-]+$/i.test(id) ? 'https://vk.com/' + id : ''],
+        ['telegram:', 'Telegram', 'telegram', 'TG', '#26a5e4', id => /^[a-z0-9_]+$/i.test(id) ? 'https://t.me/' + id : ''],
+        ['tiktok:', 'TikTok', 'tiktok', 'TT', '#171717', id => /^[a-z0-9_.]+$/i.test(id) ? 'https://www.tiktok.com/@' + id : '']
+    ];
+    const prefixed = prefixes.find(([prefix]) => source.startsWith(prefix));
+    if (prefixed) {
+        const [prefix, label, icon, fallback, color, toURL] = prefixed;
+        const id = source.slice(prefix.length);
+        const url = toURL(id);
+        return { url, display: id, platform: { label, icon, fallback, color } };
+    }
+    const rawURL = source.startsWith('rss:') ? source.slice(4) : source;
+    let url = '', host = '', pathname = '';
     try {
         const parsed = new URL(rawURL);
-        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+        if (['https:', 'http:'].includes(parsed.protocol)) {
             url = parsed.href;
             host = parsed.hostname.toLowerCase();
-            pathname = decodeURIComponent(parsed.pathname);
+            pathname = parsed.pathname;
         }
-    } catch { /* An unknown or malformed source is shown as plain text. */ }
+    } catch { /* Unrecognized source IDs stay visible as text. */ }
     const domains = [
-        { match: /(^|\.)ok\.ru$/, label: 'Одноклассники', icon: 'odnoklassniki', fallback: 'OK', color: '#f58220' },
-        { match: /(^|\.)vk\.com$/, label: 'ВКонтакте', icon: 'vk', fallback: 'ВК', color: '#0077ff' },
-        { match: /(^|\.)t\.me$|(^|\.)telegram\.(org|me)$/, label: 'Telegram', icon: 'telegram', fallback: 'TG', color: '#26a5e4' },
-        { match: /(^|\.)(youtube\.com|youtu\.be)$/, label: 'YouTube', icon: 'youtube', fallback: 'YT', color: '#ff0033' },
-        { match: /(^|\.)tiktok\.com$/, label: 'TikTok', icon: 'tiktok', fallback: 'TT', color: '#292929' },
-        { match: /(^|\.)bsky\.app$/, label: 'Bluesky', icon: 'bluesky', fallback: 'BS', color: '#1185fe' },
-        { match: /(^|\.)reddit\.com$/, label: 'Reddit', icon: 'reddit', fallback: 'RD', color: '#ff4500' },
-        { match: /(^|\.)(habr\.com|habrahabr\.ru)$/, label: 'Хабр', icon: 'habr', fallback: 'Х', color: '#4b7796' },
-        { match: /(^|\.)tumblr\.com$/, label: 'Tumblr', icon: 'tumblr', fallback: 'T', color: '#36465d' },
-        { match: /(^|\.)(mastodon\.[^.]|mstdn\.|fosstodon\.|techhub\.social)|\/users\//, label: 'Mastodon', icon: 'mastodon', fallback: 'M', color: '#6364ff' },
-        { match: /(^|\.)lemmy\.|(^|\.)lemm\.ee$/, label: 'Lemmy', icon: 'lemmy', fallback: 'L', color: '#50b879' }
+        [/^(?:.+\\.)?ok\\.ru$/, 'Одноклассники', 'odnoklassniki', 'OK', '#f58220'],
+        [/^(?:.+\\.)?vk\\.com$/, 'ВКонтакте', 'vk', 'VK', '#0077ff'],
+        [/^(?:.+\\.)?(?:t\\.me|telegram\\.org|telegram\\.me)$/, 'Telegram', 'telegram', 'TG', '#26a5e4'],
+        [/^(?:.+\\.)?(?:youtube\\.com|youtu\\.be)$/, 'YouTube', 'youtube', 'YT', '#ff0033'],
+        [/^(?:.+\\.)?tiktok\\.com$/, 'TikTok', 'tiktok', 'TT', '#171717'],
+        [/^(?:.+\\.)?bsky\\.app$/, 'Bluesky', 'bluesky', 'BS', '#1185fe'],
+        [/^(?:.+\\.)?reddit\\.com$/, 'Reddit', 'reddit', 'RD', '#ff4500'],
+        [/^(?:.+\\.)?(?:habr\\.com|habrahabr\\.ru)$/, 'Хабр', 'habr', 'Х', '#4b7796'],
+        [/^(?:.+\\.)?tumblr\\.com$/, 'Tumblr', 'tumblr', 'T', '#36465d'],
+        [/^(?:.+\\.)?(?:mastodon\\.social|mastodon\\.online|mstdn\\.social)$/, 'Mastodon', 'mastodon', 'M', '#6364ff'],
+        [/^(?:.+\\.)?(?:lemmy\\.world|lemmy\\.ml|lemmy\\.zip|lemmy\\.today|lemm\\.ee)$/, 'Lemmy', 'lemmy', 'L', '#50b879']
     ];
-    const social = domains.find(item => item.match.test(host)) || null;
-    const platform = social || { label: 'RSS / сайт', icon: 'rss', fallback: 'RSS', color: '#d98a29' };
+    const match = domains.find(([pattern]) => pattern.test(host));
+    const platform = match
+        ? { label: match[1], icon: match[2], fallback: match[3], color: match[4] }
+        : { label: host || 'Сайт', icon: '', fallback: (host || 'SITE').slice(0, 2).toUpperCase(), color: '#3e4b60', faviconHost: host };
     const display = url ? host + (pathname === '/' ? '' : pathname) : source;
     return { url, display: display || source, platform };
 }
@@ -673,13 +686,17 @@ function autopilotSourceCard(item) {
     const icon = el('span', { className: 'autopilot-source-brand', textContent: platform.fallback });
     icon.style.backgroundColor = platform.color;
     // Brand SVGs are optional; a contrasting text mark is always available.
-    const artwork = el('img', {
-        alt: '', loading: 'eager', decoding: 'async',
-        src: 'https://cdn.simpleicons.org/' + platform.icon + '/ffffff'
-    });
-    artwork.addEventListener('load', () => icon.classList.add('has-artwork'));
-    artwork.addEventListener('error', () => artwork.remove());
-    icon.append(artwork);
+    // The source artwork is decorative and never clickable. RSS uses the
+    // website's actual favicon, not a generic RSS pictogram.
+    const imageURL = platform.faviconHost
+        ? 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(platform.faviconHost) + '&sz=128'
+        : platform.icon ? 'https://cdn.simpleicons.org/' + platform.icon + '/ffffff' : '';
+    if (imageURL) {
+        const artwork = el('img', { alt: '', loading: 'lazy', decoding: 'async', src: imageURL });
+        artwork.addEventListener('load', () => icon.classList.add('has-artwork'));
+        artwork.addEventListener('error', () => artwork.remove());
+        icon.append(artwork);
+    }
     const name = url ? el('a', {
         href: url, target: '_blank', rel: 'noopener noreferrer', textContent: identity.display,
         title: 'Открыть источник в новой вкладке'
@@ -720,54 +737,67 @@ function openAutopilotSourceDialog(topic, state, count) {
     const list = el('div', { className: 'autopilot-source-grid' });
     const hint = el('p', { className: 'autopilot-source-hint',
         textContent: 'Источники могут переходить между этапами во время проверки. Уже загруженные карточки остаются на экране.' });
-    const more = el('button', { type: 'button', className: 'secondary-button', textContent: 'Показать ещё', hidden: true });
     const reload = el('button', { type: 'button', className: 'secondary-button', textContent: 'Обновить список' });
     const status = el('span', { className: 'autopilot-source-progress' });
     dialog.append(
         el('div', { className: 'autopilot-sources-header' },
             el('div', {}, heading, subtitle), close),
         hint, list,
-        el('div', { className: 'autopilot-sources-footer' }, more, reload, status));
+        el('div', { className: 'autopilot-sources-footer' }, reload, status));
     document.body.append(dialog);
     const context = { dialog, topic: topic.topic, state, mode: topic.mode };
     autopilotSourceDialog = context;
-    let after = '', loading = false, version = 0, loaded = 0;
-    const getPage = async (reset = false) => {
-        if (loading && !reset) return;
+    let version = 0;
+    const loadAllSources = async () => {
         const current = ++version;
-        loading = true;
-        if (reset) {
-            after = ''; loaded = 0;
-            list.replaceChildren(el('p', { className: 'autopilot-source-empty', textContent: 'Загружаю источники…' }));
-        }
-        const requestedAfter = after;
-        more.disabled = true;
         reload.disabled = true;
+        status.textContent = 'Загрузка…';
+        // Keep the current cards visible during refresh, including on errors.
+        if (!list.children.length) list.append(el('p', { className: 'autopilot-source-empty', textContent: 'Загружаю источники…' }));
         try {
-            const result = await api('source_autopilot_sources', {
-                params: { topic: topic.topic, mode: topic.mode, state, after: requestedAfter, limit: 25 }
-            });
-            if (current !== version || !dialog.open) return;
-            if (!requestedAfter) list.replaceChildren();
-            if (state === 'found' && result.snapshot_available === false) {
-                list.append(el('p', { className: 'autopilot-source-empty',
-                    textContent: 'Источники последнего поиска станут доступны после следующего поискового цикла. Ранее сохранялось только количество.' }));
-            } else {
-                for (const source of result.sources || []) { list.append(autopilotSourceCard(source)); loaded++; }
-                if (!loaded) list.append(el('p', { className: 'autopilot-source-empty', textContent: 'Здесь пока нет источников.' }));
+            let after = '', snapshotAvailable = true;
+            const sources = [];
+            const seen = new Set();
+            // Read every page automatically, never ask the user to page through
+            // a modest queue. Bound loops in case a buggy server repeats a cursor.
+            for (let page = 0; page < 100; page++) {
+                const result = await api('source_autopilot_sources', {
+                    params: { topic: topic.topic, mode: topic.mode, state, after, limit: 500 }
+                });
+                if (current !== version || !dialog.open) return;
+                if (state === 'found' && result.snapshot_available === false) {
+                    snapshotAvailable = false;
+                    break;
+                }
+                for (const item of result.sources || []) {
+                    if (!seen.has(item.source_id)) {
+                        seen.add(item.source_id);
+                        sources.push(item);
+                    }
+                }
+                const next = result.next_after || '';
+                if (!next || next === after) break;
+                after = next;
             }
-            after = result.next_after || '';
-            more.hidden = !after;
-            status.textContent = 'Показано: ' + loaded.toLocaleString('ru-RU');
+            if (current !== version || !dialog.open) return;
+            list.replaceChildren();
+            if (!snapshotAvailable) {
+                list.append(el('p', { className: 'autopilot-source-empty',
+                    textContent: 'Список последнего поиска появится после следующего прохода: раньше сохранялось только количество.' }));
+            } else if (!sources.length) {
+                list.append(el('p', { className: 'autopilot-source-empty', textContent: 'В этой секции сейчас нет источников.' }));
+            } else {
+                list.append(...sources.map(autopilotSourceCard));
+            }
+            status.textContent = 'Всего показано: ' + sources.length.toLocaleString('ru-RU');
         } catch (error) {
             if (current !== version || !dialog.open) return;
-            if (reset) list.replaceChildren();
-            list.append(el('p', { className: 'autopilot-source-empty', textContent: 'Не удалось получить данные: ' + error.message }));
-            more.hidden = true;
-        } finally {
-            if (current === version) {
-                loading = false; more.disabled = false; reload.disabled = false;
+            status.textContent = 'Ошибка загрузки';
+            if (!list.querySelector('.autopilot-source-card')) {
+                list.replaceChildren(el('p', { className: 'autopilot-source-empty', textContent: 'Не удалось загрузить: ' + error.message }));
             }
+        } finally {
+            if (current === version) reload.disabled = false;
         }
     };
     const dismiss = () => {
@@ -777,12 +807,11 @@ function openAutopilotSourceDialog(topic, state, count) {
     };
     close.addEventListener('click', () => dialog.close());
     dialog.addEventListener('close', dismiss, { once: true });
-    more.addEventListener('click', () => getPage());
-    reload.addEventListener('click', () => getPage(true));
+    reload.addEventListener('click', loadAllSources);
     close.setAttribute('aria-label', 'Закрыть окно источников');
     dialog.setAttribute('aria-label', 'Источники: ' + (autopilotSourceStates[state] || state));
     dialog.showModal();
-    getPage(true);
+    loadAllSources();
 }
 
 function renderAutopilot(data) {
