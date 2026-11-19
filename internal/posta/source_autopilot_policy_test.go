@@ -12,6 +12,13 @@ func TestAutopilotSourcePolicy(t *testing.T) {
 		{"probation", sourceEvidence{Evaluated: 3, Relevant: 3, FreshUnique: 3, SuccessfulPasses: 1}, "probation", "insufficient_evidence"},
 		{"probation", sourceEvidence{Evaluated: 10, Relevant: 9, FreshUnique: 3, SuccessfulPasses: 3}, "active", "observed_useful"},
 		{"probation", sourceEvidence{Evaluated: 10, Relevant: 9, FreshUnique: 0, SuccessfulPasses: 3}, "probation", "retain"},
+		// A curator can qualify through varied independently verified good
+		// reposts; reposting never turns into original-content credit.
+		{"probation", sourceEvidence{Evaluated: 10, Relevant: 9, FreshUnique: 0, CuratedUnique: 5, SuccessfulPasses: 3, Duplicates: 9}, "active", "observed_useful_curation"},
+		{"probation", sourceEvidence{Evaluated: 10, Relevant: 9, FreshUnique: 0, CuratedUnique: 1, SuccessfulPasses: 3, Duplicates: 9}, "probation", "retain"},
+		{"probation", sourceEvidence{Evaluated: 10, Relevant: 5, FreshUnique: 0, CuratedUnique: 4, SuccessfulPasses: 3, Duplicates: 9}, "probation", "retain"},
+		{"probation", sourceEvidence{Evaluated: 10, Relevant: 9, FreshUnique: 0, CuratedUnique: 5, SuccessfulPasses: 1, Duplicates: 9}, "probation", "insufficient_evidence"},
+		{"probation", sourceEvidence{Evaluated: 10, Relevant: 9, FreshUnique: 0, CuratedUnique: 5, SuccessfulPasses: 3, Advertising: 3, Duplicates: 9}, "rejected", "observed_ad_or_duplicates"},
 		{"active", sourceEvidence{Evaluated: 10, Relevant: 2, FreshUnique: 1, SuccessfulPasses: 3}, "probation", "quality_drift"},
 		{"active", sourceEvidence{Evaluated: 10, Relevant: 2, FreshUnique: 1, SuccessfulPasses: 3, TechnicalFailure: true}, "active", "access_unavailable"},
 		{"probation", sourceEvidence{Evaluated: 10, Relevant: 2, FreshUnique: 1, SuccessfulPasses: 3}, "rejected", "observed_irrelevant"},
