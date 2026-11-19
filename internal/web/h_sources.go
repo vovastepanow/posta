@@ -52,48 +52,6 @@ func init() {
 		}
 		return c.U.SourceAutopilotStatus()
 	})
-	post("suggest_sources", func(c *Ctx) (any, error) {
-		u, cancel := c.userDetached(30 * time.Second)
-		defer cancel()
-		r, status, err := u.SuggestSources(c.In)
-		if err != nil {
-			return nil, err
-		}
-		if status != 200 {
-			return Resp{status, r}, nil
-		}
-		return r, nil
-	})
-	get("pending_sources", func(c *Ctx) (any, error) {
-		list, err := c.U.PendingSources(c.Q("platform"))
-		if err != nil {
-			return nil, err
-		}
-		return jx.M{"sources": list, "topic": c.U.CurrentTopic()}, nil
-	})
-	post("pending_sources_page", func(c *Ctx) (any, error) {
-		limit := int(jx.Int(c.In, "limit"))
-		if limit < 1 {
-			limit = 12
-		}
-		if limit > 40 {
-			limit = 40
-		}
-		exclude := jx.Strs(c.In, "exclude")
-		if len(exclude) > 5000 {
-			return nil, fail(400, "Слишком длинный список источников.")
-		}
-		list, total, more, err := c.U.PendingSourcesPage(c.Str("platform"), exclude, limit, c.Str("sort"))
-		if err != nil {
-			return nil, err
-		}
-		return jx.M{"sources": list, "total": total, "has_more": more, "topic": c.U.CurrentTopic()}, nil
-	})
-	post("pending_source_preview", func(c *Ctx) (any, error) {
-		u, cancel := c.userDetached(30 * time.Second)
-		defer cancel()
-		return u.PendingSourcePreview(c.Str("source_id"), jx.Bool(c.In, "title_only"))
-	})
 	post("rss_source_title", func(c *Ctx) (any, error) {
 		u, cancel := c.userDetached(30 * time.Second)
 		defer cancel()
@@ -103,49 +61,6 @@ func init() {
 		}
 		return jx.M{"name": name}, nil
 	})
-	post("source_postpone", func(c *Ctx) (any, error) {
-		return ok(nil), c.U.PostponeSource(jx.Map(c.In, "source"))
-	})
-	post("source_vote", func(c *Ctx) (any, error) {
-		return ok(nil), c.U.SourceVote(c.Str("vote"), jx.Map(c.In, "source"), c.Str("reason"))
-	})
-	discover := func(c *Ctx) (any, error) {
-		platform := c.Str("platform")
-		if platform != "" {
-			if _, ok := posta.DiscoveryPlatforms[platform]; !ok {
-				return nil, fail(400, "Неизвестная площадка для поиска источников.")
-			}
-		}
-		result := c.U.StartSourceDiscovery(c.U.CurrentTopic(), platform)
-		if result == "queued_auto" {
-			return jx.M{"status": "success", "message": "Эта тема обслуживается автоматической очередью RSS. Сохранены текущие сроки и лимиты поиска."}, nil
-		}
-		if result == "unavailable" {
-			return nil, fail(503, "Не удалось проверить состояние автопилота. Попробуйте позже.")
-		}
-		if result == "paused" {
-			return jx.M{"status": "success", "message": "Автопилот темы приостановлен или частота публикаций равна нулю."}, nil
-		}
-		if result != "started" {
-			return jx.M{"status": "success", "message": "Подбор источников по этой теме уже идёт."}, nil
-		}
-		return jx.M{"status": "success", "message": "Подбор источников запущен. Ход поиска — в панели поиска источников."}, nil
-	}
-	post("discover_sources", discover)
-	post("control_sources", func(c *Ctx) (any, error) {
-		if err := ownerOnly(c); err != nil {
-			return nil, err
-		}
-		return discover(c)
-	})
-	post("stop_sources", func(c *Ctx) (any, error) {
-		if err := ownerOnly(c); err != nil {
-			return nil, err
-		}
-		stopped, stopping := c.U.StopSourceDiscovery(c.U.CurrentTopic())
-		return ok(jx.M{"stopped": stopped, "stopping": stopping}), nil
-	})
-	get("discovery_status", discoveryStatus)
 	// реестр проверенных источников: «Проверенные» на вкладке «Источники»
 	get("registry_list", func(c *Ctx) (any, error) {
 		topic := ""
