@@ -205,7 +205,9 @@ func (a *App) reconcileLegacyPendingWithoutLease(ctx context.Context, mode, scop
 					SELECT $1,$2,$3,'candidate','legacy_pending_import',$6,$7
 					WHERE EXISTS (SELECT 1 FROM source_autopilot_jobs j WHERE j.scope=$1 AND j.topic_key=$2 AND j.kind=$4 AND j.enabled AND j.demand_active)
 					AND EXISTS (SELECT 1 FROM source_autopilot_demands d WHERE d.topic_key=$2 AND d.mode=$5 AND NOT d.paused)
-					AND NOT EXISTS (SELECT 1 FROM source_votes v WHERE v.source_id=$3)
+					-- Vote eligibility was already checked against this topic's
+					-- catalog decisions. The old global source_votes check blocked
+					-- migration if the same source had a vote in ANY other topic.
 					AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o
 						WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=$3 AND o.decision='excluded')
 					ON CONFLICT DO NOTHING RETURNING scope,topic_key,source_id
