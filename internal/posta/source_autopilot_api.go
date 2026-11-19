@@ -316,8 +316,8 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 	if state == "found" {
 		rows, err = u.DB.Pool.Query(u.Ctx, `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at
 			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
-			AND source_id=ANY($6) AND source_id>$4
-			ORDER BY source_id LIMIT $5`, scope, key, state, after, limit+1, latestIDs)
+			AND source_id=ANY($5) AND source_id>$3
+			ORDER BY source_id LIMIT $4`, scope, key, after, limit+1, latestIDs)
 	} else {
 		rows, err = u.DB.Pool.Query(u.Ctx, query, scope, key, state, after, limit+1)
 	}
