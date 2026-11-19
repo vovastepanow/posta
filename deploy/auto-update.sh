@@ -31,6 +31,21 @@ fail "Unexpected origin URL. Check it manually."
 
 [ "$(git branch --show-current)" = main ] || fail "Expected branch main."
 git diff --quiet && git diff --cached --quiet || fail "Tracked local changes present; refusing to overwrite."
+
+# Reconcile the installed schedule as well as the repository version. The
+# first deploy of this change is still started by the old 10-minute cron;
+# its next invocation picks up this code and switches the host to 3 minutes.
+# Do not block deployments if crontab is temporarily unavailable.
+if command -v crontab >/dev/null 2>&1; then
+    desired_line="*/3 * * * * /bin/bash $APP/deploy/auto-update.sh >> $HOME/posta-auto-update.log 2>&1"
+    if ! crontab -l 2>/dev/null | grep -Fxq -- "$desired_line"; then
+        if /bin/bash "$APP/deploy/enable-auto-update.sh"; then
+            log "Cron schedule reconciled to every 3 minutes."
+        else
+            log "WARNING: could not update cron schedule; will retry."
+        fi
+    fi
+fi
 git fetch --quiet origin main
 current="$(git rev-parse HEAD)"
 target="$(git rev-parse refs/remotes/origin/main)"
