@@ -110,6 +110,25 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 	if err = d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_query_sources WHERE scope='public:shadow' AND topic_key=$1 AND query=$2`, key, job.SearchQuery).Scan(&count); err != nil || count != 2 {
 		t.Fatalf("query attribution=%d err=%v", count, err)
 	}
+	// Authenticated state listings must expose only this topic's public
+	// sources and page them without repeating entries.
+	page, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "candidate", "", 1)
+	if err != nil || len(jx.Maps(page, "sources")) != 1 || jx.Str(page, "next_after") == "" {
+		t.Fatalf("first candidate page=%v err=%v", page, err)
+	}
+	secondPage, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "candidate", jx.Str(page, "next_after"), 1)
+	if err != nil || len(jx.Maps(secondPage, "sources")) != 1 || jx.Str(secondPage, "next_after") != "" {
+		t.Fatalf("second candidate page=%v err=%v", secondPage, err)
+	}
+	if jx.Str(jx.Maps(page, "sources")[0], "source_id") == jx.Str(jx.Maps(secondPage, "sources")[0], "source_id") {
+		t.Fatal("candidate page repeated the same source")
+	}
+	if _, err := a.User(ctx, "unsubscribed-autopilot-test", nil).SourceAutopilotSources(topic, "shadow", "candidate", "", 10); err == nil {
+		t.Fatal("unsubscribed user could enumerate public topic sources")
+	}
+	if _, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "cooldown", "", 10); err == nil {
+		t.Fatal("unlisted source state was accepted")
+	}
 	partialErr := a.autopilotShadowSearchWith(ctx, job, func(context.Context) ([]DiscoveryCandidate, error) {
 		return []DiscoveryCandidate{{Platform: PlatformRSS, ID: "https://example.org/partial"}}, errAutopilotBudgetExhausted
 	})
