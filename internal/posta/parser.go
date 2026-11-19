@@ -402,6 +402,17 @@ func platformSummaryLine(rep map[string]*platReport, vk bool) string {
 // collectPostsByPlatform — посты всех источников темы по площадкам.
 func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	by := map[string][]jx.M{}
+	blogMode := u.personalBlogMode(topic)
+	blogKinds := map[string]string{}
+	if blogMode != personalBlogAny {
+		var err error
+		blogKinds, err = u.personalBlogSourceKinds(topic)
+		if err != nil {
+			u.Log("Не удалось получить типы источников: %v", err)
+			return by // strict filter fails closed
+		}
+	}
+	blogAllowed := func(source string) bool { return personalBlogAllowed(blogMode, blogKinds[source]) }
 	overrides := u.sourceOverridesForTopic(topic)
 	stats := map[string]int{}
 	updates := map[string]jx.M{}
@@ -411,7 +422,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	}
 	// Boards are discovery locations; only explicitly approved threads are collected.
 	for _, thread := range u.approvedImageboardThreads(u.Catalog(), topic) {
-		if sourceExcludedByOverride(overrides, jx.Str(thread, "source_id")) {
+		if sourceExcludedByOverride(overrides, jx.Str(thread, "source_id")) || !blogAllowed(jx.Str(thread, "source_id")) {
 			continue
 		}
 		if !u.Alive() {
@@ -448,7 +459,8 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 			continue
 		}
 		for _, e := range *d.List(c.Kind) {
-			if sourceExcludedByOverride(overrides, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) {
+			if sourceExcludedByOverride(overrides, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) ||
+				!blogAllowed(SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) {
 				continue
 			}
 			if u.CatalogEntryMatchesTopic(e, topic, false) && !IsSourceFrozen(e, 0) {
@@ -493,7 +505,8 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 				stats["other_topic"]++
 				continue
 			}
-			if sourceExcludedByOverride(overrides, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) {
+			if sourceExcludedByOverride(overrides, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) ||
+				!blogAllowed(SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) {
 				continue
 			}
 			if u.UASourceBlocked(SourceIDFor(c.Platform, jx.Str(e, "id")), jx.M{"title": jx.Str(e, "name")}) != "" {
@@ -565,7 +578,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 		if sid == "" {
 			sid = SourceIDFor(p, jx.Str(s, "id"))
 		}
-		if sourceExcludedByOverride(overrides, sid) {
+		if sourceExcludedByOverride(overrides, sid) || !blogAllowed(sid) {
 			continue
 		}
 		if CatalogKind(p) == "" || (p == PlatformVK && !vk) || !u.TopicSame(jx.Str(s, "topic"), topic) || int(jx.Int(s, "score")) < u.TInt("suggest_score") {
@@ -641,6 +654,19 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 		}
 	}
 
+	if blogMode != personalBlogAny {
+		// This also covers direct post-search and cached public posts, whose
+		// sources may never have appeared in the legacy catalog.
+		for platform, posts := range by {
+			allowed := make([]jx.M, 0, len(posts))
+			for _, post := range posts {
+				if blogAllowed(ContentSourceKey(post)) {
+					allowed = append(allowed, post)
+				}
+			}
+			by[platform] = allowed
+		}
+	}
 	return by
 }
 
