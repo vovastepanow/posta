@@ -246,7 +246,14 @@ function renderAutopilot(data) {
         const disabled = topic.mode === 'off' || topic.paused || topic.job_paused ||
             !(topic.mode === 'auto' ? data.auto_enabled : data.shadow_enabled);
         const activePhase = topic.running ? topic.pipeline_phase : '';
-        const phaseLabels = { prepare: 'Подготовка', search: 'Поиск по площадкам', review: 'Проверка источников', delivery: 'Доставка в пул' };
+        const phaseLabels = {
+            prepare: 'Подготовка',
+            prepare_legacy: 'Перенос старых предложений',
+            prepare_hints: 'Обработка подсказок источников',
+            prepare_projection: 'Подключение и очистка источников',
+            prepare_delivery: 'Передача проверенных постов',
+            search: 'Поиск по площадкам', review: 'Проверка источников', delivery: 'Доставка в пул'
+        };
         const diagnosisNames = {
             classifier_unavailable: 'AI-оценка источников недоступна — проверяю повторно',
             worker_not_running: 'Фоновый обработчик не работает — задания не исполняются',
@@ -270,7 +277,7 @@ function renderAutopilot(data) {
             : workerFault ? diagnosisNames[topic.diagnosis]
             : topic.running ? 'Работает: ' + (phaseLabels[activePhase] || 'запуск цикла')
             : topic.mode === 'auto' && diagnosisNames[topic.diagnosis] ? diagnosisNames[topic.diagnosis]
-            : topic.failure ? 'Ожидает повтора после ошибки'
+            : topic.failure ? 'Ошибка на этапе: ' + (phaseLabels[topic.pipeline_phase] || 'выполнение цикла') + ' — назначен повтор'
             : topic.mode === 'shadow' ? 'Теневой режим — без подключения источников'
             : topic.mode === 'auto' && topic.available >= topic.target && topic.target > 0 ? 'Запас собран'
             : 'Ожидает следующего цикла';
