@@ -33,6 +33,13 @@ func (u *U) pendingSourcesPage(filter string, exclude []string, limit int, targe
 	d := u.Catalog()
 	voted := u.decidedSourceKeys(d.Votes, topic)
 	cands := excludeDecidedSourceCandidates(u.suggestionSourceCandidates(d, platform, nil, topic), voted)
+	// Transferred suggestions are now owned by source autopilot and should
+	// not continue asking the user for the same manual decision.
+	var err error
+	cands, err = u.excludeAutopilotTransferredPending(cands, topic)
+	if err != nil {
+		return nil, 0, false, err
+	}
 	if err := sortPendingSources(cands, order); err != nil {
 		return nil, 0, false, err
 	}
