@@ -54,7 +54,7 @@ func (u *U) personalBlogMode(topic string) string {
 
 // Settings are per-user and per-topic, without changing public source
 // verification for other users subscribed to the same topic.
-func (u *U) savePersonalBlogMode(topic, mode string) error {
+func (u *U) SavePersonalBlogMode(topic, mode string) error {
 	if u.ID == "" || autopilotCanonicalTopic(topic) == "" || !validPersonalBlogMode(mode) {
 		return Bad("Некорректный фильтр личных блогов.")
 	}
