@@ -621,10 +621,10 @@ async function startDiscovery() {
 // Source lists stay in one native modal outside the re-rendered dashboard.
 // Opening the same metric again never closes or clears its results.
 let autopilotSourceDialog = null;
-const autopilotSourceStates = { found: 'Найдено за цикл', candidate: 'Ожидают проверки', probation: 'На испытании', active: 'Подтверждено' };
-const autopilotSourceStateLabels = { candidate: 'Ожидает проверки', probation: 'На испытании', active: 'Подтверждён', cooldown: 'Отложен', rejected: 'Отклонён' };
+const autopilotSourceStates = { found: 'Найдено за цикл', candidate: 'Ожидают проверки', probation: 'На испытании', active: 'Подтверждено', cooldown: 'Повторная проверка позже', rejected: 'Отклонённые источники' };
+const autopilotSourceStateLabels = { candidate: 'Ожидает проверки', probation: 'На испытании', active: 'Подтверждён', cooldown: 'Повторная проверка', rejected: 'Отклонён' };
 const autopilotSourceReasonLabels = {
-    discovered: 'Ожидает первой проверки', insufficient_fresh_samples: 'Недостаточно свежих публикаций',
+    discovered: 'Ожидает первой проверки', insufficient_fresh_samples: 'Недостаточно публикаций в коротком окне (устаревшая проверка)', sparse_publisher: 'Публикует редко — мониторинг без отклонения',
     feed_unavailable: 'Лента недоступна', rate_limited: 'Ограничение запросов площадки',
     source_not_found: 'Источник не найден', unrecognized_feed: 'Формат ленты не распознан',
     feed_parse_failed: 'Ошибка разбора ленты', preliminary_match_uncertain: 'Недостаточно высокая оценка тематики',
@@ -845,6 +845,8 @@ function renderAutopilot(data) {
         const sourceCandidates = topic.mode === 'auto' ? topic.auto_candidates : topic.shadow_candidates;
         const sourcesReview = topic.mode === 'auto' ? topic.auto_sources_probation : topic.shadow_probation;
         const sourcesActive = topic.mode === 'auto' ? topic.auto_sources_active : topic.shadow_confirmed;
+        const sourcesCooldown = topic.mode === 'auto' ? topic.auto_sources_cooldown : topic.shadow_cooldown;
+        const sourcesRejected = topic.mode === 'auto' ? topic.auto_sources_rejected : topic.shadow_rejected;
         const stat = (label, value, hint) => el('div', { className: 'autopilot-metric' },
             el('span', { className: 'autopilot-metric-value', textContent: number(value) }),
             el('span', { className: 'autopilot-metric-label', textContent: label }),
@@ -881,7 +883,9 @@ function renderAutopilot(data) {
                 sourceStat('Найдено за 1 цикл', found, 'Нажмите, чтобы открыть список', 'found'),
                 sourceStat('Ожидают проверки', sourceCandidates, 'Нажмите, чтобы открыть список', 'candidate'),
                 sourceStat('На испытании', sourcesReview, 'Нажмите, чтобы открыть список', 'probation'),
-                sourceStat('Подтверждено', sourcesActive, 'Нажмите, чтобы открыть список', 'active')),
+                sourceStat('Подтверждено', sourcesActive, 'Нажмите, чтобы открыть список', 'active'),
+                sourceStat('На повторной проверке', sourcesCooldown, 'Пауза без отклонения; нажмите для списка', 'cooldown'),
+                sourceStat('Отклонено', sourcesRejected, 'Проверенные отрицательные решения', 'rejected')),
             el('div', { className: 'autopilot-pipeline', 'aria-label': 'Этапы подбора источников' },
                 phase('1. Поиск', topic.last_search_at ? number(found) + ' кандидатов' : 'Нет данных',
                     topic.last_search_at ? 'Последний поиск: ' + dateTime(topic.last_search_at) +
@@ -920,7 +924,8 @@ function renderAutopilot(data) {
                         preliminary_match_uncertain: 'не прошли порог качества',
                         assessment_unavailable: 'AI-оценка недоступна',
                         projection_conflict: 'конфликт подключения',
-                        probation_full: 'нет места на испытании'
+                        probation_full: 'старое ограничение испытания',
+                        sparse_publisher: 'редко публикуют'
                     })[reason] || reason) + ': ' + number(count)).join(' · ') || 'нет кандидатов' }),
                 el('span', { textContent: 'За 24 часа: ' + number(topic.decisions_24h) + ' записанных решений · ' +
                     number(topic.promoted_24h) + ' прошли предварительный отбор · ' +
