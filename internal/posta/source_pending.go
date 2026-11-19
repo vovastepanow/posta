@@ -127,7 +127,7 @@ func (u *U) pendingSourcesPage(filter string, exclude []string, limit int, targe
 	for _, c := range list {
 		id := jx.Str(c, "id")
 		c["metrics"] = metrics[jx.Str(c, "source_id")]
-		c["url"] = registryURL(jx.Str(c, "platform"), id)
+		c["url"] = SourceWebURL(jx.Str(c, "platform"), id)
 		if jx.Str(c, "platform") == PlatformRSS {
 			c["platform_label"] = RSSPlatformLabel(id)
 			if cid, tab, ok := YouTubeFeedChannel(id); ok {
