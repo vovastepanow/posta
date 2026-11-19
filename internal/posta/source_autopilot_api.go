@@ -368,8 +368,13 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 			hasMore = true
 			break
 		}
+		platform, id, _, valid := autopilotSourceParts(source)
+		publicURL := ""
+		if valid {
+			publicURL = SourceWebURL(platform, id)
+		}
 		items = append(items, jx.M{"source_id": source, "state": currentState, "reason": reason,
-			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next, "personal_blog": personalBlogKind(blogKind)})
+			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next, "personal_blog": personalBlogKind(blogKind), "url": publicURL})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
