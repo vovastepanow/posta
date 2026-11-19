@@ -260,6 +260,16 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 		if sourceExcludedByOverride(u.sourceOverridesForTopic(s.topic), source) {
 			continue
 		}
+		allowedBlog, blogErr := u.personalBlogSourceAllowed(s.topic, source)
+		if blogErr != nil {
+			if firstUserErr == nil {
+				firstUserErr = blogErr
+			}
+			continue
+		}
+		if !allowedBlog {
+			continue
+		}
 		available, err := u.AutopilotAvailableSupply(s.topic)
 		if err != nil {
 			if ctx.Err() != nil {
