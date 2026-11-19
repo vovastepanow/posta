@@ -34,6 +34,12 @@ func init() {
 		}
 		return c.U.SourceAutopilotStatus()
 	})
+	post("source_personal_blog_mode", func(c *Ctx) (any, error) {
+		if err := c.U.SavePersonalBlogMode(c.Str("topic"), c.Str("mode")); err != nil {
+			return nil, err
+		}
+		return c.U.SourceAutopilotStatus()
+	})
 	post("source_autopilot_request", func(c *Ctx) (any, error) {
 		if err := c.U.SourceAutopilotRequest(c.Str("topic")); err != nil {
 			return nil, err
