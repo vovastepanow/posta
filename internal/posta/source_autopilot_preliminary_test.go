@@ -120,7 +120,10 @@ func TestAutopilotCandidateBacklogGetsReviewPriority(t *testing.T) {
 }
 
 func TestAutopilotAssessmentDiagnosticCategorizesFailures(t *testing.T) {
-	tests := []struct{ err error; want string }{
+	tests := []struct {
+		err  error
+		want string
+	}{
 		{errors.New("OpenRouter: free-models-per-day (HTTP 429)"), "provider_rate_limited"},
 		{errors.New("OpenRouter HTTP 403"), "provider_forbidden"},
 		{errors.New("OpenRouter HTTP 401"), "provider_unauthorized"},
