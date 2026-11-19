@@ -263,6 +263,72 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 	return jx.M{"topics": topics, "shadow_enabled": u.TBool("autopilot_shadow"), "auto_enabled": u.TBool("autopilot_auto"), "auto_available": true, "backends": backends, "server_revision": revision}, nil
 }
 
+// SourceAutopilotSources returns a bounded list of public sources in one
+// lifecycle state, available only to subscribers of that exact topic.
+// Pagination is by stable source ID, without scanning or sending a whole queue.
+func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) (jx.M, error) {
+	if strings.TrimSpace(topic) == "" || (mode != "shadow" && mode != "auto") ||
+		(state != "candidate" && state != "probation" && state != "active") {
+		return nil, Bad("Некорректный список источников.")
+	}
+	if limit < 1 || limit > 50 {
+		limit = 25
+	}
+	key := autopilotTopicKey(topic)
+	var owns bool
+	if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT EXISTS(
+		SELECT 1 FROM source_autopilot_demands WHERE user_id=$1 AND topic_key=$2 AND mode=$3)`,
+		u.ID, key, mode).Scan(&owns); err != nil {
+		return nil, err
+	}
+	if !owns {
+		return nil, NotFound("Тема автопилота не найдена.")
+	}
+	scope := autopilotShadowScope
+	if mode == "auto" {
+		scope = autopilotAutoScope
+	}
+	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id,reason,first_seen_at,checked_at,next_check_at
+		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state=$3 AND source_id>$4
+		ORDER BY source_id LIMIT $5`, scope, key, state, after, limit+1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]jx.M, 0, limit)
+	for rows.Next() {
+		var source, reason string
+		var discovered, checked, next int64
+		if err := rows.Scan(&source, &reason, &discovered, &checked, &next); err != nil {
+			return nil, err
+		}
+		if len(items) == limit {
+			continue
+		}
+		items = append(items, jx.M{"source_id": source, "reason": reason,
+			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Extra row means more pages; never expose a cursor for an exhausted page.
+	var hasMore bool
+	if len(items) > 0 {
+		var exists bool
+		if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT EXISTS(SELECT 1
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
+			AND state=$3 AND source_id>$4)`, scope, key, state, jx.Str(items[len(items)-1], "source_id")).Scan(&exists); err != nil {
+			return nil, err
+		}
+		hasMore = exists
+	}
+	cursor := ""
+	if hasMore {
+		cursor = jx.Str(items[len(items)-1], "source_id")
+	}
+	return jx.M{"sources": items, "next_after": cursor}, nil
+}
+
 // SourceAutopilotHistory exposes public decisions only for a profile the
 // caller has configured. The cursor is a decision ID, not a user identifier.
 func (u *U) SourceAutopilotHistory(topic, mode string, before int64, limit int) (jx.M, error) {
