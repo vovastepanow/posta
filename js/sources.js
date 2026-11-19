@@ -628,7 +628,7 @@ const autopilotSourceReasonLabels = {
     feed_unavailable: 'Лента недоступна', rate_limited: 'Ограничение запросов площадки',
     source_not_found: 'Источник не найден', unrecognized_feed: 'Формат ленты не распознан',
     feed_parse_failed: 'Ошибка разбора ленты', preliminary_match_uncertain: 'Недостаточно высокая оценка тематики',
-    assessment_unavailable: 'AI-оценка временно недоступна', projection_conflict: 'Конфликт подключения',
+    assessment_unavailable: 'AI-оценка временно недоступна', probation_full: 'Все места испытания заняты', projection_conflict: 'Конфликт подключения',
     shadow_preliminary_pass: 'Прошёл предварительную проверку',
     observed_useful: 'Полезность подтверждена', insufficient_evidence: 'Недостаточно данных для решения',
     observed_irrelevant: 'Недостаточно публикаций по теме', quality_drift: 'Качество снизилось',
@@ -685,7 +685,6 @@ function autopilotSourceCard(item) {
     const { platform, url } = identity;
     const icon = el('span', { className: 'autopilot-source-brand', textContent: platform.fallback });
     icon.style.backgroundColor = platform.color;
-    // Brand SVGs are optional; a contrasting text mark is always available.
     // The source artwork is decorative and never clickable. RSS uses the
     // website's actual favicon, not a generic RSS pictogram.
     const imageURL = platform.faviconHost
