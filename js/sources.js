@@ -527,6 +527,8 @@ function autopilotDiagnosticReport(data) {
             assessment_unavailable: topic.assessment_unavailable,
             decisions_24h: topic.decisions_24h, promoted_24h: topic.promoted_24h,
             candidate_reasons: topic.candidate_reasons,
+            candidate_assessment_causes: topic.candidate_assessment_causes,
+            probation_reasons: topic.probation_reasons,
             fetch_remaining: topic.fetch_remaining, model_remaining: topic.model_remaining,
             server_fetch_remaining: topic.server_fetch_remaining,
             server_model_remaining: topic.server_model_remaining,
