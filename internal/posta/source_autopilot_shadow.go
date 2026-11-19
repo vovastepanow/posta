@@ -326,19 +326,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			if err := a.autopilotReviewShadowCandidates(ctx, job, 30); err != nil {
 				return err
 			}
-			if err := a.autopilotMarkPhase(ctx, job, "delivery"); err != nil {
-				return err
-			}
-			// Shadow review records decisions but must never run the
-			// auto-only catalog projection. Previously this returned
-			// "invalid projection job" on EVERY backlog cycle.
-			if job.Scope == autopilotAutoScope {
-				if err := a.reconcileAutopilotProjections(ctx, job); err != nil {
-					return err
-				}
-				return a.deliverAutopilotTopicContent(ctx, job)
-			}
-			return nil
+			return a.autopilotFinishBacklog(ctx, job)
 		}
 	}
 	// An unavailable assessment is inconclusive for that source, not proof that
@@ -512,6 +500,22 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		return err
 	}
 	return searchErr
+}
+
+// The shadow backlog is only a review queue: catalog projections and
+// delivery exist solely in auto mode. Keeping this boundary in one
+// function prevents a shadow run from failing on "invalid projection job".
+func (a *App) autopilotFinishBacklog(ctx context.Context, job *autopilotJob) error {
+	if err := a.autopilotMarkPhase(ctx, job, "delivery"); err != nil {
+		return err
+	}
+	if job.Scope != autopilotAutoScope {
+		return nil
+	}
+	if err := a.reconcileAutopilotProjections(ctx, job); err != nil {
+		return err
+	}
+	return a.deliverAutopilotTopicContent(ctx, job)
 }
 
 // The result distinguishes a broken platform from a healthy but empty
