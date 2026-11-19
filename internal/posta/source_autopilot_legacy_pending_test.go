@@ -40,8 +40,8 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 	key := autopilotTopicKey(topic)
 
 	if _, err := d.Pool.Exec(ctx, `INSERT INTO users(id,created_at,settings)
-		VALUES($1,0,jsonb_build_object('topic',$2))
-		ON CONFLICT(id) DO UPDATE SET settings=jsonb_build_object('topic',$2)`, owner, topic); err != nil {
+		VALUES($1,0,jsonb_build_object('topic',$2::text))
+		ON CONFLICT(id) DO UPDATE SET settings=jsonb_build_object('topic',$2::text)`, owner, topic); err != nil {
 		t.Fatal(err)
 	}
 	defer d.Pool.Exec(context.Background(), `DELETE FROM users WHERE id=$1`, owner)
