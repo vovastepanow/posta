@@ -819,14 +819,16 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		-- Do not consume a review slot merely to postpone them for 24 hours;
 		-- keep them due so the next worker can review them when a slot opens.
 		AND (s.state <> 'candidate' OR (SELECT count(*) FROM source_autopilot_sources trial
-			WHERE trial.scope=$1 AND trial.topic_key=$2 AND trial.state='probation') < $5)
+			WHERE trial.scope=$1 AND trial.topic_key=$2 AND trial.state='probation') < $5
+			OR ($6 AND s.source_id LIKE 'ok:%'))
 	), ranked AS (
 		SELECT source_id,state,resume_state,lane,
 			row_number() OVER (PARTITION BY lane ORDER BY checked_at,first_seen_at,source_id) AS lane_rank
 		FROM due
 	)
 	SELECT source_id,state,resume_state FROM ranked
-	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit, job.MaxProbation)
+	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit, job.MaxProbation,
+		autopilotCanonicalTopic(job.Topic) == "SMM и блогинг")
 	if err != nil {
 		return err
 	}
@@ -888,7 +890,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state='probation'`, job.Scope, job.TopicKey).Scan(&probation); err != nil {
 				return err
 			}
-			if probation >= job.MaxProbation {
+			if probation >= job.MaxProbation && !(strings.HasPrefix(source, "ok:") &&
+				autopilotCanonicalTopic(job.Topic) == "SMM и блогинг") {
 				at := time.Now()
 				if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, "candidate", "probation_full", jx.Marshal(jx.M{"limit": job.MaxProbation}), at, at.Add(24*time.Hour)); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
 					return err
@@ -968,6 +971,24 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "rejected",
 					why, jx.Marshal(jx.M{"http_status": res.Status}), at, at.Add(30*24*time.Hour)); err != nil &&
 					!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+					return err
+				}
+				continue
+			}
+		}
+		if reason == "" && state == "candidate" && platform == PlatformOK &&
+			autopilotCanonicalTopic(job.Topic) == "SMM и блогинг" {
+			// A genuine matching OK group still cannot bypass the trial cap.
+			var usedSlots int
+			if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
+				WHERE scope=$1 AND topic_key=$2 AND state='probation'`,
+				job.Scope, job.TopicKey).Scan(&usedSlots); err != nil {
+				return err
+			}
+			if usedSlots >= job.MaxProbation {
+				if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state,
+					"probation_full", jx.Marshal(jx.M{"limit": job.MaxProbation}),
+					at, at.Add(time.Hour)); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
 					return err
 				}
 				continue
