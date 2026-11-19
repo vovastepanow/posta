@@ -192,9 +192,10 @@ func discoveryLemmyCommunities(data []byte) ([]DiscoveryCandidate, error) {
 		Communities []struct {
 			Community struct {
 				ActorID string `json:"actor_id"`
-				Name    string `json:"name"`
-				Title   string `json:"title"`
-				Deleted bool   `json:"deleted"`
+				Name        string `json:"name"`
+				Title       string `json:"title"`
+				Description string `json:"description"`
+				Deleted     bool   `json:"deleted"`
 				Removed bool   `json:"removed"`
 			} `json:"community"`
 		} `json:"communities"`
@@ -212,13 +213,28 @@ func discoveryLemmyCommunities(data []byte) ([]DiscoveryCandidate, error) {
 		if candidate == nil {
 			continue
 		}
-		candidate.Info = jx.M{"title": c.Title}
+		candidate.Info = jx.M{"title": c.Title, "name": c.Name, "description": c.Description}
 		out = append(out, *candidate)
 	}
 	return out, nil
 }
 
-func (u *U) discoveryFindLemmy(queries []string) []DiscoveryCandidate {
+// Lemmy's search API may match a query anywhere inside a community handle.
+// "smm" for instance matches "womensmma" (women-SMM-a), which is unrelated
+// to the SMM taxonomy topic. Do not trust raw search results as evidence of
+// topical relevance, especially for short ambiguous terms.
+func discoveryLemmyMatchesTopic(c DiscoveryCandidate, topic string) bool {
+	if autopilotCanonicalTopic(topic) != "SMM и блогинг" {
+		return true
+	}
+	meta := strings.Join([]string{
+		jx.Str(c.Info, "title"), jx.Str(c.Info, "name"),
+		jx.Str(c.Info, "description"),
+	}, " ")
+	return okSMMProfessionRe.MatchString(meta)
+}
+
+func (u *U) discoveryFindLemmy(queries []string, topic string) []DiscoveryCandidate {
 	if !u.TBool("search_lemmy") {
 		return nil
 	}
@@ -243,11 +259,16 @@ func (u *U) discoveryFindLemmy(queries []string) []DiscoveryCandidate {
 		if u.discoverySearchObservation != nil {
 			u.discoverySearchObservation("lemmy", q, "ok")
 		}
+		admitted := 0
 		for _, c := range found {
+			if !discoveryLemmyMatchesTopic(c, topic) {
+				continue
+			}
 			c.Origin, c.OriginKind = "поиск сообществ Lemmy «"+q+"»", "other"
 			out = append(out, c)
+			admitted++
 		}
-		u.Log("-> Поиск сообществ Lemmy «%s»: найдено %d.", q, len(found))
+		u.Log("-> Поиск сообществ Lemmy «%s»: показано API %d, отобрано по теме %d.", q, len(found), admitted)
 	}
 	return out
 }
