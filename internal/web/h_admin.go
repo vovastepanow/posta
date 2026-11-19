@@ -31,8 +31,15 @@ func init() {
 		if err := ownerOnly(c); err != nil {
 			return nil, err
 		}
-		if err := c.A.TunablesSave(c.R.Context(), jx.Map(c.In, "values")); err != nil {
+		changes := jx.Map(c.In, "values")
+		if err := c.A.TunablesSave(c.R.Context(), changes); err != nil {
 			return nil, err
+		}
+		// Stopping current collectors immediately prevents any remaining
+		// in-flight work from spending AI quota after the admin turns it off.
+		if enabled, set := changes["background_content_enabled"]; set && enabled != nil &&
+			!c.A.TBool("background_content_enabled") {
+			c.A.StopAllParsers()
 		}
 		return ok(jx.M{"tunables": c.A.TunablesPublic()}), nil
 	})
