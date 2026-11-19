@@ -705,11 +705,24 @@ func (a *App) autopilotShadowSearchWith(ctx context.Context, job *autopilotJob, 
 	return findErr
 }
 
+// Source quality is evaluated across a longer publication history than the
+// 30-day limit used to decide which individual posts belong in the live pool.
+// Infrequent authors must not be mistaken for irrelevant or nonexistent feeds.
+const autopilotSourceQualityDays = 365
+
+func autopilotSourceQualitySamples(posts []jx.M, at int64) []jx.M {
+	return autopilotSourceSamples(posts, at, autopilotSourceQualityDays)
+}
+
 func autopilotFreshRSSSamples(posts []jx.M, at int64) []jx.M {
+	return autopilotSourceSamples(posts, at, config.ContentMaxAgeDays)
+}
+
+func autopilotSourceSamples(posts []jx.M, at int64, days int) []jx.M {
 	seen := map[string]bool{}
 	var out []jx.M
 	for _, post := range posts {
-		if jx.Str(post, "url") == "" || jx.Int(post, "posted_at") <= 0 || jx.Int(post, "posted_at") > at+300 || IsPostOutdated(jx.Int(post, "posted_at"), at, config.ContentMaxAgeDays) {
+		if jx.Str(post, "url") == "" || jx.Int(post, "posted_at") <= 0 || jx.Int(post, "posted_at") > at+300 || IsPostOutdated(jx.Int(post, "posted_at"), at, days) {
 			continue
 		}
 		key := CandidatePostKey(post)
@@ -957,7 +970,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 			continue
 		}
-		samples := autopilotFreshRSSSamples(posts, at.Unix())
+		// Historical material informs source quality, not eligibility of a
+		// particular old post for today's feed.
+		samples := autopilotSourceQualitySamples(posts, at.Unix())
 		safeSamples := samples[:0]
 		for _, post := range samples {
 			if !jx.Bool(post, "source_sensitive") && !jx.Bool(post, "nsfw") && len(jx.ToStrs(post["safety"])) == 0 && !a.ContentIsAdult(post) {
@@ -990,7 +1005,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		if reason == "" && state == "candidate" && len(samples) < 2 {
 			reason = "insufficient_fresh_samples"
 		}
-		evidence := jx.M{"fresh_samples": len(samples), "sample_limit": 20}
+		evidence := jx.M{"quality_samples": len(samples), "fresh_samples": len(autopilotFreshRSSSamples(samples, at.Unix())), "sample_limit": 20, "quality_window_days": autopilotSourceQualityDays}
 		if res.Status > 0 {
 			evidence["http_status"] = res.Status
 		}
@@ -1050,7 +1065,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			if job.Scope == autopilotAutoScope {
 				samples = autopilotMergePostHints(source, samples, a.autopilotPendingPublicPosts(ctx, job, source), at.Unix())
 			}
-			if err := assess(ctx, source, samples); err != nil {
+			// Only live-window posts are candidates for delivery. Historical
+			// posts can qualify a publisher but must never be pushed to users.
+			if err := assess(ctx, source, autopilotFreshRSSSamples(samples, at.Unix())); err != nil {
 				if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
 					return budgetErr
 				}
