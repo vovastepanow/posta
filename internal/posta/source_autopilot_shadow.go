@@ -183,6 +183,26 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 			nextInterval = time.Hour
 		}
 	}
+	// A discovered source does not need to wait for the next hourly/daily
+	// search cycle to be checked. Drain due work in short, budgeted runs.
+	// Exclude candidates blocked by a full probation lane, so that an
+	// unavailable trial slot does not spin the worker every two minutes.
+	if err == nil {
+		var due int
+		countErr := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources s
+			WHERE s.scope=$1 AND s.topic_key=$2 AND s.next_check_at<= $3
+			AND (s.state='probation' OR (s.state='candidate' AND (
+			(SELECT count(*) FROM source_autopilot_sources p WHERE p.scope=$1
+			AND p.topic_key=$2 AND p.state='probation') < $4 OR
+			($5 AND s.source_id LIKE 'ok:%'))))`,
+			job.Scope, job.TopicKey, time.Now().Unix(), job.MaxProbation,
+			autopilotCanonicalTopic(job.Topic) == "SMM и блогинг").Scan(&due)
+		if countErr == nil && due > 0 {
+			nextInterval = min(nextInterval, 2*time.Minute)
+		} else if countErr != nil && ctx.Err() == nil {
+			log.Printf("автопилот: подсчёт ожидающих проверок: %v", countErr)
+		}
+	}
 	if finishErr := finishAutopilotJob(ctx, a.DB, job, time.Now().Add(nextInterval), job.Checkpoint, reason); finishErr != nil && !errors.Is(finishErr, errAutopilotLeaseLost) && ctx.Err() == nil {
 		log.Printf("теневой автопилот: завершение: %v", finishErr)
 	}
