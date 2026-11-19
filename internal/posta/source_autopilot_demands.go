@@ -18,12 +18,28 @@ type autopilotDemandSettings struct {
 
 var errAutopilotInvalidDemand = errors.New("invalid autopilot demand")
 
+// The original "smm" topic has a live discovery queue. Reuse its existing
+// key for the taxonomy title and its explicit aliases so no source state,
+// evidence, or history is orphaned by the canonical display name.
+func autopilotCanonicalTopic(topic string) string {
+	switch TopicNorm(topic) {
+	case "smm", "смм", "smm и блогинг":
+		return "SMM и блогинг"
+	default:
+		return strings.TrimSpace(topic)
+	}
+}
+
 func autopilotTopicKey(topic string) string {
-	return fmt.Sprintf("v%d:%s", TopicProfileVersion, repeatDigest(strings.ToLower(collapseSpaces(strings.TrimSpace(topic)))))
+	normalized := strings.ToLower(collapseSpaces(strings.TrimSpace(topic)))
+	if autopilotCanonicalTopic(topic) == "SMM и блогинг" {
+		normalized = "smm" // historical key; existing Posta data stays reachable
+	}
+	return fmt.Sprintf("v%d:%s", TopicProfileVersion, repeatDigest(normalized))
 }
 
 func saveAutopilotDemand(ctx context.Context, q db.Querier, userID string, demand autopilotDemandSettings, updatedAt int64) error {
-	topic := strings.TrimSpace(demand.Topic)
+	topic := autopilotCanonicalTopic(demand.Topic)
 	if userID == "" || topic == "" || TopicNorm(topic) == "" || (demand.Mode != "off" && demand.Mode != "shadow" && demand.Mode != "auto") || math.IsNaN(demand.PostsPerDay) || math.IsInf(demand.PostsPerDay, 0) || demand.PostsPerDay < 0 || demand.PostsPerDay > 1000 || math.IsNaN(demand.HorizonDays) || math.IsInf(demand.HorizonDays, 0) || demand.HorizonDays <= 0 || demand.HorizonDays > 365 {
 		return errAutopilotInvalidDemand
 	}
@@ -47,6 +63,7 @@ func listAutopilotDemands(ctx context.Context, q db.Querier, userID string) ([]a
 		if err := rows.Scan(&d.Topic, &d.Mode, &d.PostsPerDay, &d.HorizonDays, &d.Paused); err != nil {
 			return nil, err
 		}
+		d.Topic = autopilotCanonicalTopic(d.Topic)
 		result = append(result, d)
 	}
 	return result, rows.Err()
