@@ -637,7 +637,7 @@ const autopilotSourceReasonLabels = {
 function autopilotSourceIdentity(raw) {
     const source = String(raw || '').trim();
     const prefixes = [
-        ['ok:', 'Одноклассники', 'odnoklassniki', 'OK', '#f58220', id => /^\\d+$/.test(id) ? 'https://ok.ru/group/' + id : ''],
+        ['ok:', 'Одноклассники', 'odnoklassniki', 'OK', '#f58220', id => /^\d+$/.test(id) ? 'https://ok.ru/group/' + id : ''],
         ['vk:', 'ВКонтакте', 'vk', 'VK', '#0077ff', id => /^[a-z0-9_.-]+$/i.test(id) ? 'https://vk.com/' + id : ''],
         ['telegram:', 'Telegram', 'telegram', 'TG', '#26a5e4', id => /^[a-z0-9_]+$/i.test(id) ? 'https://t.me/' + id : ''],
         ['tiktok:', 'TikTok', 'tiktok', 'TT', '#171717', id => /^[a-z0-9_.]+$/i.test(id) ? 'https://www.tiktok.com/@' + id : '']
@@ -660,17 +660,17 @@ function autopilotSourceIdentity(raw) {
         }
     } catch { /* Unrecognized source IDs stay visible as text. */ }
     const domains = [
-        [/^(?:.+\\.)?ok\\.ru$/, 'Одноклассники', 'odnoklassniki', 'OK', '#f58220'],
-        [/^(?:.+\\.)?vk\\.com$/, 'ВКонтакте', 'vk', 'VK', '#0077ff'],
-        [/^(?:.+\\.)?(?:t\\.me|telegram\\.org|telegram\\.me)$/, 'Telegram', 'telegram', 'TG', '#26a5e4'],
-        [/^(?:.+\\.)?(?:youtube\\.com|youtu\\.be)$/, 'YouTube', 'youtube', 'YT', '#ff0033'],
-        [/^(?:.+\\.)?tiktok\\.com$/, 'TikTok', 'tiktok', 'TT', '#171717'],
-        [/^(?:.+\\.)?bsky\\.app$/, 'Bluesky', 'bluesky', 'BS', '#1185fe'],
-        [/^(?:.+\\.)?reddit\\.com$/, 'Reddit', 'reddit', 'RD', '#ff4500'],
-        [/^(?:.+\\.)?(?:habr\\.com|habrahabr\\.ru)$/, 'Хабр', 'habr', 'Х', '#4b7796'],
-        [/^(?:.+\\.)?tumblr\\.com$/, 'Tumblr', 'tumblr', 'T', '#36465d'],
-        [/^(?:.+\\.)?(?:mastodon\\.social|mastodon\\.online|mstdn\\.social)$/, 'Mastodon', 'mastodon', 'M', '#6364ff'],
-        [/^(?:.+\\.)?(?:lemmy\\.world|lemmy\\.ml|lemmy\\.zip|lemmy\\.today|lemm\\.ee)$/, 'Lemmy', 'lemmy', 'L', '#50b879']
+        [/^(?:.+\.)?ok\.ru$/, 'Одноклассники', 'odnoklassniki', 'OK', '#f58220'],
+        [/^(?:.+\.)?vk\.com$/, 'ВКонтакте', 'vk', 'VK', '#0077ff'],
+        [/^(?:.+\.)?(?:t\.me|telegram\.org|telegram\.me)$/, 'Telegram', 'telegram', 'TG', '#26a5e4'],
+        [/^(?:.+\.)?(?:youtube\.com|youtu\.be)$/, 'YouTube', 'youtube', 'YT', '#ff0033'],
+        [/^(?:.+\.)?tiktok\.com$/, 'TikTok', 'tiktok', 'TT', '#171717'],
+        [/^(?:.+\.)?bsky\.app$/, 'Bluesky', 'bluesky', 'BS', '#1185fe'],
+        [/^(?:.+\.)?reddit\.com$/, 'Reddit', 'reddit', 'RD', '#ff4500'],
+        [/^(?:.+\.)?(?:habr\.com|habrahabr\.ru)$/, 'Хабр', 'habr', 'Х', '#4b7796'],
+        [/^(?:.+\.)?tumblr\.com$/, 'Tumblr', 'tumblr', 'T', '#36465d'],
+        [/^(?:.+\.)?(?:mastodon\.social|mastodon\.online|mstdn\.social)$/, 'Mastodon', 'mastodon', 'M', '#6364ff'],
+        [/^(?:.+\.)?(?:lemmy\.world|lemmy\.ml|lemmy\.zip|lemmy\.today|lemm\.ee)$/, 'Lemmy', 'lemmy', 'L', '#50b879']
     ];
     const match = domains.find(([pattern]) => pattern.test(host));
     const platform = match
