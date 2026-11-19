@@ -675,10 +675,11 @@ function renderAutopilot(data) {
             shadow_preliminary_pass: 'прошёл предварительную проверку',
             observed_useful: 'качество подтверждено', insufficient_evidence: 'недостаточно доказательств'
         };
-        let sourceState = '', sourceAfter = '', sourceLoading = false;
+        let sourceState = '', sourceAfter = '', sourceLoading = false, sourceRequestID = 0;
         const loadSources = async (reset = false) => {
             if (sourceLoading || !sourceState) return;
             sourceLoading = true;
+            const requestID = sourceRequestID;
             sourceMore.disabled = true;
             if (reset) { sourceAfter = ''; sourceList.replaceChildren(); }
             if (!sourceAfter && !sourceList.children.length) sourceList.textContent = 'Загрузка источников…';
@@ -686,6 +687,7 @@ function renderAutopilot(data) {
                 const result = await api('source_autopilot_sources', {
                     params: { topic: topic.topic, mode: topic.mode, state: sourceState, after: sourceAfter, limit: 25 }
                 });
+                if (requestID !== sourceRequestID) return;
                 if (!sourceAfter) sourceList.replaceChildren();
                 for (const item of result.sources || []) {
                     const raw = String(item.source_id || '');
@@ -705,9 +707,12 @@ function renderAutopilot(data) {
                 sourceAfter = result.next_after || '';
                 sourceMore.hidden = !sourceAfter;
             } catch (error) {
+                if (requestID !== sourceRequestID) return;
                 sourceList.textContent = 'Не удалось загрузить источники: ' + error.message;
                 sourceMore.hidden = true;
-            } finally { sourceLoading = false; sourceMore.disabled = false; }
+            } finally {
+                if (requestID === sourceRequestID) { sourceLoading = false; sourceMore.disabled = false; }
+            }
         };
         const showSources = state => {
             if (topic.mode === 'off') return;
@@ -715,6 +720,8 @@ function renderAutopilot(data) {
                 sourcePanel.hidden = true;
                 return;
             }
+            sourceRequestID++;
+            sourceLoading = false;
             sourceState = state;
             sourceHeading.textContent = stateLabels[state];
             sourcePanel.hidden = false;
