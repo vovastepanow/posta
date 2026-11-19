@@ -71,11 +71,11 @@ func TestAutopilotEvidenceDedupPostgres(t *testing.T) {
 		}
 	}
 	s, err := autopilotEvidenceWindow(ctx, d.Pool, "test-evidence", "topic", "source-a", at.Add(-24*time.Hour), at.Add(time.Second))
-	if err != nil || s.Evaluated != 3 || s.Relevant != 2 || s.Eligible != 2 || s.Advertising != 1 || s.Duplicates != 1 || s.FreshUnique != 1 || s.SuccessfulPasses != 2 {
+	if err != nil || s.Evaluated != 3 || s.Relevant != 2 || s.Eligible != 2 || s.Advertising != 1 || s.Duplicates != 1 || s.FreshUnique != 1 || s.CuratedUnique != 1 || s.SuccessfulPasses != 2 {
 		t.Fatalf("stats=%+v err=%v", s, err)
 	}
 	s, err = autopilotEvidenceWindow(ctx, d.Pool, "test-evidence", "topic", "source-b", at.Add(-24*time.Hour), at.Add(time.Second))
-	if err != nil || s.Duplicates != 1 || s.FreshUnique != 0 {
+	if err != nil || s.Duplicates != 1 || s.FreshUnique != 0 || s.CuratedUnique != 1 {
 		t.Fatalf("other source stats=%+v err=%v", s, err)
 	}
 }
