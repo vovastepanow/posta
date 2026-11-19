@@ -110,7 +110,7 @@ func TestAutopilotCandidateBacklogGetsReviewPriority(t *testing.T) {
 		due   int
 		drain bool
 	}{
-		{0, false}, {10, false}, {11, false}, {12, true}, {23, true}, {24, true}, {65, true},
+		{0, false}, {1, true}, {10, true}, {11, true}, {12, true}, {23, true}, {24, true}, {65, true},
 	} {
 		if got := autopilotShouldDrainCandidateBacklog(tc.due); got != tc.drain {
 			t.Errorf("due=%d drain=%v want %v", tc.due, got, tc.drain)
