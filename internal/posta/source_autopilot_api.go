@@ -274,7 +274,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 					Available: available, Target: supply.Demand.Target,
 					Deficit: supply.Demand.Deficit, Candidates: autoCandidates + autoProbation,
 					ActiveSources: autoActive, FetchRemaining: jx.Int(row, "fetch_remaining"),
-					ModelRemaining: jx.Int(row, "model_remaining"),
+					ModelRemaining:       jx.Int(row, "model_remaining"),
 					ServerFetchRemaining: serverFetchRemaining, ServerModelRemaining: serverModelRemaining,
 					ModelFailures: aiPending, Promoted24h: promoted24h,
 				})
