@@ -26,7 +26,7 @@ import (
 type autopilotAssessmentProbeKey struct{}
 
 type autopilotAssessmentProbe struct {
-	mu sync.Mutex
+	mu    sync.Mutex
 	cause string
 }
 
