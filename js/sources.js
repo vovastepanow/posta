@@ -252,7 +252,8 @@ function renderAutopilot(data) {
             prepare_hints: 'Обработка подсказок источников',
             prepare_projection: 'Подключение и очистка источников',
             prepare_delivery: 'Передача проверенных постов',
-            search: 'Поиск по площадкам', review: 'Проверка источников', delivery: 'Доставка в пул'
+            search: 'Поиск по площадкам', review: 'Проверка источников', delivery: 'Доставка в пул',
+            delivery_projection: 'Сверка источников перед доставкой', delivery_content: 'Доставка проверенного контента'
         };
         const diagnosisNames = {
             classifier_unavailable: 'AI-оценка источников недоступна — проверяю повторно',

@@ -530,12 +530,15 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	if reviewErr := a.autopilotReviewShadowCandidates(ctx, job, 8); reviewErr != nil {
 		return reviewErr
 	}
-	if phaseErr := a.autopilotMarkPhase(ctx, job, "delivery"); phaseErr != nil {
-		return phaseErr
-	}
 	if job.Scope == autopilotAutoScope {
+		if phaseErr := a.autopilotMarkPhase(ctx, job, "delivery_projection"); phaseErr != nil {
+			return phaseErr
+		}
 		if projectionErr := a.reconcileAutopilotProjections(ctx, job); projectionErr != nil {
 			return projectionErr
+		}
+		if phaseErr := a.autopilotMarkPhase(ctx, job, "delivery_content"); phaseErr != nil {
+			return phaseErr
 		}
 		if deliveryErr := a.deliverAutopilotTopicContent(ctx, job); deliveryErr != nil {
 			return deliveryErr
@@ -551,13 +554,16 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 // delivery exist solely in auto mode. Keeping this boundary in one
 // function prevents a shadow run from failing on "invalid projection job".
 func (a *App) autopilotFinishBacklog(ctx context.Context, job *autopilotJob) error {
-	if err := a.autopilotMarkPhase(ctx, job, "delivery"); err != nil {
-		return err
-	}
 	if job.Scope != autopilotAutoScope {
 		return nil
 	}
+	if err := a.autopilotMarkPhase(ctx, job, "delivery_projection"); err != nil {
+		return err
+	}
 	if err := a.reconcileAutopilotProjections(ctx, job); err != nil {
+		return err
+	}
+	if err := a.autopilotMarkPhase(ctx, job, "delivery_content"); err != nil {
 		return err
 	}
 	return a.deliverAutopilotTopicContent(ctx, job)
