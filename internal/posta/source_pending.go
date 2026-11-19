@@ -40,6 +40,27 @@ func (u *U) pendingSourcesPage(filter string, exclude []string, limit int, targe
 	if err != nil {
 		return nil, 0, false, err
 	}
+	// Every remaining suggestion gets an explicit routing diagnosis. Do
+	// not describe these as "waiting for the AI" when the platform or
+	// selected topic cannot enter the source-autopilot queue at all.
+	var mode string
+	var paused bool
+	var rate float64
+	err = u.DB.Pool.QueryRow(u.Ctx, `SELECT
+		COALESCE((SELECT mode FROM source_autopilot_demands WHERE user_id=$1 AND topic_key=$2),'off'),
+		COALESCE((SELECT paused FROM source_autopilot_demands WHERE user_id=$1 AND topic_key=$2),false),
+		COALESCE((SELECT posts_per_day FROM source_autopilot_demands WHERE user_id=$1 AND topic_key=$2),0)`,
+		u.ID, autopilotTopicKey(topic)).Scan(&mode, &paused, &rate)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	for _, c := range cands {
+		status := u.pendingSourceAutopilotStatus(topic, c, mode, paused)
+		if status == "awaiting_transfer" && mode == "auto" && rate <= 0 {
+			status = "autopilot_no_rate"
+		}
+		c["autopilot_transfer_status"] = status
+	}
 	if err := sortPendingSources(cands, order); err != nil {
 		return nil, 0, false, err
 	}
