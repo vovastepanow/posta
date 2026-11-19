@@ -480,7 +480,8 @@ export function ask(text, { ok = 'Да', cancel = 'Отмена', danger = false
             el('div', { className: 'dialog-actions' },
                 el('button', { type: 'button', className: 'ask-cancel', textContent: cancel, onclick: () => done(false) }), okButton));
         dialog.addEventListener('cancel', event => { event.preventDefault(); done(false); });
-        dialog.addEventListener('click', event => { if (event.target === dialog) done(false); });
+        dialog.addEventListener('close', () => done(false), { once: true });
+
         document.body.append(dialog);
         dialog.showModal();
         okButton.focus();
