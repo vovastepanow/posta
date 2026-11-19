@@ -22,6 +22,8 @@ func TestAutopilotStatusReason(t *testing.T) {
 		{"full pool", func(i *autopilotStatusInput) { i.Available = 20 }, "pool_full"},
 		{"fetch quota", func(i *autopilotStatusInput) { i.FetchRemaining = 0 }, "fetch_budget_exhausted"},
 		{"model quota", func(i *autopilotStatusInput) { i.ModelRemaining = 0 }, "model_budget_exhausted"},
+		{"AI blocked", func(i *autopilotStatusInput) { i.Candidates = 3; i.ModelFailures = 2 }, "classifier_unavailable"},
+		{"AI recovered", func(i *autopilotStatusInput) { i.Candidates = 3; i.ModelFailures = 2; i.Promoted24h = 1 }, "sources_under_review"},
 		{"probation", func(i *autopilotStatusInput) { i.Candidates = 3 }, "sources_under_review"},
 		{"poor yield", func(i *autopilotStatusInput) { i.ActiveSources = 3 }, "low_eligible_yield"},
 	}
