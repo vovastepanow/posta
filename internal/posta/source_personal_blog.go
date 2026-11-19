@@ -1,7 +1,6 @@
 package posta
 
 import (
-	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -136,4 +135,3 @@ func personalBlogLabelFromReview(raw string) string {
 	return personalBlogKind(raw)
 }
 
-var _ = context.Background
