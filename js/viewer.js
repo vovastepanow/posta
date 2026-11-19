@@ -418,15 +418,8 @@ export function initializeImageViewer() {
         }
         close();
     });
-    // Тёмная область: если медиа несколько, то внешняя половина слева от окна (у края экрана) — «назад», справа — «вперёд»;
-    // ближняя к окну половина и случай одного медиа — клик закрывает
-    const multiple = () => (state.gallery?.items.length || 0) > 1;
-    const side = e => {
-        if (!multiple()) return 0;
-        const r = frame().getBoundingClientRect();
-        return e.clientX < r.left / 2 ? -1 : e.clientX > (r.right + innerWidth) / 2 ? 1 : 0;
-    };
-    overlay.addEventListener('click', e => { if (e.target !== overlay) return; const dir = side(e); dir ? step(dir) : close(); });
+    // Clicking the backdrop only closes the viewer; navigation uses explicit controls.
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
     overlay.addEventListener('pointermove', e => {
         const dir = e.target === overlay && !state.drag ? side(e) : 0;
         overlay.classList.toggle('hover-prev', dir < 0);
