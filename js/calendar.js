@@ -1584,6 +1584,7 @@ export function initializeCalendarTab() {
     });
     $('cal-help').addEventListener('click', showHint);
     $('cal-hint-ok').addEventListener('click', closeHint);
+    hintBox.addEventListener('click', event => { if (event.target === hintBox) closeHint(); });
     body.addEventListener('wheel', onWheel, { passive: false });
     bindGestures(body, host);
     main.addEventListener('keydown', event => {
