@@ -233,13 +233,8 @@
 
 <!-- ИСТОЧНИКИ -->
 <div id="source-tab" class="view-panel">
-  <section class="discovery-panel" aria-label="Автоподбор источников">
-    <div class="discovery-text"><strong>Автоподбор по теме</strong><span id="discovery-status">Загружаю сведения…</span></div>
-    <label class="source-platform-filter" for="discovery-platform"><span>Искать на площадке</span><select id="discovery-platform"><option value="">Все площадки</option><option value="telegram">Telegram</option><option value="vk">ВКонтакте</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="ok">Одноклассники</option><option value="dzen">Дзен</option><option value="reddit">Reddit</option><option value="bluesky">Bluesky</option><option value="pikabu">Пикабу</option><option value="habr">Хабр</option><option value="joyreactor">JoyReactor</option><option value="pinterest">Pinterest</option><option value="tumblr">Tumblr</option><option value="threads">Threads</option><option value="instagram">Instagram</option><option value="x">X</option><option value="rss">Сайты и блоги</option></select></label>
-    <button id="discovery-button" class="primary-button" type="button">Подобрать источники</button>
-  </section>
   <section class="autopilot-panel" aria-labelledby="autopilot-title">
-    <div><strong id="autopilot-title">Автопилот источников</strong><p>Теневой режим проверяет источники; автоматический подключает прошедшие предварительную проверку RSS-ленты.</p></div>
+    <div><strong id="autopilot-title">Автопилот источников</strong><p>Новые источники проверяет автопилот. Теневой режим только оценивает; автоматический подключает прошедшие испытание источники. Ручного одобрения нет.</p></div>
     <form id="autopilot-form" class="autopilot-form">
       <label>Тема <select id="autopilot-topic" required><option value="">Загрузка дерева тем…</option></select></label>
       <label>Режим <select id="autopilot-mode"><option value="shadow">Теневой</option><option value="auto">Автоматический</option><option value="off">Выключен</option></select></label>
@@ -250,77 +245,7 @@
     <p id="autopilot-status" role="status">Загружаю сведения…</p>
     <div id="autopilot-topics" class="autopilot-topics"></div>
   </section>
-  <label class="source-platform-filter" for="source-platform"><span>Платформа</span>
-    <select id="source-platform"><option value="any">Все источники</option><option value="telegram">Telegram</option><option value="dzen">Дзен</option><option value="vk">ВКонтакте</option><option value="ok">Одноклассники</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="shorts">YouTube Shorts</option><option value="rutube">Rutube</option><option value="reddit">Reddit</option><option value="bluesky">Bluesky</option><option value="pikabu">Пикабу</option><option value="habr">Хабр</option><option value="joyreactor">JoyReactor</option><option value="pinterest">Pinterest</option><option value="tumblr">Tumblr</option><option value="threads">Threads</option><option value="instagram">Instagram</option><option value="x">X</option><option value="medium">Medium</option><option value="substack">Substack</option><option value="livejournal">LiveJournal</option><option value="rss">Сайты и блоги</option><option value="fourchan">4chan</option><option value="dvach">Двач</option></select>
-  </label>
-  <label class="source-platform-filter" for="source-sort"><span>Сортировка</span>
-    <select id="source-sort"><option value="rank">По рекомендации</option><option value="newest">Сначала новые</option><option value="oldest">Сначала старые</option><option value="score_high">Оценка: выше сначала</option><option value="score_low">Оценка: ниже сначала</option><option value="name">По названию</option></select>
-  </label>
-  <section class="pending-sources" aria-labelledby="pending-sources-title">
-    <div class="pending-sources-head"><div><h2 id="pending-sources-title" class="section-title">Ожидают решения</h2><p id="pending-sources-count" class="pending-sources-hint">Загружаем сохранённые источники…</p></div><button id="pending-sources-refresh" class="secondary-button" type="button">Обновить</button></div>
-    <div id="pending-sources-grid" class="pending-sources-grid"></div>
-    <button id="pending-sources-more" class="secondary-button" type="button" hidden>Показать ещё</button>
-    <p id="pending-sources-empty" class="pending-sources-hint" hidden></p>
-  </section>
-  <div class="source-more-candidates"><button id="source-find-other" class="secondary-button" type="button">Показать другие источники</button></div>
   <button id="source-tools-open" class="secondary-button source-tools-trigger" type="button" aria-haspopup="dialog">Инструменты источников <span aria-hidden="true">↗</span></button>
-  <div id="source-loading" class="status-msg is-loading" role="status" hidden>Ищу другие источники…</div>
-  <div id="source-error" class="status-msg error-msg" role="alert" hidden></div>
-
-  <div id="source-card-wrapper" class="item-card-wrapper" hidden>
-    <div class="card source-card">
-      <div class="info source-head">
-        <span id="source-score" class="badge" title="Оценка автоподбора: по теме, аудитория, доля просмотров" hidden></span>
-        <div id="source-name" class="source-text">Источник: —</div>
-        <div id="source-platform-label" class="source-text"></div>
-        <div id="source-board-note" class="source-text" hidden>Одобрение добавит этот тред в источники темы. Доска используется для поиска новых тредов.</div>
-        <div id="source-stats" class="engagement-row" aria-label="Аудитория и активность источника" hidden></div>
-        <a id="source-link" class="source-post-link" target="_blank" rel="noopener noreferrer" hidden>Открыть источник ↗</a>
-      </div>
-      <div class="source-feed-box">
-        <div id="source-posts" class="source-posts" aria-label="Посты источника"></div>
-        <p id="source-media-fallback" class="source-empty-note" hidden></p>
-        <div class="source-feed-foot">
-          <button id="source-posts-more" class="source-posts-more" type="button" hidden></button>
-          <p id="source-coverage" class="source-coverage" hidden></p>
-        </div>
-      </div>
-      <details class="source-about">
-        <summary>Почему показан и описание</summary>
-        <div class="item-ai-note"><strong>Почему показан:</strong> <span id="source-why"></span></div>
-        <div id="source-desc" class="desc-text" hidden></div>
-      </details>
-    </div>
-    <div class="controls" role="group" aria-label="Решение по источнику">
-      <div class="controls-row">
-        <button class="btn btn-main" type="button" data-source-vote="reject" aria-label="Не нравится" title="Не нравится: убрать из подбора"><span class="btn-icon" aria-hidden="true">💩</span></button>
-        <button class="btn" type="button" data-source-vote="postpone" aria-label="Отложить" title="Отложить: показать позже"><span class="btn-icon" aria-hidden="true">✋</span></button>
-        <button class="btn" type="button" data-source-vote="maybe" aria-label="Не знаю" title="Не знаю: решение записано, источник не добавляется"><span class="btn-icon" aria-hidden="true">🤷</span></button>
-        <button class="btn btn-main" type="button" data-source-vote="approve" aria-label="Нравится" title="Нравится: добавить в источники парсера"><span class="btn-icon" aria-hidden="true">🗿</span></button>
-      </div>
-      <div class="controls-row controls-actions">
-        <div class="complaint-wrap">
-          <button id="source-complaint-button" class="btn btn-mini" type="button" aria-label="Пожаловаться" title="Пожаловаться" aria-haspopup="menu" aria-expanded="false"><span class="btn-icon" aria-hidden="true">🚩</span></button>
-          <div id="source-complaint-menu" class="complaint-menu" role="menu" hidden>
-            <button type="button" role="menuitem" data-source-reason="off_topic">Не по теме</button>
-            <button type="button" role="menuitem" data-source-reason="dead">Мёртвый: нет постов, не смотрят</button>
-            <button type="button" role="menuitem" data-source-reason="other">Другое</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="source-empty" class="status-msg item-empty" hidden>
-    <span id="source-empty-message">Новых источников пока нет.</span>
-    <div class="item-empty-actions">
-      <button id="source-empty-discover" class="primary-button" type="button" hidden>Подобрать источники</button>
-      <button id="source-empty-vk" class="primary-button" type="button" hidden>Подключить VK</button>
-      <button id="source-empty-add" class="primary-button" type="button" hidden>Добавить ссылку</button>
-      <button id="source-empty-retry" class="primary-button" type="button">Проверить ещё раз</button>
-    </div>
-  </div>
-
   <dialog id="source-tools-dialog" class="source-tools-dialog" aria-labelledby="source-tools-title">
     <div class="source-tools-header">
       <div><span class="source-tools-eyebrow">ИСТОЧНИКИ</span><h2 id="source-tools-title">Инструменты и импорт</h2><p>Добавляйте источники, загружайте контент и управляйте списками.</p></div>
@@ -575,10 +500,6 @@
         <span class="account-muted">Проверяет ссылки на сохранённые файлы в пуле и истории и запускает загрузку недостающих медиа для записей в «Предложке».</span></div>
       <div class="admin-action"><button id="admin-stop-search" class="secondary-button" type="button">Остановить сборщик контента</button>
         <span class="account-muted">Останавливает ваш сборщик до следующего запуска или обновления страницы.</span></div>
-      <div class="admin-action"><button id="admin-run-discovery" class="secondary-button" type="button">📚 Запустить подбор новых источников</button>
-        <span class="account-muted">Сразу запускает поиск и проверку источников по текущей теме. Найденные источники появятся во вкладке «Источники».</span></div>
-      <div class="admin-action"><button id="admin-stop-discovery" class="secondary-button" type="button">Остановить подбор источников</button>
-        <span class="account-muted">Останавливает поиск по текущей теме до следующего ручного запуска.</span></div>
       <div class="admin-action"><button id="admin-stop-all" class="danger-button" type="button">🛑 Остановить всё на сервере</button>
         <span class="account-muted">Останавливает сборщики контента всех пользователей и общий сбор источников, выгружает модели из видеопамяти. Чтобы снова работать, обновите страницу.</span></div>
       <p id="admin-control-note" class="account-muted" role="status"></p>

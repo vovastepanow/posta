@@ -2202,42 +2202,17 @@ func (u *U) RunCollector() bool {
 	u.TopicProfileEnsure(topic)
 	u.DvachBoardsForTopic(topic, true)
 	d := u.Catalog()
-	due := u.SourceDiscoveryDue(d, topic)
-	discovered := false
-	var tDiscovery time.Duration
 	usableSources := u.TopicUsableSources(d, topic)
+	// The public source autopilot now owns source discovery. The content
+	// parser can still explore individual posts without running the legacy
+	// scanner or waiting for manual source approvals.
 	fastTopicSearch := shouldFastTopicSearch(u.CurrentQuery() != "", u.TBool("discovery"), u.TopicIsRestricted(topic),
 		usableSources, u.TInt("min_sources"), u.PoolTopicCount(key), u.TInt("pool_target"))
-	if usable := usableSources; usable < u.TInt("min_sources") && u.TBool("discovery") {
-		last := DiscoveryLastRun(d, topic)
-		if jx.Bool(d.Discovery, "requested") || now()-last >= config.DiscoveryShortageInterval {
-			if fastTopicSearch {
-				// Discovery continues independently; immediate post search no longer
-				// waits for a fully approved source catalog on cold start.
-				_, result := u.startSourceDiscovery(topic, 0, false, "")
-				if result == "started" || result == "running" || result == "auto_managed" {
-					discovered, due = true, false
-				}
-				u.Log("Источников %d из %d — ищу публикации сразу; подбор источников: %s.", usable, u.TInt("min_sources"), result)
-			} else {
-				u.Log("Источников по теме %d из %d — сначала ищу новые (до %d мин).", usable, u.TInt("min_sources"), config.DiscoveryBlockingSeconds/60)
-				t0 := time.Now()
-				u.RunSourceDiscovery(topic, config.DiscoveryBlockingSeconds)
-				tDiscovery += time.Since(t0)
-				due, discovered = false, true
-				if u.CurrentTopic() != topic {
-					return true
-				}
-			}
-		} else {
-			u.Log("Источников по теме %d из %d — автоподбор уже был в %s — собираю из того, что есть.", usable, u.TInt("min_sources"), time.Unix(last, 0).Format("15:04"))
-		}
+	if usableSources < u.TInt("min_sources") {
+		u.Log("Источников по теме %d из %d — проверкой новых источников занимается автопилот.", usableSources, u.TInt("min_sources"))
 	}
 	if reason := u.collectorStopReason(started, 0, 0); reason != "" {
 		u.Log("%s", reason)
-		if due && u.Alive() {
-			u.RunSourceDiscovery(topic, 0)
-		}
 		return false
 	}
 	cache := u.screenedCacheLoad(key)
@@ -2443,27 +2418,11 @@ outer:
 	u.Log("✅ Подбор завершён за %.1f мин: добавлено %d, проанализировано %d, отсеяно быстрой оценкой %d, повторов %d.", time.Since(started).Minutes(), added, analyzed,
 		pc.stats["rejected"], pc.stats["duplicates"])
 	total := time.Since(started)
-	u.Log("Время прохода: автоподбор %.1f мин, сбор %.1f мин, анализ %.1f мин.", tDiscovery.Minutes(), max(0, (total-tDiscovery-tAnalyze).Minutes()), tAnalyze.Minutes())
+	u.Log("Время прохода: сбор %.1f мин, анализ %.1f мин.", max(0, (total-tAnalyze).Minutes()), tAnalyze.Minutes())
 	if fastTopicSearch {
 		u.Log("Быстрый поиск: найдено %d кандидатов, после полного отбора добавлено %d.", fastPostFound, fastPostAdded)
 	}
 	u.Log("")
 	_ = h
-	if !restart && !discovered && (added == 0 || len(candidates) < u.TInt("pool_target")) && u.PoolTopicCount(key) < u.TInt("pool_target") && u.Alive() && u.CurrentTopic() == topic &&
-		!u.TopicSame(config.DefaultTopic, topic) && now()-DiscoveryLastRun(u.Catalog(), topic) >= config.DiscoveryShortageInterval && u.TBool("discovery") {
-		if added == 0 {
-			u.Log("Из источников темы нечего оценивать — ищу новые источники и соберу заново.")
-			before := u.TopicOwnSourcesCount(u.Catalog(), topic)
-			u.RunSourceDiscovery(topic, 0)
-			return u.TopicOwnSourcesCount(u.Catalog(), topic) > before
-		}
-		// Кандидатов мало — автоподбор в конце прохода, чтобы следующий проход был шире; сам проход не перезапускаем
-		u.Log("Кандидатов к проверке %d при цели ленты %d — ищу новые источники в конце прохода.", len(candidates), u.TInt("pool_target"))
-		u.RunSourceDiscovery(topic, 0)
-		due = false
-	}
-	if due && !restart && u.Alive() {
-		u.RunSourceDiscovery(topic, 0)
-	}
 	return restart
 }

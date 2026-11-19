@@ -205,33 +205,10 @@ func (u *U) TopicHealthPublic(topic string) jx.M {
 	return out
 }
 
-// SourceDiscoveryDue — пора ли подбирать: заказан или прошёл интервал (теме без источников — короткий).
+// SourceDiscoveryDue never schedules the retired legacy source scanner.
+// Active public demands are handled by the dedicated source-autopilot worker.
 func (u *U) SourceDiscoveryDue(d *SourceDB, topic string) bool {
-	u.parsers.mu.Lock()
-	paused := u.parsers.discoveryPaused[TopicNorm(topic)]
-	u.parsers.mu.Unlock()
-	if paused {
-		return false
-	}
-	if !u.TBool("discovery") {
-		return false
-	}
-	if jx.Bool(d.Discovery, "requested") {
-		return true
-	}
-	interval := int64(u.TInt("discovery_interval")) * 3600
-	p := KV(u.App, u.Ctx, u.discoveryProgressKey(topic), discoveryProgress{})
-	if discoveryRetryDue(p.Retries, now()) {
-		return true
-	}
-	active := p.Active
-	if active {
-		return now()-DiscoveryLastRun(d, topic) >= 15*60
-	}
-	if u.TopicLacksSources(d, topic) {
-		interval = config.DiscoveryShortageInterval
-	}
-	return now()-DiscoveryLastRun(d, topic) >= interval
+	return false
 }
 
 func (a *App) RequestSourceDiscovery() {
@@ -1492,32 +1469,28 @@ func (u *U) discoveryTopicAbandoned(topic string) bool {
 	return u.ID != "" && u.run != nil && !u.run.FixedTopic && !u.TopicSame(u.CurrentTopic(), topic)
 }
 
-// RunSourceDiscovery — подбор по теме; по одной теме — один прогон за раз (каталог общий).
+// RunSourceDiscovery is retired: only the fenced public source-autopilot
+// worker may discover, review and connect new sources. The old scanner
+// must not mutate the shared catalog or create a second approval queue.
 func (u *U) RunSourceDiscovery(topic string, maxSeconds int) {
-	run, result := u.startSourceDiscovery(topic, maxSeconds, false, "")
-	if result == "running" {
-		u.Log("Подбор источников по теме «%s» уже ведёт другой пользователь — пропускаю, найденное попадёт в общий каталог.", topic)
-		return
-	}
-	if run != nil {
-		select {
-		case <-run.done:
-		case <-u.Ctx.Done():
-			// A leased caller must not finish its job while discovery still runs.
-			if _, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); leased {
-				<-run.done
-			}
-		}
-	}
+	// Kept as a compatibility entry point for old parser scheduling calls.
 }
 
 // StartSourceDiscovery starts a manual run immediately, independently of the collector.
 func (u *U) StartSourceDiscovery(topic, platform string) string {
-	_, result := u.startSourceDiscovery(topic, 0, true, platform)
-	return result
+	return "auto_only"
 }
 
 func (u *U) startSourceDiscovery(topic string, maxSeconds int, manual bool, platform string) (*discoveryRun, string) {
+	// Legacy discovery used to write both automatic catalog admissions and
+	// manually reviewed suggestions. Its background callers are retained for
+	// compatibility, but the pipeline is never launched.
+	return nil, "auto_only"
+}
+
+// retiredSourceDiscoveryImplementation is kept temporarily for historical
+// diagnostics; it must not be called from any public route.
+func (u *U) retiredSourceDiscoveryImplementation(topic string, maxSeconds int, manual bool, platform string) (*discoveryRun, string) {
 	if job, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); leased && !autopilotMayUseSharedDiscovery(job, u.ID) {
 		return nil, "invalid_scope"
 	}
