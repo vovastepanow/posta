@@ -266,7 +266,8 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	{
 		var dueCandidates int
 		if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
-			WHERE scope=$1 AND topic_key=$2 AND state='candidate' AND next_check_at <= $3`,
+			WHERE scope=$1 AND topic_key=$2 AND state='candidate'
+			AND (next_check_at <= $3 OR reason='probation_full')`,
 			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&dueCandidates); err != nil {
 			return err
 		}
@@ -461,10 +462,11 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 
 // The result distinguishes a broken platform from a healthy but empty
 // search, and a fully disabled source search from a working post search.
-// One pass reviews four existing trials and up to 30 more sources. Even
-// modest backlogs should be drained before discovery adds another 64.
+// Search pauses whenever a due candidate is still waiting for a review.
+// Adding up to 64 more sources before clearing the queue was starving
+// already-discovered candidates and wasting the search budget.
 func autopilotShouldDrainCandidateBacklog(dueCandidates int) bool {
-	return dueCandidates >= 12
+	return dueCandidates > 0
 }
 
 func autopilotDiscoveryOutcome(backends, sourceCount, directCount int, observed, available, directAttempted bool) string {
