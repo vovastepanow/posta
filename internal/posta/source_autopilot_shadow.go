@@ -251,6 +251,12 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	if err := a.autopilotMarkPhase(ctx, job, "prepare"); err != nil {
 		return err
 	}
+	// Bring the old "waiting for approval" suggestions into this same
+	// auditable review queue before searching for yet more sources.
+	// Never activate topics or the main post parser on the user's behalf.
+	if _, err := a.autopilotImportLegacyPending(ctx, job, 60); err != nil {
+		return err
+	}
 	if job.Scope == autopilotAutoScope {
 		// Source suggestions originating from fully accepted posts enter the
 		// same candidate verification queue as backend discoveries.
