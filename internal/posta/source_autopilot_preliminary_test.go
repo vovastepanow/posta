@@ -104,3 +104,16 @@ func TestAutopilotAdaptiveSearchStopsAfterEnoughUniqueCandidates(t *testing.T) {
 		t.Fatalf("rotation/candidate goal failed: called=%d out=%+v", calls, out)
 	}
 }
+
+func TestAutopilotCandidateBacklogGetsReviewPriority(t *testing.T) {
+	for _, tc := range []struct {
+		due int
+		drain bool
+	}{
+		{0, false}, {10, false}, {23, false}, {24, true}, {65, true},
+	} {
+		if got := autopilotShouldDrainCandidateBacklog(tc.due); got != tc.drain {
+			t.Errorf("due=%d drain=%v want %v", tc.due, got, tc.drain)
+		}
+	}
+}
