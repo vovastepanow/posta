@@ -59,7 +59,7 @@ func init() {
 		if r := c.U.StartParser(true); r == "started" || r == "running" {
 			return jx.M{"status": "loading", "message": "Ищем контент..."}, nil
 		}
-		return nil, fail(503, "Не удалось запустить поиск контента на сервере.")
+		return nil, fail(409, "Фоновый подбор отключён. Включите его вручную в разделе «Источники».")
 	}
 	post("refresh_content", refresh)
 	post("control_search", func(c *Ctx) (any, error) {
@@ -96,6 +96,23 @@ func init() {
 		}
 		stopped := c.U.PauseParser()
 		return ok(jx.M{"stopped": stopped, "stopping": c.A.ParserRunning(c.U.ID)}), nil
+	})
+	// User-specific manual opt-in for the legacy content-search/parser pipeline.
+	// Source autopilot is configured independently and is not affected.
+	post("background_content_toggle", func(c *Ctx) (any, error) {
+		if err := ownerOnly(c); err != nil {
+			return nil, err
+		}
+		enabled := jx.Bool(c.In, "enabled")
+		if err := c.U.SaveSettings(jx.M{"background_content_enabled": enabled}); err != nil {
+			return nil, err
+		}
+		if !enabled {
+			c.U.PauseParser()
+		} else {
+			c.U.ResumeParser()
+		}
+		return jx.M{"enabled": enabled}, nil
 	})
 	get("settings", settings)
 	get("topic_record", topicRecord)
@@ -376,7 +393,8 @@ func settings(c *Ctx) (any, error) {
 		info = u.TopicPublic(e, nil)
 	}
 	return jx.M{"topic": topic, "topic2": u.CurrentTopic2(), "query": u.CurrentQuery(), "topic_info": info, "filters": u.ContentFilterValues(),
-		"adult_allowed": u.AdultAllowed(), "adult_available": c.A.TBool("adult_available")}, nil
+		"adult_allowed": u.AdultAllowed(), "adult_available": c.A.TBool("adult_available"),
+		"background_content_enabled": u.BackgroundContentEnabled()}, nil
 }
 
 func topicRecord(c *Ctx) (any, error) {
