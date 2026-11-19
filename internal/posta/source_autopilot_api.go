@@ -108,8 +108,8 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		// so operators can distinguish backlog from scheduled retry and AI stalls.
 		var ready, delayed, unchecked, recentChecks, aiPending int
 		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT
-			count(*) FILTER (WHERE state='candidate' AND next_check_at <= $3),
-			count(*) FILTER (WHERE state='candidate' AND next_check_at > $3),
+			count(*) FILTER (WHERE state='candidate' AND (next_check_at <= $3 OR reason='probation_full')),
+			count(*) FILTER (WHERE state='candidate' AND next_check_at > $3 AND reason<>'probation_full'),
 			count(*) FILTER (WHERE state='candidate' AND checked_at=0),
 			count(*) FILTER (WHERE checked_at >= $4),
 			count(*) FILTER (WHERE reason='assessment_unavailable')
@@ -120,6 +120,18 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		}
 		row["queue_ready"], row["queue_delayed"], row["queue_unchecked"] = ready, delayed, unchecked
 		row["checked_24h"], row["assessment_unavailable"] = recentChecks, aiPending
+		// Progress counters based on persisted decisions, not the instantaneous
+		// candidate total. This distinguishes real verification from a stuck job.
+		var decisions24h, promoted24h, rejected24h int
+		if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT
+			count(*),
+			count(*) FILTER (WHERE old_state='candidate' AND new_state='probation'),
+			count(*) FILTER (WHERE old_state='candidate' AND new_state='rejected')
+			FROM source_autopilot_decisions WHERE scope=$1 AND topic_key=$2 AND at >= $3`,
+			scope, key, time.Now().Add(-24*time.Hour).Unix()).Scan(&decisions24h, &promoted24h, &rejected24h); err != nil {
+			return nil, err
+		}
+		row["decisions_24h"], row["promoted_24h"], row["rejected_24h"] = decisions24h, promoted24h, rejected24h
 		row["probation_limit"] = max(1000, u.TInt("autopilot_max_probation"))
 		// Persisted last outcomes explain why a nonempty candidate queue has
 		// not produced probation sources. Aggregate only; no source IDs leak.
@@ -188,21 +200,21 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			}
 			row["next_run_at"], row["running"], row["job_paused"], row["eligible"], row["failure"] = next, lease > now() && !d.Paused, !enabled, eligible && !d.Paused, failure
 			row["attempts"] = attempts
+			stats := jx.Unmarshal(checkpoint)
+			// Pipeline telemetry is written in both auto and shadow modes.
+			for key, value := range map[string]string{
+				"pipeline_phase": "pipeline_phase",
+				"last_search_outcome": "last_search_outcome",
+			} {
+				row[key] = jx.Str(stats, value)
+			}
+			for _, key := range []string{"pipeline_phase_at", "last_search_at", "last_source_candidates", "last_direct_sources", "last_search_backends", "last_backends_ok", "last_backends_empty", "last_backends_unavailable"} {
+				row[key] = jx.Int(stats, key)
+			}
 			if d.Mode == "auto" {
-				stats := jx.Unmarshal(checkpoint)
 				row["direct_reviewed_total"] = jx.Int(stats, "direct_reviewed_total")
 				row["direct_accepted_total"] = jx.Int(stats, "direct_accepted_total")
 				row["direct_rejected_total"] = jx.Int(stats, "direct_rejected_total")
-				row["pipeline_phase"] = jx.Str(stats, "pipeline_phase")
-				row["pipeline_phase_at"] = jx.Int(stats, "pipeline_phase_at")
-				row["last_search_at"] = jx.Int(stats, "last_search_at")
-				row["last_search_outcome"] = jx.Str(stats, "last_search_outcome")
-				row["last_source_candidates"] = jx.Int(stats, "last_source_candidates")
-				row["last_direct_sources"] = jx.Int(stats, "last_direct_sources")
-				row["last_search_backends"] = jx.Int(stats, "last_search_backends")
-				row["last_backends_ok"] = jx.Int(stats, "last_backends_ok")
-				row["last_backends_empty"] = jx.Int(stats, "last_backends_empty")
-				row["last_backends_unavailable"] = jx.Int(stats, "last_backends_unavailable")
 				var recent int
 				err := u.DB.Pool.QueryRow(u.Ctx, `SELECT count(*) FROM source_autopilot_direct_results
 					WHERE scope='public' AND topic_key=$1 AND published_at >= $2 AND assessed_at >= $2 AND policy_version=$3`,
