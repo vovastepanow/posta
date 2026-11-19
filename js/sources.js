@@ -702,6 +702,7 @@ function autopilotSourceCard(item) {
         title: 'Открыть источник в новой вкладке'
     }) : el('span', { textContent: identity.display });
     const reason = autopilotSourceReasonLabels[item.reason] || item.reason || 'Пока не проверен';
+    const personalBlogText = { yes: 'Персональный блог', no: 'Не персональный блог', unknown: 'Тип блога пока не определён' }[item.personal_blog] || 'Тип блога пока не определён';
     const checked = item.checked_at ? new Date(item.checked_at * 1000).toLocaleString('ru-RU') : 'ещё не проверялся';
     const next = item.next_check_at ? new Date(item.next_check_at * 1000).toLocaleString('ru-RU') : '';
     return el('article', { className: 'autopilot-source-card' },
@@ -711,7 +712,7 @@ function autopilotSourceCard(item) {
                 el('span', { className: 'autopilot-source-platform', textContent: platform.label }),
                 el('span', { className: 'autopilot-source-state', textContent: autopilotSourceStateLabels[item.state] || item.state || 'Источник' })),
             el('div', { className: 'autopilot-source-card-name' }, name),
-            el('div', { className: 'autopilot-source-card-reason', textContent: reason }),
+            el('div', { className: 'autopilot-source-card-reason', textContent: reason + ' · ' + personalBlogText }),
             el('div', { className: 'autopilot-source-card-meta' },
                 el('span', { textContent: 'Последняя проверка: ' + checked }),
                 ...(next ? [el('span', { textContent: 'Следующая: ' + next })] : []))
@@ -952,6 +953,31 @@ function renderAutopilot(data) {
                 renderAutopilot(result);
             } catch (error) { $('autopilot-status').textContent = `Настройки не сохранены: ${error.message}`; modeSelect.value = topic.mode; modeSelect.disabled = false; }
         });
+        const blogSelect = el('select');
+        blogSelect.setAttribute('aria-label', 'Персональные блоги для темы ' + topic.topic);
+        for (const [value, label] of [
+            ['any', 'Все типы блогов'],
+            ['only', 'Только персональные'],
+            ['exclude', 'Исключить персональные']
+        ]) {
+            const option = el('option', { value, textContent: label });
+            option.selected = (topic.personal_blog_mode || 'any') === value;
+            blogSelect.append(option);
+        }
+        blogSelect.addEventListener('change', async () => {
+            blogSelect.disabled = true;
+            try {
+                renderAutopilot(await api('source_personal_blog_mode', {
+                    body: { topic: topic.topic, mode: blogSelect.value }
+                }));
+            } catch (error) {
+                $('autopilot-status').textContent = 'Не удалось сохранить фильтр блогов: ' + error.message;
+                blogSelect.value = topic.personal_blog_mode || 'any';
+                blogSelect.disabled = false;
+            }
+        });
+        const blogFilter = el('label', { title: 'Фильтр применяется к выдаче постов и сборщику. Неизвестный тип исключается при строгом режиме.' },
+            el('span', { textContent: 'Личные блоги: ' }), blogSelect);
         const history = el('details', {}, el('summary', { textContent: 'История решений' }));
         history.hidden = topic.mode === 'off';
         const historyList = el('div', { textContent: 'Откройте историю, чтобы загрузить решения.' });
@@ -997,7 +1023,7 @@ function renderAutopilot(data) {
             catch (error) { $('autopilot-status').textContent = `Не удалось изменить паузу: ${error.message}`; pause.disabled = false; }
         });
         container.append(el('div', { className: 'autopilot-topic-row' }, description,
-            el('div', { className: 'autopilot-topic-actions' }, modeSelect, pause, request), history));
+            el('div', { className: 'autopilot-topic-actions' }, modeSelect, blogFilter, pause, request), history));
     }
 }
 
