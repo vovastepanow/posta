@@ -2,6 +2,7 @@ package posta
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -115,5 +116,30 @@ func TestAutopilotCandidateBacklogGetsReviewPriority(t *testing.T) {
 		if got := autopilotShouldDrainCandidateBacklog(tc.due); got != tc.drain {
 			t.Errorf("due=%d drain=%v want %v", tc.due, got, tc.drain)
 		}
+	}
+}
+
+func TestAutopilotAssessmentDiagnosticCategorizesFailures(t *testing.T) {
+	tests := []struct{ err error; want string }{
+		{errors.New("OpenRouter: free-models-per-day (HTTP 429)"), "provider_rate_limited"},
+		{errors.New("OpenRouter HTTP 403"), "provider_forbidden"},
+		{errors.New("OpenRouter HTTP 401"), "provider_unauthorized"},
+		{errors.New("timed out: context deadline exceeded"), "model_timeout"},
+		{errors.New("нет доступной модели"), "no_model_configured"},
+		{errors.New("model internal error"), "model_error"},
+	}
+	for _, tt := range tests {
+		if got := autopilotAssessmentCause(tt.err); got != tt.want {
+			t.Errorf("cause(%v)=%s, want %s", tt.err, got, tt.want)
+		}
+	}
+	ctx := withAutopilotAssessmentProbe(context.Background())
+	autopilotNoteAssessmentCause(ctx, "provider_forbidden")
+	if got := autopilotReadAssessmentCause(ctx); got != "provider_forbidden" {
+		t.Fatalf("probe=%s", got)
+	}
+	autopilotResetAssessmentCause(ctx)
+	if got := autopilotReadAssessmentCause(ctx); got != "" {
+		t.Fatalf("stale cause after reset=%s", got)
 	}
 }
