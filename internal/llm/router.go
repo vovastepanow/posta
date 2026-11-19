@@ -513,9 +513,9 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 	}
 	// Use the SAME multimodal Nemotron on its paid endpoint after the free
 	// variant is rate-limited. Never use it for ordinary tasks, private requests,
-	// FreeOnly requests, or when the guarded daily spend is exhausted.
+	// FreeOnly requests, or when the scoped database spend gate is exhausted.
 	if allow, _ := ctx.Value(autopilotPaidNemotronFallbackKey{}).(bool); allow && freeRateLimited && nemotronFreeSelected && !req.Private && !req.FreeOnly && ctx.Err() == nil &&
-		r.OpenRouter != nil && r.OpenRouter.Configured() && r.Spent != nil && r.Spent() < 0.10 {
+		r.OpenRouter != nil && r.OpenRouter.Configured() {
 		paid := Target{Provider: "openrouter", Model: "nvidia/nemotron-3.5-super-vl"}
 		logf("-> бесплатный Nemotron ограничен; пробую платную версию в пределах бюджета автопилота.")
 		if resp, err := r.try(ctx, req, paid, true); err == nil {
