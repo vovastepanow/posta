@@ -922,6 +922,9 @@ function renderAutopilot(data) {
                         projection_conflict: 'конфликт подключения',
                         probation_full: 'нет места на испытании'
                     })[reason] || reason) + ': ' + number(count)).join(' · ') || 'нет кандидатов' }),
+                el('span', { textContent: 'За 24 часа: ' + number(topic.decisions_24h) + ' записанных решений · ' +
+                    number(topic.promoted_24h) + ' прошли предварительный отбор · ' +
+                    number(topic.rejected_24h) + ' отклонены' }),
                 el('span', { textContent: 'За 24 часа проверено: ' + number(topic.checked_24h) +
                     ' источников · ошибок AI-оценки в реестре: ' + number(topic.assessment_unavailable) +
                     ' · мест испытания: ' + number(topic.probation_limit) }),
