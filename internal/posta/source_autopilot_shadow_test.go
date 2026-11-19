@@ -119,24 +119,23 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 	if err = d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE scope='public:shadow' AND topic_key=$1 AND source_id='rss:https://example.org/partial'`, key).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("partial search candidates lost: %d %v", count, err)
 	}
-	// Authenticated state listings must expose only this topic's public
-	// sources and page them without repeating entries.
+	// A sparse source leaves the pending queue for a scheduled, visible
+	// follow-up. Subscribers may inspect both lists without losing records.
 	page, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "candidate", "", 1)
-	if err != nil || len(jx.Maps(page, "sources")) != 1 || jx.Str(page, "next_after") == "" {
-		t.Fatalf("first candidate page=%v err=%v", page, err)
+	if err != nil || len(jx.Maps(page, "sources")) != 1 || jx.Str(page, "next_after") != "" ||
+		jx.Str(jx.Maps(page, "sources")[0], "source_id") != "rss:https://example.org/partial" {
+		t.Fatalf("remaining candidates=%v err=%v", page, err)
 	}
-	secondPage, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "candidate", jx.Str(page, "next_after"), 1)
-	if err != nil || len(jx.Maps(secondPage, "sources")) != 1 || jx.Str(secondPage, "next_after") != "" {
-		t.Fatalf("second candidate page=%v err=%v", secondPage, err)
+	cooldownPage, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "cooldown", "", 10)
+	if err != nil || len(jx.Maps(cooldownPage, "sources")) != 1 ||
+		jx.Str(jx.Maps(cooldownPage, "sources")[0], "source_id") != "rss:https://example.org/empty" {
+		t.Fatalf("sparse source not saved for later review: %v %v", cooldownPage, err)
 	}
-	if jx.Str(jx.Maps(page, "sources")[0], "source_id") == jx.Str(jx.Maps(secondPage, "sources")[0], "source_id") {
-		t.Fatal("candidate page repeated the same source")
+	if _, err := a.User(ctx, "unsubscribed-autopilot-test", nil).SourceAutopilotSources(topic, "shadow", "cooldown", "", 10); err == nil {
+		t.Fatal("unsubscribed user could enumerate cooldown sources")
 	}
-	if _, err := a.User(ctx, "unsubscribed-autopilot-test", nil).SourceAutopilotSources(topic, "shadow", "candidate", "", 10); err == nil {
-		t.Fatal("unsubscribed user could enumerate public topic sources")
-	}
-	if _, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "cooldown", "", 10); err == nil {
-		t.Fatal("unlisted source state was accepted")
+	if _, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "unlisted", "", 10); err == nil {
+		t.Fatal("invalid source state was accepted")
 	}
 	// A last-search cohort can include sources that have already moved
 	// beyond the candidate state, and it must paginate independently.
@@ -172,7 +171,7 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 	if err = d.Pool.QueryRow(ctx, `SELECT state,reason FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, autopilotShadowScope, key, "rss:https://example.org/feed").Scan(&state, &reason); err != nil || state != "probation" || evaluations != 1 {
 		t.Fatalf("state=%s reason=%s evaluations=%d err=%v", state, reason, evaluations, err)
 	}
-	if err = d.Pool.QueryRow(ctx, `SELECT state,reason FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, autopilotShadowScope, key, "rss:https://example.org/empty").Scan(&state, &reason); err != nil || state != "candidate" || reason != "insufficient_fresh_samples" {
+	if err = d.Pool.QueryRow(ctx, `SELECT state,reason FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, autopilotShadowScope, key, "rss:https://example.org/empty").Scan(&state, &reason); err != nil || state != "cooldown" || reason != "sparse_publisher" {
 		t.Fatalf("empty state=%s reason=%s err=%v", state, reason, err)
 	}
 	var after int
