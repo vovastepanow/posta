@@ -5,6 +5,17 @@ export const $ = id => document.getElementById(id);
 const node = target => (typeof target === 'string' ? $(target) : target);
 export const show = (target, visible = true) => { node(target).hidden = !visible; };
 export const hide = target => show(target, false);
+
+// One backdrop-click handler for native modal dialogs throughout the app.
+document.addEventListener('click', event => {
+    const dialog = event.target;
+    if (!(dialog instanceof HTMLDialogElement) || !dialog.open) return;
+    const rect = dialog.getBoundingClientRect();
+    const outside = event.clientX < rect.left || event.clientX > rect.right ||
+        event.clientY < rect.top || event.clientY > rect.bottom;
+    if (outside) dialog.close();
+});
+
 /** Текст в блоке статуса или ошибки; пустой текст прячет блок. */
 export function setMessage(target, text) { const n = node(target); n.textContent = text || ''; n.hidden = !text; }
 
