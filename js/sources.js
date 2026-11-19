@@ -622,7 +622,7 @@ function renderAutopilot(data) {
     const container = $('autopilot-topics');
     container.replaceChildren();
     const backends = (data.backends || []).filter(backend => backend.enabled).map(backend => backend.name).join(', ') || 'не включены';
-    $('autopilot-status').textContent = `Теневой режим на сервере: ${data.shadow_enabled ? 'включён' : 'выключен'}; автоматический: ${data.auto_enabled ? 'включён' : 'выключен'}. Настроенные площадки: ${backends}.`;
+    $('autopilot-status').textContent = `Версия сервера: ${data.server_revision || 'неизвестна'}. Теневой режим на сервере: ${data.shadow_enabled ? 'включён' : 'выключен'}; автоматический: ${data.auto_enabled ? 'включён' : 'выключен'}. Настроенные площадки: ${backends}.`;
     for (const topic of data.topics || []) {
         const number = value => Number(value || 0).toLocaleString('ru-RU');
         const dateTime = stamp => stamp ? new Date(stamp * 1000).toLocaleString('ru-RU') : 'ещё нет';
@@ -696,6 +696,21 @@ function renderAutopilot(data) {
                 el('span', { textContent: 'Очередь: ' + number(topic.queue_ready) + ' готовы к проверке · ' +
                     number(topic.queue_delayed) + ' ожидают повторной попытки · ' +
                     number(topic.queue_unchecked) + ' ещё ни разу не проверялись' }),
+                el('span', { textContent: 'Причины ожидания: ' + Object.entries(topic.candidate_reasons || {})
+                    .sort((a, b) => Number(b[1]) - Number(a[1]))
+                    .map(([reason, count]) => (({
+                        not_checked: 'ещё не проверены',
+                        insufficient_fresh_samples: 'мало свежих публикаций',
+                        feed_unavailable: 'лента недоступна',
+                        rate_limited: 'ограничение площадки',
+                        source_not_found: 'источник не найден',
+                        unrecognized_feed: 'не распознана лента',
+                        feed_parse_failed: 'ошибка разбора ленты',
+                        preliminary_match_uncertain: 'не прошли порог качества',
+                        assessment_unavailable: 'AI-оценка недоступна',
+                        projection_conflict: 'конфликт подключения',
+                        probation_full: 'нет места на испытании'
+                    })[reason] || reason) + ': ' + number(count)).join(' · ') || 'нет кандидатов' }),
                 el('span', { textContent: 'За 24 часа проверено: ' + number(topic.checked_24h) +
                     ' источников · ошибок AI-оценки в реестре: ' + number(topic.assessment_unavailable) +
                     ' · мест испытания: ' + number(topic.probation_limit) }),
