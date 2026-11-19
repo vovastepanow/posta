@@ -268,7 +268,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 // Pagination is by stable source ID, without scanning or sending a whole queue.
 func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) (jx.M, error) {
 	if strings.TrimSpace(topic) == "" || (mode != "shadow" && mode != "auto") ||
-		(state != "candidate" && state != "probation" && state != "active") {
+		(state != "found" && state != "candidate" && state != "probation" && state != "active") {
 		return nil, Bad("Некорректный список источников.")
 	}
 	if limit < 1 || limit > 50 {
@@ -288,9 +288,39 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 	if mode == "auto" {
 		scope = autopilotAutoScope
 	}
-	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id,reason,first_seen_at,checked_at,next_check_at
+	// The latest search cohort is stored in the job checkpoint: existing
+	// sources may be rediscovered without a new discovery decision, and they
+	// may already have moved to probation or active.
+	var latestIDs []string
+	if state == "found" {
+		kind := autopilotShadowKind
+		if mode == "auto" {
+			kind = autopilotAutoKind
+		}
+		var checkpoint []byte
+		err := u.DB.Pool.QueryRow(u.Ctx, `SELECT checkpoint FROM source_autopilot_jobs
+			WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&checkpoint)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		latestIDs = jx.Strs(jx.Unmarshal(checkpoint), "last_search_source_ids")
+		if len(latestIDs) == 0 {
+			return jx.M{"sources": []jx.M{}, "next_after": "", "snapshot_available": false}, nil
+		}
+	}
+	query := `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at
 		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state=$3 AND source_id>$4
-		ORDER BY source_id LIMIT $5`, scope, key, state, after, limit+1)
+		ORDER BY source_id LIMIT $5`
+	var rows pgx.Rows
+	var err error
+	if state == "found" {
+		rows, err = u.DB.Pool.Query(u.Ctx, `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
+			AND source_id=ANY($6) AND source_id>$4
+			ORDER BY source_id LIMIT $5`, scope, key, state, after, limit+1, latestIDs)
+	} else {
+		rows, err = u.DB.Pool.Query(u.Ctx, query, scope, key, state, after, limit+1)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -298,16 +328,16 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 	items := make([]jx.M, 0, limit)
 	hasMore := false
 	for rows.Next() {
-		var source, reason string
+		var source, currentState, reason string
 		var discovered, checked, next int64
-		if err := rows.Scan(&source, &reason, &discovered, &checked, &next); err != nil {
+		if err := rows.Scan(&source, &currentState, &reason, &discovered, &checked, &next); err != nil {
 			return nil, err
 		}
 		if len(items) == limit {
 			hasMore = true
 			break
 		}
-		items = append(items, jx.M{"source_id": source, "reason": reason,
+		items = append(items, jx.M{"source_id": source, "state": currentState, "reason": reason,
 			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next})
 	}
 	if err := rows.Err(); err != nil {
@@ -317,7 +347,7 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 	if hasMore {
 		cursor = jx.Str(items[len(items)-1], "source_id")
 	}
-	return jx.M{"sources": items, "next_after": cursor}, nil
+	return jx.M{"sources": items, "next_after": cursor, "snapshot_available": true}, nil
 }
 
 // SourceAutopilotHistory exposes public decisions only for a profile the
