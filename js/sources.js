@@ -665,7 +665,7 @@ function renderAutopilot(data) {
         const sourceList = el('div', { className: 'autopilot-source-list' });
         const sourceMore = el('button', { type: 'button', className: 'secondary-button', textContent: 'Показать ещё', hidden: true });
         sourcePanel.append(el('div', { className: 'autopilot-source-heading' }, sourceHeading, sourceClose), sourceList, sourceMore);
-        const stateLabels = { candidate: 'Ожидают проверки', probation: 'На испытании', active: 'Подтверждено' };
+        const stateLabels = { found: 'Найдено за последний поиск', candidate: 'Ожидают проверки', probation: 'На испытании', active: 'Подтверждено' };
         const sourceReasons = {
             discovered: 'найден, ещё не проверен', insufficient_fresh_samples: 'мало свежих публикаций',
             feed_unavailable: 'лента недоступна', rate_limited: 'ограничение площадки',
@@ -689,6 +689,12 @@ function renderAutopilot(data) {
                 });
                 if (requestID !== sourceRequestID) return;
                 if (!sourceAfter) sourceList.replaceChildren();
+                if (sourceState === 'found' && result.snapshot_available === false) {
+                    sourceList.textContent = 'Список появится после следующего поискового прохода. Для предыдущего поиска сохранено только количество.';
+                    sourceAfter = '';
+                    sourceMore.hidden = true;
+                    return;
+                }
                 for (const item of result.sources || []) {
                     const raw = String(item.source_id || '');
                     const link = raw.startsWith('rss:https://') || raw.startsWith('rss:http://')
@@ -696,7 +702,8 @@ function renderAutopilot(data) {
                     const name = link
                         ? el('a', { href: link, target: '_blank', rel: 'noopener noreferrer', textContent: raw.slice(4) })
                         : el('span', { textContent: raw });
-                    const info = [sourceReasons[item.reason] || item.reason || 'ожидает проверки'];
+                    const currentStates = { candidate: 'ожидает проверки', probation: 'на испытании', active: 'подтверждён', rejected: 'отклонён', cooldown: 'отложен' };
+                    const info = [sourceState === 'found' ? (currentStates[item.state] || item.state) : '', sourceReasons[item.reason] || item.reason || 'ожидает проверки'].filter(Boolean);
                     if (item.checked_at) info.push('Проверен: ' + new Date(item.checked_at * 1000).toLocaleString('ru-RU'));
                     if (item.next_check_at && item.next_check_at > Date.now() / 1000)
                         info.push('Следующая попытка: ' + new Date(item.next_check_at * 1000).toLocaleString('ru-RU'));
@@ -754,7 +761,7 @@ function renderAutopilot(data) {
                 el('strong', { textContent: topic.topic }),
                 el('span', { className: 'autopilot-state' + (topic.running ? ' is-running' : ''), textContent: status })),
             el('div', { className: 'autopilot-metrics' },
-                stat('Найдено за 1 цикл', found, 'Автопилот; не сумма находок ручного подбора'),
+                sourceStat('Найдено за 1 цикл', found, 'Нажмите, чтобы открыть список', 'found'),
                 sourceStat('Ожидают проверки', sourceCandidates, 'Нажмите, чтобы открыть список', 'candidate'),
                 sourceStat('На испытании', sourcesReview, 'Нажмите, чтобы открыть список', 'probation'),
                 sourceStat('Подтверждено', sourcesActive, 'Нажмите, чтобы открыть список', 'active')),
