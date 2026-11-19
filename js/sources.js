@@ -628,6 +628,7 @@ const autopilotSourceReasonLabels = {
     feed_unavailable: 'Лента недоступна', rate_limited: 'Ограничение запросов площадки',
     source_not_found: 'Источник не найден', unrecognized_feed: 'Формат ленты не распознан',
     feed_parse_failed: 'Ошибка разбора ленты', preliminary_match_uncertain: 'Недостаточно высокая оценка тематики',
+    preliminary_topic_mismatch: 'Проверен и отклонён: не соответствует теме', off_topic_group: 'Группа не соответствует теме',
     assessment_unavailable: 'AI-оценка временно недоступна', probation_full: 'Все места испытания заняты', probation_full_verified: 'Группа проверена; все места испытания заняты', projection_conflict: 'Конфликт подключения',
     shadow_preliminary_pass: 'Прошёл предварительную проверку',
     observed_useful: 'Полезность подтверждена', insufficient_evidence: 'Недостаточно данных для решения',
