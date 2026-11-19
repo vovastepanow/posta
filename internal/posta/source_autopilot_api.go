@@ -203,7 +203,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			stats := jx.Unmarshal(checkpoint)
 			// Pipeline telemetry is written in both auto and shadow modes.
 			for key, value := range map[string]string{
-				"pipeline_phase": "pipeline_phase",
+				"pipeline_phase":      "pipeline_phase",
 				"last_search_outcome": "last_search_outcome",
 			} {
 				row[key] = jx.Str(stats, value)
