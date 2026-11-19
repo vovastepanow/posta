@@ -696,6 +696,17 @@ function autopilotSourceIdentity(raw) {
 function autopilotSourceCard(item) {
     const raw = String(item.source_id || '');
     const identity = autopilotSourceIdentity(raw);
+    // The server resolves technical feeds to actual community/profile pages.
+    // Keep source_id untouched for deduplication and autopilot decisions.
+    if (item.url) {
+        try {
+            const page = new URL(item.url);
+            if (page.protocol === 'https:' || page.protocol === 'http:') {
+                identity.url = page.href;
+                identity.display = page.host + (page.pathname === '/' ? '' : page.pathname);
+            }
+        } catch { /* Invalid URLs remain non-preferred display links. */ }
+    }
     const { platform, url } = identity;
     const icon = el('span', { className: 'autopilot-source-brand', textContent: platform.fallback });
     icon.style.backgroundColor = platform.color;
