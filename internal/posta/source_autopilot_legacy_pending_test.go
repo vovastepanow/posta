@@ -77,7 +77,11 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 		c.Suggestions = append(c.Suggestions, entry(source, topic), entry(source, topic),
 			entry(manualVote, topic), entry(alreadyApproved, topic),
 			entry(differentTopic, "Совсем другая тема"))
-		c.Votes = append(c.Votes, jx.M{"source_id": manualVote, "topic": topic, "vote": "reject"})
+		c.Votes = append(c.Votes,
+			jx.M{"source_id": manualVote, "topic": topic, "vote": "reject"},
+			// A decision on a different topic must not prevent this
+			// source from entering the active topic's autopilot.
+			jx.M{"source_id": source, "topic": "Математика", "vote": "reject"})
 		c.RSS = append(c.RSS, jx.M{"id": alreadyApproved[4:], "name": "Approved", "topics": []any{topic}})
 		return true
 	}); err != nil {
@@ -94,7 +98,7 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 			c.Suggestions = filteredSuggestions
 			votes := c.Votes[:0]
 			for _, x := range c.Votes {
-				if jx.Str(x, "source_id") != manualVote {
+				if jx.Str(x, "source_id") != manualVote && jx.Str(x, "source_id") != source {
 					votes = append(votes, x)
 				}
 			}
