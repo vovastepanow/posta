@@ -1099,6 +1099,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				reason = "assessment_unavailable"
 			} else {
 				evidence["preliminary_score"] = evaluation.Score
+				if format := personalBlogLabelFromReview(evaluation.PersonalBlog); format != personalBlogUnknown {
+					evidence["personal_blog"] = format
+				}
 				if autopilotPreliminaryPass(evaluation.Score, threshold, len(samples)) {
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate", "probation", "shadow_preliminary_pass", jx.Marshal(evidence), at, at.Add(autopilotSourceReviewInterval(job, "probation"))); err != nil {
 						if errors.Is(err, errAutopilotProbationLimit) {
