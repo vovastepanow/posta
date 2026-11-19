@@ -933,6 +933,39 @@ func autopilotRetryAt(at time.Time, source, retryAfter string) time.Time {
 	return at.Add(delay + time.Duration(h.Sum32()%3600)*time.Second)
 }
 
+// autopilotEvaluateSource keeps the preliminary check cheap for text-rich
+// publishers in topics which explicitly allow text. A combined storyboard
+// would download up to several public images before making the same topic
+// decision, then download them again if the multimodal call fails. That
+// exhausted the topic's daily fetch budget while hundreds of candidates
+// remained unchecked. Every admitted source still enters probation and must
+// pass independent post-level analysis before it can become active.
+func (u *U) autopilotEvaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluation {
+	format := u.TopicFormatOf(topic)
+	if format.Media != "optional" || format.Judge == "image" {
+		return u.evaluateSource(info, posts, topic)
+	}
+	captions := make([]string, 0, 6)
+	for _, post := range posts {
+		caption := strings.TrimSpace(jx.Str(post, "text"))
+		if caption != "" && caption != EmptyPostText && len([]rune(caption)) >= 40 {
+			captions = append(captions, caption)
+		}
+		if len(captions) >= 6 {
+			break
+		}
+	}
+	if len(captions) < 3 {
+		return u.evaluateSource(info, posts, topic)
+	}
+	review := u.sourceTextReview(jx.Str(info, "title"), jx.Str(info, "description"), topic, captions)
+	if review == nil {
+		return nil
+	}
+	score := review.Score
+	return &sourceEvaluation{Score: score, Text: &score, TextOnly: true, Reason: review.Reason, PersonalBlog: review.PersonalBlog}
+}
+
 // Review only public feed data. An unavailable feed, model error or small
 // sample remains uncertain; none of them proves poor source quality.
 func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilotJob, limit int) error {
@@ -959,7 +992,7 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 				return u.autopilotMastodonListing(feed)
 			}
 			return u.RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
-		}, u.evaluateSource,
+		}, u.autopilotEvaluateSource,
 		func(ctx context.Context, source string, posts []jx.M) error {
 			return a.assessAutopilotPublicPosts(ctx, job, source, posts)
 		}, a.autopilotSourcePolicy())
