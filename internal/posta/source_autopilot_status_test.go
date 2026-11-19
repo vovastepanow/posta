@@ -6,6 +6,7 @@ func TestAutopilotStatusReason(t *testing.T) {
 	base := autopilotStatusInput{
 		Enabled: true, Eligible: true, Deficit: 10, Target: 20,
 		FetchRemaining: 50, ModelRemaining: 20,
+		ServerFetchRemaining: 100, ServerModelRemaining: 100,
 	}
 	tests := []struct {
 		name string
@@ -20,6 +21,9 @@ func TestAutopilotStatusReason(t *testing.T) {
 		{"backend failure", func(i *autopilotStatusInput) { i.Failure = "search_unavailable" }, "search_unavailable"},
 		{"sufficient posts", func(i *autopilotStatusInput) { i.Deficit = 0 }, "supplied"},
 		{"full pool", func(i *autopilotStatusInput) { i.Available = 20 }, "pool_full"},
+		{"server fetch quota", func(i *autopilotStatusInput) { i.ServerFetchRemaining = 0 }, "server_fetch_budget_exhausted"},
+		{"server model quota", func(i *autopilotStatusInput) { i.ServerModelRemaining = 0 }, "server_model_budget_exhausted"},
+		{"server limits override stale error", func(i *autopilotStatusInput) { i.ServerModelRemaining = 0; i.Failure = "other_error" }, "server_model_budget_exhausted"},
 		{"fetch quota", func(i *autopilotStatusInput) { i.FetchRemaining = 0 }, "fetch_budget_exhausted"},
 		{"model quota", func(i *autopilotStatusInput) { i.ModelRemaining = 0 }, "model_budget_exhausted"},
 		{"AI blocked", func(i *autopilotStatusInput) { i.Candidates = 3; i.ModelFailures = 2 }, "classifier_unavailable"},

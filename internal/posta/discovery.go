@@ -556,7 +556,8 @@ func (u *U) evaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluat
 			caps = append(caps, t)
 		}
 	}
-	judge := u.TopicFormatOf(topic).Judge
+	format := u.TopicFormatOf(topic)
+	judge := format.Judge
 	if len(caps) > 0 && judge != "image" && judge != "text" {
 		if combined := u.combinedSourceReview(title, desc, topic, posts, caps); combined != nil {
 			return combined
@@ -582,6 +583,20 @@ func (u *U) evaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluat
 	}
 	review := u.sourceImagesReview(title, topic, posts)
 	if review == nil {
+		// Mixed topics such as SMM explicitly accept text-only posts. Many
+		// public feeds advertise an image URL but prohibit hotlinking the
+		// image itself. That is not evidence that a successful TEXT review
+		// was invalid. Previously the mere presence of the URL forced an
+		// image assessment and discarded a valid text score, keeping the
+		// source stuck in assessment_unavailable forever.
+		//
+		// Image-required topics remain strict. An accepted source still
+		// needs post-level evidence and the normal probation thresholds;
+		// this path never activates it directly.
+		if text != nil && format.Media == "optional" && judge != "image" {
+			score := text.Score
+			return &sourceEvaluation{Score: score, Text: &score, TextOnly: true, Reason: text.Reason, PersonalBlog: text.PersonalBlog}
+		}
 		return nil
 	}
 	if text == nil {

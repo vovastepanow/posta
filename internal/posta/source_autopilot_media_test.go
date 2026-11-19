@@ -74,4 +74,18 @@ func TestEvaluateTextOnlySourceWithoutImage(t *testing.T) {
 	if calls != 1 {
 		t.Fatalf("text-only source should use one text model call, got %d", calls)
 	}
+	// A mixed SMM publisher can advertise images even when the host
+	// blocks their retrieval. A valid text assessment must not be erased
+	// merely because the optional storyboard cannot be downloaded.
+	withBlockedImage := []jx.M{{
+		"text":  "Подробный разбор SMM-стратегии и измерения охвата аудитории.",
+		"image": "http://127.0.0.1:1/unavailable.png",
+	}}
+	ev = u.evaluateSource(jx.M{"title": "Практика SMM"}, withBlockedImage, "SMM и блогинг")
+	if ev == nil || ev.Score != 92 || ev.Text == nil || !ev.TextOnly {
+		t.Fatalf("mixed source lost successful text score when an image is blocked: %+v", ev)
+	}
+	if calls != 2 {
+		t.Fatalf("optional blocked image should not trigger extra AI attempts: %d", calls)
+	}
 }

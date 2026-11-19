@@ -21,6 +21,7 @@ type autopilotStatusInput struct {
 	Failure                                               string
 	Available, Target, Deficit, Candidates, ActiveSources int
 	FetchRemaining, ModelRemaining                        int64
+	ServerFetchRemaining, ServerModelRemaining            int64
 	ModelFailures, Promoted24h                            int
 }
 
@@ -32,12 +33,16 @@ func autopilotStatusReason(in autopilotStatusInput) string {
 		return "disabled"
 	case in.Running:
 		return "running"
-	case in.Failure != "":
-		return in.Failure
 	case in.Deficit <= 0:
 		return "supplied"
 	case in.Target > 0 && in.Available >= in.Target:
 		return "pool_full"
+	case in.ServerFetchRemaining <= 0:
+		return "server_fetch_budget_exhausted"
+	case in.ServerModelRemaining <= 0:
+		return "server_model_budget_exhausted"
+	case in.Failure != "":
+		return in.Failure
 	case in.FetchRemaining <= 0:
 		return "fetch_budget_exhausted"
 	case in.ModelRemaining <= 0:
@@ -116,6 +121,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		row["fetch_remaining"] = max(0, int64(u.TInt("autopilot_fetch_topic_daily"))-fetchUsed)
 		row["model_remaining"] = max(0, int64(u.TInt("autopilot_model_topic_daily"))-modelUsed)
 		row["server_fetch_remaining"], row["server_model_remaining"] = serverFetchRemaining, serverModelRemaining
+		row["server_fetch_limit"], row["server_model_limit"] = u.TInt("autopilot_fetch_server_daily"), u.TInt("autopilot_model_server_daily")
 		var next, lease int64
 		var attempts int
 		var enabled, eligible bool
@@ -268,8 +274,9 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 					Available: available, Target: supply.Demand.Target,
 					Deficit: supply.Demand.Deficit, Candidates: autoCandidates + autoProbation,
 					ActiveSources: autoActive, FetchRemaining: jx.Int(row, "fetch_remaining"),
-					ModelRemaining: jx.Int(row, "model_remaining"),
-					ModelFailures:  aiPending, Promoted24h: promoted24h,
+					ModelRemaining:       jx.Int(row, "model_remaining"),
+					ServerFetchRemaining: serverFetchRemaining, ServerModelRemaining: serverModelRemaining,
+					ModelFailures: aiPending, Promoted24h: promoted24h,
 				})
 			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
