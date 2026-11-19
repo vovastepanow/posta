@@ -420,11 +420,5 @@ export function initializeImageViewer() {
     });
     // Clicking the backdrop only closes the viewer; navigation uses explicit controls.
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-    overlay.addEventListener('pointermove', e => {
-        const dir = e.target === overlay && !state.drag ? side(e) : 0;
-        overlay.classList.toggle('hover-prev', dir < 0);
-        overlay.classList.toggle('hover-next', dir > 0);
-        overlay.classList.toggle('is-flip', dir !== 0);
-    });
-    overlay.addEventListener('pointerleave', () => overlay.classList.remove('hover-prev', 'hover-next', 'is-flip'));
+
 }
