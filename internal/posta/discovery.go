@@ -439,12 +439,17 @@ func (u *U) QueryDiscoveryQuotaTake(key string) bool {
 }
 
 type sourceReview struct {
-	Score  int
-	Reason string
+	Score        int
+	Reason       string
+	PersonalBlog string
 }
 
+const sourceFormatPrompt = "\nДополнительно определи тип ИСТОЧНИКА, независимо от темы: поле personal_blog = yes, когда по нескольким публикациям ясно, что это личный блог одного постоянного автора/ведущего (в том числе появляется перед камерой); no, когда это медиа, бренд, группа авторов или безличная подборка; unknown, когда надёжных признаков недостаточно. Не делай вывод по одному лицу или одному посту. Верни это поле в JSON."
+
 func (u *U) sourceReviewRequest(prompt string, images [][]byte) *sourceReview {
-	schema := jx.M{"type": "object", "properties": jx.M{"score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "reason": jx.M{"type": "string"}},
+	prompt += sourceFormatPrompt
+	schema := jx.M{"type": "object", "properties": jx.M{"score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "reason": jx.M{"type": "string"},
+		"personal_blog": jx.M{"type": "string", "enum": []string{"yes", "no", "unknown"}}},
 		"required": []string{"score", "reason"}}
 	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Images: images, Schema: schema, MaxTokens: 120, Temperature: 0, UserID: u.ID})
 	if err != nil {
@@ -454,7 +459,7 @@ func (u *U) sourceReviewRequest(prompt string, images [][]byte) *sourceReview {
 	if a == nil || a["score"] == nil {
 		return nil
 	}
-	return &sourceReview{llm.ClampScore(jx.Float(a, "score")), trimRunes(llm.StripCJK(jx.Str(a, "reason")), 80)}
+	return &sourceReview{Score: llm.ClampScore(jx.Float(a, "score")), Reason: trimRunes(llm.StripCJK(jx.Str(a, "reason")), 80), PersonalBlog: personalBlogLabelFromReview(jx.Str(a, "personal_blog"))}
 }
 
 const notShop = " Канал магазина, компании, сервиса или бренда, который продаёт товары или услуги, — не тема, даже если товар связан с темой."
@@ -511,8 +516,8 @@ func (u *U) combinedSourceReview(title, desc, topic string, posts []jx.M, caps [
 		}
 		texts = append(texts, trimRunes(cap, 160))
 	}
-	prompt := u.prompt("source_combined", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "description": trimRunes(desc, 400), "query_rule": sourceQueryRule(topic), "captions": strings.Join(texts, "»; «"), "shop_rule": notShop})
-	props := jx.M{"text_score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "image_score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "reason": jx.M{"type": "string"}}
+	prompt := u.prompt("source_combined", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "description": trimRunes(desc, 400), "query_rule": sourceQueryRule(topic), "captions": strings.Join(texts, "»; «"), "shop_rule": notShop}) + sourceFormatPrompt
+	props := jx.M{"text_score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "image_score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "reason": jx.M{"type": "string"}, "personal_blog": jx.M{"type": "string", "enum": []string{"yes", "no", "unknown"}}}
 	required := []string{"text_score", "image_score", "reason"}
 	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Images: StoryboardSheets(frames), Schema: jx.M{"type": "object", "properties": props, "required": required}, MaxTokens: 180, Temperature: 0, UserID: u.ID})
 	if err != nil {
@@ -533,7 +538,7 @@ func parseCombinedSourceReview(reply string, hasTaste bool) *sourceEvaluation {
 	}
 	textScore := llm.ClampScore(jx.Float(data, "text_score"))
 	imageScore := llm.ClampScore(jx.Float(data, "image_score"))
-	ev := &sourceEvaluation{Score: min(textScore, imageScore), Text: &textScore, Images: []int{imageScore}, Reason: trimRunes(llm.StripCJK(jx.Str(data, "reason")), 80), TasteIncluded: true}
+	ev := &sourceEvaluation{Score: min(textScore, imageScore), Text: &textScore, Images: []int{imageScore}, Reason: trimRunes(llm.StripCJK(jx.Str(data, "reason")), 80), PersonalBlog: personalBlogLabelFromReview(jx.Str(data, "personal_blog")), TasteIncluded: true}
 	if hasTaste {
 		taste := llm.ClampScore(jx.Float(data, "taste_score"))
 		ev.Taste = &taste
@@ -542,6 +547,7 @@ func parseCombinedSourceReview(reply string, hasTaste bool) *sourceEvaluation {
 }
 
 type sourceEvaluation struct {
+	PersonalBlog  string
 	Score         int
 	Images        []int
 	Text          *int
@@ -588,7 +594,7 @@ func (u *U) evaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluat
 	}
 	if text != nil && judge == "text" {
 		s := text.Score
-		return &sourceEvaluation{Score: s, Text: &s, TextOnly: s < config.DiscoveryTextRejectScore, Reason: text.Reason}
+		return &sourceEvaluation{Score: s, Text: &s, TextOnly: s < config.DiscoveryTextRejectScore, Reason: text.Reason, PersonalBlog: text.PersonalBlog}
 	}
 	// Text-only feeds have no storyboard to score. An available text review
 	// is sufficient for non-image topics; do not turn missing media into an
@@ -602,10 +608,10 @@ func (u *U) evaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluat
 		return nil
 	}
 	if text == nil {
-		return &sourceEvaluation{Score: review.Score, Images: []int{review.Score}, Reason: review.Reason}
+		return &sourceEvaluation{Score: review.Score, Images: []int{review.Score}, Reason: review.Reason, PersonalBlog: review.PersonalBlog}
 	}
 	s := text.Score
-	return &sourceEvaluation{Score: min(text.Score, review.Score), Images: []int{review.Score}, Text: &s, Reason: review.Reason}
+	return &sourceEvaluation{Score: min(text.Score, review.Score), Images: []int{review.Score}, Text: &s, Reason: review.Reason, PersonalBlog: review.PersonalBlog}
 }
 
 func sourceEvaluationBasis(e *sourceEvaluation) string {
