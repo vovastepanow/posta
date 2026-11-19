@@ -16,6 +16,7 @@ const topicSources = { sources: [], topic: '', filter: 'all', loading: false };
 // Retain this exported hook for demo reset callers; manual source cards are gone.
 export function clearDiscoveredSource() {}
 
+let latestAutopilotDiagnostic = null;
 let autopilotSourceDialog = null;
 const autopilotSourceStates = { found: 'Найдено за цикл', candidate: 'Ожидают проверки', probation: 'На испытании', active: 'Подтверждено', cooldown: 'Повторная проверка позже', rejected: 'Отклонённые источники' };
 const autopilotSourceStateLabels = { candidate: 'Ожидает проверки', probation: 'На испытании', active: 'Подтверждён', cooldown: 'Повторная проверка', rejected: 'Отклонён' };
@@ -223,6 +224,7 @@ function openAutopilotSourceDialog(topic, state, count) {
 }
 
 function renderAutopilot(data) {
+    latestAutopilotDiagnostic = data;
     const container = $('autopilot-topics');
     container.replaceChildren();
     const backends = (data.backends || []).filter(backend => backend.enabled).map(backend => backend.name).join(', ') || 'не включены';
@@ -247,6 +249,10 @@ function renderAutopilot(data) {
         const phaseLabels = { prepare: 'Подготовка', search: 'Поиск по площадкам', review: 'Проверка источников', delivery: 'Доставка в пул' };
         const diagnosisNames = {
             classifier_unavailable: 'AI-оценка источников недоступна — проверяю повторно',
+            worker_not_running: 'Фоновый обработчик не работает — задания не исполняются',
+            worker_disabled_in_dev: 'Фоновые задачи отключены в режиме разработки',
+            scheduler_error: 'Ошибка планировщика — задания не запускаются',
+            job_missing: 'Задание не создано — проверьте включение режима',
             fetch_budget_exhausted: 'Исчерпан лимит загрузок — повтор после сброса бюджета UTC',
             model_budget_exhausted: 'Исчерпан лимит модели — повтор после сброса бюджета UTC',
             search_unavailable: 'Поисковики недоступны — назначен повтор',
@@ -255,11 +261,15 @@ function renderAutopilot(data) {
             no_sources_found: 'Источники пока не найдены',
             sources_under_review: 'Кандидаты проходят проверку'
         };
+        const workerFault = ['worker_not_running', 'worker_disabled_in_dev', 'scheduler_error', 'job_missing'].includes(topic.diagnosis);
         const status = disabled ? (topic.paused ? 'На паузе' :
-                !(topic.mode === 'auto' ? data.auto_enabled : data.shadow_enabled) ? 'Выключено на сервере' : 'Выключен')
+                !(topic.mode === 'auto' ? data.auto_enabled : data.shadow_enabled) ? 'Выключено на сервере' :
+                topic.job_paused ? 'Задание отключено' : 'Выключен')
+            : workerFault ? diagnosisNames[topic.diagnosis]
             : topic.running ? 'Работает: ' + (phaseLabels[activePhase] || 'запуск цикла')
             : topic.mode === 'auto' && diagnosisNames[topic.diagnosis] ? diagnosisNames[topic.diagnosis]
             : topic.failure ? 'Ожидает повтора после ошибки'
+            : topic.mode === 'shadow' ? 'Теневой режим — без подключения источников'
             : topic.mode === 'auto' && topic.available >= topic.target && topic.target > 0 ? 'Запас собран'
             : 'Ожидает следующего цикла';
         const sourceCandidates = topic.mode === 'auto' ? topic.auto_candidates : topic.shadow_candidates;
@@ -353,6 +363,12 @@ function renderAutopilot(data) {
                 el('span', { textContent: 'За 24 часа проверено: ' + number(topic.checked_24h) +
                     ' источников · ошибок AI-оценки в реестре: ' + number(topic.assessment_unavailable) +
                     ' · мест испытания: ' + number(topic.probation_limit) }),
+                el('span', { textContent: 'Фоновый обработчик: ' +
+                    (topic.worker_alive ? 'работает' : 'не отвечает') +
+                    ' · последний сигнал: ' + dateTime(topic.worker_last_tick) +
+                    ' · ошибок запуска: ' + number(topic.worker_panics) +
+                    (topic.worker_reconcile_error ? ' · ошибка планировщика' : '') +
+                    (topic.job_exists ? '' : ' · задание отсутствует') }),
                 el('span', { textContent: 'Запусков задания: ' + number(topic.attempts) +
                     (topic.pipeline_phase_at ? ' · последний этап: ' + dateTime(topic.pipeline_phase_at) : '') }),
                 el('span', { textContent: topic.running ? 'Текущий цикл выполняется' :
@@ -464,6 +480,55 @@ async function loadAutopilotTopicOptions() {
     }
     select.replaceChildren(...options);
     if (topics.some(item => item.title === current)) select.value = current;
+}
+
+function autopilotDiagnosticReport(data) {
+    // Share only aggregate operational facts. Never include source IDs,
+    // account details, raw exceptions or credential-bearing URLs.
+    return JSON.stringify({
+        server_revision: data.server_revision,
+        captured_at: new Date().toISOString(),
+        auto_enabled: data.auto_enabled,
+        shadow_enabled: data.shadow_enabled,
+        background_content_enabled: data.background_content_enabled,
+        topics: (data.topics || []).map(topic => ({
+            topic: topic.topic, mode: topic.mode, paused: topic.paused,
+            diagnosis: topic.diagnosis, failure: topic.failure,
+            worker_alive: topic.worker_alive, worker_last_tick: topic.worker_last_tick,
+            worker_reconcile_error: topic.worker_reconcile_error,
+            worker_panics: topic.worker_panics, background_enabled: topic.background_enabled,
+            job_exists: topic.job_exists, job_paused: topic.job_paused,
+            eligible: topic.eligible, running: topic.running,
+            attempts: topic.attempts, next_run_at: topic.next_run_at,
+            pipeline_phase: topic.pipeline_phase, pipeline_phase_at: topic.pipeline_phase_at,
+            last_search_at: topic.last_search_at, last_search_outcome: topic.last_search_outcome,
+            auto_candidates: topic.auto_candidates, auto_sources_probation: topic.auto_sources_probation,
+            auto_sources_active: topic.auto_sources_active,
+            queue_ready: topic.queue_ready, queue_delayed: topic.queue_delayed,
+            queue_unchecked: topic.queue_unchecked, checked_24h: topic.checked_24h,
+            assessment_unavailable: topic.assessment_unavailable,
+            decisions_24h: topic.decisions_24h, promoted_24h: topic.promoted_24h,
+            candidate_reasons: topic.candidate_reasons,
+            fetch_remaining: topic.fetch_remaining, model_remaining: topic.model_remaining,
+            server_fetch_remaining: topic.server_fetch_remaining,
+            server_model_remaining: topic.server_model_remaining
+        }))
+    }, null, 2);
+}
+
+async function copyAutopilotDiagnostic() {
+    const button = $('autopilot-copy-diagnostic');
+    button.disabled = true;
+    try {
+        const data = await api('source_autopilot_status');
+        latestAutopilotDiagnostic = data;
+        await navigator.clipboard.writeText(autopilotDiagnosticReport(data));
+        $('autopilot-status').textContent = 'Диагностика скопирована. Можно вставить её в чат — без команд на сервере.';
+    } catch (error) {
+        $('autopilot-status').textContent = 'Не удалось скопировать диагностику: ' + error.message;
+    } finally {
+        button.disabled = false;
+    }
 }
 
 async function loadAutopilot() {
@@ -1033,6 +1098,7 @@ export function initializeSourceTab() {
     initializeMirror();
     $('source-add-form').addEventListener('submit', addSource);
     $('autopilot-form').addEventListener('submit', saveAutopilot);
+    $('autopilot-copy-diagnostic').addEventListener('click', copyAutopilotDiagnostic);
     window.setInterval(() => { if (isTabActive('source-tab')) loadAutopilot(); }, 30000);
     document.querySelectorAll('[data-topic-source-filter]').forEach(b => b.addEventListener('click', () => { topicSources.filter = b.dataset.topicSourceFilter; renderTopicSources(); }));
     $('topic-sources-refresh').addEventListener('click', loadTopicSources);

@@ -140,6 +140,7 @@ func (a *App) runAutopilotWorker(ctx context.Context, mode, scope, kind, setting
 	for {
 		enabled := a.TBool(setting)
 		err := a.reconcileAutopilotMode(ctx, enabled, mode, scope, kind)
+		a.recordAutopilotWorkerTick(mode, err)
 		if err != nil && ctx.Err() == nil {
 			log.Printf("автопилот: планирование: %v", err)
 		}
@@ -971,6 +972,43 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		// A persisted malformed/unsupported ID used to be silently skipped
+		// without advancing its check time. Since due candidates are ordered
+		// by oldest check, even ONE such row could occupy the same review
+		// slot forever and starve all healthy publishers behind it.
+		if _, _, _, valid := autopilotSourceParts(source); !valid {
+			at := time.Now()
+			const invalidReason = "unsupported_source_format"
+			var invalidErr error
+			switch state {
+			case "candidate", "probation":
+				invalidErr = transitionAutopilotSource(ctx, a.DB, job, source, state,
+					"rejected", invalidReason, []byte(`{}`), at,
+					time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC))
+			case "active":
+				invalidErr = transitionAutopilotSource(ctx, a.DB, job, source, state,
+					"cooldown", invalidReason, []byte(`{}`), at,
+					time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC))
+			case "cooldown":
+				invalidErr = recordAutopilotSourceCheck(ctx, a.DB, job, source, state,
+					invalidReason, []byte(`{}`), at,
+					time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC))
+			case "rejected":
+				invalidErr = withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
+					_, err := tx.Exec(ctx, `UPDATE source_autopilot_sources
+						SET reason=$4,checked_at=$5,next_check_at=$6
+						WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND state='rejected'`,
+						job.Scope, job.TopicKey, source, invalidReason, at.Unix(),
+						time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC).Unix())
+					return err
+				})
+			}
+			if invalidErr != nil && !errors.Is(invalidErr, errAutopilotSourceChanged) &&
+				!errors.Is(invalidErr, errAutopilotSourceOverride) {
+				return invalidErr
+			}
+			continue
+		}
 		if state == "cooldown" {
 			at := time.Now()
 			if job.Scope == autopilotAutoScope && a.autopilotProjectionPossible(job, source) != nil {
@@ -1003,10 +1041,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 
 		}
-		platform, id, _, ok := autopilotSourceParts(source)
-		if !ok {
-			continue
-		}
+		platform, id, _, _ := autopilotSourceParts(source)
 		feed := id
 		if platform != PlatformRSS {
 			feed = source

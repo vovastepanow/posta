@@ -37,6 +37,8 @@ type App struct {
 	discoveryLive           sync.Map // текущий проход подбора по теме → снимок состояния
 	discoveryOwnershipOnce  sync.Once
 	discoveryOwnershipSlots chan struct{}
+	autopilotWorkerMu       sync.Mutex
+	autopilotWorkerStates   map[string]autopilotWorkerHealth
 	userLocks               sync.Map // id пользователя → *sync.Mutex: пул и история пользователя меняются по очереди
 	bg                      sync.WaitGroup
 	ctx                     context.Context
