@@ -618,6 +618,169 @@ async function startDiscovery() {
     finally { $('discovery-button').disabled = false; loadDiscoveryStatus(); }
 }
 
+// Source lists stay in one native modal outside the re-rendered dashboard.
+// Opening the same metric again never closes or clears its results.
+let autopilotSourceDialog = null;
+const autopilotSourceStates = { found: 'Найдено за цикл', candidate: 'Ожидают проверки', probation: 'На испытании', active: 'Подтверждено' };
+const autopilotSourceStateLabels = { candidate: 'Ожидает проверки', probation: 'На испытании', active: 'Подтверждён', cooldown: 'Отложен', rejected: 'Отклонён' };
+const autopilotSourceReasonLabels = {
+    discovered: 'Ожидает первой проверки', insufficient_fresh_samples: 'Недостаточно свежих публикаций',
+    feed_unavailable: 'Лента недоступна', rate_limited: 'Ограничение запросов площадки',
+    source_not_found: 'Источник не найден', unrecognized_feed: 'Формат ленты не распознан',
+    feed_parse_failed: 'Ошибка разбора ленты', preliminary_match_uncertain: 'Недостаточно высокая оценка тематики',
+    assessment_unavailable: 'AI-оценка временно недоступна', projection_conflict: 'Конфликт подключения',
+    shadow_preliminary_pass: 'Прошёл предварительную проверку',
+    observed_useful: 'Полезность подтверждена', insufficient_evidence: 'Недостаточно данных для решения',
+    observed_irrelevant: 'Недостаточно публикаций по теме', quality_drift: 'Качество снизилось',
+    observed_ad_or_duplicates: 'Слишком много рекламы или дублей'
+};
+function autopilotSourceIdentity(raw) {
+    const source = String(raw || '');
+    const rawURL = source.startsWith('rss:') ? source.slice(4) : (/^https?:\/\//i.test(source) ? source : '');
+    let url = '';
+    let host = '';
+    let pathname = '';
+    try {
+        const parsed = new URL(rawURL);
+        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+            url = parsed.href;
+            host = parsed.hostname.toLowerCase();
+            pathname = decodeURIComponent(parsed.pathname);
+        }
+    } catch { /* An unknown or malformed source is shown as plain text. */ }
+    const domains = [
+        { match: /(^|\.)ok\.ru$/, label: 'Одноклассники', icon: 'odnoklassniki', fallback: 'OK', color: '#f58220' },
+        { match: /(^|\.)vk\.com$/, label: 'ВКонтакте', icon: 'vk', fallback: 'ВК', color: '#0077ff' },
+        { match: /(^|\.)t\.me$|(^|\.)telegram\.(org|me)$/, label: 'Telegram', icon: 'telegram', fallback: 'TG', color: '#26a5e4' },
+        { match: /(^|\.)(youtube\.com|youtu\.be)$/, label: 'YouTube', icon: 'youtube', fallback: 'YT', color: '#ff0033' },
+        { match: /(^|\.)tiktok\.com$/, label: 'TikTok', icon: 'tiktok', fallback: 'TT', color: '#292929' },
+        { match: /(^|\.)bsky\.app$/, label: 'Bluesky', icon: 'bluesky', fallback: 'BS', color: '#1185fe' },
+        { match: /(^|\.)reddit\.com$/, label: 'Reddit', icon: 'reddit', fallback: 'RD', color: '#ff4500' },
+        { match: /(^|\.)(habr\.com|habrahabr\.ru)$/, label: 'Хабр', icon: 'habr', fallback: 'Х', color: '#4b7796' },
+        { match: /(^|\.)tumblr\.com$/, label: 'Tumblr', icon: 'tumblr', fallback: 'T', color: '#36465d' },
+        { match: /(^|\.)(mastodon\.[^.]|mstdn\.|fosstodon\.|techhub\.social)|\/users\//, label: 'Mastodon', icon: 'mastodon', fallback: 'M', color: '#6364ff' },
+        { match: /(^|\.)lemmy\.|(^|\.)lemm\.ee$/, label: 'Lemmy', icon: 'lemmy', fallback: 'L', color: '#50b879' }
+    ];
+    const social = domains.find(item => item.match.test(host)) || null;
+    const platform = social || { label: 'RSS / сайт', icon: 'rss', fallback: 'RSS', color: '#d98a29' };
+    const display = url ? host + (pathname === '/' ? '' : pathname) : source;
+    return { url, display: display || source, platform };
+}
+function autopilotSourceCard(item) {
+    const raw = String(item.source_id || '');
+    const identity = autopilotSourceIdentity(raw);
+    const { platform, url } = identity;
+    const icon = el('span', { className: 'autopilot-source-brand', textContent: platform.fallback });
+    icon.style.backgroundColor = platform.color;
+    // Brand SVGs are optional; a contrasting text mark is always available.
+    const artwork = el('img', {
+        alt: '', loading: 'lazy', decoding: 'async',
+        src: 'https://cdn.simpleicons.org/' + platform.icon + '/ffffff'
+    });
+    artwork.addEventListener('load', () => { icon.textContent = ''; icon.append(artwork); });
+    artwork.addEventListener('error', () => artwork.remove());
+    const name = url ? el('a', {
+        href: url, target: '_blank', rel: 'noopener noreferrer', textContent: identity.display,
+        title: 'Открыть источник в новой вкладке'
+    }) : el('span', { textContent: identity.display });
+    const reason = autopilotSourceReasonLabels[item.reason] || item.reason || 'Пока не проверен';
+    const checked = item.checked_at ? new Date(item.checked_at * 1000).toLocaleString('ru-RU') : 'ещё не проверялся';
+    const next = item.next_check_at ? new Date(item.next_check_at * 1000).toLocaleString('ru-RU') : '';
+    return el('article', { className: 'autopilot-source-card' },
+        icon,
+        el('div', { className: 'autopilot-source-card-body' },
+            el('div', { className: 'autopilot-source-card-top' },
+                el('span', { className: 'autopilot-source-platform', textContent: platform.label }),
+                el('span', { className: 'autopilot-source-state', textContent: autopilotSourceStateLabels[item.state] || item.state || 'Источник' })),
+            el('div', { className: 'autopilot-source-card-name' }, name),
+            el('div', { className: 'autopilot-source-card-reason', textContent: reason }),
+            el('div', { className: 'autopilot-source-card-meta' },
+                el('span', { textContent: 'Последняя проверка: ' + checked }),
+                ...(next ? [el('span', { textContent: 'Следующая: ' + next })] : []))
+        ),
+        url ? el('a', { className: 'autopilot-source-external', href: url, target: '_blank',
+            rel: 'noopener noreferrer', 'aria-label': 'Открыть источник', textContent: '↗' }) : ''
+    );
+}
+function openAutopilotSourceDialog(topic, state, count) {
+    if (topic.mode === 'off') return;
+    if (autopilotSourceDialog?.dialog.open) {
+        autopilotSourceDialog.dialog.close();
+    }
+    const dialog = el('dialog', { className: 'autopilot-sources-modal' });
+    const heading = el('h3', { textContent: autopilotSourceStates[state] || state });
+    const subtitle = el('p', { className: 'autopilot-source-subtitle',
+        textContent: topic.topic + ' · ' + Number(count || 0).toLocaleString('ru-RU') + ' источников' });
+    const close = el('button', { type: 'button', className: 'autopilot-sources-close', textContent: '×', 'aria-label': 'Закрыть' });
+    const list = el('div', { className: 'autopilot-source-grid' });
+    const hint = el('p', { className: 'autopilot-source-hint',
+        textContent: 'Источники могут переходить между этапами во время проверки. Уже загруженные карточки остаются на экране.' });
+    const more = el('button', { type: 'button', className: 'secondary-button', textContent: 'Показать ещё', hidden: true });
+    const reload = el('button', { type: 'button', className: 'secondary-button', textContent: 'Обновить список' });
+    const status = el('span', { className: 'autopilot-source-progress' });
+    dialog.append(
+        el('div', { className: 'autopilot-sources-header' },
+            el('div', {}, heading, subtitle), close),
+        hint, list,
+        el('div', { className: 'autopilot-sources-footer' }, more, reload, status));
+    document.body.append(dialog);
+    const context = { dialog };
+    autopilotSourceDialog = context;
+    let after = '', loading = false, version = 0, loaded = 0;
+    const getPage = async (reset = false) => {
+        if (loading && !reset) return;
+        const current = ++version;
+        loading = true;
+        if (reset) {
+            after = ''; loaded = 0;
+            list.replaceChildren(el('p', { className: 'autopilot-source-empty', textContent: 'Загружаю источники…' }));
+        }
+        const requestedAfter = after;
+        more.disabled = true;
+        reload.disabled = true;
+        try {
+            const result = await api('source_autopilot_sources', {
+                params: { topic: topic.topic, mode: topic.mode, state, after: requestedAfter, limit: 25 }
+            });
+            if (current !== version || !dialog.open) return;
+            if (!requestedAfter) list.replaceChildren();
+            if (state === 'found' && result.snapshot_available === false) {
+                list.append(el('p', { className: 'autopilot-source-empty',
+                    textContent: 'Источники последнего поиска станут доступны после следующего поискового цикла. Ранее сохранялось только количество.' }));
+            } else {
+                for (const source of result.sources || []) { list.append(autopilotSourceCard(source)); loaded++; }
+                if (!loaded) list.append(el('p', { className: 'autopilot-source-empty', textContent: 'Здесь пока нет источников.' }));
+            }
+            after = result.next_after || '';
+            more.hidden = !after;
+            status.textContent = 'Показано: ' + loaded.toLocaleString('ru-RU');
+        } catch (error) {
+            if (current !== version || !dialog.open) return;
+            if (reset) list.replaceChildren();
+            list.append(el('p', { className: 'autopilot-source-empty', textContent: 'Не удалось получить данные: ' + error.message }));
+            more.hidden = true;
+        } finally {
+            if (current === version) {
+                loading = false; more.disabled = false; reload.disabled = false;
+            }
+        }
+    };
+    const dismiss = () => {
+        version++;
+        if (autopilotSourceDialog === context) autopilotSourceDialog = null;
+        dialog.remove();
+    };
+    close.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('close', dismiss, { once: true });
+    dialog.addEventListener('click', event => {
+        if (event.target === dialog) dialog.close();
+    });
+    more.addEventListener('click', () => getPage());
+    reload.addEventListener('click', () => getPage(true));
+    dialog.showModal();
+    getPage(true);
+}
+
 function renderAutopilot(data) {
     const container = $('autopilot-topics');
     container.replaceChildren();
@@ -657,96 +820,17 @@ function renderAutopilot(data) {
             el('span', { className: 'autopilot-phase-dot ' + state, 'aria-hidden': 'true' }),
             el('div', {}, el('strong', { textContent: name }), el('span', { textContent: value }),
                 el('small', { textContent: detail })));
-        // Load a single state on demand: dozens of candidates should not
-        // make the status endpoint or initial page unnecessarily heavy.
-        const sourcePanel = el('div', { className: 'autopilot-source-panel', hidden: true });
-        const sourceHeading = el('strong');
-        const sourceClose = el('button', { type: 'button', className: 'secondary-button', textContent: 'Закрыть' });
-        const sourceList = el('div', { className: 'autopilot-source-list' });
-        const sourceMore = el('button', { type: 'button', className: 'secondary-button', textContent: 'Показать ещё', hidden: true });
-        sourcePanel.append(el('div', { className: 'autopilot-source-heading' }, sourceHeading, sourceClose), sourceList, sourceMore);
-        const stateLabels = { found: 'Найдено за последний поиск', candidate: 'Ожидают проверки', probation: 'На испытании', active: 'Подтверждено' };
-        const sourceReasons = {
-            discovered: 'найден, ещё не проверен', insufficient_fresh_samples: 'мало свежих публикаций',
-            feed_unavailable: 'лента недоступна', rate_limited: 'ограничение площадки',
-            source_not_found: 'источник не найден', unrecognized_feed: 'не распознана лента',
-            feed_parse_failed: 'ошибка разбора', preliminary_match_uncertain: 'не прошёл предварительный порог',
-            assessment_unavailable: 'AI-оценка недоступна', projection_conflict: 'конфликт подключения',
-            shadow_preliminary_pass: 'прошёл предварительную проверку',
-            observed_useful: 'качество подтверждено', insufficient_evidence: 'недостаточно доказательств'
-        };
-        let sourceState = '', sourceAfter = '', sourceLoading = false, sourceRequestID = 0;
-        const loadSources = async (reset = false) => {
-            if (sourceLoading || !sourceState) return;
-            sourceLoading = true;
-            const requestID = sourceRequestID;
-            sourceMore.disabled = true;
-            if (reset) { sourceAfter = ''; sourceList.replaceChildren(); }
-            if (!sourceAfter && !sourceList.children.length) sourceList.textContent = 'Загрузка источников…';
-            try {
-                const result = await api('source_autopilot_sources', {
-                    params: { topic: topic.topic, mode: topic.mode, state: sourceState, after: sourceAfter, limit: 25 }
-                });
-                if (requestID !== sourceRequestID) return;
-                if (!sourceAfter) sourceList.replaceChildren();
-                if (sourceState === 'found' && result.snapshot_available === false) {
-                    sourceList.textContent = 'Список появится после следующего поискового прохода. Для предыдущего поиска сохранено только количество.';
-                    sourceAfter = '';
-                    sourceMore.hidden = true;
-                    return;
-                }
-                for (const item of result.sources || []) {
-                    const raw = String(item.source_id || '');
-                    const link = raw.startsWith('rss:https://') || raw.startsWith('rss:http://')
-                        ? raw.slice(4) : '';
-                    const name = link
-                        ? el('a', { href: link, target: '_blank', rel: 'noopener noreferrer', textContent: raw.slice(4) })
-                        : el('span', { textContent: raw });
-                    const currentStates = { candidate: 'ожидает проверки', probation: 'на испытании', active: 'подтверждён', rejected: 'отклонён', cooldown: 'отложен' };
-                    const info = [sourceState === 'found' ? (currentStates[item.state] || item.state) : '', sourceReasons[item.reason] || item.reason || 'ожидает проверки'].filter(Boolean);
-                    if (item.checked_at) info.push('Проверен: ' + new Date(item.checked_at * 1000).toLocaleString('ru-RU'));
-                    if (item.next_check_at && item.next_check_at > Date.now() / 1000)
-                        info.push('Следующая попытка: ' + new Date(item.next_check_at * 1000).toLocaleString('ru-RU'));
-                    sourceList.append(el('div', { className: 'autopilot-source-item' },
-                        name, el('small', { textContent: info.join(' · ') })));
-                }
-                if (!sourceList.children.length) sourceList.textContent = 'В этой секции пока нет источников.';
-                sourceAfter = result.next_after || '';
-                sourceMore.hidden = !sourceAfter;
-            } catch (error) {
-                if (requestID !== sourceRequestID) return;
-                sourceList.textContent = 'Не удалось загрузить источники: ' + error.message;
-                sourceMore.hidden = true;
-            } finally {
-                if (requestID === sourceRequestID) { sourceLoading = false; sourceMore.disabled = false; }
-            }
-        };
-        const showSources = state => {
-            if (topic.mode === 'off') return;
-            if (!sourcePanel.hidden && sourceState === state) {
-                sourcePanel.hidden = true;
-                return;
-            }
-            sourceRequestID++;
-            sourceLoading = false;
-            sourceState = state;
-            sourceHeading.textContent = stateLabels[state];
-            sourcePanel.hidden = false;
-            loadSources(true);
-        };
-        sourceMore.addEventListener('click', () => loadSources());
-        sourceClose.addEventListener('click', () => { sourcePanel.hidden = true; });
         const sourceStat = (label, value, hint, state) => {
             const metric = stat(label, value, hint);
             metric.classList.add('autopilot-metric-clickable');
             metric.setAttribute('role', 'button');
             metric.setAttribute('tabindex', '0');
-            metric.setAttribute('aria-label', 'Показать источники: ' + label);
-            metric.addEventListener('click', () => showSources(state));
+            metric.setAttribute('aria-label', 'Открыть источники: ' + label);
+            metric.addEventListener('click', () => openAutopilotSourceDialog(topic, state, value));
             metric.addEventListener('keydown', event => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    showSources(state);
+                    openAutopilotSourceDialog(topic, state, value);
                 }
             });
             return metric;
@@ -782,7 +866,6 @@ function renderAutopilot(data) {
                     topic.capacity_limited ? 'Цель ограничена вместимостью пула.' :
                         'Это текущий запас публикаций по теме, не число найденных кандидатов.',
                     activePhase === 'delivery' ? 'active' : topic.available > 0 ? 'done' : 'waiting')),
-            sourcePanel,
             el('div', { className: 'autopilot-footnotes' },
                 el('span', { textContent: 'Сегодня осталось: ' + number(topic.fetch_remaining) +
                     ' HTTP-загрузок · ' + number(topic.model_remaining) + ' AI-вызовов по теме' }),
