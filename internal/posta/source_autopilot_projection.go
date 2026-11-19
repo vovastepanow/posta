@@ -222,6 +222,27 @@ func (a *App) reconcileAutopilotProjections(ctx context.Context, job *autopilotJ
 		return err
 	}
 	for _, p := range projections {
+		// Legacy manual suggestions with unsupported identities are now
+		// retained as rejected, auditable rows. They cannot have a valid
+		// catalog projection. Attempting to unproject them previously
+		// returned "invalid public source" on EVERY job run, stopping the
+		// entire auto worker at prepare before any candidate reviews.
+		if _, _, _, valid := autopilotSourceParts(p.source); !valid {
+			if p.state == "rejected" {
+				continue
+			}
+			// Old malformed trials also must not prevent healthy sources from
+			// reaching review. Quarantine rather than activating or deleting.
+			at := time.Now()
+			err = transitionAutopilotSource(ctx, a.DB, job, p.source, p.state,
+				"cooldown", "unsupported_source_format", []byte(`{}`), at,
+				time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC))
+			if err != nil && !errors.Is(err, errAutopilotSourceChanged) &&
+				!errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+			continue
+		}
 		if p.state == "rejected" {
 			err = a.unprojectAutopilotSource(ctx, job, p.source)
 		} else {
