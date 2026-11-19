@@ -310,10 +310,9 @@ func claimAutopilotJobKind(ctx context.Context, q *pgxpool.Pool, at time.Time, d
 		WHERE j.enabled AND j.demand_active AND ($4='' OR j.kind=$4) AND j.next_run_at <= $3 AND j.lease_until <= extract(epoch FROM clock_timestamp())::bigint
 		AND (j.kind NOT IN ('auto_discovery','shadow_discovery') OR
 			(SELECT count(*) FROM source_autopilot_jobs running WHERE running.kind IN ('auto_discovery','shadow_discovery') AND running.enabled AND running.demand_active AND running.lease_until > extract(epoch FROM clock_timestamp())::bigint) < 2)
-		AND (j.kind NOT IN ('auto_discovery','shadow_discovery') OR NOT EXISTS
-			(SELECT 1 FROM source_autopilot_jobs older WHERE older.kind IN ('auto_discovery','shadow_discovery') AND older.kind<>j.kind
-			AND older.enabled AND older.demand_active AND older.next_run_at <= $3 AND older.lease_until <= extract(epoch FROM clock_timestamp())::bigint
-			AND (older.next_run_at,older.requested_at) < (j.next_run_at,j.requested_at)))
+		-- Workers claim one kind at a time. An older job of another kind
+		-- cannot gate this claim: that job may already be processed by its own
+		-- worker. Cross-kind gating starved auto behind a shadow backlog.
 		ORDER BY j.next_run_at, j.requested_at, j.priority DESC, j.scope, j.topic_key, j.kind
 		FOR UPDATE SKIP LOCKED LIMIT 1)
 		RETURNING scope,topic_key,kind,topic,generation,checkpoint`, job.Token, int64(duration/time.Second), at.Unix(), kind).

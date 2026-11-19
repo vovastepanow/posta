@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"golang.org/x/net/html"
 
@@ -326,6 +327,7 @@ func discoveryBlueskyActors(data []byte) ([]DiscoveryCandidate, error) {
 			DID         string `json:"did"`
 			Handle      string `json:"handle"`
 			DisplayName string `json:"displayName"`
+			Description string `json:"description"`
 		} `json:"actors"`
 	}
 	if err := json.Unmarshal(data, &response); err != nil {
@@ -340,7 +342,7 @@ func discoveryBlueskyActors(data []byte) ([]DiscoveryCandidate, error) {
 		if name == "" {
 			name = actor.Handle
 		}
-		out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: "https://bsky.app/profile/" + actor.DID + "/rss", Info: jx.M{"title": name}})
+		out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: "https://bsky.app/profile/" + actor.DID + "/rss", Info: jx.M{"title": name, "handle": actor.Handle, "description": actor.Description}})
 	}
 	return out, nil
 }
@@ -370,7 +372,63 @@ func discoveryBlueskyPostAuthors(data []byte) ([]DiscoveryCandidate, error) {
 		if name == "" {
 			name = a.Handle
 		}
-		out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: "https://bsky.app/profile/" + a.DID + "/rss", Info: jx.M{"title": name}})
+		out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: "https://bsky.app/profile/" + a.DID + "/rss", Info: jx.M{"title": name, "handle": a.Handle}})
+	}
+	return out, nil
+}
+
+// Require word-level evidence rather than fuzzy substring matches: SMM must
+// not match MMA (nor should a broad result be deemed topical just because
+// Bluesky returned it). This is a cheap prefilter, never final approval.
+func blueskyQueryEvidenceMatch(query, evidence string) bool {
+	tokenize := func(text string) []string {
+		return strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+		})
+	}
+	observed := map[string]bool{}
+	for _, word := range tokenize(evidence) {
+		observed[word] = true
+	}
+	for _, word := range tokenize(query) {
+		if len([]rune(word)) >= 3 && observed[word] {
+			return true
+		}
+	}
+	return false
+}
+
+// Post search frequently returns authors who mentioned a topic once without
+// being about it. Admit only repeated topical posts, or one topical post
+// accompanied by relevant profile metadata.
+func discoveryBlueskyRelevantPostAuthors(data []byte, query string) ([]DiscoveryCandidate, error) {
+	all, err := discoveryBlueskyPostAuthors(data)
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Posts []struct {
+			Author struct { DID string `json:"did"` } `json:"author"`
+			Record struct { Text string `json:"text"` } `json:"record"`
+			Text string `json:"text"`
+		} `json:"posts"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	matched := map[string]int{}
+	for _, post := range response.Posts {
+		if blueskyQueryEvidenceMatch(query, post.Record.Text+" "+post.Text) {
+			matched[post.Author.DID]++
+		}
+	}
+	out := make([]DiscoveryCandidate, 0, len(all))
+	for _, candidate := range all {
+		did := strings.TrimSuffix(strings.TrimPrefix(candidate.ID, "https://bsky.app/profile/"), "/rss")
+		if matched[did] >= 2 || matched[did] == 1 && blueskyQueryEvidenceMatch(query,
+			jx.Str(candidate.Info, "title")+" "+jx.Str(candidate.Info, "handle")) {
+			out = append(out, candidate)
+		}
 	}
 	return out, nil
 }
@@ -389,6 +447,9 @@ func (u *U) discoveryFindBluesky(queries []string) []DiscoveryCandidate {
 				u.discoverySearchObservation("bluesky", q, "ok")
 			}
 			for _, c := range found {
+				if !blueskyQueryEvidenceMatch(q, jx.Str(c.Info, "title")+" "+jx.Str(c.Info, "handle")+" "+jx.Str(c.Info, "description")) {
+					continue
+				}
 				c.Origin, c.OriginKind = "поиск аккаунтов Bluesky «"+q+"»", "other"
 				out = append(out, c)
 			}
@@ -408,7 +469,7 @@ func (u *U) discoveryFindBluesky(queries []string) []DiscoveryCandidate {
 			u.Log("-> Посты Bluesky «%s»: %s", q, err)
 			continue
 		}
-		authors, err := discoveryBlueskyPostAuthors(body)
+		authors, err := discoveryBlueskyRelevantPostAuthors(body, q)
 		if err != nil {
 			if u.discoverySearchObservation != nil {
 				u.discoverySearchObservation("bluesky", q, "unavailable")
