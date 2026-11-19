@@ -20,7 +20,7 @@ type autopilotStatusInput struct {
 	Failure                                               string
 	Available, Target, Deficit, Candidates, ActiveSources int
 	FetchRemaining, ModelRemaining                        int64
-	ModelFailures, Promoted24h                           int
+	ModelFailures, Promoted24h                            int
 }
 
 func autopilotStatusReason(in autopilotStatusInput) string {
@@ -257,7 +257,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 					Deficit: supply.Demand.Deficit, Candidates: autoCandidates + autoProbation,
 					ActiveSources: autoActive, FetchRemaining: jx.Int(row, "fetch_remaining"),
 					ModelRemaining: jx.Int(row, "model_remaining"),
-					ModelFailures: aiPending, Promoted24h: promoted24h,
+					ModelFailures:  aiPending, Promoted24h: promoted24h,
 				})
 			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
