@@ -22,12 +22,47 @@ var errAutopilotInvalidDemand = errors.New("invalid autopilot demand")
 // key for the taxonomy title and its explicit aliases so no source state,
 // evidence, or history is orphaned by the canonical display name.
 func autopilotCanonicalTopic(topic string) string {
-	switch TopicNorm(topic) {
-	case "smm", "смм", "smm и блогинг":
-		return "SMM и блогинг"
-	default:
+	normalized := TopicNorm(topic)
+	if normalized == "" {
 		return strings.TrimSpace(topic)
 	}
+	// Exact tree titles take precedence over aliases, so a short synonym
+	// cannot silently redirect a different official taxonomy category.
+	for _, branch := range TopicTree {
+		if TopicNorm(branch.Title) == normalized {
+			return branch.Title
+		}
+		for _, leaf := range branch.Children {
+			if TopicNorm(leaf.Title) == normalized {
+				return leaf.Title
+			}
+		}
+	}
+	// Ambiguous aliases do not map to an arbitrary branch. Resolve only
+	// unambiguous aliases that are published in the canonical topic tree.
+	canonical := ""
+	ambiguous := false
+	match := func(title string, aliases []string) {
+		for _, alias := range aliases {
+			if TopicNorm(alias) == normalized {
+				if canonical != "" && canonical != title {
+					ambiguous = true
+				}
+				canonical = title
+				break
+			}
+		}
+	}
+	for _, branch := range TopicTree {
+		match(branch.Title, branch.Aliases)
+		for _, leaf := range branch.Children {
+			match(leaf.Title, leaf.Aliases)
+		}
+	}
+	if canonical != "" && !ambiguous {
+		return canonical
+	}
+	return strings.TrimSpace(topic)
 }
 
 func autopilotTopicKey(topic string) string {
