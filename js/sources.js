@@ -818,11 +818,6 @@ function renderAutopilot(data) {
     const container = $('autopilot-topics');
     container.replaceChildren();
     const backends = (data.backends || []).filter(backend => backend.enabled).map(backend => backend.name).join(', ') || 'не включены';
-    const control = $('background-content-enabled');
-    if (control && !control.disabled) {
-        control.checked = !!data.background_content_enabled;
-        $('background-content-label').textContent = control.checked ? 'Включён' : 'Выключен';
-    }
     $('autopilot-status').textContent = `Версия сервера: ${data.server_revision || 'неизвестна'}. Теневой режим на сервере: ${data.shadow_enabled ? 'включён' : 'выключен'}; автоматический: ${data.auto_enabled ? 'включён' : 'выключен'}. Настроенные площадки: ${backends}.`;
     for (const topic of data.topics || []) {
         const number = value => Number(value || 0).toLocaleString('ru-RU');
@@ -1610,21 +1605,6 @@ export function initializeSourceTab() {
     $('source-empty-add').addEventListener('click', () => { openTools(); $('source-add-link').focus(); });
     $('discovery-button').addEventListener('click', startDiscovery);
     $('autopilot-form').addEventListener('submit', saveAutopilot);
-    $('background-content-enabled').addEventListener('change', async event => {
-        const control = event.currentTarget;
-        const requested = control.checked;
-        control.disabled = true;
-        try {
-            const response = await api('background_content_toggle', { body: { enabled: requested } });
-            control.checked = !!response.enabled;
-            $('background-content-label').textContent = control.checked ? 'Включён' : 'Выключен';
-        } catch (error) {
-            control.checked = !requested;
-            $('background-content-label').textContent = 'Ошибка сохранения';
-            $('autopilot-status').textContent = 'Не удалось изменить фоновый подбор: ' + error.message;
-        } finally { control.disabled = false; }
-    });
-
     window.setInterval(() => { if (isTabActive('source-tab')) loadAutopilot(); }, 30000);
     document.querySelectorAll('[data-topic-source-filter]').forEach(b => b.addEventListener('click', () => { topicSources.filter = b.dataset.topicSourceFilter; renderTopicSources(); }));
     $('topic-sources-refresh').addEventListener('click', loadTopicSources);
