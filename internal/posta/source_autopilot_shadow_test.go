@@ -93,7 +93,7 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 		if len(posts) != 3 {
 			t.Errorf("samples=%d", len(posts))
 		}
-		return &sourceEvaluation{Score: 90}
+		return &sourceEvaluation{Score: 90, PersonalBlog: personalBlogYes}
 	}
 	err = runAutopilotLeased(ctx, d, job, time.Minute, 10*time.Second, 10, 10, 10, 10, func(work context.Context) error {
 		if err := a.autopilotShadowSearchWith(work, job, find); err != nil {
@@ -106,6 +106,12 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 	}
 	if err = d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE scope='public:shadow' AND topic_key=$1`, key).Scan(&count); err != nil || count != 2 {
 		t.Fatalf("candidates=%d err=%v", count, err)
+	}
+	var personalBlog string
+	if err = d.Pool.QueryRow(ctx, `SELECT COALESCE(evidence->>'personal_blog','unknown')
+		FROM source_autopilot_sources WHERE scope='public:shadow' AND topic_key=$1 AND source_id=$2`,
+		key, "rss:https://example.org/feed").Scan(&personalBlog); err != nil || personalBlog != personalBlogYes {
+		t.Fatalf("classified personal blog tag was lost on transition: %q err=%v", personalBlog, err)
 	}
 	if err = d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_query_sources WHERE scope='public:shadow' AND topic_key=$1 AND query=$2`, key, job.SearchQuery).Scan(&count); err != nil || count != 2 {
 		t.Fatalf("query attribution=%d err=%v", count, err)
