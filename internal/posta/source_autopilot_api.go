@@ -120,7 +120,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		}
 		row["queue_ready"], row["queue_delayed"], row["queue_unchecked"] = ready, delayed, unchecked
 		row["checked_24h"], row["assessment_unavailable"] = recentChecks, aiPending
-		row["probation_limit"] = u.TInt("autopilot_max_probation")
+		row["probation_limit"] = max(1000, u.TInt("autopilot_max_probation"))
 		// Persisted last outcomes explain why a nonempty candidate queue has
 		// not produced probation sources. Aggregate only; no source IDs leak.
 		outcomes := jx.M{}
@@ -254,8 +254,8 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 	revision := "unknown"
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" && len(setting.Value) >= 8 {
-				revision = setting.Value[:8]
+			if setting.Key == "vcs.revision" && len(setting.Value) >= 7 {
+				revision = setting.Value[:7]
 				break
 			}
 		}
