@@ -105,6 +105,18 @@ func TestAutopilotRecoversStaleFailuresWithoutBypassingQuotaPostgres(t *testing.
 	check(true)
 	change(true, "source autopilot budget exhausted")
 	check(false)
+	// After the default fetch cap rises from 1000 to 3000, only a job
+	// genuinely stopped at the old cap may resume before the UTC reset.
+	_, err = d.Pool.Exec(ctx, `INSERT INTO source_autopilot_budget(scope,resource,day,used)
+		VALUES($1,'public_fetch',(now() AT TIME ZONE 'UTC')::date,1000)
+		ON CONFLICT(scope,resource,day) DO UPDATE SET used=1000`, autopilotAutoScope+":"+key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Pool.Exec(context.Background(), `DELETE FROM source_autopilot_budget
+		WHERE scope=$1 AND resource='public_fetch'`, autopilotAutoScope+":"+key)
+	change(true, "source autopilot budget exhausted")
+	check(true)
 	change(false, "classifier_unavailable")
 	check(false)
 	change(true, "")
