@@ -992,10 +992,32 @@ function renderAutopilot(data) {
     }
 }
 
+async function loadAutopilotTopicOptions() {
+    const select = $('autopilot-topic');
+    const current = select.value;
+    const data = await api('topics');
+    const topics = data.topics || [];
+    const options = [el('option', { value: '', textContent: 'Выберите тему из дерева' })];
+    const unique = new Set();
+    for (const item of topics) {
+        const title = String(item.title || '').trim();
+        if (!title || unique.has(title.toLocaleLowerCase('ru-RU'))) continue;
+        unique.add(title.toLocaleLowerCase('ru-RU'));
+        options.push(el('option', {
+            value: title,
+            textContent: item.path && item.path !== title ? item.path : title
+        }));
+    }
+    select.replaceChildren(...options);
+    if (topics.some(item => item.title === current)) select.value = current;
+}
+
 async function loadAutopilot() {
     if (DEBUG_MODE) { $('autopilot-status').textContent = 'В демо-режиме проверка недоступна.'; return; }
-    try { renderAutopilot(await api('source_autopilot_status')); }
-    catch (error) { $('autopilot-status').textContent = `Сведения недоступны: ${error.message}`; }
+    try {
+        await loadAutopilotTopicOptions();
+        renderAutopilot(await api('source_autopilot_status'));
+    } catch (error) { $('autopilot-status').textContent = `Сведения недоступны: ${error.message}`; }
 }
 
 async function saveAutopilot(event) {
@@ -1003,7 +1025,11 @@ async function saveAutopilot(event) {
     const button = event.currentTarget.querySelector('button');
     button.disabled = true;
     try {
-        const result = await api('source_autopilot_demand', { body: { topic: $('autopilot-topic').value.trim(), mode: $('autopilot-mode').value, posts_per_day: Number($('autopilot-rate').value), horizon_days: Number($('autopilot-horizon').value) } });
+        const selected = $('autopilot-topic');
+        if (!selected.value || !selected.selectedOptions[0] || selected.selectedOptions[0].value !== selected.value) {
+            throw new Error('Выберите тему из дерева.');
+        }
+        const result = await api('source_autopilot_demand', { body: { topic: selected.value, mode: $('autopilot-mode').value, posts_per_day: Number($('autopilot-rate').value), horizon_days: Number($('autopilot-horizon').value) } });
         renderAutopilot(result);
     } catch (error) { $('autopilot-status').textContent = `Настройки не сохранены: ${error.message}`; }
     finally { button.disabled = false; }
