@@ -138,6 +138,32 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 	if _, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "cooldown", "", 10); err == nil {
 		t.Fatal("unlisted source state was accepted")
 	}
+	// A last-search cohort can include sources that have already moved
+	// beyond the candidate state, and it must paginate independently.
+	checkpoint := jx.Unmarshal(job.Checkpoint)
+	if checkpoint == nil {
+		checkpoint = jx.M{}
+	}
+	checkpoint["last_search_source_ids"] = []string{
+		"rss:https://example.org/empty",
+		"rss:https://example.org/feed",
+		"rss:https://example.org/partial",
+	}
+	job.Checkpoint = jx.Marshal(checkpoint)
+	if err := saveAutopilotCheckpoint(ctx, d, job); err != nil {
+		t.Fatal(err)
+	}
+	foundPage, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "found", "", 2)
+	if err != nil || len(jx.Maps(foundPage, "sources")) != 2 || jx.Str(foundPage, "next_after") == "" {
+		t.Fatalf("found first page=%v err=%v", foundPage, err)
+	}
+	foundNext, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "found", jx.Str(foundPage, "next_after"), 2)
+	if err != nil || len(jx.Maps(foundNext, "sources")) != 1 || jx.Str(foundNext, "next_after") != "" {
+		t.Fatalf("found second page=%v err=%v", foundNext, err)
+	}
+	if jx.Str(jx.Maps(foundPage, "sources")[1], "state") != "probation" {
+		t.Fatalf("found cohort lost current source state: %v", foundPage)
+	}
 	trialPage, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "probation", "", 10)
 	if err != nil || len(jx.Maps(trialPage, "sources")) != 1 || jx.Str(jx.Maps(trialPage, "sources")[0], "source_id") != "rss:https://example.org/feed" {
 		t.Fatalf("probation listing=%v err=%v", trialPage, err)
