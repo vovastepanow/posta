@@ -139,9 +139,11 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 		Scope: autopilotShadowScope, Kind: autopilotShadowKind, Topic: topic,
 		TopicKey: key, Token: token, Generation: 1,
 	}
-	added, err := a.autopilotImportLegacyPending(ctx, job, 60)
+	// This must transfer without executing the scheduled AI/source-review
+	// worker, including when the review job is not yet due.
+	added, err := a.reconcileLegacyPendingWithoutLease(ctx, "shadow", autopilotShadowScope, autopilotShadowKind, 60)
 	if err != nil || added != 1 {
-		t.Fatalf("first transfer added=%d err=%v", added, err)
+		t.Fatalf("scheduler transfer added=%d err=%v", added, err)
 	}
 	added, err = a.autopilotImportLegacyPending(ctx, job, 60)
 	if err != nil || added != 0 {
