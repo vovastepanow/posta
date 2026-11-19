@@ -18,6 +18,14 @@ type Target struct {
 type callGateKey struct{}
 type callReportKey struct{}
 type autopilotFreeFallbackKey struct{}
+type autopilotPaidNemotronFallbackKey struct{}
+
+// WithSourceAutopilotPaidNemotronFallback permits a small paid Nemotron
+// reserve ONLY after the public autopilot encounters a free-model rate limit.
+// The caller must also install the database-backed paid spend gate.
+func WithSourceAutopilotPaidNemotronFallback(ctx context.Context) context.Context {
+	return context.WithValue(ctx, autopilotPaidNemotronFallbackKey{}, true)
+}
 
 // WithSourceAutopilotFreeFallback allows a single no-charge OpenRouter free
 // router attempt when a configured OpenRouter model returned HTTP 403.
@@ -422,8 +430,12 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 	}
 	var lastErr error
 	forbiddenOpenRouter := false
+	freeRateLimited := false
 	for i, t := range cands {
 		if why := r.blocked(t, req, s); why != "" {
+			if t.Provider == "openrouter" && t.Free() && (strings.Contains(why, "429") || strings.Contains(why, "суточного лимита")) {
+				freeRateLimited = true
+			}
 			if !t.Empty() {
 				logf(fmt.Sprintf("-> %s пропущена: %s.", t, why))
 			}
@@ -462,6 +474,10 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 		if t.Provider == "openrouter" && err != nil && strings.Contains(err.Error(), "HTTP 403") {
 			forbiddenOpenRouter = true
 		}
+		if t.Provider == "openrouter" && t.Free() && err != nil &&
+			(strings.Contains(err.Error(), "429") || strings.Contains(strings.ToLower(err.Error()), "rate limit") || strings.Contains(err.Error(), "free-models-per-day")) {
+			freeRateLimited = true
+		}
 		if ctx.Err() != nil {
 			break
 		}
@@ -486,6 +502,20 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 			if err == nil {
 				return resp, nil
 			}
+			lastErr = err
+		}
+	}
+	// Use the SAME multimodal Nemotron on its paid endpoint after the free
+	// variant is rate-limited. Never use it for ordinary tasks, private requests,
+	// FreeOnly requests, or when the guarded daily spend is exhausted.
+	if allow, _ := ctx.Value(autopilotPaidNemotronFallbackKey{}).(bool); allow && freeRateLimited && !req.Private && !req.FreeOnly && ctx.Err() == nil &&
+		r.OpenRouter != nil && r.OpenRouter.Configured() &&
+		(r.Spent == nil || r.Spent() < 0.10) {
+		paid := Target{Provider: "openrouter", Model: "nvidia/nemotron-3.5-super-vl"}
+		logf("-> бесплатный Nemotron ограничен; пробую платную версию в пределах бюджета автопилота.")
+		if resp, err := r.try(ctx, req, paid, true); err == nil {
+			return resp, nil
+		} else {
 			lastErr = err
 		}
 	}
