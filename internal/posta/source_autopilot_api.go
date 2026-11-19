@@ -271,8 +271,13 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 		(state != "found" && state != "candidate" && state != "probation" && state != "active") {
 		return nil, Bad("Некорректный список источников.")
 	}
-	if limit < 1 || limit > 50 {
-		limit = 25
+	// Source explorer loads all rows in one request for normal queues.
+	// Preserve the keyset cursor as a safeguard for unusually large topics.
+	if limit < 1 {
+		limit = 500
+	}
+	if limit > 500 {
+		limit = 500
 	}
 	key := autopilotTopicKey(topic)
 	var owns bool
