@@ -431,6 +431,12 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 	var lastErr error
 	forbiddenOpenRouter := false
 	freeRateLimited := false
+	nemotronFreeSelected := false
+	for _, candidate := range cands {
+		if candidate.Provider == "openrouter" && candidate.Model == "nvidia/nemotron-3.5-super-vl:free" {
+			nemotronFreeSelected = true
+		}
+	}
 	for i, t := range cands {
 		if why := r.blocked(t, req, s); why != "" {
 			if t.Provider == "openrouter" && t.Free() && (strings.Contains(why, "429") || strings.Contains(why, "суточного лимита")) {
@@ -508,9 +514,8 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 	// Use the SAME multimodal Nemotron on its paid endpoint after the free
 	// variant is rate-limited. Never use it for ordinary tasks, private requests,
 	// FreeOnly requests, or when the guarded daily spend is exhausted.
-	if allow, _ := ctx.Value(autopilotPaidNemotronFallbackKey{}).(bool); allow && freeRateLimited && !req.Private && !req.FreeOnly && ctx.Err() == nil &&
-		r.OpenRouter != nil && r.OpenRouter.Configured() &&
-		(r.Spent == nil || r.Spent() < 0.10) {
+	if allow, _ := ctx.Value(autopilotPaidNemotronFallbackKey{}).(bool); allow && freeRateLimited && nemotronFreeSelected && !req.Private && !req.FreeOnly && ctx.Err() == nil &&
+		r.OpenRouter != nil && r.OpenRouter.Configured() && r.Spent != nil && r.Spent() < 0.10 {
 		paid := Target{Provider: "openrouter", Model: "nvidia/nemotron-3.5-super-vl"}
 		logf("-> бесплатный Nemotron ограничен; пробую платную версию в пределах бюджета автопилота.")
 		if resp, err := r.try(ctx, req, paid, true); err == nil {
