@@ -192,7 +192,7 @@ func TestAutopilotAuditEvidenceContainsActualPublicPostsOnly(t *testing.T) {
 	}
 	exposed := autopilotPublicSourceReviewEvidence(jx.Marshal(jx.M{
 		"review_samples": got,
-		"raw_secret": "private token",
+		"raw_secret":     "private token",
 	}))
 	if len(jx.Maps(exposed, "review_samples")) != 3 {
 		t.Fatalf("audit samples missing from export: %+v", exposed)
