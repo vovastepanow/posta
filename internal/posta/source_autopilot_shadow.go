@@ -94,9 +94,44 @@ func validAutopilotPublicJob(job *autopilotJob) bool {
 
 // SourceIDFor lowercases whole URLs. A feed path can be case-sensitive, so
 // the autopilot normalizes only scheme/host and preserves the escaped path.
+// Safely normalize known non-RSS public publishers through existing site
+// adapters. This is not permission for arbitrary signed/query-specific URLs.
+func autopilotPublicSiteFeed(raw string) (string, bool) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Port() != "" || u.Fragment != "" {
+		return "", false
+	}
+	if host, id := osnovaTimelineSource(raw); host != "" {
+		query := u.Query()
+		for key, vals := range query {
+			if (key != "sorting" && key != "subsitesIds" && key != "subsitesids") || len(vals) != 1 {
+				return "", false
+			}
+		}
+		if query.Get("sorting") != "new" {
+			return "", false
+		}
+		return strings.ToLower(osnovaTimelineURL(host, id)), true
+	}
+	if source := pikabuCommunityURL(raw); source != "" && u.RawQuery == "" {
+		return source, true
+	}
+	if u.Hostname() == "habr.com" && strings.HasPrefix(u.Path, "/ru/rss/") && u.Query().Get("fl") == "ru" && len(u.Query()) == 1 {
+		u.RawQuery = ""
+		canonical := u.String()
+		if sharedSourceEligible(PlatformRSS, jx.M{"id": canonical}) {
+			return canonical, true
+		}
+	}
+	return "", false
+}
+
 func autopilotPublicRSSID(raw string) (string, bool) {
 	if feed, ok := canonicalYouTubeFeed(raw); ok {
 		return "rss:" + feed, true
+	}
+	if site, ok := autopilotPublicSiteFeed(raw); ok {
+		return "rss:" + site, true
 	}
 	if !sharedSourceEligible(PlatformRSS, jx.M{"id": raw}) && !autopilotPublicRedditFeed(raw) {
 		return "", false
@@ -1032,6 +1067,12 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 			if _, ok := autopilotMastodonFeed(feed); ok {
 				return u.autopilotMastodonListing(feed)
 			}
+			if host, id := osnovaTimelineSource(feed); host != "" {
+				return u.RSSGet(osnovaTimelineURL(host, id), rssMaxBytes, 15*time.Second, HTTPUA)
+			}
+			if pikabuCommunityURL(feed) != "" {
+				return u.RSSGet(feed, rssMaxBytes, 15*time.Second, BrowserUA)
+			}
 			return u.RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
 		}, u.autopilotEvaluateSource,
 		func(ctx context.Context, source string, posts []jx.M) error {
@@ -1261,6 +1302,10 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				posts, err = autopilotRedditListing(res.Bytes, feed, res.URL)
 			} else if _, ok := autopilotMastodonFeed(feed); ok {
 				posts, err = autopilotMastodonSafeStatuses(res.Bytes, feed)
+			} else if host, id := osnovaTimelineSource(feed); host != "" {
+				posts, err = osnovaTimelinePosts(res.Bytes, host, id)
+			} else if source := pikabuCommunityURL(feed); source != "" {
+				posts, err = pikabuCommunityPosts(res.Bytes, source, 20, true)
 			} else if !rssIsFeed(rssLoad(res.Bytes)) {
 				reason = "unrecognized_feed"
 			} else {
