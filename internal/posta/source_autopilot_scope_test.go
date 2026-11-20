@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 	"time"
+	"strings"
 
 	"posta/internal/jx"
 )
@@ -161,5 +162,32 @@ func TestAutopilotPublicSiteAdaptersUseCanonicalSafeIDs(t *testing.T) {
 	}
 	if !sharedSourceEligible(PlatformRSS, jx.M{"id": vc}) {
 		t.Fatal("recognized public vc.ru community excluded from shared collector")
+	}
+}
+
+func TestAutopilotSourceReviewUsesPublisherMetadataAndFullerCaptions(t *testing.T) {
+	feed := []byte(`<?xml version="1.0"?><rss version="2.0"><channel>
+		<title>Практика контент-маркетинга</title>
+		<description>Кейсы продвижения, рекламы и SMM</description>
+		<item><title>Обновление</title><description>Практический кейс</description></item>
+		</channel></rss>`)
+	info := autopilotSourceReviewInfo(PlatformRSS, "https://example.org/feed.xml",
+		"https://example.org/feed.xml",
+		FetchResultURL{FetchResult: FetchResult{OK: true, Bytes: feed}}, nil)
+	if jx.Str(info, "title") != "Практика контент-маркетинга" ||
+		jx.Str(info, "description") != "Кейсы продвижения, рекламы и SMM" {
+		t.Fatalf("publisher metadata lost: %+v", info)
+	}
+	long := "Вступление про рекламную кампанию. " + strings.Repeat("Подробные данные и примеры. ", 50) +
+		"Финальный вывод: отслеживайте источник новых клиентов."
+	snippet := sourceReviewCaption(long)
+	if len([]rune(snippet)) > 850 || !strings.Contains(snippet, "Вступление") ||
+		!strings.Contains(snippet, "Финальный вывод: отслеживайте источник новых клиентов.") ||
+		!strings.Contains(snippet, "[…]") {
+		t.Fatalf("source review must retain opening and actual conclusion without hiding omission: %q", snippet)
+	}
+	short := "Полный небольшой текст без обрезки."
+	if sourceReviewCaption(short) != short {
+		t.Fatal("short captions must be kept complete")
 	}
 }
