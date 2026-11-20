@@ -1,9 +1,13 @@
 package posta
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"testing"
+	"time"
 
+	"posta/internal/db"
 	"posta/internal/jx"
 )
 
@@ -115,5 +119,62 @@ func TestAutopilotOKSMMTopicReasonRequiresRealNegativeEvidence(t *testing.T) {
 				t.Fatalf("reason=%q, want=%q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestAutopilotReconsiderHistoricOKRejectsOnlyOncePostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_AUTOPILOT_TEST_DSN")
+	if dsn == "" {
+		t.Skip("isolated PostgreSQL required")
+	}
+	ctx := context.Background()
+	database, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if _, err := database.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	job := &autopilotJob{Scope: autopilotAutoScope, Kind: autopilotAutoKind, Topic: "SMM и блогинг", TopicKey: autopilotTopicKey("SMM и блогинг")}
+	source := fmt.Sprintf("ok:%019d", time.Now().UnixNano())
+	future := time.Now().Add(30 * 24 * time.Hour).Unix()
+	_, err = database.Pool.Exec(ctx, `INSERT INTO source_autopilot_sources
+		(scope,topic_key,source_id,state,reason,policy_version,first_seen_at,checked_at,next_check_at)
+		VALUES ($1,$2,$3,'rejected','off_topic_group',$4,$5,$5,$6)`,
+		job.Scope, job.TopicKey, source, TopicProfileVersion, time.Now().Unix(), future)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Pool.Exec(context.Background(), `DELETE FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, job.TopicKey, source)
+	app := &App{DB: database}
+	if err := app.autopilotRescheduleOldOKRejections(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	var next int64
+	var state string
+	var marker bool
+	if err := database.Pool.QueryRow(ctx, `SELECT next_check_at,state,COALESCE((evidence->>'ok_topic_reaudit')::boolean,false)
+		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`,
+		job.Scope, job.TopicKey, source).Scan(&next, &state, &marker); err != nil {
+		t.Fatal(err)
+	}
+	if next > time.Now().Unix()+5 || state != "rejected" || !marker {
+		t.Fatalf("not scheduled as unapproved recheck: next=%d state=%q marker=%v", next, state, marker)
+	}
+	_, err = database.Pool.Exec(ctx, `UPDATE source_autopilot_sources SET next_check_at=$4
+		WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, job.TopicKey, source, future)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.autopilotRescheduleOldOKRejections(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Pool.QueryRow(ctx, `SELECT next_check_at FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, job.TopicKey, source).Scan(&next); err != nil {
+		t.Fatal(err)
+	}
+	if next != future {
+		t.Fatalf("historic source was rescheduled twice: next=%d future=%d", next, future)
 	}
 }
