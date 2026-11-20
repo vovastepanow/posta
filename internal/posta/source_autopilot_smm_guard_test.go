@@ -177,6 +177,8 @@ func TestAutopilotReconsiderHistoricOKRejectsOnlyOncePostgres(t *testing.T) {
 	if next != future {
 		t.Fatalf("historic source was rescheduled twice: next=%d future=%d", next, future)
 	}
+	// Keep this under the existing PostgreSQL workflow regression grouping.
+	t.Run("bounded-full-context-rechecks", TestAutopilotScheduleFullContextRechecksPostgres)
 }
 
 func TestAutopilotScheduleFullContextRechecksPostgres(t *testing.T) {
