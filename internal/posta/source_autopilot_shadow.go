@@ -1016,11 +1016,28 @@ func autopilotRetryAt(at time.Time, source, retryAfter string) time.Time {
 // exhausted the topic's daily fetch budget while hundreds of candidates
 // remained unchecked. Every admitted source still enters probation and must
 // pass independent post-level analysis before it can become active.
-// Publisher metadata from the already fetched feed must reach the AI.
-// A bare host (e.g. "mastodon.social") discards valuable identity and topic
-// context and can turn an otherwise relevant account into a false rejection.
+// osnovaPublisherPage returns a link to the human-facing vc.ru/dtf.ru
+// category, never an API endpoint or an arbitrary URL from remote JSON.
+func osnovaPublisherPage(host, path string) string {
+	if host != "vc.ru" && host != "dtf.ru" {
+		return ""
+	}
+	path = strings.TrimSpace(path)
+	u, err := url.Parse(path)
+	if err != nil || u.IsAbs() || u.Host != "" || u.RawQuery != "" || u.Fragment != "" ||
+		!strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") ||
+		strings.Contains(u.Path, "..") || len(path) > 200 || u.Path == "/" {
+		return ""
+	}
+	return "https://" + host + u.EscapedPath()
+}
+
+// Publisher metadata from the already fetched feed must reach the AI. For
+// API-based publishers the category/subsite, not each article author, owns
+// the feed; multiple authors do NOT make it a personal blog.
 func autopilotSourceReviewInfo(platform, id, feed string, result FetchResultURL, posts []jx.M) jx.M {
 	title, description := id, ""
+	info := jx.M{"id": id}
 	if platform == PlatformRSS {
 		title = hostOf(feed)
 		if doc := rssLoad(result.Bytes); rssIsFeed(doc) {
@@ -1038,13 +1055,58 @@ func autopilotSourceReviewInfo(platform, id, feed string, result FetchResultURL,
 				}
 			}
 		}
-		if title == hostOf(feed) && len(posts) > 0 {
+		if host, _ := osnovaTimelineSource(feed); host != "" && len(posts) > 0 {
+			publisher := posts[0]
+			if name := strings.TrimSpace(jx.Str(publisher, "publisher_name")); name != "" {
+				title = name
+			}
+			description = jx.Str(publisher, "publisher_description")
+			if page := osnovaPublisherPage(host, jx.Str(publisher, "publisher_uri")); page != "" {
+				info["source_page"] = page
+			}
+			if jx.Str(publisher, "publisher_kind") == "category" {
+				info["source_kind"] = "category"
+			}
+		} else if title == hostOf(feed) && len(posts) > 0 {
 			if name := strings.TrimSpace(jx.Str(posts[0], "source")); name != "" {
 				title = trimRunes(name, 180)
 			}
 		}
+	} else if platform == PlatformTelegram {
+		if m := channelTitleRe.FindStringSubmatch(string(result.Bytes)); m != nil {
+			title = trimRunes(CleanHTMLText(m[1]), 180)
+		}
+		if m := channelDescRe.FindStringSubmatch(string(result.Bytes)); m != nil {
+			description = trimRunes(CleanHTMLText(m[1]), 800)
+		}
+	} else if platform == PlatformOK {
+		if name := OKTitleFromHTML(string(result.Bytes), id); name != "" && name != id {
+			title = trimRunes(name, 180)
+			info["source_kind"] = "community"
+		}
 	}
-	return jx.M{"id": id, "title": title, "description": description}
+	info["title"] = title
+	info["description"] = description
+	return info
+}
+
+// Persist only short public names and verified publisher pages. The metadata
+// is merged across state transitions, so older source cards improve after
+// their next normal public check, without extra bulk HTTP requests.
+func autopilotSourceDisplayEvidence(info jx.M, platform, feed string) jx.M {
+	out := jx.M{}
+	title := strings.TrimSpace(jx.Str(info, "title"))
+	if title != "" && title != feed && title != hostOf(feed) && !(platform != PlatformRSS && title == jx.Str(info, "id")) {
+		out["source_title"] = trimRunes(title, 180)
+	}
+	if page := jx.Str(info, "source_page"); page != "" {
+		out["source_page"] = page
+	}
+	if kind := jx.Str(info, "source_kind"); kind == "category" || kind == "community" {
+		out["source_kind"] = kind
+		out["personal_blog"] = "no"
+	}
+	return out
 }
 
 func (u *U) autopilotEvaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluation {
@@ -1407,6 +1469,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 		}
 		samples = safeSamples
+		sourceInfo := autopilotSourceReviewInfo(platform, id, feed, res, samples)
+		displayEvidence := autopilotSourceDisplayEvidence(sourceInfo, platform, feed)
 		// A missing OK title is a parsing/metadata failure, NOT evidence
 		// that the group is about another topic. Look at multiple published
 		// captions before rejecting a group with a generic title.
@@ -1447,12 +1511,15 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			continue
 		}
 		evidence := jx.M{"quality_samples": len(samples), "fresh_samples": len(autopilotFreshRSSSamples(samples, at.Unix())), "sample_limit": 20, "quality_window_days": autopilotSourceQualityDays}
+		for key, value := range displayEvidence {
+			evidence[key] = value
+		}
 		if res.Status > 0 {
 			evidence["http_status"] = res.Status
 		}
 		if reason == "" && state == "candidate" {
 			autopilotResetAssessmentCause(ctx)
-			evaluation := evaluate(autopilotSourceReviewInfo(platform, id, feed, res, samples), samples, job.Topic)
+			evaluation := evaluate(sourceInfo, samples, job.Topic)
 			if err := autopilotBudgetError(ctx); err != nil {
 				return err
 			}
@@ -1472,8 +1539,10 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				evidence["assessment_cause"] = cause
 			} else {
 				evidence["preliminary_score"] = evaluation.Score
-				if format := personalBlogLabelFromReview(evaluation.PersonalBlog); format != personalBlogUnknown {
-					evidence["personal_blog"] = format
+				if jx.Str(sourceInfo, "source_kind") != "category" {
+					if format := personalBlogLabelFromReview(evaluation.PersonalBlog); format != personalBlogUnknown {
+						evidence["personal_blog"] = format
+					}
 				}
 				if autopilotPreliminaryPass(evaluation.Score, threshold, len(samples)) {
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate", "probation", "shadow_preliminary_pass", jx.Marshal(evidence), at, at.Add(autopilotSourceReviewInterval(job, "probation"))); err != nil {
@@ -1540,6 +1609,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				professional := a.User(ctx, "", nil).professionalValueTopic(job.Topic)
 				effectiveRelevant := effectiveSourceRelevant(stats.Relevant, stats.Eligible, professional)
 				evidence = jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "effective_relevant": effectiveRelevant, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "curated_unique": stats.CuratedUnique, "successful_passes": stats.SuccessfulPasses}
+				for key, value := range displayEvidence {
+					evidence[key] = value
+				}
 				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: effectiveRelevant, FreshUnique: stats.FreshUnique, CuratedUnique: stats.CuratedUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates}, policy)
 				if next != state {
 					nextCheck := at.Add(autopilotSourceReviewInterval(job, next))
