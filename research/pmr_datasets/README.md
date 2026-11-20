@@ -1,7 +1,8 @@
 # Posta Multi 235M (Поста Мульти 235М) — dataset audit v0.1 (research only)
 
 This directory is **not** a replacement for Posta's production `cmd/posta-ml` classifier, server, search, or DB.
-Scripts use the Python 3 standard library. Network access occurs only when the
+Scripts use the Python 3 standard library; the shard downloader also invokes
+`curl`, and optional shard inspection uses `pyarrow`/`h5py`. Network access occurs only when the
 operator explicitly runs a probe or sampler. None connects to PostgreSQL, trains a
 model, or migrates production data.
 
@@ -189,3 +190,37 @@ bounded API results and selected first pages of file trees, not complete file
 inventories or total dataset sizes. Russian mMARCO is registered as blocked,
 because its authors point to MS MARCO's underlying terms. The catalog's
 `training: false` prevents accidentally passing it through the training gate.
+
+## Explicit downloads of source shards
+
+The download tool fetches the listed pinned public source files onto the HDD,
+verifies each against the upstream LFS SHA-256, and keeps incomplete files with a
+`.part` suffix for resuming. The manifest marks the downloaded files as
+quarantined: download does not clear their rights, quality or benchmark overlap.
+The evaluation archive is marked evaluation-only. The plan is a set of initial
+shards, **not full copies** of the multi-terabyte datasets. MegaPairs access is
+gated and the audited Common Voice mirror is empty; English LibriSpeech is a
+separate public audio source.
+
+```bash
+python3 research/pmr_datasets/download_shards.py \
+  --out-dir /mnt/hdd_ubuntu/posta-pmr/downloads-v0.1 --reserve-gib 40
+```
+
+Do not run concurrent processes against the same IDs. For independent ID groups,
+use different `--manifest-name` values; keep sufficient free space for the total
+of all simultaneous files as well as the reserve. Running the command again
+checks completed files and resumes partial downloads. Dataset Server preview
+rows and source shards are different artifacts: these shard downloads use pinned
+Hub revisions and upstream byte hashes.
+
+For the parallel download run, inspect current progress with:
+
+```bash
+python3 research/pmr_datasets/download_status.py /mnt/hdd_ubuntu/posta-pmr/downloads-v0.1
+```
+
+A `.part` file is incomplete, regardless of its size. `verified` means that
+its complete bytes match the upstream digest; it does not mean the content is
+ready for training. `inspect_shards.py` can inspect completed files from one or
+more manifests without unpacking archives or displaying dataset rows.

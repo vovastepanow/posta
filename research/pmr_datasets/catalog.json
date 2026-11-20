@@ -173,6 +173,21 @@
       "source_url": "https://huggingface.co/datasets/QCRI/MemeXplain"
     },
     {
+      "id": "librispeech",
+      "repo": "openslr/librispeech_asr",
+      "use": "speech_audio",
+      "priority": "P1",
+      "preferred_config": "clean",
+      "preferred_split": "train.100",
+      "license_claim": "cc-by-4.0",
+      "license_review": "verify source and attribution obligations, speaker provenance and benchmark splits before use",
+      "data_kind": "parquet_embedded_audio",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/openslr/librispeech_asr",
+      "language_note": "English",
+      "access_note": "Open alternative while audited Common Voice mirror is empty; independent test/validation splits remain outside training"
+    },
+    {
       "id": "common-voice",
       "repo": "mozilla-foundation/common_voice_17_0",
       "use": "speech_audio",
