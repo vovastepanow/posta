@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"net/url"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -393,6 +394,34 @@ func autopilotPublicSourceReviewEvidence(raw []byte) jx.M {
 		if _, exists := original[field]; exists {
 			out[field] = jx.Int(original, field)
 		}
+	}
+	// The audit bundle contains only selected public post excerpts. Check
+	// every nested key again here: source evidence is untrusted historical
+	// JSON and must not turn this endpoint into a raw metadata exporter.
+	reviewSamples := make([]jx.M, 0, 5)
+	for _, sample := range jx.Maps(original, "review_samples") {
+		if len(reviewSamples) >= 5 {
+			break
+		}
+		text := trimRunes(strings.TrimSpace(jx.Str(sample, "excerpt")), 650)
+		if text == "" && !jx.Bool(sample, "media_present") {
+			continue
+		}
+		item := jx.M{"excerpt": text, "media_present": jx.Bool(sample, "media_present")}
+		if raw := jx.Str(sample, "url"); raw != "" {
+			if parsed, err := url.Parse(raw); err == nil && parsed.User == nil && parsed.Hostname() != "" &&
+				(parsed.Scheme == "https" || parsed.Scheme == "http") && parsed.RawQuery == "" &&
+				parsed.Fragment == "" && parsed.Port() == "" && len(parsed.Path) < 300 {
+				item["url"] = raw
+			}
+		}
+		if published := jx.Int(sample, "published_at"); published > 0 {
+			item["published_at"] = published
+		}
+		reviewSamples = append(reviewSamples, item)
+	}
+	if len(reviewSamples) > 0 {
+		out["review_samples"] = reviewSamples
 	}
 	if cause := jx.Str(original, "assessment_cause"); cause != "" {
 		switch cause {
