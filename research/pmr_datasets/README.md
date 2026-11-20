@@ -49,9 +49,27 @@ python3 research/pmr_datasets/probe.py --out data/pmr/audit.json
 python3 research/pmr_datasets/probe.py --ids fineweb2-ru kalm-retrieval wit memexplain --rows --out data/pmr/audit-rows.json
 ```
 
-The audit uses bounded HF API requests and stores **metadata, revision SHAs, file name excerpts and schema column types only**, **never full raw examples/media**.
+The audit uses bounded HF API requests and stores **metadata, revision SHAs and schema column types only**, **never full raw examples/media**. Very large repository file lists are deliberately not fetched; exact shard sizes require a separate inspection.
 The HF Dataset Server cannot preview some huge/gated/HDF5/WebDataset sources; a failure is logged, not fabricated.
 `--strict` exits nonzero if a check fails. HTTP timeouts/rate limits are distinct from license denial.
+
+## Optional: small text export after review
+
+Only after the approval gate below is genuinely satisfied, run the bounded text exporter.
+It uses HF Dataset Server `/rows`, does not download Parquet, and checks that the
+source revision SHA has not changed during export. Do not interpret the deterministic
+offset sampling as statistically representative of the entire corpus.
+
+```bash
+python3 research/pmr_datasets/export_text.py --id fineweb2-ru --count 20 \\
+  --audit data/pmr/audit.json --approvals data/pmr/approvals.json
+python3 research/pmr_datasets/export_text.py --id fineweb-en --count 20 \\
+  --audit data/pmr/audit.json --approvals data/pmr/approvals.json
+```
+
+The outputs appear in ignored `data/pmr/*-sample.jsonl` and can then be passed to
+`prepare.py`. This exports **only text**, not media; quality and personal-information
+screening are still required. A failed request does not produce a partial output.
 
 ## Step 2: Human review and pilot input
 
