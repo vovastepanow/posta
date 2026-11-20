@@ -216,11 +216,83 @@ func (a *App) autopilotRescheduleOldOKRejections(ctx context.Context, job *autop
 	return err
 }
 
+// Historical suggestions rejected for their ID/format were never given a
+// content verdict. Requeue only URLs that the current public-source parser
+// can safely validate; never reconstruct a case-sensitive YouTube channel ID.
+func (a *App) autopilotReconsiderTechnicalRejects(ctx context.Context, job *autopilotJob) error {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope {
+		return nil
+	}
+	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND state='rejected'
+		AND reason IN ('invalid_source_identity','unsupported_source_format')
+		AND NOT (evidence ? 'technical_reaudit_v1')
+		ORDER BY source_id LIMIT 100`, job.Scope, job.TopicKey)
+	if err != nil {
+		return err
+	}
+	var sources []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		sources = append(sources, id)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, old := range sources {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		canonical := ""
+		if len(old) > 4 && old[:4] == "rss:" {
+			if normalized, ok := autopilotPublicRSSID(old[4:]); ok &&
+				SourceIDFor(PlatformRSS, normalized[4:]) == normalized {
+				canonical = normalized
+			}
+		} else if _, _, _, ok := autopilotSourceParts(old); ok {
+			canonical = old
+		}
+		at := time.Now()
+		if canonical == old {
+			// This is only a request to retry, not an approval or a bypass
+			// of manual exclusions or the normal model gates.
+			err := transitionAutopilotSource(ctx, a.DB, job, old, "rejected", "candidate",
+				"technical_reaudit", []byte(`{"technical_reaudit_v1":true}`), at, at)
+			if err != nil && !errors.Is(err, errAutopilotSourceChanged) &&
+				!errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+		} else if canonical != "" {
+			if err := registerAutopilotCandidate(ctx, a.DB, job, canonical, at); err != nil {
+				return err
+			}
+		}
+		// Keep the original, possibly irrecoverable entry auditable. In
+		// particular, lowercase legacy YouTube IDs cannot safely be guessed.
+		if _, err := a.DB.Pool.Exec(ctx, `UPDATE source_autopilot_sources
+			SET evidence=evidence || '{"technical_reaudit_v1":true}'::jsonb
+			WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND state='rejected'`,
+			job.Scope, job.TopicKey, old); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (a *App) reconcileAutopilotProjections(ctx context.Context, job *autopilotJob) error {
 	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope {
 		return errors.New("invalid projection job")
 	}
 	if err := a.autopilotRescheduleOldOKRejections(ctx, job); err != nil {
+		return err
+	}
+	if err := a.autopilotReconsiderTechnicalRejects(ctx, job); err != nil {
 		return err
 	}
 	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,state FROM source_autopilot_sources
