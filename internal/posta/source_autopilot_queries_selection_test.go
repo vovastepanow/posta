@@ -51,3 +51,21 @@ func TestAutopilotQueryGenerationPrompt(t *testing.T) {
 		t.Fatal("user input is not marked as data")
 	}
 }
+
+func TestAutopilotSelectQueryAvoidsNegativeNetYield(t *testing.T) {
+	queries := []string{"плохой запрос", "полезный запрос", "новый запрос"}
+	// Query scores from the database account for both unique eligible
+	// posts and clearly off-topic sources: 20*useful - 3*offTopic.
+	scores := map[string]int64{
+		"плохой запрос": 20*2 - 3*20,
+		"полезный запрос": 20*2 - 3*1,
+	}
+	if got := autopilotSelectQuery(queries, scores, 1); got != "полезный запрос" {
+		t.Fatalf("picked spammy source discovery instead of useful yield: %q", got)
+	}
+	if got := autopilotSelectQuery(queries, map[string]int64{
+		"плохой запрос": -50, "полезный запрос": -10,
+	}, 2); got != "новый запрос" {
+		t.Fatalf("all-negative query yields should explore instead: %q", got)
+	}
+}
