@@ -1,0 +1,170 @@
+{
+  "version": "0.1.0",
+  "created_utc": "2026-11-20",
+  "purpose": "Research-only Posta Multi-Modal Retriever dataset audit; no training or download of media",
+  "rules": {
+    "no_automatic_data_download": true,
+    "no_eval_training": true,
+    "license_card_not_clearance": true,
+    "media_availability_unverified": true,
+    "primary_languages": [
+      "ru",
+      "en"
+    ],
+    "revisions_must_be_pinned_after_probe": true
+  },
+  "datasets": [
+    {
+      "id": "fineweb2-ru",
+      "repo": "HuggingFaceFW/fineweb-2",
+      "use": "text_pretraining",
+      "priority": "P0",
+      "preferred_config": "rus_Cyrl",
+      "preferred_split": "train",
+      "license_claim": "odc-by-1.0",
+      "license_review": "check CommonCrawl terms; PII filtering",
+      "data_kind": "parquet_text",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-2"
+    },
+    {
+      "id": "fineweb2-hq-ru",
+      "repo": "epfml/FineWeb2-HQ",
+      "use": "text_pretraining",
+      "priority": "P0",
+      "preferred_config": "rus_Cyrl",
+      "preferred_split": "train",
+      "license_claim": "odc-by-1.0",
+      "license_review": "subset of fineweb-2: deduplicate; CommonCrawl terms; PII filtering",
+      "data_kind": "parquet_text",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/epfml/FineWeb2-HQ"
+    },
+    {
+      "id": "fineweb-en",
+      "repo": "HuggingFaceFW/fineweb",
+      "use": "text_pretraining",
+      "priority": "P0",
+      "preferred_split": "train",
+      "license_claim": "odc-by-1.0",
+      "license_review": "check upstream web rights and PII filtering; choose sample config on probe",
+      "data_kind": "parquet_text",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb"
+    },
+    {
+      "id": "kalm-retrieval",
+      "repo": "KaLM-Embedding/KaLM-embedding-finetuning-data",
+      "use": "text_retrieval",
+      "priority": "P0",
+      "license_claim": "mit",
+      "license_review": "aggregates many upstream corpora; review per-source terms before use",
+      "data_kind": "parquet_triplets",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/KaLM-Embedding/KaLM-embedding-finetuning-data"
+    },
+    {
+      "id": "bge-m3",
+      "repo": "Shitao/bge-m3-data",
+      "use": "text_retrieval",
+      "priority": "P0",
+      "license_claim": "unverified",
+      "license_review": "check individual source terms, duplicates with mMARCO/MIRACL and eval contamination; JSONL archives",
+      "data_kind": "jsonl_triplets",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/Shitao/bge-m3-data"
+    },
+    {
+      "id": "wit",
+      "repo": "wikimedia/wit_base",
+      "use": "image_text_alignment",
+      "priority": "P0",
+      "preferred_split": "train",
+      "license_claim": "cc-by-sa-4.0",
+      "license_review": "verify attribution requirements per image; card row-count differs from stated six-million-image research release",
+      "data_kind": "parquet_embedded_image",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/wikimedia/wit_base"
+    },
+    {
+      "id": "megapairs",
+      "repo": "JUNJIE99/MegaPairs",
+      "use": "multimodal_retrieval",
+      "priority": "P0",
+      "license_claim": "annotations mit; images claimed cc-by-4.0",
+      "license_review": "verify provenance and attribution per underlying Recap-DataComp images; 26M triplets, webdataset",
+      "data_kind": "webdataset_triplets",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/JUNJIE99/MegaPairs"
+    },
+    {
+      "id": "nvidia-ocr",
+      "repo": "nvidia/OCR-Synthetic-Multilingual-v1",
+      "use": "ocr_visual_text",
+      "priority": "P0",
+      "license_claim": "cc-by-4.0",
+      "license_review": "HDF5 shards may be multi-GB; download only after checking disk",
+      "data_kind": "hdf5_images",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/nvidia/OCR-Synthetic-Multilingual-v1"
+    },
+    {
+      "id": "videoufo",
+      "repo": "WenhaoWang/VideoUFO",
+      "use": "video_text_alignment",
+      "priority": "P1",
+      "preferred_split": "Full",
+      "license_claim": "cc-by-4.0",
+      "license_review": "CSV annotations and compressed tar clips (~800 GB full collection); do not fetch archives during audit",
+      "data_kind": "csv_and_video_tar",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/WenhaoWang/VideoUFO"
+    },
+    {
+      "id": "memexplain",
+      "repo": "QCRI/MemeXplain",
+      "use": "meme_reasoning",
+      "priority": "P1",
+      "preferred_config": "HatefulMemeXplain",
+      "preferred_split": "train",
+      "license_claim": "cc-by-sa-4.0",
+      "license_review": "no test/dev/annotated benchmark contamination; provenance and bias review",
+      "data_kind": "parquet_embedded_image",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/QCRI/MemeXplain"
+    },
+    {
+      "id": "common-voice",
+      "repo": "mozilla-foundation/common_voice_17_0",
+      "use": "speech_audio",
+      "priority": "P2",
+      "license_claim": "cc0-1.0",
+      "license_review": "candidate version is provisional; confirm currently accessible official release, multilingual transcriptions and size",
+      "data_kind": "speech_dataset",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/mozilla-foundation/common_voice_17_0"
+    },
+    {
+      "id": "bvd-video",
+      "repo": "laion/BVD-V-55M-URLs",
+      "use": "video_text_alignment",
+      "priority": "P2",
+      "license_claim": "unverified",
+      "license_review": "metadata and URLs only for many samples; media availability, provenance and license require review",
+      "data_kind": "parquet_urls",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/laion/BVD-V-55M-URLs"
+    },
+    {
+      "id": "mmeb-v3",
+      "repo": "VLM2Vec/MMEB-V3",
+      "use": "independent_evaluation",
+      "priority": "EVAL",
+      "license_claim": "verify current card",
+      "license_review": "ALL evaluation tasks isolated from train; do not build negatives from eval instances",
+      "data_kind": "mixed",
+      "training": false,
+      "source_url": "https://huggingface.co/datasets/VLM2Vec/MMEB-V3"
+    }
+  ]
+}
