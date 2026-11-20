@@ -95,7 +95,7 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 			FROM source_autopilot_query_sources q
 			JOIN source_autopilot_sources s ON s.scope=q.scope AND s.topic_key=q.topic_key AND s.source_id=q.source_id
 			LEFT JOIN source_autopilot_post_evidence e ON e.scope=q.scope AND e.topic_key=q.topic_key AND e.source_id=q.source_id AND e.published_at >= $3
-			WHERE q.scope=$1 AND q.topic_key=$2 AND q.discovered_at >= $3 GROUP BY q.query`,
+			WHERE q.scope=$1 AND q.topic_key=$2 GROUP BY q.query`,
 			job.Scope, job.TopicKey, time.Now().Add(-30*24*time.Hour).Unix())
 		if err != nil {
 			return "", err
