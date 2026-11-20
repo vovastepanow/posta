@@ -386,7 +386,11 @@ func osnovaTimelineSource(raw string) (string, int64) {
 	if u.Hostname() != "api."+host || (host != "vc.ru" && host != "dtf.ru") {
 		return "", 0
 	}
-	id, err := strconv.ParseInt(u.Query().Get("subsitesIds"), 10, 64)
+	rawID := u.Query().Get("subsitesIds")
+	if rawID == "" {
+		rawID = u.Query().Get("subsitesids") // historical catalog IDs were lowercased
+	}
+	id, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil || id <= 0 {
 		return "", 0
 	}
