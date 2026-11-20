@@ -54,7 +54,9 @@ func articleAnalysisText(item jx.M) string {
 	if len(meta) > 0 {
 		head = append(head, strings.Join(meta, " · "))
 	}
-	return strings.Join(head, "\n") + "\n" + trimRunes(strings.TrimSpace(jx.Str(item, "text")), 800)
+	// Keep the article body available to the model (the display keeps the
+	// unmodified original). An 800-rune preview can omit the actual argument.
+	return strings.Join(head, "\n") + "\n" + trimRunes(strings.TrimSpace(jx.Str(item, "text")), 6000)
 }
 
 // AnalysisText — текст записи для анализа по тексту: у статьи — с заголовком первым.
