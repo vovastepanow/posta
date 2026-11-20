@@ -312,7 +312,16 @@ function renderAutopilot(data) {
                     openAutopilotSourceDialog(topic, state, value);
                 }
             });
-            return metric;
+            // The copy control is a sibling, not nested in the clickable card,
+            // so copying never opens the source dialog or creates nested buttons.
+            const copy = el('button', {
+                type: 'button', className: 'autopilot-metric-copy',
+                textContent: '⧉ Скопировать',
+                title: 'Скопировать все источники секции «' + label + '»',
+                'aria-label': 'Скопировать источники: ' + label
+            });
+            copy.addEventListener('click', () => copyAutopilotSection(topic, state, copy));
+            return el('div', { className: 'autopilot-metric-group' }, metric, copy);
         };
         const found = Number(topic.last_source_candidates || 0);
         const totalChecked = Number(topic.direct_reviewed_total || 0);
@@ -566,15 +575,20 @@ function autopilotExportSafeValue(value) {
 
 // Export lifecycle states, not "found": found is a subset of the latest
 // discovery cohort and would duplicate sources already included below.
-async function autopilotExportSourcesForTopic(topic) {
+async function autopilotExportSourcesForTopic(topic, states = autopilotExportStates) {
     const sources = new Map();
-    for (const state of autopilotExportStates) {
+    let snapshotAvailable = true;
+    for (const state of states) {
         let after = '';
         const cursors = new Set();
         for (let page = 0; page < 100; page++) {
             const data = await api('source_autopilot_sources', {
                 params: { topic: topic.topic, mode: topic.mode, state, after, limit: 500 }
             });
+            if (state === 'found' && data.snapshot_available === false) {
+                snapshotAvailable = false;
+                break;
+            }
             for (const item of data.sources || []) {
                 if (!item.source_id) continue;
                 // Re-checking may move a source to another state mid-export.
@@ -604,7 +618,41 @@ async function autopilotExportSourcesForTopic(topic) {
     const counts = Object.fromEntries(autopilotExportStates.map(state => [
         state, entries.filter(item => item.state === state).length
     ]));
-    return { topic: topic.topic, mode: topic.mode, count: entries.length, counts, sources: entries };
+    return {
+        topic: topic.topic, mode: topic.mode,
+        section: states.length === 1 ? autopilotSourceStates[states[0]] : 'Все источники',
+        section_key: states.length === 1 ? states[0] : 'all',
+        snapshot_available: snapshotAvailable,
+        count: entries.length, counts, sources: entries
+    };
+}
+
+// A copy action beside each metric exports exactly that section, including
+// its name and all pages. "Found" is a search cohort, not a lifecycle state.
+async function copyAutopilotSection(topic, state, button) {
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = 'Копирую…';
+    try {
+        const report = await autopilotExportSourcesForTopic(topic, [state]);
+        const data = {
+            export_kind: 'posta_autopilot_source_section',
+            server_revision: latestAutopilotDiagnostic?.server_revision || '',
+            captured_at: new Date().toISOString(),
+            ...report
+        };
+        await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+        $('autopilot-status').textContent = report.snapshot_available
+            ? 'Скопировано: «' + report.section + '» — ' + report.count.toLocaleString('ru-RU') +
+                ' источников, тема «' + report.topic + '».'
+            : 'Для «' + report.section + '» сервер не сохранил список последнего поиска; скопирован отчёт с пометкой об отсутствии снимка.';
+    } catch (error) {
+        $('autopilot-status').textContent = 'Не удалось скопировать секцию «' +
+            (autopilotSourceStates[state] || state) + '»: ' + error.message;
+    } finally {
+        button.textContent = original;
+        button.disabled = false;
+    }
 }
 
 async function copyAutopilotSources() {
