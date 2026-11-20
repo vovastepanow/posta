@@ -506,6 +506,7 @@ func (u *U) sourceImagesReview(title, topic string, posts []jx.M) *sourceReview 
 		return nil
 	}
 	prompt := u.prompt("source_images", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "query_rule": sourceQueryRule(topic), "shop_rule": notShop})
+	prompt += sourceReviewTopicGuidance(topic)
 	return u.sourceReviewRequest(prompt, StoryboardSheets(frames))
 }
 
@@ -532,7 +533,7 @@ func (u *U) combinedSourceReview(title, desc, topic string, posts []jx.M, caps [
 		}
 		texts = append(texts, sourceReviewCaption(cap))
 	}
-	prompt := u.prompt("source_combined", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "description": trimRunes(desc, 400), "query_rule": sourceQueryRule(topic), "captions": strings.Join(texts, "»; «"), "shop_rule": notShop}) + sourceFormatPrompt
+	prompt := u.prompt("source_combined", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "description": trimRunes(desc, 400), "query_rule": sourceQueryRule(topic), "captions": strings.Join(texts, "»; «"), "shop_rule": notShop}) + sourceFormatPrompt + sourceReviewTopicGuidance(topic)
 	props := jx.M{"text_score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "image_score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "reason": jx.M{"type": "string"}, "personal_blog": jx.M{"type": "string", "enum": []string{"yes", "no", "unknown"}}}
 	required := []string{"text_score", "image_score", "reason"}
 	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Images: StoryboardSheets(frames), Schema: jx.M{"type": "object", "properties": props, "required": required}, MaxTokens: 180, Temperature: 0, UserID: u.ID})
