@@ -275,3 +275,11 @@ verified annotation CSV; it extracts bounded clips, fully decodes video, and
 preserves source start/end times and source-video grouping. These separate OCR
 and video outputs must be globally deduplicated and isolated from benchmarks
 before mixing with other source candidates.
+
+`merge_candidates.py` accepts repeated `--input` directories for the verified
+local candidate, separately prepared OCR/video candidates and joined mMARCO
+source. It verifies the input JSONL and media hashes, copies media, recomputes
+exact deduplication and a global split, and records removed duplicates and
+negative links. Follow it with `verify_candidate.py --decode-media` and
+`stats_candidate.py`. All rows remain marked as unapproved; this merge does not
+perform near-duplicate or independent benchmark contamination screening.
