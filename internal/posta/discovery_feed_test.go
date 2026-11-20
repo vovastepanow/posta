@@ -236,6 +236,26 @@ func TestOsnovaCommunitySource(t *testing.T) {
 	if host, _ := osnovaTimelineSource("https://api.vc.ru.evil.example/v2.10/timeline?subsitesIds=1"); host != "" {
 		t.Fatal("accepted foreign host")
 	}
+	// A real vc.ru section can publish articles by many people. Its API
+	// subsite (not the article author) determines the source title and kind.
+	if name, kind := jx.Str(posts[0], "publisher_name"), jx.Str(posts[0], "publisher_kind"); name != "Личный опыт" || kind != "category" {
+		t.Fatalf("vc.ru publisher misidentified: title=%q kind=%q", name, kind)
+	}
+	feed := osnovaTimelineURL("vc.ru", 199123)
+	info := autopilotSourceReviewInfo(PlatformRSS, feed, feed,
+		FetchResultURL{}, posts)
+	display := autopilotSourceDisplayEvidence(info, PlatformRSS, feed)
+	if jx.Str(info, "title") != "Личный опыт" ||
+		jx.Str(display, "source_page") != "https://vc.ru/life" ||
+		jx.Str(display, "source_kind") != "category" || jx.Str(display, "personal_blog") != "no" {
+		t.Fatalf("vc.ru category incorrectly classified as personal blog: info=%+v evidence=%+v", info, display)
+	}
+	if got := RSSWebURL(feed); got != "https://vc.ru/" {
+		t.Fatalf("site link exposed a technical API: %q", got)
+	}
+	if got := autopilotDisplayName(PlatformRSS, feed, "Личный опыт", "api.vc.ru"); got != "Личный опыт" {
+		t.Fatalf("human-readable name lost: %q", got)
+	}
 }
 
 func TestDiscoveryPinterestBoards(t *testing.T) {
