@@ -404,6 +404,33 @@ func autopilotPublicSourceReviewEvidence(raw []byte) jx.M {
 	return out
 }
 
+// Prefer verified publisher titles, then names already in the local
+// registry/catalog. API URLs and generic hosts are not human source names.
+func autopilotDisplayName(platform, id string, names ...string) string {
+	host := hostOf(id)
+	for _, candidate := range names {
+		name := strings.TrimSpace(strings.TrimPrefix(candidate, SourceNamePrefixes[platform]))
+		if name == "" || name == id || name == host || strings.Contains(name, "api.vc.ru") ||
+			strings.Contains(name, "api.dtf.ru") || strings.HasPrefix(name, "rss:https://") {
+			continue
+		}
+		return trimRunes(CleanHTMLText(name), 180)
+	}
+	if platform == PlatformRSS {
+		if site, subsite := osnovaTimelineSource(id); site != "" {
+			return "Раздел " + site + " · #" + strconv.FormatInt(subsite, 10)
+		}
+		if community := pikabuCommunityURL(id); community != "" {
+			return "Сообщество Пикабу · " + strings.TrimPrefix(community, "https://pikabu.ru/community/")
+		}
+		return host
+	}
+	if platform == PlatformTelegram || platform == PlatformTikTok {
+		return "@" + id
+	}
+	return id
+}
+
 // SourceAutopilotSources returns a bounded list of public sources in one
 // lifecycle state, available only to subscribers of that exact topic.
 // Pagination is by stable source ID, without scanning or sending a whole queue.
@@ -454,18 +481,20 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 			return jx.M{"sources": []jx.M{}, "next_after": "", "snapshot_available": false}, nil
 		}
 	}
-	query := `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at,
-		COALESCE(evidence->>'personal_blog','unknown'),evidence
-		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state=$3 AND source_id>$4
-		ORDER BY source_id LIMIT $5`
+	query := `SELECT s.source_id,s.state,s.reason,s.first_seen_at,s.checked_at,s.next_check_at,
+		COALESCE(s.evidence->>'personal_blog','unknown'),s.evidence,COALESCE(r.name,'')
+		FROM source_autopilot_sources s LEFT JOIN source_registry r ON r.source_id=s.source_id
+		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state=$3 AND s.source_id>$4
+		ORDER BY s.source_id LIMIT $5`
 	var rows pgx.Rows
 	var err error
 	if state == "found" {
-		rows, err = u.DB.Pool.Query(u.Ctx, `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at,
-		COALESCE(evidence->>'personal_blog','unknown'),evidence
-			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
-			AND source_id=ANY($5) AND source_id>$3
-			ORDER BY source_id LIMIT $4`, scope, key, after, limit+1, latestIDs)
+		rows, err = u.DB.Pool.Query(u.Ctx, `SELECT s.source_id,s.state,s.reason,s.first_seen_at,s.checked_at,s.next_check_at,
+		COALESCE(s.evidence->>'personal_blog','unknown'),s.evidence,COALESCE(r.name,'')
+			FROM source_autopilot_sources s LEFT JOIN source_registry r ON r.source_id=s.source_id
+			WHERE s.scope=$1 AND s.topic_key=$2
+			AND s.source_id=ANY($5) AND s.source_id>$3
+			ORDER BY s.source_id LIMIT $4`, scope, key, after, limit+1, latestIDs)
 	} else {
 		rows, err = u.DB.Pool.Query(u.Ctx, query, scope, key, state, after, limit+1)
 	}
@@ -473,13 +502,29 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 		return nil, err
 	}
 	defer rows.Close()
+	// Saved catalog proposals often already contain a human channel name.
+	// This is a local lookup, not hundreds of network requests to render cards.
+	catalogNames := map[string]string{}
+	catalog := u.Catalog()
+	for _, kind := range CatalogKinds {
+		for _, entry := range *catalog.List(kind.Kind) {
+			sid := SourceIDFor(kind.Platform, jx.Str(entry, "id"))
+			catalogNames[sid] = jx.Str(entry, "name")
+		}
+	}
+	for _, entry := range catalog.Suggestions {
+		sid := jx.Str(entry, "source_id")
+		if catalogNames[sid] == "" {
+			catalogNames[sid] = jx.Str(entry, "name")
+		}
+	}
 	items := make([]jx.M, 0, limit)
 	hasMore := false
 	for rows.Next() {
-		var source, currentState, reason, blogKind string
+		var source, currentState, reason, blogKind, registryName string
 		var discovered, checked, next int64
 		var evidence []byte
-		if err := rows.Scan(&source, &currentState, &reason, &discovered, &checked, &next, &blogKind, &evidence); err != nil {
+		if err := rows.Scan(&source, &currentState, &reason, &discovered, &checked, &next, &blogKind, &evidence, &registryName); err != nil {
 			return nil, err
 		}
 		if len(items) == limit {
@@ -491,9 +536,28 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 		if valid {
 			publicURL = SourceWebURL(platform, id)
 		}
+		metadata := jx.Unmarshal(evidence)
+		name := autopilotDisplayName(platform, id, jx.Str(metadata, "source_title"), registryName, catalogNames[source])
+		kind := jx.Str(metadata, "source_kind")
+		if platform == PlatformRSS {
+			if host, _ := osnovaTimelineSource(id); host != "" {
+				if page := jx.Str(metadata, "source_page"); page != "" &&
+					osnovaPublisherPage(host, strings.TrimPrefix(page, "https://"+host)) == page {
+					publicURL = page
+				}
+				// Historical AI labels are not reliable category identification.
+				// Treat unverified API sources as unknown, not personal blogs.
+				if kind != "category" {
+					blogKind = "unknown"
+				}
+			}
+		}
+		if kind == "category" || kind == "community" {
+			blogKind = "no"
+		}
 		items = append(items, jx.M{"source_id": source, "state": currentState, "reason": reason,
 			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next, "personal_blog": personalBlogKind(blogKind), "url": publicURL,
-			"review_evidence": autopilotPublicSourceReviewEvidence(evidence)})
+			"name": name, "source_kind": kind, "review_evidence": autopilotPublicSourceReviewEvidence(evidence)})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
