@@ -3,6 +3,8 @@ package posta
 import (
 	"fmt"
 	"testing"
+
+	"posta/internal/jx"
 )
 
 func TestAutopilotSMMCanonicalKeyKeepsLegacySources(t *testing.T) {
@@ -77,5 +79,41 @@ func TestOKDiscoveryRequiresProfessionalIdentity(t *testing.T) {
 		if got := okDiscoveryTopicTextMatches(tc.text, "smm", []string{"блогинг", "бизнес"}); got != tc.want {
 			t.Errorf("OK feed text %q: got %t, want %t", tc.text, got, tc.want)
 		}
+	}
+}
+
+func TestAutopilotOKSMMTopicReasonRequiresRealNegativeEvidence(t *testing.T) {
+	const id = "12345678901234"
+	post := func(text string) jx.M { return jx.M{"text": text} }
+	unrelated := []jx.M{
+		post("Собрали новые образцы вязания и схемы для рукоделия."),
+		post("Новые советы по вязанию и вышивке крестиком."),
+		post("Сегодня выбираем цвет пряжи для зимнего свитера."),
+	}
+	for _, tc := range []struct {
+		name string
+		title string
+		posts []jx.M
+		want string
+	}{
+		{"missing mobile title", id, unrelated, "source_metadata_unavailable"},
+		{"off-topic title but no readable posts", "Клуб вязания", nil, "source_metadata_unavailable"},
+		{"off-topic title and confirmed off-topic posts", "Клуб вязания", unrelated, "off_topic_group"},
+		{"relevant group title", "SMM и продвижение в соцсетях", unrelated, ""},
+		{"two independently relevant captions", "Новости сообщества", []jx.M{
+			post("Новый контент-план: анализ роста подписчиков в SMM."),
+			post("Разбор таргетинга и продвижения социальных сетей."),
+			unrelated[0],
+		}, ""},
+		{"one relevant post is uncertain, not rejected", "Новости сообщества", []jx.M{
+			post("Новый контент-план: анализ роста подписчиков в SMM."),
+			unrelated[0], unrelated[1],
+		}, "source_metadata_unavailable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := autopilotOKSMMTopicReason(tc.title, id, tc.posts); got != tc.want {
+				t.Fatalf("reason=%q, want=%q", got, tc.want)
+			}
+		})
 	}
 }
