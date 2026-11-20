@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"strings"
 	"testing"
 
 	"posta/internal/jx"
@@ -86,5 +87,36 @@ func TestProfessionalValueSchemasRequiredForBusiness(t *testing.T) {
 	meme := u.contentAnalysisSchemaForTopic("", "Мемы")
 	if contains(jx.Strs(meme, "required"), "interest") {
 		t.Fatal("professional scores unexpectedly required for memes")
+	}
+}
+
+func TestAnalysisExplanationIsCompleteAndSeparateFromQuotedEvidence(t *testing.T) {
+	quote := "Ask every new message where they saw you. Paste the link to that post next to th"
+	explanation := "Публикация объясняет, как системно узнавать у новых клиентов источник обращения и оценивать эффективность постов."
+	analysis := jx.M{"description": "Практическая инструкция по отслеживанию клиентов.", "why_relevant": analysisExplanation(jx.M{"explanation": explanation}, quote),
+		"evidence": quote, "relevance": 94, "format": "text"}
+	if jx.Str(analysis, "why_relevant") != explanation {
+		t.Fatalf("model explanation replaced or truncated: %+v", analysis)
+	}
+	record := analysisRecord(analysis, jx.M{"image": "test", "text": "Полный исходный текст, не только цитата."}, "SMM и блогинг", "text")
+	if jx.Str(record, "why_relevant") != explanation || jx.Str(record, "evidence") != quote ||
+		jx.Str(record, "text") != "Полный исходный текст, не только цитата." {
+		t.Fatalf("reason, quoted evidence and original must stay separate: %+v", record)
+	}
+	if fallback := analysisExplanation(jx.M{}, quote); !strings.HasPrefix(fallback, "Фрагмент публикации:") {
+		t.Fatalf("legacy quote must be labeled as excerpt, not explanation: %q", fallback)
+	}
+	if jx.Map(ContentAnalysisSchema("", false), "properties")["explanation"] == nil ||
+		jx.Map(jx.Map(jx.Map(TextBatchSchema("", false), "properties"), "items"), "items") == nil {
+		t.Fatal("analysis schemas missing new explanation field")
+	}
+}
+
+func TestArticleAnalysisDoesNotSilentlyCutBodyTo800Characters(t *testing.T) {
+	body := strings.Repeat("Практический пример контент-маркетинга. ", 30) + "Значимый вывод находится в конце."
+	item := jx.M{"article": jx.M{"title": "SMM статья"}, "text": body}
+	got := articleAnalysisText(item)
+	if !strings.Contains(got, "Значимый вывод находится в конце.") {
+		t.Fatalf("article's important final argument was lost: %q", got)
 	}
 }
