@@ -553,6 +553,93 @@ async function copyAutopilotDiagnostic() {
     }
 }
 
+
+const autopilotExportStates = ['candidate', 'probation', 'active', 'cooldown', 'rejected'];
+
+// These are public-source rows only, but a malformed legacy URL may still
+// contain a credential in its raw identifier. Never copy such values verbatim.
+function autopilotExportSafeValue(value) {
+    return String(value || '')
+        .replace(/:\/\/[^\s/@]+@/g, '://[redacted]@')
+        .replace(/([?&](?:access_token|api_key|apikey|key|token|signature|sig|auth|password|secret)=)[^&#\s]*/gi, '$1[redacted]');
+}
+
+// Export lifecycle states, not "found": found is a subset of the latest
+// discovery cohort and would duplicate sources already included below.
+async function autopilotExportSourcesForTopic(topic) {
+    const sources = new Map();
+    for (const state of autopilotExportStates) {
+        let after = '';
+        const cursors = new Set();
+        for (let page = 0; page < 100; page++) {
+            const data = await api('source_autopilot_sources', {
+                params: { topic: topic.topic, mode: topic.mode, state, after, limit: 500 }
+            });
+            for (const item of data.sources || []) {
+                if (!item.source_id) continue;
+                // Re-checking may move a source to another state mid-export.
+                // Keep only one row per ID, while preserving the reason shown.
+                sources.set(item.source_id, {
+                    source_id: autopilotExportSafeValue(item.source_id),
+                    url: autopilotExportSafeValue(item.url),
+                    state: item.state,
+                    reason: item.reason || '',
+                    reason_label: autopilotSourceReasonLabels[item.reason] || item.reason || '',
+                    personal_blog: item.personal_blog || 'unknown',
+                    first_seen_at: item.first_seen_at || 0,
+                    checked_at: item.checked_at || 0,
+                    next_check_at: item.next_check_at || 0
+                });
+            }
+            const next = String(data.next_after || '');
+            if (!next) break;
+            if (next === after || cursors.has(next) || page === 99) {
+                throw new Error('Сервер вернул некорректную или слишком длинную пагинацию (' + state + '). Список не скопирован частично.');
+            }
+            cursors.add(next);
+            after = next;
+        }
+    }
+    const entries = [...sources.values()];
+    const counts = Object.fromEntries(autopilotExportStates.map(state => [
+        state, entries.filter(item => item.state === state).length
+    ]));
+    return { topic: topic.topic, mode: topic.mode, count: entries.length, counts, sources: entries };
+}
+
+async function copyAutopilotSources() {
+    const button = $('autopilot-copy-sources');
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = 'Собираю источники…';
+    try {
+        const data = await api('source_autopilot_status');
+        const topics = (data.topics || []).filter(topic => topic.mode === 'auto' || topic.mode === 'shadow');
+        if (!topics.length) throw new Error('Нет тем с настроенным автопилотом.');
+        const exported = [];
+        for (const topic of topics) {
+            $('autopilot-status').textContent = 'Собираю источники: ' + topic.topic + '…';
+            exported.push(await autopilotExportSourcesForTopic(topic));
+        }
+        const text = JSON.stringify({
+            export_kind: 'posta_autopilot_public_sources',
+            server_revision: data.server_revision || '',
+            captured_at: new Date().toISOString(),
+            note: 'Публичные источники; статусы могут изменяться во время выгрузки. Технические ошибки — не оценка тематики.',
+            topics: exported
+        }, null, 2);
+        await navigator.clipboard.writeText(text);
+        const total = exported.reduce((sum, topic) => sum + topic.count, 0);
+        $('autopilot-status').textContent = 'Скопировано ' + total.toLocaleString('ru-RU') +
+            ' источников из ' + exported.length + ' тем. Вставь список в чат для проверки отклонений.';
+    } catch (error) {
+        $('autopilot-status').textContent = 'Не удалось скопировать список источников: ' + error.message;
+    } finally {
+        button.textContent = original;
+        button.disabled = false;
+    }
+}
+
 async function loadAutopilot() {
     if (DEBUG_MODE) { $('autopilot-status').textContent = 'В демо-режиме проверка недоступна.'; return; }
     try {
@@ -1121,6 +1208,7 @@ export function initializeSourceTab() {
     $('source-add-form').addEventListener('submit', addSource);
     $('autopilot-form').addEventListener('submit', saveAutopilot);
     $('autopilot-copy-diagnostic').addEventListener('click', copyAutopilotDiagnostic);
+    $('autopilot-copy-sources').addEventListener('click', copyAutopilotSources);
     window.setInterval(() => { if (isTabActive('source-tab')) loadAutopilot(); }, 30000);
     document.querySelectorAll('[data-topic-source-filter]').forEach(b => b.addEventListener('click', () => { topicSources.filter = b.dataset.topicSourceFilter; renderTopicSources(); }));
     $('topic-sources-refresh').addEventListener('click', loadTopicSources);
