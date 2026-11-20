@@ -38,6 +38,14 @@ class VideoTests(unittest.TestCase):
             self.assertEqual(result['accepted'],1)
             self.assertEqual(result['matched_annotations'],1)
             self.assertEqual(result['rejections'],{})
+            try:
+                from merge_candidates import merge
+                from verify_candidate import verify
+            except ImportError:
+                return
+            merged=merge([root/'output'],root/'merged')
+            self.assertEqual(merged['accepted'],1)
+            self.assertEqual(verify(root/'merged',decode_media=True)['media_files'],1)
 
 
 if __name__=='__main__':unittest.main()

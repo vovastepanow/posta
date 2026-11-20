@@ -54,11 +54,14 @@ def verify(root, decode_media=False):
                         if digest(path_media) != sha:
                             raise ValueError('media hash mismatch')
                         if decode_media:
-                            if kind == 'speech_text':
-                                result = subprocess.run(['ffmpeg', '-v', 'error', '-i', str(path_media),
-                                                         '-f', 'null', '-'], capture_output=True, timeout=30)
+                            if kind in ('speech_text', 'video_text'):
+                                command = ['ffmpeg', '-v', 'error', '-i', str(path_media)]
+                                if kind == 'video_text':
+                                    command += ['-map', '0:v:0']
+                                result = subprocess.run(command + ['-f', 'null', '-'],
+                                                        capture_output=True, timeout=60)
                                 if result.returncode:
-                                    raise ValueError('audio decoding failed')
+                                    raise ValueError('audio or video decoding failed')
                             else:
                                 from PIL import Image
                                 with Image.open(path_media) as image:

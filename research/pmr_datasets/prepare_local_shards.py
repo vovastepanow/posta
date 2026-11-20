@@ -37,18 +37,20 @@ def file_hash(path):
     return h.hexdigest()
 
 
-def load_sources(directory):
+def load_sources(directory, selected=None):
     sources = {}
     for p in sorted(directory.glob('manifest-*.json')):
         data = json.loads(p.read_text(encoding='utf-8'))
         for id_, record in data['records'].items():
-            if id_ in SPECS and record.get('status') in ('verified', 'verified_existing'):
+            if id_ in SPECS and (selected is None or id_ in selected) and record.get('status') in ('verified', 'verified_existing'):
                 path = Path(record['local_path'])
                 if not path.is_file() or path.stat().st_size != record['expected_bytes']:
                     raise ValueError(f'{id_}: missing file or size mismatch')
                 if file_hash(path) != record['expected_sha256']:
                     raise ValueError(f'{id_}: file SHA256 mismatch')
                 sources[id_] = record
+    if selected and selected - sources.keys():
+        raise ValueError('requested verified sources missing: ' + ', '.join(sorted(selected - sources.keys())))
     return sources
 
 
@@ -167,6 +169,47 @@ def split_without_negative_leakage(rows):
     return assignments, dropped
 
 
+
+def ensure_speech_holdouts(rows, assignments):
+    # Move an isolated speaker component only when a split is missing. Never
+    # separate a shared text/media identity or take the last train speaker.
+    groups = {}
+    for i, row in enumerate(rows):
+        if row['kind'] == 'speech_text':
+            groups.setdefault((row['dataset_id'], row['group_id']), []).append(i)
+    if len(groups) < 3:
+        return []
+    moved = []
+    for missing in ('validation', 'test'):
+        if any(assignments[i] == missing for indexes in groups.values() for i in indexes):
+            continue
+        train_groups = [key for key, indexes in groups.items() if all(assignments[i] == 'train' for i in indexes)]
+        if len(train_groups) <= 1:
+            continue
+        for group in sorted(train_groups):
+            selected = set(groups[group]); texts = set(); media = set()
+            for i in selected:
+                row = rows[i]
+                texts.update(clean(t).casefold() for t in [row['text'], row['positive'], *row['negatives']] if clean(t))
+                if row['media_sha256']:
+                    media.add(row['media_sha256'])
+            isolated = True
+            for i, row in enumerate(rows):
+                if i in selected:
+                    continue
+                if ((row['dataset_id'], row['group_id']) == group or
+                    row['media_sha256'] and row['media_sha256'] in media or
+                    any(clean(t).casefold() in texts for t in [row['text'], row['positive'], *row['negatives']] if clean(t))):
+                    isolated = False
+                    break
+            if isolated:
+                for i in selected:
+                    assignments[i] = missing
+                moved.append({'dataset_id': group[0], 'group_id': group[1], 'split': missing, 'rows': len(selected)})
+                break
+    return moved
+
+
 def source_rows(reader, columns, kind, limit):
     if kind != 'speech_text':
         index = 0
@@ -191,8 +234,8 @@ def source_rows(reader, columns, kind, limit):
         base += reader.metadata.row_group(group).num_rows
 
 
-def build(source_dir, output, limits):
-    sources = load_sources(source_dir)
+def build(source_dir, output, limits, selected=None):
+    sources = load_sources(source_dir, selected)
     if not sources:
         raise ValueError('no verified supported source files')
     output.mkdir(parents=True, exist_ok=False)
@@ -217,6 +260,7 @@ def build(source_dir, output, limits):
             if count >= limits[id_] or examined[id_] >= limits[id_] * 20:
                 break
     assignments, negative_drops = split_without_negative_leakage(rows)
+    speech_holdouts = ensure_speech_holdouts(rows, assignments)
     seen, grouped, duplicates = set(), {}, 0
     for i, row in enumerate(rows):
         if row['_fingerprint'] in seen:
@@ -239,6 +283,7 @@ def build(source_dir, output, limits):
                 'files': files, 'counts': [{'kind': k, 'split': s, 'language': l, 'rows': n} for (k, s, l), n in sorted(counts.items())],
                 'accepted': sum(counts.values()), 'exact_duplicates_removed': duplicates,
                 'negatives_removed_to_prevent_cross_split_overlap': negative_drops,
+                'speaker_holdouts_created': speech_holdouts,
                 'examined': dict(examined), 'rejections': dict(problems),
                 'limitations': ['All records require source rights and privacy review',
                                 'No independent benchmark overlap or translated/near-duplicate screening',
@@ -255,6 +300,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--source-dir', type=Path, required=True)
     p.add_argument('--out-dir', type=Path, required=True)
+    p.add_argument('--ids', nargs='+', choices=sorted(SPECS), help='restrict to selected verified sources')
     p.add_argument('--text', type=int, default=1000)
     p.add_argument('--retrieval', type=int, default=1000)
     p.add_argument('--media', type=int, default=100)
@@ -262,7 +308,7 @@ def main():
     if not (1 <= args.text <= 10000 and 1 <= args.retrieval <= 5000 and 1 <= args.media <= 1000):
         p.error('limits: text 1..10000, retrieval 1..5000, media 1..1000')
     limits = {k: args.text if v[0] == 'text' else args.retrieval if v[0] == 'retrieval' else args.media for k,v in SPECS.items()}
-    result = build(args.source_dir, args.out_dir, limits)
+    result = build(args.source_dir, args.out_dir, limits, set(args.ids) if args.ids else None)
     print(json.dumps({'accepted': result['accepted'], 'counts': result['counts'],
                       'rejections': result['rejections']}, ensure_ascii=False))
 

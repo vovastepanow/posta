@@ -40,6 +40,19 @@ PLAN = [
  ('datacomp-hq','laion/datacomp-hq','0ecce74742607de756fac46d6c9100a3c8db2ce7','datacomp-hq-V0_1_1.parquet'),
 ]
 
+# Isolated Russian MTEB evaluation task, including the entire test corpus.
+PLAN += [
+    (f'mteb-ria-eval-corpus-{index:02d}', 'mteb/RiaNewsRetrieval',
+     '7588ef23a26729778157784eb6522e1341ff7c16',
+     f'corpus/test-{index:05d}-of-00004.parquet')
+    for index in range(4)
+] + [
+    ('mteb-ria-eval-queries', 'mteb/RiaNewsRetrieval',
+     '7588ef23a26729778157784eb6522e1341ff7c16', 'queries/test-00000-of-00001.parquet'),
+    ('mteb-ria-eval-qrels', 'mteb/RiaNewsRetrieval',
+     '7588ef23a26729778157784eb6522e1341ff7c16', 'qrels/test-00000-of-00001.parquet'),
+]
+
 # Fetch all remaining original training shards of MemeXplain. Its dev/test and
 # separately annotated benchmark files are intentionally not part of this list.
 PLAN += [
@@ -96,7 +109,7 @@ def main():
         if args.ids and id_ not in args.ids:
             continue
         record = {'dataset_id': id_, 'repository': repo, 'revision': rev, 'source_path': remote_path,
-                  'training_approved': False, 'evaluation_only': id_ == 'mmeb-v3-eval'}
+                  'training_approved': False, 'evaluation_only': id_ == 'mmeb-v3-eval' or id_.startswith('mteb-ria-eval')}
         manifest['records'][id_] = record
         try:
             size, expected = metadata(repo, rev, remote_path)

@@ -15,6 +15,19 @@ except ImportError:
 
 @unittest.skipUnless(HAVE_DEPS,'pyarrow/Pillow not installed')
 class MergeTests(unittest.TestCase):
+    def test_reject_evaluation_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);d=root/'eval';d.mkdir()
+            row={'dataset_id':'eval','record_id':'1','kind':'text','language':'ru',
+                 'text':'evaluation data','group_id':'1','training_approved':False}
+            data=(json.dumps(row)+'\n').encode();(d/'data.jsonl').write_bytes(data)
+            source={'repository':'VLM2Vec/MMEB-V3','revision':'rev','source_path':'test',
+                    'expected_sha256':'abc','expected_bytes':3}
+            (d/'manifest.json').write_text(json.dumps({'sources':{'eval':source},
+                'files':[{'path':'data.jsonl','sha256':hashlib.sha256(data).hexdigest()}]}))
+            with self.assertRaisesRegex(ValueError,'evaluation source'):
+                merge([d],root/'out')
+
     def test_merge_deduplicates_across_sources_and_verifies(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);inputs=[]

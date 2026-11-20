@@ -6,12 +6,14 @@ import shutil
 from collections import Counter
 from pathlib import Path
 from prepare import normalize, write_jsonl
-from prepare_local_shards import file_hash, split_without_negative_leakage
-from probe import atomic_json
+from prepare_local_shards import ensure_speech_holdouts, file_hash, split_without_negative_leakage
+from probe import CATALOG, atomic_json
 
 
 def merge(inputs, output):
     if not inputs:raise ValueError('at least one input directory is required')
+    catalog = json.loads(CATALOG.read_text(encoding='utf-8'))
+    evaluation_repos = {x['repo'] for x in catalog['datasets'] if x['use'] == 'independent_evaluation'}
     output.mkdir(parents=True,exist_ok=False);(output/'media').mkdir()
     rows, extras, source_map, input_refs, copied = [], [], {}, [], set()
     for root in inputs:
@@ -35,6 +37,8 @@ def merge(inputs, output):
                     if raw.get('training_approved') is not False:raise ValueError('input is not quarantined')
                     source=sources.get(raw['dataset_id'])
                     if not source:raise ValueError('missing row source provenance')
+                    if source.get('repository') in evaluation_repos:
+                        raise ValueError('independent evaluation source cannot enter candidate data')
                     row=normalize(raw)
                     meta={k:v for k,v in raw.items() if k not in row and not k.startswith('_')}
                     meta.update(dataset_revision=source['revision'],source_file=source['source_path'],
@@ -54,6 +58,7 @@ def merge(inputs, output):
                         meta['media']=dict(raw['media'],path='media/'+target.name)
                     rows.append(row);extras.append(meta)
     assignments,dropped=split_without_negative_leakage(rows)
+    speech_holdouts=ensure_speech_holdouts(rows,assignments)
     seen,grouped,duplicates={}, {}, []
     for i,row in enumerate(rows):
         key=row['_fingerprint']
@@ -77,7 +82,7 @@ def merge(inputs, output):
               'counts':[{'kind':k,'split':s,'language':l,'rows':n} for (k,s,l),n in sorted(counts.items())],
               'accepted':sum(counts.values()),'exact_duplicates_removed':len(duplicates),
               'duplicates_report':{'path':duplicates_path.name,'sha256':file_hash(duplicates_path)},
-              'negatives_removed_to_prevent_cross_split_overlap':dropped,
+              'negatives_removed_to_prevent_cross_split_overlap':dropped,'speaker_holdouts_created':speech_holdouts,
               'limitations':['all rows require rights and privacy review',
                              'near-duplicate, translated and independent benchmark overlap not screened',
                              'local validation/test are not independent benchmarks',

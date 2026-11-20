@@ -221,6 +221,20 @@
       "training": false,
       "source_url": "https://huggingface.co/datasets/VLM2Vec/MMEB-V3",
       "access_note": "large benchmark archive; train/test partition must remain fully isolated"
+    },
+    {
+      "id": "mteb-ria-eval",
+      "repo": "mteb/RiaNewsRetrieval",
+      "use": "independent_evaluation",
+      "priority": "EVAL",
+      "preferred_split": "test",
+      "license_claim": "cc-by-nc-nd-4.0",
+      "license_review": "evaluation only; noncommercial/no derivatives terms; screen training text for contamination",
+      "data_kind": "parquet_retrieval_benchmark",
+      "training": false,
+      "source_url": "https://huggingface.co/datasets/mteb/RiaNewsRetrieval",
+      "language_note": "Russian",
+      "access_note": "MTEB is a suite of many datasets; this is only one evaluation task"
     }
   ],
   "reference_check_date": "2026-11-20"

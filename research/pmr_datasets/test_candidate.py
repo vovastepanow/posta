@@ -56,7 +56,7 @@ class CandidateTests(unittest.TestCase):
             verify(self.root)
 
 try:
-    from prepare_local_shards import split_without_negative_leakage
+    from prepare_local_shards import ensure_speech_holdouts, load_sources, split_without_negative_leakage
     HAVE_SHARD_DEPS = True
 except ImportError:
     HAVE_SHARD_DEPS = False
@@ -64,6 +64,37 @@ except ImportError:
 
 @unittest.skipUnless(HAVE_SHARD_DEPS, 'pyarrow/Pillow not installed')
 class NegativeIsolationTests(unittest.TestCase):
+    def test_selected_source_must_be_verified_and_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, 'requested verified sources missing'):
+                load_sources(Path(tmp), {'fineweb-en'})
+
+    def test_speaker_holdouts_keep_groups_separate(self):
+        from prepare import normalize
+        import hashlib
+        rows = [normalize({'dataset_id':'audio','record_id':str(i),'kind':'speech_text',
+                           'language':'en','text':f'speech transcript {i}',
+                           'group_id':f'speaker:{i}',
+                           'media_sha256':hashlib.sha256(str(i).encode()).hexdigest()}) for i in range(4)]
+        assignments = {i:'train' for i in range(len(rows))}
+        moved = ensure_speech_holdouts(rows, assignments)
+        self.assertEqual({x['split'] for x in moved}, {'validation','test'})
+        self.assertEqual(set(assignments.values()), {'train','validation','test'})
+
+    def test_shared_text_prevents_speaker_move(self):
+        from prepare import normalize
+        import hashlib
+        rows = [normalize({'dataset_id':'audio','record_id':str(i),'kind':'speech_text',
+                           'language':'en','text':f'speech transcript {i}',
+                           'group_id':f'speaker:{i}',
+                           'media_sha256':hashlib.sha256(str(i).encode()).hexdigest()}) for i in range(4)]
+        rows.append(normalize({'dataset_id':'text','record_id':'x','kind':'text',
+                               'language':'en','text':'speech transcript 0','group_id':'x'}))
+        assignments={i:'train' for i in range(len(rows))}
+        ensure_speech_holdouts(rows,assignments)
+        self.assertEqual(assignments[0], 'train')
+        self.assertEqual(assignments[4], 'train')
+
     def test_shared_negative_is_retained_in_only_one_split(self):
         from prepare import normalize
         rows = [normalize({'dataset_id': 'x', 'record_id': str(i), 'kind': 'retrieval',
