@@ -39,7 +39,7 @@ def normalize(raw):
         raise ValueError("retrieval requires positive passage")
     media_sha = clean(raw.get("media_sha256")).lower()
     if kind in NEEDS_MEDIA and not re.fullmatch(r"[0-9a-f]{64}", media_sha):
-        raise ValueError("multimodal example requires verified media_sha256 (64 hex chars)")
+        raise ValueError("multimodal example requires media_sha256 supplied from verified media bytes")
     negatives = raw.get("negatives", [])
     if not isinstance(negatives, list):
         raise ValueError("negatives must be an array")
@@ -82,15 +82,24 @@ def partition(rows):
     """Exact text/media and source groups cannot straddle output splits."""
     uf = UnionFind(len(rows))
     group_seen, fingerprint_seen, media_seen = {}, {}, {}
+    query_seen, positive_seen = {}, {}
     for i, row in enumerate(rows):
         for cache, key in (
             (group_seen, row["dataset_id"] + ":" + row["group_id"]),
             (fingerprint_seen, row["_fingerprint"]),
+            (query_seen, sha(row["text"].casefold())),
         ):
             if key in cache:
                 uf.union(i, cache[key])
             else:
                 cache[key] = i
+        # Repeated positive documents across queries must not cross train/evaluation.
+        if row["positive"]:
+            key = sha(row["positive"].casefold())
+            if key in positive_seen:
+                uf.union(i, positive_seen[key])
+            else:
+                positive_seen[key] = i
         # Same media appearing with different captions still belongs to a single split.
         if row["media_sha256"]:
             key = row["media_sha256"]
@@ -186,6 +195,7 @@ def main(argv=None):
             "No image/video/audio bytes were decoded by this normalizer",
             "Near-duplicate media detection and benchmark contamination screening remain required",
             "Local test split is not the independent benchmark",
+            "Only exact text and media digests grouped; pHash near duplicates and source-family overlap not handled",
         ],
     })
     print(json.dumps({"splits": {k: len(v) for k, v in splits.items()},
