@@ -146,3 +146,22 @@ func TestAutopilotAssessmentDiagnosticCategorizesFailures(t *testing.T) {
 		t.Fatalf("stale cause after reset=%s", got)
 	}
 }
+
+func TestAutopilotPublicSourceReviewEvidenceWhitelistsFields(t *testing.T) {
+	input := []byte(`{"preliminary_score":77,"threshold":80,"http_status":403,"quality_samples":10,"assessment_cause":"provider_forbidden","provider_response":"Bearer secret","private_url":"https://example.test/?key=secret","raw_prompt":"secret"}`)
+	got := autopilotPublicSourceReviewEvidence(input)
+	if jx.Int(got, "preliminary_score") != 77 || jx.Int(got, "threshold") != 80 ||
+		jx.Int(got, "quality_samples") != 10 || jx.Int(got, "http_status") != 403 ||
+		jx.Str(got, "assessment_cause") != "provider_forbidden" {
+		t.Fatalf("missing review facts: %+v", got)
+	}
+	for _, field := range []string{"provider_response", "private_url", "raw_prompt"} {
+		if _, ok := got[field]; ok {
+			t.Fatalf("sensitive field %q leaked: %+v", field, got)
+		}
+	}
+	invalid := autopilotPublicSourceReviewEvidence([]byte(`{"assessment_cause":"raw HTTP response with secrets"}`))
+	if _, ok := invalid["assessment_cause"]; ok {
+		t.Fatalf("raw error leaked: %+v", invalid)
+	}
+}
