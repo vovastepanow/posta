@@ -57,7 +57,7 @@ func TestAutopilotSelectQueryAvoidsNegativeNetYield(t *testing.T) {
 	// Query scores from the database account for both unique eligible
 	// posts and clearly off-topic sources: 20*useful - 3*offTopic.
 	scores := map[string]int64{
-		"плохой запрос": 20*2 - 3*20,
+		"плохой запрос":   20*2 - 3*20,
 		"полезный запрос": 20*2 - 3*1,
 	}
 	if got := autopilotSelectQuery(queries, scores, 1); got != "полезный запрос" {
