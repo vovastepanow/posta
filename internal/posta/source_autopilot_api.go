@@ -378,6 +378,32 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 	return jx.M{"topics": topics, "shadow_enabled": u.TBool("autopilot_shadow"), "auto_enabled": u.TBool("autopilot_auto"), "auto_available": true, "backends": backends, "server_revision": revision, "background_content_enabled": u.BackgroundContentEnabled()}, nil
 }
 
+// Expose only known numeric evidence needed to audit source decisions.
+// Provider replies, prompts, arbitrary metadata and URLs are never copied.
+func autopilotPublicSourceReviewEvidence(raw []byte) jx.M {
+	original := jx.Unmarshal(raw)
+	out := jx.M{}
+	for _, field := range []string{
+		"preliminary_score", "threshold", "quality_samples", "fresh_samples",
+		"evaluated", "relevant", "eligible", "effective_relevant", "advertising",
+		"duplicates", "fresh_unique", "curated_unique", "successful_passes",
+		"window_days", "http_status",
+	} {
+		if _, exists := original[field]; exists {
+			out[field] = jx.Int(original, field)
+		}
+	}
+	if cause := jx.Str(original, "assessment_cause"); cause != "" {
+		switch cause {
+		case "provider_rate_limited", "provider_forbidden", "provider_unauthorized",
+			"model_timeout", "no_model_configured", "model_budget_unavailable",
+			"model_error", "invalid_model_response", "media_unavailable", "no_reviewable_content":
+			out["assessment_cause"] = cause
+		}
+	}
+	return out
+}
+
 // SourceAutopilotSources returns a bounded list of public sources in one
 // lifecycle state, available only to subscribers of that exact topic.
 // Pagination is by stable source ID, without scanning or sending a whole queue.
@@ -429,14 +455,14 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 		}
 	}
 	query := `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at,
-		COALESCE(evidence->>'personal_blog','unknown')
+		COALESCE(evidence->>'personal_blog','unknown'),evidence
 		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state=$3 AND source_id>$4
 		ORDER BY source_id LIMIT $5`
 	var rows pgx.Rows
 	var err error
 	if state == "found" {
 		rows, err = u.DB.Pool.Query(u.Ctx, `SELECT source_id,state,reason,first_seen_at,checked_at,next_check_at,
-		COALESCE(evidence->>'personal_blog','unknown')
+		COALESCE(evidence->>'personal_blog','unknown'),evidence
 			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
 			AND source_id=ANY($5) AND source_id>$3
 			ORDER BY source_id LIMIT $4`, scope, key, after, limit+1, latestIDs)
@@ -452,7 +478,8 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 	for rows.Next() {
 		var source, currentState, reason, blogKind string
 		var discovered, checked, next int64
-		if err := rows.Scan(&source, &currentState, &reason, &discovered, &checked, &next, &blogKind); err != nil {
+		var evidence []byte
+		if err := rows.Scan(&source, &currentState, &reason, &discovered, &checked, &next, &blogKind, &evidence); err != nil {
 			return nil, err
 		}
 		if len(items) == limit {
@@ -465,7 +492,8 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 			publicURL = SourceWebURL(platform, id)
 		}
 		items = append(items, jx.M{"source_id": source, "state": currentState, "reason": reason,
-			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next, "personal_blog": personalBlogKind(blogKind), "url": publicURL})
+			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next, "personal_blog": personalBlogKind(blogKind), "url": publicURL,
+			"review_evidence": autopilotPublicSourceReviewEvidence(evidence)})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
