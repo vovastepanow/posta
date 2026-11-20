@@ -272,6 +272,19 @@ func getCurrentItem(c *Ctx) (any, error) {
 		return jx.M{"status": "empty", "message": "Тема «" + topic + "» недоступна: выберите другую тему."}, nil
 	}
 	if pool := u.PoolWithoutLostVideo(u.PoolForCurrentTopic()); len(pool) > 0 {
+		// Continue replenishing when every visible record is older than an
+		// hour, but never hide saved pool records just because newer posts
+		// arrived. The collector and the display have different age rules.
+		hasFresh := false
+		for _, item := range pool {
+			if u.poolItemFresh(item) {
+				hasFresh = true
+				break
+			}
+		}
+		if !hasFresh {
+			u.StartParser(false)
+		}
 		warmUpcomingItems(c, pool[1:min(4, len(pool))])
 		return u.TranslateDisplay(u.ContentForDisplay(pool[0], pool[1:min(4, len(pool))], true)), nil
 	}
