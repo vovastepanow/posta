@@ -30,6 +30,8 @@ PLAN = [
  ('videoufo','WenhaoWang/VideoUFO','683425832ad5b35d57d213963ecec18d5b689652','VideoUFO_tar/VideoUFO_1.tar'),
  ('fineweb2-ru','HuggingFaceFW/fineweb-2','af9c13333eb981300149d5ca60a8e9d659b276b9','data/rus_Cyrl/train/000_00000.parquet'),
  ('mmarco-ru','unicamp-dl/mmarco','6d039c4638c0ba3e46a9cb7b498b145e7edc6230','data/google/collections/russian_collection.tsv'),
+ ('mmarco-ru-queries','unicamp-dl/mmarco','6d039c4638c0ba3e46a9cb7b498b145e7edc6230','data/google/queries/train/russian_queries.train.tsv'),
+ ('mmarco-train-ids','unicamp-dl/mmarco','6d039c4638c0ba3e46a9cb7b498b145e7edc6230','data/triples.train.ids.small.tsv'),
  ('nvidia-ocr-ru','nvidia/OCR-Synthetic-Multilingual-v1','69696a1cc543ef3a0f8e9892a89c17293e915263','ru/train/train_000.h5'),
  ('nvidia-ocr-en','nvidia/OCR-Synthetic-Multilingual-v1','69696a1cc543ef3a0f8e9892a89c17293e915263','en/train/train_000.h5'),
  ('mmeb-v3-eval','VLM2Vec/MMEB-V3','4a5560b2b64384204b6fea8a82ea986eba51f5aa','omniset.tar.gz'),
