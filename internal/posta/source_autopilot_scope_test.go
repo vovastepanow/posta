@@ -123,3 +123,43 @@ func TestAutopilotRSSIdentityPreservesPathCase(t *testing.T) {
 		t.Fatal("query-bearing feed accepted")
 	}
 }
+
+func TestAutopilotPublicSiteAdaptersUseCanonicalSafeIDs(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+		ok    bool
+	}{
+		{"https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199123",
+			"rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199123", true},
+		{"https://api.vc.ru/v2.10/timeline?sorting=new&subsitesIds=199123",
+			"rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199123", true},
+		{"https://habr.com/ru/rss/hubs/business_models/articles/all/?fl=ru",
+			"rss:https://habr.com/ru/rss/hubs/business_models/articles/all/", true},
+		{"https://pikabu.ru/community/lnk", "rss:https://pikabu.ru/community/lnk", true},
+		{"https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199123&token=secret", "", false},
+		{"https://api.vc.ru.evil.example/v2.10/timeline?sorting=new&subsitesids=199123", "", false},
+		{"https://habr.com/ru/rss/hubs/business_models/articles/all/?fl=ru&key=secret", "", false},
+		{"https://pikabu.ru/community/lnk?access_token=secret", "", false},
+		{"https://www.youtube.com/feeds/videos.xml?channel_id=ucabcdefghijklmnopqrstuv", "", false},
+	}
+	for _, tc := range cases {
+		id, ok := autopilotPublicRSSID(tc.input)
+		if ok != tc.ok || id != tc.want {
+			t.Errorf("public %q got (%q,%v), want (%q,%v)", tc.input, id, ok, tc.want, tc.ok)
+		}
+		if tc.ok {
+			platform, _, _, valid := autopilotSourceParts(id)
+			if !valid || platform != PlatformRSS || SourceIDFor(platform, id[4:]) != id {
+				t.Errorf("valid source not accepted for normal review: %q", id)
+			}
+		}
+	}
+	vc := "https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199123"
+	if host, id := osnovaTimelineSource(vc); host != "vc.ru" || id != 199123 {
+		t.Fatalf("legacy osnova community not recognized: %s/%d", host, id)
+	}
+	if !sharedSourceEligible(PlatformRSS, jx.M{"id": vc}) {
+		t.Fatal("recognized public vc.ru community excluded from shared collector")
+	}
+}
