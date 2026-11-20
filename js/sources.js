@@ -58,6 +58,8 @@ function autopilotSourceIdentity(raw) {
         }
     } catch { /* Unrecognized source IDs stay visible as text. */ }
     const domains = [
+        [/^(?:api\.)?(?:vc\.ru|dtf\.ru)$/, 'vc.ru / DTF', '', 'VC', '#3268c7'],
+        [/^(?:.+\.)?pikabu\.ru$/, 'Пикабу', '', 'П', '#8dc33b'],
         [/^(?:.+\.)?ok\.ru$/, 'Одноклассники', 'odnoklassniki', 'OK', '#f58220'],
         [/^(?:.+\.)?vk\.com$/, 'ВКонтакте', 'vk', 'VK', '#0077ff'],
         [/^(?:.+\.)?(?:t\.me|telegram\.org|telegram\.me)$/, 'Telegram', 'telegram', 'TG', '#26a5e4'],
@@ -74,7 +76,13 @@ function autopilotSourceIdentity(raw) {
     const platform = match
         ? { label: match[1], icon: match[2], fallback: match[3], color: match[4] }
         : { label: host || 'Сайт', icon: '', fallback: (host || 'SITE').slice(0, 2).toUpperCase(), color: '#3e4b60', faviconHost: host };
-    const display = url ? host + (pathname === '/' ? '' : pathname) : source;
+    let display = url ? host + (pathname === '/' ? '' : pathname) : source;
+    if (host === 'api.vc.ru' || host === 'api.dtf.ru') {
+        const id = new URL(url).searchParams.get('subsitesids') || new URL(url).searchParams.get('subsitesIds');
+        display = 'Раздел ' + host.slice(4) + (id ? ' · #' + id : '');
+        url = 'https://' + host.slice(4) + '/';
+        platform.label = 'Раздел ' + host.slice(4);
+    }
     return { url, display: display || source, platform };
 }
 function autopilotSourceCard(item) {
@@ -92,6 +100,13 @@ function autopilotSourceCard(item) {
         } catch { /* Invalid URLs remain non-preferred display links. */ }
     }
     const { platform, url } = identity;
+    const sourceKind = String(item.source_kind || '');
+    if (sourceKind === 'category') platform.label = 'Раздел / категория';
+    else if (sourceKind === 'community') platform.label = 'Сообщество';
+    // Use the publisher's real name, not an API host, RSS endpoint or
+    // technical channel identifier. The server already provides catalog
+    // and previously verified public-source titles without extra fetches.
+    const displayName = String(item.name || '').trim() || identity.display;
     const icon = el('span', { className: 'autopilot-source-brand', textContent: platform.fallback });
     icon.style.backgroundColor = platform.color;
     // The source artwork is decorative and never clickable. RSS uses the
@@ -106,11 +121,13 @@ function autopilotSourceCard(item) {
         icon.append(artwork);
     }
     const name = url ? el('a', {
-        href: url, target: '_blank', rel: 'noopener noreferrer', textContent: identity.display,
+        href: url, target: '_blank', rel: 'noopener noreferrer', textContent: displayName,
         title: 'Открыть источник в новой вкладке'
-    }) : el('span', { textContent: identity.display });
+    }) : el('span', { textContent: displayName });
     const reason = autopilotSourceReasonLabels[item.reason] || item.reason || 'Пока не проверен';
-    const personalBlogText = { yes: 'Персональный блог', no: 'Не персональный блог', unknown: 'Тип блога пока не определён' }[item.personal_blog] || 'Тип блога пока не определён';
+    const personalBlogText = sourceKind === 'category' ? 'Публикации разных авторов'
+        : sourceKind === 'community' ? 'Сообщество'
+        : { yes: 'Персональный блог', no: 'Не персональный блог', unknown: 'Тип блога пока не определён' }[item.personal_blog] || 'Тип блога пока не определён';
     const checked = item.checked_at ? new Date(item.checked_at * 1000).toLocaleString('ru-RU') : 'ещё не проверялся';
     const next = item.next_check_at ? new Date(item.next_check_at * 1000).toLocaleString('ru-RU') : '';
     return el('article', { className: 'autopilot-source-card' },
@@ -596,6 +613,8 @@ async function autopilotExportSourcesForTopic(topic, states = autopilotExportSta
                 sources.set(item.source_id, {
                     source_id: autopilotExportSafeValue(item.source_id),
                     url: autopilotExportSafeValue(item.url),
+                    name: item.name || '',
+                    source_kind: item.source_kind || '',
                     state: item.state,
                     reason: item.reason || '',
                     reason_label: autopilotSourceReasonLabels[item.reason] || item.reason || '',
