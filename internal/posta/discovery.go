@@ -464,6 +464,21 @@ func sourceReviewCaption(text string) string {
 	return head + " […] " + tail
 }
 
+// Keep SMM distinct from the neighboring Marketing, Legal, Management and
+// Technology taxonomy subjects. A brand or channel title does not prove
+// topical value; assess the actual mix of recent posts. Avoid broadening SMM
+// to every corporate marketing publication while preserving useful social
+// media advertising and content strategy publishers.
+func sourceReviewTopicGuidance(topic string) string {
+	if autopilotCanonicalTopic(topic) != "SMM и блогинг" {
+		return ""
+	}
+	return `Дополнительные правила для темы «SMM и блогинг».
+Подходят практические публикации о ведении сообществ и каналов, создании и стратегии контента, росте подписчиков, охватах и вовлечённости, таргетированной рекламе ВКонтакте/Telegram/других социальных платформ, работе с инфлюенсерами, аналитике конкретных кампаний в соцсетях, монетизации блогов и кейсах продвижения авторов или сообществ.
+Не путай тему с соседним «Маркетинг и реклама»: контекстная реклама только в поисковых системах, общая экономика рекламного рынка, брендинг без соцсетей, абстрактный бизнес-менеджмент и продажи сами по себе НЕ являются SMM. Также не подходят юридические консультации, HR, программирование и общие новости технологий, если их посты не раскрывают SMM.
+Оцени распределение тем по НЕСКОЛЬКИМ показанным публикациям, а не только название источника, профессию владельца или один удачный пост. Если часть публикаций профессионально полезна для SMM, а остальные не по теме, укажи смешанный характер в причине и не давай уверенно высокий балл. Новости мероприятия или продажа услуг без практического содержания не равны профессиональному разбору. Не принимай решение по одному слову «маркетинг» или «реклама». `
+}
+
 func (u *U) sourceTextReview(title, desc, topic string, texts []string) *sourceReview {
 	var t []string
 	for _, x := range texts {
@@ -473,6 +488,7 @@ func (u *U) sourceTextReview(title, desc, topic string, texts []string) *sourceR
 		}
 	}
 	prompt := u.prompt("source_text", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "description": trimRunes(desc, 400), "captions": strings.Join(t, "»; «"), "query_rule": sourceQueryRule(topic), "shop_rule": notShop})
+	prompt += sourceReviewTopicGuidance(topic)
 	return u.sourceReviewRequest(prompt, nil)
 }
 
