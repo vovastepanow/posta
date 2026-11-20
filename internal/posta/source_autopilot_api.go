@@ -403,7 +403,7 @@ func autopilotPublicSourceReviewEvidence(raw []byte) jx.M {
 		if len(reviewSamples) >= 5 {
 			break
 		}
-		text := trimRunes(strings.TrimSpace(jx.Str(sample, "excerpt")), 650)
+		text := trimRunes(strings.TrimSpace(jx.Str(sample, "excerpt")), 850)
 		if text == "" && !jx.Bool(sample, "media_present") {
 			continue
 		}
