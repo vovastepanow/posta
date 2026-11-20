@@ -167,7 +167,15 @@ function renderCard(item, archiveInfo = null) {
     // Текст поста под медиа; у текстового поста без картинки он уже показан вместо медиа
     state.showOriginal = false;   // новая запись — сначала перевод (если галочка включена)
     applyTextMode(item);
-    $('item-why-text').textContent = item.why_relevant || 'Нет объяснения от ИИ';
+    $('item-why-text').textContent = item.why_relevant || 'Модель не предоставила отдельного объяснения.';
+    const evidence = String(item.evidence || '').trim();
+    const evidenceRow = $('item-evidence-row');
+    if (evidenceRow) {
+        // Older records stored the quote in why_relevant; avoid duplicate
+        // lines and never pretend an 80-character quote is full post text.
+        evidenceRow.hidden = !evidence || String(item.why_relevant || '').startsWith('Фрагмент публикации:');
+        $('item-evidence-text').textContent = evidence;
+    }
     $('item-desc').replaceChildren(el('strong', { textContent: 'Описание ИИ:' }), ` ${item.description || 'Анализ отсутствует'}`);
 
     // Если это архивный пост - добавляем CSS класс для анимаций (весь контент генерируется в CSS)
