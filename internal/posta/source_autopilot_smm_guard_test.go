@@ -178,3 +178,85 @@ func TestAutopilotReconsiderHistoricOKRejectsOnlyOncePostgres(t *testing.T) {
 		t.Fatalf("historic source was rescheduled twice: next=%d future=%d", next, future)
 	}
 }
+
+func TestAutopilotScheduleFullContextRechecksPostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_AUTOPILOT_TEST_DSN")
+	if dsn == "" {
+		t.Skip("isolated PostgreSQL required")
+	}
+	ctx := context.Background()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	const owner = "autopilot-context-recheck-owner"
+	const topic = "SMM и блогинг"
+	key := autopilotTopicKey(topic)
+	defer func() {
+		for _, table := range []string{"source_autopilot_decisions", "source_autopilot_sources", "source_autopilot_jobs"} {
+			_, _ = d.Pool.Exec(context.Background(), "DELETE FROM "+table+" WHERE scope=$1 AND topic_key=$2", autopilotAutoScope, key)
+		}
+		_, _ = d.Pool.Exec(context.Background(), `DELETE FROM source_autopilot_overrides WHERE scope=$1 AND topic_key=$2 AND source_id LIKE 'rss:https://example.org/context-recheck-%'`, autopilotAutoScope, key)
+		_, _ = d.Pool.Exec(context.Background(), `DELETE FROM source_autopilot_demands WHERE user_id=$1`, owner)
+		_, _ = d.Pool.Exec(context.Background(), `DELETE FROM users WHERE id=$1`, owner)
+	}()
+	if _, err := d.Pool.Exec(ctx, `INSERT INTO users(id,created_at) VALUES($1,0) ON CONFLICT DO NOTHING`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveAutopilotDemand(ctx, d.Pool, owner, autopilotDemandSettings{
+		Topic: topic, Mode: "auto", PostsPerDay: 5, HorizonDays: 3,
+	}, time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{DB: d}
+	if err := a.reconcileAutopilotMode(ctx, true, "auto", autopilotAutoScope, autopilotAutoKind); err != nil {
+		t.Fatal(err)
+	}
+	job, err := claimAutopilotJobKind(ctx, d.Pool, time.Now().Add(time.Second), time.Minute, autopilotAutoKind)
+	if err != nil || job == nil || job.TopicKey != key {
+		t.Fatalf("job=%+v err=%v", job, err)
+	}
+	at := time.Now().Unix()
+	for i := 0; i < 23; i++ {
+		source := fmt.Sprintf("rss:https://example.org/context-recheck-%d.xml", i)
+		if _, err := d.Pool.Exec(ctx, `INSERT INTO source_autopilot_sources
+			(scope,topic_key,source_id,state,reason,policy_version,first_seen_at,checked_at,next_check_at)
+			VALUES($1,$2,$3,'rejected','preliminary_topic_mismatch',$4,$5,$5,$6)`,
+			autopilotAutoScope, key, source, TopicProfileVersion, at, at+30*86400); err != nil {
+			t.Fatal(err)
+		}
+	}
+	blocked := "rss:https://example.org/context-recheck-0.xml"
+	if _, err := d.Pool.Exec(ctx, `INSERT INTO source_autopilot_overrides
+		(scope,owner_id,topic_key,source_id,decision,updated_at)
+		VALUES($1,'',$2,$3,'excluded',$4) ON CONFLICT DO NOTHING`,
+		autopilotAutoScope, key, blocked, at); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := a.autopilotScheduleFullContextRechecks(ctx, job); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var count int
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_decisions
+		WHERE scope=$1 AND topic_key=$2 AND reason='full_context_reaudit_scheduled'`,
+		autopilotAutoScope, key).Scan(&count); err != nil || count != 20 {
+		t.Fatalf("scheduled %d instead of daily cap 20, err=%v", count, err)
+	}
+	var blockedNext int64
+	if err := d.Pool.QueryRow(ctx, `SELECT next_check_at FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, autopilotAutoScope, key, blocked).Scan(&blockedNext); err != nil || blockedNext != at+30*86400 {
+		t.Fatalf("manual exclusion rescheduled: %d err=%v", blockedNext, err)
+	}
+	var changedState int
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND state<>'rejected' AND source_id LIKE 'rss:https://example.org/context-recheck-%'`,
+		autopilotAutoScope, key).Scan(&changedState); err != nil || changedState != 0 {
+		t.Fatalf("scheduled rechecks must not approve or activate: %d err=%v", changedState, err)
+	}
+}
