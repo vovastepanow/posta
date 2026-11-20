@@ -204,3 +204,15 @@ func TestAutopilotAuditEvidenceContainsActualPublicPostsOnly(t *testing.T) {
 		t.Fatalf("private query leaked in audit bundle: %+v", exposed)
 	}
 }
+
+func TestSMMSourceReviewGuidanceSeparatesAdjacentSubjects(t *testing.T) {
+	prompt := sourceReviewTopicGuidance("SMM и блогинг")
+	for _, word := range []string{"таргетированной рекламе", "вовлечённости", "НЕ являются SMM", "юридические консультации", "НЕСКОЛЬКИМ", "контекстная реклама"} {
+		if !strings.Contains(prompt, word) {
+			t.Fatalf("SMM boundary missing %q from model guidance", word)
+		}
+	}
+	if sourceReviewTopicGuidance("Кошки") != "" {
+		t.Fatal("SMM criteria must not leak into unrelated source topics")
+	}
+}
