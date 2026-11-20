@@ -1016,6 +1016,37 @@ func autopilotRetryAt(at time.Time, source, retryAfter string) time.Time {
 // exhausted the topic's daily fetch budget while hundreds of candidates
 // remained unchecked. Every admitted source still enters probation and must
 // pass independent post-level analysis before it can become active.
+// Publisher metadata from the already fetched feed must reach the AI.
+// A bare host (e.g. "mastodon.social") discards valuable identity and topic
+// context and can turn an otherwise relevant account into a false rejection.
+func autopilotSourceReviewInfo(platform, id, feed string, result FetchResultURL, posts []jx.M) jx.M {
+	title, description := id, ""
+	if platform == PlatformRSS {
+		title = hostOf(feed)
+		if doc := rssLoad(result.Bytes); rssIsFeed(doc) {
+			root := doc
+			if doc.N != "feed" {
+				root = doc.kid("channel")
+			}
+			if root != nil {
+				if t := strings.TrimSpace(CleanHTMLText(root.kid("title").html())); t != "" {
+					title = trimRunes(t, 180)
+				}
+				description = trimRunes(CleanHTMLText(root.kid("description").html()), 800)
+				if description == "" {
+					description = trimRunes(CleanHTMLText(root.kid("subtitle").html()), 800)
+				}
+			}
+		}
+		if title == hostOf(feed) && len(posts) > 0 {
+			if name := strings.TrimSpace(jx.Str(posts[0], "source")); name != "" {
+				title = trimRunes(name, 180)
+			}
+		}
+	}
+	return jx.M{"id": id, "title": title, "description": description}
+}
+
 func (u *U) autopilotEvaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluation {
 	format := u.TopicFormatOf(topic)
 	if format.Media != "optional" || format.Judge == "image" {
@@ -1420,12 +1451,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			evidence["http_status"] = res.Status
 		}
 		if reason == "" && state == "candidate" {
-			title := id
-			if platform == PlatformRSS {
-				title = hostOf(feed)
-			}
 			autopilotResetAssessmentCause(ctx)
-			evaluation := evaluate(jx.M{"id": id, "title": title}, samples, job.Topic)
+			evaluation := evaluate(autopilotSourceReviewInfo(platform, id, feed, res, samples), samples, job.Topic)
 			if err := autopilotBudgetError(ctx); err != nil {
 				return err
 			}
