@@ -415,7 +415,7 @@ func (u *U) AnalyzeContentWithVision(images [][]byte, caption string, h History,
 // The visible "why" is a separate model explanation, not an 80-rune quote.
 func analysisExplanation(result jx.M, fallbackEvidence string) string {
 	if explanation := strings.TrimSpace(llm.StripCJK(jx.Str(result, "explanation"))); explanation != "" {
-		return trimRunes(explanation, 300)
+		return explanation
 	}
 	// Old providers and cached responses may not return the new optional
 	// field. Label the fallback honestly rather than posing it as reasoning.
