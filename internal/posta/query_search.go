@@ -414,6 +414,17 @@ func osnovaTimelinePosts(data []byte, host string, subsiteID int64) ([]jx.M, err
 			continue
 		}
 		if p := osnovaSearchPost(item.Data, host, ""); p != nil {
+			// The subsite is the SOURCE (community/category), not the author
+			// of an individual article. Retain publisher metadata separately.
+			// Without this, the autopilot saw only "api.vc.ru" and could
+			// mistakenly mark a multi-author category as a personal blog.
+			subsite := jx.Map(item.Data, "subsite")
+			p["publisher_name"] = trimRunes(CleanHTMLText(jx.Str(subsite, "name")), 180)
+			p["publisher_description"] = trimRunes(CleanHTMLText(jx.Str(subsite, "description")), 800)
+			p["publisher_uri"] = jx.Str(subsite, "uri")
+			if jx.Str(subsite, "subtype") == "community" {
+				p["publisher_kind"] = "category"
+			}
 			posts = append(posts, p)
 		}
 	}
