@@ -33,8 +33,9 @@ def normalize(raw):
         raise ValueError("dataset_id, record_id and valid kind are required")
     text = clean(raw.get("text"))
     positive = clean(raw.get("positive"))
-    if len(text) < 4:
-        raise ValueError("text/query must contain at least 4 characters")
+    min_length = 1 if kind == "ocr_text" else 4
+    if len(text) < min_length:
+        raise ValueError(f"text/query must contain at least {min_length} characters")
     if kind == "retrieval" and len(positive) < 4:
         raise ValueError("retrieval requires positive passage")
     media_sha = clean(raw.get("media_sha256")).lower()

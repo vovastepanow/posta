@@ -264,3 +264,14 @@ separate extraction still in progress. Its manifest records rejected items,
 negative filtering, exact duplicates and source hashes. Independently verify
 complete downloaded files with `verify_downloads.py` and repeat that check
 after currently incomplete downloads finish.
+
+For synthetic OCR, `inspect_remote_hdf5.py` can inspect a strict limited number
+of bytes from a pinned shard using HTTP Range. `sample_remote_ocr.py` makes a
+small quarantine preview, but **cannot verify the full source SHA-256**. After
+complete verified downloads, `prepare_ocr.py` extracts labels, decoded images
+and word annotations into a separate candidate. Short OCR strings are valid.
+`prepare_videoufo.py` requires both the verified video TAR and the matching
+verified annotation CSV; it extracts bounded clips, fully decodes video, and
+preserves source start/end times and source-video grouping. These separate OCR
+and video outputs must be globally deduplicated and isolated from benchmarks
+before mixing with other source candidates.

@@ -82,6 +82,10 @@ class PmrPilotTests(unittest.TestCase):
         assignments = partition(rows)
         self.assertEqual(assignments[0], assignments[1])
 
+    def test_short_ocr_label_is_valid(self):
+        row = normalize(self.example(kind="ocr_text", text="я", media_sha256=media_hash("image")))
+        self.assertEqual(row["text"], "я")
+
     def test_media_rejected_without_bytes_digest(self):
         with self.assertRaisesRegex(ValueError, "media_sha256"):
             normalize(self.example(kind="image_text"))
