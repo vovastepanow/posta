@@ -4,6 +4,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import subprocess
 import tarfile
 from collections import Counter
@@ -18,6 +19,20 @@ def digest(path):
         for b in iter(lambda:f.read(1024*1024),b''):
             h.update(b)
     return h.hexdigest()
+
+
+
+def parse_timestamp(value):
+    parts = value.split(':') if isinstance(value, str) else []
+    if len(parts) != 3:
+        raise ValueError('invalid source timestamp')
+    try:
+        hours, minutes, seconds = int(parts[0]), int(parts[1]), float(parts[2])
+    except ValueError as exc:
+        raise ValueError('invalid source timestamp') from exc
+    if hours < 0 or not 0 <= minutes < 60 or not math.isfinite(seconds) or not 0 <= seconds < 60:
+        raise ValueError('invalid source timestamp')
+    return hours * 3600 + minutes * 60 + seconds
 
 
 def sources(root):
@@ -79,14 +94,22 @@ def build(root,out,count):
                                        capture_output=True,timeout=60)
                 if decoded.returncode: raise ValueError('video decode failed')
                 annotation=annotations[id_]
+                start_seconds=parse_timestamp(annotation.get('Start Time'))
+                end_seconds=parse_timestamp(annotation.get('End Time'))
+                duration=float((meta.get('format') or {}).get('duration') or 0)
+                if end_seconds <= start_seconds or not math.isfinite(duration) or duration <= 0:
+                    raise ValueError('invalid clip or source duration')
                 row=normalize({'dataset_id':'videoufo','record_id':id_,'kind':'video_text','language':'en',
-                               'text':annotation['Brief Caption'],'media_sha256':sha,'group_id':id_.rsplit('.',1)[0]})
+                               'text':annotation['Brief Caption'],'detailed_caption':annotation.get('Detailed Caption'),
+                               'media_sha256':sha,'group_id':id_.rsplit('.',1)[0]})
                 rows.append(row)
                 provenance.append({'source_revision':records['videoufo']['revision'],
                                    'archive_sha256':records['videoufo']['expected_sha256'],
                                    'annotation_sha256':records['videoufo-annotations']['expected_sha256'],
                                    'archive_member':member.name,'media':{'path':'media/'+path.name,'sha256':sha,'size_bytes':len(data)},
                                    'source_start_time':annotation.get('Start Time'),'source_end_time':annotation.get('End Time'),
+                                   'source_start_seconds':start_seconds,'source_end_seconds':end_seconds,
+                                   'source_vs_clip_duration_delta_seconds':duration-(end_seconds-start_seconds),
                                    'detailed_caption':annotation.get('Detailed Caption'),'duration_seconds':(meta.get('format') or {}).get('duration'),
                                    'annotation_origin':'upstream VideoUFO; rights and benchmark overlap unverified','training_approved':False})
                 if len(rows)>=count: break
@@ -120,7 +143,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--source-dir',type=Path,required=True);p.add_argument('--out-dir',type=Path,required=True)
     p.add_argument('--count',type=int,default=100);args=p.parse_args()
-    if not 1 <= args.count <= 1000:p.error('count must be 1..1000')
+    if not 1 <= args.count <= 2000:p.error('count must be 1..2000')
     print(json.dumps(build(args.source_dir,args.out_dir,args.count),ensure_ascii=False,indent=2))
 
 

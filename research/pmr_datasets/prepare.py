@@ -25,6 +25,31 @@ def sha(value):
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+
+def ocr_annotation_texts(raw, include_words=False):
+    annotations = raw.get('ocr_annotations')
+    if not isinstance(annotations, dict):
+        return []
+    categories = ['line_bboxes', 'para_bboxes']
+    if include_words:
+        categories.append('word_bboxes')
+    values = []
+    for category in categories:
+        entries = annotations.get(category, [])
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if isinstance(entry, dict) and clean(entry.get('text')):
+                values.append((category, clean(entry['text'])))
+    return values
+
+
+def auxiliary_texts(raw):
+    values = [raw.get('ocr'), raw.get('detailed_caption'), raw.get('subtitles')]
+    values.extend(text for _, text in ocr_annotation_texts(raw))
+    return [clean(value) for value in values if clean(value)]
+
+
 def normalize(raw):
     dataset_id = clean(raw.get("dataset_id"))
     record_id = clean(raw.get("record_id"))
@@ -45,6 +70,12 @@ def normalize(raw):
     if not isinstance(negatives, list):
         raise ValueError("negatives must be an array")
     negatives = [x for x in (clean(v) for v in negatives) if x and x != positive]
+    auxiliary = raw.get('_auxiliary_texts')
+    if auxiliary is None:
+        auxiliary = auxiliary_texts(raw)
+    if not isinstance(auxiliary, list):
+        raise ValueError('auxiliary texts must be an array')
+    auxiliary = [clean(value) for value in auxiliary if clean(value)]
     normalized = {
         "dataset_id": dataset_id,
         "record_id": record_id,
@@ -55,11 +86,13 @@ def normalize(raw):
         "negatives": list(dict.fromkeys(negatives)) if kind == "retrieval" else [],
         "media_sha256": media_sha,
         "group_id": clean(raw.get("group_id")) or f"{dataset_id}:{record_id}",
+        "_auxiliary_texts": auxiliary,
     }
     # Group by content hashes; later a union-find joins exact matches across source groups.
     normalized["_fingerprint"] = sha(json.dumps([
         kind, text.casefold(), positive.casefold(),
-        sorted(x.casefold() for x in normalized["negatives"]), media_sha
+        sorted(x.casefold() for x in normalized["negatives"]),
+        [x.casefold() for x in auxiliary], media_sha
     ], ensure_ascii=False, separators=(",", ":")))
     return normalized
 
@@ -83,20 +116,24 @@ class UnionFind:
 def partition(rows):
     """Exact text/media and source groups cannot straddle output splits."""
     uf = UnionFind(len(rows))
-    group_seen, fingerprint_seen, media_seen = {}, {}, {}
+    group_seen, fingerprint_seen, media_seen, source_seen, family_seen = {}, {}, {}, {}, {}
     content_seen = {}
     for i, row in enumerate(rows):
         for cache, key in (
             (group_seen, row["dataset_id"] + ":" + row["group_id"]),
             (fingerprint_seen, row["_fingerprint"]),
             (content_seen, sha(row["text"].casefold())),
+            (source_seen, row.get("_source_url")),
+            (family_seen, ("fineweb2:" + row["record_id"]) if row["dataset_id"] in {"fineweb2-ru", "fineweb2-hq-ru"} else None),
         ):
+            if key is None:
+                continue
             if key in cache:
                 uf.union(i, cache[key])
             else:
                 cache[key] = i
         # Any exact text shared across query, positive or negative roles stays together.
-        for content in [row["positive"], *row["negatives"]]:
+        for content in [row["positive"], *row.get("_auxiliary_texts", []), *row["negatives"]]:
             if not content:
                 continue
             key = sha(content.casefold())

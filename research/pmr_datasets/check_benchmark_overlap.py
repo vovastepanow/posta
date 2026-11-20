@@ -6,7 +6,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 import pyarrow.parquet as pq
-from prepare import clean
+from prepare import clean, ocr_annotation_texts
 from probe import atomic_json
 from verify_downloads import digest
 
@@ -25,7 +25,11 @@ def check(candidate,source_dir):
         with path.open(encoding='utf-8') as f:
             for line in f:
                 row=json.loads(line)
-                for role,value in [('text',row['text']),('positive',row.get('positive',''))]+[("negative",v) for v in row.get('negatives',[])]:
+                fields = [('text',row['text']),('positive',row.get('positive','')),
+                          ('ocr',row.get('ocr','')),('detailed_caption',row.get('detailed_caption','')),
+                          ('subtitles',row.get('subtitles',''))]
+                fields.extend(('ocr_annotation_'+kind, text) for kind,text in ocr_annotation_texts(row,include_words=True))
+                for role,value in fields+[("negative",v) for v in row.get('negatives',[])]:
                     if clean(value):fingerprints[key(value)].append({'dataset_id':row['dataset_id'],'record_id':row['record_id'],'split':row['split'],'role':role})
     eval_manifest=json.loads((source_dir/'manifest-k.json').read_text())
     required={'mteb-ria-eval-queries','mteb-ria-eval-qrels'} | {f'mteb-ria-eval-corpus-{i:02d}' for i in range(4)}
@@ -55,6 +59,7 @@ def check(candidate,source_dir):
             'candidate_manifest_sha256':digest(candidate/'manifest.json'),
             'limitations':['exact NFKC whitespace and casefold equality only',
                            'no near-duplicate, translation, title concatenation or other benchmark screening',
+                           'other metadata beyond OCR text annotations are not independently scanned',
                            'matches are reported, not automatically removed']}
 
 

@@ -147,7 +147,7 @@ python3 -m unittest discover -s research/pmr_datasets -p 'test_*.py'
 ## Next engineering gates
 
 1. Resolve missing licenses/revisions, especially BGE-M3 and MegaPairs's access acceptance; replace empty Common Voice mirror with reviewed official release.
-2. Export *tiny* real text and image samples with upstream IDs from verified shards, without pulling full corpora.
+2. Expand the verified source samples only after source terms, privacy and benchmark-overlap review.
 3. Audit media byte availability, hashes, aspect ratios, captions/OCR language balance and independent source splits; produce `Posta-Dataset-v0.1` with source revision checksums and a frozen list of files.
 4. Only then freeze the pilot PMR tokenizer/architecture and train the first randomly initialized checkpoint.
 
@@ -155,7 +155,7 @@ python3 -m unittest discover -s research/pmr_datasets -p 'test_*.py'
 
 The current repo remains a Go service; the research scripts are **not invoked by Go or deployment**.
 `data/` is ignored by `.gitignore`; raw training data and approval records must remain outside version control.
-There is no validated dataset sample, model checkpoint, or quality benchmark result in this revision.
+Real candidate samples and checked source shards now exist on the HDD. They are not yet cleared for training; there is no model checkpoint or model-quality benchmark result.
 
 ## Quarantined real preview pilot (20 Nov 2026)
 
@@ -283,3 +283,10 @@ exact deduplication and a global split, and records removed duplicates and
 negative links. Follow it with `verify_candidate.py --decode-media` and
 `stats_candidate.py`. All rows remain marked as unapproved; this merge does not
 perform near-duplicate or independent benchmark contamination screening.
+
+The consolidated research candidate and final checks from 21 November 2026 are
+summarized in `RESULT_2026-11-21.md`. It remains quarantined pending the source,
+privacy and benchmark gates stated there. The clean pass applies the exact
+MTEB overlap report to its matching input manifest, reports excluded rows, and
+rechecks the resulting files and benchmark. This is not a general guarantee
+against translated or near-duplicate contamination.

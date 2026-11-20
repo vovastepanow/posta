@@ -9,6 +9,7 @@ from download_shards import PLAN
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('directory', type=Path)
+    p.add_argument('--compact', action='store_true', help='show a concise human-readable progress table')
     args = p.parse_args()
     files = []
     for path in sorted(args.directory.glob('manifest-*.json')):
@@ -25,9 +26,23 @@ def main():
         if id_ not in known:
             files.append({'dataset_id': id_, 'repository': repo, 'revision': revision,
                           'source_path': source_path, 'status': 'queued', 'bytes_on_disk': 0})
-    print(json.dumps({'sources': files, 'total_bytes_on_disk': sum(x.get('bytes_on_disk', 0) for x in files),
-                      'blocked': {'megapairs': 'gated access', 'common-voice': 'empty HF mirror'}},
-                     ensure_ascii=False, indent=2))
+    total = sum(x.get('bytes_on_disk', 0) for x in files)
+    if args.compact:
+        print(f'На диске: {total / (1024 ** 3):.2f} ГиБ')
+        print(f'Готово: {sum(x["status"] in ("verified", "verified_existing") for x in files)}')
+        print()
+        for item in files:
+            if item['status'] not in ('downloading', 'error'):
+                continue
+            size = item.get('expected_bytes', 0)
+            done = item.get('bytes_on_disk', 0)
+            percentage = f'{100 * done / size:.1f}%' if size else '?'
+            detail = item.get('error', '')
+            print(f'{item["dataset_id"]}: {item["status"]} {percentage} {detail}'.rstrip())
+    else:
+        print(json.dumps({'sources': files, 'total_bytes_on_disk': total,
+                          'blocked': {'megapairs': 'gated access', 'common-voice': 'empty HF mirror'}},
+                         ensure_ascii=False, indent=2))
 
 
 if __name__ == '__main__':

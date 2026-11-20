@@ -21,6 +21,7 @@ from probe import atomic_json
 
 SPECS = {
     'fineweb2-hq-ru': ('text', 'ru', ['text', 'id', 'url', 'language_score']),
+    'fineweb2-ru': ('text', 'ru', ['text', 'id', 'url', 'language_score']),
     'fineweb-en': ('text', 'en', ['text', 'id', 'url', 'language_score']),
     'kalm-retrieval': ('retrieval', 'zh', ['query', 'pos', 'neg']),
     'librispeech': ('speech_text', 'en', ['audio', 'text', 'speaker_id', 'chapter_id', 'id']),
@@ -108,7 +109,7 @@ def convert(id_, raw, index, kind, lang, output):
     elif kind == 'meme_text':
         if len(clean(raw.get('explanation_en'))) < 4:
             raise ValueError('meme explanation too short')
-        common.update(text=raw.get('explanation_en'), group_id=str(raw.get('id') or index))
+        common.update(text=raw.get('explanation_en'), ocr=raw.get('text'), group_id=str(raw.get('id') or index))
         common['media_sha256'], meta['media'] = media_file((raw.get('image') or {}).get('bytes'), kind, output)
         meta.update(ocr=raw.get('text'), upstream_source_split=raw.get('source_split'),
                     annotation_origin='upstream explanation; benchmark overlap unresolved')
@@ -141,17 +142,19 @@ def split_without_negative_leakage(rows):
     # Anchor queries, positives, groups and media first. Shared negatives are then
     # retained in only one split, rather than joining the entire graph together.
     anchors = [dict(row, negatives=[]) for row in rows]
+    for anchor in anchors:
+        anchor['_fingerprint'] = normalize(anchor)['_fingerprint']
     assignments = partition(anchors)
     anchor_splits = {}
     for i, row in enumerate(rows):
-        for content in (row['text'], row['positive']):
+        for content in [row['text'], row['positive'], *row.get('_auxiliary_texts', [])]:
             if content:
                 anchor_splits[clean(content).casefold()] = assignments[i]
     negative_owners = {}
     for i, row in enumerate(rows):
         for content in row['negatives']:
             key = clean(content).casefold()
-            candidate = (row['_fingerprint'], assignments[i])
+            candidate = (anchors[i]['_fingerprint'], assignments[i])
             if key not in negative_owners or candidate < negative_owners[key]:
                 negative_owners[key] = candidate
     dropped = 0
@@ -187,19 +190,22 @@ def ensure_speech_holdouts(rows, assignments):
         if len(train_groups) <= 1:
             continue
         for group in sorted(train_groups):
-            selected = set(groups[group]); texts = set(); media = set()
+            selected = set(groups[group]); texts = set(); media = set(); urls = set()
             for i in selected:
                 row = rows[i]
-                texts.update(clean(t).casefold() for t in [row['text'], row['positive'], *row['negatives']] if clean(t))
+                texts.update(clean(t).casefold() for t in [row['text'], row['positive'], *row.get('_auxiliary_texts', []), *row['negatives']] if clean(t))
                 if row['media_sha256']:
                     media.add(row['media_sha256'])
+                if row.get('_source_url'):
+                    urls.add(row['_source_url'])
             isolated = True
             for i, row in enumerate(rows):
                 if i in selected:
                     continue
                 if ((row['dataset_id'], row['group_id']) == group or
                     row['media_sha256'] and row['media_sha256'] in media or
-                    any(clean(t).casefold() in texts for t in [row['text'], row['positive'], *row['negatives']] if clean(t))):
+                    row.get('_source_url') and row['_source_url'] in urls or
+                    any(clean(t).casefold() in texts for t in [row['text'], row['positive'], *row.get('_auxiliary_texts', []), *row['negatives']] if clean(t))):
                     isolated = False
                     break
             if isolated:
@@ -249,6 +255,8 @@ def build(source_dir, output, limits, selected=None):
             examined[id_] += 1
             try:
                 row, meta = convert(id_, raw, index, kind, language, output)
+                if clean(meta.get('source_url')):
+                    row['_source_url'] = clean(meta['source_url'])
                 rows.append(row)
                 meta.update(dataset_revision=record['revision'], source_file_sha256=record['expected_sha256'],
                             source_file=record['source_path'], source_row_index=index,
@@ -267,9 +275,9 @@ def build(source_dir, output, limits, selected=None):
             duplicates += 1
             continue
         seen.add(row['_fingerprint'])
-        clean = {k: v for k, v in row.items() if not k.startswith('_')}
-        clean.update(metas[i], split=assignments[i])
-        grouped.setdefault((row['kind'], assignments[i]), []).append(clean)
+        clean_row = {k: v for k, v in row.items() if not k.startswith('_')}
+        clean_row.update(metas[i], split=assignments[i])
+        grouped.setdefault((row['kind'], assignments[i]), []).append(clean_row)
     files, counts = [], Counter()
     for (kind, split), batch in sorted(grouped.items()):
         path = output / f'{kind}-{split}.jsonl'
@@ -305,8 +313,8 @@ def main():
     p.add_argument('--retrieval', type=int, default=1000)
     p.add_argument('--media', type=int, default=100)
     args = p.parse_args()
-    if not (1 <= args.text <= 10000 and 1 <= args.retrieval <= 5000 and 1 <= args.media <= 1000):
-        p.error('limits: text 1..10000, retrieval 1..5000, media 1..1000')
+    if not (1 <= args.text <= 20000 and 1 <= args.retrieval <= 5000 and 1 <= args.media <= 5000):
+        p.error('limits: text 1..20000, retrieval 1..5000, media 1..5000')
     limits = {k: args.text if v[0] == 'text' else args.retrieval if v[0] == 'retrieval' else args.media for k,v in SPECS.items()}
     result = build(args.source_dir, args.out_dir, limits, set(args.ids) if args.ids else None)
     print(json.dumps({'accepted': result['accepted'], 'counts': result['counts'],

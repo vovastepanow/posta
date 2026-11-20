@@ -49,6 +49,13 @@ class CandidateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'crosses splits'):
             verify(self.root)
 
+    def test_shared_source_url_cannot_cross_splits(self):
+        self.row['source_url'] = 'https://example.test/article'
+        second = dict(self.row, record_id='2', text='другая версия текста', group_id='two', split='test')
+        self.write_files([self.row, second])
+        with self.assertRaisesRegex(ValueError, 'crosses splits'):
+            verify(self.root)
+
     def test_unapproved_source_marker_required(self):
         self.row['training_approved'] = True
         self.write_files([self.row])
@@ -56,7 +63,7 @@ class CandidateTests(unittest.TestCase):
             verify(self.root)
 
 try:
-    from prepare_local_shards import ensure_speech_holdouts, load_sources, split_without_negative_leakage
+    from prepare_local_shards import build, ensure_speech_holdouts, load_sources, split_without_negative_leakage
     HAVE_SHARD_DEPS = True
 except ImportError:
     HAVE_SHARD_DEPS = False
@@ -64,6 +71,22 @@ except ImportError:
 
 @unittest.skipUnless(HAVE_SHARD_DEPS, 'pyarrow/Pillow not installed')
 class NegativeIsolationTests(unittest.TestCase):
+    def test_build_from_verified_parquet_source(self):
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);src=root/'src';src.mkdir();parquet=src/'text.parquet'
+            pq.write_table(pa.table({'text':['a valid sample document'], 'id':['doc1'],
+                                     'url':['https://example.test/doc'], 'language_score':[0.99]}),parquet)
+            data=parquet.read_bytes();entry={'status':'verified','local_path':str(parquet),
+                'expected_bytes':len(data),'expected_sha256':hashlib.sha256(data).hexdigest(),
+                'revision':'rev','source_path':'train.parquet','repository':'example/repo'}
+            (src/'manifest-a.json').write_text(json.dumps({'records':{'fineweb-en':entry}}))
+            result=build(src,root/'out',{'fineweb-en':1},{'fineweb-en'})
+            self.assertEqual(result['accepted'],1)
+            self.assertEqual(verify(root/'out')['records'],1)
+
     def test_selected_source_must_be_verified_and_present(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError, 'requested verified sources missing'):
@@ -106,6 +129,11 @@ class NegativeIsolationTests(unittest.TestCase):
         self.assertGreater(dropped, 0)
         splits = {assignments[i] for i, row in enumerate(rows) if row['negatives']}
         self.assertEqual(len(splits), 1)
+        first_negatives = [list(row['negatives']) for row in rows]
+        repeated, dropped_again = split_without_negative_leakage(rows)
+        self.assertEqual(repeated, assignments)
+        self.assertEqual(dropped_again, 0)
+        self.assertEqual([row['negatives'] for row in rows], first_negatives)
 
 
 if __name__ == '__main__':

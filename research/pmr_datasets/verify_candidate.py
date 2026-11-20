@@ -6,7 +6,7 @@ import json
 import subprocess
 from collections import Counter
 from pathlib import Path
-from prepare import clean, normalize
+from prepare import auxiliary_texts, clean, normalize
 
 
 def digest(path):
@@ -20,6 +20,12 @@ def digest(path):
 def verify(root, decode_media=False):
     manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
     counts, identities, fingerprints, media = Counter(), {}, set(), set()
+    for field in ('duplicates_report', 'rejections_report', 'benchmark_exclusions'):
+        entry = manifest.get(field)
+        if entry and entry.get('path'):
+            report = (root / entry['path']).resolve()
+            if report.parent != root.resolve() or digest(report) != entry['sha256']:
+                raise ValueError(field + ' path or hash mismatch')
     for item in manifest['files']:
         path = (root / item['path']).resolve()
         if path.parent != root.resolve() or digest(path) != item['sha256']:
@@ -42,8 +48,13 @@ def verify(root, decode_media=False):
                     raise ValueError('exact duplicate remains')
                 fingerprints.add(fingerprint)
                 keys = [('text', clean(t).casefold()) for t in
-                        [row['text'], row.get('positive', ''), *row.get('negatives', [])] if clean(t)]
+                        [row['text'], row.get('positive', ''), *auxiliary_texts(row),
+                         *row.get('negatives', [])] if clean(t)]
                 keys.append(('group', row['dataset_id'] + ':' + row['group_id']))
+                if clean(row.get('source_url')):
+                    keys.append(('source_url', clean(row['source_url'])))
+                if row['dataset_id'] in ('fineweb2-ru', 'fineweb2-hq-ru'):
+                    keys.append(('source_family_id', 'fineweb2:' + row['record_id']))
                 if row.get('media_sha256'):
                     sha = row['media_sha256']
                     keys.append(('media', sha))

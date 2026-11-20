@@ -8,11 +8,17 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
-from prepare_videoufo import build
+from prepare_videoufo import build, parse_timestamp
 
 
 @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'ffmpeg/ffprobe unavailable')
 class VideoTests(unittest.TestCase):
+    def test_timestamps_are_validated(self):
+        self.assertEqual(parse_timestamp('1:02:03.500'), 3723.5)
+        for invalid in ('bad','1:60:00','-1:00:00','0:00:nan'):
+            with self.assertRaises(ValueError):
+                parse_timestamp(invalid)
+
     def test_verified_archive_and_caption_are_combined(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);inputs=root/'input';inputs.mkdir()

@@ -32,6 +32,17 @@ class BenchmarkTests(unittest.TestCase):
             (source/'manifest-k.json').write_text(json.dumps({'records':records}))
             result=check(candidate,source)
             self.assertEqual(result['matched_distinct_texts'],1)
+            row['text']='different source document';row['ocr']='same example'
+            data=(json.dumps(row)+'\n').encode();(candidate/'text.jsonl').write_bytes(data)
+            (candidate/'manifest.json').write_text(json.dumps({'files':[{'path':'text.jsonl','sha256':hashlib.sha256(data).hexdigest()}]}))
+            ocr_result=check(candidate,source)
+            self.assertEqual(ocr_result['matched_distinct_texts'],1)
+            self.assertEqual(ocr_result['matches'][0]['candidate_occurrences'][0]['role'],'ocr')
+            row['ocr']='different text';row['ocr_annotations']={'word_bboxes':[{'text':'same example'}]}
+            data=(json.dumps(row)+'\n').encode();(candidate/'text.jsonl').write_bytes(data)
+            (candidate/'manifest.json').write_text(json.dumps({'files':[{'path':'text.jsonl','sha256':hashlib.sha256(data).hexdigest()}]}))
+            nested=check(candidate,source)
+            self.assertEqual(nested['matches'][0]['candidate_occurrences'][0]['role'],'ocr_annotation_word_bboxes')
             records[ids[0]]['evaluation_only']=False
             (source/'manifest-k.json').write_text(json.dumps({'records':records}))
             with self.assertRaisesRegex(ValueError,'not isolated'):

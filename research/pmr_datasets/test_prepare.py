@@ -72,6 +72,73 @@ class PmrPilotTests(unittest.TestCase):
         assignments = partition(rows)
         self.assertEqual(assignments[0], assignments[1])
 
+    def test_source_url_groups_different_text_across_sources(self):
+        from prepare import partition
+        first = normalize(self.example(source='a', record='1', text='первая версия текста'))
+        rows = None
+        for i in range(1000):
+            second = normalize(self.example(source='b', record=str(i), text=f'другая версия текста {i}'))
+            candidate = [first, second]
+            before = partition(candidate)
+            if before[0] != before[1]:
+                rows = candidate
+                break
+        self.assertIsNotNone(rows)
+        for row in rows:
+            row['_source_url'] = 'https://example.test/article'
+        splits = partition(rows)
+        self.assertEqual(splits[0], splits[1])
+
+    def test_auxiliary_ocr_text_groups_across_roles(self):
+        from prepare import partition
+        first = normalize(self.example(source='a', record='1', kind='meme_text',
+                                       text='пояснение картинки', ocr='общий текст внутри',
+                                       media_sha256=media_hash('meme')))
+        rows = None
+        for i in range(1000):
+            other = normalize(self.example(source='b', record=str(i), kind='retrieval',
+                                          text='общий текст внутри', positive=f'документ номер {i}'))
+            # A copy with auxiliary content removed demonstrates the meaningful comparison.
+            without = dict(first, _auxiliary_texts=[])
+            before = partition([without, other])
+            if before[0] != before[1]:
+                rows = [first, other]
+                break
+        self.assertIsNotNone(rows)
+        splits = partition(rows)
+        self.assertEqual(splits[0], splits[1])
+
+    def test_fineweb2_family_id_groups_different_versions(self):
+        from prepare import partition
+        first = normalize(self.example(source='fineweb2-ru', record='same-id', text='первая версия текста'))
+        rows = None
+        for i in range(1000):
+            second = normalize(self.example(source='unrelated', record='same-id', text=f'другая версия {i}'))
+            if partition([first, second])[0] != partition([first, second])[1]:
+                second['dataset_id'] = 'fineweb2-hq-ru'
+                rows = [first, second]
+                break
+        self.assertIsNotNone(rows)
+        assignments = partition(rows)
+        self.assertEqual(assignments[0], assignments[1])
+
+    def test_ocr_annotation_line_groups_with_query(self):
+        from prepare import partition
+        first = normalize(self.example(source='a', record='1', kind='ocr_text',
+                                       text='полная OCR надпись', media_sha256=media_hash('ocr'),
+                                       ocr_annotations={'line_bboxes':[{'text':'общая строка'}]}))
+        rows = None
+        for i in range(1000):
+            other = normalize(self.example(source='b', record=str(i), kind='retrieval',
+                                           text='общая строка', positive=f'документ номер {i}'))
+            before = partition([dict(first, _auxiliary_texts=[]), other])
+            if before[0] != before[1]:
+                rows = [first, other]
+                break
+        self.assertIsNotNone(rows)
+        assignments = partition(rows)
+        self.assertEqual(assignments[0], assignments[1])
+
     def test_media_sha_groups_different_captions(self):
         m = media_hash("same-file")
         rows = [
