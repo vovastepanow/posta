@@ -1156,7 +1156,7 @@ func autopilotAuditPostSamples(posts []jx.M) []jx.M {
 		if caption == "" {
 			caption = strings.TrimSpace(jx.Str(post, "title"))
 		}
-		caption = trimRunes(sourceReviewCaption(CleanHTMLText(caption)), 650)
+		caption = sourceReviewCaption(CleanHTMLText(caption))
 		page := ""
 		if raw := jx.Str(post, "url"); raw != "" {
 			if u, err := url.Parse(raw); err == nil &&
