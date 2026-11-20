@@ -66,7 +66,7 @@ func ContentAnalysisSchema(query string, humor bool) jx.M {
 	props["place_lon"] = jx.M{"type": "number"}
 	props["evidence"] = jx.M{"type": "string"}
 	props["explanation"] = jx.M{"type": "string"} // Russian summary; evidence remains an exact quote
-	req = append(req, "ukraine", "safety", "tags", "description", "format", "entity", "evidence")
+	req = append(req, "ukraine", "safety", "tags", "description", "format", "entity", "evidence", "explanation")
 	return jx.M{"type": "object", "properties": props, "required": req}
 }
 
@@ -681,7 +681,7 @@ func TextBatchSchema(query string, humor bool) jx.M {
 	props["place_lon"] = jx.M{"type": "number"}
 	props["evidence"] = jx.M{"type": "string"}
 	props["explanation"] = jx.M{"type": "string"} // Russian summary; evidence remains an exact quote
-	req = append(req, "ukraine", "safety", "tags", "description", "format", "entity", "evidence")
+	req = append(req, "ukraine", "safety", "tags", "description", "format", "entity", "evidence", "explanation")
 	if humor {
 		props["meme_kind"] = jx.M{"type": "string", "enum": []string{"finished_meme", "template_or_reaction", "funny_situation", "not_meme"}}
 		props["joke"] = jx.M{"type": "string"}
