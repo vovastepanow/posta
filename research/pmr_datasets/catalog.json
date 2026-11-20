@@ -11,7 +11,8 @@
       "ru",
       "en"
     ],
-    "revisions_must_be_pinned_after_probe": true
+    "revisions_must_be_pinned_after_probe": true,
+    "note": "P0/P1 are candidate work priorities, not a permission to download or a verified training clearance."
   },
   "datasets": [
     {
@@ -25,7 +26,9 @@
       "license_review": "check CommonCrawl terms; PII filtering",
       "data_kind": "parquet_text",
       "training": true,
-      "source_url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-2"
+      "source_url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-2",
+      "estimated_full_size": "rus_Cyrl: 1.81TB parquet per publisher; audit only a tiny subset",
+      "language_note": "rus_Cyrl"
     },
     {
       "id": "fineweb2-hq-ru",
@@ -35,10 +38,12 @@
       "preferred_config": "rus_Cyrl",
       "preferred_split": "train",
       "license_claim": "odc-by-1.0",
-      "license_review": "subset of fineweb-2: deduplicate; CommonCrawl terms; PII filtering",
+      "license_review": "overlaps heavily with FineWeb2; deduplicate using upstream id; source includes precomputed embeddings that PMR must not consume as pretrained features",
       "data_kind": "parquet_text",
       "training": true,
-      "source_url": "https://huggingface.co/datasets/epfml/FineWeb2-HQ"
+      "source_url": "https://huggingface.co/datasets/epfml/FineWeb2-HQ",
+      "estimated_full_size": "rus_Cyrl: 1.2TB per publisher; embeddings field inflates size",
+      "language_note": "rus_Cyrl"
     },
     {
       "id": "fineweb-en",
@@ -59,20 +64,22 @@
       "priority": "P0",
       "license_claim": "mit",
       "license_review": "aggregates many upstream corpora; review per-source terms before use",
-      "data_kind": "parquet_triplets",
+      "data_kind": "parquet_query_pos_list_neg_list",
       "training": true,
-      "source_url": "https://huggingface.co/datasets/KaLM-Embedding/KaLM-embedding-finetuning-data"
+      "source_url": "https://huggingface.co/datasets/KaLM-Embedding/KaLM-embedding-finetuning-data",
+      "language_note": "HF card lists Chinese and English; not a substitute for Russian retrieval data"
     },
     {
       "id": "bge-m3",
       "repo": "Shitao/bge-m3-data",
       "use": "text_retrieval",
-      "priority": "P0",
+      "priority": "P1",
       "license_claim": "unverified",
-      "license_review": "check individual source terms, duplicates with mMARCO/MIRACL and eval contamination; JSONL archives",
+      "license_review": "no clear license on main HF dataset card; verify archive, upstream terms, eval contamination and overlaps with mMARCO/MIRACL",
       "data_kind": "jsonl_triplets",
       "training": true,
-      "source_url": "https://huggingface.co/datasets/Shitao/bge-m3-data"
+      "source_url": "https://huggingface.co/datasets/Shitao/bge-m3-data",
+      "access_note": "HF Data Studio exposes a 172k-row test split, not an approved train source; independently inspect original archives and source licenses before training"
     },
     {
       "id": "wit",
@@ -84,18 +91,20 @@
       "license_review": "verify attribution requirements per image; card row-count differs from stated six-million-image research release",
       "data_kind": "parquet_embedded_image",
       "training": true,
-      "source_url": "https://huggingface.co/datasets/wikimedia/wit_base"
+      "source_url": "https://huggingface.co/datasets/wikimedia/wit_base",
+      "access_note": "HF Dataset Viewer shows only first 5GB (108k visible rows), NOT total corpus size; check shard manifest; image rights may differ"
     },
     {
       "id": "megapairs",
       "repo": "JUNJIE99/MegaPairs",
       "use": "multimodal_retrieval",
-      "priority": "P0",
-      "license_claim": "annotations mit; images claimed cc-by-4.0",
-      "license_review": "verify provenance and attribution per underlying Recap-DataComp images; 26M triplets, webdataset",
+      "priority": "P1",
+      "license_claim": "metadata cc-by-4.0; annotations mit",
+      "license_review": "annotations MIT, images from Recap-DataComp declared CC-BY-4.0; check individual provenance and HF access terms",
       "data_kind": "webdataset_triplets",
       "training": true,
-      "source_url": "https://huggingface.co/datasets/JUNJIE99/MegaPairs"
+      "source_url": "https://huggingface.co/datasets/JUNJIE99/MegaPairs",
+      "access_note": "gated: requires logging into Hugging Face and accepting access conditions; ~775 GB full release"
     },
     {
       "id": "nvidia-ocr",
@@ -106,7 +115,8 @@
       "license_review": "HDF5 shards may be multi-GB; download only after checking disk",
       "data_kind": "hdf5_images",
       "training": true,
-      "source_url": "https://huggingface.co/datasets/nvidia/OCR-Synthetic-Multilingual-v1"
+      "source_url": "https://huggingface.co/datasets/nvidia/OCR-Synthetic-Multilingual-v1",
+      "access_note": "native HDF5: dataset viewer not functional; inspect HDF5 manually before defining extraction schema"
     },
     {
       "id": "videoufo",
@@ -118,7 +128,8 @@
       "license_review": "CSV annotations and compressed tar clips (~800 GB full collection); do not fetch archives during audit",
       "data_kind": "csv_and_video_tar",
       "training": true,
-      "source_url": "https://huggingface.co/datasets/WenhaoWang/VideoUFO"
+      "source_url": "https://huggingface.co/datasets/WenhaoWang/VideoUFO",
+      "access_note": "HF preview exposes middle-frame images and captions; full videos are separate compressed tar archives (~800GB); avoid interpreting preview as complete video"
     },
     {
       "id": "memexplain",
@@ -137,12 +148,13 @@
       "id": "common-voice",
       "repo": "mozilla-foundation/common_voice_17_0",
       "use": "speech_audio",
-      "priority": "P2",
-      "license_claim": "cc0-1.0",
-      "license_review": "candidate version is provisional; confirm currently accessible official release, multilingual transcriptions and size",
+      "priority": "BLOCKED",
+      "license_claim": "check selected MDC dataset terms; older Common Voice releases CC0",
+      "license_review": "do not attempt to load empty Hugging Face repository; verify access and current speech dataset/license at Mozilla Data Collective",
       "data_kind": "speech_dataset",
       "training": true,
-      "source_url": "https://huggingface.co/datasets/mozilla-foundation/common_voice_17_0"
+      "source_url": "https://mozilladatacollective.com/",
+      "access_note": "Official mozilla-foundation/common_voice_17_0 repository is empty; Mozilla releases now hosted at Mozilla Data Collective since October 2025"
     },
     {
       "id": "bvd-video",
@@ -160,11 +172,13 @@
       "repo": "VLM2Vec/MMEB-V3",
       "use": "independent_evaluation",
       "priority": "EVAL",
-      "license_claim": "verify current card",
+      "license_claim": "mit (repository metadata)",
       "license_review": "ALL evaluation tasks isolated from train; do not build negatives from eval instances",
       "data_kind": "mixed",
       "training": false,
-      "source_url": "https://huggingface.co/datasets/VLM2Vec/MMEB-V3"
+      "source_url": "https://huggingface.co/datasets/VLM2Vec/MMEB-V3",
+      "access_note": "large benchmark archive; train/test partition must remain fully isolated"
     }
-  ]
+  ],
+  "reference_check_date": "2026-11-20"
 }
