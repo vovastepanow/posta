@@ -1039,6 +1039,36 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 		}, a.autopilotSourcePolicy())
 }
 
+// autopilotOKSMMTopicReason rejects only groups with a readable off-topic
+// title AND several readable unrelated captions. When the mobile HTML doesn't
+// expose a title, or the posts are mainly visual, defer instead of inventing
+// a negative content verdict. Two independent relevant posts are sufficient
+// to send a neutral-titled group onward to the normal AI assessment.
+func autopilotOKSMMTopicReason(title, id string, posts []jx.M) string {
+	if okDiscoveryGroupTitleMatches(title, "SMM и блогинг", nil) {
+		return ""
+	}
+	readable := 0
+	relevant := 0
+	for _, post := range posts {
+		caption := PostCaptionClean(jx.Str(post, "text")) + " " + jx.Str(post, "title")
+		if len([]rune(strings.TrimSpace(caption))) < 24 {
+			continue
+		}
+		readable++
+		if okDiscoveryTopicTextMatches(caption, "SMM и блогинг", nil) {
+			relevant++
+			if relevant >= 2 {
+				return ""
+			}
+		}
+	}
+	if strings.TrimSpace(title) == "" || title == id || readable < 3 || relevant > 0 {
+		return "source_metadata_unavailable"
+	}
+	return "off_topic_group"
+}
+
 // A source with only two fresh posts can enter probation when the model is
 // exceptionally confident. Single-post feeds remain unverified; probation
 // still requires per-post assessments before content can be delivered.
@@ -1301,24 +1331,28 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 		}
 		samples = safeSamples
-		// Previously discovered OK groups were admitted by vague substring
-		// matches in an aggregator feed. Recheck the actual group title before
-		// they can occupy probation slots or be activated. Preserve the audit
-		// trail by rejecting the source instead of silently deleting it.
-		if (state == "candidate" || state == "probation") && platform == PlatformOK &&
-			autopilotCanonicalTopic(job.Topic) == "SMM и блогинг" {
-			unverified := res.OK && (OKTitleFromHTML(string(res.Bytes), id) == id ||
-				!okDiscoveryGroupTitleMatches(OKTitleFromHTML(string(res.Bytes), id), job.Topic, nil))
-			missing := res.Status == http.StatusNotFound || res.Status == http.StatusGone
-			if unverified || missing {
-				why := "off_topic_group"
-				if missing {
-					why = "source_not_found"
-				}
-				if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "rejected",
-					why, jx.Marshal(jx.M{"http_status": res.Status}), at, at.Add(30*24*time.Hour)); err != nil &&
-					!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
-					return err
+		// A missing OK title is a parsing/metadata failure, NOT evidence
+		// that the group is about another topic. Look at multiple published
+		// captions before rejecting a group with a generic title.
+		if reason == "" && (state == "candidate" || state == "probation") &&
+			platform == PlatformOK && autopilotCanonicalTopic(job.Topic) == "SMM и блогинг" {
+			groupTitle := OKTitleFromHTML(string(res.Bytes), id)
+			topicReason := autopilotOKSMMTopicReason(groupTitle, id, samples)
+			if topicReason != "" {
+				if topicReason == "off_topic_group" {
+					if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "rejected",
+						topicReason, jx.Marshal(jx.M{"http_status": res.Status, "ok_topic_reaudit": true}),
+						at, at.Add(30*24*time.Hour)); err != nil &&
+						!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+						return err
+					}
+				} else {
+					if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown",
+						topicReason, jx.Marshal(jx.M{"http_status": res.Status, "ok_topic_reaudit": true}),
+						at, at.Add(12*time.Hour)); err != nil &&
+						!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+						return err
+					}
 				}
 				continue
 			}
