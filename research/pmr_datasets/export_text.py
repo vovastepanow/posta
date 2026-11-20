@@ -89,8 +89,8 @@ def main():
     parser.add_argument("--approvals", type=Path, required=True)
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--count", type=int, default=20)
-    parser.add_argument("--stride", type=int, default=25000,
-                        help="offset between successive rows; avoid taking only the first contiguous block")
+    parser.add_argument("--stride", type=int, default=997,
+                        help="offset between successive rows; deterministic, NOT a uniform random sample")
     args = parser.parse_args()
     if not 1 <= args.count <= 200 or not 1 <= args.stride <= 10_000_000:
         parser.error("count must be 1..200; stride 1..10000000")
