@@ -1558,7 +1558,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				"cooldown", "sparse_publisher", jx.Marshal(jx.M{
 					"quality_samples":     len(samples),
 					"quality_window_days": autopilotSourceQualityDays,
-					"review_samples":       auditSamples,
+					"review_samples":      auditSamples,
 				}), at, at.Add(30*24*time.Hour)); err != nil &&
 				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
 				return err
