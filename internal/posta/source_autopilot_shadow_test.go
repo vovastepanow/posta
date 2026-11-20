@@ -113,6 +113,13 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 		key, "rss:https://example.org/feed").Scan(&personalBlog); err != nil || personalBlog != personalBlogYes {
 		t.Fatalf("classified personal blog tag was lost on transition: %q err=%v", personalBlog, err)
 	}
+	// The modal must receive the human publisher title from the fetched
+	// feed, even after the candidate has moved into probation.
+	probationPage, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "probation", "", 10)
+	if err != nil || len(jx.Maps(probationPage, "sources")) != 1 ||
+		jx.Str(jx.Maps(probationPage, "sources")[0], "name") != "Test" {
+		t.Fatalf("source title not retained across review and listing: %+v err=%v", probationPage, err)
+	}
 	if err = d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_query_sources WHERE scope='public:shadow' AND topic_key=$1 AND query=$2`, key, job.SearchQuery).Scan(&count); err != nil || count != 2 {
 		t.Fatalf("query attribution=%d err=%v", count, err)
 	}
