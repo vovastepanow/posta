@@ -65,8 +65,14 @@ func sharedSourceEligible(platform string, entry jx.M) bool {
 		return false
 	}
 	u, err := url.Parse(id)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" {
 		return false
+	}
+	if u.RawQuery != "" {
+		// Public vc.ru/dtf.ru community feeds are stable publisher IDs.
+		// Arbitrary API calls, searches and signed URLs remain excluded.
+		site, ok := autopilotPublicSiteFeed(id)
+		return ok && site == id && strings.HasPrefix(id, "https://api.")
 	}
 	return instagramProfileName(id) == "" && facebookPageID(id) == "" && threadsProfileName(id) == "" && redditSourceName(id) == "" && !strings.Contains(strings.ToLower(u.Hostname()), "discord.com")
 }
