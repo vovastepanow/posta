@@ -52,7 +52,9 @@ func (u *U) FrozenSourceLabels() map[string]bool {
 	return labels
 }
 
-// PoolForCurrentTopic — пул без записей другой темы и не подходящих под фильтры; фильтры медиа прячут при выдаче.
+// PoolForCurrentTopic — весь сохранённый пул текущей темы (в пределах
+// срока хранения), кроме явно скрытого фильтрами. Часовая свежесть
+// используется для пополнения, но не должна скрывать записи Предложки.
 func (u *U) PoolForCurrentTopic() []jx.M {
 	topic, key, f := u.CurrentTopic(), u.SearchTopicKey(), u.ContentFilterValues()
 	frozen := map[string]bool{}
@@ -62,7 +64,7 @@ func (u *U) PoolForCurrentTopic() []jx.M {
 	pool := u.Pool()
 	adult := u.AdultAllowed()
 	return selectPoolItems(pool, func(i jx.M) bool {
-		return u.PoolItemInTopic(i, topic, key, adult) && u.poolItemFresh(i) && poolMatchesDisplayFilters(i, f, frozen)
+		return u.PoolItemInTopic(i, topic, key, adult) && poolMatchesDisplayFilters(i, f, frozen)
 	})
 }
 
