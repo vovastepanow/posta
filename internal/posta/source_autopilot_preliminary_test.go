@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,5 +166,41 @@ func TestAutopilotPublicSourceReviewEvidenceWhitelistsFields(t *testing.T) {
 	invalid := autopilotPublicSourceReviewEvidence([]byte(`{"assessment_cause":"raw HTTP response with secrets"}`))
 	if _, ok := invalid["assessment_cause"]; ok {
 		t.Fatalf("raw error leaked: %+v", invalid)
+	}
+}
+
+func TestAutopilotAuditEvidenceContainsActualPublicPostsOnly(t *testing.T) {
+	long := "Вступление: обзор SMM. " + strings.Repeat("Практический пример продвижения. ", 40) + "Вывод: измеряем эффективность контента."
+	posts := []jx.M{
+		{"text": long, "url": "https://example.org/posts/10?signature=private", "posted_at": int64(1795120000)},
+		{"text": "Скрытая запись", "source_sensitive": true, "url": "https://example.org/private"},
+		{"text": "Короткий медиапост", "image": "https://cdn.example.org/media?token=private", "url": "https://example.org/posts/11"},
+		{"text": "Короткий медиапост", "image": "https://cdn.example.org/media?token=private", "url": "https://example.org/posts/11"},
+		{"text": "Неподходящая ссылка", "url": "http://user:password@example.org/post"},
+	}
+	got := autopilotAuditPostSamples(posts)
+	if len(got) != 3 {
+		t.Fatalf("expected three safe, unique, public samples; got %+v", got)
+	}
+	if first := jx.Str(got[0], "excerpt"); !strings.Contains(first, "Вступление") ||
+		!strings.Contains(first, "Вывод: измеряем эффективность контента.") || !strings.Contains(first, "[…]") {
+		t.Fatalf("lost beginning/conclusion: %q", first)
+	}
+	if jx.Str(got[0], "url") != "https://example.org/posts/10" ||
+		jx.Str(got[2], "url") != "" {
+		t.Fatalf("unsafe query/credentials leaked: %+v", got)
+	}
+	exposed := autopilotPublicSourceReviewEvidence(jx.Marshal(jx.M{
+		"review_samples": got,
+		"raw_secret": "private token",
+	}))
+	if len(jx.Maps(exposed, "review_samples")) != 3 {
+		t.Fatalf("audit samples missing from export: %+v", exposed)
+	}
+	if _, exists := exposed["raw_secret"]; exists {
+		t.Fatal("raw evidence leaked")
+	}
+	if strings.Contains(string(jx.Marshal(exposed)), "signature=private") {
+		t.Fatalf("private query leaked in audit bundle: %+v", exposed)
 	}
 }
