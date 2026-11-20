@@ -443,10 +443,31 @@ func (u *U) sourceReviewRequest(prompt string, images [][]byte) *sourceReview {
 
 const notShop = " Канал магазина, компании, сервиса или бренда, который продаёт товары или услуги, — не тема, даже если товар связан с темой."
 
+// A 160-rune prefix often hides the actual takeaway of long posts. Retain
+// both the opening and conclusion in a bounded snippet; disclose omission
+// instead of silently presenting a truncated caption as the full post.
+func sourceReviewCaption(text string) string {
+	text = strings.TrimSpace(text)
+	const limit = 850
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	head := strings.TrimSpace(string(runes[:570]))
+	if cut := strings.LastIndexAny(head, " \n\t"); cut >= 450 {
+		head = strings.TrimSpace(head[:cut])
+	}
+	tail := strings.TrimSpace(string(runes[len(runes)-250:]))
+	if cut := strings.IndexAny(tail, " \n\t"); cut > 0 && cut <= 50 {
+		tail = strings.TrimSpace(tail[cut:])
+	}
+	return head + " […] " + tail
+}
+
 func (u *U) sourceTextReview(title, desc, topic string, texts []string) *sourceReview {
 	var t []string
 	for _, x := range texts {
-		x = trimRunes(strings.TrimSpace(x), 160)
+		x = sourceReviewCaption(x)
 		if x != "" && x != EmptyPostText && len(t) < config.SourceReviewCaptions {
 			t = append(t, x)
 		}
@@ -493,7 +514,7 @@ func (u *U) combinedSourceReview(title, desc, topic string, posts []jx.M, caps [
 		if len(texts) >= config.SourceReviewCaptions {
 			break
 		}
-		texts = append(texts, trimRunes(cap, 160))
+		texts = append(texts, sourceReviewCaption(cap))
 	}
 	prompt := u.prompt("source_combined", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "description": trimRunes(desc, 400), "query_rule": sourceQueryRule(topic), "captions": strings.Join(texts, "»; «"), "shop_rule": notShop}) + sourceFormatPrompt
 	props := jx.M{"text_score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "image_score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "reason": jx.M{"type": "string"}, "personal_blog": jx.M{"type": "string", "enum": []string{"yes", "no", "unknown"}}}
