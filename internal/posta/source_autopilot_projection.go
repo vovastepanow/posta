@@ -197,9 +197,31 @@ func (a *App) unprojectAutopilotSource(ctx context.Context, job *autopilotJob, s
 
 // reconcileAutopilotProjections also repairs a process crash between recording
 // a source decision and updating the catalog.
+// Old OK off-topic rejections used to count an unreadable mobile-page
+// title as definitive evidence. Reopen these historic decisions exactly once
+// for the corrected multi-post review. Existing user exclusions still win
+// during due-source selection; this grants no source an approval.
+func (a *App) autopilotRescheduleOldOKRejections(ctx context.Context, job *autopilotJob) error {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope ||
+		autopilotCanonicalTopic(job.Topic) != "SMM и блогинг" {
+		return nil
+	}
+	_, err := a.DB.Pool.Exec(ctx, `UPDATE source_autopilot_sources
+		SET next_check_at=LEAST(next_check_at,$3),
+			evidence=evidence || '{"ok_topic_reaudit":true}'::jsonb
+		WHERE scope=$1 AND topic_key=$2 AND state='rejected'
+		AND reason='off_topic_group' AND source_id LIKE 'ok:%'
+		AND NOT (evidence ? 'ok_topic_reaudit')`,
+		job.Scope, job.TopicKey, time.Now().Unix())
+	return err
+}
+
 func (a *App) reconcileAutopilotProjections(ctx context.Context, job *autopilotJob) error {
 	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope {
 		return errors.New("invalid projection job")
+	}
+	if err := a.autopilotRescheduleOldOKRejections(ctx, job); err != nil {
+		return err
 	}
 	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,state FROM source_autopilot_sources
 		WHERE scope=$1 AND topic_key=$2 AND state IN ('probation','active','rejected') ORDER BY source_id`, job.Scope, job.TopicKey)
