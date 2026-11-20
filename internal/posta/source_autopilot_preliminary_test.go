@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"posta/internal/jx"
 )
 
 func TestAutopilotPreliminaryPass(t *testing.T) {
