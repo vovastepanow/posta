@@ -36,6 +36,14 @@ func RSSWebURL(feed string) string {
 	if cid, tab, ok := YouTubeFeedChannel(feed); ok {
 		return "https://www.youtube.com/channel/" + cid + "/" + tab
 	}
+	// The Osnova API is not a human-readable category page. The exact
+	// section URL is provided by publisher metadata when available.
+	if host, _ := osnovaTimelineSource(feed); host != "" {
+		return "https://" + host + "/"
+	}
+	if community := pikabuCommunityURL(feed); community != "" {
+		return community
+	}
 	host := strings.ToLower(u.Hostname())
 	path := u.EscapedPath()
 	origin := u.Scheme + "://" + u.Host
