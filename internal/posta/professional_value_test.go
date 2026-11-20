@@ -106,9 +106,13 @@ func TestAnalysisExplanationIsCompleteAndSeparateFromQuotedEvidence(t *testing.T
 	if fallback := analysisExplanation(jx.M{}, quote); !strings.HasPrefix(fallback, "Фрагмент публикации:") {
 		t.Fatalf("legacy quote must be labeled as excerpt, not explanation: %q", fallback)
 	}
-	if jx.Map(ContentAnalysisSchema("", false), "properties")["explanation"] == nil ||
-		jx.Map(jx.Map(jx.Map(TextBatchSchema("", false), "properties"), "items"), "items") == nil {
-		t.Fatal("analysis schemas missing new explanation field")
+	vision := ContentAnalysisSchema("", false)
+	textItem := jx.Map(jx.Map(jx.Map(TextBatchSchema("", false), "properties"), "items"), "items")
+	if jx.Map(vision, "properties")["explanation"] == nil ||
+		jx.Map(textItem, "properties")["explanation"] == nil ||
+		!contains(jx.Strs(vision, "required"), "explanation") ||
+		!contains(jx.Strs(textItem, "required"), "explanation") {
+		t.Fatal("analysis schemas must request a distinct complete explanation")
 	}
 }
 
