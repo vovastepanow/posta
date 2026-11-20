@@ -28,6 +28,7 @@ PLAN = [
  ('fineweb2-hq-ru','epfml/FineWeb2-HQ','c0c06e94fd3a44ae9e802b2b0fc533817601eb5e','rus_Cyrl/000_00000.parquet'),
  ('fineweb-en','HuggingFaceFW/fineweb','9bb295ddab0e05d785b879661af7260fed5140fc','sample/10BT/000_00000.parquet'),
  ('videoufo','WenhaoWang/VideoUFO','683425832ad5b35d57d213963ecec18d5b689652','VideoUFO_tar/VideoUFO_1.tar'),
+ ('videoufo-annotations','WenhaoWang/VideoUFO','683425832ad5b35d57d213963ecec18d5b689652','VideoUFO.csv'),
  ('fineweb2-ru','HuggingFaceFW/fineweb-2','af9c13333eb981300149d5ca60a8e9d659b276b9','data/rus_Cyrl/train/000_00000.parquet'),
  ('mmarco-ru','unicamp-dl/mmarco','6d039c4638c0ba3e46a9cb7b498b145e7edc6230','data/google/collections/russian_collection.tsv'),
  ('mmarco-ru-queries','unicamp-dl/mmarco','6d039c4638c0ba3e46a9cb7b498b145e7edc6230','data/google/queries/train/russian_queries.train.tsv'),

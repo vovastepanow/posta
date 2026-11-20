@@ -224,3 +224,43 @@ A `.part` file is incomplete, regardless of its size. `verified` means that
 its complete bytes match the upstream digest; it does not mean the content is
 ready for training. `inspect_shards.py` can inspect completed files from one or
 more manifests without unpacking archives or displaying dataset rows.
+
+## Candidate from locally verified source shards
+
+After the relevant downloads are complete, `prepare_local_shards.py` reads only
+files whose download manifests report verified SHA-256, hashes them again, and
+writes a bounded corpus with decoded media and provenance. This optional step
+requires `pyarrow`, Pillow and `ffprobe`; verification with `--decode-media`
+also requires `ffmpeg`. It avoids consuming FineWeb2-HQ embeddings. It samples
+audio across row groups and groups it by speaker. Shared negatives that would
+cross splits are dropped and counted, instead of joining all examples into one
+large component.
+
+```bash
+PYTHONPATH=/mnt/hdd_ubuntu/posta-pmr/python-libs /home/v0v4/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 \
+  research/pmr_datasets/prepare_local_shards.py \
+  --source-dir /mnt/hdd_ubuntu/posta-pmr/downloads-v0.1 \
+  --out-dir /mnt/hdd_ubuntu/posta-pmr/new-candidate \
+  --text 1000 --retrieval 1000 --media 100
+PYTHONPATH=/mnt/hdd_ubuntu/posta-pmr/python-libs /home/v0v4/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 \
+  research/pmr_datasets/verify_candidate.py /mnt/hdd_ubuntu/posta-pmr/new-candidate --decode-media
+```
+
+An example at `/mnt/hdd_ubuntu/posta-pmr/Posta-Dataset-v0.1-candidate-v2`
+contains 2,300 records and 300 decoded media files. It remains quarantined:
+exact deduplication does not establish benchmark isolation or rights clearance.
+The `source_split` field in sampled MemeXplain rows is empty. This sample has no
+video or OCR and has no validation audio examples. The `join_mmarco.py` tool can
+join Russian training queries, triplet IDs and passages after all three pinned
+source files are downloaded and hash-verified. Its output is not yet globally
+split or deduplicated against other sources.
+
+A larger run is stored at `/mnt/hdd_ubuntu/posta-pmr/Posta-Dataset-v0.1-candidate-v3`:
+15,999 records, including 10,000 Russian text records, 3,000 Chinese retrieval
+records, 1,000 image/text records, 1,000 meme/text records and 999 audio/text
+records. It is a reproducible research candidate, not a cleared training
+release. English text, Russian retrieval, OCR and video depend on downloads or
+separate extraction still in progress. Its manifest records rejected items,
+negative filtering, exact duplicates and source hashes. Independently verify
+complete downloaded files with `verify_downloads.py` and repeat that check
+after currently incomplete downloads finish.
