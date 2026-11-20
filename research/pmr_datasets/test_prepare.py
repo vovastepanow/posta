@@ -61,6 +61,17 @@ class PmrPilotTests(unittest.TestCase):
         assignments = partition(rows)
         self.assertEqual(assignments[0], assignments[1])
 
+    def test_query_and_positive_in_different_rows_share_split(self):
+        from prepare import partition
+        rows = [
+            normalize(self.example(record="1", kind="retrieval", text="первый запрос",
+                                   positive="общий документ")),
+            normalize(self.example(record="2", kind="retrieval", text="общий документ",
+                                   positive="второй документ")),
+        ]
+        assignments = partition(rows)
+        self.assertEqual(assignments[0], assignments[1])
+
     def test_media_sha_groups_different_captions(self):
         m = media_hash("same-file")
         rows = [
@@ -83,6 +94,28 @@ class PmrPilotTests(unittest.TestCase):
         self.approvals["a"]["approved_for_training"] = False
         with self.assertRaisesRegex(ValueError, "approval"):
             self.splits([self.example()])
+
+    def test_string_approval_does_not_grant_permission(self):
+        self.approvals["a"]["approved_for_training"] = "false"
+        with self.assertRaisesRegex(ValueError, "approval"):
+            self.splits([self.example()])
+
+    def test_negative_sharing_a_positive_stays_in_same_split(self):
+        from prepare import partition
+        rows = [normalize(self.example(record="1", kind="retrieval", text="first query",
+                                       positive="shared passage")),
+                normalize(self.example(record="2", kind="retrieval", text="second query",
+                                       positive="other passage", negatives=["shared passage"]))]
+        assignments = partition(rows)
+        self.assertEqual(assignments[0], assignments[1])
+
+    def test_distinct_negatives_are_not_deduplicated(self):
+        rows = [self.example(record=str(i), kind="retrieval", text="same query",
+                             positive="same document", negatives=[negative])
+                for i, negative in enumerate(("negative one", "negative two"))]
+        splits, duplicates = self.splits(rows)
+        self.assertEqual(duplicates, 0)
+        self.assertEqual(sum(map(len, splits.values())), 2)
 
     def test_revision_mismatch_blocks(self):
         self.approvals["a"]["revision"] = "old"

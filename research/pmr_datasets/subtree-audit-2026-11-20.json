@@ -1,0 +1,780 @@
+{
+  "datasets": [
+    {
+      "directory": "data/rus_Cyrl",
+      "entries": [
+        {
+          "path": "data/rus_Cyrl/test",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "data/rus_Cyrl/train",
+          "size_bytes": 0,
+          "type": "directory"
+        }
+      ],
+      "first_page_only": true,
+      "id": "fineweb2-ru",
+      "revision": "af9c13333eb981300149d5ca60a8e9d659b276b9"
+    },
+    {
+      "directory": "rus_Cyrl",
+      "entries": [
+        {
+          "path": "rus_Cyrl/000_00000.parquet",
+          "size_bytes": 1629162947,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00001.parquet",
+          "size_bytes": 1602573580,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00002.parquet",
+          "size_bytes": 1609603462,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00003.parquet",
+          "size_bytes": 1582153339,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00004.parquet",
+          "size_bytes": 1609809642,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00005.parquet",
+          "size_bytes": 1605822561,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00006.parquet",
+          "size_bytes": 1599412186,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00007.parquet",
+          "size_bytes": 1594040946,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00008.parquet",
+          "size_bytes": 1555554167,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00009.parquet",
+          "size_bytes": 1599486820,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00010.parquet",
+          "size_bytes": 1557507109,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00011.parquet",
+          "size_bytes": 1562056601,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00012.parquet",
+          "size_bytes": 1566901561,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00013.parquet",
+          "size_bytes": 1569555623,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00014.parquet",
+          "size_bytes": 1587909020,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00015.parquet",
+          "size_bytes": 1590783847,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00016.parquet",
+          "size_bytes": 1583734725,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00017.parquet",
+          "size_bytes": 1551947074,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00018.parquet",
+          "size_bytes": 1579116566,
+          "type": "file"
+        },
+        {
+          "path": "rus_Cyrl/000_00019.parquet",
+          "size_bytes": 1542184175,
+          "type": "file"
+        }
+      ],
+      "first_page_only": true,
+      "id": "fineweb2-hq-ru",
+      "revision": "c0c06e94fd3a44ae9e802b2b0fc533817601eb5e"
+    },
+    {
+      "directory": "sample",
+      "entries": [
+        {
+          "path": "sample/100BT",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "sample/10BT",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "sample/350BT",
+          "size_bytes": 0,
+          "type": "directory"
+        }
+      ],
+      "first_page_only": true,
+      "id": "fineweb-en",
+      "revision": "9bb295ddab0e05d785b879661af7260fed5140fc"
+    },
+    {
+      "directory": "AFQMC",
+      "entries": [
+        {
+          "path": "AFQMC/train-00000-of-00001.parquet",
+          "size_bytes": 355814,
+          "type": "file"
+        }
+      ],
+      "first_page_only": true,
+      "id": "kalm-retrieval",
+      "revision": "e9443ab6f5d4dc29c79cea03834e932428ed6ab1"
+    },
+    {
+      "directory": "data/google/collections",
+      "entries": [
+        {
+          "path": "data/google/collections/arabic_collection.tsv",
+          "size_bytes": 4664307196,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/chinese_collection.tsv",
+          "size_bytes": 2720255044,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/dutch_collection.tsv",
+          "size_bytes": 3362632528,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/english_collection.tsv",
+          "size_bytes": 3061567852,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/french_collection.tsv",
+          "size_bytes": 3656218984,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/german_collection.tsv",
+          "size_bytes": 3488187566,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/hindi_collection.tsv",
+          "size_bytes": 7649320531,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/indonesian_collection.tsv",
+          "size_bytes": 3297783371,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/italian_collection.tsv",
+          "size_bytes": 3444092853,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/japanese_collection.tsv",
+          "size_bytes": 3924982422,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/portuguese_collection.tsv",
+          "size_bytes": 3431011785,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/russian_collection.tsv",
+          "size_bytes": 5769514997,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/spanish_collection.tsv",
+          "size_bytes": 3571559558,
+          "type": "file"
+        },
+        {
+          "path": "data/google/collections/vietnamese_collection.tsv",
+          "size_bytes": 4140054533,
+          "type": "file"
+        }
+      ],
+      "first_page_only": true,
+      "id": "mmarco-ru",
+      "revision": "6d039c4638c0ba3e46a9cb7b498b145e7edc6230"
+    },
+    {
+      "directory": "data",
+      "entries": [
+        {
+          "path": "data/train-00000-of-00330.parquet",
+          "size_bytes": 932699916,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00001-of-00330.parquet",
+          "size_bytes": 935478799,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00002-of-00330.parquet",
+          "size_bytes": 926110251,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00003-of-00330.parquet",
+          "size_bytes": 919456553,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00004-of-00330.parquet",
+          "size_bytes": 931227897,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00005-of-00330.parquet",
+          "size_bytes": 927580717,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00006-of-00330.parquet",
+          "size_bytes": 934413650,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00007-of-00330.parquet",
+          "size_bytes": 942473338,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00008-of-00330.parquet",
+          "size_bytes": 929187468,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00009-of-00330.parquet",
+          "size_bytes": 932536223,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00010-of-00330.parquet",
+          "size_bytes": 920993280,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00011-of-00330.parquet",
+          "size_bytes": 922236091,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00012-of-00330.parquet",
+          "size_bytes": 914669915,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00013-of-00330.parquet",
+          "size_bytes": 930404041,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00014-of-00330.parquet",
+          "size_bytes": 912851775,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00015-of-00330.parquet",
+          "size_bytes": 930771367,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00016-of-00330.parquet",
+          "size_bytes": 953097912,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00017-of-00330.parquet",
+          "size_bytes": 926302305,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00018-of-00330.parquet",
+          "size_bytes": 928584953,
+          "type": "file"
+        },
+        {
+          "path": "data/train-00019-of-00330.parquet",
+          "size_bytes": 930581635,
+          "type": "file"
+        }
+      ],
+      "first_page_only": true,
+      "id": "wit",
+      "revision": "ff6d4fb32fd566d3a1fa20e946cba3234179465e"
+    },
+    {
+      "directory": "images",
+      "entries": [
+        {
+          "path": "images/images.tar.partaa",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partab",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partac",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partad",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partae",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partaf",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partag",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partah",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partai",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partaj",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partak",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partal",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partam",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partan",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partao",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partap",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partaq",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partar",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partas",
+          "size_bytes": 10737418240,
+          "type": "file"
+        },
+        {
+          "path": "images/images.tar.partat",
+          "size_bytes": 10737418240,
+          "type": "file"
+        }
+      ],
+      "first_page_only": true,
+      "id": "megapairs",
+      "revision": "0841a4f803209f57844f4fb9b102cddabf9a9023"
+    },
+    {
+      "directory": "ru",
+      "entries": [
+        {
+          "path": "ru/test",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ru/train",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ru/validation",
+          "size_bytes": 0,
+          "type": "directory"
+        }
+      ],
+      "first_page_only": true,
+      "id": "nvidia-ocr",
+      "revision": "69696a1cc543ef3a0f8e9892a89c17293e915263"
+    },
+    {
+      "directory": "VideoUFO_tar",
+      "entries": [
+        {
+          "path": "VideoUFO_tar/VideoUFO_1.tar",
+          "size_bytes": 4091576320,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_10.tar",
+          "size_bytes": 4172062720,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_100.tar",
+          "size_bytes": 4292771840,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_101.tar",
+          "size_bytes": 4136120320,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_102.tar",
+          "size_bytes": 4274800640,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_103.tar",
+          "size_bytes": 4206376960,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_104.tar",
+          "size_bytes": 4383805440,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_105.tar",
+          "size_bytes": 4420720640,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_106.tar",
+          "size_bytes": 4535255040,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_107.tar",
+          "size_bytes": 4530688000,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_108.tar",
+          "size_bytes": 4474593280,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_109.tar",
+          "size_bytes": 4252774400,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_11.tar",
+          "size_bytes": 4401305600,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_110.tar",
+          "size_bytes": 4405268480,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_111.tar",
+          "size_bytes": 4299294720,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_112.tar",
+          "size_bytes": 4383948800,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_113.tar",
+          "size_bytes": 4205178880,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_114.tar",
+          "size_bytes": 4288112640,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_115.tar",
+          "size_bytes": 4406005760,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO_tar/VideoUFO_116.tar",
+          "size_bytes": 4246579200,
+          "type": "file"
+        }
+      ],
+      "first_page_only": true,
+      "id": "videoufo",
+      "revision": "683425832ad5b35d57d213963ecec18d5b689652"
+    },
+    {
+      "directory": "HatefulMemeXplain",
+      "entries": [
+        {
+          "path": "HatefulMemeXplain/annotated_explanations-00000-of-00002.parquet",
+          "size_bytes": 270439080,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/annotated_explanations-00001-of-00002.parquet",
+          "size_bytes": 290663269,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/dev-00000-of-00001.parquet",
+          "size_bytes": 189840457,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/test-00000-of-00002.parquet",
+          "size_bytes": 269560349,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/test-00001-of-00002.parquet",
+          "size_bytes": 290056652,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/train-00000-of-00007.parquet",
+          "size_bytes": 421805326,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/train-00001-of-00007.parquet",
+          "size_bytes": 460113737,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/train-00002-of-00007.parquet",
+          "size_bytes": 442080374,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/train-00003-of-00007.parquet",
+          "size_bytes": 427219543,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/train-00004-of-00007.parquet",
+          "size_bytes": 436491158,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/train-00005-of-00007.parquet",
+          "size_bytes": 438972892,
+          "type": "file"
+        },
+        {
+          "path": "HatefulMemeXplain/train-00006-of-00007.parquet",
+          "size_bytes": 433732836,
+          "type": "file"
+        }
+      ],
+      "first_page_only": true,
+      "id": "memexplain",
+      "revision": "2d08e071512ad6d6ad40bb18f1f793124ca25968"
+    },
+    {
+      "directory": "clips",
+      "entries": [
+        {
+          "path": "clips/0000.parquet",
+          "size_bytes": 513093,
+          "type": "file"
+        },
+        {
+          "path": "clips/0001.parquet",
+          "size_bytes": 515702,
+          "type": "file"
+        },
+        {
+          "path": "clips/0002.parquet",
+          "size_bytes": 509057,
+          "type": "file"
+        },
+        {
+          "path": "clips/0003.parquet",
+          "size_bytes": 509600,
+          "type": "file"
+        },
+        {
+          "path": "clips/0004.parquet",
+          "size_bytes": 505897,
+          "type": "file"
+        },
+        {
+          "path": "clips/0005.parquet",
+          "size_bytes": 507668,
+          "type": "file"
+        },
+        {
+          "path": "clips/0006.parquet",
+          "size_bytes": 512586,
+          "type": "file"
+        },
+        {
+          "path": "clips/0007.parquet",
+          "size_bytes": 511868,
+          "type": "file"
+        },
+        {
+          "path": "clips/0008.parquet",
+          "size_bytes": 516944,
+          "type": "file"
+        },
+        {
+          "path": "clips/0009.parquet",
+          "size_bytes": 509240,
+          "type": "file"
+        },
+        {
+          "path": "clips/0010.parquet",
+          "size_bytes": 517341,
+          "type": "file"
+        },
+        {
+          "path": "clips/0011.parquet",
+          "size_bytes": 518064,
+          "type": "file"
+        },
+        {
+          "path": "clips/0012.parquet",
+          "size_bytes": 502313,
+          "type": "file"
+        },
+        {
+          "path": "clips/0013.parquet",
+          "size_bytes": 512943,
+          "type": "file"
+        },
+        {
+          "path": "clips/0014.parquet",
+          "size_bytes": 508009,
+          "type": "file"
+        },
+        {
+          "path": "clips/0015.parquet",
+          "size_bytes": 509348,
+          "type": "file"
+        },
+        {
+          "path": "clips/0016.parquet",
+          "size_bytes": 519094,
+          "type": "file"
+        },
+        {
+          "path": "clips/0017.parquet",
+          "size_bytes": 504362,
+          "type": "file"
+        },
+        {
+          "path": "clips/0018.parquet",
+          "size_bytes": 501846,
+          "type": "file"
+        },
+        {
+          "path": "clips/0019.parquet",
+          "size_bytes": 511478,
+          "type": "file"
+        }
+      ],
+      "first_page_only": true,
+      "id": "bvd-video",
+      "revision": "c67a81a860651c0672cc10c49e487099712f6ab5"
+    },
+    {
+      "directory": "image_tasks",
+      "entries": [
+        {
+          "path": "image_tasks/MCMR.tar.gz",
+          "size_bytes": 4576936692,
+          "type": "file"
+        }
+      ],
+      "first_page_only": true,
+      "id": "mmeb-v3",
+      "revision": "4a5560b2b64384204b6fea8a82ea986eba51f5aa"
+    }
+  ]
+}

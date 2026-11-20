@@ -1,0 +1,654 @@
+{
+  "catalog_version": "0.1.0",
+  "checked_at_utc": "2026-11-20T16:23:48.253543+00:00",
+  "datasets": [
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "fineweb2-ru",
+      "license_claim_from_catalog": "odc-by-1.0",
+      "license_from_hf_card": "odc-by",
+      "license_review": "check CommonCrawl terms; PII filtering",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "preview": {
+        "columns": [
+          {
+            "name": "date",
+            "python_type": "str"
+          },
+          {
+            "name": "dump",
+            "python_type": "str"
+          },
+          {
+            "name": "file_path",
+            "python_type": "str"
+          },
+          {
+            "name": "id",
+            "python_type": "str"
+          },
+          {
+            "name": "language",
+            "python_type": "str"
+          },
+          {
+            "name": "language_score",
+            "python_type": "float"
+          },
+          {
+            "name": "language_script",
+            "python_type": "str"
+          },
+          {
+            "name": "minhash_cluster_size",
+            "python_type": "int"
+          },
+          {
+            "name": "text",
+            "python_type": "str"
+          },
+          {
+            "name": "top_langs",
+            "python_type": "str"
+          },
+          {
+            "name": "url",
+            "python_type": "str"
+          }
+        ],
+        "row_count_in_preview": 17
+      },
+      "preview_selection": {
+        "config": "rus_Cyrl",
+        "split": "train"
+      },
+      "priority": "P0",
+      "private": false,
+      "repo": "HuggingFaceFW/fineweb-2",
+      "review_required": true,
+      "revision": "af9c13333eb981300149d5ca60a8e9d659b276b9",
+      "schema_status": "ok",
+      "sibling_count": null,
+      "training": true,
+      "use": "text_pretraining"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "fineweb2-hq-ru",
+      "license_claim_from_catalog": "odc-by-1.0",
+      "license_from_hf_card": "odc-by",
+      "license_review": "overlaps heavily with FineWeb2; deduplicate using upstream id; source includes precomputed embeddings that PMR must not consume as pretrained features",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "preview": {
+        "columns": [
+          {
+            "name": "date",
+            "python_type": "str"
+          },
+          {
+            "name": "dump",
+            "python_type": "str"
+          },
+          {
+            "name": "embeddings",
+            "python_type": "list"
+          },
+          {
+            "name": "file_path",
+            "python_type": "str"
+          },
+          {
+            "name": "id",
+            "python_type": "str"
+          },
+          {
+            "name": "language",
+            "python_type": "str"
+          },
+          {
+            "name": "language_score",
+            "python_type": "float"
+          },
+          {
+            "name": "language_script",
+            "python_type": "str"
+          },
+          {
+            "name": "minhash_cluster_size",
+            "python_type": "int"
+          },
+          {
+            "name": "quality_score",
+            "python_type": "float"
+          },
+          {
+            "name": "text",
+            "python_type": "str"
+          },
+          {
+            "name": "top_langs",
+            "python_type": "str"
+          },
+          {
+            "name": "url",
+            "python_type": "str"
+          }
+        ],
+        "row_count_in_preview": 10
+      },
+      "preview_selection": {
+        "config": "rus_Cyrl",
+        "split": "train"
+      },
+      "priority": "P0",
+      "private": false,
+      "repo": "epfml/FineWeb2-HQ",
+      "review_required": true,
+      "revision": "c0c06e94fd3a44ae9e802b2b0fc533817601eb5e",
+      "schema_status": "ok",
+      "sibling_count": null,
+      "training": true,
+      "use": "text_pretraining"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "fineweb-en",
+      "license_claim_from_catalog": "odc-by-1.0",
+      "license_from_hf_card": "odc-by",
+      "license_review": "check upstream web rights and PII filtering; choose sample config on probe",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "preview": {
+        "columns": [
+          {
+            "name": "date",
+            "python_type": "str"
+          },
+          {
+            "name": "dump",
+            "python_type": "str"
+          },
+          {
+            "name": "file_path",
+            "python_type": "str"
+          },
+          {
+            "name": "id",
+            "python_type": "str"
+          },
+          {
+            "name": "language",
+            "python_type": "str"
+          },
+          {
+            "name": "language_score",
+            "python_type": "float"
+          },
+          {
+            "name": "text",
+            "python_type": "str"
+          },
+          {
+            "name": "token_count",
+            "python_type": "int"
+          },
+          {
+            "name": "url",
+            "python_type": "str"
+          }
+        ],
+        "row_count_in_preview": 65
+      },
+      "preview_selection": {
+        "config": "default",
+        "split": "train"
+      },
+      "priority": "P0",
+      "private": false,
+      "repo": "HuggingFaceFW/fineweb",
+      "review_required": true,
+      "revision": "9bb295ddab0e05d785b879661af7260fed5140fc",
+      "schema_status": "ok",
+      "sibling_count": null,
+      "training": true,
+      "use": "text_pretraining"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "kalm-retrieval",
+      "license_claim_from_catalog": "mit",
+      "license_from_hf_card": "mit",
+      "license_review": "aggregates many upstream corpora; review per-source terms before use",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "preview": {
+        "columns": [
+          {
+            "name": "neg",
+            "python_type": "list"
+          },
+          {
+            "name": "pos",
+            "python_type": "list"
+          },
+          {
+            "name": "query",
+            "python_type": "str"
+          }
+        ],
+        "row_count_in_preview": 100
+      },
+      "preview_selection": {
+        "config": "default",
+        "split": "train"
+      },
+      "priority": "P0",
+      "private": false,
+      "repo": "KaLM-Embedding/KaLM-embedding-finetuning-data",
+      "review_required": true,
+      "revision": "e9443ab6f5d4dc29c79cea03834e932428ed6ab1",
+      "schema_status": "ok",
+      "sibling_count": null,
+      "training": true,
+      "use": "text_retrieval"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "bge-m3",
+      "license_claim_from_catalog": "unverified",
+      "license_from_hf_card": null,
+      "license_review": "no clear license on main HF dataset card; verify archive, upstream terms, eval contamination and overlaps with mMARCO/MIRACL",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "priority": "P1",
+      "private": false,
+      "repo": "Shitao/bge-m3-data",
+      "review_required": true,
+      "revision": "a69db8b86e9c1767d193ee0de95e5c4001a71eae",
+      "schema_error": "preferred training split/config missing or dataset-server unsupported",
+      "schema_status": "unavailable",
+      "sibling_count": null,
+      "training": true,
+      "use": "text_retrieval"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "wit",
+      "license_claim_from_catalog": "cc-by-sa-4.0",
+      "license_from_hf_card": [
+        "cc-by-sa-4.0"
+      ],
+      "license_review": "verify attribution requirements per image; card row-count differs from stated six-million-image research release",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "preview": {
+        "columns": [
+          {
+            "name": "caption_attribution_description",
+            "python_type": "str"
+          },
+          {
+            "name": "embedding",
+            "python_type": "list"
+          },
+          {
+            "name": "image",
+            "python_type": "dict"
+          },
+          {
+            "name": "image_url",
+            "python_type": "str"
+          },
+          {
+            "name": "metadata_url",
+            "python_type": "str"
+          },
+          {
+            "name": "mime_type",
+            "python_type": "str"
+          },
+          {
+            "name": "original_height",
+            "python_type": "int"
+          },
+          {
+            "name": "original_width",
+            "python_type": "int"
+          },
+          {
+            "name": "wit_features",
+            "python_type": "dict"
+          }
+        ],
+        "row_count_in_preview": 10
+      },
+      "preview_selection": {
+        "config": "default",
+        "split": "train"
+      },
+      "priority": "P0",
+      "private": false,
+      "repo": "wikimedia/wit_base",
+      "review_required": true,
+      "revision": "ff6d4fb32fd566d3a1fa20e946cba3234179465e",
+      "schema_status": "ok",
+      "sibling_count": null,
+      "training": true,
+      "use": "image_text_alignment"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": "auto",
+      "id": "megapairs",
+      "license_claim_from_catalog": "metadata cc-by-4.0; annotations mit",
+      "license_from_hf_card": "cc-by-4.0",
+      "license_review": "annotations MIT, images from Recap-DataComp declared CC-BY-4.0; check individual provenance and HF access terms",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "priority": "P1",
+      "private": false,
+      "repo": "JUNJIE99/MegaPairs",
+      "review_required": true,
+      "revision": "0841a4f803209f57844f4fb9b102cddabf9a9023",
+      "schema_error": "HTTP Error 401: Unauthorized",
+      "schema_status": "error",
+      "sibling_count": null,
+      "training": true,
+      "use": "multimodal_retrieval"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "nvidia-ocr",
+      "license_claim_from_catalog": "cc-by-4.0",
+      "license_from_hf_card": "cc-by-4.0",
+      "license_review": "HDF5 shards may be multi-GB; download only after checking disk",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "preview_selection": {
+        "config": "default",
+        "split": "train"
+      },
+      "priority": "P0",
+      "private": false,
+      "repo": "nvidia/OCR-Synthetic-Multilingual-v1",
+      "review_required": true,
+      "revision": "69696a1cc543ef3a0f8e9892a89c17293e915263",
+      "schema_error": "HTTP Error 501: Not Implemented",
+      "schema_status": "error",
+      "sibling_count": null,
+      "training": true,
+      "use": "ocr_visual_text"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "videoufo",
+      "license_claim_from_catalog": "cc-by-4.0",
+      "license_from_hf_card": "cc-by-4.0",
+      "license_review": "CSV annotations and compressed tar clips (~800 GB full collection); do not fetch archives during audit",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "preview": {
+        "columns": [
+          {
+            "name": "Aesthetic_Quality",
+            "python_type": "float"
+          },
+          {
+            "name": "Background_Consistency",
+            "python_type": "float"
+          },
+          {
+            "name": "Brief_Caption",
+            "python_type": "str"
+          },
+          {
+            "name": "Detailed_Caption",
+            "python_type": "str"
+          },
+          {
+            "name": "Dynamic_Degree",
+            "python_type": "float"
+          },
+          {
+            "name": "End_Time",
+            "python_type": "str"
+          },
+          {
+            "name": "ID",
+            "python_type": "str"
+          },
+          {
+            "name": "Imaging_Quality",
+            "python_type": "float"
+          },
+          {
+            "name": "Middle_Frame",
+            "python_type": "dict"
+          },
+          {
+            "name": "Motion_Smoothness",
+            "python_type": "float"
+          },
+          {
+            "name": "Start_Time",
+            "python_type": "str"
+          },
+          {
+            "name": "Subject_Consistency",
+            "python_type": "float"
+          },
+          {
+            "name": "Topic",
+            "python_type": "str"
+          }
+        ],
+        "row_count_in_preview": 100
+      },
+      "preview_selection": {
+        "config": "default",
+        "split": "Full"
+      },
+      "priority": "P1",
+      "private": false,
+      "repo": "WenhaoWang/VideoUFO",
+      "review_required": true,
+      "revision": "683425832ad5b35d57d213963ecec18d5b689652",
+      "schema_status": "ok",
+      "sibling_count": null,
+      "training": true,
+      "use": "video_text_alignment"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "memexplain",
+      "license_claim_from_catalog": "cc-by-sa-4.0",
+      "license_from_hf_card": "cc-by-sa-4.0",
+      "license_review": "no test/dev/annotated benchmark contamination; provenance and bias review",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "preview": {
+        "columns": [
+          {
+            "name": "annotations",
+            "python_type": "str"
+          },
+          {
+            "name": "class_label",
+            "python_type": "str"
+          },
+          {
+            "name": "explanation_en",
+            "python_type": "str"
+          },
+          {
+            "name": "id",
+            "python_type": "str"
+          },
+          {
+            "name": "image",
+            "python_type": "dict"
+          },
+          {
+            "name": "num_annotations",
+            "python_type": "int"
+          },
+          {
+            "name": "source_split",
+            "python_type": "str"
+          },
+          {
+            "name": "text",
+            "python_type": "str"
+          }
+        ],
+        "row_count_in_preview": 100
+      },
+      "preview_selection": {
+        "config": "HatefulMemeXplain",
+        "split": "train"
+      },
+      "priority": "P1",
+      "private": false,
+      "repo": "QCRI/MemeXplain",
+      "review_required": true,
+      "revision": "2d08e071512ad6d6ad40bb18f1f793124ca25968",
+      "schema_status": "ok",
+      "sibling_count": null,
+      "training": true,
+      "use": "meme_reasoning"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "common-voice",
+      "license_claim_from_catalog": "check selected MDC dataset terms; older Common Voice releases CC0",
+      "license_from_hf_card": null,
+      "license_review": "do not attempt to load empty Hugging Face repository; verify access and current speech dataset/license at Mozilla Data Collective",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "priority": "BLOCKED",
+      "private": false,
+      "repo": "mozilla-foundation/common_voice_17_0",
+      "review_required": true,
+      "revision": "11dc88355e899d1bf2df74f01b904a8544a17b33",
+      "schema_error": "HTTP Error 500: Internal Server Error",
+      "schema_status": "error",
+      "sibling_count": null,
+      "training": true,
+      "use": "speech_audio"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "bvd-video",
+      "license_claim_from_catalog": "unverified",
+      "license_from_hf_card": "cc-by-4.0",
+      "license_review": "metadata and URLs only for many samples; media availability, provenance and license require review",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "preview": {
+        "columns": [
+          {
+            "name": "caption",
+            "python_type": "str"
+          },
+          {
+            "name": "duration",
+            "python_type": "float"
+          },
+          {
+            "name": "end_frame",
+            "python_type": "int"
+          },
+          {
+            "name": "end_time",
+            "python_type": "float"
+          },
+          {
+            "name": "id",
+            "python_type": "str"
+          },
+          {
+            "name": "language",
+            "python_type": "str"
+          },
+          {
+            "name": "scene_index",
+            "python_type": "int"
+          },
+          {
+            "name": "start_frame",
+            "python_type": "int"
+          },
+          {
+            "name": "start_time",
+            "python_type": "float"
+          },
+          {
+            "name": "webpage_url",
+            "python_type": "str"
+          }
+        ],
+        "row_count_in_preview": 100
+      },
+      "preview_selection": {
+        "config": "clips",
+        "split": "train"
+      },
+      "priority": "P2",
+      "private": false,
+      "repo": "laion/BVD-V-55M-URLs",
+      "review_required": true,
+      "revision": "c67a81a860651c0672cc10c49e487099712f6ab5",
+      "schema_status": "ok",
+      "sibling_count": null,
+      "training": true,
+      "use": "video_text_alignment"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "mmeb-v3",
+      "license_claim_from_catalog": "mit (repository metadata)",
+      "license_from_hf_card": "mit",
+      "license_review": "ALL evaluation tasks isolated from train; do not build negatives from eval instances",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "priority": "EVAL",
+      "private": false,
+      "repo": "VLM2Vec/MMEB-V3",
+      "review_required": true,
+      "revision": "4a5560b2b64384204b6fea8a82ea986eba51f5aa",
+      "schema_error": "HTTP Error 501: Not Implemented",
+      "schema_status": "error",
+      "sibling_count": null,
+      "training": false,
+      "use": "independent_evaluation"
+    }
+  ],
+  "important": "Preview/schema metadata is not proof that full source media is downloadable or properly licensed"
+}

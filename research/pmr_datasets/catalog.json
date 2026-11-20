@@ -70,6 +70,21 @@
       "language_note": "HF card lists Chinese and English; not a substitute for Russian retrieval data"
     },
     {
+      "id": "mmarco-ru",
+      "repo": "unicamp-dl/mmarco",
+      "use": "text_retrieval",
+      "priority": "BLOCKED",
+      "preferred_config": "russian",
+      "preferred_split": "train",
+      "license_claim": "unverified; upstream MS MARCO terms apply",
+      "license_review": "mMARCO authors state MS MARCO license applies; verify research-only and commercial constraints, and held-out benchmark contamination",
+      "data_kind": "translated_tsv",
+      "training": false,
+      "source_url": "https://huggingface.co/datasets/unicamp-dl/mmarco",
+      "language_note": "Russian is machine translated; preserve translation provenance",
+      "access_note": "excluded from training until rights and evaluation overlap are resolved"
+    },
+    {
       "id": "bge-m3",
       "repo": "Shitao/bge-m3-data",
       "use": "text_retrieval",
@@ -93,6 +108,19 @@
       "training": true,
       "source_url": "https://huggingface.co/datasets/wikimedia/wit_base",
       "access_note": "HF Dataset Viewer shows only first 5GB (108k visible rows), NOT total corpus size; check shard manifest; image rights may differ"
+    },
+    {
+      "id": "datacomp-hq",
+      "repo": "laion/datacomp-hq",
+      "use": "image_text_alignment",
+      "priority": "BLOCKED",
+      "preferred_split": "train",
+      "license_claim": "not specified on dataset card",
+      "license_review": "verify metadata and individual image rights, provenance, permitted use and benchmark overlap before any training",
+      "data_kind": "parquet_url_metadata",
+      "training": false,
+      "source_url": "https://huggingface.co/datasets/laion/datacomp-hq",
+      "access_note": "image URLs are not evidence that media bytes are available or licensed"
     },
     {
       "id": "megapairs",

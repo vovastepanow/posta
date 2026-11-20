@@ -1,7 +1,9 @@
 # Posta Multi 235M (Поста Мульти 235М) — dataset audit v0.1 (research only)
 
 This directory is **not** a replacement for Posta's production `cmd/posta-ml` classifier, server, search, or DB.
-All commands are stdlib-only Python 3 scripts. No automatic downloads, training or migrations.
+Scripts use the Python 3 standard library. Network access occurs only when the
+operator explicitly runs a probe or sampler. None connects to PostgreSQL, trains a
+model, or migrates production data.
 
 ## Scope and invariants (20 Nov 2026)
 
@@ -82,7 +84,9 @@ The HF Dataset Server cannot preview some huge/gated/HDF5/WebDataset sources; a 
 
 Only after the approval gate below is genuinely satisfied, run the bounded text exporter.
 It uses HF Dataset Server `/rows`, does not download Parquet, and checks that the
-source revision SHA has not changed during export. Do not interpret the deterministic
+source HEAD SHA has not changed during export. Dataset Server responses are not
+revision-pinned: the HEAD checks do not prove which revision its cache served.
+Do not interpret the deterministic
 offset sampling as statistically representative of the entire corpus.
 
 ```bash
@@ -130,7 +134,7 @@ python3 research/pmr_datasets/prepare.py \
   --out-dir data/pmr/pilot
 ```
 
-Result: `train.jsonl`, `validation.jsonl`, `test.jsonl`, `manifest.json`. Exact normalized duplicate rows are discarded. Rows sharing a query, a positive passage, the same media digest, or an upstream group are forced into the same split.
+Result: `train.jsonl`, `validation.jsonl`, `test.jsonl`, `manifest.json`. Exact normalized duplicate rows are discarded. Rows sharing exact text in any query, positive or negative role, the same media digest, or an upstream group are forced into the same split. Common negatives can connect large numbers of examples into one cluster; inspect split sizes before use.
 **This is not an evaluation-ready corpus yet**: near-duplicate image/video checks, translated text leakage, weak labels, independently held-out Posta queries, benchmark overlap removal and source-family splits remain to be implemented.
 
 ## Offline tests
@@ -151,3 +155,37 @@ python3 -m unittest discover -s research/pmr_datasets -p 'test_*.py'
 The current repo remains a Go service; the research scripts are **not invoked by Go or deployment**.
 `data/` is ignored by `.gitignore`; raw training data and approval records must remain outside version control.
 There is no validated dataset sample, model checkpoint, or quality benchmark result in this revision.
+
+## Quarantined real preview pilot (20 Nov 2026)
+
+`sample_preview.py` saves at most 20 records per source from the Dataset Server's
+first-rows endpoint, optionally downloading bounded preview images. It does not
+accept gated conditions. It refuses to overwrite its output directory. These
+are inspection examples only: source and per-media rights, personal information,
+annotation quality, near duplicates, and overlap with evaluation sets require
+review. HEAD checks bracket the request but do not pin a cached preview. No
+record produced by these scripts is approved for training.
+
+```bash
+python3 research/pmr_datasets/sample_preview.py \
+  --out-dir /mnt/hdd_ubuntu/posta-pmr/new-preview --count 20 --media
+python3 research/pmr_datasets/build_review.py \
+  --source-dir /mnt/hdd_ubuntu/posta-pmr/new-preview \
+  --out-dir /mnt/hdd_ubuntu/posta-pmr/new-review
+python3 research/pmr_datasets/verify_review.py /mnt/hdd_ubuntu/posta-pmr/new-review
+```
+
+`build_review.py` separates tasks and assigns connected exact text/media/group
+components to splits. It hashes input and output files, checks media hashes, and
+writes a rejection and duplicate report. `verify_review.py` independently
+checks hashes, counts and exact cross-split identities. Images are referenced
+relative to the source preview directory, so both directories must be retained.
+It does not establish licensing, identify near duplicates or translations, screen
+benchmark overlap, or make a sample suitable for model training. Strongly shared
+negatives can create a giant component, so check actual split distributions.
+
+The local run is described in `AUDIT_2026-11-20.md`; JSON snapshots provide
+bounded API results and selected first pages of file trees, not complete file
+inventories or total dataset sizes. Russian mMARCO is registered as blocked,
+because its authors point to MS MARCO's underlying terms. The catalog's
+`training: false` prevents accidentally passing it through the training gate.

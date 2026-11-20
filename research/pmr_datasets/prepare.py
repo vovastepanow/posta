@@ -57,7 +57,8 @@ def normalize(raw):
     }
     # Group by content hashes; later a union-find joins exact matches across source groups.
     normalized["_fingerprint"] = sha(json.dumps([
-        kind, text.casefold(), positive.casefold(), media_sha
+        kind, text.casefold(), positive.casefold(),
+        sorted(x.casefold() for x in normalized["negatives"]), media_sha
     ], ensure_ascii=False, separators=(",", ":")))
     return normalized
 
@@ -82,24 +83,26 @@ def partition(rows):
     """Exact text/media and source groups cannot straddle output splits."""
     uf = UnionFind(len(rows))
     group_seen, fingerprint_seen, media_seen = {}, {}, {}
-    query_seen, positive_seen = {}, {}
+    content_seen = {}
     for i, row in enumerate(rows):
         for cache, key in (
             (group_seen, row["dataset_id"] + ":" + row["group_id"]),
             (fingerprint_seen, row["_fingerprint"]),
-            (query_seen, sha(row["text"].casefold())),
+            (content_seen, sha(row["text"].casefold())),
         ):
             if key in cache:
                 uf.union(i, cache[key])
             else:
                 cache[key] = i
-        # Repeated positive documents across queries must not cross train/evaluation.
-        if row["positive"]:
-            key = sha(row["positive"].casefold())
-            if key in positive_seen:
-                uf.union(i, positive_seen[key])
+        # Any exact text shared across query, positive or negative roles stays together.
+        for content in [row["positive"], *row["negatives"]]:
+            if not content:
+                continue
+            key = sha(content.casefold())
+            if key in content_seen:
+                uf.union(i, content_seen[key])
             else:
-                positive_seen[key] = i
+                content_seen[key] = i
         # Same media appearing with different captions still belongs to a single split.
         if row["media_sha256"]:
             key = row["media_sha256"]
@@ -133,7 +136,7 @@ def check_approvals(rows, catalog, audit, approvals):
         revision = checked.get("revision")
         if checked.get("metadata_status") != "ok" or not revision:
             raise ValueError(f"{dataset_id}: successful metadata probe with SHA required")
-        if not approval.get("approved_for_training") or approval.get("revision") != revision:
+        if approval.get("approved_for_training") is not True or approval.get("revision") != revision:
             raise ValueError(f"{dataset_id}: explicit approval at the audited SHA required")
         if not clean(approval.get("review_note")):
             raise ValueError(f"{dataset_id}: review_note required in approvals")

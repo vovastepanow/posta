@@ -1,0 +1,56 @@
+{
+  "entries": [
+    {
+      "path": ".gitattributes",
+      "size_bytes": 2307,
+      "type": "file"
+    },
+    {
+      "path": "datacomp-hq-V0_1_1.parquet",
+      "size_bytes": 30202804160,
+      "type": "file"
+    },
+    {
+      "path": "datacomp-hq-V0_1_2.parquet",
+      "size_bytes": 30048080602,
+      "type": "file"
+    },
+    {
+      "path": "datacomp-hq-V0_1_3.parquet",
+      "size_bytes": 29979503888,
+      "type": "file"
+    },
+    {
+      "path": "datacomp-hq-V0_1_4.parquet",
+      "size_bytes": 29952884190,
+      "type": "file"
+    },
+    {
+      "path": "datacomp-hq-V0_1_5.parquet",
+      "size_bytes": 29944835820,
+      "type": "file"
+    },
+    {
+      "path": "datacomp-hq-V0_1_6.parquet",
+      "size_bytes": 30133968759,
+      "type": "file"
+    },
+    {
+      "path": "datacomp-hq-V0_1_7.parquet",
+      "size_bytes": 30437496808,
+      "type": "file"
+    },
+    {
+      "path": "datacomp-hq-V0_1_8.parquet",
+      "size_bytes": 22765025397,
+      "type": "file"
+    },
+    {
+      "path": "datacomp-hq-V0_1_9.parquet",
+      "size_bytes": 22957104940,
+      "type": "file"
+    }
+  ],
+  "first_page_only": true,
+  "revision": "0ecce74742607de756fac46d6c9100a3c8db2ce7"
+}

@@ -1,0 +1,767 @@
+{
+  "checked_utc": "2026-11-20T16:28:13.026120+00:00",
+  "datasets": [
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "fineweb2-ru",
+      "license_card": "odc-by",
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "af9c13333eb981300149d5ca60a8e9d659b276b9",
+      "root_entries": [
+        {
+          "path": "data",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "eval_results",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2461,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 329009,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "fineweb2-hq-ru",
+      "license_card": "odc-by",
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "c0c06e94fd3a44ae9e802b2b0fc533817601eb5e",
+      "root_entries": [
+        {
+          "path": "arb_Arab",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ces_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "cmn_Hani",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "dan_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "deu_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ell_Grek",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "fas_Arab",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "fra_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "hun_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ind_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ita_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "jpn_Jpan",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "nld_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "pol_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "por_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "rus_Cyrl",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "spa_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "swe_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "tur_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "vie_Latn",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2461,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 9609,
+          "type": "file"
+        },
+        {
+          "path": "agg_score_plot.svg",
+          "size_bytes": 52432,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "fineweb-en",
+      "license_card": "odc-by",
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "9bb295ddab0e05d785b879661af7260fed5140fc",
+      "root_entries": [
+        {
+          "path": "data",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "sample",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2307,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 44256,
+          "type": "file"
+        },
+        {
+          "path": "eval_results.csv",
+          "size_bytes": 438856,
+          "type": "file"
+        },
+        {
+          "path": "lighteval_tasks.py",
+          "size_bytes": 14735,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "kalm-retrieval",
+      "license_card": "mit",
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "e9443ab6f5d4dc29c79cea03834e932428ed6ab1",
+      "root_entries": [
+        {
+          "path": "AFQMC",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "AdvertiseGen",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "CAIL2019-SCM",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "CHEF",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "CINLID",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ChatMed_Consult_Dataset",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ChineseSTS",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "CodeFeedback",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "DRCD",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ELI5_custom",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "Expertqa",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "GooAQ",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "LCSTS",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "MEDI2BGE",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "Multi-CPR",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "OpenOrca",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "PAQ_pairs",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "PAWSX",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "PubMedQA",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "QBQTC",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "RefGPT",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "SearchQA",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "SimCLUE",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "T2Ranking",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "THUCNews",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "UMETRIP-QA",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "WebCPM",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "WikiAnswers",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "arxiv_qa",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "atec",
+          "size_bytes": 0,
+          "type": "directory"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "mmarco-ru",
+      "license_card": null,
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "6d039c4638c0ba3e46a9cb7b498b145e7edc6230",
+      "root_entries": [
+        {
+          "path": "__pycache__",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "data",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 1472,
+          "type": "file"
+        },
+        {
+          "path": "LICENSE",
+          "size_bytes": 18650,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 3661,
+          "type": "file"
+        },
+        {
+          "path": "mmarco.py",
+          "size_bytes": 9961,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "bge-m3",
+      "license_card": null,
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "a69db8b86e9c1767d193ee0de95e5c4001a71eae",
+      "root_entries": [
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2307,
+          "type": "file"
+        },
+        {
+          "path": "MKQA_test-data.zip",
+          "size_bytes": 11997185,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 2071,
+          "type": "file"
+        },
+        {
+          "path": "bge-m3-data.tar.gz",
+          "size_bytes": 23980827921,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "wit",
+      "license_card": [
+        "cc-by-sa-4.0"
+      ],
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "ff6d4fb32fd566d3a1fa20e946cba3234179465e",
+      "root_entries": [
+        {
+          "path": "data",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "scripts",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 1566,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 19753,
+          "type": "file"
+        },
+        {
+          "path": "dataset_infos.json",
+          "size_bytes": 3196,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": "auto",
+      "id": "megapairs",
+      "license_card": "cc-by-4.0",
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "0841a4f803209f57844f4fb9b102cddabf9a9023",
+      "root_entries": [
+        {
+          "path": "annotation",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "images",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2525,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 8530,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "nvidia-ocr",
+      "license_card": "cc-by-4.0",
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "69696a1cc543ef3a0f8e9892a89c17293e915263",
+      "root_entries": [
+        {
+          "path": "en",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ja",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ko",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "ru",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "zh_hans",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "zh_hant",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2504,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 10389,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "videoufo",
+      "license_card": "cc-by-4.0",
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "683425832ad5b35d57d213963ecec18d5b689652",
+      "root_entries": [
+        {
+          "path": "VideoUFO_tar",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "assets",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "data",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2582,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 4941,
+          "type": "file"
+        },
+        {
+          "path": "VideoUFO.csv",
+          "size_bytes": 1234455730,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "memexplain",
+      "license_card": "cc-by-sa-4.0",
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "2d08e071512ad6d6ad40bb18f1f793124ca25968",
+      "root_entries": [
+        {
+          "path": "ArMemeXplain",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "HatefulMemeXplain",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "data",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "data_image_ar",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2461,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 8295,
+          "type": "file"
+        },
+        {
+          "path": "dev.jsonl",
+          "size_bytes": 1079226,
+          "type": "file"
+        },
+        {
+          "path": "test.jsonl",
+          "size_bytes": 2115865,
+          "type": "file"
+        },
+        {
+          "path": "train.jsonl",
+          "size_bytes": 7483817,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "common-voice",
+      "license_card": null,
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "11dc88355e899d1bf2df74f01b904a8544a17b33",
+      "root_entries": [
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2461,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 414,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "bvd-video",
+      "license_card": "cc-by-4.0",
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "c67a81a860651c0672cc10c49e487099712f6ab5",
+      "root_entries": [
+        {
+          "path": "clips",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "videos",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2504,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 6145,
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "complete_listing": false,
+      "gated": false,
+      "id": "mmeb-v3",
+      "license_card": "mit",
+      "note": "Root first page only; directories not traversed; no total size inferred.",
+      "revision": "4a5560b2b64384204b6fea8a82ea986eba51f5aa",
+      "root_entries": [
+        {
+          "path": "audio_tasks",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "gui_tasks",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "image-query",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "image_tasks",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "memory_tasks",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "mscoco_omni",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "text_tasks",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "tool_tasks",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "video_tasks",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": "visdoc_tasks",
+          "size_bytes": 0,
+          "type": "directory"
+        },
+        {
+          "path": ".gitattributes",
+          "size_bytes": 2504,
+          "type": "file"
+        },
+        {
+          "path": "README.md",
+          "size_bytes": 10133,
+          "type": "file"
+        },
+        {
+          "path": "omniset.tar.gz",
+          "size_bytes": 10741200942,
+          "type": "file"
+        }
+      ]
+    }
+  ]
+}

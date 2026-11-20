@@ -1,0 +1,101 @@
+{
+  "catalog_version": "0.1.0",
+  "checked_at_utc": "2026-11-20T16:32:56.873677+00:00",
+  "datasets": [
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "mmarco-ru",
+      "license_claim_from_catalog": "unverified; upstream MS MARCO terms apply",
+      "license_from_hf_card": null,
+      "license_review": "mMARCO authors state MS MARCO license applies; verify research-only and commercial constraints, and held-out benchmark contamination",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "priority": "BLOCKED",
+      "private": false,
+      "repo": "unicamp-dl/mmarco",
+      "review_required": true,
+      "revision": "6d039c4638c0ba3e46a9cb7b498b145e7edc6230",
+      "schema_error": "HTTP Error 501: Not Implemented",
+      "schema_status": "error",
+      "sibling_count": null,
+      "training": false,
+      "use": "text_retrieval"
+    },
+    {
+      "example_filenames": [],
+      "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
+      "gated": false,
+      "id": "datacomp-hq",
+      "license_claim_from_catalog": "not specified on dataset card",
+      "license_from_hf_card": null,
+      "license_review": "verify metadata and individual image rights, provenance, permitted use and benchmark overlap before any training",
+      "media_bytes_verified": false,
+      "metadata_status": "ok",
+      "preview": {
+        "columns": [
+          {
+            "name": "__index_level_0__",
+            "python_type": "int"
+          },
+          {
+            "name": "aesthetics_score",
+            "python_type": "float"
+          },
+          {
+            "name": "clip_b32_similarity_score",
+            "python_type": "float"
+          },
+          {
+            "name": "clip_l14_similarity_score",
+            "python_type": "float"
+          },
+          {
+            "name": "face_bboxes",
+            "python_type": "list"
+          },
+          {
+            "name": "original_height",
+            "python_type": "int"
+          },
+          {
+            "name": "original_width",
+            "python_type": "int"
+          },
+          {
+            "name": "sha256",
+            "python_type": "str"
+          },
+          {
+            "name": "text",
+            "python_type": "str"
+          },
+          {
+            "name": "uid",
+            "python_type": "str"
+          },
+          {
+            "name": "url",
+            "python_type": "str"
+          }
+        ],
+        "row_count_in_preview": 100
+      },
+      "preview_selection": {
+        "config": "default",
+        "split": "train"
+      },
+      "priority": "BLOCKED",
+      "private": false,
+      "repo": "laion/datacomp-hq",
+      "review_required": true,
+      "revision": "0ecce74742607de756fac46d6c9100a3c8db2ce7",
+      "schema_status": "ok",
+      "sibling_count": null,
+      "training": false,
+      "use": "image_text_alignment"
+    }
+  ],
+  "important": "Preview/schema metadata is not proof that full source media is downloadable or properly licensed"
+}

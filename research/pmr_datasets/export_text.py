@@ -26,7 +26,7 @@ def approved(candidate, audit, approvals):
     if not audited or audited.get("metadata_status") != "ok":
         raise ValueError("No successful dataset metadata audit")
     revision = audited.get("revision")
-    if (not revision or not approval.get("approved_for_training")
+    if (not revision or approval.get("approved_for_training") is not True
             or approval.get("revision") != revision
             or not str(approval.get("review_note", "")).strip()):
         raise ValueError("Need explicit source license approval for audited revision")
