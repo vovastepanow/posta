@@ -1135,6 +1135,59 @@ func (u *U) autopilotEvaluateSource(info jx.M, posts []jx.M, topic string) *sour
 	return &sourceEvaluation{Score: score, Text: &score, TextOnly: true, Reason: review.Reason, PersonalBlog: review.PersonalBlog}
 }
 
+// Keep bounded, publicly readable evidence for an independent source audit.
+// This is not a cached full post or an extra fetch: it samples the already
+// downloaded, safety-filtered publications used for the decision. Both the
+// opening and the conclusion of longer posts are represented, with omissions
+// marked. Raw model responses, arbitrary metadata and media download tokens
+// are intentionally excluded.
+func autopilotAuditPostSamples(posts []jx.M) []jx.M {
+	out := make([]jx.M, 0, min(len(posts), 5))
+	seen := map[string]bool{}
+	for _, post := range posts {
+		if len(out) >= 5 {
+			break
+		}
+		if jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") ||
+			len(jx.ToStrs(post["safety"])) > 0 {
+			continue
+		}
+		caption := strings.TrimSpace(jx.Str(post, "text"))
+		if caption == "" {
+			caption = strings.TrimSpace(jx.Str(post, "title"))
+		}
+		caption = trimRunes(sourceReviewCaption(CleanHTMLText(caption)), 650)
+		page := ""
+		if raw := jx.Str(post, "url"); raw != "" {
+			if u, err := url.Parse(raw); err == nil &&
+				(u.Scheme == "https" || u.Scheme == "http") && u.Hostname() != "" && u.User == nil &&
+				u.Port() == "" && len(u.Path) < 300 {
+				u.RawQuery, u.Fragment = "", ""
+				page = u.String()
+			}
+		}
+		hasMedia := jx.Str(post, "image") != "" || jx.Str(post, "video") != "" ||
+			len(jx.ToStrs(post["images"])) > 0
+		if caption == "" && !hasMedia {
+			continue
+		}
+		key := page + "|" + caption
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		entry := jx.M{"excerpt": caption, "media_present": hasMedia}
+		if page != "" {
+			entry["url"] = page
+		}
+		if published := jx.Int(post, "posted_at"); published > 0 {
+			entry["published_at"] = published
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
 // Review only public feed data. An unavailable feed, model error or small
 // sample remains uncertain; none of them proves poor source quality.
 func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilotJob, limit int) error {
@@ -1469,6 +1522,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 		}
 		samples = safeSamples
+		auditSamples := autopilotAuditPostSamples(samples)
 		sourceInfo := autopilotSourceReviewInfo(platform, id, feed, res, samples)
 		displayEvidence := autopilotSourceDisplayEvidence(sourceInfo, platform, feed)
 		// A missing OK title is a parsing/metadata failure, NOT evidence
@@ -1481,14 +1535,14 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			if topicReason != "" {
 				if topicReason == "off_topic_group" {
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "rejected",
-						topicReason, jx.Marshal(jx.M{"http_status": res.Status, "ok_topic_reaudit": true}),
+						topicReason, jx.Marshal(jx.M{"http_status": res.Status, "ok_topic_reaudit": true, "review_samples": auditSamples}),
 						at, at.Add(30*24*time.Hour)); err != nil &&
 						!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
 						return err
 					}
 				} else {
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown",
-						topicReason, jx.Marshal(jx.M{"http_status": res.Status, "ok_topic_reaudit": true}),
+						topicReason, jx.Marshal(jx.M{"http_status": res.Status, "ok_topic_reaudit": true, "review_samples": auditSamples}),
 						at, at.Add(12*time.Hour)); err != nil &&
 						!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
 						return err
@@ -1504,13 +1558,14 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				"cooldown", "sparse_publisher", jx.Marshal(jx.M{
 					"quality_samples":     len(samples),
 					"quality_window_days": autopilotSourceQualityDays,
+					"review_samples":       auditSamples,
 				}), at, at.Add(30*24*time.Hour)); err != nil &&
 				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
 				return err
 			}
 			continue
 		}
-		evidence := jx.M{"quality_samples": len(samples), "fresh_samples": len(autopilotFreshRSSSamples(samples, at.Unix())), "sample_limit": 20, "quality_window_days": autopilotSourceQualityDays}
+		evidence := jx.M{"quality_samples": len(samples), "fresh_samples": len(autopilotFreshRSSSamples(samples, at.Unix())), "sample_limit": 20, "quality_window_days": autopilotSourceQualityDays, "review_samples": auditSamples}
 		for key, value := range displayEvidence {
 			evidence[key] = value
 		}
@@ -1608,7 +1663,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				}
 				professional := a.User(ctx, "", nil).professionalValueTopic(job.Topic)
 				effectiveRelevant := effectiveSourceRelevant(stats.Relevant, stats.Eligible, professional)
-				evidence = jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "effective_relevant": effectiveRelevant, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "curated_unique": stats.CuratedUnique, "successful_passes": stats.SuccessfulPasses}
+				evidence = jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "effective_relevant": effectiveRelevant, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "curated_unique": stats.CuratedUnique, "successful_passes": stats.SuccessfulPasses, "review_samples": auditSamples}
 				for key, value := range displayEvidence {
 					evidence[key] = value
 				}
