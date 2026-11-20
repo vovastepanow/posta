@@ -3,8 +3,8 @@ package posta
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"net/url"
+	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
