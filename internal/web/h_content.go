@@ -277,7 +277,7 @@ func getCurrentItem(c *Ctx) (any, error) {
 		// arrived. The collector and the display have different age rules.
 		hasFresh := false
 		for _, item := range pool {
-			if u.poolItemFresh(item) {
+			if posta.PoolItemIsFresh(item, 0) {
 				hasFresh = true
 				break
 			}
