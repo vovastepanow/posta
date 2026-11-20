@@ -65,6 +65,7 @@ func ContentAnalysisSchema(query string, humor bool) jx.M {
 	props["place_lat"] = jx.M{"type": "number"}
 	props["place_lon"] = jx.M{"type": "number"}
 	props["evidence"] = jx.M{"type": "string"}
+	props["explanation"] = jx.M{"type": "string"} // Russian summary; evidence remains an exact quote
 	req = append(req, "ukraine", "safety", "tags", "description", "format", "entity", "evidence")
 	return jx.M{"type": "object", "properties": props, "required": req}
 }
@@ -220,7 +221,8 @@ func (u *U) ContentAnalysisPrompt(topic, caption string, h History, video *Story
 	b.WriteString("format: форма поста, одно из: " + contentFormatsLine() + ". Для одной картинки не выбирай video.\n")
 	b.WriteString(ContentEntityRule())
 	b.WriteString(ContentPlaceRule())
-	b.WriteString(fmt.Sprintf("evidence: короткая цитата из надписи или примета на картинке, относящаяся к теме, до %d символов: почему запись подходит или не подходит. Ничего такого нет — пустая строка.\n", config.AnalysisEvidenceMax))
+	b.WriteString(fmt.Sprintf("evidence: короткая цитата из надписи или примета на картинке, относящаяся к теме, до %d символов. Ничего такого нет — пустая строка. Не обрывай цитату посередине слова.\n", config.AnalysisEvidenceMax))
+	b.WriteString("explanation: самостоятельное связное объяснение на русском, одним законченным предложением, почему запись подходит теме. Не цитируй длинный исходный текст и не обрывай фразу. Если связь не установлена — объясни почему.\n")
 	b.WriteString(ukraineRule)
 	b.WriteString("Пиши по-русски, без иероглифов.\n\n")
 	b.WriteString("Тема подборки: " + u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic) + "\n")
@@ -409,6 +411,20 @@ func (u *U) AnalyzeContentWithVision(images [][]byte, caption string, h History,
 	return nil, lastErr
 }
 
+// Evidence remains a short verbatim excerpt for matching/quality gates.
+// The visible "why" is a separate model explanation, not an 80-rune quote.
+func analysisExplanation(result jx.M, fallbackEvidence string) string {
+	if explanation := strings.TrimSpace(llm.StripCJK(jx.Str(result, "explanation"))); explanation != "" {
+		return trimRunes(explanation, 300)
+	}
+	// Old providers and cached responses may not return the new optional
+	// field. Label the fallback honestly rather than posing it as reasoning.
+	if fallbackEvidence != "" {
+		return "Фрагмент публикации: «" + fallbackEvidence + "»"
+	}
+	return ""
+}
+
 func (u *U) finishAnalysis(a jx.M, topic, query string, isVideo bool, firstImage []byte, private bool, model string) Analysis {
 	format := jx.Str(a, "format")
 	if !config.IsContentFormat(format) {
@@ -439,7 +455,7 @@ func (u *U) finishAnalysis(a jx.M, topic, query string, isVideo bool, firstImage
 	if humor && jx.Str(a, "meme_kind") == "" && !isVideo && !u.hasSpecificTopic(topic) && !u.JokePresent(firstImage, private) {
 		rel = min(rel, config.JokeNoCap)
 	}
-	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(a, "description")), config.AnalysisDescriptionMax), "why_relevant": evidence, "format": format,
+	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(a, "description")), config.AnalysisDescriptionMax), "why_relevant": analysisExplanation(a, evidence), "format": format,
 		"tags": u.contentAnalysisTags(topic, a["tags"], a["safety"]), "quote": a["quote"] == true, "entity": ContentEntityClean(a["entity"]), "geo": GeoFromAnalysis(a), "evidence": evidence, "joke": trimRunes(llm.StripCJK(jx.Str(a, "joke")), config.AnalysisEvidenceMax), "meme_kind": jx.Str(a, "meme_kind"), "relevance": rel, "topic_match": a["topic_match"], "rating": nil,
 		"ukraine": a["ukraine"] == true, "advertising": a["advertising"], "subtopic": nil, "subtopic_p": nil, "model": model, "interest": a["interest"], "practical_value": a["practical_value"], "specificity": a["specificity"]}
 }
@@ -664,6 +680,7 @@ func TextBatchSchema(query string, humor bool) jx.M {
 	props["place_lat"] = jx.M{"type": "number"}
 	props["place_lon"] = jx.M{"type": "number"}
 	props["evidence"] = jx.M{"type": "string"}
+	props["explanation"] = jx.M{"type": "string"} // Russian summary; evidence remains an exact quote
 	req = append(req, "ukraine", "safety", "tags", "description", "format", "entity", "evidence")
 	if humor {
 		props["meme_kind"] = jx.M{"type": "string", "enum": []string{"finished_meme", "template_or_reaction", "funny_situation", "not_meme"}}
@@ -692,7 +709,8 @@ func (u *U) TextBatchPrompt(topic string, texts []string, h History) string {
 	b.WriteString("format: text.\n")
 	b.WriteString(ContentEntityRule())
 	b.WriteString(ContentPlaceRule())
-	b.WriteString(fmt.Sprintf("evidence: короткая цитата из текста, относящаяся к теме, до %d символов: почему подходит или не подходит. Ничего такого нет — пустая строка.\n", config.AnalysisEvidenceMax))
+	b.WriteString(fmt.Sprintf("evidence: короткая цитата из текста, относящаяся к теме, до %d символов, не обрывая слова. Ничего такого нет — пустая строка.\n", config.AnalysisEvidenceMax))
+	b.WriteString("explanation: одним законченным русским предложением объясни тематическую связь (или её отсутствие), не копируя и не обрывая текст записи.\n")
 	b.WriteString(ukraineRule)
 	b.WriteString("Пиши по-русски, без иероглифов.\n\n")
 	b.WriteString("Тема подборки: " + u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic) + "\n")
@@ -806,7 +824,7 @@ func (u *U) finishTextAnalysis(it jx.M, topic, model string) Analysis {
 	}
 	format := "text" // The text-only path cannot establish the form of unseen media.
 
-	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(it, "description")), config.AnalysisDescriptionMax), "why_relevant": evidence, "format": format,
+	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(it, "description")), config.AnalysisDescriptionMax), "why_relevant": analysisExplanation(it, evidence), "format": format,
 		"tags": u.contentAnalysisTags(topic, it["tags"], it["safety"]), "quote": it["quote"] == true, "entity": ContentEntityClean(it["entity"]), "geo": GeoFromAnalysis(it), "evidence": evidence, "joke": joke, "meme_kind": jx.Str(it, "meme_kind"),
 		"ukraine": it["ukraine"] == true, "advertising": it["advertising"], "relevance": rel, "topic_match": it["topic_match"], "rating": nil, "model": model, "interest": it["interest"], "practical_value": it["practical_value"], "specificity": it["specificity"]}
 }
@@ -837,7 +855,7 @@ func (u *U) editableVisionPrompt(topic, caption string, h History, video *Storyb
 	if u.professionalValueTopic(topic) {
 		valueRule = professionalValuePrompt
 	}
-	return valueRule + "tags: пустой массив; тематические метки определяет отдельный классификатор.\n" + "quote (boolean): true, если запись в основном цитата или афоризм; её смысл укажи в tags.\n" + u.prompt("vision_analysis", map[string]string{"relevance_rule": rule, "humor_rule": humor, "formats": contentFormatsLine(), "entity_rule": u.prompt("entity_rule", nil), "place_rule": u.prompt("place_rule", nil), "topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "complaints": u.complaintPrompt(topic, h), "query_rule": query, "context": context, "record": record}) + advertisingPrompt
+	return valueRule + "tags: пустой массив; тематические метки определяет отдельный классификатор.\n" + "quote (boolean): true, если запись в основном цитата или афоризм; её смысл укажи в tags.\n" + u.prompt("vision_analysis", map[string]string{"relevance_rule": rule, "humor_rule": humor, "formats": contentFormatsLine(), "entity_rule": u.prompt("entity_rule", nil), "place_rule": u.prompt("place_rule", nil), "topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "complaints": u.complaintPrompt(topic, h), "query_rule": query, "context": context, "record": record}) + advertisingPrompt + "\nexplanation (string): одно связное законченное предложение ПО-РУССКИ, почему запись подходит заявленной теме или почему не подходит. Это вывод из содержания, НЕ цитата и НЕ обрывок текста. evidence оставь отдельной короткой точной цитатой.\n"
 }
 
 func (u *U) editableTextPrompt(topic string, texts []string, h History) string {
@@ -856,5 +874,5 @@ func (u *U) editableTextPrompt(topic string, texts []string, h History) string {
 	if u.professionalValueTopic(topic) {
 		valueRule = professionalValuePrompt
 	}
-	return textOnlyEvidenceRule + valueRule + "tags: пустой массив; тематические метки определяет отдельный классификатор.\n" + "quote (boolean): true для цитаты или афоризма; смысл — в tags.\n" + u.relevanceRule(topic) + "\n" + u.prompt("text_analysis", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "query_rule": query, "humor_rule": humor, "formats": "text — текстовая запись", "entity_rule": u.prompt("entity_rule", nil), "place_rule": u.prompt("place_rule", nil), "complaints": u.complaintPrompt(topic, h), "records": strings.Join(lines, "\n")}) + "\nДля каждой записи сохрани исходный index из квадратных скобок. Не перенумеровывай записи при сортировке. evidence — цитата именно из записи с этим index, а не из соседней записи.\n" + advertisingPrompt
+	return textOnlyEvidenceRule + valueRule + "tags: пустой массив; тематические метки определяет отдельный классификатор.\n" + "quote (boolean): true для цитаты или афоризма; смысл — в tags.\n" + u.relevanceRule(topic) + "\n" + u.prompt("text_analysis", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "query_rule": query, "humor_rule": humor, "formats": "text — текстовая запись", "entity_rule": u.prompt("entity_rule", nil), "place_rule": u.prompt("place_rule", nil), "complaints": u.complaintPrompt(topic, h), "records": strings.Join(lines, "\n")}) + "\nДля каждой записи сохрани исходный index из квадратных скобок. Не перенумеровывай записи при сортировке. evidence — цитата именно из записи с этим index, а не из соседней записи.\n" + advertisingPrompt + "\nexplanation (string) для каждой записи: законченное русское предложение о соответствии теме, а не фрагмент исходного текста. evidence — отдельная точная цитата, не обрывай её посередине слова.\n"
 }
