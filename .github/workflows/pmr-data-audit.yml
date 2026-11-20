@@ -1,0 +1,29 @@
+name: PMR dataset research checks
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'research/pmr_datasets/**'
+      - '.github/workflows/pmr-data-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-contract-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout research scripts
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile scripts
+        run: python3 -m py_compile research/pmr_datasets/*.py
+      - name: Run offline dataset preparation tests
+        run: python3 -m unittest discover -s research/pmr_datasets -p 'test_*.py' -v
