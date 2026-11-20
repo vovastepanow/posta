@@ -87,22 +87,31 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	scores := map[string]int64{}
 	// Exploration turns and model-gate tests must not require a database.
 	if turn%4 != 0 && a.DB != nil {
-		rows, err := a.DB.Pool.Query(ctx, `SELECT q.query,count(DISTINCT e.content_hash) FILTER (WHERE e.eligible AND e.content_hash<>'' AND NOT EXISTS
-			(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful
-			FROM source_autopilot_query_sources q JOIN source_autopilot_sources s ON s.scope=q.scope AND s.topic_key=q.topic_key AND s.source_id=q.source_id AND s.state IN ('probation','active')
+		rows, err := a.DB.Pool.Query(ctx, `SELECT q.query,
+			count(DISTINCT e.content_hash) FILTER (WHERE s.state IN ('probation','active') AND e.eligible AND e.content_hash<>'' AND NOT EXISTS
+				(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful,
+			count(DISTINCT s.source_id) FILTER (WHERE s.state='rejected' AND s.reason IN
+				('preliminary_topic_mismatch','off_topic_group','observed_irrelevant','observed_ad_or_duplicates')) AS off_topic
+			FROM source_autopilot_query_sources q
+			JOIN source_autopilot_sources s ON s.scope=q.scope AND s.topic_key=q.topic_key AND s.source_id=q.source_id
 			LEFT JOIN source_autopilot_post_evidence e ON e.scope=q.scope AND e.topic_key=q.topic_key AND e.source_id=q.source_id AND e.published_at >= $3
-			WHERE q.scope=$1 AND q.topic_key=$2 GROUP BY q.query`, job.Scope, job.TopicKey, time.Now().Add(-30*24*time.Hour).Unix())
+			WHERE q.scope=$1 AND q.topic_key=$2 AND q.discovered_at >= $3 GROUP BY q.query`,
+			job.Scope, job.TopicKey, time.Now().Add(-30*24*time.Hour).Unix())
 		if err != nil {
 			return "", err
 		}
 		for rows.Next() {
 			var q string
-			var score int64
-			if err := rows.Scan(&q, &score); err != nil {
+			var useful, offTopic int64
+			if err := rows.Scan(&q, &useful, &offTopic); err != nil {
 				rows.Close()
 				return "", err
 			}
-			scores[q] = score
+			// Useful unique posts dominate, but consistently off-topic
+			// discoveries make a query less attractive. Unsupported formats,
+			// temporary errors and unverified candidates carry no penalty.
+			// With no positive net yield, we keep exploring other queries.
+			scores[q] = 20*useful - 3*offTopic
 		}
 		err = rows.Err()
 		rows.Close()
