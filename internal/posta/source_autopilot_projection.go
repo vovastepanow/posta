@@ -285,6 +285,53 @@ func (a *App) autopilotReconsiderTechnicalRejects(ctx context.Context, job *auto
 	return nil
 }
 
+// A previous 160-rune source prescreen could reject a useful publisher before
+// the actual point of a long post. Revisit those decisions at most 20/day,
+// preserving the old rejection until the normal review runs. Every source is
+// scheduled only once, even if the new assessment rejects it again.
+func (a *App) autopilotScheduleFullContextRechecks(ctx context.Context, job *autopilotJob) error {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope ||
+		autopilotCanonicalTopic(job.Topic) != "SMM и блогинг" {
+		return nil
+	}
+	at := time.Now().UTC()
+	return withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `WITH quota AS (
+			SELECT GREATEST(0,20-count(*)::int) AS available
+			FROM source_autopilot_decisions
+			WHERE scope=$1 AND topic_key=$2 AND reason='full_context_reaudit_scheduled' AND at >= $4
+		), candidates AS (
+			SELECT s.source_id FROM source_autopilot_sources s
+			WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='rejected'
+			AND s.reason='preliminary_topic_mismatch'
+			AND s.next_check_at>$3
+			AND NOT EXISTS (
+				SELECT 1 FROM source_autopilot_decisions d WHERE d.scope=$1
+				AND d.topic_key=$2 AND d.source_id=s.source_id
+				AND d.reason='full_context_reaudit_scheduled')
+			AND NOT EXISTS (
+				SELECT 1 FROM source_autopilot_overrides o WHERE o.scope=$1
+				AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id
+				AND o.decision='excluded')
+			ORDER BY s.checked_at,s.source_id
+			LIMIT (SELECT available FROM quota)
+			FOR UPDATE OF s SKIP LOCKED
+		), scheduled AS (
+			UPDATE source_autopilot_sources s
+			SET next_check_at=$3
+			FROM candidates c
+			WHERE s.scope=$1 AND s.topic_key=$2 AND s.source_id=c.source_id
+			RETURNING s.source_id
+		)
+		INSERT INTO source_autopilot_decisions
+			(scope,topic_key,source_id,old_state,new_state,reason,evidence,policy_version,at)
+		SELECT $1,$2,source_id,'rejected','rejected','full_context_reaudit_scheduled',
+			'{"explanation":"recheck_with_fuller_captions"}'::jsonb,$5,$3 FROM scheduled`,
+			job.Scope, job.TopicKey, at.Unix(), at.Truncate(24*time.Hour).Unix(), TopicProfileVersion)
+		return err
+	})
+}
+
 func (a *App) reconcileAutopilotProjections(ctx context.Context, job *autopilotJob) error {
 	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope {
 		return errors.New("invalid projection job")
@@ -293,6 +340,9 @@ func (a *App) reconcileAutopilotProjections(ctx context.Context, job *autopilotJ
 		return err
 	}
 	if err := a.autopilotReconsiderTechnicalRejects(ctx, job); err != nil {
+		return err
+	}
+	if err := a.autopilotScheduleFullContextRechecks(ctx, job); err != nil {
 		return err
 	}
 	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,state FROM source_autopilot_sources
