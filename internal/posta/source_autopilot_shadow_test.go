@@ -139,6 +139,34 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 		jx.Str(jx.Maps(page, "sources")[0], "source_id") != "rss:https://example.org/partial" {
 		t.Fatalf("remaining candidates=%v err=%v", page, err)
 	}
+	// Historic registry examples can immediately support an independent
+	// audit of old decisions, even before the new post snapshots are captured.
+	// Never expose private query parameters or raw registry sample metadata.
+	const historicID = "rss:https://example.org/partial"
+	_, err = d.Pool.Exec(ctx, `INSERT INTO source_registry(source_id,platform,name,status,sample,sample_at)
+		VALUES($1,'rss','Независимое издание','suggested',
+		'[{"text":"Разбор продвижения сообщества и метрик вовлеченности.","url":"https://example.org/posts/1?secret=hide","posted_at":1795110000,"private_note":"hide"}]'::jsonb,1795110000)
+		ON CONFLICT(source_id) DO UPDATE SET name=excluded.name,sample=excluded.sample,sample_at=excluded.sample_at`, historicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = d.Pool.Exec(context.Background(), `DELETE FROM source_registry WHERE source_id=$1`, historicID) })
+	auditPage, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "candidate", "", 5)
+	if err != nil || len(jx.Maps(auditPage, "sources")) != 1 {
+		t.Fatalf("historical source evidence missing: %v %v", auditPage, err)
+	}
+	auditItem := jx.Maps(auditPage, "sources")[0]
+	audit := jx.Map(auditItem, "review_evidence")
+	texts := jx.Maps(audit, "review_samples")
+	if jx.Str(auditItem, "name") != "Независимое издание" ||
+		jx.Str(audit, "sample_origin") != "historical_registry" || len(texts) != 1 ||
+		jx.Str(texts[0], "url") != "https://example.org/posts/1" {
+		t.Fatalf("historic audit label, excerpts or URL sanitization broken: %+v", auditItem)
+	}
+	if strings.Contains(string(jx.Marshal(audit)), "secret=hide") ||
+		strings.Contains(string(jx.Marshal(audit)), "private_note") {
+		t.Fatal("raw historic registry sample leaked")
+	}
 	cooldownPage, err := a.User(ctx, "autopilot-shadow-a", nil).SourceAutopilotSources(topic, "shadow", "cooldown", "", 10)
 	if err != nil || len(jx.Maps(cooldownPage, "sources")) != 1 ||
 		jx.Str(jx.Maps(cooldownPage, "sources")[0], "source_id") != "rss:https://example.org/empty" {
