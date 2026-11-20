@@ -637,12 +637,17 @@ async function autopilotExportSourcesForTopic(topic, states = autopilotExportSta
     const counts = Object.fromEntries(autopilotExportStates.map(state => [
         state, entries.filter(item => item.state === state).length
     ]));
+    const withPostEvidence = entries.filter(item => Array.isArray(item.review_evidence?.review_samples) &&
+        item.review_evidence.review_samples.length > 0).length;
     return {
         topic: topic.topic, mode: topic.mode,
         section: states.length === 1 ? autopilotSourceStates[states[0]] : 'Все источники',
         section_key: states.length === 1 ? states[0] : 'all',
         snapshot_available: snapshotAvailable,
-        count: entries.length, counts, sources: entries
+        count: entries.length, counts,
+        with_post_evidence: withPostEvidence,
+        without_post_evidence: entries.length - withPostEvidence,
+        sources: entries
     };
 }
 
@@ -697,8 +702,11 @@ async function copyAutopilotSources() {
         }, null, 2);
         await navigator.clipboard.writeText(text);
         const total = exported.reduce((sum, topic) => sum + topic.count, 0);
+        const documented = exported.reduce((sum, topic) => sum + topic.with_post_evidence, 0);
         $('autopilot-status').textContent = 'Скопировано ' + total.toLocaleString('ru-RU') +
-            ' источников из ' + exported.length + ' тем. Вставь список в чат для проверки отклонений.';
+            ' источников; с примерами постов: ' + documented.toLocaleString('ru-RU') +
+            ', пока без примеров: ' + (total - documented).toLocaleString('ru-RU') +
+            '. Вставь аудит в чат для независимой проверки.';
     } catch (error) {
         $('autopilot-status').textContent = 'Не удалось скопировать список источников: ' + error.message;
     } finally {
