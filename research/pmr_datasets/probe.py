@@ -27,7 +27,15 @@ def get_json(url, timeout=20):
 
 
 def dataset_api_url(repo):
-    return "https://huggingface.co/api/datasets/" + urllib.parse.quote(repo, safe="/")
+    # Request only bounded fields. Full sibling lists can be enormous for FineWeb.
+    base = "https://huggingface.co/api/datasets/" + urllib.parse.quote(repo, safe="/")
+    query = urllib.parse.urlencode([
+        ("expand[]", "sha"),
+        ("expand[]", "cardData"),
+        ("expand[]", "gated"),
+        ("expand[]", "private"),
+    ])
+    return base + "?" + query
 
 
 def server_url(endpoint, **params):
@@ -82,15 +90,16 @@ def audit_one(item, inspect_rows=False):
     try:
         meta = get_json(dataset_api_url(item["repo"]))
         card = meta.get("cardData") or {}
-        siblings = meta.get("siblings") or []
+        siblings = meta.get("siblings")
         report.update({
             "metadata_status": "ok",
             "revision": meta.get("sha"),
             "license_from_hf_card": card.get("license"),
             "gated": meta.get("gated"),
             "private": meta.get("private"),
-            "sibling_count": len(siblings),
-            "example_filenames": [f.get("rfilename") for f in siblings[:12]],
+            "sibling_count": len(siblings) if siblings is not None else None,
+            "example_filenames": [f.get("rfilename") for f in (siblings or [])[:12]],
+            "file_listing_status": "not_requested; request file tree separately for exact shard sizes",
             "review_required": True,
         })
     except (ValueError, OSError, urllib.error.URLError) as exc:
