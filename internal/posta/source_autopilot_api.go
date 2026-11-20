@@ -512,7 +512,7 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 		}
 	}
 	query := `SELECT s.source_id,s.state,s.reason,s.first_seen_at,s.checked_at,s.next_check_at,
-		COALESCE(s.evidence->>'personal_blog','unknown'),s.evidence,COALESCE(r.name,'')
+		COALESCE(s.evidence->>'personal_blog','unknown'),s.evidence,COALESCE(r.name,''),r.sample,COALESCE(r.sample_at,0)
 		FROM source_autopilot_sources s LEFT JOIN source_registry r ON r.source_id=s.source_id
 		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state=$3 AND s.source_id>$4
 		ORDER BY s.source_id LIMIT $5`
@@ -520,7 +520,7 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 	var err error
 	if state == "found" {
 		rows, err = u.DB.Pool.Query(u.Ctx, `SELECT s.source_id,s.state,s.reason,s.first_seen_at,s.checked_at,s.next_check_at,
-		COALESCE(s.evidence->>'personal_blog','unknown'),s.evidence,COALESCE(r.name,'')
+		COALESCE(s.evidence->>'personal_blog','unknown'),s.evidence,COALESCE(r.name,''),r.sample,COALESCE(r.sample_at,0)
 			FROM source_autopilot_sources s LEFT JOIN source_registry r ON r.source_id=s.source_id
 			WHERE s.scope=$1 AND s.topic_key=$2
 			AND s.source_id=ANY($5) AND s.source_id>$3
@@ -552,9 +552,9 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 	hasMore := false
 	for rows.Next() {
 		var source, currentState, reason, blogKind, registryName string
-		var discovered, checked, next int64
-		var evidence []byte
-		if err := rows.Scan(&source, &currentState, &reason, &discovered, &checked, &next, &blogKind, &evidence, &registryName); err != nil {
+		var discovered, checked, next, registrySampleAt int64
+		var evidence, historicalSample []byte
+		if err := rows.Scan(&source, &currentState, &reason, &discovered, &checked, &next, &blogKind, &evidence, &registryName, &historicalSample, &registrySampleAt); err != nil {
 			return nil, err
 		}
 		if len(items) == limit {
@@ -585,9 +585,20 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 		if kind == "category" || kind == "community" {
 			blogKind = "no"
 		}
+		review := autopilotPublicSourceReviewEvidence(evidence)
+		if len(jx.Maps(review, "review_samples")) == 0 && len(historicalSample) > 0 {
+			var posts []jx.M
+			if json.Unmarshal(historicalSample, &posts) == nil {
+				if snippets := autopilotAuditPostSamples(posts); len(snippets) > 0 {
+					review["review_samples"] = snippets
+					review["sample_origin"] = "historical_registry"
+					review["sample_at"] = registrySampleAt
+				}
+			}
+		}
 		items = append(items, jx.M{"source_id": source, "state": currentState, "reason": reason,
 			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next, "personal_blog": personalBlogKind(blogKind), "url": publicURL,
-			"name": name, "source_kind": kind, "review_evidence": autopilotPublicSourceReviewEvidence(evidence)})
+			"name": name, "source_kind": kind, "review_evidence": review})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
