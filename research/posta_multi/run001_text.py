@@ -194,6 +194,7 @@ def run(args):
         'max_masked': args.max_masked,
         'lr': args.lr, 'warmup': args.warmup,
         'seed': args.seed,
+        'max_grad_norm': 1.0,
         'train_per_group': args.train_per_group,
         'val_per_group': args.val_per_group,
         'val_windows_per_group': args.val_windows_per_group,
@@ -208,7 +209,8 @@ def run(args):
     model = PostaMulti(config).half().cuda()
     model.enable_gradient_checkpointing()
     parameters = trainable_text_parameters(model)
-    optimizer = CPUMasterAdamW(parameters, lr=args.lr, loss_scale=16.0)
+    optimizer = CPUMasterAdamW(parameters, lr=args.lr, loss_scale=16.0,
+                               max_grad_norm=1.0)
     generator = torch.Generator(device='cpu').manual_seed(args.seed + 7)
     start, best_loss, best_step, stale = 0, math.inf, 0, 0
     if args.resume:
@@ -282,6 +284,9 @@ def run(args):
             })
             print(json.dumps({'stage': 'text-mlm', 'step': step,
                               'train_loss': round(sum(losses)/len(losses), 6),
+                              'gradient_global_norm': (round(optimizer.last_grad_norm, 6)
+                                      if optimizer.last_grad_norm is not None else None),
+                              'gradient_clip_multiplier': round(optimizer.last_grad_multiplier, 6),
                               'val_loss': current_val,
                               'val_group_losses': current_groups,
                               'best_val_loss': best_loss if check else None,

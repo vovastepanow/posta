@@ -102,7 +102,7 @@ def full_smoke(output, *, length=24, max_masked=1):
     model = build_model(config, device)
     from cpu_master_adam import CPUMasterAdamW
     optimizer = CPUMasterAdamW((p for p in model.parameters() if p.requires_grad),
-                               lr=5e-5, loss_scale=16.0)
+                               lr=5e-5, loss_scale=16.0, max_grad_norm=1.0)
     torch.cuda.reset_peak_memory_stats()
     result = synthetic_masked_step(model, optimizer, device, length=length,
                                    max_masked=max_masked)
