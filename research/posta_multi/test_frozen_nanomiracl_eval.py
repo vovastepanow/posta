@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from frozen_nanomiracl_eval import (BM25_FORMAT, FROZEN_FORMAT,
-                                    load_frozen, logical_sha, score_ranking,
+                                    evaluate_groups, load_frozen, logical_sha, score_ranking,
                                     summarize_scores)
 from nanomiracl_benchmark import SOURCE
 
@@ -106,6 +106,28 @@ class FrozenNanoEvalTests(unittest.TestCase):
             score_ranking(["a", "b"], [0.1, math.nan], {"a"})
         with self.assertRaisesRegex(ValueError, "absent"):
             score_ranking(["a", "b"], [0.1, 0.2], {"missing"})
+
+
+    def test_full_candidate_evaluation_with_stub_512d_embeddings(self):
+        import torch
+        groups = {}
+        for lang in ("ru", "en"):
+            groups[lang] = {
+                "queries": {"q1": "red", "q2": "blue"},
+                "corpus": {"a": "red", "b": "blue", "c": "irrelevant"},
+                "qrels": {"q1": ["a"], "q2": ["b"]},
+            }
+
+        def embed(text):
+            vector = torch.zeros(512)
+            vector[0 if text == "red" else 1 if text == "blue" else 2] = 1
+            return vector
+
+        results = evaluate_groups(groups, embed)
+        self.assertEqual(results["overall"]["queries"], 4)
+        self.assertEqual(results["overall"]["hit_1"], 1)
+        self.assertEqual(results["overall"]["mrr"], 1)
+        self.assertEqual(results["languages"]["ru"]["positive_recall_5"], 1)
 
 
 if __name__ == "__main__":
