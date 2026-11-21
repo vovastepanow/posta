@@ -32,10 +32,11 @@ jobs:
             for file in $files; do gofmt -d "$file"; done
             exit 1
           fi
-      - name: Ensure no Python remains in the application repository
+      - name: Ensure Python stays outside the application runtime
         run: |
-          if find . -type f \( -name '*.py' -o -name '*.pyc' \) -print -quit | grep -q .; then
-            echo "Python files must not be checked in."
+          # Isolated PMR research scripts are Python; production Go/deploy paths are not.
+          if find . -path './research/pmr_datasets' -prune -o -type f \( -name '*.py' -o -name '*.pyc' \) -print -quit | grep -q .; then
+            echo "Python files outside research/pmr_datasets must not be checked in."
             exit 1
           fi
           if grep -q 'python3' deploy/auto-update.sh; then
