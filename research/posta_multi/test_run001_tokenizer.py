@@ -139,6 +139,39 @@ class Run001TokenizerTests(unittest.TestCase):
                 with self.assertRaises(FileExistsError):
                     train(args('/unneeded', output=path))
 
+    def test_private_quarantine_tokenizer_never_claims_training_approval(self):
+        try:
+            from tokenizers import Tokenizer
+        except ImportError:
+            self.skipTest('tokenizers not installed')
+        corpus = make_corpus(approved=False)
+        corpus.manifest = {
+            'status': 'QUARANTINED: source rights, privacy and benchmark screening required',
+            'accepted': 1000,
+            'sources': {
+                'fineweb': {'repository': 'HuggingFaceFW/fineweb-2',
+                            'revision': 'a' * 40,
+                            'license_review_status': 'pending'},
+            },
+            'files': [{'path': 'text-train.jsonl'},
+                      {'path': 'text-validation.jsonl'},
+                      {'path': 'text-test.jsonl'}],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'local'
+            settings = args('/unneeded', output=output)
+            settings.local_research_quarantine = True
+            with patch('run001_tokenizer.Corpus', return_value=corpus):
+                metadata = train(settings)
+            self.assertIs(metadata['quarantined_research_only'], True)
+            self.assertIs(metadata['private_local_only'], True)
+            self.assertIs(metadata['production_promotion_allowed'], False)
+            self.assertFalse(metadata['ready_for_manual_tokenizer_training'])
+            self.assertIn('status_not_approved_for_training', metadata['approval_issues'])
+            self.assertTrue((output / 'tokenizer.json').is_file())
+            self.assertEqual(Tokenizer.from_file(str(output/'tokenizer.json'))
+                             .token_to_id('[MASK]'), 3)
+
     def test_no_language_and_no_approval_blocks_training(self):
         fake = make_corpus()
         with tempfile.TemporaryDirectory() as directory:
