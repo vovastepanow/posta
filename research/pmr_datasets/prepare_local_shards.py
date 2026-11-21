@@ -100,7 +100,7 @@ def convert(id_, raw, index, kind, lang, output):
             title = clean(raw.get('title'))
             if not title or not isinstance(value, str) or not value.strip():
                 raise ValueError('Wikipedia title/text missing')
-            value = title + '\\n' + value
+            value = title + '\n' + value
             meta.update(wikipedia_title=title,
                         upstream_license_claim='cc-by-sa-3.0; attribution review pending',
                         wikipedia_snapshot='20231101')
