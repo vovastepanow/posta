@@ -1,0 +1,61 @@
+name: Posta Multi 235M offline tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'research/posta_multi/**'
+      - '.github/workflows/posta-multi-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: posta-multi-offline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  syntax-and-budget:
+    name: Syntax and 235M budget (no dependencies)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile research Python source
+        run: python3 -m compileall -q research/posta_multi
+      - name: Validate declared parameter budget
+        run: |
+          PYTHONPATH=research/posta_multi python3 - <<'PY'
+          from spec import parameter_counts
+          assert parameter_counts()['total'] == 235179777
+          print('Posta Multi 235M analytical count verified')
+          PY
+
+  cpu-unit-tests:
+    name: CPU train/resume and multimodal unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      CUDA_VISIBLE_DEVICES: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: .github/workflows/posta-multi-tests.yml
+      - name: Install CPU PyTorch (never use GPU or HDD)
+        run: |
+          python3 -m pip install --disable-pip-version-check 'torch==2.7.1+cpu' --index-url https://download.pytorch.org/whl/cpu
+          python3 -m pip install --disable-pip-version-check 'tokenizers==0.22.1' 'numpy>=1.26,<3' 'Pillow>=10,<13'
+      - name: Check media tool availability
+        run: ffmpeg -version | head -n 1
+      - name: Run offline model and trainer regression tests
+        run: python3 -m unittest discover -s research/posta_multi -p 'test_*.py' -v
