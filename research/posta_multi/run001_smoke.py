@@ -65,15 +65,18 @@ def synthetic_masked_step(model, optimizer, device='cpu', *, length=24):
                            bool(p.grad.detach().abs().max() > 0)) for p in parameters)
     if nonzero_grad < 3:
         raise RuntimeError('text gradient missing or nonfinite')
-    before = model.text_projection.weight.detach().float().cpu().clone()
+    # MLM predicts with tied token embeddings, not text_projection. Verify a
+    # parameter actually used by this objective, otherwise the smoke would
+    # incorrectly reject a valid MLM step.
+    before = model.text_tokens.weight.detach().float().cpu().clone()
     if optimizer.step() is False:
         raise RuntimeError('optimizer rejected nonfinite gradient')
-    changed = bool((model.text_projection.weight.detach().float().cpu() - before).abs().max() > 0)
+    changed = bool((model.text_tokens.weight.detach().float().cpu() - before).abs().max() > 0)
     if not changed:
-        raise RuntimeError('optimizer step did not update text projection weights')
+        raise RuntimeError('optimizer step did not update text token embeddings')
     return {'loss': round(float(loss.detach().cpu()), 6),
             'nonzero_gradient_tensors': nonzero_grad,
-            'updated_text_projection': True}
+            'updated_text_embeddings': True}
 
 
 def build_model(config, device):

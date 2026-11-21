@@ -34,7 +34,7 @@ class Run001SmokeTests(unittest.TestCase):
                                        if p.requires_grad), lr=0.003)
         result = synthetic_masked_step(model, optimizer, 'cpu', length=8)
         self.assertGreater(result['nonzero_gradient_tensors'], 2)
-        self.assertTrue(result['updated_text_projection'])
+        self.assertTrue(result['updated_text_embeddings'])
         self.assertGreater(result['loss'], 0)
 
     def test_bad_length_fails_closed(self):
