@@ -306,6 +306,25 @@ def main():
     print(json.dumps({'miracl_human_benchmark': data,
                       'exit_exists': (ROOT / (miracl_name + '.exit')).is_file()},
                      ensure_ascii=False))
+    source_audit = 'posta-multi-run001-source-audit-v1'
+    source_file = ROOT / (source_audit + '.json')
+    if source_file.is_file():
+        try:
+            source = json.loads(source_file.read_text(encoding='utf-8'))
+            details = [{
+                'id': entry['id'], 'revision': entry.get('revision'),
+                'metadata_status': entry['metadata_status'],
+                'schema_status': entry['schema_status'],
+                'license_card': entry.get('license_from_hf_card'),
+                'review_required': entry.get('review_required', True)}
+                for entry in source['datasets']]
+        except (KeyError, ValueError, TypeError, OSError) as error:
+            details = {'read_error': str(error)}
+    else:
+        details = {'report_exists': False}
+    print(json.dumps({'run001_external_source_audit': details,
+                      'exit_exists': (ROOT / (source_audit + '.exit')).is_file()},
+                     ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 

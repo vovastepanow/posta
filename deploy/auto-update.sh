@@ -99,6 +99,13 @@ if [ -f "$APP/research/posta_multi/host_miracl_benchmark_hook.sh" ]; then
         log "WARNING: Run 001 MIRACL evaluation hook failed."
 fi
 
+# Pin source revisions and inspect metadata/column types of selected text
+# and retrieval datasets. No source rows, media or large shards are downloaded.
+if [ -f "$APP/research/posta_multi/host_source_audit_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_source_audit_hook.sh" ||
+        log "WARNING: Run 001 external source metadata audit hook failed."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.
