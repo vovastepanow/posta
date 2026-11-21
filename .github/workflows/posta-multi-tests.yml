@@ -36,7 +36,7 @@ jobs:
           PY
 
   cpu-unit-tests:
-    name: CPU training, compact and multimodal unit tests
+    name: CPU training, 235M Run 001 and multimodal tests
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:

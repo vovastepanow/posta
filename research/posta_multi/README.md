@@ -723,3 +723,39 @@ train small image/text towers and extend the same embedding/indexing
 interface to frames, OCR, subtitles and audio. Keep source popularity and
 quality separate from post semantic relevance. Avoid adding unverified
 cross-modal encoders simply to claim full modality coverage.
+
+
+## Posta Multi 235M — Run 001 (scratch restart, 21 Nov 2026)
+
+The owner chose to **retain the full 235,179,777-parameter multimodal
+architecture**. The separate compact model is an abandoned experiment, not
+the architecture adopted for Posta. Historic v1–v9 are distinct experimental
+checkpoints, **not** generations of the neural architecture.
+
+Run ID: `posta-multi-235m-run-001`. No checkpoint from v1–v9 is loaded.
+The first new model uses `Config(text_pooling='mean')` (content mean pooling)
+and text-layer activation checkpointing. No changes in parameter count; image,
+temporal/audio and fusion weights remain random until their own stages.
+
+Execution order:
+1. **Synthetic GPU one-step smoke:** initialize all 235M weights, freeze
+   non-text towers, run one masked-token forward/backward+CPU-master AdamW
+   update under the existing 45% GPU-memory allocation cap, and write only
+   a numeric JSON report. Does not read a tokenizer or the quarantined corpus.
+2. **Data readiness:** verify the local source/rights/privacy decisions,
+   exact leakage and near-duplicate checks, language/topic coverage, and a
+   reproducible tokenizer (current mixed RU/EN pilot is not global coverage).
+3. **Full text pretraining from random initialization:** run many bounded,
+   resumable, measurable text updates with dynamic masking and a dataset
+   mixture; contrast against a separately held-out validation set. Use
+   CPU-master AdamW and activation checkpointing after smoke succeeds.
+4. **Query–post retrieval:** pairwise and multi-positive training with audited
+   negatives, pool-based Recall@K/MRR and baseline checks. Do not select via
+   the exposed test split.
+5. **Cross-modal alignment:** image-caption, memes+OCR, video frames+subtitles,
+   audio/ASR under separate modality evaluations. No claim of learned
+   multimodal retrieval before passing actual retrieval tests.
+
+`run001_smoke.py` is a bounded one-step **synthetic** GPU feasibility test,
+not a trained checkpoint. Its output is a JSON-only report on the host HDD.
+It neither changes the Posta database nor modifies the old checkpoints.
