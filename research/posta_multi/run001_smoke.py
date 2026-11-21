@@ -33,14 +33,16 @@ def trainable_text_parameters(model):
     return result
 
 
-def synthetic_masked_step(model, optimizer, device='cpu', *, length=24):
+def synthetic_masked_step(model, optimizer, device='cpu', *, length=24,
+                          max_masked=1):
     """One training update, with bounded MLM logits and real gradient flow.
 
     Model must already be on device. CPU smoke uses AdamW/FP32;
     GPU smoke uses the FP16/CPU-master optimizer supplied by the caller.
     """
-    if length < 6 or length > model.config.text_length:
-        raise ValueError('invalid synthetic sequence length')
+    if length < 6 or length > model.config.text_length or \
+       type(max_masked) is not int or not 1 <= max_masked <= length - 2:
+        raise ValueError('invalid synthetic sequence length/masking budget')
     device = torch.device(device)
     model.train()
     model.enable_gradient_checkpointing(True)
@@ -48,11 +50,11 @@ def synthetic_masked_step(model, optimizer, device='cpu', *, length=24):
                               dtype=torch.long, device=device)
     token_ids[0, 0] = 1
     token_ids[0, -1] = 2
-    target = token_ids[:, 1:2].clone().reshape(-1)
-    token_ids[:, 1:2] = 3
+    selected = torch.zeros_like(token_ids, dtype=torch.bool)
+    selected[0, 1:1+max_masked] = True
+    target = token_ids[selected].clone()
+    token_ids[selected] = 3
     mask = torch.ones_like(token_ids, dtype=torch.bool)
-    selected = torch.zeros_like(mask)
-    selected[0, 1] = True
     optimizer.zero_grad()
     loss = F.cross_entropy(
         model.masked_token_logits(token_ids, mask, selected).float(), target)
@@ -91,7 +93,7 @@ def build_model(config, device):
     return model
 
 
-def full_smoke(output):
+def full_smoke(output, *, length=24, max_masked=1):
     if not torch.cuda.is_available():
         raise RuntimeError('CUDA unavailable; full Run 001 smoke needs the local GPU')
     device = torch.device('cuda')
@@ -102,7 +104,8 @@ def full_smoke(output):
     optimizer = CPUMasterAdamW((p for p in model.parameters() if p.requires_grad),
                                lr=5e-5, loss_scale=16.0)
     torch.cuda.reset_peak_memory_stats()
-    result = synthetic_masked_step(model, optimizer, device, length=24)
+    result = synthetic_masked_step(model, optimizer, device, length=length,
+                                   max_masked=max_masked)
     report = {
         'format': 'posta-multi-235m-run001-smoke-v1',
         'run_id': RUN_ID,
@@ -111,6 +114,8 @@ def full_smoke(output):
         'pooling': config.text_pooling,
         'checkpointing': True,
         'gpu_memory_fraction': 0.45,
+        'sequence_length': length,
+        'masked_positions': max_masked,
         'cuda_peak_allocated_mib': round(torch.cuda.max_memory_allocated() / 2**20, 1),
         'synthetic_training': result,
         'trained_on_real_data': False,
@@ -126,8 +131,10 @@ def full_smoke(output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--length', type=int, default=24)
+    parser.add_argument('--max-masked', type=int, default=1)
     args = parser.parse_args()
-    full_smoke(args.output)
+    full_smoke(args.output, length=args.length, max_masked=args.max_masked)
 
 
 if __name__ == '__main__':

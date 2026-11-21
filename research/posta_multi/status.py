@@ -225,6 +225,24 @@ def main():
         result = {'report_exists': False}
     print(json.dumps({'run001_preflight': result, 'exit_exists': preflight_exit.is_file()},
                      ensure_ascii=False))
+    seq96 = 'posta-multi-235m-run-001-seq96-smoke'
+    seq96_path = ROOT / (seq96 + '.json')
+    if seq96_path.is_file():
+        try:
+            report = json.loads(seq96_path.read_text(encoding='utf-8'))
+            if report.get('format') != 'posta-multi-235m-run001-smoke-v1':
+                raise ValueError('unknown seq96 smoke format')
+            result = {k: report[k] for k in (
+                'sequence_length', 'masked_positions',
+                'cuda_peak_allocated_mib', 'synthetic_training',
+                'trained_on_real_data')}
+        except (ValueError, KeyError, OSError, TypeError) as error:
+            result = {'read_error': str(error)}
+    else:
+        result = {'report_exists': False}
+    print(json.dumps({'run001_seq96': result,
+                      'exit_exists': (ROOT / (seq96 + '.exit')).is_file()},
+                     ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 

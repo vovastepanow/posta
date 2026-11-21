@@ -32,7 +32,8 @@ class Run001SmokeTests(unittest.TestCase):
         model = build_model(c, 'cpu')
         optimizer = torch.optim.AdamW((p for p in model.parameters()
                                        if p.requires_grad), lr=0.003)
-        result = synthetic_masked_step(model, optimizer, 'cpu', length=8)
+        result = synthetic_masked_step(model, optimizer, 'cpu', length=8,
+                                       max_masked=3)
         self.assertGreater(result['nonzero_gradient_tensors'], 2)
         self.assertTrue(result['updated_text_embeddings'])
         self.assertGreater(result['loss'], 0)
@@ -44,6 +45,10 @@ class Run001SmokeTests(unittest.TestCase):
             synthetic_masked_step(model, opt, 'cpu', length=2)
         with self.assertRaises(ValueError):
             synthetic_masked_step(model, opt, 'cpu', length=100000)
+        with self.assertRaises(ValueError):
+            synthetic_masked_step(model, opt, 'cpu', length=8, max_masked=7)
+        with self.assertRaises(ValueError):
+            synthetic_masked_step(model, opt, 'cpu', length=8, max_masked=0)
 
 
 if __name__ == '__main__':

@@ -72,6 +72,13 @@ if [ -f "$APP/research/posta_multi/host_run001_preflight_hook.sh" ]; then
         log "WARNING: Posta Multi Run 001 preflight hook could not start."
 fi
 
+# Second Run 001 synthetic probe uses real 96-token training length.
+# Gate on the first successful probe; never retrain or download data.
+if [ -f "$APP/research/posta_multi/host_run001_seq96_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_run001_seq96_hook.sh" ||
+        log "WARNING: Posta Multi Run 001 seq96 probe hook failed."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.
