@@ -9,10 +9,19 @@ import torch
 from tokenizers import Tokenizer
 from corpus import Corpus
 from cpu_master_sgd import CPUMasterSGD
+from cpu_master_adam import CPUMasterAdamW
 from model import PostaMulti
-from retrieval_stage import load_pairs, pair_loss
+from retrieval_stage import load_pairs, load_pairs_sampled, pair_loss
 from spec import Config
 from train_text import save_atomic
+
+
+def text_parameters(model):
+    """Train only text encoders/projection; leave image, audio, video, fusion intact."""
+    prefixes = ('text_tokens', 'text_positions', 'text_encoder', 'text_norm', 'text_projection')
+    for name, parameter in model.named_parameters():
+        parameter.requires_grad_(any(name == prefix or name.startswith(prefix + '.') for prefix in prefixes))
+    return [p for p in model.parameters() if p.requires_grad]
 
 
 def main():
@@ -25,8 +34,11 @@ def main():
     p.add_argument('--steps', type=int, required=True)
     p.add_argument('--save-every', type=int, default=8)
     p.add_argument('--resume', action='store_true')
+    p.add_argument('--text-only-adam', action='store_true', help='CPU master AdamW; freeze non-text layers')
+    p.add_argument('--learning-rate', type=float, default=0.001)
+    p.add_argument('--sample-hash', action='store_true', help='sample reproducibly across the complete train split')
     args = p.parse_args()
-    if args.steps < 1 or args.samples < 1 or args.save_every < 1:
+    if args.steps < 1 or args.samples < 1 or args.save_every < 1 or not 0 < args.learning_rate <= 0.01:
         raise ValueError('invalid sample/step count')
     output = Path(args.checkpoint)
     if output.exists() and not args.resume:
@@ -38,7 +50,7 @@ def main():
     torch.cuda.manual_seed_all(42)
     torch.cuda.set_per_process_memory_fraction(0.45)
     corpus = Corpus(args.dataset)
-    pairs, pairs_hash = load_pairs(corpus, args.samples)
+    pairs, pairs_hash = (load_pairs_sampled if args.sample_hash else load_pairs)(corpus, args.samples)
     tok_hash = hashlib.sha256(Path(args.tokenizer).read_bytes()).hexdigest()
     tokenizer = Tokenizer.from_file(args.tokenizer)
     with open(args.init, 'rb') as f:
@@ -50,10 +62,19 @@ def main():
     settings = {'config': asdict(config), 'tokenizer': tok_hash, 'manifest_sha256': corpus.manifest_hash,
                 'init_sha256': source_hash, 'pairs_sha256': pairs_hash, 'samples': args.samples,
                 'max_length': 128, 'objective': 'explicit-negative-v1'}
+    if args.sample_hash:
+        settings['sample_mode'] = 'stable-hash-all-train-v1'
+    if args.text_only_adam:
+        settings['optimizer'] = 'text-only-cpu-adamw-v1'
+    if args.text_only_adam or args.learning_rate != 0.001:
+        settings['learning_rate'] = args.learning_rate
     model = PostaMulti(config).half().cuda()
     model.load_state_dict(source['model'])
     del source
-    optimizer = CPUMasterSGD(model.parameters(), lr=0.001, loss_scale=16)
+    if args.text_only_adam:
+        optimizer = CPUMasterAdamW(text_parameters(model), lr=args.learning_rate)
+    else:
+        optimizer = CPUMasterSGD(model.parameters(), lr=args.learning_rate, loss_scale=16)
     step = 0
     if args.resume:
         state = torch.load(output, map_location='cpu', weights_only=True)

@@ -35,5 +35,5 @@ fi
 POSTA_ML_ROOT="$ROOT" POSTA_ML_PYTHON="$PYTHON" POSTA_DEPLOY_DIR="$APP" \
     nohup flock -n "$ROOT/$RUN_ID.lock" \
     bash "$APP/research/posta_multi/host_compare_worker.sh" \
-    </dev/null >>"$ROOT/$RUN_ID.log" 2>&1 &
+    9>&- </dev/null >>"$ROOT/$RUN_ID.log" 2>&1 &
 note "Read-only comparison requested; report remains on HDD ($RUN_ID)."
