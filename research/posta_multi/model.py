@@ -30,7 +30,10 @@ class PostaMulti(nn.Module):
             raise ValueError('embedding dimension must be even for temporal encoding')
         if c.temporal_width != c.embed_dim:
             raise ValueError('temporal width must equal shared embedding dimension')
+        if c.text_pooling not in ('cls', 'mean'):
+            raise ValueError('text_pooling must be cls or mean')
         self.config = c
+        self.gradient_checkpointing = False
         self.text_tokens = nn.Embedding(c.vocab_size, c.text_width)
         self.text_positions = nn.Embedding(c.text_length, c.text_width)
         self.text_encoder = encoder(c.text_width, c.text_heads, c.text_ff, c.text_layers, dropout)
@@ -76,6 +79,10 @@ class PostaMulti(nn.Module):
                       self.fusion_cls, self.fusion_positions):
             nn.init.normal_(param, std=0.02)
 
+    def enable_gradient_checkpointing(self, enabled=True):
+        """Trade extra computation for lower text-encoder activation memory."""
+        self.gradient_checkpointing = bool(enabled)
+
     def _text_hidden(self, token_ids, attention_mask):
         c = self.config
         if token_ids.ndim != 2 or attention_mask.shape != token_ids.shape:
@@ -86,12 +93,37 @@ class PostaMulti(nn.Module):
             raise ValueError('the first token must be an unmasked CLS token')
         pos = torch.arange(token_ids.shape[1], device=token_ids.device)
         x = self.text_tokens(token_ids) + self.text_positions(pos)[None, :, :]
-        x = self.text_encoder(x, src_key_padding_mask=~attention_mask.bool())
+        padding = ~attention_mask.bool()
+        if self.training and self.gradient_checkpointing:
+            from torch.utils.checkpoint import checkpoint
+            # Preserve the exact layers and state_dict keys of legacy 235M.
+            for layer in self.text_encoder.layers:
+                x = checkpoint(
+                    lambda hidden, current_layer=layer: current_layer(
+                        hidden, src_key_padding_mask=padding),
+                    x, use_reentrant=False, preserve_rng_state=True)
+            if self.text_encoder.norm is not None:
+                x = self.text_encoder.norm(x)
+        else:
+            x = self.text_encoder(x, src_key_padding_mask=padding)
         return self.text_norm(x)
 
     def encode_text(self, token_ids, attention_mask):
         hidden = self._text_hidden(token_ids, attention_mask)
-        return F.normalize(self.text_projection(hidden[:, 0]), dim=-1, eps=1e-6)
+        if self.config.text_pooling == 'cls':
+            pooled = hidden[:, 0]
+        else:
+            # Pool only content, not CLS/SEP/padding. Old checkpoints still
+            # default to CLS and retain byte-for-byte parameter compatibility.
+            valid = attention_mask.bool().clone()
+            valid[:, 0] = False
+            last = attention_mask.long().sum(dim=1) - 1
+            valid[torch.arange(valid.shape[0], device=valid.device), last] = False
+            if not valid.any(dim=1).all():
+                raise ValueError('mean pooling requires a content token')
+            pooled = (hidden * valid.unsqueeze(-1)).sum(dim=1) / valid.sum(
+                dim=1, keepdim=True)
+        return F.normalize(self.text_projection(pooled), dim=-1, eps=1e-6)
 
     def masked_token_logits(self, token_ids, attention_mask, masked_positions):
         # Tied decoder uses the same randomly initialized token embedding weights.

@@ -74,6 +74,54 @@ class ModelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'nondecreasing'):
             self.model.encode_video(torch.randn(1,2,3,32,32),timestamps=torch.tensor([[2.,1.]]))
 
+
+    def test_new_pooling_is_padding_invariant(self):
+        c = replace(self.c, text_pooling='mean')
+        model = PostaMulti(c, dropout=0)
+        model.eval()
+        ids = torch.tensor([[1, 4, 5, 2, 0, 0], [1, 6, 7, 2, 0, 0]])
+        mask = ids.ne(0)
+        changed = ids.clone()
+        changed[:, 4:] = 99
+        with torch.no_grad():
+            a = model.encode_text(ids, mask)
+            b = model.encode_text(changed, mask)
+        self.assertTrue(torch.allclose(a, b, atol=1e-6))
+        self.assertTrue(torch.allclose(a.norm(dim=-1), torch.ones(2), atol=1e-6))
+        with self.assertRaisesRegex(ValueError, 'content token'):
+            model.encode_text(torch.tensor([[1, 2, 0]]),
+                              torch.tensor([[True, True, False]]))
+
+    def test_text_checkpointing_preserves_gradients(self):
+        c = replace(self.c, text_pooling='mean')
+        torch.manual_seed(91)
+        baseline = PostaMulti(c, dropout=0)
+        checkpointed = PostaMulti(c, dropout=0)
+        checkpointed.load_state_dict(baseline.state_dict())
+        checkpointed.enable_gradient_checkpointing()
+        baseline.train()
+        checkpointed.train()
+        ids = torch.tensor([[1, 9, 11, 2], [1, 7, 8, 2]])
+        mask = torch.ones_like(ids, dtype=torch.bool)
+        first = baseline.encode_text(ids, mask)
+        second = checkpointed.encode_text(ids, mask)
+        self.assertTrue(torch.allclose(first, second, atol=1e-6))
+        (first[:, 0] - 0.5).square().mean().backward()
+        (second[:, 0] - 0.5).square().mean().backward()
+        self.assertTrue(torch.allclose(baseline.text_projection.weight.grad,
+                                       checkpointed.text_projection.weight.grad,
+                                       atol=2e-5, rtol=2e-4))
+        self.assertTrue(torch.allclose(
+            baseline.text_encoder.layers[0].linear1.weight.grad,
+            checkpointed.text_encoder.layers[0].linear1.weight.grad,
+            atol=2e-5, rtol=2e-4))
+
+    def test_invalid_pooling_is_rejected(self):
+        with self.assertRaises(ValueError):
+            parameter_counts(replace(self.c, text_pooling='invalid'))
+        with self.assertRaises(ValueError):
+            PostaMulti(replace(self.c, text_pooling='invalid'))
+
     def test_training_step_and_checkpoint(self):
         optimizer=torch.optim.SGD(self.model.parameters(),lr=0.01)
         x=torch.randint(0,self.c.vocab_size,(2,8)); mask=torch.ones_like(x,dtype=torch.bool)

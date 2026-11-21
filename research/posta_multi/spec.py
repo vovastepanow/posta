@@ -11,6 +11,7 @@ class Config:
     text_heads: int = 12
     text_ff: int = 3072
     text_length: int = 512
+    text_pooling: str = 'cls'  # legacy default; 'mean' for the new scratch run
     image_width: int = 768
     image_layers: int = 12
     image_heads: int = 12
@@ -36,6 +37,8 @@ def encoder_layer(d, f):
 
 
 def parameter_counts(c=Config()):
+    if c.text_pooling not in ('cls', 'mean'):
+        raise ValueError('text_pooling must be cls or mean')
     if c.image_size % c.image_patch or c.mel_bins % c.audio_patch_mels:
         raise ValueError('patch sizes must divide spatial/mel dimensions')
     for width, heads in ((c.text_width,c.text_heads),(c.image_width,c.image_heads),(c.temporal_width,c.temporal_heads)):
