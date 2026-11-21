@@ -86,6 +86,13 @@ if [ -f "$APP/research/posta_multi/host_run001_retrieval_smoke_hook.sh" ]; then
         log "WARNING: Run 001 anti-collapse GPU smoke hook failed."
 fi
 
+# Read-only lexical baseline on the existing validation split; no model weights
+# or database changes, and never an automatic training or promotion action.
+if [ -f "$APP/research/posta_multi/host_bm25_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_bm25_hook.sh" ||
+        log "WARNING: Run 001 BM25 validation hook failed."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.

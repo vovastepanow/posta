@@ -261,6 +261,27 @@ def main():
     print(json.dumps({'run001_retrieval_smoke': summary,
                       'exit_exists': (ROOT / (retr_smoke + '.exit')).is_file()},
                      ensure_ascii=False))
+    bm25_job = 'posta-multi-235m-run001-bm25-validation-v1'
+    bm25_file = ROOT / (bm25_job + '.json')
+    if bm25_file.is_file():
+        try:
+            record = json.loads(bm25_file.read_text(encoding='utf-8'))
+            if record.get('format') != 'posta-multi-bm25-internal-validation-v1':
+                raise ValueError('unknown BM25 benchmark schema')
+            data = {
+                label: {key: record[label][key] for key in (
+                    'samples', 'candidate_pool_size',
+                    'validation_pairs_sha256', 'pair_accuracy',
+                    'recall_at_1', 'recall_at_5', 'mean_reciprocal_rank')}
+                for label in ('legacy_head16', 'stable_hash')
+            }
+        except (KeyError, ValueError, OSError, TypeError) as error:
+            data = {'read_error': str(error)}
+    else:
+        data = {'report_exists': False}
+    print(json.dumps({'run001_bm25_validation': data,
+                      'exit_exists': (ROOT / (bm25_job + '.exit')).is_file()},
+                     ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 
