@@ -33,6 +33,21 @@ from train_text import save_atomic
 STAGE_FORMAT = 'posta-multi-235m-run001-retrieval-v1'
 
 
+def configure_trainable_stage(model, step, projection_only_steps):
+    """Protect MLM representations while the random retrieval head warms up."""
+    if step < 1 or projection_only_steps < 0:
+        raise ValueError('invalid projection-only schedule')
+    projection_only = step <= projection_only_steps
+    text_prefixes = ('text_tokens.', 'text_positions.', 'text_encoder.',
+                     'text_norm.', 'text_projection.')
+    for name, param in model.named_parameters():
+        is_text = name.startswith(text_prefixes)
+        is_projection = name.startswith('text_projection.')
+        param.requires_grad_(is_projection if projection_only else is_text)
+    return 'projection-only' if projection_only else 'text-finetune'
+
+
+
 def encode_triples(tokenizer, pairs, max_length=96):
     if max_length < 8 or max_length > 512:
         raise ValueError('retrieval token budget outside Run 001 range')
@@ -165,7 +180,8 @@ def run(args):
     if (args.steps < 1 or args.batch_size < 2 or args.train_pairs < args.batch_size
             or args.val_pairs < 16 or args.validate_every < 1
             or args.save_every < 1 or args.patience < 1 or
-            not 0 < args.lr <= 0.001 or args.max_length < 8
+            not 0 < args.lr <= 0.001 or args.projection_only_steps < 0 or
+            args.projection_only_steps >= args.steps or args.max_length < 8
             or args.max_length > 512):
         raise ValueError('invalid Run 001 retrieval settings')
     corpus = Corpus(args.dataset)
@@ -220,6 +236,8 @@ def run(args):
         'objective': 'explicit-margin-variance-repulsion-v1',
         'gradient_cache': 'recompute-one-text-at-a-time-dropout-zero-v1',
         'max_grad_norm': 1.0,
+        'projection_only_steps': args.projection_only_steps,
+        'finetune_learning_rate_multiplier': 0.25,
     }
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
@@ -257,6 +275,9 @@ def run(args):
     for step in range(step + 1, args.steps + 1):
         chosen = torch.randperm(len(train), generator=generator)[:args.batch_size]
         batch = [train[int(i)] for i in chosen]
+        phase = configure_trainable_stage(model, step, args.projection_only_steps)
+        optimizer.lr = (args.lr if phase == 'projection-only'
+                        else args.lr * 0.25)
         optimizer.zero_grad()
         loss, measures = cached_retrieval_backward(model, batch, device,
                                                     optimizer=optimizer)
@@ -289,6 +310,8 @@ def run(args):
             print(json.dumps({
                 'stage': 'retrieval-anti-collapse', 'step': step,
                 'train_objective': round(loss, 6),
+                'phase': phase,
+                'learning_rate': optimizer.lr,
                 'train_geometry': {k: round(v, 6) for k, v in measures.items()},
                 'val_metrics': val_metrics,
                 'healthy': checkpoint_is_healthy(val_metrics),
@@ -316,6 +339,7 @@ def main():
     p.add_argument('--save-every', type=int, default=25)
     p.add_argument('--patience', type=int, default=8)
     p.add_argument('--lr', type=float, default=0.00001)
+    p.add_argument('--projection-only-steps', type=int, default=100)
     p.add_argument('--seed', type=int, default=1001)
     p.add_argument('--resume', action='store_true')
     args = p.parse_args()

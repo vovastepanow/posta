@@ -7,7 +7,8 @@ import torch
 from model import PostaMulti
 from synthetic_train import tiny_config
 from run001_retrieval import (cached_retrieval_backward, evaluate_retrieval,
-                              better_candidate, encode_triples)
+                              better_candidate, configure_trainable_stage,
+                              encode_triples)
 from run001_retrieval_loss import anti_collapse_loss
 
 
@@ -70,6 +71,26 @@ class RetrievalCacheTests(unittest.TestCase):
             'query_interexample_cosine': .92,
             'document_interexample_cosine': .93,
             'mean_reciprocal_rank': .3}, None))
+
+    def test_projection_warmup_preserves_pretrained_text_encoder(self):
+        model = self.recomputed
+        phase = configure_trainable_stage(model, 1, projection_only_steps=5)
+        self.assertEqual(phase, 'projection-only')
+        self.assertTrue(model.text_projection.weight.requires_grad)
+        self.assertFalse(model.text_tokens.weight.requires_grad)
+        self.assertFalse(model.text_encoder.layers[0].linear1.weight.requires_grad)
+        model.zero_grad()
+        cached_retrieval_backward(model, fixture(), 'cpu')
+        self.assertIsNotNone(model.text_projection.weight.grad)
+        self.assertIsNone(model.text_tokens.weight.grad)
+        model.zero_grad()
+        phase = configure_trainable_stage(model, 6, projection_only_steps=5)
+        self.assertEqual(phase, 'text-finetune')
+        self.assertTrue(model.text_tokens.weight.requires_grad)
+        cached_retrieval_backward(model, fixture(), 'cpu')
+        self.assertIsNotNone(model.text_tokens.weight.grad)
+        with self.assertRaises(ValueError):
+            configure_trainable_stage(model, 0, projection_only_steps=5)
 
     def test_invalid_small_batch_refused(self):
         with self.assertRaises(ValueError):
