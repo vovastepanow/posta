@@ -113,6 +113,13 @@ if [ -f "$APP/research/posta_multi/host_run001_tokenizer_audit_hook.sh" ]; then
         log "WARNING: Run 001 tokenizer intake audit could not start."
 fi
 
+# Aggregate-only audit of ALREADY downloaded 100GiB dataset files.
+# Read-only: no new sources, no model initialization, no production DB writes.
+if [ -f "$APP/research/posta_multi/host_run001_hdd_inventory_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_run001_hdd_inventory_hook.sh" ||
+        log "WARNING: Run 001 HDD inventory could not start."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.
