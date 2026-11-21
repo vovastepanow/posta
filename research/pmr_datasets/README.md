@@ -1,4 +1,4 @@
-# Posta PMR — dataset audit v0.1 (research only)
+# Posta Multi 235M (Поста Мульти 235М) — dataset audit v0.1 (research only)
 
 This directory is **not** a replacement for Posta's production `cmd/posta-ml` classifier, server, search, or DB.
 All commands are stdlib-only Python 3 scripts. No automatic downloads, training or migrations.
@@ -41,6 +41,31 @@ Cards/references:
 - https://huggingface.co/datasets/WenhaoWang/VideoUFO
 - https://huggingface.co/datasets/mozilla-foundation/common_voice_17_0
 - https://huggingface.co/datasets/VLM2Vec/MMEB-V3
+
+
+## Model naming and verified metadata snapshot (21 Nov 2026)
+
+The target product model is named **Posta Multi 235M (Поста Мульти 235М)**.
+`PMR` remains an internal shorthand for the Posta Multimodal Retriever research pipeline.
+The **235M** number is a target size, not an already trained or frozen architecture.
+
+An isolated GitHub Actions run audited six publicly accessible Hugging Face metadata
+endpoints on **2026-11-21 at 13:50 UTC**. Both the bounded metadata workflow and
+the production Go test workflow succeeded at commit `f3ad583e`.
+
+| Catalog ID | Audited revision SHA | Previewed config / split | Schema |
+| --- | --- | --- | --- |
+| `fineweb2-ru` | `af9c13333eb981300149d5ca60a8e9d659b276b9` | `rus_Cyrl / train` | text, id, language, url, quality metadata |
+| `fineweb-en` | `9bb295ddab0e05d785b879661af7260fed5140fc` | `default / train` | text, id, language, token_count, url |
+| `kalm-retrieval` | `e9443ab6f5d4dc29c79cea03834e932428ed6ab1` | `default / train` | query, pos[], neg[] |
+| `wit` | `ff6d4fb32fd566d3a1fa20e946cba3234179465e` | `default / train` | image, image_url, caption metadata, embeddings |
+| `videoufo` | `683425832ad5b35d57d213963ecec18d5b689652` | `default / Full` | captions, middle frame, timestamps, quality scores |
+| `memexplain` | `2d08e071512ad6d6ad40bb18f1f793124ca25968` | `HatefulMemeXplain / train` | image, text, explanation, annotations |
+
+Source: [GitHub Actions metadata inventory run](https://github.com/vovastepanow/posta/actions/runs/44910807628).
+These **observed HEAD revisions and preview schemas are not approvals to train**.
+No full text corpus, media bytes, or per-asset rights were validated.
+Pinned revision-aware pilot exports require the separate human-reviewed approval gate.
 
 ## Step 1: Read-only metadata/schema probe
 
