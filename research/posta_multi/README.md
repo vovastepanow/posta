@@ -455,3 +455,39 @@ checkpoint files or stop the Posta service. A new request requires a reviewed
 new request ID, rather than automatically rerunning a possibly broken job.
 This mechanism cannot send results back to ChatGPT autonomously: the JSON must
 be supplied by the owner or an appropriately scoped results connector.
+
+## Guarded v9 retrieval experiment
+
+The next one-shot research experiment is opt-in through the already active local
+cron and gated by the completed read-only comparison above. The small
+`next_retrieval_stage.py` planner reads **only** its status-0 report and checks
+that the existing `retrieval-v1` and `text-v8` checkpoint evaluations used the
+same 16 validation pairs. It chooses `text-v8` only when its pair accuracy
+and MRR are no worse; otherwise it takes `retrieval-v1`. This is a provisional
+experiment-source rule, **not** evidence of production quality.
+
+The v9 stage uses CPU-master FP32 AdamW with the 235M FP16 network on the GTX
+1060, trains only text tokens/encoder/projection, and samples 512 distinct
+training pairs reproducibly from the *entire* retrieval train split using
+stable SHA-256 selection. Training is capped at **64 updates**, checkpointing
+every 16, process niceness +10, and a 2-hour overall timeout. Existing v1/v8
+checkpoints are never written. The 45%-GPU-allocation limit from the trainer
+still applies; this is a limited research experiment, not production training.
+
+Cron calls `host_retrieval_hook.sh` every tick only on a clean checkout.
+Without a successful first comparison, it does nothing. It refuses to launch
+over another trainer, a prior attempt, or a partially existing v9 checkpoint.
+The worker closes the deployer's inherited lock file descriptor so training
+does not block future Posta updates. It does not read Git credentials, expose
+media, or alter the Go service.
+
+Result files remain strictly on the HDD:
+- `posta-multi-retrieval-adam-v9.log`: progress and errors.
+- `posta-multi-retrieval-adam-v9.pt`: *new* checkpoint if produced.
+- `posta-multi-retrieval-adam-v9-eval.json`: text/search comparison, if completed.
+- `posta-multi-retrieval-adam-v9.exit`: one-shot exit code.
+
+A nonzero exit preserves prior checkpoints. The stage must not be automatically
+promoted or repeated based solely on a 16-query local validation score. Data
+rights/privacy and independent evaluation remain open prerequisites for larger
+runs and deployment.

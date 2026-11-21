@@ -32,6 +32,14 @@ fail "Unexpected origin URL. Check it manually."
 [ "$(git branch --show-current)" = main ] || fail "Expected branch main."
 git diff --quiet && git diff --cached --quiet || fail "Tracked local changes present; refusing to overwrite."
 
+# Independent bounded research job: poll for a successful prior comparison.
+# This is intentionally before the "already deployed" early return, so a
+# completed comparison can unlock the next stage without a new code deployment.
+if [ -f "$APP/research/posta_multi/host_retrieval_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_retrieval_hook.sh" ||
+        log "WARNING: Posta Multi v9 hook could not start."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.

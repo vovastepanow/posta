@@ -6,7 +6,7 @@ ROOT = Path('/mnt/hdd_ubuntu/posta-pmr')
 
 
 def main():
-    for name in ('posta-multi-mixed-pilot-v2', 'posta-multi-retrieval-pilot-v1', 'posta-multi-image-pilot-v1', 'posta-multi-audio-full-v3', 'posta-multi-audio-full-v4', 'posta-multi-audio-batch4-v5', 'posta-multi-audio-adam-v6', 'posta-multi-audio-expanded-v7', 'posta-multi-text-adam-v8'):
+    for name in ('posta-multi-mixed-pilot-v2', 'posta-multi-retrieval-pilot-v1', 'posta-multi-image-pilot-v1', 'posta-multi-audio-full-v3', 'posta-multi-audio-full-v4', 'posta-multi-audio-batch4-v5', 'posta-multi-audio-adam-v6', 'posta-multi-audio-expanded-v7', 'posta-multi-text-adam-v8', 'posta-multi-retrieval-adam-v9'):
         path = ROOT / (name + '.log')
         checkpoint = ROOT / (name + '.pt')
         last = None
