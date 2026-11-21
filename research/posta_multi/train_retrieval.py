@@ -12,6 +12,7 @@ from cpu_master_sgd import CPUMasterSGD
 from cpu_master_adam import CPUMasterAdamW
 from model import PostaMulti
 from retrieval_stage import load_pairs, load_pairs_sampled, pair_loss
+from retrieval_data_quality import CURATION_POLICY, curate_retrieval_pairs
 from spec import Config
 from train_text import save_atomic
 
@@ -37,6 +38,7 @@ def main():
     p.add_argument('--text-only-adam', action='store_true', help='CPU master AdamW; freeze non-text layers')
     p.add_argument('--learning-rate', type=float, default=0.001)
     p.add_argument('--sample-hash', action='store_true', help='sample reproducibly across the complete train split')
+    p.add_argument('--curated-pairs', action='store_true', help='future experiments only: dedup queries, exclude conflicting labels and held-out overlap')
     args = p.parse_args()
     if args.steps < 1 or args.samples < 1 or args.save_every < 1 or not 0 < args.learning_rate <= 0.01:
         raise ValueError('invalid sample/step count')
@@ -50,7 +52,13 @@ def main():
     torch.cuda.manual_seed_all(42)
     torch.cuda.set_per_process_memory_fraction(0.45)
     corpus = Corpus(args.dataset)
-    pairs, pairs_hash = (load_pairs_sampled if args.sample_hash else load_pairs)(corpus, args.samples)
+    if args.curated_pairs and not args.sample_hash:
+        raise ValueError('--curated-pairs requires --sample-hash to distinguish checkpoint settings')
+    if args.curated_pairs:
+        pairs, pairs_hash, curation_stats = curate_retrieval_pairs(corpus, args.samples)
+        print(json.dumps({'curation_policy': CURATION_POLICY, 'curation_counts': curation_stats}), flush=True)
+    else:
+        pairs, pairs_hash = (load_pairs_sampled if args.sample_hash else load_pairs)(corpus, args.samples)
     tok_hash = hashlib.sha256(Path(args.tokenizer).read_bytes()).hexdigest()
     tokenizer = Tokenizer.from_file(args.tokenizer)
     with open(args.init, 'rb') as f:
@@ -64,6 +72,9 @@ def main():
                 'max_length': 128, 'objective': 'explicit-negative-v1'}
     if args.sample_hash:
         settings['sample_mode'] = 'stable-hash-all-train-v1'
+    if args.curated_pairs:
+        settings['sample_mode'] = CURATION_POLICY
+        settings['curation_policy'] = CURATION_POLICY
     if args.text_only_adam:
         settings['optimizer'] = 'text-only-cpu-adamw-v1'
     if args.text_only_adam or args.learning_rate != 0.001:

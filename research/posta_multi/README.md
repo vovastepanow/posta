@@ -632,3 +632,28 @@ once after the reports exist. Its output stays on the HDD:
 validation looks better, independent evaluation, rights/privacy review and
 production integration are still incomplete. The audit is only read-only
 metadata aggregation and does not launch or authorize another training stage.
+
+## Optional future-only retrieval pair curation
+
+Earlier v1/v9 training used the first listed explicit negative for each
+query/positive record, without checking whether that negative was a known
+positive for the *same query* in a different row. This can introduce
+contradictory supervision. **It is a potential risk, not a proven cause of
+the v9 regression.**
+
+`retrieval_data_quality.py` provides a separately versioned, opt-in sampler:
+- normalizes NFKC, Unicode case and whitespace for exact comparisons;
+- reads all known positives per normalized query, then excludes negatives
+  contradicting any such positive;
+- rejects negatives identical to the query or empty after normalization;
+- excludes train queries/positives found in validation/test (exact normalized
+  match), keeps one reproducibly chosen triple per distinct query;
+- deterministic SHA-256 selection independent of input-row and negative-list
+  ordering; numeric counts only and an immutable pair-selection digest.
+
+Future experimental retrieval trainers can select `--curated-pairs
+--sample-hash`, which records a different sampler policy in checkpoint
+metadata. **No earlier checkpoint or frozen evaluation selection is changed.**
+The feature is not enabled in any cron worker; it does not mean the dataset
+is approved for training. It cannot rule out paraphrases, translations,
+unlabeled relevant negatives, rights/privacy problems or near-duplicates.
