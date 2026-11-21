@@ -204,6 +204,27 @@ def main():
         result = {'report_exists': False}
     print(json.dumps({'run001_smoke': result, 'exit_exists': smoke_exit.is_file()},
                      ensure_ascii=False))
+    preflight = 'posta-multi-235m-run-001-preflight'
+    preflight_report = ROOT / (preflight + '.json')
+    preflight_exit = ROOT / (preflight + '.exit')
+    if preflight_report.is_file():
+        try:
+            payload = json.loads(preflight_report.read_text(encoding='utf-8'))
+            if payload.get('format') != 'posta-multi-run001-readiness-v1':
+                raise ValueError('unrecognized Run 001 preflight report')
+            result = {
+                'allowed_to_train': payload['allowed_to_train'],
+                'dataset_approval_issues': payload['dataset_approval_issues'],
+                'cuda_available': payload['cuda_available'],
+                'tokenizer_vocab_size': payload['tokenizer_vocab_size'],
+                'model_parameters': payload['model_parameters'],
+            }
+        except (KeyError, ValueError, TypeError, OSError) as error:
+            result = {'read_error': str(error)}
+    else:
+        result = {'report_exists': False}
+    print(json.dumps({'run001_preflight': result, 'exit_exists': preflight_exit.is_file()},
+                     ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 

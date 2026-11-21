@@ -777,3 +777,22 @@ Output (local HDD only): `posta-multi-235m-run-001-smoke.json`, `.log`,
 `.exit`. A failed probe is not retried automatically and **must not** be
 interpreted as a data/training result. This is the first hardware gate before
 planning long, full-sized runs.
+
+### Run 001 local readiness preflight
+
+The existing CI-gated cron runs `run001_text.py --preflight` once on the local
+HDD corpus and mixed tokenizer, writing
+`posta-multi-235m-run-001-preflight.json`, `.log` and `.exit`. The report
+records actual manifest/tokenizer digests, vocabulary size, CUDA availability
+and outstanding review flags. It **never** downloads data, opens checkpoints,
+runs training or approves licenses. An `allowed_to_train: false` result is a
+mandatory block for the new full-sized trainer.
+
+The full `run001_text.py` stage implements resumable, scratch-initialized
+text MLM over balanced hash-selected train/validation windows, FP16 weights,
+CPU-master AdamW, activation checkpointing, gradient accumulation, periodic
+validation and atomic `run001-text-last.pt` / `run001-text-best.pt` checkpoints.
+It requires manifest-level approval, 8 GiB free HDD and a CUDA GPU, and is
+**not** started by cron until dataset/source review and GPU feasibility
+are demonstrated. Legacy v1-v9 checkpoints are not loaded. The BPE training
+CLI default is restored to 65,536 vocabulary slots for the 235M model.
