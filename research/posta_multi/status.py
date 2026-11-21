@@ -145,6 +145,27 @@ def main():
         summary = summarize_report(ROOT / filename)
         if summary is not None:
             print(json.dumps({'report_for': name, **summary}, ensure_ascii=False))
+    audit_name = 'posta-multi-retrieval-split-audit-20261121-v1'
+    audit_path = ROOT / (audit_name + '.json')
+    audit_exit = ROOT / (audit_name + '.exit')
+    if audit_path.is_file():
+        try:
+            audit = json.loads(audit_path.read_text(encoding='utf-8'))
+            if audit.get('format') != 'posta-retrieval-split-audit-v1':
+                raise ValueError('unexpected audit schema')
+            summary = {
+                'split_rows': {split: value['rows'] for split, value in audit['splits'].items()},
+                'without_negatives': {split: value['without_explicit_negatives']
+                                      for split, value in audit['splits'].items()},
+                'cross_split_overlap': audit['exact_cross_split_overlap'],
+            }
+        except (ValueError, KeyError, OSError, TypeError) as error:
+            summary = {'read_error': str(error)}
+        print(json.dumps({'split_audit': audit_name, 'exit_exists': audit_exit.is_file(),
+                          'summary': summary}, ensure_ascii=False))
+    else:
+        print(json.dumps({'split_audit': audit_name, 'exit_exists': audit_exit.is_file(),
+                          'report_exists': False}, ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 

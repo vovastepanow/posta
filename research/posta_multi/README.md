@@ -585,3 +585,28 @@ Output files on the HDD:
 `posta-multi-geometry-v1-v8-v9-20261121-v1.json`,
 `.log` and `.exit`. The report contains aggregated numbers and checkpoint
 labels, never source texts or media. Existing checkpoints remain unchanged.
+
+## Retrieval split coverage and leakage audit (read-only, after holdout)
+
+The screened candidate has 22,933 retrieval records and 5,315 records without
+explicit negative labels. Earlier training and evaluation load only rows with
+explicit negatives, which may cause a selection bias. Do not interpret its
+current benchmark scores as general topic/language quality.
+
+`retrieval_split_audit.py` verifies each split through `Corpus.rows`, then
+reports aggregate per-language and per-source record counts, fraction with
+explicit negatives, duplicate/conflicting negatives and normalized exact
+overlap between train, validation and test:
+- same query and positive pair across splits;
+- same query text and same positive document text across splits;
+- positives that occur as labeled negatives in another split.
+
+The auditor hashes NFKC/casefold/whitespace-normalized text for comparisons.
+The report contains **only counts**, not user text, document hashes, IDs or media.
+Exact matching cannot rule out near-duplicates, translations or unknown
+benchmark contamination; some reuse may be intentional and requires review.
+
+The established cron runs it once, **after** the existing embedding geometry
+job has finished, to avoid simultaneous HDD-heavy jobs. This task is CPU-only
+and never writes checkpoints or changes the corpus. Files stay on the HDD:
+`posta-multi-retrieval-split-audit-20261121-v1.json`, `.log`, `.exit`.
