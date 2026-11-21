@@ -11,7 +11,7 @@ import json
 import math
 from pathlib import Path
 
-from nanomiracl_benchmark import LANGUAGES, SOURCE, summarize
+from nanomiracl_benchmark import LANGUAGES, SOURCE
 from compare_checkpoints import atomic_report
 
 FORMAT = "posta-run001-frozen-nanomiracl-model-eval-v1"
@@ -206,7 +206,9 @@ def evaluate(snapshot, baseline, checkpoint, tokenizer_path, output):
         "source_revision_observed": report["source_revision_observed"],
         "candidate_corpora": report["candidate_corpora"],
         "candidate_pool": "entire frozen provided NanoMIRACL corpus per language",
-        "evaluation_only": True, "trained_on_evaluation_data": False,
+        "evaluation_only": True,
+        "training_dataset_manifest_sha256": settings.get("manifest_sha256"),
+        "train_eval_contamination_audited": False,
         "model": "Posta Multi 235M / Run 001 stage 2 retrieval best",
         "metrics": scores,
         "baseline_bm25": {
@@ -219,6 +221,7 @@ def evaluate(snapshot, baseline, checkpoint, tokenizer_path, output):
             "Frozen NanoMIRACL subset, not official MIRACL dev or full MIRACL corpus",
             "Human-derived qrels are known positives; unjudged texts may be relevant",
             "No post/multimodal evaluation or production promotion",
+            "Independent train/eval duplicate and near-duplicate overlap still needs auditing",
             "Model and BM25 use the same frozen query/corpus and full candidate pool",
         ],
     }
