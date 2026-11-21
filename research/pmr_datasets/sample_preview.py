@@ -19,6 +19,9 @@ MAX_IMAGE = 4 * 1024 * 1024
 SUPPORTED = {
     'fineweb2-ru': ('rus_Cyrl', 'train', 'text', 'ru'),
     'fineweb-en': ('default', 'train', 'text', 'en'),
+    'fineweb-edu-en': ('CC-MAIN-2024-10', 'train', 'text', 'en'),
+    'fineweb2-ir-ru': ('rus_Cyrl', 'train', 'retrieval', 'ru'),
+    'fineweb2-ir-en': ('eng_Latn', 'train', 'retrieval', 'en'),
     'kalm-retrieval': ('default', 'train', 'retrieval', 'und'),
     'wit': ('default', 'train', 'image_text', 'und'),
 }
@@ -61,8 +64,23 @@ def collect(item, count, directory, media):
             record.update(record_id=str(row.get('id') or idx), text=row.get('text'),
                           source_url=row.get('url'), group_id=str(row.get('id') or idx))
         elif kind == 'retrieval':
-            record.update(record_id=str(idx), text=row.get('query'), positives=row.get('pos'),
-                          negatives=row.get('neg'), group_id=str(idx))
+            if item['id'].startswith('fineweb2-ir-'):
+                # FineWeb2-IR provides one synthetic query paired with its
+                # source text; hard_negatives are ID references, not passages.
+                # Never mislabel unverified IDs as negative TEXT.
+                record.update(
+                    record_id=str(row.get('id') or idx), text=row.get('query'),
+                    positives=[row.get('text')] if isinstance(row.get('text'), str) else [],
+                    negatives=[], group_id=str(row.get('original_row_id') or row.get('id') or idx),
+                    annotation_origin='synthetic query-crafter-multilingual',
+                    source_url=None,
+                    hard_negative_ids_reported=len(row.get('hard_negatives') or []),
+                    hard_negative_passages_resolved=False,
+                    teacher_dependencies=['query-crafter-multilingual', 'BGE-M3'],
+                )
+            else:
+                record.update(record_id=str(idx), text=row.get('query'), positives=row.get('pos'),
+                              negatives=row.get('neg'), group_id=str(idx))
         else:
             info = row.get('image') or {}
             record.update(record_id=str(idx), text=row.get('caption_attribution_description'),
