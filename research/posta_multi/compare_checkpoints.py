@@ -21,8 +21,9 @@ CHECKPOINTS = {
     'image-v1': 'posta-multi-image-pilot-v1.pt',
     'audio-v7': 'posta-multi-audio-expanded-v7.pt',
     'text-v8': 'posta-multi-text-adam-v8.pt',
+    'retrieval-adam-v9': 'posta-multi-retrieval-adam-v9.pt',
 }
-DEFAULT_CHECKPOINTS = tuple(CHECKPOINTS)
+DEFAULT_CHECKPOINTS = ('mixed-v2', 'retrieval-v1', 'image-v1', 'audio-v7', 'text-v8')
 TASK_OPTIONS = {
     'text': ('eval_text.py', '--per-group', '8'),
     'retrieval': ('eval_retrieval.py', '--samples', '16'),
