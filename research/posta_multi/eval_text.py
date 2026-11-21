@@ -23,8 +23,8 @@ def main():
         raise ValueError('per-group must be positive')
     torch.set_num_threads(2)
     state = torch.load(args.checkpoint, map_location='cpu', weights_only=True)
-    if state.get('format') != 'posta-text-v1':
-        raise ValueError('unexpected checkpoint')
+    if state.get('format') not in ('posta-text-v1', 'posta-retrieval-v1', 'posta-image-v1', 'posta-media-v1'):
+        raise ValueError('unexpected checkpoint format')
     tokenizer_hash = hashlib.sha256(open(args.tokenizer, 'rb').read()).hexdigest()
     if state['settings']['tokenizer'] != tokenizer_hash:
         raise ValueError('tokenizer hash differs from checkpoint')

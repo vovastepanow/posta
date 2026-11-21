@@ -406,3 +406,27 @@ Check the log and process before asserting it is still running. Resume with
 --learning-rate 0.0001` and the same tokenizer and checkpoint. The image and
 retrieval checkpoints remain available. Next evaluate held-out text/retrieval
 and continue training; full multimodal quality is not achieved.
+
+## Comparing existing checkpoints (read-only, 21 Nov 2026)
+
+`compare_checkpoints.py` sequentially evaluates the already saved HDD checkpoints
+against identical *local validation* records. It does not train or rewrite weights,
+download datasets, change production data, or publish media. Its default selection
+is mixed-text, retrieval, image, expanded-audio and text-Adam checkpoints; default
+tasks are masked-token text and retrieval. To include all modalities:
+
+```bash
+cd /var/www/html/posta
+PYTHONPATH=/mnt/hdd_ubuntu/posta-pmr/torch-cu126:/mnt/hdd_ubuntu/posta-pmr/python-libs:/mnt/hdd_ubuntu/posta-pmr/tokenizer-libs \
+TMPDIR=/mnt/hdd_ubuntu/posta-pmr/tmp OMP_NUM_THREADS=2 \
+/home/v0v4/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 \
+research/posta_multi/compare_checkpoints.py --tasks text retrieval image video audio
+```
+
+Default report: `/mnt/hdd_ubuntu/posta-pmr/posta-multi-comparison-v1.json`.
+For an initial short comparison, select `--checkpoints retrieval-v1 text-v8 --tasks retrieval`.
+The runner records per-task errors without destroying partial reports and refuses
+to declare an automatic winning model. Incomplete relevance labels, different
+checkpoint objectives and the small, potentially biased validation split prevent
+strong quality claims. The model still needs a genuinely independent benchmark
+and verified source-rights/privacy gates before serious additional training.
