@@ -430,6 +430,50 @@ def main():
         'run001_existing_hdd_inventory': summary,
         'exit_exists': (ROOT / 'posta-multi-235m-hdd-inventory-v1.exit').is_file(),
     }, ensure_ascii=False))
+    real_job = 'posta-multi-235m-local-real-pilot-v1'
+    real_dir = ROOT / 'run001-local-research-235m-v1'
+    real_log = ROOT / (real_job + '.log')
+    real_tokenizer_meta = ROOT / 'run001-local-research-tokenizer-v1' / 'metadata.json'
+    real_summary = {
+        'research_only_not_releasable': True,
+        'first_training_checkpoint_saved': (
+            real_dir / 'run001-text-last.pt').is_file(),
+        'best_validation_checkpoint_saved': (
+            real_dir / 'run001-text-best.pt').is_file(),
+        'tokenizer_candidate_exists': real_tokenizer_meta.is_file(),
+        'job_exit_exists': (ROOT / (real_job + '.exit')).is_file(),
+        'job_completed': (ROOT / (real_job + '.done')).is_file(),
+    }
+    if real_log.is_file():
+        try:
+            with real_log.open('rb') as stream:
+                stream.seek(0, 2)
+                length = stream.tell()
+                stream.seek(max(0, length - 131072))
+                lines = stream.read().decode('utf-8', 'replace').splitlines()
+            for line in reversed(lines):
+                if not line.startswith('{'):
+                    continue
+                try:
+                    item = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if item.get('stage') == 'text-mlm' and 'step' in item:
+                    real_summary['last_logged_step'] = item['step']
+                    real_summary['last_logged_train_loss'] = item.get('train_loss')
+                    real_summary['last_logged_validation_loss'] = item.get('val_loss')
+                    real_summary['best_validation_step'] = item.get('best_step')
+                    break
+        except OSError as error:
+            real_summary['read_error'] = str(error)
+    if real_summary['job_exit_exists']:
+        try:
+            real_summary['job_exit_code'] = int(
+                (ROOT / (real_job + '.exit')).read_text(encoding='utf-8').strip())
+        except (OSError, ValueError):
+            real_summary['job_exit_code'] = None
+    print(json.dumps({'run001_actual_research_training': real_summary},
+                     ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 
