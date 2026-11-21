@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "created_utc": "2026-11-20",
   "purpose": "Research-only Posta Multi-Modal Retriever dataset audit; no training or download of media",
   "rules": {
@@ -235,6 +235,48 @@
       "source_url": "https://huggingface.co/datasets/mteb/RiaNewsRetrieval",
       "language_note": "Russian",
       "access_note": "MTEB is a suite of many datasets; this is only one evaluation task"
+    },
+    {
+      "id": "fineweb-edu-en",
+      "repo": "HuggingFaceFW/fineweb-edu",
+      "use": "text_pretraining",
+      "priority": "P0",
+      "preferred_config": "CC-MAIN-2024-10",
+      "preferred_split": "train",
+      "license_claim": "odc-by-1.0",
+      "license_review": "ODC-By data license, Common Crawl page/source rights and PII need review",
+      "data_kind": "parquet_text",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu",
+      "language_note": "English; educational filter is not relevance annotation"
+    },
+    {
+      "id": "fineweb2-ir-ru",
+      "repo": "hotchpotch/FineWeb2-IR",
+      "use": "text_retrieval",
+      "priority": "P0",
+      "preferred_config": "rus_Cyrl",
+      "preferred_split": "train",
+      "license_claim": "inherits FineWeb2-HQ and Common Crawl terms",
+      "license_review": "Queries synthesized using query-crafter; hard negative IDs generated using BGE-M3; verify upstream rights, generated labels, privacy and benchmark leakage",
+      "data_kind": "parquet_query_positive_hardnegative_ids",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/hotchpotch/FineWeb2-IR",
+      "language_note": "Russian; 2.78m synthetic examples listed; not human labeled"
+    },
+    {
+      "id": "fineweb2-ir-en",
+      "repo": "hotchpotch/FineWeb2-IR",
+      "use": "text_retrieval",
+      "priority": "P0",
+      "preferred_config": "eng_Latn",
+      "preferred_split": "train",
+      "license_claim": "inherits FineWeb-Edu and Common Crawl terms",
+      "license_review": "Teacher-generated queries, BGE-M3 hard negative mining, source terms and MIRACL evaluation isolation require review",
+      "data_kind": "parquet_query_positive_hardnegative_ids",
+      "training": true,
+      "source_url": "https://huggingface.co/datasets/hotchpotch/FineWeb2-IR",
+      "language_note": "English; synthetic query labels, not human judged"
     }
   ],
   "reference_check_date": "2026-11-20"
