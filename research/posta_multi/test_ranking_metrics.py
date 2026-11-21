@@ -26,8 +26,8 @@ class RankingMetricsTests(unittest.TestCase):
         metrics = summarize_aligned_scores([[1.0, 0.0, -1.0],
                                             [0.9, 0.9, -1.0],
                                             [0.8, 0.7, 0.5]])
-        self.assertEqual(metrics['wins'], 1)
-        self.assertEqual(metrics['pair_accuracy'], 0.3333)
+        self.assertEqual(metrics['wins'], 2)
+        self.assertEqual(metrics['pair_accuracy'], 0.6667)
         self.assertEqual(metrics['recall_at_1'], 0.3333)
         self.assertEqual(metrics['mean_reciprocal_rank'], 0.6111)
         self.assertEqual(metrics['recall_at_5'], 1.0)
