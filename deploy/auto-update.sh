@@ -106,25 +106,11 @@ if [ -f "$APP/research/posta_multi/host_source_audit_hook.sh" ]; then
         log "WARNING: Run 001 external source metadata audit hook failed."
 fi
 
-# Optional tiny, quarantined source preview after successful metadata audit.
-# Never downloads source shards, media or launches training.
-if [ -f "$APP/research/posta_multi/host_source_preview_hook.sh" ]; then
-    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_source_preview_hook.sh" ||
-        log "WARNING: Run 001 source preview hook failed."
-fi
-
 # One-shot language-balanced tokenizer intake audit on the local *quarantined*
 # candidate. It does not train a tokenizer or read model checkpoints.
 if [ -f "$APP/research/posta_multi/host_run001_tokenizer_audit_hook.sh" ]; then
     POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_run001_tokenizer_audit_hook.sh" ||
         log "WARNING: Run 001 tokenizer intake audit could not start."
-fi
-
-# One-shot bounded news/forum sample saved only on private HDD. The sample
-# is quarantined and not consumed by the Run 001 trainers.
-if [ -f "$APP/research/posta_multi/host_run001_content_intake_hook.sh" ]; then
-    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_run001_content_intake_hook.sh" ||
-        log "WARNING: Run 001 news/forum source intake could not start."
 fi
 
 # Reconcile the installed schedule as well as the repository version. The
