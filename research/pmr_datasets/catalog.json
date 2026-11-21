@@ -16,36 +16,6 @@
   },
   "datasets": [
     {
-      "id": "wikipedia-ru-20231101",
-      "repo": "wikimedia/wikipedia",
-      "use": "text_pretraining",
-      "priority": "P0",
-      "preferred_config": "20231101.ru",
-      "preferred_split": "train",
-      "license_claim": "cc-by-sa-3.0 (Hugging Face dataset card); attribution/share-alike obligations require review",
-      "license_review": "verify Wikimedia attribution, contributor rights, source article URLs, retention and possible model-output licensing implications; BLP privacy and benchmark overlap screening required",
-      "data_kind": "parquet_text",
-      "training": true,
-      "source_url": "https://huggingface.co/datasets/wikimedia/wikipedia",
-      "language_note": "2023-11-01 Russian encyclopedia articles; selected pinned shard only",
-      "access_note": "source is eligible for quarantine intake only; not pre-approved for training"
-    },
-    {
-      "id": "wikipedia-en-20231101",
-      "repo": "wikimedia/wikipedia",
-      "use": "text_pretraining",
-      "priority": "P0",
-      "preferred_config": "20231101.en",
-      "preferred_split": "train",
-      "license_claim": "cc-by-sa-3.0 (Hugging Face dataset card); attribution/share-alike obligations require review",
-      "license_review": "verify Wikimedia attribution, contributor rights, source article URLs, retention and possible model-output licensing implications; BLP privacy and benchmark overlap screening required",
-      "data_kind": "parquet_text",
-      "training": true,
-      "source_url": "https://huggingface.co/datasets/wikimedia/wikipedia",
-      "language_note": "2023-11-01 English encyclopedia articles; selected pinned shard only",
-      "access_note": "source is eligible for quarantine intake only; not pre-approved for training"
-    },
-    {
       "id": "fineweb2-ru",
       "repo": "HuggingFaceFW/fineweb-2",
       "use": "text_pretraining",
