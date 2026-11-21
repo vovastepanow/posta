@@ -325,6 +325,23 @@ def main():
     print(json.dumps({'run001_external_source_audit': details,
                       'exit_exists': (ROOT / (source_audit + '.exit')).is_file()},
                      ensure_ascii=False))
+    preview_name = 'posta-multi-run001-source-preview-v1'
+    preview_manifest = ROOT / preview_name / 'manifest.json'
+    if preview_manifest.is_file():
+        try:
+            preview = json.loads(preview_manifest.read_text(encoding='utf-8'))
+            entries = [{
+                'source': x['id'], 'records': x.get('records'),
+                'error': x.get('error'),
+                'training_approved': False,
+            } for x in preview['sources']]
+        except (KeyError, ValueError, TypeError, OSError) as error:
+            entries = {'read_error': str(error)}
+    else:
+        entries = {'report_exists': False}
+    print(json.dumps({'run001_source_preview': entries,
+                      'exit_exists': (ROOT / (preview_name + '.exit')).is_file()},
+                     ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 
