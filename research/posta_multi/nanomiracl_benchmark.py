@@ -66,7 +66,7 @@ def available_splits(fetch):
         if config in CONFIGS and split in LANGUAGES:
             count = entry.get("num_examples")
             if type(count) is not int or count < 1:
-                raise ValueError("invalid NanoMIRACL split count")
+                raise ValueError(f"invalid NanoMIRACL split count for {config}/{split}: examples={count!r}, rows={entry.get('num_rows')!r}, keys={sorted(entry)}")
             found[(config, split)] = count
     if set(found) != {(c, lang) for c in CONFIGS for lang in LANGUAGES}:
         raise ValueError("NanoMIRACL published configs or split names changed")
