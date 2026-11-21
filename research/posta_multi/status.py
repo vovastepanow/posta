@@ -1,42 +1,143 @@
-"""Read saved progress from Posta Multi training logs without loading checkpoints."""
+"""Read Posta Multi saved checkpoints and local validation summaries without loading weights.
+
+This only reads tiny log/JSON files from the HDD. It never runs training or
+evaluators, modifies checkpoints, or uploads private source content.
+"""
 import json
 from pathlib import Path
 
 ROOT = Path('/mnt/hdd_ubuntu/posta-pmr')
 
+STAGES = (
+    'posta-multi-mixed-pilot-v2',
+    'posta-multi-retrieval-pilot-v1',
+    'posta-multi-image-pilot-v1',
+    'posta-multi-audio-full-v3',
+    'posta-multi-audio-full-v4',
+    'posta-multi-audio-batch4-v5',
+    'posta-multi-audio-adam-v6',
+    'posta-multi-audio-expanded-v7',
+    'posta-multi-text-adam-v8',
+    'posta-multi-retrieval-adam-v9',
+)
+
+JOB_REPORT_FILES = {
+    'posta-multi-compare-v8-retrieval-20261121-v1':
+        'posta-multi-compare-v8-retrieval-20261121-v1.json',
+    'posta-multi-retrieval-adam-v9':
+        'posta-multi-retrieval-adam-v9-eval.json',
+}
+
+RANKING_FIELDS = (
+    'samples', 'checkpoint_step', 'candidate_pool_size', 'pair_accuracy',
+    'recall_at_1', 'recall_at_5', 'recall_at_10', 'mean_reciprocal_rank',
+)
+
+
+def summarize_report(path):
+    """Return small numeric metrics only, never source records or raw text."""
+    path = Path(path)
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as error:
+        return {'read_error': str(error)}
+    if not isinstance(payload, dict) or payload.get('format') != 'posta-multi-checkpoint-comparison-v1':
+        return {'read_error': 'unknown comparison report format'}
+
+    results = []
+    for row in payload.get('results', []):
+        if not isinstance(row, dict):
+            continue
+        entry = {
+            'checkpoint': row.get('checkpoint'),
+            'task': row.get('task'),
+            'status': row.get('status'),
+        }
+        if row.get('status') == 'ok':
+            metrics = row.get('metrics') or {}
+            if entry['task'] == 'retrieval':
+                entry.update({key: metrics[key] for key in RANKING_FIELDS if key in metrics})
+            elif entry['task'] == 'text':
+                entry['checkpoint_step'] = metrics.get('checkpoint_step')
+                groups = metrics.get('local_validation') or {}
+                entry['text_groups'] = {
+                    group: {key: values[key]
+                            for key in ('records', 'masked_tokens', 'mean_loss', 'token_accuracy')
+                            if key in values}
+                    for group, values in sorted(groups.items())
+                    if isinstance(values, dict)
+                }
+            else:
+                entry.update({key: metrics[key] for key in RANKING_FIELDS if key in metrics})
+        else:
+            entry['error'] = str(row.get('error', 'unknown evaluation error'))[-300:]
+        results.append(entry)
+
+    expected = len(payload.get('tasks') or []) * len(payload.get('checkpoints') or [])
+    return {
+        'complete': bool(expected) and expected == len(results) and
+            all(row.get('status') == 'ok' for row in results),
+        'warnings': payload.get('warnings') or [],
+        'results': results,
+    }
+
+
+def job_status(root, name):
+    root = Path(root)
+    exit_path = root / (name + '.exit')
+    report_path = root / JOB_REPORT_FILES[name]
+    exit_code = None
+    if exit_path.is_file():
+        try:
+            exit_code = int(exit_path.read_text(encoding='utf-8').strip())
+        except (ValueError, OSError):
+            exit_code = 'unreadable'
+    return {
+        'job': name,
+        'attempted': exit_path.exists(),
+        'exit_code': exit_code,
+        'report_exists': report_path.is_file(),
+        'report_filename': report_path.name,
+        'log_exists': (root / (name + '.log')).is_file(),
+    }
+
+
+def recent_stage(root, name):
+    path = Path(root) / (name + '.log')
+    checkpoint = Path(root) / (name + '.pt')
+    last = None
+    origin = None
+    if path.exists():
+        with path.open(encoding='utf-8', errors='replace') as stream:
+            for line in stream:
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(value, dict):
+                    continue
+                if value.get('stage') == 'retrieval-adam-v9':
+                    origin = value.get('source')
+                if 'saved_step' in value or 'step' in value:
+                    last = value
+    result = {'stage': name, 'latest_log_entry': last,
+              'checkpoint_exists': checkpoint.is_file()}
+    if origin:
+        result['initialized_from'] = origin
+    return result
+
 
 def main():
-    for name in ('posta-multi-mixed-pilot-v2', 'posta-multi-retrieval-pilot-v1', 'posta-multi-image-pilot-v1', 'posta-multi-audio-full-v3', 'posta-multi-audio-full-v4', 'posta-multi-audio-batch4-v5', 'posta-multi-audio-adam-v6', 'posta-multi-audio-expanded-v7', 'posta-multi-text-adam-v8', 'posta-multi-retrieval-adam-v9'):
-        path = ROOT / (name + '.log')
-        checkpoint = ROOT / (name + '.pt')
-        last = None
-        if path.exists():
-            with path.open(encoding='utf-8') as f:
-                for line in f:
-                    try:
-                        value = json.loads(line)
-                        if isinstance(value, dict) and ('saved_step' in value or 'step' in value):
-                            last = value
-                    except json.JSONDecodeError:
-                        continue
-        print(json.dumps({'stage': name, 'latest_log_entry': last,
-                          'checkpoint_exists': checkpoint.is_file()}, ensure_ascii=False))
-    for name in ('posta-multi-compare-v8-retrieval-20261121-v1',
-                 'posta-multi-retrieval-adam-v9'):
-        exit_path = ROOT / (name + '.exit')
-        report_path = ROOT / (name + '.json')
-        exit_code = None
-        if exit_path.is_file():
-            try:
-                exit_code = int(exit_path.read_text(encoding='utf-8').strip())
-            except (ValueError, OSError):
-                exit_code = 'unreadable'
-        print(json.dumps({'job': name, 'attempted': exit_path.exists(),
-                          'exit_code': exit_code,
-                          'report_exists': report_path.is_file(),
-                          'log_exists': (ROOT / (name + '.log')).is_file()},
-                         ensure_ascii=False))
-    print('Progress is the most recent saved checkpoint, not live GPU activity.')
+    for name in STAGES:
+        print(json.dumps(recent_stage(ROOT, name), ensure_ascii=False))
+    for name, filename in JOB_REPORT_FILES.items():
+        print(json.dumps(job_status(ROOT, name), ensure_ascii=False))
+        summary = summarize_report(ROOT / filename)
+        if summary is not None:
+            print(json.dumps({'report_for': name, **summary}, ensure_ascii=False))
+    print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 
 if __name__ == '__main__':

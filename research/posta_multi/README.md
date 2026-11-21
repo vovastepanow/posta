@@ -509,3 +509,20 @@ corpus path, tokenizer path, source checkpoint names, and evaluated tasks.
 This prevents a report for unrelated local data from starting training. The
 `status.py` output now includes each unattended job's on-disk exit marker
 and report existence (the markers do not themselves prove a live process).
+
+## Local v9 completion and result visibility
+
+As of the user's 2026-11-21 local status output, the bounded `v9` AdamW
+experiment completed **64 steps** and saved a checkpoint, with training
+`last_loss=0.69638`. The earlier comparison and the v9 process both reported
+exit code 0. This does **not** establish that retrieval metrics improved:
+the two-candidate training objective has an uninformed loss of approximately
+`ln(2)=0.693`, and only the held-out search rankings can assess improvement.
+
+`status.py` now reads the correct v9 result file
+`posta-multi-retrieval-adam-v9-eval.json` (rather than the nonexistent
+`posta-multi-retrieval-adam-v9.json`), displays small numeric summaries from
+both local reports, and shows which earlier checkpoint initialized v9. It does
+not load the model weights, run evaluation, or publish any private input text.
+Metrics remain derived from a very small local validation set and must not
+be interpreted as independent search-quality evidence.
