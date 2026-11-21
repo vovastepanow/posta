@@ -23,10 +23,11 @@ from corpus import Corpus
 from cpu_master_adam import CPUMasterAdamW
 from model import PostaMulti
 from ranking_metrics import conservative_rank, summarize_ranks
-from retrieval_data_quality import (RUN001_CURATED_POLICY,
-                                    curate_retrieval_pairs)
+from retrieval_data_quality import (RUN001_CURATED_POLICY, POSITIVE_ONLY_POLICY,
+                                    curate_retrieval_pairs, curate_positive_only_pairs)
 from run001_data import approval_issues
-from run001_retrieval_loss import anti_collapse_loss, checkpoint_is_healthy
+from run001_retrieval_loss import (anti_collapse_loss, checkpoint_is_healthy,
+                                   positive_only_alignment_loss)
 from run001_smoke import RUN_ID, trainable_text_parameters
 from train_text import save_atomic
 
@@ -63,6 +64,19 @@ def encode_triples(tokenizer, pairs, max_length=96):
             encoded.append(ids)
         converted.append(tuple(encoded))
     return converted
+
+
+def encode_positive_pairs(tokenizer, pairs, max_length=96):
+    """Tokenize only known query/positive labels; no invented negatives."""
+    tokenizer.enable_truncation(max_length=max_length)
+    result = []
+    for query, positive in pairs:
+        inputs = (tuple(tokenizer.encode(query).ids),
+                  tuple(tokenizer.encode(positive).ids))
+        if any(len(ids) < 3 or ids[0] != 1 or ids[-1] != 2 for ids in inputs):
+            raise ValueError('positive-only tokens need CLS/content/SEP')
+        result.append(inputs)
+    return result
 
 
 def _encode_one(model, token_ids, device):
@@ -103,6 +117,33 @@ def cached_retrieval_backward(model, encoded, device, optimizer=None,
             else:
                 (proxy * loss_scale).backward()
     return float(total.detach()), metrics
+
+
+def cached_positive_only_backward(model, encoded, device, optimizer=None,
+                                  weight=0.25):
+    """Gradient-cached positive-only alignment without labeling any negatives."""
+    if len(encoded) < 2 or not all(len(row) == 2 for row in encoded):
+        raise ValueError('need at least two labeled query/positive pairs')
+    if not isinstance(weight, (int, float)) or not math.isfinite(weight) or weight <= 0:
+        raise ValueError('positive-only loss weight must be finite and positive')
+    model.eval()
+    with torch.no_grad():
+        vectors = [torch.stack([
+            _encode_one(model, row[role], device) for row in encoded]).float()
+            for role in (0, 1)]
+    leaves = [v.detach().requires_grad_(True) for v in vectors]
+    objective, metrics = positive_only_alignment_loss(*leaves)
+    grads = torch.autograd.grad(objective * weight, leaves, create_graph=False)
+    model.train()
+    for role in (0, 1):
+        for idx, row in enumerate(encoded):
+            output = _encode_one(model, row[role], device)
+            surrogate = (output.float() * grads[role][idx].detach()).sum()
+            if optimizer is not None:
+                optimizer.backward(surrogate)
+            else:
+                surrogate.backward()
+    return float(objective.detach()), metrics
 
 
 @torch.no_grad()
@@ -181,6 +222,8 @@ def run(args):
     if (args.steps < 1 or args.batch_size < 2 or args.train_pairs < args.batch_size
             or args.val_pairs < 16 or args.validate_every < 1
             or args.save_every < 1 or args.patience < 1 or
+            args.positive_only_pairs < 0 or args.positive_only_batch < 2 or
+            args.positive_only_every < 1 or not 0 < args.positive_only_weight <= 1 or
             not 0 < args.lr <= 0.001 or args.projection_only_steps < 0 or
             args.projection_only_steps >= args.steps or args.max_length < 8
             or args.max_length > 512):
@@ -213,6 +256,15 @@ def run(args):
         corpus, args.val_pairs, split='validation', avoid_heldout=False)
     train = encode_triples(tokenizer, training, args.max_length)
     val = encode_triples(tokenizer, validation, args.max_length)
+    extra_pairs, extra_sha, extra_stats = curate_positive_only_pairs(
+        corpus, args.positive_only_pairs, forbidden_queries=(
+            row[0] for row in training))
+    extra = encode_positive_pairs(tokenizer, extra_pairs, args.max_length)
+    extra_enabled = len(extra) >= args.positive_only_batch
+    # Skip unavailable optional positive-only supervision rather than
+    # inventing negatives or aborting a reviewed corpus with no such rows.
+    if not extra_enabled:
+        extra = []
     out = Path(args.output)
     last = out / 'run001-retrieval-last.pt'
     best = out / 'run001-retrieval-best.pt'
@@ -229,6 +281,13 @@ def run(args):
         'manifest_sha256': corpus.manifest_hash,
         'tokenizer_sha256': tok_sha,
         'curation_policy': RUN001_CURATED_POLICY,
+        'positive_only_policy': POSITIVE_ONLY_POLICY,
+        'positive_only_pairs_sha256': extra_sha,
+        'positive_only_selected': len(extra),
+        'positive_only_cap': args.positive_only_pairs,
+        'positive_only_batch': args.positive_only_batch,
+        'positive_only_every': args.positive_only_every,
+        'positive_only_weight': args.positive_only_weight,
         'train_pairs_sha256': train_sha,
         'val_pairs_sha256': val_sha,
         'train_pairs': args.train_pairs, 'val_pairs': args.val_pairs,
@@ -274,7 +333,10 @@ def run(args):
         'run_id': RUN_ID, 'stage': 'retrieval-anti-collapse',
         'architecture_params': sum(p.numel() for p in model.parameters()),
         'train_samples': len(train), 'validation_samples': len(val),
-        'curation_counts': train_stats, 'gpu_allocator_fraction': 0.45,
+        'curation_counts': train_stats,
+        'positive_only_curation_counts': extra_stats,
+        'positive_only_enabled': extra_enabled,
+        'gpu_allocator_fraction': 0.45,
     }), flush=True)
     device = torch.device('cuda')
     for step in range(step + 1, args.steps + 1):
@@ -286,6 +348,13 @@ def run(args):
         optimizer.zero_grad()
         loss, measures = cached_retrieval_backward(model, batch, device,
                                                     optimizer=optimizer)
+        extra_loss, extra_measures = None, None
+        if extra_enabled and step % args.positive_only_every == 0:
+            positive_sample = torch.randperm(
+                len(extra), generator=generator)[:args.positive_only_batch]
+            extra_loss, extra_measures = cached_positive_only_backward(
+                model, [extra[int(i)] for i in positive_sample], device,
+                optimizer=optimizer, weight=args.positive_only_weight)
         if not optimizer.step():
             raise RuntimeError('nonfinite retrieval gradient; last checkpoint preserved')
         check = step % args.validate_every == 0 or step == args.steps
@@ -315,6 +384,11 @@ def run(args):
             print(json.dumps({
                 'stage': 'retrieval-anti-collapse', 'step': step,
                 'train_objective': round(loss, 6),
+                'positive_only_objective': (round(extra_loss, 6)
+                                            if extra_loss is not None else None),
+                'positive_only_geometry': ({k: round(v, 6)
+                                             for k, v in extra_measures.items()}
+                                            if extra_measures is not None else None),
                 'phase': phase,
                 'learning_rate': optimizer.lr,
                 'train_geometry': {k: round(v, 6) for k, v in measures.items()},
@@ -345,6 +419,11 @@ def main():
     p.add_argument('--patience', type=int, default=8)
     p.add_argument('--lr', type=float, default=0.00001)
     p.add_argument('--projection-only-steps', type=int, default=100)
+    p.add_argument('--positive-only-pairs', type=int, default=256,
+                   help='deterministic positive-only candidate pool cap; 0 disables')
+    p.add_argument('--positive-only-batch', type=int, default=2)
+    p.add_argument('--positive-only-every', type=int, default=4)
+    p.add_argument('--positive-only-weight', type=float, default=0.25)
     p.add_argument('--seed', type=int, default=1001)
     p.add_argument('--resume', action='store_true')
     args = p.parse_args()

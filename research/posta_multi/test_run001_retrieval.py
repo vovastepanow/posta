@@ -6,10 +6,12 @@ import torch
 
 from model import PostaMulti
 from synthetic_train import tiny_config
-from run001_retrieval import (cached_retrieval_backward, evaluate_retrieval,
+from run001_retrieval import (cached_retrieval_backward,
+                              cached_positive_only_backward, evaluate_retrieval,
                               better_candidate, configure_trainable_stage,
                               encode_triples)
-from run001_retrieval_loss import anti_collapse_loss
+from run001_retrieval_loss import (anti_collapse_loss,
+                                   positive_only_alignment_loss)
 
 
 def fixture():
@@ -91,6 +93,39 @@ class RetrievalCacheTests(unittest.TestCase):
         self.assertIsNotNone(model.text_tokens.weight.grad)
         with self.assertRaises(ValueError):
             configure_trainable_stage(model, 0, projection_only_steps=5)
+
+    def test_positive_only_gradient_cache_matches_full_autograd(self):
+        samples = [(q, p) for q, p, _ in fixture()]
+        ref = self.reference
+        ref.train()
+        ref.zero_grad()
+        qv = torch.cat([ref.encode_text(torch.tensor([q]),
+                           torch.ones(1, len(q), dtype=torch.bool))
+                        for q, _ in samples])
+        pv = torch.cat([ref.encode_text(torch.tensor([p]),
+                           torch.ones(1, len(p), dtype=torch.bool))
+                        for _, p in samples])
+        direct, _ = positive_only_alignment_loss(qv, pv)
+        (direct * 0.3).backward()
+
+        test = self.recomputed
+        test.enable_gradient_checkpointing(True)
+        test.zero_grad()
+        objective, diag = cached_positive_only_backward(
+            test, samples, 'cpu', weight=0.3)
+        self.assertAlmostEqual(objective, float(direct.detach()), places=5)
+        self.assertLess(abs(diag['alignment_loss']), 1e-4)
+        for key in ('text_tokens.weight',
+                    'text_encoder.layers.0.linear1.weight',
+                    'text_projection.weight'):
+            a = dict(ref.named_parameters())[key].grad
+            b = dict(test.named_parameters())[key].grad
+            self.assertIsNotNone(b)
+            self.assertTrue(torch.allclose(a, b, atol=1e-5, rtol=2e-4), key)
+        with self.assertRaises(ValueError):
+            cached_positive_only_backward(test, samples[:1], 'cpu')
+        with self.assertRaises(ValueError):
+            cached_positive_only_backward(test, samples, 'cpu', weight=0)
 
     def test_invalid_small_batch_refused(self):
         with self.assertRaises(ValueError):
