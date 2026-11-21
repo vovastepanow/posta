@@ -5,8 +5,10 @@ reports. Each (modality, language) is independently hash-sampled to avoid
 selecting only the first corpus rows. The tokenization is versioned separately.
 """
 import hashlib
+import heapq
 import json
 from collections import Counter
+from dataclasses import dataclass
 
 KINDS = ('text', 'retrieval', 'ocr_text', 'image_text',
          'meme_text', 'video_text', 'speech_text')
@@ -28,12 +30,53 @@ def text_fields(kind, row):
             yield ocr
 
 
+
+@dataclass(frozen=True)
+class _RankedText:
+    digest: bytes
+    text: str
+
+    def __lt__(self, other):
+        # Reverse normal order so heap[0] is the WORST (largest) record.
+        return (self.digest, self.text) > (other.digest, other.text)
+
+
+class _BoundedHashSample:
+    """Top-K lowest SHA-256 text digests with at most K texts resident.
+
+    This produces the same selected texts as globally sorting every
+    (digest,text) pair, without O(total-corpus-size) memory.
+    """
+    def __init__(self, limit):
+        self.limit = limit
+        self.heap = []
+        self.members = set()
+
+    def add(self, text):
+        digest = hashlib.sha256(text.encode('utf-8')).digest()
+        key = (digest, text)
+        if key in self.members:
+            return
+        candidate = _RankedText(digest, text)
+        if len(self.heap) < self.limit:
+            heapq.heappush(self.heap, candidate)
+            self.members.add(key)
+        elif key < (self.heap[0].digest, self.heap[0].text):
+            old = heapq.heapreplace(self.heap, candidate)
+            self.members.remove((old.digest, old.text))
+            self.members.add(key)
+
+    def selected(self):
+        return [(x.digest, x.text) for x in sorted(
+            self.heap, key=lambda x: (x.digest, x.text))]
+
+
 def select_records(corpus, *, split, max_per_group, max_chars=3072):
     if split not in ('train', 'validation'):
         raise ValueError('Run 001 samples must be train or validation only')
     if type(max_per_group) is not int or max_per_group < 1 or max_chars < 32:
         raise ValueError('invalid selection budget')
-    rows = {}
+    samples = {}
     counts = Counter()
     for kind in KINDS:
         for row in corpus.rows(kind, split):
@@ -45,19 +88,20 @@ def select_records(corpus, *, split, max_per_group, max_chars=3072):
                 clipped = text[:max_chars]
                 if not clipped.strip():
                     continue
-                digest = hashlib.sha256(clipped.encode('utf-8')).hexdigest()
-                key = (digest, clipped)
-                rows.setdefault(group, {})[key] = clipped
+                if group not in samples:
+                    samples[group] = _BoundedHashSample(max_per_group)
+                samples[group].add(clipped)
                 counts[group] += 1
     selected = []
     summary = {}
-    for group in sorted(rows):
-        chosen = sorted(rows[group])[:max_per_group]
-        selected.extend((group, rows[group][key]) for key in chosen)
+    for group in sorted(samples):
+        chosen = samples[group].selected()
+        selected.extend((group, text) for _, text in chosen)
         summary[f'{group[0]}:{group[1]}'] = {
             'considered': counts[group],
-            'unique': len(rows[group]),
+            'retained_unique': len(chosen),
             'selected': len(chosen),
+            'global_unique_count_known': False,
         }
     if not selected:
         raise ValueError(f'no eligible {split} text records')

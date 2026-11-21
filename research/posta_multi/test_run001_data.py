@@ -1,4 +1,6 @@
 """No external dataset: Run 001 text sampling and provenance tests."""
+import hashlib
+import random
 import unittest
 
 from run001_data import (KINDS, POLICY, approval_issues,
@@ -63,6 +65,30 @@ class Run001DataTests(unittest.TestCase):
         self.assertEqual(one, two)
         self.assertEqual(make_windows(one, FakeTokenizer(), 12)[:2],
                          make_windows(two, FakeTokenizer(), 12)[:2])
+
+
+    def test_bounded_heap_matches_exhaustive_global_hash_sort(self):
+        rng = random.Random(1947)
+        records = [
+            {'text': f'Text record {i} lang independent', 'language': 'ru'}
+            for i in range(5000)
+        ]
+        records += [records[i].copy() for i in range(0, 5000, 41)]
+        rng.shuffle(records)
+        corpus = FakeCorpus({('text', 'train'): records})
+        chosen, stats = select_records(corpus, split='train', max_per_group=73)
+        reference = sorted(set(record['text'] for record in records),
+                           key=lambda text: (hashlib.sha256(text.encode()).digest(), text))[:73]
+        self.assertEqual([text for _, text in chosen],
+                         sorted(reference, key=lambda text: hashlib.sha256(text.encode()).digest()))
+        self.assertEqual(stats['text:ru']['retained_unique'], 73)
+        self.assertEqual(stats['text:ru']['considered'], len(records))
+        self.assertFalse(stats['text:ru']['global_unique_count_known'])
+        self.assertLessEqual(len(chosen), 73)
+        other, _ = select_records(
+            FakeCorpus({('text', 'train'): list(reversed(records))}),
+            split='train', max_per_group=73)
+        self.assertEqual(chosen, other)
 
     def test_rejects_test_split_and_missing_approval(self):
         corpus = FakeCorpus({('text', 'test'): [{'text': 'secret'}]})
