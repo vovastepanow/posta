@@ -1,0 +1,67 @@
+name: Posta MIRACL human-relevance BM25 benchmark
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'research/posta_multi/miracl_benchmark.py'
+      - 'research/posta_multi/bm25_baseline.py'
+      - '.github/workflows/posta-miracl-baseline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  human-judged-ru-en:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Frozen 400-query human-judged dev evaluation; no torch
+        run: |
+          mkdir -p eval-results
+          PYTHONPATH=research/posta_multi \
+          python3 research/posta_multi/miracl_benchmark.py \
+            --queries-per-language 200 \
+            --data-file "$RUNNER_TEMP/miracl-400-private.jsonl" \
+            --output eval-results/miracl-400-bm25.json
+      - name: Publish aggregates, not raw text
+        if: success()
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          data = json.loads(Path('eval-results/miracl-400-bm25.json').read_text())
+          lines = [
+              '## Human-judged MIRACL, 400 queries (RU + EN)',
+              '',
+              'Judged-pool BM25 only; **not full-corpus retrieval**.',
+              '',
+              '| Language | Queries | MRR | NDCG@10 | Pair accuracy |',
+              '| --- | ---: | ---: | ---: | ---: |',
+          ]
+          for language, result in data['languages'].items():
+              lines.append(f"| {language} | {result['queries']} | {result['mrr']:.4f} | "
+                           f"{result['ndcg_10']:.4f} | {result['pair_accuracy']:.4f} |")
+          total = data['overall']
+          lines.append(f"| Combined | {total['queries']} | {total['mrr']:.4f} | "
+                       f"{total['ndcg_10']:.4f} | {total['pair_accuracy']:.4f} |")
+          lines += ['', 'Source SHA: ' + data['source_revision_observed'],
+                    'Frozen evaluation SHA: ' + data['frozen_data_sha256'],
+                    'No real Posta model was evaluated. This is only the lexical baseline.']
+          Path(os.environ['GITHUB_STEP_SUMMARY']).write_text('\n'.join(lines)+'\n')
+          print('\n'.join(lines))
+          PY
+      - name: Retain only aggregated report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: posta-miracl-400-bm25-aggregates
+          path: eval-results/miracl-400-bm25.json
+          retention-days: 7
+          if-no-files-found: error
