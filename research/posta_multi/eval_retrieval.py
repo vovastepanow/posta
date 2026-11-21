@@ -1,12 +1,20 @@
-"""Small held-out positive-vs-explicit-negative retrieval check."""
+"""Small held-out retrieval check: pairs and exploratory full-candidate ranking.
+
+The pool consists of unique positive/negative passages from sampled validation
+rows. It is NOT a fully labeled retrieval benchmark: documents labeled relevant
+to other queries can also be relevant to this query.
+"""
 import argparse
 import hashlib
 import json
 from pathlib import Path
+
 import torch
 from tokenizers import Tokenizer
+
 from corpus import Corpus
 from model import PostaMulti
+from ranking_metrics import conservative_rank, summarize_ranks
 from retrieval_stage import load_pairs
 from spec import Config
 
@@ -18,6 +26,8 @@ def main():
     p.add_argument('--checkpoint', required=True)
     p.add_argument('--samples', type=int, default=16)
     args = p.parse_args()
+    if args.samples < 1:
+        raise ValueError('samples must be positive')
     if not torch.cuda.is_available():
         raise RuntimeError('CUDA required')
     torch.set_num_threads(2)
@@ -40,21 +50,47 @@ def main():
     model.eval()
     tokenizer = Tokenizer.from_file(args.tokenizer)
     tokenizer.enable_truncation(max_length=128)
-    wins = ties = 0
+
+    # Retain legacy one-negative accuracy while also evaluating each query
+    # against a shared, deduplicated pool of the sampled validation passages.
+    documents = list(dict.fromkeys(text for _, positive, negative in pairs
+                                   for text in (positive, negative)))
+    doc_index = {text: i for i, text in enumerate(documents)}
+    queries = list(dict.fromkeys(query for query, _, _ in pairs))
+
+    def embed(text):
+        ids = torch.tensor([tokenizer.encode(text).ids], dtype=torch.long, device='cuda')
+        return model.encode_text(ids, torch.ones_like(ids, dtype=torch.bool)).float().squeeze(0).cpu()
+
     with torch.no_grad():
-        for pair in pairs:
-            vectors = []
-            for text in pair:
-                ids = torch.tensor([tokenizer.encode(text).ids], dtype=torch.long, device='cuda')
-                vectors.append(model.encode_text(ids, torch.ones_like(ids, dtype=torch.bool)).float())
-            positive = float((vectors[0] * vectors[1]).sum())
-            negative = float((vectors[0] * vectors[2]).sum())
-            wins += positive > negative
-            ties += positive == negative
-    print(json.dumps({'samples': len(pairs), 'positive_above_negative': wins, 'ties': ties,
-                      'pair_accuracy': wins / len(pairs), 'checkpoint_step': step,
-                      'validation_pairs_sha256': digest,
-                      'note': 'local validation, one upstream negative per query; not top-k retrieval'}))
+        # CPU storage keeps the candidate vectors outside the limited 3-GB GPU.
+        candidate_vectors = torch.stack([embed(document) for document in documents])
+        query_vectors = {query: embed(query) for query in queries}
+
+    wins = ties = 0
+    ranks = []
+    for query, positive, negative in pairs:
+        scores = torch.mv(candidate_vectors, query_vectors[query]).tolist()
+        p_score = scores[doc_index[positive]]
+        n_score = scores[doc_index[negative]]
+        wins += p_score > n_score
+        ties += p_score == n_score
+        ranks.append(conservative_rank(scores, doc_index[positive]))
+    result = {
+        'samples': len(pairs),
+        'positive_above_negative': wins,
+        'ties': ties,
+        'pair_accuracy': round(wins / len(pairs), 4),
+        'candidate_pool_size': len(documents),
+        'unique_queries': len(queries),
+        **summarize_ranks(ranks),
+        'checkpoint_step': step,
+        'validation_pairs_sha256': digest,
+        'note': ('Exploratory ranking over sampled local validation positives/negatives; '
+                 'other queries may have relevant unlabeled passages. '
+                 'Not independent benchmark quality or production top-k recall.'),
+    }
+    print(json.dumps(result))
 
 
 if __name__ == '__main__':
