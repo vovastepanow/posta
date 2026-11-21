@@ -120,6 +120,13 @@ if [ -f "$APP/research/posta_multi/host_run001_tokenizer_audit_hook.sh" ]; then
         log "WARNING: Run 001 tokenizer intake audit could not start."
 fi
 
+# One-shot bounded news/forum sample saved only on private HDD. The sample
+# is quarantined and not consumed by the Run 001 trainers.
+if [ -f "$APP/research/posta_multi/host_run001_content_intake_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_run001_content_intake_hook.sh" ||
+        log "WARNING: Run 001 news/forum source intake could not start."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.
