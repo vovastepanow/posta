@@ -222,9 +222,11 @@ def run(args):
             raise RuntimeError('non-finite gradients; previous checkpoint preserved')
 
         check = step % args.validate_every == 0 or step == args.steps
+        current_val = None
         if check:
             score = validation_loss(model, val, device, max_examples=16,
                                     max_masked=args.max_masked)
+            current_val = score
             if score + 0.0001 < best_loss:
                 best_loss, best_step, stale = score, step, 0
                 save_atomic(best, {
@@ -244,7 +246,8 @@ def run(args):
             })
             print(json.dumps({'stage': 'text-mlm', 'step': step,
                               'train_loss': round(sum(losses)/len(losses), 6),
-                              'val_loss': best_loss if check else None,
+                              'val_loss': current_val,
+                              'best_val_loss': best_loss if check else None,
                               'best_step': best_step, 'stale': stale},
                              ensure_ascii=False), flush=True)
         if check and stale >= args.patience:
@@ -258,7 +261,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dataset', required=True)
     p.add_argument('--tokenizer', required=True)
-    p.add_argument('--output', required=True)
+    p.add_argument('--output', help='new Run 001 checkpoint directory (not used by --preflight)')
     p.add_argument('--preflight', action='store_true',
                    help='read-only provenance check; does not instantiate the network')
     p.add_argument('--resume', action='store_true')
@@ -278,6 +281,8 @@ def main():
     if args.preflight:
         print(json.dumps(readiness(args.dataset, args.tokenizer), ensure_ascii=False), flush=True)
         return
+    if not args.output:
+        p.error('--output is required unless --preflight is supplied')
     best = run(args)
     print(json.dumps({'run_id': RUN_ID, 'best_checkpoint': str(best)}), flush=True)
 
