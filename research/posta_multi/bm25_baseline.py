@@ -17,7 +17,8 @@ import unicodedata
 from compare_checkpoints import atomic_report
 from corpus import Corpus
 from ranking_metrics import conservative_rank, summarize_ranks
-from retrieval_stage import load_pairs, load_pairs_sampled
+# Legacy split samplers use torch; import only when the local Posta corpus
+# baseline is requested. Public MIRACL BM25 then needs standard Python only.
 
 
 def words(value):
@@ -88,6 +89,7 @@ def run(corpus, *, split='validation', limit=64):
         raise ValueError('benchmark test split must not be used for tuning')
     if type(limit) is not int or limit < 1:
         raise ValueError('invalid baseline sample limit')
+    from retrieval_stage import load_pairs, load_pairs_sampled
     # 16 'head' records precisely match the v1/v9 historical validator;
     # separate stable-hash sample gives a less order-sensitive local reference.
     legacy, legacy_hash = load_pairs(corpus, 16, split=split)
