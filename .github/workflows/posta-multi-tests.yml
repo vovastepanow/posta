@@ -55,7 +55,11 @@ jobs:
         run: |
           python3 -m pip install --disable-pip-version-check 'torch==2.7.1+cpu' --index-url https://download.pytorch.org/whl/cpu
           python3 -m pip install --disable-pip-version-check 'tokenizers==0.22.1' 'numpy>=1.26,<3' 'Pillow>=10,<13'
-      - name: Check media tool availability
-        run: ffmpeg -version | head -n 1
+      - name: Install FFmpeg for local synthetic audio fixture
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          command -v ffmpeg
+          ffmpeg -version | head -n 1
       - name: Run offline model and trainer regression tests
         run: python3 -m unittest discover -s research/posta_multi -p 'test_*.py' -v
