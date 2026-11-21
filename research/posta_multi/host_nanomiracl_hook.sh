@@ -6,7 +6,10 @@ ROOT="${POSTA_ML_ROOT:-/mnt/hdd_ubuntu/posta-pmr}"
 PYTHON="${POSTA_ML_PYTHON:-${HOME}/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3}"
 JOB="posta-multi-nanomiracl-ru-en-v1"
 [ -d "$ROOT" ] && [ -x "$PYTHON" ] || exit 0
-[ ! -e "$ROOT/$JOB.exit" ] && [ ! -e "$ROOT/$JOB.json" ] || exit 0
+# Completed with a snapshot, or failed without report? No more work.
+[ ! -e "$ROOT/$JOB-frozen.json" ] || exit 0
+[ ! -e "$ROOT/$JOB-freeze.exit" ] || exit 0
+if [ -e "$ROOT/$JOB.exit" ] && [ ! -e "$ROOT/$JOB.json" ]; then exit 0; fi
 [ -s "$APP/research/posta_multi/nanomiracl_benchmark.py" ] || exit 0
 for cmd in flock nohup nice timeout; do command -v "$cmd" >/dev/null || exit 0; done
 POSTA_DEPLOY_DIR="$APP" POSTA_ML_ROOT="$ROOT" POSTA_ML_PYTHON="$PYTHON" \

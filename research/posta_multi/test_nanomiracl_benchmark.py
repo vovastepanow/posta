@@ -66,6 +66,36 @@ class NanoTests(unittest.TestCase):
         self.assertGreater(report["languages"]["ru"]["recall_5"],0)
         self.assertNotIn("topic 1",str(report))
 
+
+    def test_reject_mismatched_existing_snapshot_before_write(self):
+        from pathlib import Path
+        import tempfile
+        from nanomiracl_benchmark import prepare
+        from urllib.parse import urlparse, parse_qs
+        rows={}
+        for lang in ("ru", "en"):
+            rows[("queries",lang)]=[
+                {"_id":str(i),"text":f"question {i} {lang}"} for i in range(200)]
+            rows[("qrels",lang)]=[
+                {"query-id":str(i),"corpus-id":str(i)} for i in range(200)]
+            rows[("corpus",lang)]=[
+                {"_id":str(i),"text":f"document {i} {lang}"} for i in range(400)]
+        def fetch(url):
+            if "/api/datasets/" in url:
+                return {"sha":"d"*40,"gated":False,"private":False}
+            if "/splits" in url:
+                return {"splits":[{"config":kind,"split":lang} for kind,lang in rows]}
+            query=parse_qs(urlparse(url).query)
+            r=rows[(query["config"][0],query["split"][0])]
+            off,n=int(query["offset"][0]),int(query["length"][0])
+            return {"num_rows_total":len(r),
+                    "rows":[{"row":x} for x in r[off:off+n]]}
+        with tempfile.TemporaryDirectory() as directory:
+            destination=Path(directory)/"frozen.json"
+            with self.assertRaisesRegex(ValueError, "differs from frozen"):
+                prepare(fetch, freeze_data=destination, expected_content_sha="0"*64)
+            self.assertFalse(destination.exists())
+
     def test_missing_split_fails_closed(self):
         def wrong(_):
             return {"splits":[{"config":"queries","split":"ru","num_examples":200}]}

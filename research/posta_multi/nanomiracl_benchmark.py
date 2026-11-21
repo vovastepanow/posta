@@ -204,7 +204,7 @@ def summarize(items):
     return result
 
 
-def prepare(fetch=fetch_json, freeze_data=None):
+def prepare(fetch=fetch_json, freeze_data=None, expected_content_sha=None):
     revision = source_sha(fetch)
     sizes = available_splits(fetch)
     grouped, per_language, counts = {}, {}, {}
@@ -246,6 +246,8 @@ def prepare(fetch=fetch_json, freeze_data=None):
             "No raw query/document text published with aggregate metrics",
         ],
     }
+    if expected_content_sha is not None and report["source_content_sha256"] != expected_content_sha:
+        raise ValueError("refetched NanoMIRACL differs from frozen baseline")
     if freeze_data is not None:
         # Preserve source contents for all later model comparisons. Do not
         # refetch or silently substitute new dataset-server revisions.
@@ -280,12 +282,23 @@ def main():
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--freeze-data", type=Path,
                    help="local-only evaluation snapshot, mode 0600; never upload")
+    p.add_argument("--compare-to-existing", type=Path,
+                   help="backfill text snapshot only if logical digest matches prior report")
     args = p.parse_args()
     if args.freeze_data is not None and args.freeze_data.exists():
         raise FileExistsError("frozen evaluation snapshot already exists")
     if args.output.exists():
         raise FileExistsError("frozen Nano benchmark report already exists")
-    result = prepare(freeze_data=args.freeze_data)
+    expected = None
+    if args.compare_to_existing is not None:
+        prior = json.loads(args.compare_to_existing.read_text(encoding="utf-8"))
+        if prior.get("format") != FORMAT or not isinstance(prior.get("source_content_sha256"), str):
+            raise ValueError("prior report cannot authorize backfill")
+        if args.freeze_data is None:
+            raise ValueError("backfill requires --freeze-data")
+        expected = prior["source_content_sha256"]
+    result = prepare(freeze_data=args.freeze_data,
+                     expected_content_sha=expected)
     atomic_report(args.output, result)
     print(json.dumps({
         "dataset": SOURCE, "source_revision": result["source_revision_observed"],
