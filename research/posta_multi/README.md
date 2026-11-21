@@ -563,3 +563,25 @@ No `.pt` file is modified; no data are uploaded to GitHub. `status.py`
 reports the small numeric comparison after it has finished. Avoid new
 long-running training until the resulting cross-check is analyzed and dataset
 rights/privacy review is complete.
+
+## Diagnosing retrieval-v9 embedding geometry without retraining
+
+A separate one-shot, read-only validation diagnostic starts after the prior
+64-query test-split comparison finishes, preventing GPU competition. It uses
+the original **16 validation query pairs**, never the test split, and evaluates
+the existing v1, v8 and v9 weights sequentially. The opt-in
+`eval_retrieval.py --diagnostics` flag reports:
+- mean positive and explicit-negative cosine, their average/median margins;
+- fraction of positive margins, range and spread of margins;
+- inter-example cosine between distinct query embeddings and distinct document
+  embeddings (near 1 may indicate collapse).
+
+This does not provide causal proof: a change in source initialization (v8 vs
+v1), optimization, negative sampling and small pool composition may all
+contribute to v9 regression. No automatic model selection/promotion or new
+training follows this diagnostic.
+
+Output files on the HDD:
+`posta-multi-geometry-v1-v8-v9-20261121-v1.json`,
+`.log` and `.exit`. The report contains aggregated numbers and checkpoint
+labels, never source texts or media. Existing checkpoints remain unchanged.

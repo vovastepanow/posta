@@ -44,7 +44,7 @@ jobs:
             exit 1
           fi
       - name: Check deployment shell scripts
-        run: bash -n deploy/auto-update.sh deploy/enable-auto-update.sh
+        run: bash -n deploy/auto-update.sh deploy/enable-auto-update.sh research/posta_multi/*.sh
       - name: Check autopilot interface JavaScript
         run: node --check js/sources.js
       - name: Unit tests
