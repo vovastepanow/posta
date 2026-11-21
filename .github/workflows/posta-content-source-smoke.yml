@@ -1,0 +1,61 @@
+name: Posta content-source real intake smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'research/pmr_datasets/harvest_content_sources.py'
+      - '.github/workflows/posta-content-source-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-source-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch bounded real news and discussions into ephemeral quarantine
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python3 research/pmr_datasets/harvest_content_sources.py \
+            --out-dir "$RUNNER_TEMP/posta-content-quarantine" \
+            --count-per-source 20 --batch-size 2 --max-chars 3000 \
+            > "$RUNNER_TEMP/posta-content-summary.json"
+      - name: Verify quarantine SHA integrity and report source counts only
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])/'posta-content-quarantine'
+          manifest = json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          assert manifest['format'] == 'posta-235m-content-source-quarantine-v1'
+          assert manifest['training_approved'] is False
+          assert len(manifest['sources']) == 2
+          lines = ['## Verified real-source Posta intake (quarantine only)', '',
+                   'No source text or author details are uploaded as workflow artifacts.',
+                   'No approval for model training is implied.', '',
+                   '| Source | Accepted records | Observed upstream revision |',
+                   '| --- | ---: | --- |']
+          for file, source in zip(manifest['files'], manifest['sources']):
+              record_file = root/file['path']
+              assert record_file.parent == root
+              assert hashlib.sha256(record_file.read_bytes()).hexdigest() == file['sha256']
+              assert file['rows'] >= 10
+              assert source['training_approved'] is False
+              lines.append(f"| {source['id']} | {file['rows']} | `{source['observed_head_revision'][:12]}` |")
+          print('\n'.join(lines))
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding='utf-8') as handle:
+              handle.write('\n'.join(lines)+'\n')
+          PY
+      - name: Remove preview texts and any temporary logs
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/posta-content-quarantine" "$RUNNER_TEMP/posta-content-summary.json"
