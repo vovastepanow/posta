@@ -20,6 +20,7 @@ import torch
 from tokenizers import Tokenizer
 
 from corpus import Corpus
+from run001_continuation import resume_policy, extension_lr_multiplier
 from cpu_master_adam import CPUMasterAdamW
 from model import PostaMulti
 from ranking_metrics import conservative_rank, summarize_ranks
@@ -219,6 +220,8 @@ def load_stage1_source(path, corpus, tokenizer_sha):
 
 
 def run(args):
+    if getattr(args, 'extend_steps', False) and not args.resume:
+        raise ValueError('--extend-steps requires --resume')
     if (args.steps < 1 or args.batch_size < 2 or args.train_pairs < args.batch_size
             or args.val_pairs < 16 or args.validate_every < 1
             or args.save_every < 1 or args.patience < 1 or
@@ -314,10 +317,13 @@ def run(args):
                                max_grad_norm=1.0)
     generator = torch.Generator(device='cpu').manual_seed(args.seed + 99)
     step, best_metrics, best_step, stale = 0, None, 0, 0
+    continuation_phase = None
     if args.resume:
         checkpoint = torch.load(last, weights_only=True, map_location='cpu')
-        if checkpoint.get('format') != STAGE_FORMAT or checkpoint.get('settings') != settings:
-            raise ValueError('retrieval resume provenance/settings mismatch')
+        if checkpoint.get('format') != STAGE_FORMAT:
+            raise ValueError('retrieval checkpoint format mismatch')
+        continuation_phase, extended = resume_policy(
+            checkpoint, settings, extend=getattr(args, 'extend_steps', False))
         model.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         torch.set_rng_state(checkpoint['cpu_rng'])
@@ -326,8 +332,8 @@ def run(args):
         step, best_metrics, best_step, stale = (
             checkpoint['step'], checkpoint['best_metrics'],
             checkpoint['best_step'], checkpoint['stale'])
-        if step >= args.steps:
-            raise ValueError('already completed all requested steps')
+        if extended:
+            stale = 0  # Keep best health metrics and checkpoint across phases.
 
     print(json.dumps({
         'run_id': RUN_ID, 'stage': 'retrieval-anti-collapse',
@@ -337,6 +343,7 @@ def run(args):
         'positive_only_curation_counts': extra_stats,
         'positive_only_enabled': extra_enabled,
         'gpu_allocator_fraction': 0.45,
+        'continuation_phase': continuation_phase,
     }), flush=True)
     device = torch.device('cuda')
     for step in range(step + 1, args.steps + 1):
@@ -344,7 +351,8 @@ def run(args):
         batch = [train[int(i)] for i in chosen]
         phase = configure_trainable_stage(model, step, args.projection_only_steps)
         optimizer.lr = (args.lr if phase == 'projection-only'
-                        else args.lr * 0.25)
+                        else args.lr * 0.25) * extension_lr_multiplier(
+                            step, continuation_phase)
         optimizer.zero_grad()
         loss, measures = cached_retrieval_backward(model, batch, device,
                                                     optimizer=optimizer)
@@ -366,6 +374,7 @@ def run(args):
                 save_atomic(best, {
                     'format': STAGE_FORMAT + '-best', 'settings': settings,
                     'step': step, 'metrics': val_metrics,
+                    'continuation_phase': continuation_phase,
                     'model': model.state_dict(),
                 })
             else:
@@ -376,6 +385,7 @@ def run(args):
                 'step': step, 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'sampler_rng': generator.get_state(),
+                'continuation_phase': continuation_phase,
                 'cpu_rng': torch.get_rng_state(),
                 'cuda_rng': torch.cuda.get_rng_state_all(),
                 'best_metrics': best_metrics, 'best_step': best_step,
@@ -426,6 +436,8 @@ def main():
     p.add_argument('--positive-only-weight', type=float, default=0.25)
     p.add_argument('--seed', type=int, default=1001)
     p.add_argument('--resume', action='store_true')
+    p.add_argument('--extend-steps', action='store_true',
+                   help='after completed budget, continue identical corpus and tokenizer at lower LR')
     args = p.parse_args()
     result = run(args)
     print(json.dumps({
