@@ -360,6 +360,32 @@ def main():
     print(json.dumps({'run001_tokenizer_intake': summary,
                       'exit_exists': (ROOT / (tokenizer_job + '.exit')).is_file()},
                      ensure_ascii=False))
+    content_job = 'posta-multi-run001-content-samples-v1'
+    content_root = ROOT / content_job
+    content_manifest = content_root / 'manifest.json'
+    if content_manifest.is_file():
+        try:
+            content = json.loads(content_manifest.read_text(encoding='utf-8'))
+            if content.get('format') != 'posta-235m-content-source-quarantine-v1':
+                raise ValueError('unexpected content source manifest format')
+            summary = {
+                'status': content['status'],
+                'training_approved': content['training_approved'],
+                'sources': [
+                    {'id': source['id'], 'counts': source['counts'],
+                     'observed_head_revision': source['observed_head_revision']}
+                    for source in content['sources']
+                ],
+                'provenance_limitation': 'Dataset Server rows are not revision-pinned',
+            }
+        except (OSError, KeyError, TypeError, ValueError) as error:
+            summary = {'read_error': str(error)}
+    else:
+        summary = {'report_exists': False}
+    print(json.dumps({
+        'run001_content_quarantine': summary,
+        'exit_exists': (ROOT / (content_job + '.exit')).is_file(),
+    }, ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 
