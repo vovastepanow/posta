@@ -15,7 +15,7 @@ from tokenizers import Tokenizer
 from corpus import Corpus
 from model import PostaMulti
 from ranking_metrics import conservative_rank, summarize_ranks
-from retrieval_stage import load_pairs
+from retrieval_stage import load_pairs, load_pairs_sampled
 from spec import Config
 
 
@@ -25,6 +25,8 @@ def main():
     p.add_argument('--tokenizer', required=True)
     p.add_argument('--checkpoint', required=True)
     p.add_argument('--samples', type=int, default=16)
+    p.add_argument('--split', choices=('validation', 'test'), default='validation')
+    p.add_argument('--sample-hash', action='store_true', help='choose split rows via stable hashes, independent of JSONL ordering')
     args = p.parse_args()
     if args.samples < 1:
         raise ValueError('samples must be positive')
@@ -33,7 +35,7 @@ def main():
     torch.set_num_threads(2)
     torch.cuda.set_per_process_memory_fraction(0.45)
     corpus = Corpus(args.dataset)
-    pairs, digest = load_pairs(corpus, args.samples, split='validation')
+    pairs, digest = (load_pairs_sampled if args.sample_hash else load_pairs)(corpus, args.samples, split=args.split)
     state = torch.load(args.checkpoint, map_location='cpu', weights_only=True)
     settings = state['settings']
     if hashlib.sha256(Path(args.tokenizer).read_bytes()).hexdigest() != settings['tokenizer']:
@@ -86,7 +88,9 @@ def main():
         **summarize_ranks(ranks),
         'checkpoint_step': step,
         'validation_pairs_sha256': digest,
-        'note': ('Exploratory ranking over sampled local validation positives/negatives; '
+        'split': args.split,
+        'sample_mode': 'stable-hash' if args.sample_hash else 'head',
+        'note': ('Exploratory ranking over sampled local held-out positives/negatives; '
                  'other queries may have relevant unlabeled passages. '
                  'Not independent benchmark quality or production top-k recall.'),
     }

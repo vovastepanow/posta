@@ -27,6 +27,7 @@ DEFAULT_CHECKPOINTS = ('mixed-v2', 'retrieval-v1', 'image-v1', 'audio-v7', 'text
 TASK_OPTIONS = {
     'text': ('eval_text.py', '--per-group', '8'),
     'retrieval': ('eval_retrieval.py', '--samples', '16'),
+    'retrieval-test': ('eval_retrieval.py', '--samples', '64'),
     'image': ('eval_image.py', '--samples', '8'),
     'video': ('eval_video.py', '--samples', '8'),
     'audio': ('eval_audio.py', '--samples', '16'),
@@ -38,11 +39,14 @@ def evaluation_command(task, checkpoint, dataset, tokenizer, python=sys.executab
     if task not in TASK_OPTIONS:
         raise ValueError('unknown evaluation task')
     script, option, count = TASK_OPTIONS[task]
-    return [
+    command = [
         str(python), str(Path(__file__).resolve().parent / script),
         '--dataset', str(dataset), '--tokenizer', str(tokenizer),
         '--checkpoint', str(checkpoint), option, count,
     ]
+    if task == 'retrieval-test':
+        command.extend(('--split', 'test', '--sample-hash'))
+    return command
 
 
 def parse_evaluation_output(output):
@@ -66,6 +70,7 @@ def summarize(records):
             continue
         digest_key = {
             'retrieval': 'validation_pairs_sha256',
+            'retrieval-test': 'validation_pairs_sha256',
             'image': 'validation_sha256',
             'video': 'validation_sha256',
             'audio': 'selection_sha256',

@@ -26,6 +26,8 @@ JOB_REPORT_FILES = {
         'posta-multi-compare-v8-retrieval-20261121-v1.json',
     'posta-multi-retrieval-adam-v9':
         'posta-multi-retrieval-adam-v9-eval.json',
+    'posta-multi-holdout-v1-v8-v9-20261121-v1':
+        'posta-multi-holdout-v1-v8-v9-20261121-v1.json',
 }
 
 RANKING_FIELDS = (
@@ -57,7 +59,7 @@ def summarize_report(path):
         }
         if row.get('status') == 'ok':
             metrics = row.get('metrics') or {}
-            if entry['task'] == 'retrieval':
+            if entry['task'] in ('retrieval', 'retrieval-test'):
                 entry.update({key: metrics[key] for key in RANKING_FIELDS if key in metrics})
             elif entry['task'] == 'text':
                 entry['checkpoint_step'] = metrics.get('checkpoint_step')

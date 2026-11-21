@@ -526,3 +526,40 @@ both local reports, and shows which earlier checkpoint initialized v9. It does
 not load the model weights, run evaluation, or publish any private input text.
 Metrics remain derived from a very small local validation set and must not
 be interpreted as independent search-quality evidence.
+
+
+
+## Test split regression audit after v9 search degradation
+
+The local 16-query validation comparison found a substantial `v9` regression
+relative to `retrieval-v1`: pair accuracy 7/16 vs 13/16, Recall@1 1/16 vs
+3/16, Recall@5 2/16 vs 8/16, and MRR 0.1352 vs 0.3469. Masked-token loss
+also rose for all four text/language groups. These are real observations on
+the **same local validation selection** but are too small for generalization
+claims. The initial `v9` checkpoint source could be `text-v8` rather than
+`retrieval-v1`; check the log's JSON `source` before attributing the entire
+difference to AdamW training. Do not promote `v9`.
+
+The next **read-only** experiment evaluates all three (`retrieval-v1`,
+`text-v8`, `retrieval-adam-v9`) on the corpus's separate `test` split. It
+chooses 64 eligible query/positive/explicit-negative records from the **whole
+test split** by stable SHA-256 ordering (`eval_retrieval.py --split test
+--sample-hash --samples 64`). Candidate passages are deduplicated within the
+evaluation pool. The comparison verifies identical selected-pair hashes across
+checkpoints. The original 16-query validation remains untouched. The test
+split is internal and has incomplete relevance labels, **not** an independent
+production benchmark; once inspected, it should not be reused for training
+selection or repeated hyperparameter tuning.
+
+The existing deployment cron starts this analysis **once** after the v9
+completion marker reports exit 0 and all three existing checkpoints are
+present. It is low-priority, bounded by a 2-hour timeout, acquires a separate
+lock and only writes to HDD:
+- `posta-multi-holdout-v1-v8-v9-20261121-v1.json`
+- `posta-multi-holdout-v1-v8-v9-20261121-v1.log`
+- `posta-multi-holdout-v1-v8-v9-20261121-v1.exit`
+
+No `.pt` file is modified; no data are uploaded to GitHub. `status.py`
+reports the small numeric comparison after it has finished. Avoid new
+long-running training until the resulting cross-check is analyzed and dataset
+rights/privacy review is complete.

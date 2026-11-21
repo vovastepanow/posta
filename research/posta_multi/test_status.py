@@ -12,6 +12,26 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(JOB_REPORT_FILES['posta-multi-retrieval-adam-v9'],
                          'posta-multi-retrieval-adam-v9-eval.json')
 
+    def test_holdout_test_report_is_detected(self):
+        self.assertEqual(JOB_REPORT_FILES['posta-multi-holdout-v1-v8-v9-20261121-v1'],
+                         'posta-multi-holdout-v1-v8-v9-20261121-v1.json')
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            name = 'posta-multi-holdout-v1-v8-v9-20261121-v1'
+            (root / JOB_REPORT_FILES[name]).write_text(json.dumps({
+                'format': 'posta-multi-checkpoint-comparison-v1',
+                'tasks': ['retrieval-test'],
+                'checkpoints': ['retrieval-v1'],
+                'results': [{
+                    'checkpoint': 'retrieval-v1', 'task': 'retrieval-test', 'status': 'ok',
+                    'metrics': {'samples': 64, 'pair_accuracy': 0.5, 'mean_reciprocal_rank': 0.23}
+                }]
+            }))
+            self.assertTrue(job_status(root, name)['report_exists'])
+            summary = summarize_report(root / JOB_REPORT_FILES[name])
+            self.assertTrue(summary['complete'])
+            self.assertEqual(summary['results'][0]['samples'], 64)
+
     def test_completed_stage_report_summary_and_training_origin(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

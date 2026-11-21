@@ -23,6 +23,14 @@ class CompareCheckpointsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluation_command('training', 'x', 'y', 'z')
 
+    def test_holdout_test_uses_separate_split_and_stable_selection(self):
+        command = evaluation_command('retrieval-test', Path('/hdd/v9.pt'),
+                                     '/hdd/dataset', '/hdd/tok.json',
+                                     python='/usr/bin/python3')
+        self.assertEqual(command[-5:], ['64', '--split', 'test', '--sample-hash'])
+        self.assertIn('eval_retrieval.py', command[1])
+        self.assertEqual(command[command.index('--samples')+1], '64')
+
     def test_extracts_evaluation_json_after_log_lines(self):
         item = parse_evaluation_output('loading\n{"checkpoint_step": 128, "pair_accuracy": 0.5}\n')
         self.assertEqual(item['checkpoint_step'], 128)
@@ -38,6 +46,10 @@ class CompareCheckpointsTests(unittest.TestCase):
         self.assertTrue(summarize(rows))
         rows[1]['metrics']['validation_pairs_sha256'] = '123'
         self.assertEqual(summarize(rows), [])
+        for row in rows:
+            row['task'] = 'retrieval-test'
+        rows[1]['metrics']['validation_pairs_sha256'] = 'different-test-digest'
+        self.assertTrue(summarize(rows))
 
     def test_mock_evaluation_writes_report_only_and_does_not_train(self):
         with tempfile.TemporaryDirectory() as root:
