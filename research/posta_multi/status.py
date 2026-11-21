@@ -28,6 +28,8 @@ JOB_REPORT_FILES = {
         'posta-multi-retrieval-adam-v9-eval.json',
     'posta-multi-holdout-v1-v8-v9-20261121-v1':
         'posta-multi-holdout-v1-v8-v9-20261121-v1.json',
+    'posta-multi-geometry-v1-v8-v9-20261121-v1':
+        'posta-multi-geometry-v1-v8-v9-20261121-v1.json',
 }
 
 RANKING_FIELDS = (
@@ -59,8 +61,12 @@ def summarize_report(path):
         }
         if row.get('status') == 'ok':
             metrics = row.get('metrics') or {}
-            if entry['task'] in ('retrieval', 'retrieval-test'):
+            if entry['task'] in ('retrieval', 'retrieval-test', 'retrieval-health'):
                 entry.update({key: metrics[key] for key in RANKING_FIELDS if key in metrics})
+                if entry['task'] == 'retrieval-health':
+                    diag = metrics.get('diagnostics', {})
+                    entry['diagnostics'] = {key: value for key, value in diag.items()
+                                            if key != 'note' and isinstance(value, (int, float))}
             elif entry['task'] == 'text':
                 entry['checkpoint_step'] = metrics.get('checkpoint_step')
                 groups = metrics.get('local_validation') or {}

@@ -28,6 +28,7 @@ TASK_OPTIONS = {
     'text': ('eval_text.py', '--per-group', '8'),
     'retrieval': ('eval_retrieval.py', '--samples', '16'),
     'retrieval-test': ('eval_retrieval.py', '--samples', '64'),
+    'retrieval-health': ('eval_retrieval.py', '--samples', '16'),
     'image': ('eval_image.py', '--samples', '8'),
     'video': ('eval_video.py', '--samples', '8'),
     'audio': ('eval_audio.py', '--samples', '16'),
@@ -46,6 +47,8 @@ def evaluation_command(task, checkpoint, dataset, tokenizer, python=sys.executab
     ]
     if task == 'retrieval-test':
         command.extend(('--split', 'test', '--sample-hash'))
+    if task == 'retrieval-health':
+        command.append('--diagnostics')
     return command
 
 
@@ -71,6 +74,7 @@ def summarize(records):
         digest_key = {
             'retrieval': 'validation_pairs_sha256',
             'retrieval-test': 'validation_pairs_sha256',
+            'retrieval-health': 'validation_pairs_sha256',
             'image': 'validation_sha256',
             'video': 'validation_sha256',
             'audio': 'selection_sha256',

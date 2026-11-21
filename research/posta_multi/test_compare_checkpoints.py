@@ -23,6 +23,13 @@ class CompareCheckpointsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluation_command('training', 'x', 'y', 'z')
 
+    def test_diagnostics_uses_existing_validation_and_opt_in_flag(self):
+        command = evaluation_command('retrieval-health', Path('/hdd/v1.pt'),
+                                     '/hdd/dataset', '/hdd/tok.json')
+        self.assertEqual(command[-3:], ['--samples', '16', '--diagnostics'])
+        self.assertNotIn('--split', command)
+        self.assertNotIn('--sample-hash', command)
+
     def test_holdout_test_uses_separate_split_and_stable_selection(self):
         command = evaluation_command('retrieval-test', Path('/hdd/v9.pt'),
                                      '/hdd/dataset', '/hdd/tok.json',

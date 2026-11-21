@@ -15,6 +15,7 @@ from tokenizers import Tokenizer
 from corpus import Corpus
 from model import PostaMulti
 from ranking_metrics import conservative_rank, summarize_ranks
+from retrieval_health import retrieval_health
 from retrieval_stage import load_pairs, load_pairs_sampled
 from spec import Config
 
@@ -27,6 +28,7 @@ def main():
     p.add_argument('--samples', type=int, default=16)
     p.add_argument('--split', choices=('validation', 'test'), default='validation')
     p.add_argument('--sample-hash', action='store_true', help='choose split rows via stable hashes, independent of JSONL ordering')
+    p.add_argument('--diagnostics', action='store_true', help='include aggregated embedding-separation and geometry statistics')
     args = p.parse_args()
     if args.samples < 1:
         raise ValueError('samples must be positive')
@@ -71,12 +73,15 @@ def main():
 
     wins = ties = 0
     ranks = []
+    positives, negatives = [], []
     for query, positive, negative in pairs:
         scores = torch.mv(candidate_vectors, query_vectors[query]).tolist()
         p_score = scores[doc_index[positive]]
         n_score = scores[doc_index[negative]]
         wins += p_score > n_score
         ties += p_score == n_score
+        positives.append(p_score)
+        negatives.append(n_score)
         ranks.append(conservative_rank(scores, doc_index[positive]))
     result = {
         'samples': len(pairs),
@@ -94,6 +99,10 @@ def main():
                  'other queries may have relevant unlabeled passages. '
                  'Not independent benchmark quality or production top-k recall.'),
     }
+    if args.diagnostics:
+        result['diagnostics'] = retrieval_health(
+            torch.stack([query_vectors[query] for query in queries]),
+            candidate_vectors, positives, negatives)
     print(json.dumps(result))
 
 

@@ -12,6 +12,28 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(JOB_REPORT_FILES['posta-multi-retrieval-adam-v9'],
                          'posta-multi-retrieval-adam-v9-eval.json')
 
+    def test_geometry_job_is_tracked_and_reports_numeric_only(self):
+        self.assertEqual(JOB_REPORT_FILES['posta-multi-geometry-v1-v8-v9-20261121-v1'],
+                         'posta-multi-geometry-v1-v8-v9-20261121-v1.json')
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            name = 'posta-multi-geometry-v1-v8-v9-20261121-v1'
+            (root / JOB_REPORT_FILES[name]).write_text(json.dumps({
+                'format': 'posta-multi-checkpoint-comparison-v1',
+                'tasks': ['retrieval-health'],
+                'checkpoints': ['retrieval-v1'],
+                'results': [{
+                    'checkpoint': 'retrieval-v1', 'task': 'retrieval-health',
+                    'status': 'ok', 'metrics': {
+                        'samples': 16, 'pair_accuracy': 0.8125,
+                        'diagnostics': {'mean_positive_minus_negative': 0.4,
+                                        'query_interexample_cosine': 0.6,
+                                        'note': 'not private document content'}}}
+                ]}))
+            result = summarize_report(root / JOB_REPORT_FILES[name])
+            self.assertEqual(result['results'][0]['diagnostics']['mean_positive_minus_negative'], 0.4)
+            self.assertNotIn('note', result['results'][0]['diagnostics'])
+
     def test_holdout_test_report_is_detected(self):
         self.assertEqual(JOB_REPORT_FILES['posta-multi-holdout-v1-v8-v9-20261121-v1'],
                          'posta-multi-holdout-v1-v8-v9-20261121-v1.json')
