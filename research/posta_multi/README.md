@@ -430,3 +430,28 @@ to declare an automatic winning model. Incomplete relevance labels, different
 checkpoint objectives and the small, potentially biased validation split prevent
 strong quality claims. The model still needs a genuinely independent benchmark
 and verified source-rights/privacy gates before serious additional training.
+
+## One-shot local comparison through the existing deploy cron
+
+The existing CI-gated host updater invokes `host_compare_hook.sh` **after** a
+successful normal deployment. It returns immediately and starts one bounded,
+read-only comparison in a separate lower-priority background process. This is
+not a general remote command executor, runner, or training loop.
+
+Only `retrieval-v1` and `text-v8` are compared on local validation **text and
+retrieval** tasks. The hook verifies that the HDD, Python runtime, tokenizer and
+both checkpoints exist before starting; the worker uses `flock`, a 2-hour
+overall timeout and a fixed request ID to prevent repeated jobs on successive
+deploys. Existing `.pt` files are only read. Nothing is uploaded to GitHub;
+no training starts and production DB is not accessed.
+
+Outputs:
+- `/mnt/hdd_ubuntu/posta-pmr/posta-multi-compare-v8-retrieval-20261121-v1.log`
+- `/mnt/hdd_ubuntu/posta-pmr/posta-multi-compare-v8-retrieval-20261121-v1.json`
+- `/mnt/hdd_ubuntu/posta-pmr/posta-multi-compare-v8-retrieval-20261121-v1.exit`
+
+A nonzero `.exit` records that the comparison failed; it does not damage
+checkpoint files or stop the Posta service. A new request requires a reviewed
+new request ID, rather than automatically rerunning a possibly broken job.
+This mechanism cannot send results back to ChatGPT autonomously: the JSON must
+be supplied by the owner or an appropriately scoped results connector.

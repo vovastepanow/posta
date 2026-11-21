@@ -62,5 +62,7 @@ jobs:
           ln -s "$(python3 -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" "$RUNNER_TEMP/posta-bin/ffmpeg"
           echo "$RUNNER_TEMP/posta-bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/posta-bin/ffmpeg" -version | head -n 1
+      - name: Check isolated host compare shells
+        run: bash -n research/posta_multi/host_compare_hook.sh research/posta_multi/host_compare_worker.sh
       - name: Run offline model and trainer regression tests
         run: python3 -m unittest discover -s research/posta_multi -p 'test_*.py' -v

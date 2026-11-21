@@ -109,3 +109,10 @@ if ! sudo -n /usr/bin/systemctl restart posta ||
 fi
 printf "%s\n" "$target" > "$deployed_file"
 log "Deployed ${target:0:8}; service active."
+
+# Opted-in one-shot research validation. Failure never interrupts Posta deployment.
+# The helper only compares existing checkpoints and writes a report to the HDD.
+if [ -f "$APP/research/posta_multi/host_compare_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_compare_hook.sh" ||
+        log "WARNING: Posta Multi evaluation hook could not start."
+fi
