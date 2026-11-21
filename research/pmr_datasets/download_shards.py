@@ -20,6 +20,10 @@ from probe import atomic_json, get_json
 # (dataset ID, repository, immutable revision, path).  Evaluation sources are
 # marked separately and must never be used as training data.
 PLAN = [
+ # Wikipedia 20231101: immutable revision; selected RU/EN first shards only.
+ # Separate quarantine until attribution, privacy and benchmark review.
+ ('wikipedia-ru-20231101','wikimedia/wikipedia','9bb2d6eabe4f74be399253d973b782b01ed0435b','20231101.ru/train-00000-of-00021.parquet'),
+ ('wikipedia-en-20231101','wikimedia/wikipedia','9bb2d6eabe4f74be399253d973b782b01ed0435b','20231101.en/train-00000-of-00041.parquet'),
  ('kalm-retrieval','KaLM-Embedding/KaLM-embedding-finetuning-data','e9443ab6f5d4dc29c79cea03834e932428ed6ab1','AFQMC/train-00000-of-00001.parquet'),
  ('bvd-video','laion/BVD-V-55M-URLs','c67a81a860651c0672cc10c49e487099712f6ab5','clips/0000.parquet'),
  ('librispeech','openslr/librispeech_asr','71cacbfb7e2354c4226d01e70d77d5fca3d04ba1','clean/train.100/0000.parquet'),
@@ -89,11 +93,15 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--out-dir', type=Path, required=True)
     p.add_argument('--reserve-gib', type=int, default=40)
+    p.add_argument('--max-shard-mib', type=int, default=0,
+                   help='optional hard per-file size cap; 0 uses existing default unlimited')
     p.add_argument('--manifest-name', default='download-manifest.json')
     p.add_argument('--ids', nargs='+', choices=[item[0] for item in PLAN])
     args = p.parse_args()
     if args.reserve_gib < 10:
         p.error('reserve must be at least 10 GiB')
+    if args.max_shard_mib < 0:
+        p.error('max-shard-mib must not be negative')
     if Path(args.manifest_name).name != args.manifest_name:
         p.error('manifest-name must be a plain filename')
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -114,6 +122,8 @@ def main():
         try:
             size, expected = metadata(repo, rev, remote_path)
             record.update(expected_bytes=size, expected_sha256=expected)
+            if args.max_shard_mib and size > args.max_shard_mib * 1024 ** 2:
+                raise ValueError('source shard exceeds explicit MiB cap; no download attempted')
             final = args.out_dir / id_ / Path(remote_path).name
             final.parent.mkdir(parents=True, exist_ok=True)
             part = final.with_name(final.name + '.part')
