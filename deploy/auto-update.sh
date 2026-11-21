@@ -93,6 +93,12 @@ if [ -f "$APP/research/posta_multi/host_bm25_hook.sh" ]; then
         log "WARNING: Run 001 BM25 validation hook failed."
 fi
 
+# Evaluation-only RU+EN human-judged benchmark, no training or DB changes.
+if [ -f "$APP/research/posta_multi/host_miracl_benchmark_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_miracl_benchmark_hook.sh" ||
+        log "WARNING: Run 001 MIRACL evaluation hook failed."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.
