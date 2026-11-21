@@ -141,3 +141,30 @@ def balanced_validation_windows(selected, tokenizer, length, per_group=4,
     if len(windows) < 2:
         raise ValueError('too few validation windows')
     return windows, labels, digest.hexdigest(), group_counts
+
+
+
+def cross_split_exact_overlaps(train_selected, validation_selected):
+    """Number of distinct normalized texts shared across train and validation.
+
+    Compare text across ALL kinds/languages (not merely corresponding
+    groups). Return aggregate count only; no raw texts or hashes are exposed.
+    """
+    import unicodedata
+
+    def token(text):
+        normalized = ' '.join(unicodedata.normalize('NFKC', text).casefold().split())
+        return hashlib.sha256(normalized.encode('utf-8')).digest() if normalized else None
+
+    seen = {fp for _, text in train_selected if (fp := token(text))}
+    return len(seen & {fp for _, text in validation_selected if (fp := token(text))})
+
+
+def require_isolated_splits(train_selected, validation_selected):
+    """Fail before allocating 235M weights if exact train/validation reuse exists."""
+    count = cross_split_exact_overlaps(train_selected, validation_selected)
+    if count:
+        raise ValueError(
+            f'train and validation share {count} distinct normalized text records; '
+            'regenerate split-isolated dataset before training')
+    return 0

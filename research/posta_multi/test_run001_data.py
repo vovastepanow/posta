@@ -2,7 +2,8 @@
 import unittest
 
 from run001_data import (KINDS, POLICY, approval_issues,
-                         balanced_validation_windows, make_windows, select_records)
+                         balanced_validation_windows, cross_split_exact_overlaps,
+                         make_windows, require_isolated_splits, select_records)
 
 
 class FakeCorpus:
@@ -100,6 +101,18 @@ class Run001DataTests(unittest.TestCase):
             reversed_records, FakeTokenizer(), length=12, per_group=2))
         with self.assertRaises(ValueError):
             balanced_validation_windows(records, FakeTokenizer(), 12, per_group=0)
+
+
+    def test_exact_cross_split_overlap_detected_across_language_and_kind(self):
+        train = [(('text', 'ru'), ' А  Б '),
+                 (('image_text', 'en'), 'another post')]
+        valid = [(('ocr_text', 'en'), 'а б'),
+                 (('retrieval', 'ru'), ' ANOTHER   POST ')]
+        self.assertEqual(cross_split_exact_overlaps(train, valid), 2)
+        with self.assertRaisesRegex(ValueError, 'share 2 distinct'):
+            require_isolated_splits(train, valid)
+        self.assertEqual(require_isolated_splits(train, [
+            (('ocr_text', 'en'), 'completely different text')]), 0)
 
     def test_invalid_or_empty_windows(self):
         corpus = FakeCorpus({})

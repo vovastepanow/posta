@@ -23,7 +23,7 @@ from cpu_master_adam import CPUMasterAdamW
 from corpus import Corpus
 from model import PostaMulti
 from run001_data import (POLICY, approval_issues, balanced_validation_windows,
-                         make_windows, select_records)
+                         make_windows, require_isolated_splits, select_records)
 from run001_smoke import RUN_ID, trainable_text_parameters
 from spec import Config, parameter_counts
 from train_text import save_atomic
@@ -162,6 +162,7 @@ def run(args):
         corpus, split='train', max_per_group=args.train_per_group)
     selected_val, val_counts = select_records(
         corpus, split='validation', max_per_group=args.val_per_group)
+    require_isolated_splits(selected_train, selected_val)
     train, train_sha, train_windows = make_windows(
         selected_train, tokenizer, args.seq_length)
     val, val_labels, val_sha, val_windows = balanced_validation_windows(
@@ -181,7 +182,7 @@ def run(args):
         raise RuntimeError('need at least 8 GiB of free HDD space for atomic checkpoint writes')
 
     settings = {
-        'format': 'posta-multi-235m-run001-text-v2',
+        'format': 'posta-multi-235m-run001-text-v3',
         'run_id': RUN_ID,
         'config': asdict(config),
         'manifest_sha256': corpus.manifest_hash,
@@ -199,6 +200,7 @@ def run(args):
         'val_per_group': args.val_per_group,
         'val_windows_per_group': args.val_windows_per_group,
         'validation_selection': 'stratified-hash-kind-language-v1',
+        'train_validation_isolation': 'cross-kind-nfkc-casefold-exact-v1',
         'validation_metric': 'macro_mean_loss_across_groups',
         'seq_length': args.seq_length,
         'validate_every': args.validate_every,
