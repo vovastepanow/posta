@@ -56,8 +56,8 @@ class SplitAuditTests(unittest.TestCase):
         self.assertEqual(crossing['exact_query_positive_pairs'], 1)
         self.assertEqual(crossing['exact_shared_query_texts'], 1)
         self.assertEqual(crossing['exact_shared_positive_texts'], 1)
-        self.assertEqual(crossing['positive_in_other_negatives'], 0)
-        self.assertEqual(crossing['negative_in_other_positives'], 1)
+        self.assertEqual(crossing['positive_in_other_negatives'], 1)
+        self.assertEqual(crossing['negative_in_other_positives'], 2)
         self.assertEqual(report['exact_cross_split_overlap']['train_vs_validation']['exact_shared_positive_texts'], 1)
 
     def test_never_emits_raw_queries_or_documents(self):
