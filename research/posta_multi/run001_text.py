@@ -20,6 +20,7 @@ import torch.nn.functional as F
 from tokenizers import Tokenizer
 
 from cpu_master_adam import CPUMasterAdamW
+from run001_continuation import resume_policy, extension_lr_multiplier
 from corpus import Corpus
 from model import PostaMulti
 from run001_data import (POLICY, approval_issues, balanced_validation_windows,
@@ -142,6 +143,8 @@ def readiness(dataset, tokenizer_file):
 
 
 def run(args):
+    if getattr(args, 'extend_steps', False) and not args.resume:
+        raise ValueError('--extend-steps requires --resume')
     if args.steps < 1 or args.save_every < 1 or args.validate_every < 1 or        args.grad_accum < 1 or args.max_masked < 1 or args.patience < 1 or        args.train_per_group < 1 or args.val_per_group < 1 or args.val_windows_per_group < 1 or        args.seq_length < 8 or args.seq_length > 512 or        args.warmup < 0 or args.warmup >= args.steps or        not 0 < args.lr <= 0.01:
         raise ValueError('invalid Run 001 training settings')
 
@@ -215,10 +218,13 @@ def run(args):
                                max_grad_norm=1.0)
     generator = torch.Generator(device='cpu').manual_seed(args.seed + 7)
     start, best_loss, best_step, stale = 0, math.inf, 0, 0
+    continuation_phase = None
     if args.resume:
         state = torch.load(last, weights_only=True, map_location='cpu')
-        if state.get('format') != settings['format'] or state.get('settings') != settings:
-            raise ValueError('Run 001 resume config, corpus or tokenizer does not match')
+        if state.get('format') != settings['format']:
+            raise ValueError('Run 001 text checkpoint format mismatch')
+        continuation_phase, extended = resume_policy(
+            state, settings, extend=getattr(args, 'extend_steps', False))
         model.load_state_dict(state['model'])
         optimizer.load_state_dict(state['optimizer'])
         torch.set_rng_state(state['cpu_rng'])
@@ -226,8 +232,8 @@ def run(args):
         generator.set_state(state['sampler_rng'])
         start, best_loss, best_step, stale = (
             state['step'], state['best_loss'], state['best_step'], state['stale'])
-        if start >= args.steps:
-            raise ValueError('Run 001 already reached target steps')
+        if extended:
+            stale = 0  # New explicit phase; keep best score and best checkpoint.
         del state
 
     print(json.dumps({
@@ -239,12 +245,15 @@ def run(args):
         'train_groups': train_counts, 'val_groups': val_counts,
         'val_windows_by_group': val_windows,
         'gpu_fraction': 0.45,
+        'continuation_phase': continuation_phase,
     }, ensure_ascii=False), flush=True)
 
     device = torch.device('cuda')
     for step in range(start+1, args.steps+1):
         model.train()
-        optimizer.lr = schedule(step, args.steps, args.lr, args.warmup)
+        optimizer.lr = (args.lr * extension_lr_multiplier(step, continuation_phase)
+                        if continuation_phase else
+                        schedule(step, args.steps, args.lr, args.warmup))
         optimizer.zero_grad()
         losses = []
         for micro in range(args.grad_accum):
@@ -272,6 +281,7 @@ def run(args):
                     'format': settings['format'] + '-best',
                     'settings': settings, 'step': step,
                     'validation_loss': score, 'validation': metrics,
+                    'continuation_phase': continuation_phase,
                     'model': model.state_dict()})
             else:
                 stale += 1
@@ -281,6 +291,7 @@ def run(args):
                 'model': model.state_dict(), 'optimizer': optimizer.state_dict(),
                 'cpu_rng': torch.get_rng_state(),
                 'cuda_rng': torch.cuda.get_rng_state_all(),
+                'continuation_phase': continuation_phase,
                 'sampler_rng': generator.get_state(),
                 'best_loss': best_loss, 'best_step': best_step, 'stale': stale,
             })
@@ -309,6 +320,8 @@ def main():
     p.add_argument('--preflight', action='store_true',
                    help='read-only provenance check; does not instantiate the network')
     p.add_argument('--resume', action='store_true')
+    p.add_argument('--extend-steps', action='store_true',
+                   help='after completing previous budget, extend on exactly the same corpus and tokenizer at lower LR')
     p.add_argument('--steps', type=int, default=2000)
     p.add_argument('--save-every', type=int, default=100)
     p.add_argument('--validate-every', type=int, default=100)
