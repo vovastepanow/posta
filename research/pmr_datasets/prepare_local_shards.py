@@ -20,8 +20,6 @@ from prepare import clean, normalize, partition, write_jsonl
 from probe import atomic_json
 
 SPECS = {
-    'wikipedia-ru-20231101': ('text', 'ru', ['id', 'url', 'title', 'text']),
-    'wikipedia-en-20231101': ('text', 'en', ['id', 'url', 'title', 'text']),
     'fineweb2-hq-ru': ('text', 'ru', ['text', 'id', 'url', 'language_score']),
     'fineweb2-ru': ('text', 'ru', ['text', 'id', 'url', 'language_score']),
     'fineweb-en': ('text', 'en', ['text', 'id', 'url', 'language_score']),
@@ -94,17 +92,7 @@ def convert(id_, raw, index, kind, lang, output):
     common = {'dataset_id': id_, 'record_id': str(raw.get('id') or index), 'kind': kind, 'language': lang}
     meta = {}
     if kind == 'text':
-        value = raw.get('text')
-        if id_.startswith('wikipedia-'):
-            # Retain stable title and canonical article URL for attribution.
-            title = clean(raw.get('title'))
-            if not title or not isinstance(value, str) or not value.strip():
-                raise ValueError('Wikipedia title/text missing')
-            value = title + '\n' + value
-            meta.update(wikipedia_title=title,
-                        upstream_license_claim='cc-by-sa-3.0; attribution review pending',
-                        wikipedia_snapshot='20231101')
-        common.update(text=value, group_id=str(raw.get('id') or index))
+        common.update(text=raw.get('text'), group_id=str(raw.get('id') or index))
         meta.update(source_url=raw.get('url'), source_language_score=raw.get('language_score'))
     elif kind == 'retrieval':
         positives = raw.get('pos') or []
