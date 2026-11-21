@@ -4,7 +4,8 @@ import unittest
 import torch
 import torch.nn.functional as F
 
-from run001_retrieval_loss import anti_collapse_loss, checkpoint_is_healthy
+from run001_retrieval_loss import (anti_collapse_loss, checkpoint_is_healthy,
+                                   positive_only_alignment_loss)
 
 
 class AntiCollapseTests(unittest.TestCase):
@@ -68,6 +69,32 @@ class AntiCollapseTests(unittest.TestCase):
         self.assertFalse(checkpoint_is_healthy(unhealthy))
         self.assertFalse(checkpoint_is_healthy(dict(healthy, mean_reciprocal_rank=float('nan'))))
         self.assertFalse(checkpoint_is_healthy({}))
+
+    def test_positive_only_alignment_uses_no_fabricated_negatives(self):
+        q = torch.eye(4, requires_grad=True)
+        p = torch.eye(4, requires_grad=True)
+        aligned, diag = positive_only_alignment_loss(q, p)
+        shuffled, _ = positive_only_alignment_loss(q, torch.roll(p, 1, 0))
+        self.assertLess(float(aligned), float(shuffled))
+        self.assertAlmostEqual(diag['alignment_loss'], 0.0, places=6)
+        shuffled.backward()
+        self.assertGreater(float(q.grad.abs().sum()), 0)
+        self.assertTrue(bool(torch.isfinite(q.grad).all()))
+
+    def test_positive_only_near_collapse_has_nonzero_gradient(self):
+        torch.manual_seed(108)
+        q = (torch.ones(4, 16)*0.2 +
+             torch.randn(4, 16)*0.02).requires_grad_()
+        p = (torch.ones(4, 16)*0.2 +
+             torch.randn(4, 16)*0.02).requires_grad_()
+        loss, diag = positive_only_alignment_loss(q, p)
+        self.assertGreater(diag['query_interexample_cosine'], .95)
+        self.assertGreater(diag['variance_penalty'], 0)
+        loss.backward()
+        self.assertGreater(float(q.grad.norm()), 1e-6)
+        self.assertTrue(bool(torch.isfinite(q.grad).all()))
+        with self.assertRaises(ValueError):
+            positive_only_alignment_loss(q[:1], p[:1])
 
     def test_invalid_and_nonfinite_data_are_rejected(self):
         q = torch.ones(2, 6)

@@ -100,3 +100,40 @@ def checkpoint_is_healthy(metrics, *, max_interexample_cosine=0.97,
             metrics['query_interexample_cosine'] <= max_interexample_cosine and
             metrics['document_interexample_cosine'] <= max_interexample_cosine and
             0 <= metrics['mean_reciprocal_rank'] <= 1)
+
+
+
+def positive_only_alignment_loss(query, positive, *,
+                                 variance_weight=5.0, repulsion_weight=0.5,
+                                 repulsion_threshold=0.80, minimum_std=0.035):
+    """Positive-only supervision; never invent negatives for unlabeled posts.
+
+    Contrastive alignment alone can collapse to constant vectors. Retain the
+    same per-dimension variance floor and inter-example repulsion as the
+    explicit-negative objective. At least two distinct query pairs required.
+    """
+    _validated(query, positive, positive)
+    hyper = (variance_weight, repulsion_weight, repulsion_threshold, minimum_std)
+    if any(not isinstance(x, (int, float)) or not math.isfinite(x) for x in hyper):
+        raise ValueError('positive-only loss weights must be finite')
+    if variance_weight < 0 or repulsion_weight < 0 or not -1 < repulsion_threshold < 1 or not 0 < minimum_std < 1:
+        raise ValueError('invalid positive-only objective')
+    q = F.normalize(query.float(), dim=-1, eps=1e-8)
+    p = F.normalize(positive.float(), dim=-1, eps=1e-8)
+    alignment = (1 - (q*p).sum(-1)).mean()
+    variance = (_variance_floor(q, minimum_std) +
+                _variance_floor(p, minimum_std))*0.5
+    separation = (_interexample_similarity(q), _interexample_similarity(p))
+    repulsion = sum(F.relu(x - repulsion_threshold).square().mean()
+                    for x in separation) * 0.5
+    loss = alignment + variance_weight*variance + repulsion_weight*repulsion
+    if not bool(torch.isfinite(loss)):
+        raise RuntimeError('nonfinite positive-only objective')
+    diagnostics = {
+        'alignment_loss': float(alignment.detach()),
+        'variance_penalty': float(variance.detach()),
+        'repulsion_penalty': float(repulsion.detach()),
+        'query_interexample_cosine': float(separation[0].detach().mean()),
+        'document_interexample_cosine': float(separation[1].detach().mean()),
+    }
+    return loss, diagnostics

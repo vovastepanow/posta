@@ -2,7 +2,8 @@
 import unittest
 
 from retrieval_data_quality import (CURATION_POLICY, RUN001_CURATED_POLICY,
-                                    curate_retrieval_pairs)
+                                    curate_retrieval_pairs,
+                                    curate_positive_only_pairs)
 
 
 class StubCorpus:
@@ -109,3 +110,36 @@ class CurationTests(unittest.TestCase):
             curate_retrieval_pairs(corpus, 0)
         with self.assertRaises(ValueError):
             curate_retrieval_pairs(corpus, True)
+
+
+
+class PositiveOnlyCurationTests(unittest.TestCase):
+    def test_positive_only_samples_ignore_explicit_negatives_and_heldout(self):
+        rows = [
+            {'text':'one', 'positive':'answer one', 'negatives':[]},
+            {'text':'two', 'positive':'answer two', 'negatives':None},
+            {'text':'three', 'positive':'answer three', 'negatives':['negative']},
+            {'text':'four', 'positive':'answer four', 'negatives':[]},
+            {'text':'five', 'positive':'answer five', 'negatives':[]},
+        ]
+        val = [{'text':'anything', 'positive':'answer four', 'negatives':['other']}]
+        test = [{'text':'other', 'positive':'other answer', 'negatives':['answer five']}]
+        corpus = StubCorpus(rows, val, test)
+        pairs, sha, stats = curate_positive_only_pairs(corpus, 10,
+                                                        forbidden_queries=['ONE'])
+        self.assertEqual(pairs, [('two', 'answer two')])
+        self.assertEqual(len(sha), 64)
+        self.assertEqual(stats['candidate_positive_only_rows'], 4)
+        self.assertEqual(stats['excluded_by_heldout'], 2)
+        self.assertEqual(stats['excluded_selected_triplet_query'], 1)
+        with self.assertRaises(ValueError):
+            curate_positive_only_pairs(corpus, -1)
+
+    def test_positive_only_hash_sampling_is_order_invariant(self):
+        rows = [{'text':f'query {i}', 'positive':f'passage {i}', 'negatives':[]}
+                for i in range(35)]
+        first = curate_positive_only_pairs(StubCorpus(rows), 9)
+        reverse = curate_positive_only_pairs(StubCorpus(list(reversed(rows))), 9)
+        self.assertEqual(first, reverse)
+        self.assertEqual(first[2]['selected_pairs'], 9)
+        self.assertNotEqual(first[1], curate_positive_only_pairs(StubCorpus(rows), 8)[1])

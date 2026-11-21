@@ -139,3 +139,63 @@ def curate_retrieval_pairs(corpus, limit, split='train', avoid_heldout=True,
         digest.update(len(data).to_bytes(8, 'big'))
         digest.update(data)
     return selected, digest.hexdigest(), stats
+
+
+POSITIVE_ONLY_POLICY = 'posta-retrieval-positive-only-strict-v1'
+
+
+def curate_positive_only_pairs(corpus, limit, *, forbidden_queries=()):
+    """Select positive-only retrieval rows without guessing negative labels.
+
+    Remove train pairs whose query or positive appears in any role in a
+    validation or test retrieval row. Exclude queries already supervised by
+    selected explicit-negative triplets. Sampling is stable under row order.
+    """
+    if type(limit) is not int or limit < 0:
+        raise ValueError('positive-only sample limit must be a nonnegative integer')
+    excluded = {normalized(q) for q in forbidden_queries}
+    forbidden = set()
+    for split in ('validation', 'test'):
+        for row in corpus.rows('retrieval', split):
+            for value in (row.get('text'), row.get('positive'),
+                          *(row.get('negatives') or [])):
+                norm = normalized(value)
+                if norm:
+                    forbidden.add(norm)
+    stats = {
+        'rows_seen': 0,
+        'candidate_positive_only_rows': 0,
+        'excluded_by_heldout': 0,
+        'excluded_selected_triplet_query': 0,
+        'unique_eligible_queries': 0,
+        'selected_pairs': 0,
+    }
+    selected = {}
+    for row in corpus.rows('retrieval', 'train'):
+        stats['rows_seen'] += 1
+        q, p = normalized(row.get('text')), normalized(row.get('positive'))
+        if not q or not p or q == p:
+            continue
+        if any(normalized(value) for value in (row.get('negatives') or [])):
+            continue
+        stats['candidate_positive_only_rows'] += 1
+        if q in forbidden or p in forbidden:
+            stats['excluded_by_heldout'] += 1
+            continue
+        if q in excluded:
+            stats['excluded_selected_triplet_query'] += 1
+            continue
+        pair = (row['text'].strip(), row['positive'].strip())
+        order = _triple_order(pair)
+        if q not in selected or order < _triple_order(selected[q]):
+            selected[q] = pair
+    stats['unique_eligible_queries'] = len(selected)
+    keys = sorted(selected, key=lambda key: (_hash_bytes(key), key))
+    pairs = [selected[key] for key in keys[:limit]]
+    stats['selected_pairs'] = len(pairs)
+    digest = hashlib.sha256(POSITIVE_ONLY_POLICY.encode('ascii'))
+    for pair in pairs:
+        raw = json.dumps(pair, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        digest.update(len(raw).to_bytes(8, 'big'))
+        digest.update(raw)
+    return pairs, digest.hexdigest(), stats
