@@ -16,6 +16,34 @@
   },
   "datasets": [
     {
+      "id": "common-pile-news-filtered",
+      "repo": "common-pile/news_filtered",
+      "use": "news_post_text",
+      "priority": "P0",
+      "preferred_split": "train",
+      "license_claim": "dataset card: collection of CC BY / CC BY-SA publisher material, row-level metadata licenses",
+      "license_review": "per-publisher/per-row original rights, attribution, article reuse and privacy must be checked; dataset maintainers explicitly warn about license misclassification",
+      "data_kind": "parquet_text",
+      "training": false,
+      "source_url": "https://huggingface.co/datasets/common-pile/news_filtered",
+      "language_note": "likely primarily English; do not count as Russian coverage without audited row language",
+      "access_note": "metadata/schema-only discovery. training=false until an independently reviewed source subset is explicitly cleared"
+    },
+    {
+      "id": "common-pile-stackexchange",
+      "repo": "common-pile/stackexchange",
+      "use": "community_discussion",
+      "priority": "P0",
+      "preferred_split": "train",
+      "license_claim": "CC BY-SA licenses vary with contributor date; original per-document metadata",
+      "license_review": "review user-content rights, individual revision license, author attribution, current data access terms, privacy, and evaluation benchmark overlap",
+      "data_kind": "parquet_discussion_text",
+      "training": false,
+      "source_url": "https://huggingface.co/datasets/common-pile/stackexchange",
+      "language_note": "English-dominant community Q&A; not a substitute for RU social content",
+      "access_note": "metadata/schema-only discovery; source of user questions, answers and comments, but not automatically approved for ML training"
+    },
+    {
       "id": "fineweb2-ru",
       "repo": "HuggingFaceFW/fineweb-2",
       "use": "text_pretraining",
