@@ -58,8 +58,9 @@ class CompactRetriever(nn.Module):
         # nn.TransformerEncoder clones initial layers, so give them distinct
         # attention/FF weights to prevent identical symmetry at initialization.
         for index, item in enumerate(self.encoder.layers):
-            torch.manual_seed(1701 + index)
-            item.apply(self._init_weights)
+            with torch.random.fork_rng(devices=[]):
+                torch.manual_seed(1701 + index)
+                item.apply(self._init_weights)
 
     @staticmethod
     def _init_weights(module):
