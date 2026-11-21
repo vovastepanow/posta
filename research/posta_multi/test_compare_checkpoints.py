@@ -27,7 +27,7 @@ class CompareCheckpointsTests(unittest.TestCase):
         command = evaluation_command('retrieval-test', Path('/hdd/v9.pt'),
                                      '/hdd/dataset', '/hdd/tok.json',
                                      python='/usr/bin/python3')
-        self.assertEqual(command[-5:], ['64', '--split', 'test', '--sample-hash'])
+        self.assertEqual(command[-4:], ['64', '--split', 'test', '--sample-hash'])
         self.assertIn('eval_retrieval.py', command[1])
         self.assertEqual(command[command.index('--samples')+1], '64')
 
