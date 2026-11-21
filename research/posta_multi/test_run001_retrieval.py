@@ -22,7 +22,7 @@ def fixture():
 
 class RetrievalCacheTests(unittest.TestCase):
     def setUp(self):
-        self.config = replace(tiny_config(), text_pooling='mean')
+        self.config = replace(tiny_config(), text_pooling='mean-residual')
         torch.manual_seed(4)
         self.reference = PostaMulti(self.config, dropout=0)
         self.recomputed = PostaMulti(self.config, dropout=0)

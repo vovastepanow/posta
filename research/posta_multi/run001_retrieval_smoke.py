@@ -46,7 +46,7 @@ def run(output):
     torch.set_num_threads(2)
     torch.cuda.set_per_process_memory_fraction(.45)
     torch.manual_seed(1762)
-    config = replace(Config(), text_pooling='mean')
+    config = replace(Config(), text_pooling='mean-residual')
     model = PostaMulti(config, dropout=0).half().cuda()
     model.enable_gradient_checkpointing(True)
     trainable = trainable_text_parameters(model)

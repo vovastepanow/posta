@@ -37,8 +37,8 @@ def encoder_layer(d, f):
 
 
 def parameter_counts(c=Config()):
-    if c.text_pooling not in ('cls', 'mean'):
-        raise ValueError('text_pooling must be cls or mean')
+    if c.text_pooling not in ('cls', 'mean', 'mean-residual'):
+        raise ValueError('text_pooling must be cls, mean or mean-residual')
     if c.image_size % c.image_patch or c.mel_bins % c.audio_patch_mels:
         raise ValueError('patch sizes must divide spatial/mel dimensions')
     for width, heads in ((c.text_width,c.text_heads),(c.image_width,c.image_heads),(c.temporal_width,c.temporal_heads)):

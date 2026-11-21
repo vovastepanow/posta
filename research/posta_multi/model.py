@@ -30,8 +30,8 @@ class PostaMulti(nn.Module):
             raise ValueError('embedding dimension must be even for temporal encoding')
         if c.temporal_width != c.embed_dim:
             raise ValueError('temporal width must equal shared embedding dimension')
-        if c.text_pooling not in ('cls', 'mean'):
-            raise ValueError('text_pooling must be cls or mean')
+        if c.text_pooling not in ('cls', 'mean', 'mean-residual'):
+            raise ValueError('text_pooling must be cls, mean or mean-residual')
         self.config = c
         self.gradient_checkpointing = False
         self.text_tokens = nn.Embedding(c.vocab_size, c.text_width)
@@ -123,6 +123,15 @@ class PostaMulti(nn.Module):
                 raise ValueError('mean pooling requires a content token')
             pooled = (hidden * valid.unsqueeze(-1)).sum(dim=1) / valid.sum(
                 dim=1, keepdim=True)
+            if self.config.text_pooling == 'mean-residual':
+                # Direct lexical route around an almost-constant Transformer
+                # representation. This uses the existing trained token
+                # embeddings: NO new weights or size change to 235M.
+                raw = self.text_tokens(token_ids)
+                raw_mean = (raw.float() * valid.unsqueeze(-1)).sum(dim=1) / valid.sum(
+                    dim=1, keepdim=True)
+                lexical = F.layer_norm(raw_mean, (raw_mean.shape[-1],))
+                pooled = pooled + 0.5 * lexical.to(dtype=pooled.dtype)
         return F.normalize(self.text_projection(pooled), dim=-1, eps=1e-6)
 
     def masked_token_logits(self, token_ids, attention_mask, masked_positions):

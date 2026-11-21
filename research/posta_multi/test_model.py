@@ -92,6 +92,34 @@ class ModelTests(unittest.TestCase):
             model.encode_text(torch.tensor([[1, 2, 0]]),
                               torch.tensor([[True, True, False]]))
 
+    def test_residual_pooling_preserves_lexical_distinctions_under_hidden_collapse(self):
+        config = replace(self.c, text_pooling='mean-residual')
+        model = PostaMulti(config, dropout=0)
+        model.eval()
+        ids = torch.tensor([[1, 5, 7, 2, 0],
+                            [1, 22, 31, 2, 0]])
+        mask = ids.ne(0)
+        # Simulate the measured v8/v9 failure: identical hidden states for
+        # distinct text examples. The raw-token shortcut must remain varied.
+        def collapsed_hidden(token_ids, attention_mask):
+            return torch.ones((token_ids.shape[0], token_ids.shape[1],
+                               config.text_width), dtype=torch.float32)
+        model._text_hidden = collapsed_hidden
+        with torch.no_grad():
+            embeddings = model.encode_text(ids, mask)
+            self.assertTrue(torch.isfinite(embeddings).all())
+            self.assertGreater(float((embeddings[0] - embeddings[1]).norm()), .001)
+            model.config = replace(config, text_pooling='mean')
+            collapsed = model.encode_text(ids, mask)
+            self.assertTrue(torch.allclose(collapsed[0], collapsed[1], atol=1e-6))
+            model.config = config
+            changed_padding = ids.clone()
+            changed_padding[:, -1] = 39
+            self.assertTrue(torch.allclose(
+                embeddings, model.encode_text(changed_padding, mask), atol=1e-6))
+        self.assertEqual(parameter_counts(config)['total'],
+                         parameter_counts(replace(config, text_pooling='mean'))['total'])
+
     def test_text_checkpointing_preserves_gradients(self):
         c = replace(self.c, text_pooling='mean')
         torch.manual_seed(91)

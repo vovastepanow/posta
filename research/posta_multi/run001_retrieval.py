@@ -13,7 +13,7 @@ import hashlib
 import json
 import math
 import shutil
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import torch
@@ -201,6 +201,9 @@ def run(args):
             raise ValueError('tokenizer special IDs do not match Run 001')
     source, config, source_sha = load_stage1_source(
         args.init, corpus, tok_sha)
+    # Stage 1 MLM only uses _text_hidden: its 'mean' retrieval pool is
+    # interchangeable with this bypass without changing any weights.
+    config = replace(config, text_pooling='mean-residual')
 
     training, train_sha, train_stats = curate_retrieval_pairs(
         corpus, args.train_pairs, split='train', avoid_heldout=True)
