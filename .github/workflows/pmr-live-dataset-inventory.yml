@@ -23,7 +23,7 @@ jobs:
       - name: Inspect bounded public HF metadata and preview schemas
         run: |
           python3 research/pmr_datasets/probe.py \
-            --ids common-pile-news-filtered common-pile-stackexchange fineweb2-ru fineweb-en fineweb-edu-en fineweb2-ir-ru fineweb2-ir-en kalm-retrieval wit memexplain videoufo \
+            --ids ru-forum-conversations ru-news-aggregate common-pile-news-filtered common-pile-stackexchange fineweb2-ru fineweb-en fineweb-edu-en fineweb2-ir-ru fineweb2-ir-en kalm-retrieval wit memexplain videoufo \
             --rows --out data/pmr/audit.json
       - name: Summarize audited coverage and limitations
         if: always()
