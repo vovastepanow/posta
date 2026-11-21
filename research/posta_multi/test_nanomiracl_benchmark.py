@@ -75,3 +75,48 @@ class NanoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class NanoFrozenSnapshotTests(unittest.TestCase):
+    def test_freeze_snapshot_no_overwrite_and_checksum(self):
+        import tempfile
+        import hashlib
+        import json
+        from pathlib import Path
+        from urllib.parse import parse_qs, urlparse
+        from nanomiracl_benchmark import prepare
+
+        data = {}
+        for language in ("ru", "en"):
+            data[("queries", language)] = [
+                {"_id":str(i), "text":f"topic {i} {language}"} for i in range(200)]
+            data[("qrels", language)] = [
+                {"query-id":str(i), "corpus-id":str(i)} for i in range(200)]
+            data[("corpus", language)] = [
+                {"_id":str(i), "text":f"topic {i} {language} example"}
+                for i in range(400)]
+
+        def fetch(url):
+            if "/api/datasets/" in url:
+                return {"sha": "b"*40, "private":False,"gated":False}
+            if "/splits" in url:
+                return {"splits":[{"config":k, "split":lang}
+                                  for (k,lang) in data]}
+            params=parse_qs(urlparse(url).query)
+            values=data[(params["config"][0],params["split"][0])]
+            start,limit=int(params["offset"][0]),int(params["length"][0])
+            return {"num_rows_total":len(values),
+                    "rows":[{"row":v} for v in values[start:start+limit]]}
+
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/"nano-private.json"
+            report=prepare(fetch, freeze_data=path)
+            contents=path.read_bytes()
+            self.assertEqual(hashlib.sha256(contents).hexdigest(),
+                             report["frozen_file_sha256"])
+            self.assertEqual(report["overall"]["queries"],400)
+            self.assertEqual(json.loads(contents)["format"],
+                             "posta-nanomiracl-frozen-evaluation-v1")
+            with self.assertRaises(FileExistsError):
+                prepare(fetch, freeze_data=path)

@@ -17,4 +17,5 @@ export TMPDIR="$ROOT/tmp" OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREA
 cd "$APP"
 nice -n 10 timeout --signal=TERM --kill-after=30s 1200 \
     "$PYTHON" research/posta_multi/nanomiracl_benchmark.py \
-    --output "$ROOT/$JOB.json"
+    --output "$ROOT/$JOB.json" \
+    --freeze-data "$ROOT/$JOB-frozen.json"

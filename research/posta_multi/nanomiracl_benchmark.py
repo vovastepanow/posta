@@ -204,7 +204,7 @@ def summarize(items):
     return result
 
 
-def prepare(fetch=fetch_json):
+def prepare(fetch=fetch_json, freeze_data=None):
     revision = source_sha(fetch)
     sizes = available_splits(fetch)
     grouped, per_language, counts = {}, {}, {}
@@ -246,16 +246,46 @@ def prepare(fetch=fetch_json):
             "No raw query/document text published with aggregate metrics",
         ],
     }
+    if freeze_data is not None:
+        # Preserve source contents for all later model comparisons. Do not
+        # refetch or silently substitute new dataset-server revisions.
+        destination = Path(freeze_data)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            raise FileExistsError("Nano snapshot exists; never overwrite the frozen evaluation")
+        payload = json.dumps(
+            {"format": "posta-nanomiracl-frozen-evaluation-v1",
+             "source": SOURCE, "source_revision_observed": revision,
+             "source_content_sha256": report["source_content_sha256"],
+             "languages": grouped},
+            ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        import os
+        handle = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            with os.fdopen(handle, "wb") as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+        except BaseException:
+            destination.unlink(missing_ok=True)
+            raise
+        report["frozen_file_sha256"] = hashlib.sha256(payload).hexdigest()
+        report["frozen_file_bytes"] = len(payload)
+        report["frozen_file_is_local_only"] = True
     return report
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--freeze-data", type=Path,
+                   help="local-only evaluation snapshot, mode 0600; never upload")
     args = p.parse_args()
+    if args.freeze_data is not None and args.freeze_data.exists():
+        raise FileExistsError("frozen evaluation snapshot already exists")
     if args.output.exists():
         raise FileExistsError("frozen Nano benchmark report already exists")
-    result = prepare()
+    result = prepare(freeze_data=args.freeze_data)
     atomic_report(args.output, result)
     print(json.dumps({
         "dataset": SOURCE, "source_revision": result["source_revision_observed"],
