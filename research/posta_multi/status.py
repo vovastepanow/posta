@@ -183,6 +183,27 @@ def main():
         print(json.dumps({'checkpoint_decision': summary}, ensure_ascii=False))
     else:
         print(json.dumps({'checkpoint_decision': {'report_exists': False}}, ensure_ascii=False))
+    smoke_job = 'posta-multi-235m-run-001-smoke'
+    smoke_report = ROOT / (smoke_job + '.json')
+    smoke_exit = ROOT / (smoke_job + '.exit')
+    if smoke_report.is_file():
+        try:
+            payload = json.loads(smoke_report.read_text(encoding='utf-8'))
+            if payload.get('format') != 'posta-multi-235m-run001-smoke-v1':
+                raise ValueError('unsupported Run 001 report')
+            result = {
+                'architecture_params': payload['architecture_params'],
+                'trainable_text_params': payload['trainable_text_params'],
+                'cuda_peak_allocated_mib': payload['cuda_peak_allocated_mib'],
+                'synthetic_training': payload['synthetic_training'],
+                'trained_on_real_data': payload['trained_on_real_data'],
+            }
+        except (ValueError, KeyError, TypeError, OSError) as error:
+            result = {'read_error': str(error)}
+    else:
+        result = {'report_exists': False}
+    print(json.dumps({'run001_smoke': result, 'exit_exists': smoke_exit.is_file()},
+                     ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 

@@ -759,3 +759,21 @@ Execution order:
 `run001_smoke.py` is a bounded one-step **synthetic** GPU feasibility test,
 not a trained checkpoint. Its output is a JSON-only report on the host HDD.
 It neither changes the Posta database nor modifies the old checkpoints.
+
+### Local Run 001 synthetic GPU probe
+
+The existing main-only, CI-gated update cron starts
+`host_run001_smoke_hook.sh` **once** after the older holdout and geometry
+evaluations have both finished. It refuses to overlap running trainers or
+evaluators, closes the deploy lock file descriptor and uses a separate
+`flock`. It runs `run001_smoke.py` with a 600-second kill timeout, niceness
++10, no corpus/tokenizer reads and no checkpoint save. The full 235M network
+is randomly initialized, non-text towers are frozen, text checkpointing is
+on, and at most 45% of GPU allocator memory is requested. The probe checks
+finite loss, at least three tensors with nonzero gradients, and a real
+FP16 text-token embedding weight update from CPU-master AdamW.
+
+Output (local HDD only): `posta-multi-235m-run-001-smoke.json`, `.log`,
+`.exit`. A failed probe is not retried automatically and **must not** be
+interpreted as a data/training result. This is the first hardware gate before
+planning long, full-sized runs.
