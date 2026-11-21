@@ -9,6 +9,7 @@ import unicodedata
 
 
 CURATION_POLICY = 'posta-retrieval-curated-v1'
+RUN001_CURATED_POLICY = 'posta-retrieval-curated-strict-holdout-v2'
 
 
 def normalized(value):
@@ -26,7 +27,8 @@ def _triple_order(triple):
                 separators=(',', ':')).encode('utf-8')).digest(), triple)
 
 
-def curate_retrieval_pairs(corpus, limit, split='train', avoid_heldout=True):
+def curate_retrieval_pairs(corpus, limit, split='train', avoid_heldout=True,
+                           strict_heldout_negatives=False):
     """Select distinct normalized queries with consistent, explicit negatives.
 
     A negative is rejected if it matches *any* known positive for the same
@@ -40,6 +42,8 @@ def curate_retrieval_pairs(corpus, limit, split='train', avoid_heldout=True):
         raise ValueError('unsupported split')
     if avoid_heldout and split != 'train':
         raise ValueError('held-out exclusion is only supported for training')
+    if strict_heldout_negatives and (split != 'train' or not avoid_heldout):
+        raise ValueError('strict held-out negative exclusion requires train split')
 
     forbidden = set()
     if avoid_heldout:
@@ -49,6 +53,11 @@ def curate_retrieval_pairs(corpus, limit, split='train', avoid_heldout=True):
                     text = normalized(item.get(field))
                     if text:
                         forbidden.add(text)
+                if strict_heldout_negatives:
+                    for negative in item.get('negatives') or []:
+                        text = normalized(negative)
+                        if text:
+                            forbidden.add(text)
 
     data = []
     known_positives = {}
@@ -59,6 +68,7 @@ def curate_retrieval_pairs(corpus, limit, split='train', avoid_heldout=True):
         'negative_matches_known_positive': 0,
         'negative_matches_query': 0,
         'rows_excluded_heldout_text': 0,
+        'negatives_excluded_heldout_text': 0,
         'eligible_rows': 0,
         'eligible_distinct_queries': 0,
         'selected_pairs': 0,
@@ -90,6 +100,9 @@ def curate_retrieval_pairs(corpus, limit, split='train', avoid_heldout=True):
             if candidate_norm == query:
                 stats['negative_matches_query'] += 1
                 continue
+            if strict_heldout_negatives and candidate_norm in forbidden:
+                stats['negatives_excluded_heldout_text'] += 1
+                continue
             if candidate_norm in known_positives[query]:
                 stats['negative_matches_known_positive'] += 1
                 continue
@@ -119,7 +132,8 @@ def curate_retrieval_pairs(corpus, limit, split='train', avoid_heldout=True):
     selected = [choices[key] for key in ranked[:limit]]
     stats['selected_pairs'] = len(selected)
 
-    digest = hashlib.sha256(CURATION_POLICY.encode('ascii'))
+    policy = RUN001_CURATED_POLICY if strict_heldout_negatives else CURATION_POLICY
+    digest = hashlib.sha256(policy.encode('ascii'))
     for triple in selected:
         data = json.dumps(triple, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         digest.update(len(data).to_bytes(8, 'big'))

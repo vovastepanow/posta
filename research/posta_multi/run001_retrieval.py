@@ -23,7 +23,8 @@ from corpus import Corpus
 from cpu_master_adam import CPUMasterAdamW
 from model import PostaMulti
 from ranking_metrics import conservative_rank, summarize_ranks
-from retrieval_data_quality import CURATION_POLICY, curate_retrieval_pairs
+from retrieval_data_quality import (RUN001_CURATED_POLICY,
+                                    curate_retrieval_pairs)
 from run001_data import approval_issues
 from run001_retrieval_loss import anti_collapse_loss, checkpoint_is_healthy
 from run001_smoke import RUN_ID, trainable_text_parameters
@@ -206,7 +207,8 @@ def run(args):
     config = replace(config, text_pooling='mean-residual')
 
     training, train_sha, train_stats = curate_retrieval_pairs(
-        corpus, args.train_pairs, split='train', avoid_heldout=True)
+        corpus, args.train_pairs, split='train', avoid_heldout=True,
+        strict_heldout_negatives=True)
     validation, val_sha, _ = curate_retrieval_pairs(
         corpus, args.val_pairs, split='validation', avoid_heldout=False)
     train = encode_triples(tokenizer, training, args.max_length)
@@ -226,7 +228,7 @@ def run(args):
         'config': asdict(config), 'init_sha256': source_sha,
         'manifest_sha256': corpus.manifest_hash,
         'tokenizer_sha256': tok_sha,
-        'curation_policy': CURATION_POLICY,
+        'curation_policy': RUN001_CURATED_POLICY,
         'train_pairs_sha256': train_sha,
         'val_pairs_sha256': val_sha,
         'train_pairs': args.train_pairs, 'val_pairs': args.val_pairs,

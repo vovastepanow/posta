@@ -1,7 +1,8 @@
 """Synthetic retrieval label-curation and train/eval isolation tests."""
 import unittest
 
-from retrieval_data_quality import CURATION_POLICY, curate_retrieval_pairs
+from retrieval_data_quality import (CURATION_POLICY, RUN001_CURATED_POLICY,
+                                    curate_retrieval_pairs)
 
 
 class StubCorpus:
@@ -58,6 +59,36 @@ class CurationTests(unittest.TestCase):
         self.assertEqual(stats['rows_excluded_heldout_text'], 2)
         with self.assertRaisesRegex(ValueError, 'not enough curated queries'):
             curate_retrieval_pairs(StubCorpus(rows, val, test), 2)
+
+    def test_run001_train_excludes_all_heldout_roles_without_touching_v1(self):
+        train = [
+            {'text':'alpha', 'positive':'answer a',
+             'negatives':['VAL NEGATIVE', 'test-query', 'usable-negative']},
+            {'text':'beta', 'positive':'answer b',
+             'negatives':['validation-positive']},
+        ]
+        validation = [{'text':'other query', 'positive':'validation-positive',
+                       'negatives':['val negative']}]
+        test = [{'text':'test-query', 'positive':'unrelated test answer',
+                 'negatives':[]}]
+        corpus = StubCorpus(train, validation, test)
+        legacy, digest_legacy, _ = curate_retrieval_pairs(
+            corpus, 2)
+        self.assertEqual(len(legacy), 2)
+        strict, digest_strict, report = curate_retrieval_pairs(
+            corpus, 1, strict_heldout_negatives=True)
+        self.assertEqual(strict, [('alpha', 'answer a', 'usable-negative')])
+        self.assertEqual(report['negatives_excluded_heldout_text'], 3)
+        self.assertEqual(report['rows_without_usable_negative'], 1)
+        self.assertNotEqual(digest_legacy, digest_strict)
+        self.assertEqual(RUN001_CURATED_POLICY,
+                         'posta-retrieval-curated-strict-holdout-v2')
+        with self.assertRaisesRegex(ValueError, 'strict held-out'):
+            curate_retrieval_pairs(corpus, 1, strict_heldout_negatives=True,
+                                   avoid_heldout=False)
+        with self.assertRaisesRegex(ValueError, 'strict held-out'):
+            curate_retrieval_pairs(corpus, 1, split='validation',
+                                   avoid_heldout=False, strict_heldout_negatives=True)
 
     def test_rejects_negative_equal_to_query_and_unusable_rows(self):
         rows = [
