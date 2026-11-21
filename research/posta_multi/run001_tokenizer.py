@@ -16,6 +16,7 @@ import unicodedata
 
 from corpus import Corpus
 from run001_data import (KINDS, approval_issues, select_records, text_fields)
+from run001_research_policy import require_local_research_quarantine, PENDING_FLAGS
 
 SPECIALS = ('[PAD]', '[CLS]', '[SEP]', '[MASK]')
 POLICY = 'posta-run001-tokenizer-balanced-kind-language-v1'
@@ -211,7 +212,13 @@ def train(args):
     if args.audit_only:
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
         return report
-    if not report['ready_for_manual_tokenizer_training']:
+    local_research = getattr(args, 'local_research_quarantine', False)
+    if local_research:
+        require_local_research_quarantine(corpus)
+        if set(report['approval_issues']) != PENDING_FLAGS:
+            raise ValueError('research tokenizer still blocked by quality or overlap: ' +
+                             ', '.join(report['approval_issues']))
+    elif not report['ready_for_manual_tokenizer_training']:
         raise ValueError('tokenizer training blocked: ' + ', '.join(report['approval_issues']))
     if args.output is None:
         raise ValueError('--output required unless --audit-only')
@@ -249,7 +256,11 @@ def train(args):
         metadata = {
             **report,
             'format': 'posta-run001-tokenizer-candidate-v1',
-            'status': 'candidate_needs_independent_language_and_domain_review',
+            'status': ('quarantined_local_research_only_not_releaseable'
+                       if local_research else 'candidate_needs_independent_language_and_domain_review'),
+            'quarantined_research_only': local_research,
+            'private_local_only': local_research,
+            'production_promotion_allowed': False,
             'model_vocabulary_budget': 65536,
             'requested_vocab_size': args.vocab_size,
             'actual_vocab_size': size,
@@ -284,6 +295,8 @@ def main():
     parser.add_argument('--output', type=Path)
     parser.add_argument('--audit-only', action='store_true',
                         help='inspect quarantine without fitting vocabulary or writing files')
+    parser.add_argument('--local-research-quarantine', action='store_true',
+                        help='explicit private nonproduction training experiment on existing screened quarantined data')
     parser.add_argument('--languages', default='ru,en')
     parser.add_argument('--per-group', type=int, default=2500)
     parser.add_argument('--per-language', type=int, default=6000)
