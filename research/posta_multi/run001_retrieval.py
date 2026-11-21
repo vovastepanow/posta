@@ -21,6 +21,7 @@ from tokenizers import Tokenizer
 
 from corpus import Corpus
 from run001_continuation import resume_policy, extension_lr_multiplier
+from run001_research_policy import ensure_no_unapproved_weights_in_stage2
 from cpu_master_adam import CPUMasterAdamW
 from model import PostaMulti
 from ranking_metrics import conservative_rank, summarize_ranks
@@ -207,6 +208,7 @@ def load_stage1_source(path, corpus, tokenizer_sha):
     if source.get('format') != 'posta-multi-235m-run001-text-v3-best':
         raise ValueError('stage 2 requires completed Run 001 v3 text-best checkpoint')
     settings = source.get('settings', {})
+    ensure_no_unapproved_weights_in_stage2(settings)
     if (settings.get('run_id') != RUN_ID or
             settings.get('manifest_sha256') != corpus.manifest_hash or
             settings.get('tokenizer_sha256') != tokenizer_sha):
