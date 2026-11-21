@@ -102,8 +102,10 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dataset', required=True)
     p.add_argument('--output', required=True)
+    p.add_argument('--vocab-size', type=int, default=16384,
+                   help='compact research default; 65536 reproduces the legacy experiment')
     args = p.parse_args()
-    print(json.dumps(train(args.dataset, args.output), ensure_ascii=False))
+    print(json.dumps(train(args.dataset, args.output, vocab_size=args.vocab_size), ensure_ascii=False))
 
 
 if __name__ == '__main__':

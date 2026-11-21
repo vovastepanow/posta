@@ -1,4 +1,4 @@
-name: Posta Multi 235M offline tests
+name: Posta Multi research regression tests
 
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
           PY
 
   cpu-unit-tests:
-    name: CPU train/resume and multimodal unit tests
+    name: CPU training, compact and multimodal unit tests
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:

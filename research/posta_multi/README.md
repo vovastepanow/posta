@@ -657,3 +657,69 @@ metadata. **No earlier checkpoint or frozen evaluation selection is changed.**
 The feature is not enabled in any cron worker; it does not mean the dataset
 is approved for training. It cannot rule out paraphrases, translations,
 unlabeled relevant negatives, rights/privacy problems or near-duplicates.
+
+
+## Architecture reset: compact retrieval-first model
+
+A 235M-parameter scratch-trained multimodal Transformer was previously used
+for 32–512-step probes. That run budget is far too small to establish semantic
+retrieval skill, and the v9 retrieval scores *fell* (13/16 to 7/16 pair
+accuracy versus the retrieval-v1 checkpoint on the identical 16 pairs).
+Small pilot numbers should **not** drive automatic deployment.
+
+The new implementation in `compact.py` introduces a **separate,
+randomly initialized compact text backbone** (about 6.9M parameters with a
+16,384-token vocabulary). It uses content-token mean pooling and a
+192-dimensional normalized representation, four 256-wide Transformer layers,
+eight attention heads and a 768-wide FFN. The architecture is intentionally
+much smaller to allow a meaningful number of training steps on a GTX
+1060-class GPU and to make CPU smoke tests practical. It is **not** a
+pretrained model and will not perform reliable search until trained.
+
+`compact_train.py` is a new *manual-only* research workflow: distinct
+query/positive/explicit-negative pairs curated across the full train split,
+FP32 AdamW with a batch of eight triples, gradient clipping, warmup and decay,
+validation every 50 steps, early stopping when validation stops improving,
+and separate atomic `compact-last.pt` / `compact-best.pt` checkpoints with
+optimizer, RNG and exact dataset/tokenizer/selection provenance. There are no
+in-batch negative assumptions that could introduce other-query false negatives.
+The entire model starts from random weights; the old 235M checkpoint is never
+loaded and no production ranking or PostgreSQL path is affected.
+
+The **current screened local corpus is quarantined**. This new training
+workflow deliberately refuses it unless the manifest explicitly records
+`status: approved_for_training`, `privacy_review: passed`, and
+`source_rights_review: passed` following an actual external review. Do not
+change those fields merely to get a run to start. This means no automatic
+compact-model training is scheduled or claimed complete.
+
+Once data clearance is real, an example of the workflow is:
+
+```bash
+# Create a 16K-token own tokenizer on approved train-only records, not
+# validation or test. Choose a fresh output directory.
+python3 research/posta_multi/train_bpe.py \
+  --dataset /path/to/approved-dataset --output /path/to/compact-tokenizer \
+  --vocab-size 16384
+
+# Research training, with resume supported for the same settings.
+python3 research/posta_multi/compact_train.py \
+  --dataset /path/to/approved-dataset \
+  --tokenizer /path/to/compact-tokenizer/tokenizer.json \
+  --output /path/to/compact-pilot-v1 --steps 1200
+
+# After training, one test-split evaluation (not a tuning loop).
+python3 research/posta_multi/compact_eval.py \
+  --checkpoint /path/to/compact-pilot-v1/compact-best.pt \
+  --dataset /path/to/approved-dataset \
+  --tokenizer /path/to/compact-tokenizer/tokenizer.json \
+  --output /path/to/compact-pilot-v1/internal-test.json
+```
+
+**Scope:** compact v1 is the *text query/post retriever*, not a complete
+multimodal solution. Images, memes, videos and audio remain requirements.
+After text retrieval beats a simple baseline on new, curated queries,
+train small image/text towers and extend the same embedding/indexing
+interface to frames, OCR, subtitles and audio. Keep source popularity and
+quality separate from post semantic relevance. Avoid adding unverified
+cross-modal encoders simply to claim full modality coverage.
