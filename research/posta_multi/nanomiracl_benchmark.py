@@ -64,39 +64,52 @@ def available_splits(fetch):
     for entry in response.get("splits", []):
         config, split = entry.get("config"), entry.get("split")
         if config in CONFIGS and split in LANGUAGES:
+            # HF Dataset Server /splits may return only dataset/config/split.
+            # Determine the actual row count from the first /rows response.
             count = entry.get("num_examples")
-            if type(count) is not int or count < 1:
-                raise ValueError(f"invalid NanoMIRACL split count for {config}/{split}: examples={count!r}, rows={entry.get('num_rows')!r}, keys={sorted(entry)}")
+            if count is not None and (type(count) is not int or count < 1):
+                raise ValueError("invalid optional split example count")
             found[(config, split)] = count
     if set(found) != {(c, lang) for c in CONFIGS for lang in LANGUAGES}:
         raise ValueError("NanoMIRACL published configs or split names changed")
     for lang in LANGUAGES:
-        if not 100 <= found[("queries", lang)] <= 300:
-            raise ValueError("not enough queries for 200-query evaluation")
-        if not 100 <= found[("qrels", lang)] <= 1200:
-            raise ValueError("invalid relevance label count")
-        if not 400 <= found[("corpus", lang)] <= 10000:
-            raise ValueError("candidate corpus outside Nano budget")
+        for config, lower, upper in (("queries", 100, 300),
+                                     ("qrels", 100, 1200),
+                                     ("corpus", 400, 10000)):
+            value = found[(config, lang)]
+            if value is not None and not lower <= value <= upper:
+                raise ValueError("source metadata count outside Nano budget")
     return found
 
 
 def rows(config, lang, count, fetch, *, page_size=100):
     if config not in CONFIGS or lang not in LANGUAGES:
         raise ValueError("invalid source selection")
-    results = []
-    for offset in range(0, count, page_size):
+    results, total, offset = [], count, 0
+    limits = {"queries": (100, 300), "qrels": (100, 1200),
+              "corpus": (400, 10000)}
+    while total is None or offset < total:
+        length = page_size if total is None else min(page_size, total-offset)
         url = ROWS_API + "?" + urllib.parse.urlencode({
             "dataset": SOURCE, "config": config, "split": lang,
-            "offset": offset, "length": min(page_size, count-offset)})
+            "offset": offset, "length": length})
         page = fetch(url)
+        reported = page.get("num_rows_total")
+        if type(reported) is not int:
+            raise ValueError("Nano /rows did not provide num_rows_total")
+        lo, hi = limits[config]
+        if not lo <= reported <= hi or (total is not None and reported != total):
+            raise ValueError("Nano row count changed or outside bounded budget")
+        total = reported
         entries = page.get("rows")
-        if page.get("num_rows_total") != count or not isinstance(entries, list) or \
-           len(entries) != min(page_size, count-offset):
+        expected = min(length, total-offset)
+        if not isinstance(entries, list) or len(entries) != expected:
             raise ValueError("missing or inconsistent NanoMIRACL Dataset Server page")
         for entry in entries:
             if not isinstance(entry, dict) or not isinstance(entry.get("row"), dict):
                 raise ValueError("invalid NanoMIRACL row")
             results.append(entry["row"])
+        offset += expected
     return results
 
 
