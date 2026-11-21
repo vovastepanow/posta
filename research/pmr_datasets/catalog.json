@@ -16,6 +16,35 @@
   },
   "datasets": [
     {
+      "id": "ru-forum-conversations",
+      "repo": "nyuuzyou/ruforum",
+      "use": "russian_community_discussion",
+      "priority": "P0",
+      "preferred_config": "default",
+      "preferred_split": "train",
+      "license_claim": "cc0-1.0 claimed by dataset card, not independently verified for original forum authors",
+      "license_review": "verify collection/source site, contributor permission, personal data and redistribution rights; original messages may include private details",
+      "data_kind": "parquet_forum_text",
+      "training": false,
+      "source_url": "https://huggingface.co/datasets/nyuuzyou/ruforum",
+      "language_note": "Russian short/colloquial forum messages; publisher reports ~58.1M rows",
+      "access_note": "metadata-only until underlying source rights and privacy clear; no article/per-post URLs in visible schema"
+    },
+    {
+      "id": "ru-news-aggregate",
+      "repo": "IlyaGusev/ru_news",
+      "use": "russian_news_text",
+      "priority": "P1",
+      "preferred_split": "train",
+      "license_claim": "upstream multi-publisher text rights unverified",
+      "license_review": "aggregates Lenta.ru and other Russian news publishers; explicit publisher rights and privacy review required, cannot inherit license from dataset wrapper",
+      "data_kind": "streaming_script_news",
+      "training": false,
+      "source_url": "https://huggingface.co/datasets/IlyaGusev/ru_news",
+      "language_note": "Russian multi-source news articles, no direct Dataset Server preview as of 2026-11-21",
+      "access_note": "metadata-only; HF viewer requires jsonlines and fails to enumerate configs; never run upstream script automatically"
+    },
+    {
       "id": "common-pile-news-filtered",
       "repo": "common-pile/news_filtered",
       "use": "news_post_text",
