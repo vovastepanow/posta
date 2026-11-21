@@ -19,7 +19,7 @@ done
 command -v timeout >/dev/null || exit 0
 command -v flock >/dev/null || exit 0
 # Keep failure visible but never block production auto-update.
-if flock -n "$ROOT/$JOB.lock" timeout --signal=TERM 30 \
+if flock -n -E 75 "$ROOT/$JOB.lock" timeout --signal=TERM 30 \
      "$PYTHON" "$APP/research/posta_multi/checkpoint_decision.py" \
      --root "$ROOT" --output "$ROOT/$JOB.json" \
      >>"$ROOT/$JOB.log" 2>&1; then
@@ -28,7 +28,7 @@ if flock -n "$ROOT/$JOB.lock" timeout --signal=TERM 30 \
 else
     code="$?"
     # A contended lock is not a failed evaluation: just check on next cron tick.
-    if [ "$code" != '1' ]; then
+    if [ "$code" != '75' ]; then
         printf '%s\n' "$code" > "$ROOT/$JOB.exit"
         printf '[posta-multi-decision] Verdict failed with code %s.\n' "$code"
     fi
