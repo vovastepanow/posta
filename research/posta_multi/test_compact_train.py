@@ -12,7 +12,7 @@ from compact_train import (batch_loss, batch_tensors, better, encode_pairs,
 
 class FakeEncoding:
     def __init__(self, text):
-        self.ids = [1, 4 + (ord(ch) % 40 if text else 0), 2]
+        self.ids = [1, 4 + (ord(text[0]) % 40 if text else 0), 2]
 
 
 class FakeTokenizer:
