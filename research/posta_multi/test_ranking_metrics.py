@@ -1,7 +1,7 @@
 """Offline tests: meaningful ranking and conservative ties for incomplete labels."""
 import unittest
 
-from ranking_metrics import conservative_rank, summarize_ranks
+from ranking_metrics import conservative_rank, summarize_ranks, summarize_aligned_scores
 
 
 class RankingMetricsTests(unittest.TestCase):
@@ -21,6 +21,23 @@ class RankingMetricsTests(unittest.TestCase):
             'recall_at_10': 0.75,
             'mean_reciprocal_rank': 0.4477,
         })
+
+    def test_aligned_pool_metrics_and_ties(self):
+        metrics = summarize_aligned_scores([[1.0, 0.0, -1.0],
+                                            [0.9, 0.9, -1.0],
+                                            [0.8, 0.7, 0.5]])
+        self.assertEqual(metrics['wins'], 1)
+        self.assertEqual(metrics['pair_accuracy'], 0.3333)
+        self.assertEqual(metrics['recall_at_1'], 0.3333)
+        self.assertEqual(metrics['mean_reciprocal_rank'], 0.6111)
+        self.assertEqual(metrics['recall_at_5'], 1.0)
+
+    def test_bad_score_matrix_rejected(self):
+        for matrix in ([], [[1]], [[1, 2], [3]],
+                       [[float('nan'), 1], [0, 1]],
+                       [[float('inf'), 0], [0, 1]]):
+            with self.subTest(matrix=matrix), self.assertRaises(ValueError):
+                summarize_aligned_scores(matrix)
 
     def test_refuses_empty_or_invalid_scores(self):
         for scores, index in (([], 0), ([1], -1), ([1], 1), ([float('nan')], 0),

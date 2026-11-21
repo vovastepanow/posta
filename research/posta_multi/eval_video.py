@@ -10,6 +10,7 @@ from corpus import Corpus
 from corpus_smoke import ffmpeg
 from model import PostaMulti
 from spec import Config
+from ranking_metrics import summarize_aligned_scores
 
 
 def main():
@@ -63,10 +64,11 @@ def main():
             frames = torch.from_numpy(array).permute(0, 3, 1, 2).unsqueeze(0).half().cuda() / 255
             videos.append(model.encode_video(frames).float())
         scores = torch.cat(queries) @ torch.cat(videos).T
-        wins = sum(float(scores[i,i]) > float(scores[i,(i+1)%len(rows)]) for i in range(len(rows)))
-    print(json.dumps({'samples':len(rows), 'wins':wins, 'pair_accuracy':wins/len(rows),
-                      'checkpoint_step':step, 'validation_sha256':digest,
-                      'note':'local video-caption comparison with up to two frames'}))
+        metrics = summarize_aligned_scores(scores.cpu().tolist())
+    print(json.dumps({'samples': len(rows), **metrics,
+                      'checkpoint_step': step, 'validation_sha256': digest,
+                      'note': 'local video-caption comparison with up to two frames; '
+                              'incomplete relevance labels and no independent benchmark'}))
 
 
 if __name__ == '__main__':

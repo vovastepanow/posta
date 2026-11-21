@@ -28,3 +28,21 @@ def summarize_ranks(ranks):
         'recall_at_10': round(sum(rank <= 10 for rank in ranks) / n, 4),
         'mean_reciprocal_rank': round(sum(1 / rank for rank in ranks) / n, 4),
     }
+
+
+
+def summarize_aligned_scores(scores):
+    """Rank each aligned caption/query against every sampled media candidate.
+
+    Exact tied scores count *against* the selected positive, not as a free win.
+    The pool has one labeled positive per row; unlabeled alternative media
+    can still be relevant, so these are exploratory local metrics only.
+    """
+    rows = [list(row) for row in scores]
+    n = len(rows)
+    if n < 2 or any(len(row) != n for row in rows):
+        raise ValueError('aligned similarity scores must be a square matrix >=2')
+    ranks = [conservative_rank(row, i) for i, row in enumerate(rows)]
+    pair_wins = sum(row[i] > row[(i + 1) % n] for i, row in enumerate(rows))
+    return {'wins': pair_wins, 'pair_accuracy': round(pair_wins / n, 4),
+            **summarize_ranks(ranks)}

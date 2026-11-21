@@ -10,6 +10,7 @@ from corpus import Corpus
 from corpus_smoke import rgb
 from model import PostaMulti
 from spec import Config
+from ranking_metrics import summarize_aligned_scores
 
 
 def main():
@@ -64,10 +65,11 @@ def main():
         text = torch.cat(text_vectors)
         image = torch.cat(image_vectors)
         scores = text @ image.T
-        wins = sum(float(scores[i, i]) > float(scores[i, (i+1) % len(rows)]) for i in range(len(rows)))
-    print(json.dumps({'samples': len(rows), 'wins': wins, 'pair_accuracy': wins/len(rows),
+        metrics = summarize_aligned_scores(scores.cpu().tolist())
+    print(json.dumps({'samples': len(rows), **metrics,
                       'checkpoint_step': step, 'validation_sha256': digest,
-                      'note': 'local held-out captions against one unrelated image; not top-k retrieval'}))
+                      'note': 'local held-out captions over sampled image pool; '
+                              'other images may be relevant but unlabeled, not independent benchmark'}))
 
 
 if __name__ == '__main__':

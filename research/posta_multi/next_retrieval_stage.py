@@ -59,6 +59,13 @@ def choose_source(report):
 def run(root, comparison, dataset, tokenizer, python):
     root, comparison, dataset, tokenizer = map(Path, (root, comparison, dataset, tokenizer))
     report = json.loads(comparison.read_text(encoding='utf-8'))
+    # A successful score report from a *different* local corpus/tokenizer
+    # must never authorize a GPU experiment on the current HDD files.
+    if (report.get('dataset') != str(dataset) or
+            report.get('tokenizer') != str(tokenizer) or
+            set(report.get('checkpoints', [])) != set(SOURCE_NAMES) or
+            set(report.get('tasks', [])) != {'text', 'retrieval'}):
+        raise ValueError('comparison report does not match requested data and checkpoints')
     chosen = choose_source(report)
     original = root / CHECKPOINTS[chosen]
     destination = root / CHECKPOINTS['retrieval-adam-v9']

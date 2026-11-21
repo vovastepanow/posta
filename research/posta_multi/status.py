@@ -21,6 +21,21 @@ def main():
                         continue
         print(json.dumps({'stage': name, 'latest_log_entry': last,
                           'checkpoint_exists': checkpoint.is_file()}, ensure_ascii=False))
+    for name in ('posta-multi-compare-v8-retrieval-20261121-v1',
+                 'posta-multi-retrieval-adam-v9'):
+        exit_path = ROOT / (name + '.exit')
+        report_path = ROOT / (name + '.json')
+        exit_code = None
+        if exit_path.is_file():
+            try:
+                exit_code = int(exit_path.read_text(encoding='utf-8').strip())
+            except (ValueError, OSError):
+                exit_code = 'unreadable'
+        print(json.dumps({'job': name, 'attempted': exit_path.exists(),
+                          'exit_code': exit_code,
+                          'report_exists': report_path.is_file(),
+                          'log_exists': (ROOT / (name + '.log')).is_file()},
+                         ensure_ascii=False))
     print('Progress is the most recent saved checkpoint, not live GPU activity.')
 
 

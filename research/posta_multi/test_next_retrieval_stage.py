@@ -53,7 +53,14 @@ class NextRetrievalStageTests(unittest.TestCase):
             source = root / CHECKPOINTS['text-v8']
             source.write_bytes(b'source-stub')
             path = root / 'comparison.json'
-            path.write_text(json.dumps(report()))
+            verified_report = report()
+            verified_report.update({
+                'dataset': str(dataset),
+                'tokenizer': str(token),
+                'checkpoints': ['retrieval-v1', 'text-v8'],
+                'tasks': ['text', 'retrieval'],
+            })
+            path.write_text(json.dumps(verified_report))
             destination = root / CHECKPOINTS['retrieval-adam-v9']
             usage = SimpleNamespace(free=12*1024**3)
             with patch('next_retrieval_stage.shutil.disk_usage', return_value=usage), \
@@ -67,6 +74,13 @@ class NextRetrievalStageTests(unittest.TestCase):
                 self.assertEqual(training_cmd[training_cmd.index('--steps')+1], '64')
                 self.assertEqual(training_cmd[training_cmd.index('--samples')+1], '512')
                 self.assertIn(str(destination), training_cmd)
+                # Wrong data path must not ever authorize a training subprocess.
+                wrong_report = dict(verified_report, tokenizer='/unrelated/tokenizer.json')
+                path.write_text(json.dumps(wrong_report))
+                with self.assertRaisesRegex(ValueError, 'does not match'):
+                    run(root, path, dataset, token, '/path/to/python')
+                self.assertEqual(call.call_count, 2)
+                path.write_text(json.dumps(verified_report))
                 destination.write_bytes(b'preserve-existing')
                 with self.assertRaises(FileExistsError):
                     run(root, path, dataset, token, '/path/to/python')

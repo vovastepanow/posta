@@ -491,3 +491,21 @@ A nonzero exit preserves prior checkpoints. The stage must not be automatically
 promoted or repeated based solely on a 16-query local validation score. Data
 rights/privacy and independent evaluation remain open prerequisites for larger
 runs and deployment.
+
+
+
+## Consistent local cross-modal ranking metrics (21 Nov 2026)
+
+`eval_image.py`, `eval_video.py`, and `eval_audio.py` now report
+conservative Recall@1/5/10 and MRR across their selected validation media
+pools, plus the earlier one-alternative pair accuracy. Equal similarity
+scores are treated as ties that **do not** rank the positive first; the old
+audio code counted every tie as a top-1 success. These are **not** unbiased
+production recall estimates: the candidate pools are small and some
+unlabeled alternatives can be semantically relevant.
+
+The v9 launch gate additionally checks the on-HDD comparison report's exact
+corpus path, tokenizer path, source checkpoint names, and evaluated tasks.
+This prevents a report for unrelated local data from starting training. The
+`status.py` output now includes each unattended job's on-disk exit marker
+and report existence (the markers do not themselves prove a live process).

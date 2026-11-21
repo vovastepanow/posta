@@ -11,6 +11,7 @@ from corpus import Corpus
 from corpus_smoke import log_mel
 from model import PostaMulti
 from spec import Config
+from ranking_metrics import summarize_aligned_scores
 
 
 def main():
@@ -58,13 +59,12 @@ def main():
                 chunks.append(model.encode_audio(mel[:, :, start:start+256].half().cuda()).float())
             audio_vectors.append(F.normalize(torch.stack(chunks).mean(dim=0), dim=-1))
         scores = torch.cat(text_vectors) @ torch.cat(audio_vectors).T
-        wins = sum(float(scores[i,i]) > float(scores[i,(i+1)%len(rows)]) for i in range(len(rows)))
-        ranks = 1 + (scores > scores.diagonal().unsqueeze(1)).sum(dim=1)
-        recall1 = float((ranks == 1).float().mean())
-        mrr = float((1.0 / ranks.float()).mean())
-    print(json.dumps({'samples': len(rows), 'wins': wins, 'pair_accuracy': wins/len(rows),
-                      'recall_at_1': recall1, 'mrr': mrr, 'checkpoint_step': step, 'split': args.split, 'selection_sha256': digest,
-                      'note': 'local text-to-audio ranking; not speech recognition accuracy'}))
+        metrics = summarize_aligned_scores(scores.cpu().tolist())
+    print(json.dumps({'samples': len(rows), **metrics,
+                      'mrr': metrics['mean_reciprocal_rank'],
+                      'checkpoint_step': step, 'split': args.split, 'selection_sha256': digest,
+                      'note': 'local text-to-audio ranking, ties treated conservatively; '
+                              'single-speaker validation and no speech recognition accuracy'}))
 
 
 if __name__ == '__main__':
