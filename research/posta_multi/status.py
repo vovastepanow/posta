@@ -386,6 +386,50 @@ def main():
         'run001_content_quarantine': summary,
         'exit_exists': (ROOT / (content_job + '.exit')).is_file(),
     }, ensure_ascii=False))
+    disk_inventory_file = ROOT / 'posta-multi-235m-hdd-inventory-v1.json'
+    if disk_inventory_file.is_file():
+        try:
+            inv = json.loads(disk_inventory_file.read_text(encoding='utf-8'))
+            if inv.get('format') != 'posta-multi-235m-local-hdd-inventory-v1':
+                raise ValueError('unknown HDD inventory format')
+            local = inv['existing_downloads']
+            totals = local['totals']
+            candidate = inv['screened_candidate']
+            by_role_bytes = {}
+            by_role_rows = {}
+            for item in local.get('files', []):
+                role = item['role']
+                by_role_bytes[role] = by_role_bytes.get(role, 0) + item['stored_bytes']
+                n = item.get('parquet_footer_rows')
+                if n is not None:
+                    by_role_rows[role] = by_role_rows.get(role, 0) + n
+            summary = {
+                'downloaded_files': totals.get('files', 0),
+                'verified_manifest_files': totals.get('verified_on_manifest_files', 0),
+                'partial_files': totals.get('partial_files', 0),
+                'source_bytes': totals.get('stored_bytes', 0),
+                'parquet_rows_all_roles': totals.get('parquet_rows_all_roles', 0),
+                'parquet_rows_candidate_sources': totals.get(
+                    'parquet_rows_candidate_sources', 0),
+                'source_bytes_by_role': dict(sorted(by_role_bytes.items())),
+                'parquet_rows_by_role': dict(sorted(by_role_rows.items())),
+                'screened_records': candidate.get('accepted_records'),
+                'screened_approved': candidate.get('approved_for_training'),
+                'disk_free_bytes': inv['disk_free_bytes'],
+                'top_level_bytes': {
+                    item['directory']: item['allocated_file_bytes']
+                    for item in inv.get('top_level_storage', [])[:16]
+                },
+                'contains_trainable_data': 'not yet established by inventory',
+            }
+        except (ValueError, KeyError, OSError, TypeError) as error:
+            summary = {'read_error': str(error)}
+    else:
+        summary = {'report_exists': False}
+    print(json.dumps({
+        'run001_existing_hdd_inventory': summary,
+        'exit_exists': (ROOT / 'posta-multi-235m-hdd-inventory-v1.exit').is_file(),
+    }, ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 
