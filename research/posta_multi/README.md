@@ -610,3 +610,25 @@ The established cron runs it once, **after** the existing embedding geometry
 job has finished, to avoid simultaneous HDD-heavy jobs. This task is CPU-only
 and never writes checkpoints or changes the corpus. Files stay on the HDD:
 `posta-multi-retrieval-split-audit-20261121-v1.json`, `.log`, `.exit`.
+
+## No-GPU historical v9 comparison and fail-closed decision
+
+Two pre-existing reports evaluated v1/v8 and v1/v9 on the **same original
+16 local validation queries**. `checkpoint_decision.py` checks equal
+manifest/tokenizer provenance and the per-record selection hash, uses v1 as an
+anchor to verify that reports agree, then compares v9 with the **actual
+training initialization** recovered from the v9 log. It calculates deltas in
+pair accuracy, Recall@1/5/10 and MRR. Nonfinite values, missing/duplicate
+rows, mismatched selections, unknown source or inconsistent v1 anchor fail
+closed rather than producing a verdict. This is a post-experiment analysis,
+not a trained model selector.
+
+A small synchronous hook in the existing cron invokes the stdlib-only script
+once after the reports exist. Its output stays on the HDD:
+`posta-multi-v9-decision-20261121-v1.json`, `.log` and `.exit`.
+`status.py` displays the resulting verdict and deltas numerically.
+
+**No candidate is ever promoted automatically.** Even if the 16-query
+validation looks better, independent evaluation, rights/privacy review and
+production integration are still incomplete. The audit is only read-only
+metadata aggregation and does not launch or authorize another training stage.

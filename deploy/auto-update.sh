@@ -53,6 +53,12 @@ if [ -f "$APP/research/posta_multi/host_split_audit_hook.sh" ]; then
         log "WARNING: Posta Multi split audit hook could not start."
 fi
 
+# CPU-only verdict from the historical v1/v8/v9 validation reports.
+if [ -f "$APP/research/posta_multi/host_checkpoint_decision_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_checkpoint_decision_hook.sh" ||
+        log "WARNING: Posta Multi checkpoint decision could not run."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.

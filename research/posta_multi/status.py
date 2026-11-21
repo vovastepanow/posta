@@ -166,6 +166,23 @@ def main():
     else:
         print(json.dumps({'split_audit': audit_name, 'exit_exists': audit_exit.is_file(),
                           'report_exists': False}, ensure_ascii=False))
+    decision = ROOT / 'posta-multi-v9-decision-20261121-v1.json'
+    if decision.is_file():
+        try:
+            record = json.loads(decision.read_text(encoding='utf-8'))
+            if record.get('format') != 'posta-multi-v9-validation-decision-v1':
+                raise ValueError('invalid decision format')
+            summary = {
+                'source': record['training_source'],
+                'verdict': record['verdict'],
+                'delta_v9_vs_initial_source': record['delta_v9_vs_initial_source'],
+                'eligible_for_production': record['eligible_for_production'],
+            }
+        except (ValueError, KeyError, OSError, TypeError) as error:
+            summary = {'read_error': str(error)}
+        print(json.dumps({'checkpoint_decision': summary}, ensure_ascii=False))
+    else:
+        print(json.dumps({'checkpoint_decision': {'report_exists': False}}, ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 
