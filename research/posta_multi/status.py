@@ -282,22 +282,22 @@ def main():
     print(json.dumps({'run001_bm25_validation': data,
                       'exit_exists': (ROOT / (bm25_job + '.exit')).is_file()},
                      ensure_ascii=False))
-    miracl_name = 'posta-multi-miracl-dev-400-v1'
+    miracl_name = 'posta-multi-nanomiracl-ru-en-v1'
     miracl_file = ROOT / (miracl_name + '.json')
     if miracl_file.is_file():
         try:
             report = json.loads(miracl_file.read_text(encoding='utf-8'))
-            if report.get('format') != 'posta-miracl-human-dev-judged-pool-v1':
+            if report.get('format') != 'posta-nanomiracl-ru-en-full-nano-corpus-bm25-v1':
                 raise ValueError('unexpected MIRACL benchmark schema')
             data = {
-                'human_judged_queries': report['overall']['queries'],
+                'miracl_derived_queries': report['overall']['queries'],
                 'bm25_mrr': report['overall']['mrr'],
                 'bm25_ndcg_10': report['overall']['ndcg_10'],
                 'language_breakdown': {
                     name: {'queries': v['queries'], 'mrr': v['mrr'],
                            'ndcg_10': v['ndcg_10']}
                     for name, v in report['languages'].items()},
-                'full_corpus_retrieval': False,
+                'full_original_miracl_corpus_retrieval': False,
             }
         except (OSError, KeyError, ValueError, TypeError) as error:
             data = {'read_error': str(error)}

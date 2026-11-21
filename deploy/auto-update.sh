@@ -94,9 +94,9 @@ if [ -f "$APP/research/posta_multi/host_bm25_hook.sh" ]; then
 fi
 
 # Evaluation-only RU+EN human-judged benchmark, no training or DB changes.
-if [ -f "$APP/research/posta_multi/host_miracl_benchmark_hook.sh" ]; then
-    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_miracl_benchmark_hook.sh" ||
-        log "WARNING: Run 001 MIRACL evaluation hook failed."
+if [ -f "$APP/research/posta_multi/host_nanomiracl_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_nanomiracl_hook.sh" ||
+        log "WARNING: Run 001 NanoMIRACL benchmark hook failed."
 fi
 
 # Pin source revisions and inspect metadata/column types of selected text

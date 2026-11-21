@@ -1,10 +1,10 @@
-name: Posta MIRACL human-relevance BM25 benchmark
+name: Posta NanoMIRACL RU EN full-nano-corpus BM25 evaluation
 
 on:
   push:
     branches: [main]
     paths:
-      - 'research/posta_multi/miracl_benchmark.py'
+      - 'research/posta_multi/nanomiracl_benchmark.py'
       - 'research/posta_multi/bm25_baseline.py'
       - '.github/workflows/posta-miracl-baseline.yml'
   workflow_dispatch:
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  human-judged-ru-en:
+  nanomiracl-ru-en:
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
@@ -21,47 +21,37 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Frozen 400-query human-judged dev evaluation; no torch
+      - name: Evaluate BM25 against entire NanoMIRACL RU EN candidate corpora
         run: |
           mkdir -p eval-results
-          PYTHONPATH=research/posta_multi \
-          python3 research/posta_multi/miracl_benchmark.py \
-            --queries-per-language 200 \
-            --data-file "$RUNNER_TEMP/miracl-400-private.jsonl" \
-            --output eval-results/miracl-400-bm25.json
-      - name: Publish aggregates, not raw text
+          PYTHONPATH=research/posta_multi python3 research/posta_multi/nanomiracl_benchmark.py \
+            --output eval-results/nanomiracl-ru-en-bm25.json
+      - name: Report independent Nano BM25 results without uploading text
         if: success()
         run: |
           python3 - <<'PY'
           import json
           import os
           from pathlib import Path
-          data = json.loads(Path('eval-results/miracl-400-bm25.json').read_text())
-          lines = [
-              '## Human-judged MIRACL, 400 queries (RU + EN)',
-              '',
-              'Judged-pool BM25 only; **not full-corpus retrieval**.',
-              '',
-              '| Language | Queries | MRR | NDCG@10 | Pair accuracy |',
-              '| --- | ---: | ---: | ---: | ---: |',
-          ]
-          for language, result in data['languages'].items():
-              lines.append(f"| {language} | {result['queries']} | {result['mrr']:.4f} | "
-                           f"{result['ndcg_10']:.4f} | {result['pair_accuracy']:.4f} |")
-          total = data['overall']
-          lines.append(f"| Combined | {total['queries']} | {total['mrr']:.4f} | "
-                       f"{total['ndcg_10']:.4f} | {total['pair_accuracy']:.4f} |")
-          lines += ['', 'Source SHA: ' + data['source_revision_observed'],
-                    'Frozen evaluation SHA: ' + data['frozen_data_sha256'],
-                    'No real Posta model was evaluated. This is only the lexical baseline.']
+          r = json.loads(Path('eval-results/nanomiracl-ru-en-bm25.json').read_text())
+          lines = ['## NanoMIRACL RU/EN full supplied corpus BM25',
+                   'Derived from MIRACL, NOT official dev nor full original corpus.',
+                   'Publisher BM25 candidate lists (forced positives) were not used.',
+                   '', '| Language | Queries | Documents | MRR | Recall@5 | nDCG@10 |',
+                   '| --- | ---: | ---: | ---: | ---: | ---: |']
+          for lang in ('ru','en'):
+              v = r['languages'][lang]
+              lines.append(f"| {lang} | {v['queries']} | {r['candidate_corpora'][lang]['documents']} | "
+                           f"{v['mrr']:.4f} | {v['recall_5']:.4f} | {v['ndcg_10']:.4f} |")
+          lines.append('Frozen source SHA-256: '+r['source_content_sha256'])
           Path(os.environ['GITHUB_STEP_SUMMARY']).write_text('\n'.join(lines)+'\n')
           print('\n'.join(lines))
           PY
-      - name: Retain only aggregated report
+      - name: Publish only aggregate numeric results
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: posta-miracl-400-bm25-aggregates
-          path: eval-results/miracl-400-bm25.json
-          retention-days: 7
+          name: posta-nanomiracl-ru-en-bm25
+          path: eval-results/nanomiracl-ru-en-bm25.json
           if-no-files-found: error
+          retention-days: 14
