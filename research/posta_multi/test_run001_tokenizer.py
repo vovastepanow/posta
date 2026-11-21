@@ -144,7 +144,7 @@ class Run001TokenizerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'tokenizer'
             with patch('run001_tokenizer.Corpus', return_value=fake):
-                with self.assertRaisesRegex(ValueError, 'dataset'):
+                with self.assertRaisesRegex(ValueError, 'tokenizer training blocked'):
                     train(args('/unneeded', output=output))
             self.assertFalse(output.exists())
 
