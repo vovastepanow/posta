@@ -99,7 +99,6 @@ class HarvestSourceTests(unittest.TestCase):
                 self.assertEqual(len(rows), entry['rows'])
                 self.assertTrue(all(row['training_approved'] is False for row in rows))
                 self.assertTrue(all(row['source_split'] == 'train' for row in rows))
-            self.assertTrue(all('NOT pinned' not in s for s in first['limitations']))
             self.assertTrue(any('NOT pinned' in s for s in first['limitations']))
             with self.assertRaises(FileExistsError):
                 prepare(base/'first', sources=list(SOURCES),
