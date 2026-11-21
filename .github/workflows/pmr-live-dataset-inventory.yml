@@ -1,0 +1,58 @@
+name: PMR live dataset metadata inventory
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'research/pmr_datasets/**'
+      - '.github/workflows/pmr-live-dataset-inventory.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hf-metadata-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inspect bounded public HF metadata and preview schemas
+        run: |
+          python3 research/pmr_datasets/probe.py \
+            --ids fineweb2-ru fineweb-en kalm-retrieval wit memexplain videoufo \
+            --rows --out data/pmr/audit.json
+      - name: Summarize audited coverage and limitations
+        if: always()
+        run: |
+          if [ -f data/pmr/audit.json ]; then
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          audit = json.loads(Path('data/pmr/audit.json').read_text())
+          lines = [
+              '## Live PMR dataset inventory (metadata only)',
+              '',
+              'No training files, media bytes, or preview example contents were saved.',
+              '',
+              '| Dataset | Metadata | Preview schema | Revision |',
+              '| --- | --- | --- | --- |',
+          ]
+          for d in audit['datasets']:
+              lines.append(f"| {d['id']} | {d['metadata_status']} | {d['schema_status']} | `{str(d.get('revision', 'none'))[:12]}` |")
+          lines += ['', 'A successful workflow does **not** mean datasets are approved, licensed, downloadable or training-ready.']
+          with Path(__import__('os').environ['GITHUB_STEP_SUMMARY']).open('a') as f:
+              f.write('\n'.join(lines) + '\n')
+          PY
+          fi
+      - name: Save reviewable metadata report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmr-hf-metadata-inventory
+          path: data/pmr/audit.json
+          if-no-files-found: warn
+          retention-days: 7
