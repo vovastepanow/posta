@@ -120,6 +120,14 @@ if [ -f "$APP/research/posta_multi/host_run001_hdd_inventory_hook.sh" ]; then
         log "WARNING: Run 001 HDD inventory could not start."
 fi
 
+# REAL 235M training trial: use ONLY existing screened local data.
+# Requires successful seq96 GPU smoke, isolated research tokenizer and
+# nonproduction checkpoints. Never changes production model or DB.
+if [ -f "$APP/research/posta_multi/host_run001_real_pilot_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_run001_real_pilot_hook.sh" ||
+        log "WARNING: Run 001 private real-data pilot could not start."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.
