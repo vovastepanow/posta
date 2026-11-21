@@ -79,6 +79,13 @@ if [ -f "$APP/research/posta_multi/host_run001_seq96_hook.sh" ]; then
         log "WARNING: Posta Multi Run 001 seq96 probe hook failed."
 fi
 
+# Check the Run 001 anti-collapse gradient-cache implementation on synthetic
+# tokens only, gated on a successful previous full-length GPU probe.
+if [ -f "$APP/research/posta_multi/host_run001_retrieval_smoke_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_run001_retrieval_smoke_hook.sh" ||
+        log "WARNING: Run 001 anti-collapse GPU smoke hook failed."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.

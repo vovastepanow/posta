@@ -243,6 +243,24 @@ def main():
     print(json.dumps({'run001_seq96': result,
                       'exit_exists': (ROOT / (seq96 + '.exit')).is_file()},
                      ensure_ascii=False))
+    retr_smoke = 'posta-multi-235m-run-001-retrieval-smoke'
+    retr_path = ROOT / (retr_smoke + '.json')
+    if retr_path.is_file():
+        try:
+            payload = json.loads(retr_path.read_text(encoding='utf-8'))
+            if payload.get('format') != 'posta-multi-235m-run001-retrieval-smoke-v1':
+                raise ValueError('unknown Run 001 retrieval smoke schema')
+            summary = {k: payload[k] for k in (
+                'architecture_params', 'text_trainable_params', 'sequence_length',
+                'explicit_triplets', 'loss', 'cuda_peak_allocated_mib',
+                'updated_projection', 'trained_on_real_data', 'search_quality_verified')}
+        except (KeyError, ValueError, OSError, TypeError) as error:
+            summary = {'read_error': str(error)}
+    else:
+        summary = {'report_exists': False}
+    print(json.dumps({'run001_retrieval_smoke': summary,
+                      'exit_exists': (ROOT / (retr_smoke + '.exit')).is_file()},
+                     ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 
