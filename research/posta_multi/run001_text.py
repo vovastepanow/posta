@@ -22,7 +22,8 @@ from tokenizers import Tokenizer
 from cpu_master_adam import CPUMasterAdamW
 from corpus import Corpus
 from model import PostaMulti
-from run001_data import (POLICY, approval_issues, make_windows, select_records)
+from run001_data import (POLICY, approval_issues, balanced_validation_windows,
+                         make_windows, select_records)
 from run001_smoke import RUN_ID, trainable_text_parameters
 from spec import Config, parameter_counts
 from train_text import save_atomic
@@ -88,6 +89,32 @@ def validation_loss(model, windows, device, max_examples=16, max_masked=8):
     return round(sum(values)/len(values), 6)
 
 
+
+@torch.no_grad()
+def stratified_validation(model, windows, labels, device, max_masked=8):
+    """Validation on all selected windows, macro-average over input groups."""
+    if len(windows) != len(labels) or not windows:
+        raise ValueError('validation labels and windows must align')
+    generator = torch.Generator(device='cpu').manual_seed(23456)
+    previous = model.training
+    model.eval()
+    groups = {}
+    try:
+        for window, label in zip(windows, labels):
+            loss = float(mlm_step_loss(model, window, generator, device, max_masked))
+            if not math.isfinite(loss):
+                raise RuntimeError('nonfinite validation loss')
+            groups.setdefault(label, []).append(loss)
+    finally:
+        model.train(previous)
+    result = {name: {'windows': len(values),
+                     'mean_loss': round(sum(values)/len(values), 6)}
+              for name, values in sorted(groups.items())}
+    macro = sum(info['mean_loss'] for info in result.values()) / len(result)
+    return {'macro_mean_loss': round(macro, 6), 'groups': result,
+            'evaluated_windows': len(windows)}
+
+
 def schedule(step, total, base_lr, warmup):
     if not 1 <= step <= total or not 0 < base_lr <= 0.01 or        warmup < 0 or warmup >= total:
         raise ValueError('invalid schedule')
@@ -115,7 +142,7 @@ def readiness(dataset, tokenizer_file):
 
 
 def run(args):
-    if args.steps < 1 or args.save_every < 1 or args.validate_every < 1 or        args.grad_accum < 1 or args.max_masked < 1 or args.patience < 1 or        args.train_per_group < 1 or args.val_per_group < 1 or        args.seq_length < 8 or args.seq_length > 512 or        args.warmup < 0 or args.warmup >= args.steps or        not 0 < args.lr <= 0.01:
+    if args.steps < 1 or args.save_every < 1 or args.validate_every < 1 or        args.grad_accum < 1 or args.max_masked < 1 or args.patience < 1 or        args.train_per_group < 1 or args.val_per_group < 1 or args.val_windows_per_group < 1 or        args.seq_length < 8 or args.seq_length > 512 or        args.warmup < 0 or args.warmup >= args.steps or        not 0 < args.lr <= 0.01:
         raise ValueError('invalid Run 001 training settings')
 
     corpus = Corpus(args.dataset)
@@ -137,8 +164,9 @@ def run(args):
         corpus, split='validation', max_per_group=args.val_per_group)
     train, train_sha, train_windows = make_windows(
         selected_train, tokenizer, args.seq_length)
-    val, val_sha, val_windows = make_windows(
-        selected_val, tokenizer, args.seq_length)
+    val, val_labels, val_sha, val_windows = balanced_validation_windows(
+        selected_val, tokenizer, args.seq_length,
+        per_group=args.val_windows_per_group)
     if len(train) < 128 or len(val) < 16:
         raise ValueError('too few text windows for a 235M pretraining experiment')
     output = Path(args.output)
@@ -153,7 +181,7 @@ def run(args):
         raise RuntimeError('need at least 8 GiB of free HDD space for atomic checkpoint writes')
 
     settings = {
-        'format': 'posta-multi-235m-run001-text-v1',
+        'format': 'posta-multi-235m-run001-text-v2',
         'run_id': RUN_ID,
         'config': asdict(config),
         'manifest_sha256': corpus.manifest_hash,
@@ -168,6 +196,9 @@ def run(args):
         'seed': args.seed,
         'train_per_group': args.train_per_group,
         'val_per_group': args.val_per_group,
+        'val_windows_per_group': args.val_windows_per_group,
+        'validation_selection': 'stratified-hash-kind-language-v1',
+        'validation_metric': 'macro_mean_loss_across_groups',
         'seq_length': args.seq_length,
         'validate_every': args.validate_every,
         'patience': args.patience,
@@ -202,6 +233,7 @@ def run(args):
         'text_trainable': sum(p.numel() for p in parameters),
         'train_windows': len(train), 'val_windows': len(val),
         'train_groups': train_counts, 'val_groups': val_counts,
+        'val_windows_by_group': val_windows,
         'gpu_fraction': 0.45,
     }, ensure_ascii=False), flush=True)
 
@@ -223,16 +255,20 @@ def run(args):
 
         check = step % args.validate_every == 0 or step == args.steps
         current_val = None
+        current_groups = None
         if check:
-            score = validation_loss(model, val, device, max_examples=16,
-                                    max_masked=args.max_masked)
+            metrics = stratified_validation(model, val, val_labels, device,
+                                            max_masked=args.max_masked)
+            score = metrics['macro_mean_loss']
             current_val = score
+            current_groups = metrics['groups']
             if score + 0.0001 < best_loss:
                 best_loss, best_step, stale = score, step, 0
                 save_atomic(best, {
                     'format': settings['format'] + '-best',
                     'settings': settings, 'step': step,
-                    'validation_loss': score, 'model': model.state_dict()})
+                    'validation_loss': score, 'validation': metrics,
+                    'model': model.state_dict()})
             else:
                 stale += 1
         if check or step % args.save_every == 0:
@@ -247,6 +283,7 @@ def run(args):
             print(json.dumps({'stage': 'text-mlm', 'step': step,
                               'train_loss': round(sum(losses)/len(losses), 6),
                               'val_loss': current_val,
+                              'val_group_losses': current_groups,
                               'best_val_loss': best_loss if check else None,
                               'best_step': best_step, 'stale': stale},
                              ensure_ascii=False), flush=True)
@@ -273,6 +310,8 @@ def main():
     p.add_argument('--patience', type=int, default=8)
     p.add_argument('--train-per-group', type=int, default=2000)
     p.add_argument('--val-per-group', type=int, default=64)
+    p.add_argument('--val-windows-per-group', type=int, default=4,
+                   help='stable validation windows per language/modality group')
     p.add_argument('--seq-length', type=int, default=96)
     p.add_argument('--lr', type=float, default=0.0001)
     p.add_argument('--warmup', type=int, default=100)

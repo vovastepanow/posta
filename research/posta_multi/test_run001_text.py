@@ -4,7 +4,7 @@ import unittest
 
 import torch
 
-from run001_text import masked_batch, mlm_step_loss, schedule
+from run001_text import masked_batch, mlm_step_loss, schedule, stratified_validation
 from model import PostaMulti
 from spec import Config
 from synthetic_train import tiny_config
@@ -44,6 +44,25 @@ class Run001TextTests(unittest.TestCase):
         self.assertAlmostEqual(schedule(100, 100, 0.0001, 10), 0.00001)
         with self.assertRaises(ValueError):
             schedule(5, 5, 0.1, 5)
+
+
+    def test_stratified_validation_is_deterministic_and_macro_averaged(self):
+        model = PostaMulti(replace(tiny_config(), text_pooling='mean'), dropout=0)
+        records = [(1, 8, 9, 10, 2), (1, 7, 8, 9, 2),
+                   (1, 10, 12, 15, 2), (1, 12, 11, 9, 2)]
+        labels = ['text:ru', 'text:ru', 'ocr_text:en', 'ocr_text:en']
+        model.train()
+        first = stratified_validation(model, records, labels, 'cpu', max_masked=2)
+        second = stratified_validation(model, records, labels, 'cpu', max_masked=2)
+        self.assertTrue(model.training)
+        self.assertEqual(first, second)
+        self.assertEqual(first['evaluated_windows'], 4)
+        self.assertEqual(first['groups']['text:ru']['windows'], 2)
+        self.assertAlmostEqual(first['macro_mean_loss'],
+            (first['groups']['text:ru']['mean_loss'] +
+             first['groups']['ocr_text:en']['mean_loss'])/2, places=6)
+        with self.assertRaises(ValueError):
+            stratified_validation(model, records, labels[:1], 'cpu')
 
     def test_short_or_invalid_window_refused(self):
         g = torch.Generator().manual_seed(1)

@@ -104,3 +104,40 @@ def approval_issues(manifest):
     }
     return [f'{field}_not_{expected}' for field, expected in required.items()
             if manifest.get(field) != expected]
+
+
+def balanced_validation_windows(selected, tokenizer, length, per_group=4,
+                                max_windows_per_record=4):
+    """Deterministic token windows balanced across (kind, language) groups."""
+    if type(per_group) is not int or per_group < 1:
+        raise ValueError('per_group must be positive')
+    if length < 8 or max_windows_per_record < 1:
+        raise ValueError('invalid validation window dimensions')
+    grouped = {}
+    for group, text in selected:
+        ids = tokenizer.encode(text, add_special_tokens=False).ids
+        for start in range(0, len(ids), length - 2):
+            if start // (length-2) >= max_windows_per_record:
+                break
+            window = tuple([1, *ids[start:start+length-2], 2])
+            if len(window) >= 4:
+                grouped.setdefault(group, set()).add(window)
+    if not grouped:
+        raise ValueError('no validation token windows')
+    windows, labels, group_counts = [], [], {}
+    digest = hashlib.sha256((POLICY + '-stratified-validation-v1').encode())
+    for group in sorted(grouped):
+        chosen = sorted(grouped[group], key=lambda window: (
+            hashlib.sha256(json.dumps(window, separators=(',', ':')).encode()).digest(),
+            window))[:per_group]
+        label = f'{group[0]}:{group[1]}'
+        group_counts[label] = len(chosen)
+        for window in chosen:
+            windows.append(window)
+            labels.append(label)
+            encoded = json.dumps([label, window], separators=(',', ':')).encode()
+            digest.update(len(encoded).to_bytes(8, 'big'))
+            digest.update(encoded)
+    if len(windows) < 2:
+        raise ValueError('too few validation windows')
+    return windows, labels, digest.hexdigest(), group_counts

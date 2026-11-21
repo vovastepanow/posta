@@ -1,7 +1,8 @@
 """No external dataset: Run 001 text sampling and provenance tests."""
 import unittest
 
-from run001_data import KINDS, POLICY, approval_issues, make_windows, select_records
+from run001_data import (KINDS, POLICY, approval_issues,
+                         balanced_validation_windows, make_windows, select_records)
 
 
 class FakeCorpus:
@@ -72,6 +73,33 @@ class Run001DataTests(unittest.TestCase):
             'privacy_review': 'passed',
             'source_rights_review': 'passed',
         }), [])
+
+
+    def test_stratified_validation_is_stable_and_balanced(self):
+        source = {
+            ('text', 'validation'): [
+                {'text': f'russian valid text {i} words', 'language': 'ru'}
+                for i in range(10)] +
+                [{'text': 'english valid text words', 'language': 'en'}],
+            ('ocr_text', 'validation'): [
+                {'text': 'letters on a picture', 'language': 'en'}],
+        }
+        records, _ = select_records(FakeCorpus(source), split='validation',
+                                    max_per_group=20)
+        first = balanced_validation_windows(records, FakeTokenizer(),
+                                            length=12, per_group=2)
+        windows, labels, fingerprint, counts = first
+        self.assertEqual(len(windows), len(labels))
+        self.assertEqual(len(fingerprint), 64)
+        self.assertEqual(set(counts), {'text:ru', 'text:en', 'ocr_text:en'})
+        self.assertTrue(all(1 <= n <= 2 for n in counts.values()))
+        reversed_records, _ = select_records(FakeCorpus({
+            key: list(reversed(rows)) for key, rows in source.items()
+        }), split='validation', max_per_group=20)
+        self.assertEqual(first, balanced_validation_windows(
+            reversed_records, FakeTokenizer(), length=12, per_group=2))
+        with self.assertRaises(ValueError):
+            balanced_validation_windows(records, FakeTokenizer(), 12, per_group=0)
 
     def test_invalid_or_empty_windows(self):
         corpus = FakeCorpus({})
