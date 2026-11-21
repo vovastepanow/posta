@@ -34,9 +34,9 @@ jobs:
           fi
       - name: Ensure Python stays outside the application runtime
         run: |
-          # Isolated PMR research scripts are Python; production Go/deploy paths are not.
-          if find . -path './research/pmr_datasets' -prune -o -type f \( -name '*.py' -o -name '*.pyc' \) -print -quit | grep -q .; then
-            echo "Python files outside research/pmr_datasets must not be checked in."
+          # Python is allowed in isolated PMR research trees, never in the Go app or deploy paths.
+          if find . \( -path './research/pmr_datasets' -o -path './research/posta_multi' \) -prune -o -type f \( -name '*.py' -o -name '*.pyc' \) -print -quit | grep -q .; then
+            echo "Python files outside isolated PMR research trees must not be checked in."
             exit 1
           fi
           if grep -q 'python3' deploy/auto-update.sh; then
