@@ -342,6 +342,24 @@ def main():
     print(json.dumps({'run001_source_preview': entries,
                       'exit_exists': (ROOT / (preview_name + '.exit')).is_file()},
                      ensure_ascii=False))
+    tokenizer_job = 'posta-multi-run001-tokenizer-intake-v1'
+    tokenizer_file = ROOT / (tokenizer_job + '.json')
+    if tokenizer_file.is_file():
+        try:
+            tokenizer = json.loads(tokenizer_file.read_text(encoding='utf-8'))
+            if tokenizer.get('format') != 'posta-run001-tokenizer-intake-v1':
+                raise ValueError('unexpected tokenizer intake schema')
+            summary = {key: tokenizer[key] for key in (
+                'languages', 'manifest_sha256', 'selected_train_counts',
+                'selected_validation_counts', 'heldout', 'approval_issues',
+                'ready_for_manual_tokenizer_training')}
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            summary = {'read_error': str(error)}
+    else:
+        summary = {'report_exists': False}
+    print(json.dumps({'run001_tokenizer_intake': summary,
+                      'exit_exists': (ROOT / (tokenizer_job + '.exit')).is_file()},
+                     ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 
