@@ -21,6 +21,7 @@ from tokenizers import Tokenizer
 
 from cpu_master_adam import CPUMasterAdamW
 from run001_continuation import resume_policy, extension_lr_multiplier
+from run001_research_policy import require_local_research_quarantine
 from corpus import Corpus
 from model import PostaMulti
 from run001_data import (POLICY, approval_issues, balanced_validation_windows,
@@ -150,13 +151,28 @@ def run(args):
 
     corpus = Corpus(args.dataset)
     issues = approval_issues(corpus.manifest)
-    if issues:
+    local_research = getattr(args, 'local_research_quarantine', False)
+    if local_research:
+        require_local_research_quarantine(corpus)
+    elif issues:
         raise ValueError('dataset is not approved for training: ' + ', '.join(issues))
     if not torch.cuda.is_available():
         raise RuntimeError('Run 001 full 235M training needs CUDA')
     torch.set_num_threads(2)
     torch.cuda.set_per_process_memory_fraction(0.45)
     tokenizer, tokenizer_sha, vocab = tokenizer_provenance(args.tokenizer)
+    meta_path = Path(args.tokenizer).parent / 'metadata.json'
+    if local_research:
+        if not meta_path.is_file():
+            raise ValueError('local research requires its own tokenizer provenance')
+        tokenizer_meta = json.loads(meta_path.read_text(encoding='utf-8'))
+        if (tokenizer_meta.get('quarantined_research_only') is not True or
+                tokenizer_meta.get('manifest_sha256') != corpus.manifest_hash):
+            raise ValueError('research tokenizer must be fitted on exactly this quarantined corpus')
+    elif meta_path.is_file():
+        tokenizer_meta = json.loads(meta_path.read_text(encoding='utf-8'))
+        if tokenizer_meta.get('quarantined_research_only'):
+            raise ValueError('quarantined tokenizer cannot be used in approved model training')
     config = replace(Config(), text_pooling='mean')
     # Keep the full 235M architecture; unused vocabulary slots are permitted.
     if vocab > config.vocab_size:
@@ -187,6 +203,9 @@ def run(args):
     settings = {
         'format': 'posta-multi-235m-run001-text-v3',
         'run_id': RUN_ID,
+        'quarantined_research_only': local_research,
+        'private_local_only': local_research,
+        'production_promotion_allowed': False,
         'config': asdict(config),
         'manifest_sha256': corpus.manifest_hash,
         'tokenizer_sha256': tokenizer_sha,
@@ -245,6 +264,8 @@ def run(args):
         'train_groups': train_counts, 'val_groups': val_counts,
         'val_windows_by_group': val_windows,
         'gpu_fraction': 0.45,
+        'quarantined_research_only': local_research,
+        'production_promotion_allowed': False,
         'continuation_phase': continuation_phase,
     }, ensure_ascii=False), flush=True)
 
@@ -319,6 +340,8 @@ def main():
     p.add_argument('--output', help='new Run 001 checkpoint directory (not used by --preflight)')
     p.add_argument('--preflight', action='store_true',
                    help='read-only provenance check; does not instantiate the network')
+    p.add_argument('--local-research-quarantine', action='store_true',
+                   help='private research on screened local quarantine; weights can never be promoted')
     p.add_argument('--resume', action='store_true')
     p.add_argument('--extend-steps', action='store_true',
                    help='after completing previous budget, extend on exactly the same corpus and tokenizer at lower LR')
