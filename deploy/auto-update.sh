@@ -128,6 +128,13 @@ if [ -f "$APP/research/posta_multi/host_run001_real_pilot_hook.sh" ]; then
         log "WARNING: Run 001 private real-data pilot could not start."
 fi
 
+# Once the queued AV pilot has finished, compare the frozen before/after
+# held-out pools on CPU. No further training or model promotion.
+if [ -f "$APP/research/posta_multi/host_av_compare_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_av_compare_hook.sh" ||
+        log "WARNING: Posta Multi AV comparison hook failed."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.
