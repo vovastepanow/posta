@@ -10,8 +10,10 @@ from av_geometry_diagnostics import pairwise_geometry
 class GeometryDiagnosticsTests(unittest.TestCase):
     def test_detects_media_collapse_relative_to_diverse_text(self):
         text = torch.eye(4)
-        media = torch.tensor([[1., 0.], [1., 0.0001],
-                              [1., -0.0001], [1., 0.0002]])
+        media = torch.tensor([[1., 0., 0., 0.],
+                              [1., 0.0001, 0., 0.],
+                              [1., -0.0001, 0., 0.],
+                              [1., 0.0002, 0., 0.]])
         out = pairwise_geometry(text, media)
         self.assertEqual(out["samples"], 4)
         self.assertEqual(out["sample_pairs"], 6)
