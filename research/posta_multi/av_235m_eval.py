@@ -14,6 +14,7 @@ from tokenizers import Tokenizer
 from av_alignment import _speech
 from av_data import select_media_pairs
 from av_metrics import paired_media_metrics
+from fusion_baselines import single_modality_fusion_probe
 from av_real_smoke import log_mel_audio
 from av_provenance import validate_av_source
 from av_streaming import iter_segments_streaming
@@ -114,10 +115,19 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
                     media = _speech(model, mel, 'cuda')
                     counts.append(len(wave))
                 media_vectors.append(media)
+            text_matrix = torch.stack(text_vectors)
+            media_matrix = torch.stack(media_vectors)
+            _, fused_media = single_modality_fusion_probe(
+                model, media_matrix,
+                'video' if kind == 'video_text' else 'audio')
             results[kind] = {'selection_sha256': selection_sha,
                              'groups': len({x['group_id'] for x in rows}),
                              'frame_or_sample_counts': counts,
-                             'metrics': paired_media_metrics(torch.stack(text_vectors), torch.stack(media_vectors))}
+                             'metrics': paired_media_metrics(text_matrix, media_matrix),
+                             'untrained_fusion_metrics': paired_media_metrics(
+                                 text_matrix, fused_media),
+                             'fusion_comparison_note': 'media-only candidate slot; no query caption '
+                                                       'used as a post input; fusion weights are untrained'}
             if kind == 'video_text':
                 results[kind]['temporal_reversal_sensitivity'] = {
                     'mean_1_minus_cosine': sum(reverse_distances) / len(reverse_distances),
