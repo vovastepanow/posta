@@ -48,3 +48,32 @@ def masked_average_fusion(embeddings, modality_mask, weights=DEFAULT_MODALITY_WE
     if (torch.linalg.vector_norm(mix, dim=-1) <= 1e-8).any():
         raise ValueError("present modality embeddings cancel to zero")
     return F.normalize(mix, dim=-1, eps=1e-8)
+
+
+def single_modality_fusion_probe(model, media_embeddings, modality):
+    """Compare a media-only post before vs after the untrained fusion tower.
+
+    Exactly one slot is present; no target caption/transcript is inserted into
+    candidate posts. The returned tuple is (direct_unit_vectors, fused_vectors).
+    """
+    slot = {"image": 1, "video": 2, "audio": 3}.get(modality)
+    if slot is None:
+        raise ValueError("expected image, video or audio modality")
+    if (media_embeddings.ndim != 2 or
+            media_embeddings.shape[1] != model.config.embed_dim or
+            not torch.isfinite(media_embeddings).all() or
+            (media_embeddings.norm(dim=-1) <= 1e-8).any()):
+        raise ValueError("need finite nonzero [B, embedding_dim] media vectors")
+    parameter = next(model.parameters())
+    vec = media_embeddings.to(device=parameter.device, dtype=parameter.dtype)
+    slots = torch.zeros(
+        (vec.shape[0], model.config.fusion_slots, model.config.embed_dim),
+        dtype=vec.dtype, device=vec.device)
+    mask = torch.zeros(
+        (vec.shape[0], model.config.fusion_slots),
+        dtype=torch.bool, device=vec.device)
+    slots[:, slot, :] = vec
+    mask[:, slot] = True
+    direct = masked_average_fusion(slots, mask)
+    transformed = model.fuse_post(slots, mask).float()
+    return direct, transformed
