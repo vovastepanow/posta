@@ -45,6 +45,10 @@ jobs:
           fi
       - name: Check deployment shell scripts
         run: bash -n deploy/auto-update.sh deploy/enable-auto-update.sh research/posta_multi/*.sh
+      - name: Unit-test private AV comparison report safety (Python stdlib)
+        run: |
+          PYTHONPATH=research/posta_multi python3 -m unittest discover \
+            -s research/posta_multi -p 'test_av_checkpoint_compare.py' -v
       - name: Check autopilot interface JavaScript
         run: node --check js/sources.js
       - name: Unit tests
