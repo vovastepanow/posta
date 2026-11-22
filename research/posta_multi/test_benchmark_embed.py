@@ -49,6 +49,24 @@ class BenchmarkEmbedTests(unittest.TestCase):
             self.assertEqual(b.content_input({"data": {"text": "пост"}}, Path(tmp),
                                              "media_cache", False), ("пост", "text"))
 
+    def test_text_only_mode_ignores_images_and_video(self):
+        row = {"data": {"text": "Русский текст", "image_local": "media_cache/" + "a" * 32 + ".jpg"}}
+        payload, kind = b.content_input(row, Path("/definitely-absent"), "media_cache",
+                                         False, text_only=True)
+        self.assertEqual((payload, kind), ("Русский текст", "text"))
+        media = {"data": {"video_local": "media_cache/" + "b" * 32 + ".mp4"}}
+        self.assertEqual(
+            b.content_input(media, Path("/definitely-absent"), "media_cache", False, text_only=True),
+            (None, "missing"),
+        )
+
+    def test_cache_differs_between_multimodal_and_text_only(self):
+        rows = [{"id": "1", "data": {"text": "hello"}, "platform": "rss"}]
+        with tempfile.TemporaryDirectory() as tmp:
+            multimodal = b.snapshot_fingerprint(rows, Path(tmp), "media_cache", False, 4)
+            text_only = b.snapshot_fingerprint(rows, Path(tmp), "media_cache", False, 4, True)
+        self.assertNotEqual(multimodal, text_only)
+
     def test_evaluation_skips_unjudged_and_checks_corpus(self):
         ranked = {"кот": ["a", "c", "b"]}
         incomplete = [{"query": "кот", "relevant_ids": ["a"], "judged_complete": False}]
