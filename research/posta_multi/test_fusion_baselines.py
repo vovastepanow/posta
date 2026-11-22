@@ -3,7 +3,9 @@ import unittest
 
 import torch
 
-from fusion_baselines import masked_average_fusion
+from fusion_baselines import masked_average_fusion, single_modality_fusion_probe
+from model import PostaMulti
+from synthetic_train import tiny_config
 
 
 class MaskedAverageFusionTests(unittest.TestCase):
@@ -27,6 +29,18 @@ class MaskedAverageFusionTests(unittest.TestCase):
         self.assertTrue(torch.allclose(one, two, atol=1e-7))
         self.assertTrue(torch.isfinite(one).all())
         self.assertAlmostEqual(float(one.norm()), 1, places=6)
+
+    def test_single_modality_probe_never_includes_query_text(self):
+        torch.manual_seed(8)
+        model = PostaMulti(tiny_config(), dropout=0).eval()
+        videos = torch.randn(3, model.config.embed_dim)
+        direct, fused = single_modality_fusion_probe(model, videos, "video")
+        self.assertTrue(torch.allclose(direct, torch.nn.functional.normalize(videos, dim=1),
+                                       atol=1e-6))
+        self.assertEqual(tuple(fused.shape), tuple(direct.shape))
+        self.assertTrue(torch.isfinite(fused).all())
+        with self.assertRaisesRegex(ValueError, "expected image"):
+            single_modality_fusion_probe(model, videos, "text")
 
     def test_present_bad_vectors_or_bad_weights_rejected(self):
         inputs = torch.ones(2, 4, 3)
