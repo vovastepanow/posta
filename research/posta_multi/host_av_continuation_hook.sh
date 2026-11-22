@@ -28,8 +28,22 @@ done
 # Protect other GPU workloads, including user's own applications.
 free="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | tr -d '[:space:]')"
 [[ "$free" =~ ^[0-9]+$ ]] && (( free >= 1500 )) || exit 0
-active="$(nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits 2>/dev/null | tr -d '[:space:]' | grep -E '^[0-9]+$' || true)"
-[ -z "$active" ] || exit 0
+# NVIDIA's "compute-apps" list can include C+G display processes on
+# desktop GPUs (for example the ptyxis terminal), even with no ML workload.
+# Do not deadlock training solely because of a desktop application. We still
+# enforce 1.5GiB free and reject any other compute process.
+while IFS= read -r pid; do
+    [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    executable="$(cat "/proc/$pid/comm" 2>/dev/null || echo unknown)"
+    case "$executable" in
+        gnome-shell|Xwayland|Xorg|ptyxis|chromium|chrome|firefox|FlClashX)
+            ;; # Ordinary graphics processes are covered by the memory guard.
+        *)
+            printf '[posta-av] Delaying training: GPU compute process %s (%s) active.\n' "$pid" "$executable"
+            exit 0
+            ;;
+    esac
+done < <(nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits 2>/dev/null | tr -d ' ')
 if ps -eo args | grep -Eq '[p]ython3 research/posta_multi/(run001_(text|retrieval)|av_235m_(eval|train_pilot|continue))[.]py'; then
     exit 0
 fi
