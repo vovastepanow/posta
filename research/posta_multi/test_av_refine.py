@@ -77,6 +77,12 @@ class RefineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "too collapsed"):
             verified_source(self.source, bad, manifest_sha=self.manifest,
                             tokenizer_sha=self.tokenizer, source_sha=self.sha)
+        healthy_media = copy.deepcopy(self.before)
+        healthy_media["modalities"]["video_text"]["teacher_media_geometry"][
+            "media_interexample_cosine"] = .90
+        with self.assertRaisesRegex(ValueError, "media-overcollapse"):
+            verified_source(self.source, healthy_media, manifest_sha=self.manifest,
+                            tokenizer_sha=self.tokenizer, source_sha=self.sha)
         stale = copy.deepcopy(self.source)
         stale["step"] = 22
         with self.assertRaisesRegex(ValueError, "24-step"):
