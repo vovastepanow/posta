@@ -35,6 +35,8 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
     torch.cuda.set_per_process_memory_fraction(.45)
     corpus = Corpus(dataset)
     tokenizer_sha = hashlib.sha256(Path(tokenizer_path).read_bytes()).hexdigest()
+    with Path(checkpoint_path).open('rb') as checkpoint_stream:
+        checkpoint_sha = hashlib.file_digest(checkpoint_stream, 'sha256').hexdigest()
     state = torch.load(checkpoint_path, map_location='cpu', weights_only=True, mmap=True)
     settings = state.get('settings', {})
     if time_encoding is None:
@@ -125,6 +127,7 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
                     'meaning': 'encoding changes under reversing visual content; not evidence of temporal understanding',
                 }
     return {'format': 'posta-av-235m-heldout-pool-v1', 'checkpoint_format': fmt,
+            'checkpoint_sha256': checkpoint_sha, 'tokenizer_sha256': tokenizer_sha,
             'manifest_sha256': corpus.manifest_hash, 'target_fps': 30,
             'video_time_encoding': time_encoding, 'video_window_aggregation': window_aggregation,
             'modalities': results,
