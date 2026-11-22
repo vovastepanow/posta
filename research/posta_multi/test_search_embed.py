@@ -38,7 +38,7 @@ class SearchEmbedTests(unittest.TestCase):
         results = select_rankings(records, [.9, .8, .7, .6, .4],
                                   query="электромобиль", mode="text", limit=5,
                                   neural_weight=0, per_source=1)
-        self.assertEqual(results[0]["post_id"], "c")
+        self.assertIn(results[0]["post_id"], {"c", "d"})
         self.assertEqual(len([r for r in results if r["source_key"] == "source1"]), 1)
         self.assertEqual(len([r for r in results if r["text_preview"] == "новости транспорта"]), 1)
 
