@@ -117,6 +117,28 @@ class CheckpointComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "pool sizes"):
             compare(baseline, after, pilot)
 
+    def test_checkpoint_hash_binding_and_fail_closed_mismatch(self):
+        baseline, after, pilot = sample_reports()
+        baseline["checkpoint_sha256"] = "a" * 64
+        after["checkpoint_sha256"] = "f" * 64
+        pilot["output_checkpoint_sha256"] = "f" * 64
+        baseline["tokenizer_sha256"] = "b" * 64
+        after["tokenizer_sha256"] = "b" * 64
+        binding = compare(baseline, after, pilot)["checkpoint_hashes_verified"]
+        self.assertTrue(binding["baseline"])
+        self.assertTrue(binding["after"])
+        after["checkpoint_sha256"] = "e" * 64
+        with self.assertRaisesRegex(ValueError, "actual pilot output"):
+            compare(baseline, after, pilot)
+        after["checkpoint_sha256"] = "f" * 64
+        baseline["checkpoint_sha256"] = "e" * 64
+        with self.assertRaisesRegex(ValueError, "actual pilot source"):
+            compare(baseline, after, pilot)
+        baseline["checkpoint_sha256"] = "a" * 64
+        after["tokenizer_sha256"] = "a" * 64
+        with self.assertRaisesRegex(ValueError, "different tokenizer"):
+            compare(baseline, after, pilot)
+
     def test_file_reader_blocks_missing_and_oversize(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "summary.json"
