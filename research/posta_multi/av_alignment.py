@@ -25,7 +25,12 @@ def _video(model, windows, device, frame_caches, time_encoding, window_aggregati
         raise ValueError('a video needs at least one nonempty window')
     vectors, starts = [], []
     for frames, timestamps in windows:
-        frames = frames.to(device=device, dtype=next(model.parameters()).dtype)
+        # Retain the video pixels in host RAM. cached_frame_embeddings and its
+        # backward replay transfer one frame at a time to the GPU; otherwise
+        # every 30fps frame from all videos remains resident until backward.
+        if frames.requires_grad:
+            raise ValueError('video pixel gradients are unsupported')
+        frames = frames.detach().to(device='cpu', dtype=torch.float32)
         timestamps = timestamps.to(device=device, dtype=torch.float32)
         cached = cached_frame_embeddings(model, frames)
         vectors.append(model.encode_video_embeddings(cached, timestamps=timestamps,
