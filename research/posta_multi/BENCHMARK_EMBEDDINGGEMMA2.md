@@ -43,6 +43,32 @@ JSON содержит text, иногда captions, image_local, video_local, gal
 
 Если в public_posts меньше 2000 записей, фиктивные записи не создаются.
 
+## Пробный CPU-запуск (перед платным GPU)
+
+После экспорта можно проверить загрузку весов и реальный inference без аренды GPU.
+Это **только smoke**, не измерение качества и не мультимодальный бенчмарк.
+
+В уже созданном отдельном Python venv сначала поставьте CPU PyTorch (не CUDA 13),
+а затем Sentence Transformers и зависимости:
+
+    ~/.cache/posta-embed-venv/bin/python -m pip install -U torch --index-url https://download.pytorch.org/whl/cpu
+    ~/.cache/posta-embed-venv/bin/python -m pip install -U 'sentence-transformers>=6.1.0' transformers numpy
+
+Выполняется без БД и не меняет snapshot:
+
+    ~/.cache/posta-embed-venv/bin/python research/posta_multi/benchmark_embed.py \
+      --phase benchmark --output-dir data/embeddinggemma2-benchmark \
+      --text-only --max-posts 20 --max-queries 3 --device cpu
+
+Этот режим загружает только 270M text encoder (vision_config=None,
+audio_config=None). Он берёт первые 20 постов с текстом из снимка и три запроса;
+не анализирует изображения или видео. Метрики Recall@100 и NDCG@10 будут null,
+пока нет полного ручного gold. Показатель posts/second для 20 записей
+не переносится автоматически на весь корпус и на GPU.
+
+**После smoke** полноценный прогон делается на подходящем GPU по инструкциям ниже.
+Не запускайте 733 мультимодальных документа вслепую на GTX 1060 3GB.
+
 ## Этап 2: независимый прогон нейросети
 
 Может выполняться на арендуемой GPU-машине; Postgres здесь не требуется.
