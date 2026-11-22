@@ -128,6 +128,13 @@ if [ -f "$APP/research/posta_multi/host_run001_real_pilot_hook.sh" ]; then
         log "WARNING: Run 001 private real-data pilot could not start."
 fi
 
+# Advance the already prepared private AV queue after a successful retrieval.
+# A lock and existing-output checks prevent duplicate GPU pilots.
+if [ -f "$APP/research/posta_multi/host_av_queue_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_av_queue_hook.sh" ||
+        log "WARNING: Posta Multi AV queue hook could not start."
+fi
+
 # Once the queued AV pilot has finished, compare the frozen before/after
 # held-out pools on CPU. No further training or model promotion.
 if [ -f "$APP/research/posta_multi/host_av_compare_hook.sh" ]; then
