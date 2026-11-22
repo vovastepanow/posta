@@ -142,6 +142,14 @@ if [ -f "$APP/research/posta_multi/host_av_compare_hook.sh" ]; then
         log "WARNING: Posta Multi AV comparison hook failed."
 fi
 
+# Real, resumable private 235M AV training; only after the completed pilot,
+# frozen held-out comparison, idle GPU, and previous successful retrieval.
+# Check on every cron tick, even when no new git commits need deployment.
+if [ -f "$APP/research/posta_multi/host_av_continuation_hook.sh" ]; then
+    POSTA_DEPLOY_DIR="$APP" /bin/bash "$APP/research/posta_multi/host_av_continuation_hook.sh" ||
+        log "WARNING: Posta Multi sustained AV training hook failed."
+fi
+
 # Reconcile the installed schedule as well as the repository version. The
 # first deploy of this change is still started by the old 10-minute cron;
 # its next invocation picks up this code and switches the host to 3 minutes.
