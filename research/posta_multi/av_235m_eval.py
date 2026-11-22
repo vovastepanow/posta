@@ -39,24 +39,41 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
     with Path(checkpoint_path).open('rb') as checkpoint_stream:
         checkpoint_sha = hashlib.file_digest(checkpoint_stream, 'sha256').hexdigest()
     state = torch.load(checkpoint_path, map_location='cpu', weights_only=True, mmap=True)
-    settings = state.get('settings', {})
+    fmt = state.get('format')
+    continued = fmt == 'posta-av-235m-continuation-v1'
+    settings = state if continued else state.get('settings', {})
     if time_encoding is None:
-        time_encoding = settings.get('video_time_encoding', 'legacy')
+        time_encoding = settings.get('video_time_encoding',
+                                     'relative-centered-v1' if continued else 'legacy')
     if time_encoding not in ('legacy', 'relative-centered-v1'):
         raise ValueError('invalid video time encoding')
     if window_aggregation is None:
-        window_aggregation = settings.get('video_window_aggregation', 'mean')
+        window_aggregation = settings.get('video_window_aggregation',
+                                         'hierarchical-residual-v1' if continued else 'mean')
     if window_aggregation not in ('mean', 'hierarchical-v1', 'hierarchical-residual-v1'):
         raise ValueError('invalid video window aggregation')
-    fmt = state.get('format')
-    if fmt != 'posta-av-235m-private-pilot-v1':
+    if continued:
+        if (settings.get('manifest_sha256') != corpus.manifest_hash or
+                settings.get('tokenizer_sha256') != tokenizer_sha or
+                settings.get('quarantined_research_only') is not True or
+                settings.get('private_local_only') is not True or
+                settings.get('production_promotion_allowed') is not False or
+                type(settings.get('step')) is not int or settings['step'] < 2 or
+                type(settings.get('step_cap')) is not int or
+                settings['step'] > settings['step_cap'] or
+                type(settings.get('source_checkpoint_sha256')) is not str or
+                len(settings['source_checkpoint_sha256']) != 64 or
+                'optimizer' not in state):
+            raise ValueError('invalid private AV continuation provenance')
+    elif fmt == 'posta-av-235m-private-pilot-v1':
+        if (settings.get('manifest_sha256') != corpus.manifest_hash or
+                settings.get('tokenizer_sha256') != tokenizer_sha or
+                settings.get('quarantined_research_only') is not True or
+                settings.get('private_local_only') is not True or
+                settings.get('production_promotion_allowed') is not False):
+            raise ValueError('checkpoint provenance or quarantine mismatch')
+    else:
         validate_av_source(state, corpus.manifest_hash, tokenizer_sha)
-    elif (settings.get('manifest_sha256') != corpus.manifest_hash or
-            settings.get('tokenizer_sha256') != tokenizer_sha or
-            settings.get('quarantined_research_only') is not True or
-            settings.get('private_local_only') is not True or
-            settings.get('production_promotion_allowed') is not False):
-        raise ValueError('checkpoint provenance or quarantine mismatch')
     config = Config(**settings['config'])
     if parameter_counts(config)['total'] != 235179777:
         raise ValueError('unexpected model architecture')
