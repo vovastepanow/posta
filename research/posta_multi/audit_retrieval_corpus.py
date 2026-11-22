@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+from urllib.parse import urlsplit
 
 from benchmark_embed import caption, local_media, read_jsonl
 
@@ -32,11 +33,46 @@ def media_references(data: dict) -> tuple[bool, bool]:
     )
 
 
+def candidate_media(data: dict) -> tuple[list[str], list[str]]:
+    """Media fields used by Posta. Include both the primary item and gallery."""
+    entries = [data]
+    if isinstance(data.get("gallery"), list):
+        entries += [e for e in data["gallery"] if isinstance(e, dict)]
+    images, videos = [], []
+    for entry in entries:
+        for field in ("image", "link_image"):
+            v = entry.get(field)
+            if isinstance(v, str) and v.strip():
+                images.append(v.strip())
+        pics = entry.get("images")
+        if isinstance(pics, list):
+            images.extend(v.strip() for v in pics if isinstance(v, str) and v.strip())
+        v = entry.get("video")
+        if isinstance(v, str) and v.strip():
+            videos.append(v.strip())
+    return images, videos
+
+
+def remote_host(value: str) -> str | None:
+    """Return normalized hostname for explicit HTTP(S) URLs, not arbitrary strings."""
+    try:
+        parsed = urlsplit(value)
+        if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+            return None
+        return parsed.hostname.lower()
+    except ValueError:
+        return None
+
+
 def audit(rows: list[dict], media_dir: Path, media_url: str) -> dict:
     sources, platforms, exact_texts, descriptions = Counter(), Counter(), Counter(), Counter()
     image_refs = video_refs = image_ok = video_ok = 0
     short = placeholders = no_text = 0
     data_keys = Counter()
+    image_hosts, video_hosts = Counter(), Counter()
+    with_remote_image = with_remote_video = gallery_with_media = 0
+    image_url_count = video_url_count = 0
+    total_gallery_files = 0
     for record in rows:
         data = record.get("data")
         if not isinstance(data, dict):
@@ -64,6 +100,22 @@ def audit(rows: list[dict], media_dir: Path, media_url: str) -> dict:
         image, video = local_media(data, media_dir, media_url)
         image_ok += bool(image)
         video_ok += bool(video)
+        images, videos = candidate_media(data)
+        image_domains = [host for v in images if (host := remote_host(v))]
+        video_domains = [host for v in videos if (host := remote_host(v))]
+        with_remote_image += bool(image_domains)
+        with_remote_video += bool(video_domains)
+        image_url_count += len(image_domains)
+        video_url_count += len(video_domains)
+        image_hosts.update(image_domains)
+        video_hosts.update(video_domains)
+        gallery = data.get("gallery")
+        if isinstance(gallery, list):
+            total_gallery_files += len(gallery)
+            gallery_with_media += any(
+                isinstance(e, dict) and any(e.get(f) for f in ("image", "video"))
+                for e in gallery
+            )
 
     n = len(rows)
     duplicate_texts = sum(count - 1 for count in exact_texts.values() if count > 1)
@@ -83,11 +135,21 @@ def audit(rows: list[dict], media_dir: Path, media_url: str) -> dict:
         "image_file_accessible": image_ok,
         "has_video_local_reference": video_refs,
         "video_file_accessible": video_ok,
+        "posts_with_remote_image_url": with_remote_image,
+        "posts_with_remote_video_url": with_remote_video,
+        "remote_image_urls_total_including_gallery": image_url_count,
+        "remote_video_urls_total_including_gallery": video_url_count,
+        "remote_image_hosts_top_10": dict(image_hosts.most_common(10)),
+        "remote_video_hosts_top_10": dict(video_hosts.most_common(10)),
+        "posts_with_gallery_media": gallery_with_media,
+        "gallery_entries_total": total_gallery_files,
         "top_data_fields": dict(data_keys.most_common(15)),
         "notes": [
             "This is corpus composition, NOT measured search quality or topic coverage.",
             "Placeholder and short captions cannot expose visual content to the text-only model.",
-            "Image/video files are checked only under the chosen media root; URLs are never fetched.",
+            "Local references and remote image/video fields are counted separately; remote URLs are NOT fetched.",
+            "Media field existence in the JSON object does NOT imply its value is nonempty.",
+            "Top remote media hostnames are aggregate counts, not proof of URL accessibility.",
             "Source/topic model tags are NOT independent relevance gold.",
         ],
     }
