@@ -105,9 +105,11 @@ def local_media(data: dict, media_dir: Path, media_url: str) -> tuple[str | None
     return image, video
 
 
-def content_input(record: dict, media_dir: Path, media_url: str, include_video: bool) -> tuple[str | dict | None, str]:
+def content_input(record: dict, media_dir: Path, media_url: str, include_video: bool, text_only: bool = False) -> tuple[str | dict | None, str]:
     """One native joint embedding per post, not a mean of unrelated vectors."""
     text_value = caption(record["data"])
+    if text_only:
+        return (text_value, "text") if text_value else (None, "missing")
     image, video = local_media(record["data"], media_dir, media_url)
     if include_video and video:
         if text_value:
@@ -199,7 +201,7 @@ def _normalize(vector):
     return x / norm
 
 
-def load_model(device: str):
+def load_model(device: str, text_only: bool = False):
     import torch
     from sentence_transformers import SentenceTransformer
 
@@ -212,7 +214,7 @@ def load_model(device: str):
     model = SentenceTransformer(
         MODEL_ID,
         device=resolved,
-        config_kwargs={"audio_config": None},  # 440M text+vision: speech benchmark is a later stage
+        config_kwargs={"audio_config": None, **({"vision_config": None} if text_only else {})},
         model_kwargs={"torch_dtype": dtype},
     )
     return model, resolved, str(dtype)
@@ -270,12 +272,12 @@ def percentile_ms(values: list[float], percentile: float) -> float | None:
     return ordered[lower] + (ordered[upper] - ordered[lower]) * (index - lower)
 
 
-def snapshot_fingerprint(records: list[dict], media_dir: Path, media_url: str, include_video: bool, max_frames: int) -> str:
+def snapshot_fingerprint(records: list[dict], media_dir: Path, media_url: str, include_video: bool, max_frames: int, text_only: bool = False) -> str:
     digest = hashlib.sha256()
-    digest.update(f"{MODEL_ID}|{VERSION}|{include_video}|{max_frames}".encode())
+    digest.update(f"{MODEL_ID}|{VERSION}|{include_video}|{max_frames}|text_only={text_only}".encode())
     for row in records:
         digest.update(json.dumps(row, sort_keys=True, ensure_ascii=False).encode())
-        image, video = local_media(row["data"], media_dir, media_url)
+        image, video = (None, None) if text_only else local_media(row["data"], media_dir, media_url)
         for path in (image, video if include_video else None):
             if path:
                 stat = Path(path).stat()
@@ -287,7 +289,7 @@ def build_index(records: list[dict], model, args, folder: Path):
     import numpy as np
 
     media_dir = Path(args.media_dir)
-    fingerprint = snapshot_fingerprint(records, media_dir, args.media_url, args.include_video, args.max_frames)
+    fingerprint = snapshot_fingerprint(records, media_dir, args.media_url, args.include_video, args.max_frames, args.text_only)
     cache_path = folder / "embeddings.npz"
     if cache_path.exists() and not args.no_cache:
         with np.load(cache_path, allow_pickle=False) as cached:
@@ -296,7 +298,7 @@ def build_index(records: list[dict], model, args, folder: Path):
     ids, vectors, kinds = [], [], []
     started = time.perf_counter()
     for row_number, row in enumerate(records, 1):
-        payload, kind = content_input(row, media_dir, args.media_url, args.include_video)
+        payload, kind = content_input(row, media_dir, args.media_url, args.include_video, args.text_only)
         if payload is None:
             continue
         options = {"normalize_embeddings": True, "show_progress_bar": False}
@@ -335,8 +337,13 @@ def run(args) -> None:
     folder = Path(args.output_dir).expanduser().resolve()
     if not folder.is_dir():
         raise SystemExit("Export a dataset first with --phase snapshot.")
-    rows = read_jsonl(folder / "snapshot.jsonl")
-    model, device, dtype = load_model(args.device)
+    all_rows = read_jsonl(folder / "snapshot.jsonl")
+    rows = [r for r in all_rows if caption(r["data"])] if args.text_only else all_rows
+    if args.max_posts:
+        rows = rows[:args.max_posts]
+    if not rows:
+        raise SystemExit("No usable posts for the selected mode.")
+    model, device, dtype = load_model(args.device, args.text_only)
     ids, vectors, kinds, index_seconds, cache_used = build_index(rows, model, args, folder)
     id_to_row = {row["id"]: row for row in rows}
     label_path = Path(args.labels).expanduser() if args.labels else folder / "labels_template.jsonl"
@@ -344,6 +351,8 @@ def run(args) -> None:
         raise SystemExit(f"Labels file not found: {label_path}")
     gold = read_jsonl(label_path)
     queries = list(dict.fromkeys(row["query"] for row in gold if isinstance(row.get("query"), str) and row["query"].strip()))
+    if args.max_queries:
+        queries = queries[:args.max_queries]
     if not queries:
         raise SystemExit("No queries in labels file.")
     rankings = {}
@@ -369,7 +378,7 @@ def run(args) -> None:
     metrics = evaluate_rankings(gold, rankings, set(ids))
     metrics.update({
         "model": MODEL_ID, "version": VERSION, "device": device, "dtype": dtype,
-        "snapshot_rows": len(rows), "indexed": len(ids), "skipped": len(rows) - len(ids),
+        "snapshot_rows": len(all_rows), "selected_rows": len(rows), "indexed": len(ids), "skipped": len(rows) - len(ids),
         "kinds": {kind: kinds.count(kind) for kind in sorted(set(kinds))},
         "index_seconds": round(index_seconds, 3),
         "posts_per_second": round(len(ids) / index_seconds, 3) if index_seconds > 0 else None,
@@ -379,6 +388,7 @@ def run(args) -> None:
         "latency_p95_ms": round(percentile_ms(times, .95), 3),
         "latency_note": "Includes query embedding and exact NumPy matrix search; not production ANN/network latency.",
         "video": args.include_video, "max_video_frames": args.max_frames,
+        "text_only": args.text_only, "max_posts": args.max_posts, "max_queries": args.max_queries,
     })
     output = folder / "metrics.json"
     output.write_text(json.dumps(metrics, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -397,10 +407,17 @@ def main(argv=None):
     parser.add_argument("--include-video", action="store_true", help="Enable direct local video embeddings.")
     parser.add_argument("--max-frames", type=int, default=4, help="Native video sampler frame cap.")
     parser.add_argument("--device", default="auto", help="auto, cpu, or cuda")
+    parser.add_argument("--text-only", action="store_true", help="Load only 270M text encoder; ignore visual media.")
+    parser.add_argument("--max-posts", type=int, default=0, help="Limit local benchmark posts (0 means all).")
+    parser.add_argument("--max-queries", type=int, default=0, help="Limit local benchmark queries (0 means all).")
     parser.add_argument("--no-cache", action="store_true")
     args = parser.parse_args(argv)
     if not 1 <= args.limit <= 10000 or not 1 <= args.max_frames <= 16:
         parser.error("--limit must be 1..10000; --max-frames must be 1..16")
+    if args.max_posts < 0 or args.max_queries < 0:
+        parser.error("--max-posts and --max-queries must be non-negative")
+    if args.text_only and args.include_video:
+        parser.error("--text-only is incompatible with --include-video")
     folder = Path(args.output_dir).expanduser()
     if args.phase == "snapshot":
         dsn = os.environ.get("POSTA_PG")
