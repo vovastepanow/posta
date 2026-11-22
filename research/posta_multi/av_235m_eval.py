@@ -87,7 +87,7 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
             raise ValueError('checkpoint provenance or quarantine mismatch')
     else:
         validate_av_source(state, corpus.manifest_hash, tokenizer_sha)
-    config = Config(**settings['config'])
+    config = Config(**(state['config'] if refined else settings['config']))
     if parameter_counts(config)['total'] != 235179777:
         raise ValueError('unexpected model architecture')
     model = PostaMulti(config, dropout=0).half().cuda().eval()
