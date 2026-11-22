@@ -45,4 +45,6 @@ def masked_average_fusion(embeddings, modality_mask, weights=DEFAULT_MODALITY_WE
     priors = torch.as_tensor(weights, device=embeddings.device, dtype=scaled.dtype)
     effective = modality_mask.to(scaled.dtype) * priors.unsqueeze(0)
     mix = (scaled * effective.unsqueeze(-1)).sum(dim=1)
+    if (torch.linalg.vector_norm(mix, dim=-1) <= 1e-8).any():
+        raise ValueError("present modality embeddings cancel to zero")
     return F.normalize(mix, dim=-1, eps=1e-8)
