@@ -4,10 +4,27 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from status import JOB_REPORT_FILES, job_status, recent_stage, summarize_report
+from status import (JOB_REPORT_FILES, job_status, recent_stage,
+                    research_job_progress, summarize_report)
 
 
 class StatusTests(unittest.TestCase):
+    def test_research_progress_retains_validation_and_does_not_claim_live(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            name = 'continuation'
+            (root / (name + '.log')).write_text(
+                '{"stage":"text-mlm","step":12,"val_loss":11.0}\n'
+                '{"stage":"text-mlm","step":13,"val_loss":null,"input_tokens":96}\n'
+                '{broken\n', encoding='utf-8')
+            item = research_job_progress(root, name, 'text-mlm')
+            self.assertEqual(item['last_step']['step'], 13)
+            self.assertEqual(item['last_validation'], {'step': 12, 'loss': 11.0})
+            self.assertIsNone(item['exit_code'])
+            self.assertNotIn('running', item)
+            (root / (name + '.exit')).write_text('1\n', encoding='utf-8')
+            self.assertEqual(research_job_progress(root, name, 'text-mlm')['exit_code'], 1)
+
     def test_report_paths_match_actual_evaluation_outputs(self):
         self.assertEqual(JOB_REPORT_FILES['posta-multi-retrieval-adam-v9'],
                          'posta-multi-retrieval-adam-v9-eval.json')

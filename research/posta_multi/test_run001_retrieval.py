@@ -1,6 +1,10 @@
 """Tests of bounded-memory exact gradient cache and anti-collapse gates."""
 import unittest
-from dataclasses import replace
+import tempfile
+from dataclasses import asdict, replace
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import torch
 
@@ -9,7 +13,8 @@ from synthetic_train import tiny_config
 from run001_retrieval import (cached_retrieval_backward,
                               cached_positive_only_backward, evaluate_retrieval,
                               better_candidate, configure_trainable_stage,
-                              encode_triples)
+                              encode_triples, load_stage1_source, resume_staleness)
+from spec import Config
 from run001_retrieval_loss import (anti_collapse_loss,
                                    positive_only_alignment_loss)
 
@@ -74,6 +79,28 @@ class RetrievalCacheTests(unittest.TestCase):
             'document_interexample_cosine': .93,
             'mean_reciprocal_rank': .3}, None))
 
+    def test_better_ranking_wins_only_if_absolute_health_gates_pass(self):
+        best = {'samples': 64, 'pair_accuracy': 0.8125,
+                'mean_positive_minus_negative': 0.015,
+                'query_interexample_cosine': 0.8,
+                'document_interexample_cosine': 0.89,
+                'mean_reciprocal_rank': 0.4756}
+        candidate = {**best, 'pair_accuracy': 0.796875,
+                     'mean_reciprocal_rank': 0.4932}
+        self.assertTrue(better_candidate(candidate, best))
+        self.assertTrue(better_candidate({**candidate, 'pair_accuracy': 0.78125}, best))
+        self.assertTrue(better_candidate({**candidate, 'pair_accuracy': 0.765625}, best))
+        self.assertFalse(better_candidate({**candidate, 'pair_accuracy': 0.54}, best))
+        self.assertFalse(better_candidate({**candidate, 'query_interexample_cosine': 0.99}, best))
+        self.assertFalse(better_candidate({**candidate, 'samples': 32}, best))
+
+    def test_explicit_retry_only_from_unfinished_early_stop(self):
+        self.assertEqual(resume_staleness(4, 4, 50, 100, reset=True), 0)
+        self.assertEqual(resume_staleness(2, 4, 30, 100), 2)
+        for stale, step in ((3, 50), (4, 100)):
+            with self.assertRaisesRegex(ValueError, 'unfinished early-stopped'):
+                resume_staleness(stale, 4, step, 100, reset=True)
+
     def test_projection_warmup_preserves_pretrained_text_encoder(self):
         model = self.recomputed
         phase = configure_trainable_stage(model, 1, projection_only_steps=5)
@@ -133,6 +160,27 @@ class RetrievalCacheTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             cached_retrieval_backward(self.reference, fixture(), 'cpu',
                                       loss_scale=float('nan'))
+
+    def test_research_stage1_needs_opt_in_and_matching_provenance(self):
+        corpus = SimpleNamespace(manifest_hash='manifest')
+        settings = {'run_id': 'posta-multi-235m-run-001',
+                    'manifest_sha256': 'manifest', 'tokenizer_sha256': 'tokenizer',
+                    'config': asdict(replace(Config(), text_pooling='mean')),
+                    'quarantined_research_only': True, 'private_local_only': True,
+                    'production_promotion_allowed': False}
+        state = {'format': 'posta-multi-235m-run001-text-v3-best', 'settings': settings}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'source.pt'
+            path.write_bytes(b'checkpoint')
+            with patch('run001_retrieval.torch.load', return_value=state) as loader:
+                with self.assertRaisesRegex(ValueError, 'cannot be promoted'):
+                    load_stage1_source(path, corpus, 'tokenizer')
+                source, _, _ = load_stage1_source(
+                    path, corpus, 'tokenizer', local_research=True)
+                self.assertIs(source, state)
+                self.assertTrue(hasattr(loader.call_args.args[0], 'read'))
+                with self.assertRaisesRegex(ValueError, 'provenance mismatch'):
+                    load_stage1_source(path, corpus, 'other', local_research=True)
 
 
 if __name__ == '__main__':

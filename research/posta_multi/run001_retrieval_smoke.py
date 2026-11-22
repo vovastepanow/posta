@@ -36,7 +36,7 @@ def synthetic_triples(vocab_size, length=96, samples=3, seed=1762):
     return pairs
 
 
-def run(output):
+def run(output, *, length=96, samples=3):
     if not torch.cuda.is_available():
         raise RuntimeError('CUDA required for the full-size GPU smoke')
     output = Path(output)
@@ -47,6 +47,8 @@ def run(output):
     torch.cuda.set_per_process_memory_fraction(.45)
     torch.manual_seed(1762)
     config = replace(Config(), text_pooling='mean-residual')
+    if type(length) is not int or not 8 <= length <= config.text_length or type(samples) is not int or samples < 2:
+        raise ValueError('invalid retrieval smoke dimensions')
     model = PostaMulti(config, dropout=0).half().cuda()
     model.enable_gradient_checkpointing(True)
     trainable = trainable_text_parameters(model)
@@ -54,7 +56,7 @@ def run(output):
     phase = configure_trainable_stage(model, step=101, projection_only_steps=100)
     optimizer = CPUMasterAdamW(trainable, lr=0.00001,
                                loss_scale=16, max_grad_norm=1.0)
-    pairs = synthetic_triples(config.vocab_size)
+    pairs = synthetic_triples(config.vocab_size, length=length, samples=samples)
     torch.cuda.reset_peak_memory_stats()
     before = model.text_projection.weight.detach().float().cpu().clone()
     optimizer.zero_grad()
@@ -71,7 +73,7 @@ def run(output):
         'run_id': RUN_ID,
         'architecture_params': parameter_counts(config)['total'],
         'text_trainable_params': sum(p.numel() for p in trainable),
-        'sequence_length': 96,
+        'sequence_length': length,
         'explicit_triplets': len(pairs),
         'stage': phase,
         'loss': round(loss, 6),
@@ -91,8 +93,10 @@ def run(output):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', required=True)
+    p.add_argument('--seq-length', type=int, default=96)
+    p.add_argument('--samples', type=int, default=3)
     args = p.parse_args()
-    run(args.output)
+    run(args.output, length=args.seq_length, samples=args.samples)
 
 
 if __name__ == '__main__':

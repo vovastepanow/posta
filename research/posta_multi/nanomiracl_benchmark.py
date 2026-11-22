@@ -19,6 +19,8 @@ import os
 from pathlib import Path
 import random
 import statistics
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -38,10 +40,21 @@ def fetch_json(url, *, limit=16000000):
     req = urllib.request.Request(
         url, headers={"Accept": "application/json",
                       "User-Agent": "Posta-235M-evaluation/1.0"})
-    with urllib.request.urlopen(req, timeout=45) as stream:
-        if int(stream.headers.get("Content-Length") or 0) > limit:
-            raise ValueError("response exceeds bounded evaluation budget")
-        payload = stream.read(limit + 1)
+    for attempt in range(5):
+        try:
+            with urllib.request.urlopen(req, timeout=45) as stream:
+                if int(stream.headers.get("Content-Length") or 0) > limit:
+                    raise ValueError("response exceeds bounded evaluation budget")
+                payload = stream.read(limit + 1)
+            break
+        except urllib.error.HTTPError as error:
+            if error.code not in (429, 500, 502, 503, 504) or attempt == 4:
+                raise
+            retry_after = error.headers.get('Retry-After', '') if error.headers else ''
+            delay = int(retry_after) if retry_after.isdigit() else 2 ** (attempt + 1)
+            if delay > 60:
+                raise
+            time.sleep(max(1, delay))
     if len(payload) > limit:
         raise ValueError("response exceeds bounded evaluation budget")
     return json.loads(payload)
@@ -156,10 +169,10 @@ class BM25Index:
         self.k1, self.b = k1, b
         self.avg = sum(self.lengths.values()) / self.n
 
-    def search(self, query):
+    def scores(self, query):
         scores = [0.0] * self.n
         if self.avg == 0:
-            return sorted(range(self.n), key=lambda i: self.ids[i])
+            return scores
         for word, count in Counter(words(query)).items():
             posting = self.postings.get(word)
             if not posting:
@@ -170,6 +183,10 @@ class BM25Index:
                 denominator = frequency + self.k1 * (
                     1-self.b + self.b*self.lengths[index]/self.avg)
                 scores[index] += count * idf * frequency*(self.k1+1)/denominator
+        return scores
+
+    def search(self, query):
+        scores = self.scores(query)
         return sorted(range(self.n), key=lambda i: (-scores[i], self.ids[i]))
 
 

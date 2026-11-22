@@ -137,6 +137,48 @@ def recent_stage(root, name):
     return result
 
 
+def research_job_progress(root, name, stage):
+    """Read logged progress without interpreting a missing exit as a live process."""
+    root = Path(root)
+    log = root / (name + '.log')
+    exit_path = root / (name + '.exit')
+    result = {'job': name, 'log_exists': log.is_file(),
+              'exit_exists': exit_path.is_file(), 'exit_code': None,
+              'last_step': None, 'last_validation': None}
+    if exit_path.is_file():
+        try:
+            result['exit_code'] = int(exit_path.read_text(encoding='utf-8').strip())
+        except (OSError, ValueError):
+            result['exit_code'] = 'unreadable'
+    if not log.is_file():
+        return result
+    try:
+        with log.open(encoding='utf-8', errors='replace') as stream:
+            for line in stream:
+                try:
+                    row = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if (not isinstance(row, dict) or row.get('stage') != stage or
+                        type(row.get('step')) is not int):
+                    continue
+                result['last_step'] = {k: row[k] for k in (
+                    'step', 'train_loss', 'train_objective', 'best_step',
+                    'step_elapsed_seconds', 'input_tokens', 'cuda_peak_allocated_mib')
+                    if k in row}
+                if stage == 'text-mlm' and isinstance(row.get('val_loss'), (int, float)):
+                    result['last_validation'] = {'step': row['step'], 'loss': row['val_loss']}
+                elif stage == 'retrieval-anti-collapse' and isinstance(row.get('val_metrics'), dict):
+                    metrics = row['val_metrics']
+                    result['last_validation'] = {'step': row['step'], 'healthy': row.get('healthy'),
+                        **{k: metrics[k] for k in RANKING_FIELDS if k in metrics},
+                        **{k: metrics[k] for k in ('query_interexample_cosine',
+                           'document_interexample_cosine') if k in metrics}}
+    except OSError as error:
+        result['read_error'] = str(error)
+    return result
+
+
 def main():
     for name in STAGES:
         print(json.dumps(recent_stage(ROOT, name), ensure_ascii=False))
@@ -474,6 +516,21 @@ def main():
             real_summary['job_exit_code'] = None
     print(json.dumps({'run001_actual_research_training': real_summary},
                      ensure_ascii=False))
+    for job, stage in (
+        ('posta-multi-235m-local-real-continuation-v1', 'text-mlm'),
+        ('posta-multi-235m-local-text-long-v1', 'text-mlm'),
+        ('posta-multi-235m-local-text-resume-v1', 'text-mlm'),
+        ('posta-multi-text-expanded-v1', 'text-mlm'),
+        ('posta-multi-235m-local-retrieval-pilot-v1', 'retrieval-anti-collapse'),
+        ('posta-multi-235m-local-retrieval-main-v1', 'retrieval-anti-collapse'),
+        ('posta-multi-235m-local-retrieval-main-resume-v1', 'retrieval-anti-collapse'),
+        ('posta-multi-235m-local-retrieval-text400-v1', 'retrieval-anti-collapse'),
+        ('posta-multi-retrieval-after-text1000-v1', 'retrieval-anti-collapse'),
+        ('posta-multi-retrieval-text1000-resume-v1', 'retrieval-anti-collapse'),
+        ('posta-multi-retrieval-expanded-next-v1', 'retrieval-anti-collapse'),
+    ):
+        print(json.dumps({'run001_research_job': research_job_progress(ROOT, job, stage)},
+                         ensure_ascii=False))
     print('Progress reflects saved files, not live GPU activity or production-quality retrieval.')
 
 

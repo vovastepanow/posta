@@ -212,3 +212,19 @@ def require_isolated_splits(train_selected, validation_selected):
             f'train and validation share {count} distinct normalized text records; '
             'regenerate split-isolated dataset before training')
     return 0
+
+
+def require_full_heldout_isolation(corpus, train_selected, max_chars=3072):
+    """Screen selected train text against all validation/test text fields."""
+    results = {}
+    for split in ('validation', 'test'):
+        heldout = []
+        for kind in KINDS:
+            for row in corpus.rows(kind, split):
+                group = (kind, row.get('language') or 'und')
+                heldout.extend((group, text[:max_chars]) for text in text_fields(kind, row))
+        count = cross_split_exact_overlaps(train_selected, heldout)
+        if count:
+            raise ValueError(f'train and {split} share {count} normalized text records')
+        results[split] = 0
+    return results

@@ -1,6 +1,8 @@
 """Posta Multi 235M / Run 001: memory-bounded anti-collapse retrieval stage.
 
-Stage 2 is MANUAL ONLY, after Run 001 text pretraining and corpus review.
+Stage 2 is MANUAL ONLY. Approved training requires reviewed data. An explicit
+quarantine flag allows private research with matching restricted stage 1
+weights and tokenizer; it never grants production or release approval.
 Every query has one explicitly labeled positive and negative from a curated
 split. Gradient caching recomputes one 96-token text at a time: the exact
 batch objective still backpropagates into the shared 235M text tower, while
@@ -13,6 +15,7 @@ import hashlib
 import json
 import math
 import shutil
+import time
 from dataclasses import asdict, replace
 from pathlib import Path
 
@@ -21,12 +24,14 @@ from tokenizers import Tokenizer
 
 from corpus import Corpus
 from run001_continuation import resume_policy, extension_lr_multiplier
-from run001_research_policy import ensure_no_unapproved_weights_in_stage2
+from run001_research_policy import (ensure_no_unapproved_weights_in_stage2,
+                                    require_local_research_quarantine)
 from cpu_master_adam import CPUMasterAdamW
 from model import PostaMulti
 from ranking_metrics import conservative_rank, summarize_ranks
 from retrieval_data_quality import (RUN001_CURATED_POLICY, POSITIVE_ONLY_POLICY,
-                                    curate_retrieval_pairs, curate_positive_only_pairs)
+                                    VIDEO_CAPTION_POLICY, curate_retrieval_pairs,
+                                    curate_positive_only_pairs, curate_video_caption_pairs)
 from run001_data import approval_issues
 from run001_retrieval_loss import (anti_collapse_loss, checkpoint_is_healthy,
                                    positive_only_alignment_loss)
@@ -35,6 +40,7 @@ from train_text import save_atomic
 
 
 STAGE_FORMAT = 'posta-multi-235m-run001-retrieval-v1'
+SELECTION_POLICY = 'healthy-max-mrr-v2'
 
 
 def configure_trainable_stage(model, step, projection_only_steps):
@@ -190,25 +196,42 @@ def evaluate_retrieval(model, triples, device):
 
 
 def better_candidate(candidate, best):
-    """Only store a healthy candidate that improves MRR without pair decay."""
+    """Store the best MRR subject to absolute retrieval-health gates."""
     if not checkpoint_is_healthy(candidate):
         return False
     if best is None:
         return True
+    samples = candidate.get('samples')
+    if best.get('samples') != samples:
+        return False
     return (candidate['mean_reciprocal_rank'] > best['mean_reciprocal_rank'] + 0.001
-            and candidate['pair_accuracy'] >= best['pair_accuracy'] - 0.01
             and candidate['query_interexample_cosine'] <= 0.97
             and candidate['document_interexample_cosine'] <= 0.97)
 
 
-def load_stage1_source(path, corpus, tokenizer_sha):
+def resume_staleness(stale, patience, step, budget, *, reset=False):
+    """Allow an explicit retry after early stopping without resetting weights."""
+    if any(type(value) is not int for value in (stale, patience, step, budget)) or \
+            stale < 0 or patience < 1 or not 0 <= step <= budget:
+        raise ValueError('invalid early-stop checkpoint state')
+    if reset:
+        if stale < patience or step >= budget:
+            raise ValueError('early-stop retry requires an unfinished early-stopped checkpoint')
+        return 0
+    return stale
+
+
+def load_stage1_source(path, corpus, tokenizer_sha, *, local_research=False):
     with Path(path).open('rb') as f:
         source_sha = hashlib.file_digest(f, 'sha256').hexdigest()
-    source = torch.load(path, map_location='cpu', weights_only=True)
+        # Hash and load the same open inode even if an atomic best-checkpoint
+        # replacement happens between those operations.
+        f.seek(0)
+        source = torch.load(f, map_location='cpu', weights_only=True)
     if source.get('format') != 'posta-multi-235m-run001-text-v3-best':
         raise ValueError('stage 2 requires completed Run 001 v3 text-best checkpoint')
     settings = source.get('settings', {})
-    ensure_no_unapproved_weights_in_stage2(settings)
+    ensure_no_unapproved_weights_in_stage2(settings, local_research=local_research)
     if (settings.get('run_id') != RUN_ID or
             settings.get('manifest_sha256') != corpus.manifest_hash or
             settings.get('tokenizer_sha256') != tokenizer_sha):
@@ -222,6 +245,13 @@ def load_stage1_source(path, corpus, tokenizer_sha):
 
 
 def run(args):
+    video_cap = getattr(args, 'video_caption_pairs', 0)
+    video_batch = getattr(args, 'video_caption_batch', 2)
+    video_every = getattr(args, 'video_caption_every', 8)
+    video_weight = getattr(args, 'video_caption_weight', 0.1)
+    if getattr(args, 'resume_after_early_stop', False) and (
+            not args.resume or getattr(args, 'extend_steps', False)):
+        raise ValueError('--resume-after-early-stop requires ordinary --resume')
     if getattr(args, 'extend_steps', False) and not args.resume:
         raise ValueError('--extend-steps requires --resume')
     if (args.steps < 1 or args.batch_size < 2 or args.train_pairs < args.batch_size
@@ -231,12 +261,21 @@ def run(args):
             args.positive_only_every < 1 or not 0 < args.positive_only_weight <= 1 or
             not 0 < args.lr <= 0.001 or args.projection_only_steps < 0 or
             args.projection_only_steps >= args.steps or args.max_length < 8
-            or args.max_length > 512):
+            or args.max_length > 512 or type(video_cap) is not int or video_cap < 0
+            or type(video_batch) is not int or video_batch < 2
+            or type(video_every) is not int or video_every < 1
+            or type(video_weight) not in (int, float) or not math.isfinite(video_weight)
+            or not 0 < video_weight <= 1):
         raise ValueError('invalid Run 001 retrieval settings')
     corpus = Corpus(args.dataset)
     issues = approval_issues(corpus.manifest)
-    if issues:
+    local_research = getattr(args, 'local_research_quarantine', False)
+    if local_research:
+        require_local_research_quarantine(corpus)
+    elif issues:
         raise ValueError('dataset not approved for training: ' + ', '.join(issues))
+    if video_cap and not local_research:
+        raise ValueError('weak video-caption supervision requires explicit private research mode')
     if not torch.cuda.is_available():
         raise RuntimeError('Run 001 retrieval stage requires CUDA')
     torch.set_num_threads(2)
@@ -244,12 +283,21 @@ def run(args):
 
     tok_path = Path(args.tokenizer)
     tok_sha = hashlib.sha256(tok_path.read_bytes()).hexdigest()
+    if local_research:
+        meta_path = tok_path.parent / 'metadata.json'
+        if not meta_path.is_file():
+            raise ValueError('local research requires tokenizer provenance')
+        metadata = json.loads(meta_path.read_text(encoding='utf-8'))
+        if (metadata.get('quarantined_research_only') is not True or
+                metadata.get('manifest_sha256') != corpus.manifest_hash or
+                metadata.get('tokenizer_sha256') != tok_sha):
+            raise ValueError('research tokenizer provenance mismatch')
     tokenizer = Tokenizer.from_file(str(tok_path))
     for special, expected in (('[PAD]', 0), ('[CLS]', 1), ('[SEP]', 2)):
         if tokenizer.token_to_id(special) != expected:
             raise ValueError('tokenizer special IDs do not match Run 001')
     source, config, source_sha = load_stage1_source(
-        args.init, corpus, tok_sha)
+        args.init, corpus, tok_sha, local_research=local_research)
     # Stage 1 MLM only uses _text_hidden: its 'mean' retrieval pool is
     # interchangeable with this bypass without changing any weights.
     config = replace(config, text_pooling='mean-residual')
@@ -266,6 +314,12 @@ def run(args):
             row[0] for row in training))
     extra = encode_positive_pairs(tokenizer, extra_pairs, args.max_length)
     extra_enabled = len(extra) >= args.positive_only_batch
+    video, video_sha, video_stats = [], None, None
+    if video_cap:
+        video_pairs, video_sha, video_stats = curate_video_caption_pairs(corpus, video_cap)
+        video = encode_positive_pairs(tokenizer, video_pairs, args.max_length)
+        if len(video) < video_batch:
+            raise ValueError('too few isolated weak English video-caption pairs')
     # Skip unavailable optional positive-only supervision rather than
     # inventing negatives or aborting a reviewed corpus with no such rows.
     if not extra_enabled:
@@ -308,6 +362,15 @@ def run(args):
         'projection_only_steps': args.projection_only_steps,
         'finetune_learning_rate_multiplier': 0.25,
     }
+    if local_research:
+        settings.update(quarantined_research_only=True, private_local_only=True,
+                        production_promotion_allowed=False)
+    if video_cap:
+        settings.update(video_caption_policy=VIDEO_CAPTION_POLICY,
+                        video_caption_pairs_sha256=video_sha,
+                        video_caption_cap=video_cap, video_caption_selected=len(video),
+                        video_caption_batch=video_batch, video_caption_every=video_every,
+                        video_caption_weight=video_weight)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
     model = PostaMulti(config, dropout=0).half().cuda()
@@ -319,6 +382,7 @@ def run(args):
                                max_grad_norm=1.0)
     generator = torch.Generator(device='cpu').manual_seed(args.seed + 99)
     step, best_metrics, best_step, stale = 0, None, 0, 0
+    early_stop_restarts = 0
     continuation_phase = None
     if args.resume:
         checkpoint = torch.load(last, weights_only=True, map_location='cpu')
@@ -334,8 +398,15 @@ def run(args):
         step, best_metrics, best_step, stale = (
             checkpoint['step'], checkpoint['best_metrics'],
             checkpoint['best_step'], checkpoint['stale'])
+        early_stop_restarts = checkpoint.get('early_stop_restarts', 0)
+        if type(early_stop_restarts) is not int or early_stop_restarts < 0:
+            raise ValueError('invalid early-stop restart count')
         if extended:
             stale = 0  # Keep best health metrics and checkpoint across phases.
+        else:
+            retry = getattr(args, 'resume_after_early_stop', False)
+            stale = resume_staleness(stale, args.patience, step, args.steps, reset=retry)
+            early_stop_restarts += int(retry)
 
     print(json.dumps({
         'run_id': RUN_ID, 'stage': 'retrieval-anti-collapse',
@@ -344,11 +415,19 @@ def run(args):
         'curation_counts': train_stats,
         'positive_only_curation_counts': extra_stats,
         'positive_only_enabled': extra_enabled,
+        'weak_video_caption_counts': video_stats,
+        'weak_video_caption_enabled': bool(video),
         'gpu_allocator_fraction': 0.45,
+        'quarantined_research_only': local_research,
+        'production_promotion_allowed': False,
         'continuation_phase': continuation_phase,
+        'early_stop_restarts': early_stop_restarts,
+        'selection_policy': SELECTION_POLICY,
     }), flush=True)
     device = torch.device('cuda')
+    torch.cuda.reset_peak_memory_stats(device)
     for step in range(step + 1, args.steps + 1):
+        step_started = time.monotonic()
         chosen = torch.randperm(len(train), generator=generator)[:args.batch_size]
         batch = [train[int(i)] for i in chosen]
         phase = configure_trainable_stage(model, step, args.projection_only_steps)
@@ -365,6 +444,12 @@ def run(args):
             extra_loss, extra_measures = cached_positive_only_backward(
                 model, [extra[int(i)] for i in positive_sample], device,
                 optimizer=optimizer, weight=args.positive_only_weight)
+        video_loss = None
+        if video and step % video_every == 0:
+            video_sample = torch.randperm(len(video), generator=generator)[:video_batch]
+            video_loss, _ = cached_positive_only_backward(
+                model, [video[int(i)] for i in video_sample], device,
+                optimizer=optimizer, weight=video_weight)
         if not optimizer.step():
             raise RuntimeError('nonfinite retrieval gradient; last checkpoint preserved')
         check = step % args.validate_every == 0 or step == args.steps
@@ -376,6 +461,7 @@ def run(args):
                 save_atomic(best, {
                     'format': STAGE_FORMAT + '-best', 'settings': settings,
                     'step': step, 'metrics': val_metrics,
+                    'selection_policy': SELECTION_POLICY,
                     'continuation_phase': continuation_phase,
                     'model': model.state_dict(),
                 })
@@ -384,6 +470,7 @@ def run(args):
         if check or step % args.save_every == 0:
             save_atomic(last, {
                 'format': STAGE_FORMAT, 'settings': settings,
+                'selection_policy': SELECTION_POLICY,
                 'step': step, 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'sampler_rng': generator.get_state(),
@@ -391,13 +478,17 @@ def run(args):
                 'cpu_rng': torch.get_rng_state(),
                 'cuda_rng': torch.cuda.get_rng_state_all(),
                 'best_metrics': best_metrics, 'best_step': best_step,
-                'stale': stale,
+                'stale': stale, 'early_stop_restarts': early_stop_restarts,
             })
             print(json.dumps({
                 'stage': 'retrieval-anti-collapse', 'step': step,
+                'step_elapsed_seconds': round(time.monotonic() - step_started, 3),
+                'cuda_peak_allocated_mib': round(torch.cuda.max_memory_allocated(device) / 1024**2, 1),
                 'train_objective': round(loss, 6),
                 'positive_only_objective': (round(extra_loss, 6)
                                             if extra_loss is not None else None),
+                'weak_video_caption_objective': (round(video_loss, 6)
+                                                 if video_loss is not None else None),
                 'positive_only_geometry': ({k: round(v, 6)
                                              for k, v in extra_measures.items()}
                                             if extra_measures is not None else None),
@@ -405,7 +496,8 @@ def run(args):
                 'learning_rate': optimizer.lr,
                 'train_geometry': {k: round(v, 6) for k, v in measures.items()},
                 'val_metrics': val_metrics,
-                'healthy': checkpoint_is_healthy(val_metrics),
+                'healthy': (checkpoint_is_healthy(val_metrics)
+                            if val_metrics is not None else None),
                 'best_step': best_step,
                 'gradient_norm': optimizer.last_grad_norm,
             }), flush=True)
@@ -436,8 +528,17 @@ def main():
     p.add_argument('--positive-only-batch', type=int, default=2)
     p.add_argument('--positive-only-every', type=int, default=4)
     p.add_argument('--positive-only-weight', type=float, default=0.25)
+    p.add_argument('--video-caption-pairs', type=int, default=0,
+                   help='private-research weak English positives from same-video captions; 0 disables')
+    p.add_argument('--video-caption-batch', type=int, default=2)
+    p.add_argument('--video-caption-every', type=int, default=8)
+    p.add_argument('--video-caption-weight', type=float, default=0.1)
     p.add_argument('--seed', type=int, default=1001)
     p.add_argument('--resume', action='store_true')
+    p.add_argument('--resume-after-early-stop', action='store_true',
+                   help='explicitly reset patience for an unfinished early-stopped run')
+    p.add_argument('--local-research-quarantine', action='store_true',
+                   help='private local research only; neither data nor weights are approved for release')
     p.add_argument('--extend-steps', action='store_true',
                    help='after completed budget, continue identical corpus and tokenizer at lower LR')
     args = p.parse_args()

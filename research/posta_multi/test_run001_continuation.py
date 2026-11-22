@@ -2,7 +2,7 @@
 import math
 import unittest
 
-from run001_continuation import (PHASE_POLICY, extension_lr_multiplier,
+from run001_continuation import (PHASE_POLICY, RECONFIGURED_PHASE_POLICY, EXPANDED_PHASE_POLICY, extension_lr_multiplier,
                                   resume_policy)
 
 
@@ -32,6 +32,65 @@ def with_steps(n):
 
 
 class ResumeContinuationTests(unittest.TestCase):
+    def test_sample_expansion_is_explicit_pinned_and_resumable(self):
+        old = {**SETTINGS, 'grad_accum': 4, 'validate_every': 25, 'patience': 4,
+               'train_per_group': 2000, 'train_selection_sha256': 'c' * 64}
+        new = {**old, 'steps': 300, 'train_per_group': 8000,
+               'train_selection_sha256': 'd' * 64}
+        with self.assertRaisesRegex(ValueError, 'settings/provenance changed'):
+            resume_policy(checkpoint(100, settings=old), new, extend=True,
+                          reconfigure=True, start_lr_multiplier=.1)
+        phase, extended = resume_policy(checkpoint(100, settings=old), new,
+            extend=True, reconfigure=True, start_lr_multiplier=.1, expand_train_sample=True)
+        self.assertTrue(extended)
+        self.assertEqual(phase['policy'], EXPANDED_PHASE_POLICY)
+        self.assertEqual(phase['changed_settings']['train_per_group'], {'from': 2000, 'to': 8000})
+        self.assertEqual(phase['changed_settings']['train_selection_sha256']['from'], 'c' * 64)
+        restored, extended = resume_policy(checkpoint(110, settings=new, phase=phase), new)
+        self.assertFalse(extended)
+        self.assertEqual(restored, phase)
+        for invalid in ({**new, 'manifest_sha256': 'e' * 64},
+                        {**new, 'tokenizer_sha256': 'e' * 64},
+                        {**new, 'val_selection_sha256': 'e' * 64},
+                        {**new, 'train_per_group': 1000},
+                        {**new, 'train_selection_sha256': 'invalid'}):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                resume_policy(checkpoint(100, settings=old), invalid, extend=True,
+                    reconfigure=True, start_lr_multiplier=.1, expand_train_sample=True)
+
+    def test_explicit_phase_reconfiguration_records_and_resumes_changes(self):
+        old = {**SETTINGS, 'grad_accum': 1, 'validate_every': 3, 'patience': 4}
+        new = {**old, 'steps': 300, 'grad_accum': 4, 'validate_every': 20}
+        with self.assertRaisesRegex(ValueError, 'settings/provenance changed'):
+            resume_policy(checkpoint(100, settings=old), new, extend=True)
+        phase, extended = resume_policy(checkpoint(100, settings=old), new,
+            extend=True, reconfigure=True, start_lr_multiplier=0.5)
+        self.assertTrue(extended)
+        self.assertEqual(phase['policy'], RECONFIGURED_PHASE_POLICY)
+        self.assertEqual(phase['changed_settings']['grad_accum'], {'from': 1, 'to': 4})
+        self.assertEqual(phase['changed_settings']['validate_every'], {'from': 3, 'to': 20})
+        self.assertAlmostEqual(extension_lr_multiplier(300, phase), 0.1)
+        resumed, extended = resume_policy(checkpoint(110, settings=new, phase=phase), new)
+        self.assertFalse(extended)
+        self.assertEqual(resumed, phase)
+        higher_phase, _ = resume_policy(checkpoint(100, settings=old), new,
+            extend=True, reconfigure=True, start_lr_multiplier=0.8)
+        next_phase, _ = resume_policy(checkpoint(300, settings=new, phase=higher_phase),
+                                      {**new, 'steps': 400}, extend=True)
+        self.assertEqual(next_phase['start_lr_multiplier'], 0.1)
+        resume_policy(checkpoint(301, settings={**new, 'steps': 400}, phase=next_phase),
+                      {**new, 'steps': 400})
+        with self.assertRaisesRegex(ValueError, 'invalid continuation phase'):
+            resume_policy(checkpoint(110, settings=new, phase={**phase,
+                'changed_settings': {'grad_accum': {'from': 1, 'to': 5}}}), new)
+        with self.assertRaisesRegex(ValueError, 'settings/provenance changed'):
+            resume_policy(checkpoint(100, settings=old), {**new, 'seed': 3},
+                          extend=True, reconfigure=True, start_lr_multiplier=0.5)
+        for invalid in (None, float('nan'), 0.0, 1.1):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                resume_policy(checkpoint(100, settings=old), new, extend=True,
+                              reconfigure=True, start_lr_multiplier=invalid)
+
     def test_identical_settings_preserve_unfinished_run_without_extension(self):
         phase, extended = resume_policy(checkpoint(37), dict(SETTINGS))
         self.assertIsNone(phase)

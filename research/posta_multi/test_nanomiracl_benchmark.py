@@ -6,6 +6,28 @@ from nanomiracl_benchmark import BM25Index, available_splits, evaluate_language,
 
 
 class NanoTests(unittest.TestCase):
+    def test_fetch_retries_rate_limit_but_not_other_client_errors(self):
+        import io
+        import urllib.error
+        from unittest.mock import patch
+        from nanomiracl_benchmark import fetch_json
+        response = io.BytesIO(b'{"ok":true}')
+        response.headers = {}
+        rate_limit = urllib.error.HTTPError('https://example.org', 429, 'rate limit',
+                                           {'Retry-After': '3'}, None)
+        with patch('nanomiracl_benchmark.urllib.request.urlopen',
+                   side_effect=[rate_limit, response]) as request, \
+             patch('nanomiracl_benchmark.time.sleep') as sleep:
+            self.assertEqual(fetch_json('https://example.org'), {'ok': True})
+            self.assertEqual(request.call_count, 2)
+            sleep.assert_called_once_with(3)
+        forbidden = urllib.error.HTTPError('https://example.org', 403, 'forbidden', {}, None)
+        with patch('nanomiracl_benchmark.urllib.request.urlopen', side_effect=forbidden), \
+             patch('nanomiracl_benchmark.time.sleep') as sleep:
+            with self.assertRaises(urllib.error.HTTPError):
+                fetch_json('https://example.org')
+            sleep.assert_not_called()
+
     def test_inverted_bm25_ranks_match(self):
         index = BM25Index({"a": "красный спортивный автомобиль",
                            "b": "суп вкусный суп",

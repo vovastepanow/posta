@@ -169,31 +169,50 @@ class PostaMulti(nn.Module):
         x = self.temporal_encoder(x, src_key_padding_mask=padding)
         return F.normalize(self.temporal_norm(x[:, 0]), dim=-1, eps=1e-6)
 
-    def encode_video(self, frames, frame_mask=None, timestamps=None):
+    def encode_video(self, frames, frame_mask=None, timestamps=None, time_encoding='legacy'):
         c = self.config
         if frames.ndim != 5 or tuple(frames.shape[2:]) != (3, c.image_size, c.image_size):
             raise ValueError('frames must have shape [batch, time, 3, image_size, image_size]')
         batch, time = frames.shape[:2]
         if time == 0 or time > c.temporal_length:
             raise ValueError('invalid number of video frames')
+        frame_embeddings = self.encode_image(frames.reshape(batch*time, 3, c.image_size, c.image_size)).reshape(batch, time, c.embed_dim)
+        return self.encode_video_embeddings(frame_embeddings, frame_mask, timestamps, time_encoding)
+
+    def encode_video_embeddings(self, frame_embeddings, frame_mask=None, timestamps=None, time_encoding='legacy'):
+        """Encode precomputed frame embeddings; callers can batch image inference separately."""
+        c = self.config
+        if time_encoding not in ('legacy', 'relative-centered-v1'):
+            raise ValueError('invalid video time encoding')
+        if frame_embeddings.ndim != 3 or frame_embeddings.shape[2] != c.embed_dim:
+            raise ValueError('frame_embeddings must have shape [batch, time, embed_dim]')
+        batch, time = frame_embeddings.shape[:2]
+        if time == 0 or time > c.temporal_length:
+            raise ValueError('invalid number of video frames')
         if frame_mask is not None:
             if frame_mask.shape != (batch, time) or not frame_mask[:, 0].bool().all():
                 raise ValueError('frame_mask must include the first frame')
-        valid = frame_mask.bool() if frame_mask is not None else torch.ones((batch, time), dtype=torch.bool, device=frames.device)
+        valid = frame_mask.bool() if frame_mask is not None else torch.ones((batch, time), dtype=torch.bool, device=frame_embeddings.device)
         if ((~valid[:, :-1]) & valid[:, 1:]).any():
             raise ValueError('frame padding must follow valid frames')
-        frame_embeddings = self.encode_image(frames.reshape(batch*time, 3, c.image_size, c.image_size)).reshape(batch, time, c.embed_dim)
         if timestamps is not None:
             if timestamps.shape != (batch, time) or not torch.isfinite(timestamps[valid]).all():
                 raise ValueError('timestamps must be finite and match frame dimensions')
             relative = (timestamps.float() - timestamps[:, :1].float()).masked_fill(~valid, 0)
             if ((relative[:, 1:] < relative[:, :-1]) & valid[:, 1:] & valid[:, :-1]).any():
                 raise ValueError('valid frame timestamps must be nondecreasing')
-            frequencies = torch.exp(torch.arange(0, c.embed_dim, 2, device=frames.device, dtype=torch.float32)
+            frequencies = torch.exp(torch.arange(0, c.embed_dim, 2, device=frame_embeddings.device, dtype=torch.float32)
                                     * (-math.log(10000.0) / c.embed_dim))
             angles = relative.unsqueeze(-1) * frequencies
-            time_encoding = torch.stack((angles.sin(), angles.cos()), dim=-1).flatten(-2)
-            frame_embeddings = frame_embeddings + time_encoding.to(frame_embeddings.dtype)
+            time_features = torch.stack((angles.sin(), angles.cos()), dim=-1).flatten(-2)
+            if time_encoding == 'relative-centered-v1':
+                # Frame embeddings are unit vectors. Unscaled cosine/sine time
+                # vectors have norm sqrt(embed_dim/2) and can dominate them.
+                # Remove the common t=0 offset and bound the temporal signal.
+                origin = torch.zeros(c.embed_dim, device=frame_embeddings.device, dtype=torch.float32)
+                origin[1::2] = 1
+                time_features = (time_features - origin) / math.sqrt(c.embed_dim / 2)
+            frame_embeddings = frame_embeddings + time_features.to(frame_embeddings.dtype)
         return self._encode_temporal(frame_embeddings, 0, valid)
 
     def encode_audio(self, log_mel):

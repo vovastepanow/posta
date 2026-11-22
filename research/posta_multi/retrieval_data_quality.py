@@ -142,6 +142,7 @@ def curate_retrieval_pairs(corpus, limit, split='train', avoid_heldout=True,
 
 
 POSITIVE_ONLY_POLICY = 'posta-retrieval-positive-only-strict-v1'
+VIDEO_CAPTION_POLICY = 'posta-video-brief-detail-positive-only-v1'
 
 
 def curate_positive_only_pairs(corpus, limit, *, forbidden_queries=()):
@@ -194,6 +195,71 @@ def curate_positive_only_pairs(corpus, limit, *, forbidden_queries=()):
     pairs = [selected[key] for key in keys[:limit]]
     stats['selected_pairs'] = len(pairs)
     digest = hashlib.sha256(POSITIVE_ONLY_POLICY.encode('ascii'))
+    for pair in pairs:
+        raw = json.dumps(pair, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        digest.update(len(raw).to_bytes(8, 'big'))
+        digest.update(raw)
+    return pairs, digest.hexdigest(), stats
+
+
+def curate_video_caption_pairs(corpus, limit):
+    """Select weak English positives: two captions of the same training video.
+
+    This does not assert that captions are search queries or create negatives.
+    It excludes exact held-out text and held-out video group/media identifiers.
+    """
+    from corpus import KINDS
+    if type(limit) is not int or limit < 0:
+        raise ValueError('video pair limit must be a nonnegative integer')
+    forbidden_text, forbidden_groups, forbidden_media = set(), set(), set()
+    for split in ('validation', 'test'):
+        for kind in KINDS:
+            for row in corpus.rows(kind, split):
+                values = [row.get('text'), row.get('positive'), row.get('ocr'),
+                          row.get('detailed_caption'), row.get('subtitles')]
+                if isinstance(row.get('negatives'), list):
+                    values.extend(row['negatives'])
+                forbidden_text.update(value for text in values if (value := normalized(text)))
+                if kind == 'video_text':
+                    dataset, group = row.get('dataset_id'), row.get('group_id')
+                    if isinstance(dataset, str) and dataset and isinstance(group, str) and group:
+                        forbidden_groups.add((dataset, group))
+                    if isinstance(row.get('media_sha256'), str) and row['media_sha256']:
+                        forbidden_media.add(row['media_sha256'])
+    stats = {'rows_seen': 0, 'english_rows': 0, 'invalid_or_short': 0,
+             'heldout_text_or_video': 0, 'eligible_video_groups': 0, 'selected_pairs': 0}
+    by_group = {}
+    for row in corpus.rows('video_text', 'train'):
+        stats['rows_seen'] += 1
+        if row.get('language') != 'en':
+            continue
+        stats['english_rows'] += 1
+        q, p = normalized(row.get('text')), normalized(row.get('detailed_caption'))
+        dataset, group, media = row.get('dataset_id'), row.get('group_id'), row.get('media_sha256')
+        if (len(q) < 20 or len(p) < 20 or q == p or not isinstance(dataset, str) or not dataset or
+                not isinstance(group, str) or not group or not isinstance(media, str) or len(media) != 64 or
+                any(char not in '0123456789abcdef' for char in media)):
+            stats['invalid_or_short'] += 1
+            continue
+        key = (dataset, group)
+        if q in forbidden_text or p in forbidden_text or key in forbidden_groups or media in forbidden_media:
+            stats['heldout_text_or_video'] += 1
+            continue
+        pair = (row['text'].strip(), row['detailed_caption'].strip())
+        if key not in by_group or _triple_order(pair) < _triple_order(by_group[key]):
+            by_group[key] = pair
+    stats['eligible_video_groups'] = len(by_group)
+    ranked = sorted(by_group.items(), key=lambda item: (_triple_order(item[1]), item[0]))
+    pairs, used_queries = [], set()
+    for _, pair in ranked:
+        if normalized(pair[0]) in used_queries:
+            continue
+        if len(pairs) >= limit:
+            break
+        used_queries.add(normalized(pair[0]))
+        pairs.append(pair)
+    stats['selected_pairs'] = len(pairs)
+    digest = hashlib.sha256(VIDEO_CAPTION_POLICY.encode('ascii'))
     for pair in pairs:
         raw = json.dumps(pair, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         digest.update(len(raw).to_bytes(8, 'big'))

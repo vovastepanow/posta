@@ -59,6 +59,11 @@ def require_local_research_quarantine(corpus):
     }
 
 
-def ensure_no_unapproved_weights_in_stage2(settings):
-    if settings.get('quarantined_research_only'):
+def ensure_no_unapproved_weights_in_stage2(settings, *, local_research=False):
+    if local_research:
+        if (settings.get('quarantined_research_only') is not True or
+                settings.get('private_local_only') is not True or
+                settings.get('production_promotion_allowed') is not False):
+            raise ValueError('local research requires an explicitly restricted stage 1 checkpoint')
+    elif settings.get('quarantined_research_only') or settings.get('private_local_only'):
         raise ValueError('quarantined research weights cannot be promoted to stage 2')

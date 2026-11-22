@@ -5,7 +5,7 @@ import unittest
 
 from run001_data import (KINDS, POLICY, approval_issues,
                          balanced_validation_windows, cross_split_exact_overlaps,
-                         make_windows, require_isolated_splits, select_records)
+                         make_windows, require_full_heldout_isolation, require_isolated_splits, select_records)
 
 
 class FakeCorpus:
@@ -29,6 +29,14 @@ class FakeTokenizer:
 
 
 class Run001DataTests(unittest.TestCase):
+    def test_expansion_checks_all_heldout_fields_including_test(self):
+        train = [(('text', 'ru'), 'same CONTENT')]
+        corpus = FakeCorpus({('retrieval', 'test'): [
+            {'text': 'another query', 'positive': ' same content ', 'language': 'ru'}]})
+        with self.assertRaisesRegex(ValueError, 'train and test share'):
+            require_full_heldout_isolation(corpus, train)
+        self.assertEqual(require_full_heldout_isolation(FakeCorpus({}), train),
+                         {'validation': 0, 'test': 0})
     def test_all_supported_modalities_and_positive_documents(self):
         self.assertEqual(len(KINDS), 7)
         corpus = FakeCorpus({

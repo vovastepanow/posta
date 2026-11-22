@@ -7,6 +7,7 @@ from spec import Config, parameter_counts, memory_floor
 try:
     import torch
     from model import PostaMulti
+    from av_frame_cache import cached_frame_embeddings, backward_recomputed_frames
     HAVE_TORCH=True
 except ImportError:
     HAVE_TORCH=False
@@ -74,6 +75,56 @@ class ModelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'nondecreasing'):
             self.model.encode_video(torch.randn(1,2,3,32,32),timestamps=torch.tensor([[2.,1.]]))
 
+
+    def test_streamed_video_embeddings_match_direct_path_and_gradients(self):
+        self.model.eval()
+        frames = torch.randn(2, 3, 3, 32, 32)
+        mask = torch.tensor([[True, True, True], [True, True, False]])
+        times = torch.tensor([[0., .1, .2], [0., .2, 0.]])
+        direct = self.model.encode_video(frames, mask, times)
+        direct_grad = torch.autograd.grad(direct[:, 0].sum(), self.model.image_patches.weight)[0]
+        chunks = [self.model.encode_image(frames[:, i]) for i in range(3)]
+        streamed = self.model.encode_video_embeddings(torch.stack(chunks, dim=1), mask, times)
+        streamed_grad = torch.autograd.grad(streamed[:, 0].sum(), self.model.image_patches.weight)[0]
+        self.assertTrue(torch.allclose(direct, streamed, atol=1e-6, rtol=1e-5))
+        self.assertTrue(torch.allclose(direct_grad, streamed_grad, atol=1e-6, rtol=1e-5))
+        with self.assertRaisesRegex(ValueError, 'frame_embeddings'):
+            self.model.encode_video_embeddings(torch.randn(2, 3, 17))
+
+    def test_recomputed_frame_gradients_match_full_video_backward(self):
+        self.model.eval()
+        frames = torch.randn(1, 3, 3, 32, 32)
+        times = torch.tensor([[0., .1, .2]])
+        self.model.encode_video(frames, timestamps=times)[:, 0].sum().backward()
+        expected = {name: p.grad.clone() for name, p in self.model.named_parameters()
+                    if p.grad is not None}
+        self.model.zero_grad(set_to_none=True)
+        cached = cached_frame_embeddings(self.model, frames)
+        self.model.encode_video_embeddings(cached, timestamps=times)[:, 0].sum().backward()
+        backward_recomputed_frames(self.model, frames, cached)
+        actual = {name: p.grad for name, p in self.model.named_parameters() if p.grad is not None}
+        self.assertEqual(expected.keys(), actual.keys())
+        for name in expected:
+            self.assertTrue(torch.allclose(expected[name], actual[name], atol=2e-6, rtol=1e-4), name)
+        self.model.train()
+        with self.assertRaisesRegex(ValueError, 'eval mode'):
+            cached_frame_embeddings(self.model, frames)
+
+    def test_centered_time_has_no_constant_offset_and_legacy_is_unchanged(self):
+        self.model.eval()
+        embeddings = torch.nn.functional.normalize(torch.randn(2, 3, self.c.embed_dim), dim=-1)
+        zero = torch.zeros(2, 3)
+        with torch.no_grad():
+            untimed = self.model.encode_video_embeddings(embeddings)
+            centered = self.model.encode_video_embeddings(
+                embeddings, timestamps=zero, time_encoding='relative-centered-v1')
+            legacy = self.model.encode_video_embeddings(embeddings, timestamps=zero)
+            explicit = self.model.encode_video_embeddings(embeddings, timestamps=zero, time_encoding='legacy')
+        self.assertTrue(torch.allclose(untimed, centered, atol=1e-6))
+        self.assertTrue(torch.equal(legacy, explicit))
+        self.assertFalse(torch.allclose(untimed, legacy, atol=1e-4))
+        with self.assertRaisesRegex(ValueError, 'time encoding'):
+            self.model.encode_video_embeddings(embeddings, time_encoding='unknown')
 
     def test_new_pooling_is_padding_invariant(self):
         c = replace(self.c, text_pooling='mean')

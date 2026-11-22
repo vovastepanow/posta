@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import shutil
+import time
 from dataclasses import asdict, replace
 from pathlib import Path
 
@@ -25,7 +26,8 @@ from run001_research_policy import require_local_research_quarantine
 from corpus import Corpus
 from model import PostaMulti
 from run001_data import (POLICY, approval_issues, balanced_validation_windows,
-                         make_windows, require_isolated_splits, select_records)
+                         make_windows, require_full_heldout_isolation,
+                         require_isolated_splits, select_records)
 from run001_smoke import RUN_ID, trainable_text_parameters
 from spec import Config, parameter_counts
 from train_text import save_atomic
@@ -146,6 +148,17 @@ def readiness(dataset, tokenizer_file):
 def run(args):
     if getattr(args, 'extend_steps', False) and not args.resume:
         raise ValueError('--extend-steps requires --resume')
+    if getattr(args, 'reconfigure_extension', False) and not getattr(args, 'extend_steps', False):
+        raise ValueError('--reconfigure-extension requires --extend-steps')
+    if getattr(args, 'extension_lr_multiplier', None) is not None and not getattr(args, 'reconfigure_extension', False):
+        raise ValueError('--extension-lr-multiplier requires --reconfigure-extension')
+    if getattr(args, 'reconfigure_extension', False) and (
+            args.extension_lr_multiplier is None or
+            not math.isfinite(args.extension_lr_multiplier) or
+            not 0 < args.extension_lr_multiplier <= 1):
+        raise ValueError('reconfigured extension needs a finite LR multiplier in (0, 1]')
+    if getattr(args, 'expand_train_sample', False) and not getattr(args, 'reconfigure_extension', False):
+        raise ValueError('--expand-train-sample requires --reconfigure-extension')
     if args.steps < 1 or args.save_every < 1 or args.validate_every < 1 or        args.grad_accum < 1 or args.max_masked < 1 or args.patience < 1 or        args.train_per_group < 1 or args.val_per_group < 1 or args.val_windows_per_group < 1 or        args.seq_length < 8 or args.seq_length > 512 or        args.warmup < 0 or args.warmup >= args.steps or        not 0 < args.lr <= 0.01:
         raise ValueError('invalid Run 001 training settings')
 
@@ -182,6 +195,8 @@ def run(args):
     selected_val, val_counts = select_records(
         corpus, split='validation', max_per_group=args.val_per_group)
     require_isolated_splits(selected_train, selected_val)
+    if getattr(args, 'expand_train_sample', False):
+        require_full_heldout_isolation(corpus, selected_train)
     train, train_sha, train_windows = make_windows(
         selected_train, tokenizer, args.seq_length)
     val, val_labels, val_sha, val_windows = balanced_validation_windows(
@@ -243,7 +258,10 @@ def run(args):
         if state.get('format') != settings['format']:
             raise ValueError('Run 001 text checkpoint format mismatch')
         continuation_phase, extended = resume_policy(
-            state, settings, extend=getattr(args, 'extend_steps', False))
+            state, settings, extend=getattr(args, 'extend_steps', False),
+            reconfigure=getattr(args, 'reconfigure_extension', False),
+            start_lr_multiplier=getattr(args, 'extension_lr_multiplier', None),
+            expand_train_sample=getattr(args, 'expand_train_sample', False))
         model.load_state_dict(state['model'])
         optimizer.load_state_dict(state['optimizer'])
         torch.set_rng_state(state['cpu_rng'])
@@ -270,15 +288,19 @@ def run(args):
     }, ensure_ascii=False), flush=True)
 
     device = torch.device('cuda')
+    torch.cuda.reset_peak_memory_stats(device)
     for step in range(start+1, args.steps+1):
+        step_started = time.monotonic()
         model.train()
         optimizer.lr = (args.lr * extension_lr_multiplier(step, continuation_phase)
                         if continuation_phase else
                         schedule(step, args.steps, args.lr, args.warmup))
         optimizer.zero_grad()
         losses = []
+        input_tokens = 0
         for micro in range(args.grad_accum):
             sample = train[int(torch.randint(len(train), (1,), generator=generator).item())]
+            input_tokens += len(sample)
             value = mlm_step_loss(model, sample, generator, device, args.max_masked)
             if not bool(torch.isfinite(value)):
                 raise RuntimeError('non-finite MLM loss; previous checkpoint preserved')
@@ -318,6 +340,9 @@ def run(args):
             })
             print(json.dumps({'stage': 'text-mlm', 'step': step,
                               'train_loss': round(sum(losses)/len(losses), 6),
+                              'step_elapsed_seconds': round(time.monotonic() - step_started, 3),
+                              'input_tokens': input_tokens,
+                              'cuda_peak_allocated_mib': round(torch.cuda.max_memory_allocated(device) / 1024**2, 1),
                               'gradient_global_norm': (round(optimizer.last_grad_norm, 6)
                                       if optimizer.last_grad_norm is not None else None),
                               'gradient_clip_multiplier': round(optimizer.last_grad_multiplier, 6),
@@ -345,6 +370,12 @@ def main():
     p.add_argument('--resume', action='store_true')
     p.add_argument('--extend-steps', action='store_true',
                    help='after completing previous budget, extend on exactly the same corpus and tokenizer at lower LR')
+    p.add_argument('--reconfigure-extension', action='store_true',
+                   help='at a completed phase boundary, explicitly change accumulation or validation cadence')
+    p.add_argument('--extension-lr-multiplier', type=float,
+                   help='explicit new phase starting LR as a fraction of the original base LR, at most 1')
+    p.add_argument('--expand-train-sample', action='store_true',
+                   help='at a completed phase boundary, explicitly increase the same-corpus train sample cap')
     p.add_argument('--steps', type=int, default=2000)
     p.add_argument('--save-every', type=int, default=100)
     p.add_argument('--validate-every', type=int, default=100)

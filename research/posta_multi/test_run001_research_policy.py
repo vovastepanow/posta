@@ -67,5 +67,20 @@ class QuarantinePolicyTests(unittest.TestCase):
         ensure_no_unapproved_weights_in_stage2(
             {'quarantined_research_only': False})
 
+    def test_private_stage_two_requires_explicit_restricted_source(self):
+        settings = {'quarantined_research_only': True,
+                    'private_local_only': True,
+                    'production_promotion_allowed': False}
+        ensure_no_unapproved_weights_in_stage2(settings, local_research=True)
+        for field, value in (('quarantined_research_only', False),
+                             ('private_local_only', False),
+                             ('production_promotion_allowed', True)):
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, 'explicitly restricted'):
+                    ensure_no_unapproved_weights_in_stage2(
+                        {**settings, field: value}, local_research=True)
+        with self.assertRaisesRegex(ValueError, 'explicitly restricted'):
+            ensure_no_unapproved_weights_in_stage2({}, local_research=True)
+
 if __name__ == '__main__':
     unittest.main()
