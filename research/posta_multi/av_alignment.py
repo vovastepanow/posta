@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from av_frame_cache import cached_frame_embeddings, backward_recomputed_frames
 from av_temporal import aggregate_video_windows
 from run001_retrieval_loss import positive_only_alignment_loss
+from av_geometry_objective import alignment_with_geometry
 
 
 def configure_av_trainable(model):
@@ -56,7 +57,8 @@ def _speech(model, mel, device):
 
 
 def alignment_backward(model, video_pairs, speech_pairs, device, optimizer=None,
-                       time_encoding='legacy', window_aggregation='mean'):
+                       time_encoding='legacy', window_aggregation='mean',
+                       teacher_geometry_weight=0):
     """Backpropagate labeled positives, then recompute frames one at a time.
 
     Each pair is (frozen_text_vector, windows_or_speech_mel); every supplied
@@ -80,7 +82,13 @@ def alignment_backward(model, video_pairs, speech_pairs, device, optimizer=None,
             targets.append(text.to(device=device, dtype=torch.float32))
             predictions.append(_video(model, media, device, caches, time_encoding, window_aggregation) if kind == 'video'
                                else _speech(model, media, device))
-        loss, stats = positive_only_alignment_loss(torch.stack(targets), torch.stack(predictions))
+        t_vectors, m_vectors = torch.stack(targets), torch.stack(predictions)
+        if teacher_geometry_weight:
+            loss, stats = alignment_with_geometry(
+                t_vectors, m_vectors, positive_only_alignment_loss,
+                geometry_weight=teacher_geometry_weight)
+        else:
+            loss, stats = positive_only_alignment_loss(t_vectors, m_vectors)
         losses.append(loss)
         diagnostics[kind] = stats
     total = torch.stack(losses).mean()
