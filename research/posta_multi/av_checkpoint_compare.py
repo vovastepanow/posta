@@ -75,6 +75,30 @@ def compare(baseline, after, train):
              "baseline does not use the pilot source checkpoint format")
     _require(after.get("checkpoint_format") == train.get("format"),
              "after report is not from the pilot checkpoint")
+    # Older reports lack file digests; compare their metrics but explicitly mark
+    # the provenance as incomplete. Newly hashed reports must match exactly.
+    for label, report in (("baseline", baseline), ("after", after)):
+        token_hash = report.get("tokenizer_sha256")
+        if token_hash is not None:
+            _require(token_hash == train["tokenizer_sha256"],
+                     f"{label} evaluation used a different tokenizer")
+        checkpoint_hash = report.get("checkpoint_sha256")
+        if checkpoint_hash is not None:
+            _require(type(checkpoint_hash) is str and len(checkpoint_hash) == 64,
+                     f"{label} checkpoint fingerprint is malformed")
+    baseline_bound = baseline.get("checkpoint_sha256") is not None
+    if baseline_bound:
+        _require(baseline["checkpoint_sha256"] == train["source_checkpoint_sha256"],
+                 "baseline was not evaluated against the actual pilot source weights")
+    trained_hash = train.get("output_checkpoint_sha256")
+    if trained_hash is not None:
+        _require(type(trained_hash) is str and len(trained_hash) == 64,
+                 "pilot output checkpoint fingerprint is malformed")
+    after_bound = (trained_hash is not None and
+                   after.get("checkpoint_sha256") is not None)
+    if after_bound:
+        _require(after["checkpoint_sha256"] == trained_hash,
+                 "after evaluation was not run against the actual pilot output weights")
     output = {}
     for kind in KINDS:
         before = baseline["modalities"][kind]
@@ -134,6 +158,10 @@ def compare(baseline, after, train):
         "video_time_encoding": train["video_time_encoding"],
         "video_window_aggregation": train["video_window_aggregation"],
         "modalities": output,
+        "checkpoint_hashes_verified": {
+            "baseline": baseline_bound,
+            "after": after_bound,
+        },
         "quality_verified": False,
         "production_promotion_allowed": False,
         "decision": "exploratory_only_no_automatic_training_or_promotion",
