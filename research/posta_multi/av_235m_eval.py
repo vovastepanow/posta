@@ -18,6 +18,7 @@ from av_real_smoke import log_mel_audio
 from av_provenance import validate_av_source
 from av_streaming import iter_segments_streaming
 from av_temporal import aggregate_video_windows
+from av_order_sensitivity import encode_reversed_video
 from corpus import Corpus
 from corpus_smoke import ffmpeg
 from model import PostaMulti
@@ -66,6 +67,7 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
         for kind in ('video_text', 'speech_text'):
             rows, selection_sha = select_media_pairs(corpus, kind, 'validation', limit)
             text_vectors, media_vectors, counts = [], [], []
+            reverse_distances = []
             for row in rows:
                 ids = tokenizer.encode(row['text']).ids
                 if len(ids) < 3 or ids[0] != 1 or ids[-1] != 2:
@@ -73,7 +75,7 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
                 token_ids = torch.tensor([ids], device='cuda')
                 text_vectors.append(model.encode_text(token_ids, torch.ones_like(token_ids, dtype=torch.bool)).squeeze(0).float())
                 if kind == 'video_text':
-                    parts, starts = [], []
+                    parts, starts, original_frame_windows, original_time_windows = [], [], [], []
                     frame_count = 0
                     for segment in iter_segments_streaming(corpus.media_path(row), fps=30, window_seconds=2,
                                                  image_size=config.image_size):
@@ -84,6 +86,8 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
                             frame_embeddings.append(model.encode_image(image))
                         frames = torch.stack(frame_embeddings, dim=1)
                         timestamps = torch.tensor([segment['frame_timestamps']], device='cuda')
+                        original_frame_windows.append(frames)
+                        original_time_windows.append(timestamps)
                         parts.append(model.encode_video_embeddings(frames, timestamps=timestamps,
                                                                    time_encoding=time_encoding).float())
                         starts.append(timestamps[:, 0])
@@ -91,6 +95,13 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
                     media = aggregate_video_windows(model, torch.stack(parts, dim=1),
                                                     torch.stack(starts, dim=1), mode=window_aggregation,
                                                     time_encoding=time_encoding).squeeze(0)
+                    reversed_media = encode_reversed_video(
+                        model, original_frame_windows, original_time_windows,
+                        time_encoding=time_encoding,
+                        window_aggregation=window_aggregation).squeeze(0)
+                    reverse_distances.append(float((1 - torch.nn.functional.cosine_similarity(
+                        media.float().unsqueeze(0), reversed_media.float().unsqueeze(0))
+                        ).clamp_(0, 2).item()))
                     counts.append(frame_count)
                 else:
                     raw = ffmpeg('-i', corpus.media_path(row), '-ac', '1', '-ar', '16000', '-f', 'f32le', 'pipe:1')
@@ -105,6 +116,14 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
                              'groups': len({x['group_id'] for x in rows}),
                              'frame_or_sample_counts': counts,
                              'metrics': paired_media_metrics(torch.stack(text_vectors), torch.stack(media_vectors))}
+            if kind == 'video_text':
+                results[kind]['temporal_reversal_sensitivity'] = {
+                    'mean_1_minus_cosine': sum(reverse_distances) / len(reverse_distances),
+                    'min_1_minus_cosine': min(reverse_distances),
+                    'max_1_minus_cosine': max(reverse_distances),
+                    'samples': len(reverse_distances),
+                    'meaning': 'encoding changes under reversing visual content; not evidence of temporal understanding',
+                }
     return {'format': 'posta-av-235m-heldout-pool-v1', 'checkpoint_format': fmt,
             'manifest_sha256': corpus.manifest_hash, 'target_fps': 30,
             'video_time_encoding': time_encoding, 'video_window_aggregation': window_aggregation,
