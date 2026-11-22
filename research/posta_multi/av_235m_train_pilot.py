@@ -111,6 +111,10 @@ def run(dataset, tokenizer_path, source_path, output_path, window_aggregation='h
                                'video captions are weak labels; speech transcripts cover speech only',
                                'fusion weights remain untrained']}
     save_atomic(output_path, {'format': summary['format'], 'settings': summary, 'model': model.state_dict()})
+    # Hash the finished checkpoint after atomic save. The digest belongs in
+    # the external run summary, not inside the hashed checkpoint itself.
+    with output_path.open('rb') as checkpoint_stream:
+        summary['output_checkpoint_sha256'] = hashlib.file_digest(checkpoint_stream, 'sha256').hexdigest()
     return summary
 
 
