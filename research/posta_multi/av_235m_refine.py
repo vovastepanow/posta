@@ -9,6 +9,7 @@ import argparse
 from dataclasses import asdict
 import hashlib
 import json
+import math
 import shutil
 import time
 from pathlib import Path
@@ -67,11 +68,19 @@ def verified_source(checkpoint, report, *, manifest_sha, tokenizer_sha, source_s
         geometry = group.get("teacher_media_geometry", {})
         if (type(geometry.get("samples")) is not int or
                 geometry["samples"] < 8 or
-                type(geometry.get("text_interexample_cosine")) not in (int, float) or
+                any(type(geometry.get(key)) not in (int, float) or
+                    not math.isfinite(geometry[key])
+                    for key in ("text_interexample_cosine",
+                                "text_interexample_cosine_std",
+                                "media_interexample_cosine")) or
                 geometry["text_interexample_cosine"] >= .98 or
-                type(geometry.get("text_interexample_cosine_std")) not in (int, float) or
                 geometry["text_interexample_cosine_std"] <= .002):
             raise ValueError(f"{kind}: text reference is too collapsed or held-out pool too small")
+        # Only try geometry preservation when the actual measured media tower
+        # has substantially less pairwise diversity than its frozen teacher.
+        if (geometry["media_interexample_cosine"] -
+                geometry["text_interexample_cosine"] < .03):
+            raise ValueError(f"{kind}: missing evidence of media-overcollapse")
     return config
 
 
