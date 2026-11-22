@@ -14,6 +14,7 @@ from tokenizers import Tokenizer
 from av_alignment import _speech
 from av_data import select_media_pairs
 from av_metrics import paired_media_metrics
+from av_geometry_diagnostics import pairwise_geometry
 from fusion_baselines import single_modality_fusion_probe
 from av_real_smoke import log_mel_audio
 from av_provenance import validate_av_source
@@ -141,6 +142,7 @@ def evaluate(dataset, tokenizer_path, checkpoint_path, limit=4, time_encoding=No
                              'groups': len({x['group_id'] for x in rows}),
                              'frame_or_sample_counts': counts,
                              'metrics': paired_media_metrics(text_matrix, media_matrix),
+                             'teacher_media_geometry': pairwise_geometry(text_matrix, media_matrix),
                              'untrained_fusion_metrics': paired_media_metrics(
                                  text_matrix, fused_media),
                              'fusion_comparison_note': 'media-only candidate slot; no query caption '
