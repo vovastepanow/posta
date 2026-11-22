@@ -97,6 +97,26 @@ class CheckpointComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid"):
             compare(baseline, after, pilot)
 
+    def test_optional_video_order_metrics_and_version_mismatch(self):
+        baseline, after, pilot = sample_reports()
+        baseline["modalities"]["video_text"]["temporal_reversal_sensitivity"] = {
+            "samples": 4, "mean_1_minus_cosine": .01,
+            "min_1_minus_cosine": .001, "max_1_minus_cosine": .03,
+        }
+        before_only = compare(baseline, after, pilot)
+        self.assertEqual(before_only["modalities"]["video_text"]["order_probe_comparison"],
+                         "not_comparable_different_report_versions")
+        after["modalities"]["video_text"]["temporal_reversal_sensitivity"] = {
+            "samples": 4, "mean_1_minus_cosine": .02,
+            "min_1_minus_cosine": .002, "max_1_minus_cosine": .06,
+        }
+        aligned = compare(baseline, after, pilot)
+        self.assertAlmostEqual(aligned["modalities"]["video_text"]
+                               ["order_probe_comparison"]["mean_1_minus_cosine"]["delta"], .01)
+        after["modalities"]["video_text"]["temporal_reversal_sensitivity"]["samples"] = 3
+        with self.assertRaisesRegex(ValueError, "pool sizes"):
+            compare(baseline, after, pilot)
+
     def test_file_reader_blocks_missing_and_oversize(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "summary.json"
