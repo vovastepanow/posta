@@ -31,5 +31,5 @@ for executable in flock nohup; do command -v "$executable" >/dev/null || exit 0;
 umask 077
 POSTA_DEPLOY_DIR="$APP" POSTA_ML_ROOT="$ROOT" \
     nohup flock -n "$ROOT/$JOB.launch.lock" \
-        bash "$SCRIPT" </dev/null >/dev/null 2>&1 &
+        bash "$SCRIPT" 9>&- </dev/null >/dev/null 2>&1 &
 printf '[posta-av] Bounded research AV pilot queued after successful retrieval.\n'
