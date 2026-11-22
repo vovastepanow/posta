@@ -42,7 +42,7 @@ class ContactSheetTests(unittest.TestCase):
             self.assertIsNone(safe_image_path({"data": {"image_local": "media/" + secret.name}}, folder))
 
     def test_unicode_wrap_and_empty(self):
-        self.assertIn("нет содержательной", text_lines(""))
+        self.assertIn("нет содержательной", text_lines("")[0])
         self.assertLessEqual(len(text_lines("слово " * 100)), 2)
         self.assertEqual(text_lines("Мем с котом"), ["Мем с котом"])
 
