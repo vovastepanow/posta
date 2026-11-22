@@ -38,6 +38,38 @@ class CorpusAuditTests(unittest.TestCase):
             self.assertEqual(result["has_video_local_reference"], 1)
             self.assertEqual(result["video_file_accessible"], 0)
 
+    def test_remote_media_in_post_primary_images_and_gallery(self):
+        rows = [
+            {"source_key": "telegram:x", "platform": "Telegram", "data": {
+                "text": "Пост без текста",
+                "image": "https://cdn.example.com/post1.jpg",
+                "images": ["https://img.example.com/second.png"],
+                "video": "",
+                "gallery": [{"video": "https://video.example.com/clip.mp4"},
+                            {"image": "https://cdn.example.com/gallery.png"}],
+            }},
+            {"source_key": "telegram:y", "platform": "Telegram", "data": {
+                "text": "тест", "image": "not-a-url", "images": [],
+                "gallery": [],
+            }},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            result = a.audit(rows, Path(directory), "media")
+        self.assertEqual(result["posts_with_remote_image_url"], 1)
+        self.assertEqual(result["posts_with_remote_video_url"], 1)
+        self.assertEqual(result["remote_image_urls_total_including_gallery"], 3)
+        self.assertEqual(result["remote_video_urls_total_including_gallery"], 1)
+        self.assertEqual(result["remote_image_hosts_top_10"]["cdn.example.com"], 2)
+        self.assertEqual(result["posts_with_gallery_media"], 1)
+        self.assertEqual(result["gallery_entries_total"], 2)
+        self.assertEqual(result["image_file_accessible"], 0)
+        self.assertEqual(result["video_file_accessible"], 0)
+
+    def test_malformed_remote_url_is_ignored(self):
+        self.assertIsNone(a.remote_host("file:///etc/passwd"))
+        self.assertIsNone(a.remote_host("http://[invalid"))
+        self.assertEqual(a.remote_host("HTTPS://CDN.Example.COM/a"), "cdn.example.com")
+
     def test_empty_rows_and_nested_gallery(self):
         with tempfile.TemporaryDirectory() as directory:
             result = a.audit([], Path(directory), "media")
