@@ -34,6 +34,23 @@ class AlignmentTests(unittest.TestCase):
         self.assertIsNone(model.text_tokens.weight.grad)
         self.assertIsNone(model.fusion_cls.grad)
 
+    def test_teacher_geometry_reaches_audio_and_temporal_gradients(self):
+        torch.manual_seed(27)
+        config = replace(tiny_config(), temporal_length=64)
+        model = PostaMulti(config, dropout=0)
+        configure_av_trainable(model)
+        targets = torch.nn.functional.normalize(torch.randn(4, config.embed_dim), dim=-1)
+        speech = [(targets[i], torch.rand(1, config.mel_bins, 24))
+                  for i in range(4)]
+        loss, stats = alignment_backward(
+            model, [], speech, 'cpu', teacher_geometry_weight=0.5)
+        self.assertGreater(loss, 0)
+        self.assertGreater(stats['speech']['teacher_geometry_loss'], 0)
+        self.assertIsNotNone(model.audio_patch_projection.weight.grad)
+        self.assertTrue(torch.isfinite(model.audio_patch_projection.weight.grad).all())
+        self.assertGreater(float(model.audio_patch_projection.weight.grad.abs().sum()), 0)
+        self.assertIsNone(model.text_tokens.weight.grad)
+
     def test_single_pair_and_training_mode_rejected(self):
         model = PostaMulti(tiny_config(), dropout=0)
         configure_av_trainable(model)
