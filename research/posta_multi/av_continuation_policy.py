@@ -10,15 +10,19 @@ POOL_SIZES = (32, 16, 8, 4, 2)
 MODALITIES = ("video_text", "speech_text")
 
 
-def select_training_pools(corpus):
+def select_training_pools(corpus, pool_sizes=POOL_SIZES):
     """Choose the largest available disjoint training-only media pools."""
     from av_data import select_media_pairs
 
+    if (not isinstance(pool_sizes, (tuple, list)) or not pool_sizes or
+            any(type(size) is not int or size < 2 for size in pool_sizes) or
+            list(pool_sizes) != sorted(set(pool_sizes), reverse=True)):
+        raise ValueError("pool sizes must be distinct descending positive integers >=2")
     pools = {}
     hashes = {}
     for kind in MODALITIES:
         errors = []
-        for amount in POOL_SIZES:
+        for amount in pool_sizes:
             try:
                 rows, signature = select_media_pairs(corpus, kind, "train", amount)
             except ValueError as error:
