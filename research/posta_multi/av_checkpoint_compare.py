@@ -109,6 +109,23 @@ def compare(baseline, after, train):
             "selection_sha256": before["selection_sha256"],
             "changes": changes,
         }
+        if kind == "video_text":
+            original_order = before.get("temporal_reversal_sensitivity")
+            trained_order = later.get("temporal_reversal_sensitivity")
+            if (original_order is None) != (trained_order is None):
+                output[kind]["order_probe_comparison"] = "not_comparable_different_report_versions"
+            elif original_order is not None:
+                _require(type(original_order) is dict and type(trained_order) is dict,
+                         "invalid video reversal diagnostics")
+                _require(original_order.get("samples") == trained_order.get("samples") == len(counts),
+                         "video reversal diagnostic pool sizes differ")
+                order_changes = {}
+                for key in ("mean_1_minus_cosine", "min_1_minus_cosine", "max_1_minus_cosine"):
+                    initial = _number(original_order.get(key), "baseline " + key, 0, 2)
+                    final = _number(trained_order.get(key), "after " + key, 0, 2)
+                    order_changes[key] = {"baseline": initial, "after": final,
+                                          "delta": final - initial}
+                output[kind]["order_probe_comparison"] = order_changes
     return {
         "format": "posta-av-private-baseline-comparison-v1",
         "source_checkpoint_sha256": train["source_checkpoint_sha256"],
