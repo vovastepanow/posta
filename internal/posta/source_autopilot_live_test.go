@@ -217,8 +217,6 @@ func TestAutopilotLiveRSSReviewLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	const owner, topic = "autopilot-live-rss-review", "Technology live source review"
-	const feed = "https://hnrss.org/frontpage"
-	source := "rss:" + feed
 	key := autopilotTopicKey(topic)
 	if _, err := d.Pool.Exec(ctx, `INSERT INTO users(id,created_at) VALUES($1,0) ON CONFLICT DO NOTHING`, owner); err != nil {
 		t.Fatal(err)
@@ -242,18 +240,33 @@ func TestAutopilotLiveRSSReviewLifecycle(t *testing.T) {
 	}
 	job.MaxProbation = 3
 	u := a.User(ctx, "", nil)
-	live := u.RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
-	if !live.OK || !rssIsFeed(rssLoad(live.Bytes)) {
-		t.Fatalf("live RSS fetch failed: HTTP %d: %v", live.Status, live.Error)
+	// Keep the real network requirement, but do not depend on a single
+	// publisher's availability for an integration lifecycle assertion.
+	var feed string
+	var live FetchResultURL
+	var fresh []jx.M
+	for _, candidate := range []string{"https://hnrss.org/frontpage", "https://feeds.bbci.co.uk/news/technology/rss.xml", "https://www.theverge.com/rss/index.xml"} {
+		r := u.RSSGet(candidate, rssMaxBytes, 15*time.Second, HTTPUA)
+		if !r.OK || !rssIsFeed(rssLoad(r.Bytes)) {
+			t.Logf("LIVE LIFECYCLE: feed=%s HTTP=%d error=%v", candidate, r.Status, r.Error)
+			continue
+		}
+		parsed, parseErr := RSSParse(r.Bytes, 20, "", candidate, true, true, 0)
+		if parseErr != nil {
+			t.Logf("LIVE LIFECYCLE: feed=%s parse=%v", candidate, parseErr)
+			continue
+		}
+		samples := autopilotFreshRSSSamples(parsed, time.Now().Unix())
+		t.Logf("LIVE LIFECYCLE: feed=%s fresh=%d", candidate, len(samples))
+		if len(samples) >= 10 {
+			feed, live, fresh = candidate, r, samples
+			break
+		}
 	}
-	parsed, err := RSSParse(live.Bytes, 20, "", feed, true, true, 0)
-	if err != nil {
-		t.Fatal(err)
+	if feed == "" {
+		t.Fatal("no real publisher returned at least 10 fresh items for lifecycle")
 	}
-	fresh := autopilotFreshRSSSamples(parsed, time.Now().Unix())
-	if len(fresh) < 10 {
-		t.Fatalf("live RSS provides only %d fresh items; need 10 for lifecycle", len(fresh))
-	}
+	source := "rss:" + feed
 	if err := registerAutopilotCandidate(ctx, d, job, source, time.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -774,5 +787,50 @@ func TestAutopilotLiveLegacyFeedIdentities(t *testing.T) {
 	t.Logf("IDENTITY SUMMARY: leads=%d attempted=%d verified=%d", len(autopilotYouTubeRecoveryLeads), attempted, verified)
 	if verified == 0 {
 		t.Skip("no historical YouTube identity was confirmed in this environment")
+	}
+}
+
+// Diagnose actual public Osnova search results without calling a model or
+// writing any source state. Endpoint availability is not a quality verdict.
+func TestAutopilotLiveOsnovaPublisherAttribution(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	u := (&App{}).User(ctx, "", nil)
+	verified := 0
+	for _, tc := range []struct{ host, query string }{{"vc.ru", "маркетинг"}, {"dtf.ru", "игры"}} {
+		endpoint := "https://api." + tc.host + "/v2.10/search/posts?q=" + url.QueryEscape(tc.query)
+		r := u.RSSGet(endpoint, rssMaxBytes, 15*time.Second, HTTPUA)
+		if !r.OK {
+			t.Logf("OSNOVA LIVE: host=%s HTTP=%d error=%v", tc.host, r.Status, r.Error)
+			continue
+		}
+		rows := jx.Maps(jx.Map(jx.Unmarshal(r.Bytes), "result"), "items")
+		parsed, matched, safe := 0, 0, 0
+		at := time.Now().Unix()
+		for _, row := range rows {
+			post := osnovaSearchPost(jx.Map(row, "data"), tc.host, tc.query)
+			if post == nil {
+				continue
+			}
+			parsed++
+			candidate := PostSearchAuthor(post)
+			if candidate == nil {
+				continue
+			}
+			source, ok := autopilotCandidateID(*candidate)
+			if !ok || !autopilotPostMatchesSource(source, post) {
+				continue
+			}
+			matched++
+			safe += len(autopilotSafePostHints(source, []jx.M{post}, at))
+		}
+		t.Logf("OSNOVA LIVE: host=%s HTTP=%d rows=%d parsed=%d publisher_matches=%d safe_recent_text=%d", tc.host, r.Status, len(rows), parsed, matched, safe)
+		verified += matched
+	}
+	if verified == 0 {
+		t.Skip("no real publisher identity was verified in this environment")
 	}
 }
