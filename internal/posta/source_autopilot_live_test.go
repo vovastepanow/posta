@@ -740,7 +740,7 @@ func TestAutopilotLiveBlueskyAuthorFallback(t *testing.T) {
 	}
 }
 
-// Verify historical recovery leads against the official feed identity.
+// Verify historical recovery leads (including the indexed Gusarov channel) against the official feed identity.
 // This read-only check does not mutate a catalog or approve any source.
 func TestAutopilotLiveLegacyFeedIdentities(t *testing.T) {
 	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
