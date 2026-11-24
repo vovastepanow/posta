@@ -27,12 +27,13 @@
     "Batch 017: 20 direct feed attempts 425–444; 36 partial text/caption observations. No definitive gold label or external model consultation.",
     "Batch 018: 20 new direct feed attempts 445–464; 6 with visible posts, 24 partial text/caption observations. No final gold labels or external model consultation. Access failures remain unresolved.",
     "Batch 019: 27 new attempts 465–492 excluding 476; 8 direct feeds, 14 third-party archives with readable content, 3 profile-only, 2 unresolved; 117 observed text/caption excerpts. 3 provisional probation recommendations. No gold labels, media inspection, external AI or production changes. Earlier batch 018 lacks verifiable per-item evidence and requires independent recheck before trusting its observations.",
-    "Batch 020: 23 RUTUBE source listings (89–111), 297 observed video titles, 8 separately opened author descriptions from 7 sources. Titles excluded from readable-content count. No video playback or final labels. Prior batches 018–019 are not independently verified in this turn and must be rechecked before use as gold evidence."
+    "Batch 020: 23 RUTUBE source listings (89–111), 297 observed video titles, 8 separately opened author descriptions from 7 sources. Titles excluded from readable-content count. No video playback or final labels. Prior batches 018–019 are not independently verified in this turn and must be rechecked before use as gold evidence.",
+    "Batch 021: 28 new source attempts, 10 with 52 text excerpts, 21 title-only observations and 2 individually opened article bodies (one partial). Bluesky API test and Mastodon web access failed; unrelated search results excluded for Pikabu. Habr variant 185 remains unverified, possible duplicate of 184. No gold labels or external model."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 324,
-    "structured_with_visible_post_samples": 180,
+    "structured_attempted": 352,
+    "structured_with_visible_post_samples": 190,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -58,7 +59,10 @@
     "batch_018_readable_texts": 24,
     "batch_019_readable_texts": 117,
     "batch_020_title_samples": 297,
-    "batch_020_author_descriptions": 8
+    "batch_020_author_descriptions": 8,
+    "batch_021_readable_texts": 52,
+    "batch_021_title_samples": 21,
+    "batch_021_article_body_samples": 2
   },
   "rows": [
     {
@@ -1207,7 +1211,24 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://bsky.app/profile/did:plc:enmnrfjq3wyepbxf3bv7auhz",
+          "https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=did%3Aplc%3Aenmnrfjq3wyepbxf3bv7auhz&limit=10",
+          "https://plc.directory/did:plc:enmnrfjq3wyepbxf3bv7auhz"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 42,
@@ -1219,7 +1240,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=did%3Aplc%3Af3th4ycsc2cnqzy6lq2ldbob&limit=10"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 43,
@@ -1791,7 +1827,108 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://pikabu.ru/community/assenizator"
+        ],
+        "visible_post_samples": 3,
+        "visible_title_samples": 5,
+        "posts": [
+          {
+            "summary": "Шутка с ассенизаторской машиной",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://pikabu.ru/community/assenizator"
+          },
+          {
+            "summary": "История Lamborghini от тракторов до спорткаров",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://pikabu.ru/community/assenizator"
+          },
+          {
+            "summary": "Реклама канала о личных финансах и бизнесе",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://pikabu.ru/community/assenizator"
+          },
+          {
+            "summary": "Видео об уборке собачьих экскрементов",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://pikabu.ru/community/assenizator"
+          },
+          {
+            "summary": "Стиль ассенизаторской машины",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://pikabu.ru/community/assenizator"
+          },
+          {
+            "summary": "Видео о стильном ассенизаторе",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://pikabu.ru/community/assenizator"
+          },
+          {
+            "summary": "Чистка цистерны",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://pikabu.ru/community/assenizator"
+          },
+          {
+            "summary": "Оплата ассенизаторских услуг",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://pikabu.ru/community/assenizator"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Наблюдаемый материал преимущественно другой тематики; решение предварительное.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 87,
@@ -1803,7 +1940,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://pikabu.ru/community/biznes_proizvodstvo"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 88,
@@ -1815,7 +1967,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://pikabu.ru/community/business_live"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 89,
@@ -6013,7 +6180,73 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://vc.ru/id17789"
+        ],
+        "visible_post_samples": 5,
+        "visible_title_samples": 0,
+        "posts": [
+          {
+            "summary": "Речевое развитие сына и антонимы",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/id17789"
+          },
+          {
+            "summary": "Личные впечатления от корпоративных подарков",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/id17789"
+          },
+          {
+            "summary": "Загадка о количестве розничных магазинов",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/id17789"
+          },
+          {
+            "summary": "Исследование возраста супругов и разводов",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/id17789"
+          },
+          {
+            "summary": "Опыт использования iPhone Duo",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/id17789"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Многотематичная лента или смежные материалы; требуется более широкая репрезентативная выборка.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 132,
@@ -6025,7 +6258,115 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://vc.ru/marketing",
+          "https://vc.ru/marketing/3274424-targetirovannaya-reklama-dlya-muzykantov-vo-vkontakte"
+        ],
+        "visible_post_samples": 9,
+        "visible_title_samples": 0,
+        "posts": [
+          {
+            "summary": "PR недвижимости через цифры для СМИ и рекомендации ИИ",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketing"
+          },
+          {
+            "summary": "Таргет VK для музыкантов",
+            "relevance": "relevant",
+            "evidence_type": "article_body_excerpt_read",
+            "url": "https://vc.ru/marketing/3274424-targetirovannaya-reklama-dlya-muzykantov-vo-vkontakte",
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketing",
+            "article_summary": "Прочитан фрагмент основной статьи: автор советует тестировать органически успешные ролики в рекламе, различать задачи продвижения музыки и концертов, измерять покупку билетов вместо кликов и знакомить холодную аудиторию с артистом до продажи."
+          },
+          {
+            "summary": "Скрипты B2B продаж",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketing"
+          },
+          {
+            "summary": "Маркетинг в металлопрокате",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketing"
+          },
+          {
+            "summary": "География рекомендаций в ИИ-поиске",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketing"
+          },
+          {
+            "summary": "Стратегия бизнеса в кризис",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketing"
+          },
+          {
+            "summary": "Разработка сайта и планировщика медицинского аппарата",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketing"
+          },
+          {
+            "summary": "Механика опроса в Hinge",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketing"
+          },
+          {
+            "summary": "Презентация приложения знакомств Aroundy",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketing"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Многотематичная лента или смежные материалы; требуется более широкая репрезентативная выборка.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 133,
@@ -6037,7 +6378,105 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://vc.ru/tribuna",
+          "https://vc.ru/tribuna/3272586-poryadok-po-delu-v-dzene-kak-nayti-pervykh-podpischikov"
+        ],
+        "visible_post_samples": 8,
+        "visible_title_samples": 0,
+        "posts": [
+          {
+            "summary": "Хакатон и автоматизация документации",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/tribuna"
+          },
+          {
+            "summary": "Планировщик отпусков и выгрузка Excel",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/tribuna"
+          },
+          {
+            "summary": "Идея приложения с ассоциативными подборками",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/tribuna"
+          },
+          {
+            "summary": "Счетчик очков настольных игр",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/tribuna"
+          },
+          {
+            "summary": "Запуск Дзена и первые подписчики",
+            "relevance": "relevant",
+            "evidence_type": "article_text_read",
+            "url": "https://vc.ru/tribuna/3272586-poryadok-po-delu-v-dzene-kak-nayti-pervykh-podpischikov",
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/tribuna",
+            "article_summary": "Прочитан доступный текст целиком: формат бытовых инструкций, навигационный пост, один подписчик, три комментария к статье об осмотре квартиры; автор спрашивает о предпочтительном формате. Маленькая выборка, самопродвижение."
+          },
+          {
+            "summary": "Контрактное производство БАД",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/tribuna"
+          },
+          {
+            "summary": "MVP онлайн-витрины магазина",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/tribuna"
+          },
+          {
+            "summary": "Создание инструкций из записи экрана",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/tribuna"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Многотематичная лента или смежные материалы; требуется более широкая репрезентативная выборка.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 134,
@@ -6049,7 +6488,73 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://vc.ru/legal"
+        ],
+        "visible_post_samples": 5,
+        "visible_title_samples": 0,
+        "posts": [
+          {
+            "summary": "Проект квот показа российского кино",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/legal"
+          },
+          {
+            "summary": "Проект санкций ЕС",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/legal"
+          },
+          {
+            "summary": "Товарные знаки и бренды в GTA",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/legal"
+          },
+          {
+            "summary": "Персональные данные на сайтах по 152-ФЗ",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/legal"
+          },
+          {
+            "summary": "Увольнение по соглашению сторон",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/legal"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Наблюдаемый материал преимущественно другой тематики; решение предварительное.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 135,
@@ -6061,7 +6566,83 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://vc.ru/marketplace"
+        ],
+        "visible_post_samples": 6,
+        "visible_title_samples": 0,
+        "posts": [
+          {
+            "summary": "Действия продавцов после пожара склада WB",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketplace"
+          },
+          {
+            "summary": "Новость о пожаре и эвакуации",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketplace"
+          },
+          {
+            "summary": "Расчет чистой прибыли продавца",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketplace"
+          },
+          {
+            "summary": "Смена руководителя Wildberries",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketplace"
+          },
+          {
+            "summary": "Развитие бренда через маркетплейсы",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketplace"
+          },
+          {
+            "summary": "Отгрузка Ozon через кассы магазинов",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/marketplace"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Наблюдаемый материал преимущественно другой тематики; решение предварительное.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 136,
@@ -6073,7 +6654,53 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://vc.ru/life"
+        ],
+        "visible_post_samples": 3,
+        "visible_title_samples": 0,
+        "posts": [
+          {
+            "summary": "Запуск MVP за семь дней после работы",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/life"
+          },
+          {
+            "summary": "Функции менеджера маркетплейсов",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/life"
+          },
+          {
+            "summary": "Конфликт двух инструкций в базе знаний",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/life"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Многотематичная лента или смежные материалы; требуется более широкая репрезентативная выборка.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 137,
@@ -6085,7 +6712,73 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://vc.ru/food"
+        ],
+        "visible_post_samples": 5,
+        "visible_title_samples": 0,
+        "posts": [
+          {
+            "summary": "Лимитированные завтраки ВкусВилла и QR-страница ко Дню матери",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/food"
+          },
+          {
+            "summary": "Расходы потребителей на кофе",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/food"
+          },
+          {
+            "summary": "Новость о налоговом деле основателя Level Kitchen",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/food"
+          },
+          {
+            "summary": "Доставка ресторанных блюд Самокатом",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/food"
+          },
+          {
+            "summary": "Статья о продуктах и долголетии",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/food"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Наблюдаемый материал преимущественно другой тематики; решение предварительное.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 138,
@@ -6097,7 +6790,83 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://vc.ru/flood"
+        ],
+        "visible_post_samples": 6,
+        "visible_title_samples": 0,
+        "posts": [
+          {
+            "summary": "Предупреждение о мошенничестве в Telegram",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/flood"
+          },
+          {
+            "summary": "Рабочий календарь блогера MrBeast",
+            "relevance": "adjacent",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/flood"
+          },
+          {
+            "summary": "Прокрастинация",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/flood"
+          },
+          {
+            "summary": "Сообщение о взломе базы ФБР",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/flood"
+          },
+          {
+            "summary": "Коучинг в управлении",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/flood"
+          },
+          {
+            "summary": "Устойчивость производственного предприятия",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://vc.ru/flood"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Многотематичная лента или смежные материалы; требуется более широкая репрезентативная выборка.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 139,
@@ -6637,7 +7406,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://feddit.cl/c/tecnologia"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 184,
@@ -6649,7 +7433,43 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://habr.com/ru/hubs/business_models/articles/"
+        ],
+        "visible_post_samples": 2,
+        "visible_title_samples": 0,
+        "posts": [
+          {
+            "summary": "Разбор сообщения СМИ об ограничении банковских операций",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://habr.com/ru/hubs/business_models/articles/"
+          },
+          {
+            "summary": "Глава о картах Уордли для бизнес-стратегии",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://habr.com/ru/hubs/business_models/articles/"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Наблюдаемый материал преимущественно другой тематики; решение предварительное.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 185,
@@ -6685,7 +7505,89 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "titles_only",
+        "evidence_urls": [
+          "https://lemmy.ml/c/linux"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 6,
+        "posts": [
+          {
+            "summary": "Выбор первого дистрибутива Linux",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://lemmy.ml/c/linux"
+          },
+          {
+            "summary": "Улучшение игрового опыта CachyOS",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://lemmy.ml/c/linux"
+          },
+          {
+            "summary": "Открытый код и Android",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://lemmy.ml/c/linux"
+          },
+          {
+            "summary": "Либертарианство в FOSS",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://lemmy.ml/c/linux"
+          },
+          {
+            "summary": "Дискуссия об отказе от удобства",
+            "title_relevance": "unknown",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://lemmy.ml/c/linux"
+          },
+          {
+            "summary": "Выбор ноутбука",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://lemmy.ml/c/linux"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Наблюдаемый материал преимущественно другой тематики; решение предварительное.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 188,
@@ -6697,7 +7599,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://lemmy.zip/c/autismmemes"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 189,
@@ -6709,7 +7626,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://mastodon.social/@ai_smm"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 190,
@@ -6721,7 +7653,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://mastodon.social/@bloggingfromparadise"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 191,
@@ -6733,7 +7680,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "javascript_shell_no_posts",
+        "evidence_urls": [
+          "https://mastodon.social/@golubev"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Профиль возвращает оболочку с требованием JavaScript, тексты недоступны.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 192,
@@ -6745,7 +7707,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://mastodon.social/@jcafesin"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 193,
@@ -6757,7 +7734,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://mastodon.social/@postorun"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 194,
@@ -6769,7 +7761,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://mastodon.social/@pulsepost"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 195,
@@ -6781,7 +7788,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://mastodon.social/@rankmarket99"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 196,
@@ -6793,7 +7815,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "javascript_shell_no_posts",
+        "evidence_urls": [
+          "https://mastodon.social/@scottgraffius"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Профиль возвращает оболочку с требованием JavaScript, тексты недоступны.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 197,
@@ -6817,7 +7854,78 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "titles_only",
+        "evidence_urls": [
+          "https://news.abolish.capital/c/latam"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 5,
+        "posts": [
+          {
+            "summary": "Книжная ярмарка в Каракасе",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://news.abolish.capital/c/latam"
+          },
+          {
+            "summary": "Визит руководителя ВОЗ на Кубу",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://news.abolish.capital/c/latam"
+          },
+          {
+            "summary": "Закрытие больницы UNRWA",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://news.abolish.capital/c/latam"
+          },
+          {
+            "summary": "Протест учителей Чили",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://news.abolish.capital/c/latam"
+          },
+          {
+            "summary": "Критика военной политики США Кубой",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://news.abolish.capital/c/latam"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Наблюдаемый материал преимущественно другой тематики; решение предварительное.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 199,
@@ -6829,7 +7937,78 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "titles_only",
+        "evidence_urls": [
+          "https://news.abolish.capital/c/pravda_news"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 5,
+        "posts": [
+          {
+            "summary": "Выборы в Сербии",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://news.abolish.capital/c/pravda_news"
+          },
+          {
+            "summary": "Выборы в Бразилии",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://news.abolish.capital/c/pravda_news"
+          },
+          {
+            "summary": "Анонс сообщества Britain",
+            "title_relevance": "unknown",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://news.abolish.capital/c/pravda_news"
+          },
+          {
+            "summary": "Обсуждение политики США в отношении Кубы",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://news.abolish.capital/c/pravda_news"
+          },
+          {
+            "summary": "Политика здравоохранения США",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://news.abolish.capital/c/pravda_news"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Наблюдаемый материал преимущественно другой тематики; решение предварительное.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 200,
@@ -6841,7 +8020,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_021": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://pikabu.ru/community/lnk"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Запрошенная страница/API не открылись в инструменте просмотра; не доказательство недоступности источника в Posta.",
+        "coverage": "Web listing excerpts and selected article body where marked; nonconsecutive samples, no images or video inspected; no API/RSS functionality verified from webpage success.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 201,
