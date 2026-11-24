@@ -474,13 +474,12 @@ func TestAutopilotLiveSearchLinkComparison(t *testing.T) {
 		if ctx.Err() != nil {
 			break
 		}
-		res := u.autopilotBraveSearch(tc.query)
-		p, err := url.Parse(res.URL)
-		if !res.OK || err != nil || p.Host != "search.brave.com" ||
-			strings.Contains(strings.ToLower(string(res.Bytes)), "captcha") {
+		res := u.autopilotPublisherSearch(tc.query, tc.platform)
+		if !autopilotPublisherSearchResponseValid(res) {
 			t.Logf("LIVE SEARCH: query=%q unavailable HTTP=%d", tc.query, res.Status)
 			continue
 		}
+		p, _ := url.Parse(res.URL)
 		available++
 		old := map[string]bool{}
 		for _, candidate := range SourceLinkedSources(string(res.Bytes)) {
@@ -493,7 +492,7 @@ func TestAutopilotLiveSearchLinkComparison(t *testing.T) {
 			newIDs = append(newIDs, candidate.ID)
 		}
 		found += len(newIDs)
-		t.Logf("LIVE SEARCH: query=%q legacy=%d direct=%d ids=%v", tc.query, len(old), len(newIDs), newIDs[:min(len(newIDs), 8)])
+		t.Logf("LIVE SEARCH: query=%q provider=%s legacy=%d direct=%d ids=%v", tc.query, p.Host, len(old), len(newIDs), newIDs[:min(len(newIDs), 8)])
 	}
 	if available == 0 {
 		t.Skip("anonymous search provider unavailable; no live comparison can be claimed")
