@@ -1887,7 +1887,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				for key, value := range statsEvidence {
 					evidence[key] = value
 				}
-				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: effectiveRelevant, FreshUnique: stats.FreshUnique, CuratedUnique: stats.CuratedUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates}, policy)
+				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: stats.Relevant, Eligible: stats.Eligible, RequireEligible: professional, FreshUnique: stats.FreshUnique, CuratedUnique: stats.CuratedUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates}, policy)
 				if next != state {
 					nextCheck := at.Add(autopilotSourceReviewInterval(job, next))
 					if next == "rejected" {
