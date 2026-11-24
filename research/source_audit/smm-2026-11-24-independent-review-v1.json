@@ -18,12 +18,13 @@
     "Batch 008: ten new attempts 289–297 and 299; 53 visible text/caption excerpts, 3 verified post permalinks for dankmarketing, two probation recommendations. No definitive gold labels, no external model consultation.",
     "Batch 009: ten new attempts 300–310 except 303; 45 partial excerpts; provisional probation for dimabeseda based on historical archive; no external AI consultation or gold labels.",
     "Batch 010: ten new attempts 311–321 except previously reviewed 318; 36 partial excerpts; no gold labels or external AI consultation.",
-    "Batch 011: ten new attempts 322–332 except previously reviewed 326; 38 partial excerpts; no gold labels or external AI consultation."
+    "Batch 011: ten new attempts 322–332 except previously reviewed 326; 38 partial excerpts; no gold labels or external AI consultation.",
+    "Batch 012: 15 new source attempts 333–347; 62 excerpts; provisional probation for honestmarketing, mixed evidence for hrmrktng and insight_comcon. No external AI or final gold labels."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 146,
-    "structured_with_visible_post_samples": 82,
+    "structured_attempted": 161,
+    "structured_with_visible_post_samples": 94,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -39,7 +40,8 @@
     "batch_008_readable_texts": 53,
     "batch_009_readable_texts": 45,
     "batch_010_readable_texts": 36,
-    "batch_011_readable_texts": 38
+    "batch_011_readable_texts": 38,
+    "batch_012_readable_texts": 62
   },
   "rows": [
     {
@@ -10766,7 +10768,130 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/honestmarketing"
+        ],
+        "visible_post_samples": 12,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Заметка о Японии и Microsoft Teams",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Новость о споре Ethereum Foundation",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Боты бронирования теннисных кортов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Телесуфлер для созвонов и видео",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "ИИ и вакансии",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шутливый сайт об отборе в Яндекс",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шутка о разработчиках 1С",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Уведомления на экзаменах в Корее",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Единый рекламный кабинет с VK и Telegram",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Промокампания фильма с нарочито имитирующим ИИ постером",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ролик Sushiro для американской аудитории и реакция комментаторов",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Экспериментальный маркетинговый лендинг",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/honestmarketing"
+          }
+        ],
+        "recommendation": "probation_provisional",
+        "reason": "Есть несколько примеров рекламы и контента, интересных SMM, на фоне большой доли общих технологий и юмора. Проверять полезный выход, не автоматически принимать весь канал.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 334,
@@ -10778,7 +10903,85 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/howtomake10x"
+        ],
+        "visible_post_samples": 7,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение на пробежку",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/howtomake10x"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Инвестиционное рекламное предложение",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/howtomake10x"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Заметка о месте в Дубае",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/howtomake10x"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Запуск сервиса GEO/AEO и поиск маркетологов",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/howtomake10x"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс гайда по видимости в ChatGPT",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/howtomake10x"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Реклама банковской инфраструктуры бизнеса",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/howtomake10x"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Размышление о предпринимательстве и возрасте с примерами брендов блогеров",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/howtomake10x"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Общее предпринимательство, поиск и личные заметки; смежная монетизация блогеров не доминирует.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 335,
@@ -10790,7 +10993,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/1823942038-hrandmuchmore/posts"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Книга о развитии команд",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1823942038-hrandmuchmore/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Метафора односторонних корпоративных коммуникаций",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1823942038-hrandmuchmore/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Реклама системы обратной связи сотрудников",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1823942038-hrandmuchmore/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дискуссия о будущем HR и менеджмента",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1823942038-hrandmuchmore/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "HR и управление персоналом.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 336,
@@ -10802,7 +11056,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1690359723-hrmrktng/posts"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Исследование адаптации поведения сотрудника и карьеры",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1690359723-hrmrktng/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Короткометражка Циана к юбилею с оценкой формата",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1690359723-hrmrktng/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Восприятие профессии в IT на свиданиях",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1690359723-hrmrktng/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "HR-кампания Контура с роликом и мини-игрой",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1690359723-hrmrktng/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Стратегия Starbucks и аналогия с офисной культурой",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1690359723-hrmrktng/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Есть полезные примеры креативов и employer branding, но профиль HR, архив ограничен. Не отбрасывать отдельные посты; проверять свежий поток.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 337,
@@ -10814,7 +11128,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/hrtechru"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Публичная лента и уверенно совпадающие посты не установлены.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 338,
@@ -10833,7 +11161,103 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/hsecareer"
+        ],
+        "visible_post_samples": 9,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Стенд бренда на мероприятии",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/hsecareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Очередь у стенда работодателя",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/hsecareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дайджест вакансий карьерного марафона",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/hsecareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Опрос о карьерном марафоне",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/hsecareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Регистрация в карьерную школу по большим данным",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/hsecareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дни VK с рекрутерами",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/hsecareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Письма участникам школы Авито",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/hsecareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дайджест событий и стажировок",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/hsecareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Стажировка ОТП Банка",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/hsecareer"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Карьера и объявления о вакансиях; упоминания VK или контентных профессий сами по себе не обучают SMM.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 339,
@@ -10845,7 +11269,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/uk/channels/1957334316-hypothesismap"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Методология социотехнических систем",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1957334316-hypothesismap"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Практические разборы постановки целей и проверки гипотез",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1957334316-hypothesismap"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Цикл обновления SWOT и стратегии с ИИ",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1957334316-hypothesismap"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Мастер-класс по архитектуре ИИ-трансформации",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1957334316-hypothesismap"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Общая стратегия и методология, не специализированные соцсети.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 340,
@@ -10857,7 +11332,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/1442659506-ikarcompliance/posts"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Оплата юридических консультаций",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1442659506-ikarcompliance/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Конфискация наличности на таможне",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1442659506-ikarcompliance/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Передача данных о переводах налоговой",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1442659506-ikarcompliance/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ограничение деятельности аудиторской компании",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1442659506-ikarcompliance/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Юридические и налоговые тексты.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 341,
@@ -10869,7 +11395,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/1300185121-ilovedocs/posts?cursor=IBQ%3D"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Конференция по ИИ для юристов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1300185121-ilovedocs/posts?cursor=IBQ%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Выпуск книги о нейросетях",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1300185121-ilovedocs/posts?cursor=IBQ%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Репост юридического дизайн-справочника",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1300185121-ilovedocs/posts?cursor=IBQ%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Розыгрыш билетов на конференцию",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1300185121-ilovedocs/posts?cursor=IBQ%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Организация собственного мероприятия",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1300185121-ilovedocs/posts?cursor=IBQ%3D"
+          }
+        ],
+        "recommendation": "needs_more_evidence",
+        "reason": "Архив семимесячной давности, несколько исторических цифровых ID с тем же названием; текущая идентичность и поток не подтверждены.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 342,
@@ -10881,7 +11467,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/1273376756-imnsrb_minsk/posts"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Проверка кассовых операций магазина",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1273376756-imnsrb_minsk/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Проверка салона услуг",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1273376756-imnsrb_minsk/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Контроль пригородных перевозок",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1273376756-imnsrb_minsk/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Проверки торгового и ресторанного бизнеса",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1273376756-imnsrb_minsk/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Публикации налоговой инспекции.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 343,
@@ -10893,7 +11530,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/impergroup"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Публичная лента недоступна, тексты не установлены.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 344,
@@ -10905,7 +11556,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1678500852-incubatorperm/posts"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Грант платформе спортивных единоборств",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1678500852-incubatorperm/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Экспорт изделий народных промыслов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1678500852-incubatorperm/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Система контроля доступа резидента",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1678500852-incubatorperm/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Новости стартапов и общая поддержка бизнеса, три текста.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 345,
@@ -10917,7 +11610,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1133072952-infotaxme/posts?cursor=ICg%3D"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Методология камеральных налоговых проверок",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1133072952-infotaxme/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Наследование налоговой переплаты",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1133072952-infotaxme/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Заметка о роботах и экономике строительства дорог",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1133072952-infotaxme/posts?cursor=ICg%3D"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Историческая выборка июня, налоги и общие технологии.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 346,
@@ -10929,7 +11664,40 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/uk/channels/1364376719-ipsos_in_russia"
+        ],
+        "visible_post_samples": 2,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Исследование коммуникации с молодыми врачами и предпочтений форматов обучения",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1364376719-ipsos_in_russia"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Заметка исследователя о поведении покупателей и коммуникациях в магазине",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1364376719-ipsos_in_russia"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Маркетинговые исследования потенциально полезны для SMM; только два доступных текста, не подтверждена частота профильного выхода.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 347,
@@ -10941,7 +11709,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_012": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/inteamwetrust_rus"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Публичная лента недоступна; публикации не установлены.",
+        "coverage": "Partial accessible excerpts only; individual permalinks not resolved; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 348,
