@@ -125,9 +125,10 @@ function autopilotSourceCard(item) {
         title: 'Открыть источник в новой вкладке'
     }) : el('span', { textContent: displayName });
     const reason = autopilotSourceReasonLabels[item.reason] || item.reason || 'Пока не проверен';
-    const personalBlogText = sourceKind === 'category' ? 'Публикации разных авторов'
-        : sourceKind === 'community' ? 'Сообщество'
-        : { yes: 'Персональный блог', no: 'Не персональный блог', unknown: 'Тип блога пока не определён' }[item.personal_blog] || 'Тип блога пока не определён';
+    // Personal blog is a cross-topic source tag, not an alternative category.
+    const personalBlogTag = item.personal_blog === 'yes' && sourceKind !== 'category' && sourceKind !== 'community'
+        ? '#личный_блог' : '';
+    const formatNote = item.personal_blog === 'unknown' && !sourceKind ? 'Формат автора не определён' : '';
     const checked = item.checked_at ? new Date(item.checked_at * 1000).toLocaleString('ru-RU') : 'ещё не проверялся';
     const next = item.next_check_at ? new Date(item.next_check_at * 1000).toLocaleString('ru-RU') : '';
     return el('article', { className: 'autopilot-source-card' },
@@ -137,7 +138,7 @@ function autopilotSourceCard(item) {
                 el('span', { className: 'autopilot-source-platform', textContent: platform.label }),
                 el('span', { className: 'autopilot-source-state', textContent: autopilotSourceStateLabels[item.state] || item.state || 'Источник' })),
             el('div', { className: 'autopilot-source-card-name' }, name),
-            el('div', { className: 'autopilot-source-card-reason', textContent: reason + ' · ' + personalBlogText }),
+            el('div', { className: 'autopilot-source-card-reason', textContent: [reason, personalBlogTag, formatNote].filter(Boolean).join(' · ') }),
             el('div', { className: 'autopilot-source-card-meta' },
                 el('span', { textContent: 'Последняя проверка: ' + checked }),
                 ...(next ? [el('span', { textContent: 'Следующая: ' + next })] : []))
@@ -456,7 +457,7 @@ function renderAutopilot(data) {
             }
         });
         const blogFilter = el('label', { title: 'Фильтр применяется к выдаче постов и сборщику. Неизвестный тип исключается при строгом режиме.' },
-            el('span', { textContent: 'Личные блоги: ' }), blogSelect);
+            el('span', { textContent: 'Тег #личный_блог: ' }), blogSelect);
         const history = el('details', {}, el('summary', { textContent: 'История решений' }));
         history.hidden = topic.mode === 'off';
         const historyList = el('div', { textContent: 'Откройте историю, чтобы загрузить решения.' });
@@ -619,6 +620,9 @@ async function autopilotExportSourcesForTopic(topic, states = autopilotExportSta
                     reason: item.reason || '',
                     reason_label: autopilotSourceReasonLabels[item.reason] || item.reason || '',
                     personal_blog: item.personal_blog || 'unknown',
+                    source_tags: item.personal_blog === 'yes' && !['category', 'community'].includes(item.source_kind) ? ['личный_блог'] : [],
+                    // The API already whitelists public audit excerpts and numeric evidence.
+                    review_evidence: item.review_evidence || {},
                     first_seen_at: item.first_seen_at || 0,
                     checked_at: item.checked_at || 0,
                     next_check_at: item.next_check_at || 0
