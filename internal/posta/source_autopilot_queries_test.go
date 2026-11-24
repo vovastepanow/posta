@@ -174,6 +174,30 @@ func TestAutopilotQueryUsesObservedYieldAndExploresPostgres(t *testing.T) {
 	if err != nil || query != "вариант гамма" {
 		t.Fatalf("generated variant ignored: %q %v", query, err)
 	}
+	// A legacy preliminary rejection without explicit off-topic evidence
+	// is unknown, not a negative training example.
+	if _, err = d.Pool.Exec(ctx, `INSERT INTO source_autopilot_sources(scope,topic_key,source_id,state,reason,policy_version,first_seen_at) VALUES($1,$2,'rss:beta','active','observed_useful',1,1),($1,$2,'rss:negative','rejected','preliminary_topic_mismatch',1,1)`, scope, key); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = d.Pool.Exec(ctx, `INSERT INTO source_autopilot_query_sources(scope,topic_key,query,source_id,discovered_at) VALUES($1,$2,'вариант бета','rss:beta',1),($1,$2,'вариант альфа','rss:negative',1)`, scope, key); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = d.Pool.Exec(ctx, `INSERT INTO source_autopilot_post_evidence(scope,topic_key,source_id,post_hash,content_hash,policy_version,published_at,observed_at,relevant,eligible,advertising) VALUES($1,$2,'rss:beta','beta-post','beta-content',1,$3,$3,true,true,false)`, scope, key, stamp); err != nil {
+		t.Fatal(err)
+	}
+	job.Checkpoint = []byte(`{"query_turn":1}`)
+	query, err = a.autopilotChooseQuery(ctx, job)
+	if err != nil || query != "вариант альфа" {
+		t.Fatalf("unconfirmed negative evidence penalized query: %q %v", query, err)
+	}
+	if _, err = d.Pool.Exec(ctx, `UPDATE source_autopilot_sources SET evidence='{"preliminary_off_topic_confirmed":true}'::jsonb WHERE scope=$1 AND topic_key=$2 AND source_id='rss:negative'`, scope, key); err != nil {
+		t.Fatal(err)
+	}
+	job.Checkpoint = []byte(`{"query_turn":1}`)
+	query, err = a.autopilotChooseQuery(ctx, job)
+	if err != nil || query != "вариант бета" {
+		t.Fatalf("confirmed off-topic source did not penalize query: %q %v", query, err)
+	}
 }
 
 func TestAutopilotQueryQualityPrefersCleanSourcesOverRawVolume(t *testing.T) {
