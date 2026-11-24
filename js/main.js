@@ -2,7 +2,7 @@
 import { $, DEBUG_MODE, api, el, hide, initializeCore, log, show, startTabSession, switchTab, watchParser } from './core.js';
 import { initializeImageViewer } from './viewer.js';
 import { initializeContentTab, loadCurrentItem } from './content.js';
-import { clearDiscoveredSource, initializeSourceTab } from './sources.js?v=source-tools-10';
+import { clearDiscoveredSource, initializeSourceTab } from './sources.js?v=source-tools-11';
 import { consumeReferralLink, consumeVkRedirectResult, initializeAccountTab, openAccountSection, openNewItemEditor } from './account.js';
 import { initializeTabs } from './tabs.js';
 import { showPlan, showProfile } from './profile.js';
