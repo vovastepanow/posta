@@ -2,6 +2,7 @@ package posta
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -126,6 +127,37 @@ func TestAutopilotPrepareSkipsInvalidRejectedProjectionsPostgres(t *testing.T) {
 		AND new_state='cooldown' AND reason='unsupported_source_format'`,
 		autopilotAutoScope, key, invalidTrial).Scan(&auditCount); err != nil || auditCount != 1 {
 		t.Fatalf("invalid trial audit count=%d err=%v", auditCount, err)
+	}
+	// A batch of irrecoverable legacy identities must not permanently hide
+	// later rows. No network requests are needed for this regression.
+	now := time.Now()
+	if _, err := d.Pool.Exec(ctx, `UPDATE source_autopilot_sources
+		SET evidence=evidence||jsonb_build_object('identity_retry_at',$4::bigint)
+		WHERE scope=$1 AND topic_key=$2 AND source_id=$3`,
+		autopilotAutoScope, key, brokenYouTube, now.Add(time.Hour).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 101; i++ {
+		id := fmt.Sprintf("rss:https://www.youtube.com/feeds/videos.xml?channel_id=uc%022d", i)
+		if _, err := d.Pool.Exec(ctx, `INSERT INTO source_autopilot_sources
+			(scope,topic_key,source_id,state,reason,first_seen_at,policy_version)
+			VALUES($1,$2,$3,'rejected','unsupported_source_format',$4,$5)`,
+			autopilotAutoScope, key, id, now.Unix(), TopicProfileVersion); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for iteration, want := range []int{100, 101} {
+		if err := a.autopilotRecoverLegacyYouTube(ctx, job); err != nil {
+			t.Fatalf("identity recovery iteration %d: %v", iteration, err)
+		}
+		var got int
+		if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
+			WHERE scope=$1 AND topic_key=$2 AND source_id LIKE 'rss:https://www.youtube.com/feeds/videos.xml?channel_id=uc000%'
+			AND state='rejected' AND reason='unsupported_source_format'
+			AND COALESCE((evidence->>'identity_retry_at')::bigint,0)>$3`,
+			autopilotAutoScope, key, now.Unix()).Scan(&got); err != nil || got != want {
+			t.Fatalf("identity recovery iteration %d deferred=%d want=%d err=%v", iteration, got, want, err)
+		}
 	}
 	if err := a.autopilotMarkPhase(ctx, job, "review"); err != nil {
 		t.Fatalf("pipeline cannot progress to review: %v", err)
