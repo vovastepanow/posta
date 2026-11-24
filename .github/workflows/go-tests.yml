@@ -84,14 +84,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Verify public source hint staging and owner-safe delivery
-        run: go test ./internal/posta -run '^(TestAutopilotConsumesAcceptedSourceHintsPostgres|TestAutopilotDeliversContentPerOwnerPostgres|TestAutopilotDirectDeliversWithoutApprovedSourcePostgres|TestAutopilotEvidenceDedupPostgres|TestAutopilotAuditFunnelPostgres) -count=1 -timeout=12m
-      - name: Verify candidate queue, probation and activation with PostgreSQL
-        run: go test ./internal/posta -run '^(TestAutopilotShadowQueuePostgres|TestMalformedCandidateDoesNotStarveAutopilotReviewPostgres|TestAutopilotModeClaimsDoNotStarvePostgres|TestAutopilotRecoversStaleFailuresWithoutBypassingQuotaPostgres|TestLegacyPendingTransferredOutOfManualShelfPostgres|TestAutopilotProbationNotStarvedByCandidateBacklogPostgres|TestAutopilotShadowEvidencePromotionPostgres|TestAutopilotCandidateToActiveLifecyclePostgres|TestAutopilotClassifierFailureDoesNotBlockNextCandidatePostgres|TestAutopilotIndependentRestartAndLeaseRecoveryPostgres|TestAutopilotProjectionRespectsStateAndOverridePostgres|TestAutopilotPrepareSkipsInvalidRejectedProjectionsPostgres|TestAutopilotAutoDemandReconciliationPostgres)$' -count=1 -timeout=12m
-      - name: Verify historic OK rejections with PostgreSQL
-        run: go test ./internal/posta -run '^TestAutopilotReconsiderHistoricOKRejectsOnlyOncePostgres$' -count=1 -timeout=3m
-      - name: Verify model failure recovery and text-only feeds
-        run: go test ./internal/posta -run '^(TestAutopilotQueryUsesObservedYieldAndExploresPostgres|TestAutopilotQueryGenerationRetriesAfterProviderFailure|TestAutopilotGeneratesQueriesThroughModelGate|TestSourcePostsHaveImages|TestEvaluateTextOnlySourceWithoutImage|TestAutopilotPreliminaryPass|TestAutopilotSourceReviewInterval)$' -count=1 -timeout=5m
- -count=1 -timeout=12m
+        run: go test ./internal/posta -run '^(TestAutopilotConsumesAcceptedSourceHintsPostgres|TestAutopilotDeliversContentPerOwnerPostgres|TestAutopilotDirectDeliversWithoutApprovedSourcePostgres|TestAutopilotEvidenceDedupPostgres|TestAutopilotAuditFunnelPostgres)$' -count=1 -timeout=12m
       - name: Verify candidate queue, probation and activation with PostgreSQL
         run: go test ./internal/posta -run '^(TestAutopilotShadowQueuePostgres|TestMalformedCandidateDoesNotStarveAutopilotReviewPostgres|TestAutopilotModeClaimsDoNotStarvePostgres|TestAutopilotRecoversStaleFailuresWithoutBypassingQuotaPostgres|TestLegacyPendingTransferredOutOfManualShelfPostgres|TestAutopilotProbationNotStarvedByCandidateBacklogPostgres|TestAutopilotShadowEvidencePromotionPostgres|TestAutopilotCandidateToActiveLifecyclePostgres|TestAutopilotClassifierFailureDoesNotBlockNextCandidatePostgres|TestAutopilotIndependentRestartAndLeaseRecoveryPostgres|TestAutopilotProjectionRespectsStateAndOverridePostgres|TestAutopilotPrepareSkipsInvalidRejectedProjectionsPostgres|TestAutopilotAutoDemandReconciliationPostgres)$' -count=1 -timeout=12m
       - name: Verify historic OK rejections with PostgreSQL

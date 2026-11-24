@@ -409,6 +409,17 @@ function renderAutopilot(data) {
                         probation_full: 'старое ограничение испытания',
                         sparse_publisher: 'редко публикуют'
                     })[reason] || reason) + ': ' + number(count)).join(' · ') || 'нет кандидатов' }),
+                topic.audit_funnel ? el('span', { textContent: 'Воронка сохранённых данных: ' +
+                    number(topic.audit_funnel.sources) + ' источников · ' +
+                    number(topic.audit_funnel.sources_with_fetch) + ' с успешным чтением · ' +
+                    number(topic.audit_funnel.sources_with_post_verdict) + ' с оценками постов · ' +
+                    number(topic.audit_funnel.sources_with_eligible) + ' с пригодными постами · ' +
+                    number(topic.audit_funnel.sources_with_saved_result) + ' с сохранённым контентом. История ограничена сроком хранения.' }) : '',
+                topic.audit_funnel ? el('span', { textContent: 'Разрыв воронки: ' +
+                    number(topic.audit_funnel.stages?.fetched_no_post_verdict) + ' прочитаны, но нет оценок постов · ' +
+                    number(topic.audit_funnel.stages?.assessed_no_eligible) + ' оценены, но нет пригодных · ' +
+                    number(topic.audit_funnel.stages?.eligible_no_saved_result) + ' с пригодными, но без сохранённых результатов · ' +
+                    number(topic.audit_funnel.actual_state_changes) + ' фактических смен состояния (не всех записей решений).' }) : '',
                 el('span', { textContent: 'За 24 часа: ' + number(topic.decisions_24h) + ' записанных решений · ' +
                     number(topic.promoted_24h) + ' прошли предварительный отбор · ' +
                     number(topic.rejected_24h) + ' отклонены' }),
