@@ -191,3 +191,40 @@ func TestAutopilotSourceReviewUsesPublisherMetadataAndFullerCaptions(t *testing.
 		t.Fatal("short captions must be kept complete")
 	}
 }
+
+func TestAutopilotMediaReviewRotation(t *testing.T) {
+	posts := []jx.M{
+		{"id": "i0", "image": "https://example.org/0.jpg"},
+		{"id": "v0", "video": "https://example.org/0.mp4"},
+		{"id": "t0", "text": "First text"},
+		{"id": "i1", "image": "https://example.org/1.jpg"},
+		{"id": "v1", "video": "https://example.org/1.mp4"},
+		{"id": "i2", "image": "https://example.org/2.jpg"},
+		{"id": "t1", "text": "Second text"},
+		{"id": "i3", "image": "https://example.org/3.jpg"},
+	}
+	seen := map[string]bool{}
+	for pass := 0; pass < 4; pass++ {
+		got := autopilotRotateMediaReview(posts, pass)
+		if len(got) != len(posts) || jx.Str(got[2], "id") != "t0" || jx.Str(got[6], "id") != "t1" {
+			t.Fatalf("text lane changed on pass %d: %+v", pass, got)
+		}
+		for _, slot := range []int{0, 1, 3} {
+			seen[jx.Str(got[slot], "id")] = true
+		}
+	}
+	for _, id := range []string{"i0", "i1", "i2", "i3", "v0", "v1"} {
+		if !seen[id] {
+			t.Fatalf("media post %s starved by bounded review", id)
+		}
+	}
+	for i, id := range []string{"i0", "v0", "t0", "i1", "v1", "i2", "t1", "i3"} {
+		if jx.Str(posts[i], "id") != id {
+			t.Fatal("rotation modified the original sample")
+		}
+	}
+	twoVideos := []jx.M{posts[1], posts[4]}
+	if jx.Str(autopilotRotateMediaReview(twoVideos, 1)[0], "id") != "v1" {
+		t.Fatal("two-video feed did not rotate")
+	}
+}
