@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"posta/internal/jx"
 )
 
 // Use the public search results themselves, rather than requiring an
@@ -41,14 +44,33 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 	if sections == nil {
 		return nil, errors.New("unrecognized YouTube search layout")
 	}
+	type resultText struct {
+		Simple string `json:"simpleText"`
+		Runs   []struct {
+			Text string `json:"text"`
+		} `json:"runs"`
+	}
+	readText := func(t resultText) string {
+		if t.Simple != "" {
+			return t.Simple
+		}
+		var text strings.Builder
+		for _, run := range t.Runs {
+			text.WriteString(run.Text)
+		}
+		return text.String()
+	}
 	type result struct {
 		Channel struct {
-			ID string `json:"channelId"`
+			ID    string     `json:"channelId"`
+			Title resultText `json:"title"`
 		} `json:"channelRenderer"`
 		Video struct {
-			ID string `json:"videoId"`
+			ID    string     `json:"videoId"`
+			Title resultText `json:"title"`
 			Owner struct {
 				Runs []struct {
+					Text     string `json:"text"`
 					Endpoint struct {
 						Browse struct {
 							ID string `json:"browseId"`
@@ -58,14 +80,33 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 			} `json:"ownerText"`
 		} `json:"videoRenderer"`
 	}
-	seen := map[string]bool{}
-	var out []DiscoveryCandidate
-	add := func(id string) {
-		if len(out) >= 8 || !ytChannelIDRe.MatchString(id) || seen[id] {
-			return
+	type nomination struct {
+		id, name, sample string
+		matchingVideos   int
+		matchingName     bool
+	}
+	query := p.Query().Get("search_query")
+	byID := map[string]*nomination{}
+	seenVideo := map[string]bool{}
+	var ranked []*nomination
+	get := func(id, name string) *nomination {
+		if !ytChannelIDRe.MatchString(id) {
+			return nil
 		}
-		seen[id] = true
-		out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: YouTubeChannelFeedURL(id), OriginKind: "youtube"})
+		n := byID[id]
+		if n == nil {
+			if len(ranked) >= 100 {
+				return nil
+			}
+			n = &nomination{id: id}
+			byID[id] = n
+			ranked = append(ranked, n)
+		}
+		if name != "" && n.name == "" {
+			n.name = trimRunes(name, 120)
+		}
+		n.matchingName = n.matchingName || blueskyQueryEvidenceMatch(query, name)
+		return n
 	}
 	for _, raw := range sections {
 		var section struct {
@@ -77,11 +118,41 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 			continue
 		}
 		for _, item := range section.Items.Contents {
-			add(item.Channel.ID)
-			if videoIDRe.MatchString(item.Video.ID) && len(item.Video.Owner.Runs) == 1 {
-				add(item.Video.Owner.Runs[0].Endpoint.Browse.ID)
+			get(item.Channel.ID, readText(item.Channel.Title))
+			if videoIDRe.MatchString(item.Video.ID) && !seenVideo[item.Video.ID] && len(item.Video.Owner.Runs) == 1 {
+				owner := item.Video.Owner.Runs[0]
+				n := get(owner.Endpoint.Browse.ID, owner.Text)
+				if n == nil {
+					continue
+				}
+				seenVideo[item.Video.ID] = true
+				title := readText(item.Video.Title)
+				if n.sample == "" {
+					n.sample = trimRunes(title, 180)
+				}
+				if blueskyQueryEvidenceMatch(query, title) {
+					n.matchingVideos++
+					n.sample = trimRunes(title, 180)
+				}
 			}
 		}
+	}
+	// Multiple matching videos and a matching channel name are useful
+	// nomination signals. They never approve a source; semantic synonyms
+	// without literal overlap retain their native rank rather than being
+	// discarded before the normal content review.
+	score := func(n *nomination) int {
+		rank := min(n.matchingVideos, 3) * 2
+		if n.matchingName {
+			rank++
+		}
+		return rank
+	}
+	sort.SliceStable(ranked, func(i, j int) bool { return score(ranked[i]) > score(ranked[j]) })
+	var out []DiscoveryCandidate
+	for _, n := range ranked[:min(len(ranked), 8)] {
+		out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: YouTubeChannelFeedURL(n.id), OriginKind: "youtube",
+			Info: jx.M{"title": n.name, "search_video_title": n.sample, "matching_videos": n.matchingVideos}})
 	}
 	return out, nil
 }
