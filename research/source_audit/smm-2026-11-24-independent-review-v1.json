@@ -16,12 +16,13 @@
     "Batch 006: ten new sources, 261–270. Direct and archive snapshots read; individual post links not resolved, no gold labels. External AI not consulted.",
     "Batch 007: 17 new attempts 271–288 except previously reviewed 277; 77 visible text excerpts, partial evidence only, no complete feed or media review, no external AI consultation.",
     "Batch 008: ten new attempts 289–297 and 299; 53 visible text/caption excerpts, 3 verified post permalinks for dankmarketing, two probation recommendations. No definitive gold labels, no external model consultation.",
-    "Batch 009: ten new attempts 300–310 except 303; 45 partial excerpts; provisional probation for dimabeseda based on historical archive; no external AI consultation or gold labels."
+    "Batch 009: ten new attempts 300–310 except 303; 45 partial excerpts; provisional probation for dimabeseda based on historical archive; no external AI consultation or gold labels.",
+    "Batch 010: ten new attempts 311–321 except previously reviewed 318; 36 partial excerpts; no gold labels or external AI consultation."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 126,
-    "structured_with_visible_post_samples": 70,
+    "structured_attempted": 136,
+    "structured_with_visible_post_samples": 76,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -35,7 +36,8 @@
     "batch_006_readable_texts": 63,
     "batch_007_readable_texts": 77,
     "batch_008_readable_texts": 53,
-    "batch_009_readable_texts": 45
+    "batch_009_readable_texts": 45,
+    "batch_010_readable_texts": 36
   },
   "rows": [
     {
@@ -9402,7 +9404,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_010": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/fakturastroiki"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Публичная лента недоступна; публикации не установлены.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 312,
@@ -9414,7 +9430,40 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_010": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1659911836-faudix_channel"
+        ],
+        "visible_post_samples": 2,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Выбор ПО для корректного управленческого учета",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1659911836-faudix_channel"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Финансовое моделирование сделок поставщика спецтехники",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1659911836-faudix_channel"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Исторический архив, два подробных текста по финансовому учету.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 313,
@@ -9426,7 +9475,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_010": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/fincareer"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Лента не открылась; публикации не установлены.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 314,
@@ -9438,7 +9501,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_010": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/es/channels/1166311571-finctrl/posts"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Девять шаблонов ИИ-агента для финансовых отчетов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1166311571-finctrl/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Конструктор промптов для отчета собственнику",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1166311571-finctrl/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шаблон движения денежных средств",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1166311571-finctrl/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Ноябрьские материалы 16–18 числа; финансовая отчетность, не SMM.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 315,
@@ -9450,7 +9555,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_010": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/findit_spb"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Лента не открылась; публикации не установлены.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 316,
@@ -9462,7 +9581,76 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_010": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1461286939-fintablo"
+        ],
+        "visible_post_samples": 6,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс конференции по найму IT-специалистов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1461286939-fintablo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Аудио о финансовых показателях собственника (описание)",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1461286939-fintablo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Разбор цифрового рубля",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1461286939-fintablo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс конференции по эффективности рекламы",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1461286939-fintablo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Антикризисная подписка на финансовый сервис",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1461286939-fintablo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Практикум по поиску и удержанию клиентов финансистом",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1461286939-fintablo"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Сентябрьский архив; один рекламный анонс смежный, преобладает учет и финансы.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 317,
@@ -9474,7 +9662,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_010": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ch/channels/1360965648-fomichevkirill/posts"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Производительность сотрудников при внедрении ИИ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1360965648-fomichevkirill/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Реклама автомобильного форума",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1360965648-fomichevkirill/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Развлекательный промпт для ИИ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1360965648-fomichevkirill/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Форум предпринимателей и разборы бизнес-кейсов",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1360965648-fomichevkirill/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Каталог контактов предпринимателей и инвесторов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1360965648-fomichevkirill/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Архив октября; общее предпринимательство, нет подтвержденной SMM-специализации.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 318,
@@ -9526,7 +9774,103 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_010": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/ftladvisers"
+        ],
+        "visible_post_samples": 9,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Личный фонд для передачи капитала",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ftladvisers"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Вебинар о налогах собственника",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ftladvisers"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Санкционные риски доступа к Claude",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ftladvisers"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Юрисдикция ОАЭ для бизнеса",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ftladvisers"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дайджест финансовых и правовых новостей",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ftladvisers"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Карты и банковские счета за рубежом",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ftladvisers"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Конституционные требования к утилизационному сбору",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ftladvisers"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Особенности юрисдикции Омана",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ftladvisers"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Второй дайджест санкций и налогов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ftladvisers"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Прямая лента; юридическая и финансовая специализация, часть постов скрыта в Telegram.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 320,
@@ -9538,7 +9882,121 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_010": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+        ],
+        "visible_post_samples": 11,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Покупка MaintainX компанией Autodesk",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Вычислительные мощности SpaceX",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Инвестиции IBM в квантовые вычисления",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рынок виртуальных операторов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Продажи Lenovo",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отчет MercadoLibre",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Продажи MiniMax",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Стратегия Mistral",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Автоматизация JD",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Инвестиции Salesforce в Anthropic",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Облачная инфраструктура Snowflake",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ch/channels/1325886015-ftsec/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Архив июня; общие технологические новости, потенциально смежная тематика в иных выпусках не проверена.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 321,
@@ -9550,7 +10008,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_010": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/futru_spb"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Публичная лента недоступна; публикации не установлены.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 322,
