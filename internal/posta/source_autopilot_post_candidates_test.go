@@ -73,3 +73,31 @@ func TestAutopilotPublicPostQueryPlan(t *testing.T) {
 		t.Fatalf("English term not routed to Lemmy/Mastodon: %+v", en)
 	}
 }
+
+func TestAutopilotDirectCandidatesReserveSlotsForAssessablePosts(t *testing.T) {
+	at := time.Now().Unix()
+	posts := map[string][]jx.M{
+		PlatformTelegram: {
+			{"source_url": "https://t.me/video_digest", "url": "https://t.me/video_digest/1", "posted_at": at, "video": "https://example.org/1.mp4", "text": "Video caption"},
+			{"source_url": "https://t.me/image_digest", "url": "https://t.me/image_digest/1", "posted_at": at, "image": "https://example.org/1.jpg", "text": "Image caption"},
+			{"source_url": "https://t.me/old_digest", "url": "https://t.me/old_digest/1", "posted_at": at - 3*86400, "text": "Older post"},
+			{"source_url": "https://t.me/empty_digest", "url": "https://t.me/empty_digest/1", "posted_at": at},
+			{"source_url": "https://t.me/first_digest", "url": "https://t.me/first_digest/1", "posted_at": at, "text": "Detailed comparison of camera lenses"},
+			{"source_url": "https://t.me/first_digest", "url": "https://t.me/first_digest/1", "posted_at": at, "text": "Detailed comparison of camera lenses"},
+			{"source_url": "https://t.me/first_digest", "url": "https://t.me/first_digest/2", "posted_at": at, "text": "Another tutorial about exposure"},
+			{"source_url": "https://t.me/second_digest", "url": "https://t.me/second_digest/1", "posted_at": at, "text": "Guide to landscape photography"},
+			{"source_url": "https://t.me/third_digest", "url": "https://t.me/third_digest/1", "posted_at": at, "text": "Practice with street photography"},
+		},
+	}
+	got, bySource := autopilotAssessablePostCandidates(posts, at, 2, 0)
+	if len(got) != 2 || got[0].ID != "first_digest" || got[1].ID != "second_digest" {
+		t.Fatalf("unassessable posts consumed candidate slots: %+v", got)
+	}
+	if len(bySource["telegram:first_digest"]) != 2 {
+		t.Fatalf("duplicate or missing staged hints: %+v", bySource)
+	}
+	got, _ = autopilotAssessablePostCandidates(posts, at, 2, 1)
+	if len(got) != 2 || got[0].ID != "second_digest" || got[1].ID != "third_digest" {
+		t.Fatalf("later authors lost to unchanged search order: %+v", got)
+	}
+}
