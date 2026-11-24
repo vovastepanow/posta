@@ -115,6 +115,29 @@ func TestAutopilotProjectionRespectsStateAndOverridePostgres(t *testing.T) {
 	if err != nil || active != 0 || probation != 1 {
 		t.Fatalf("projected source counts: active=%d probation=%d err=%v", active, probation, err)
 	}
+	// A cooldown must remove the automatic profile, without deleting the
+	// source record or bypassing the ordinary probation gate on retry.
+	if err = transitionAutopilotSource(ctx, d, job, source, "probation", "cooldown", "feed_unavailable", []byte(`{}`), at, at.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err = a.reconcileAutopilotProjections(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range a.Catalog().RSS {
+		if jx.Str(entry, "id") == feed && a.CatalogEntryMatchesTopic(entry, topic, false) {
+			t.Fatal("cooldown source remained in the automatic catalog")
+		}
+	}
+	if err = transitionAutopilotSource(ctx, d, job, source, "cooldown", "probation", "cooldown_elapsed", []byte(`{}`), at, at); err != nil {
+		t.Fatal(err)
+	}
+	if err = a.reconcileAutopilotProjections(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	active, probation, err = a.autopilotProjectedCounts(ctx, topic)
+	if err != nil || active != 0 || probation != 1 {
+		t.Fatalf("cooldown resume lost projection: %d/%d %v", active, probation, err)
+	}
 	for _, other := range []string{"rss:https://example.org/two", "rss:https://example.org/three", "rss:https://example.org/four"} {
 		if err = registerAutopilotCandidate(ctx, d, job, other, at); err != nil {
 			t.Fatal(err)
