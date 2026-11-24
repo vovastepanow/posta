@@ -35,7 +35,7 @@ func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandida
 	}
 	if valid {
 		status = "empty"
-		for _, candidate := range SourceLinkedSources(string(r.Bytes)) {
+		for _, candidate := range autopilotSearchLinkedCandidates(r, platform) {
 			if candidate.Platform != platform {
 				continue
 			}
