@@ -333,3 +333,32 @@ func TestAutopilotAdaptiveSearchCountsNovelNotRediscoveredSources(t *testing.T) 
 		t.Fatalf("lost attribution or discovery order: %+v", got)
 	}
 }
+
+
+func TestAutopilotSourceCaptionSampleDoesNotCherryPick(t *testing.T) {
+	posts := []jx.M{
+		{"text": "Detailed social media case study."},
+		{"image": "https://example.org/image.jpg"},
+		{"text": "Detailed social media case study."},
+		{"text": "Independent experiment about engagement."},
+		{"text": EmptyPostText},
+	}
+	captions, readable := autopilotSourceCaptionSample(posts)
+	if len(captions) != len(posts) || readable != 2 || captions[1] != "" || captions[2] != "" || captions[4] != "" {
+		t.Fatalf("sample silently omitted unknown or repeated posts: %q (%d)", captions, readable)
+	}
+	ev := autopilotSourceTopicVerdictsForSample(`{"verdicts":["relevant","relevant","relevant","relevant","relevant"]}`, len(captions), captions)
+	if ev == nil || ev.ReviewedSamples != 0 || jx.Int(ev.Quality, "topic_unknown") != 3 {
+		t.Fatalf("model invented evidence from empty captions: %+v", ev)
+	}
+	if pass, reject := autopilotSourcePreliminaryDecision(ev, 85, len(posts)); pass || reject {
+		t.Fatalf("insufficient coverage made a conclusive decision: %t %t", pass, reject)
+	}
+	for i := 0; i < 10; i++ {
+		posts = append(posts, jx.M{"text": fmt.Sprintf("Later readable post %d", i)})
+	}
+	captions, _ = autopilotSourceCaptionSample(posts)
+	if len(captions) != 10 || captions[1] != "" || captions[2] != "" || captions[4] != "" {
+		t.Fatalf("bounded sample was replaced by later text: %q", captions)
+	}
+}
