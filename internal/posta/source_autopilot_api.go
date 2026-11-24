@@ -388,6 +388,7 @@ func autopilotPublicSourceReviewEvidence(raw []byte) jx.M {
 	for _, field := range []string{
 		"preliminary_score", "threshold", "quality_samples", "fresh_samples",
 		"reviewed_samples", "text_score", "image_score",
+		"topic_relevant", "topic_adjacent", "topic_off_topic", "topic_unknown",
 		"evaluated", "relevant", "eligible", "effective_relevant", "advertising",
 		"duplicates", "fresh_unique", "curated_unique", "successful_passes",
 		"window_days", "http_status",
