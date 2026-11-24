@@ -69,6 +69,13 @@ func autopilotPostMatchesSource(source string, post jx.M) bool {
 		if err != nil || feed.Hostname() == "" {
 			return false
 		}
+		if feed.Hostname() == "bsky.app" {
+			did := autopilotBlueskyProfileDID(strings.TrimSuffix(id, "/rss"))
+			parts := strings.Split(strings.Trim(link.Path, "/"), "/")
+			return did != "" && host == "bsky.app" && link.Scheme == "https" && link.Port() == "" &&
+				link.RawQuery == "" && link.Fragment == "" && len(parts) == 4 && parts[0] == "profile" &&
+				parts[1] == did && parts[2] == "post" && autopilotBlueskyRecordKey.MatchString(parts[3])
+		}
 		return strings.EqualFold(host, feed.Hostname()) || strings.EqualFold(strings.TrimPrefix(host, "www."), strings.TrimPrefix(strings.ToLower(feed.Hostname()), "www."))
 	}
 	return false
