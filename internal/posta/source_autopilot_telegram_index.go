@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -16,6 +17,10 @@ import (
 // Only public channel identities are consumed from the directory; its
 // descriptions and ranking are not evidence for source approval.
 func autopilotTelegramIndexCandidates(data []byte) ([]DiscoveryCandidate, error) {
+	return autopilotTelegramIndexRankedCandidates(data, "", time.Now())
+}
+
+func autopilotTelegramIndexRankedCandidates(data []byte, query string, at time.Time) ([]DiscoveryCandidate, error) {
 	var response struct {
 		JSONRPC string `json:"jsonrpc"`
 		Error   json.RawMessage `json:"error"`
@@ -27,6 +32,9 @@ func autopilotTelegramIndexCandidates(data []byte) ([]DiscoveryCandidate, error)
 					Username    string `json:"username"`
 					TelegramURL string `json:"telegram_url"`
 					Title       string `json:"title"`
+					About       string `json:"about"`
+					LastPostAt  string `json:"last_post_at"`
+					Posts30d    *int64 `json:"posts_30d"`
 				} `json:"results"`
 			} `json:"structuredContent"`
 		} `json:"result"`
@@ -38,7 +46,11 @@ func autopilotTelegramIndexCandidates(data []byte) ([]DiscoveryCandidate, error)
 		return nil, errors.New("Telegram directory returned an error or unknown response")
 	}
 	seen := map[string]bool{}
-	var out []DiscoveryCandidate
+	type rankedCandidate struct {
+		candidate DiscoveryCandidate
+		score int
+	}
+	var ranked []rankedCandidate
 	for _, row := range response.Result.Structured.Results {
 		if row.Type != "channel" || !IsValidTelegramChannel(row.Username) {
 			continue
@@ -53,17 +65,51 @@ func autopilotTelegramIndexCandidates(data []byte) ([]DiscoveryCandidate, error)
 			continue
 		}
 		seen[id] = true
-		out = append(out, c)
-		if len(out) >= 8 {
+		// The catalog is not ground truth. Prefer recent activity, but
+		// keep stale/unknown metadata as a weak ranking signal only.
+		score := 0
+		stamp, err := time.Parse(time.RFC3339, row.LastPostAt)
+		if err != nil {
+			stamp, err = time.Parse("2006-01-02T15:04:05", row.LastPostAt)
+		}
+		if err == nil && !stamp.After(at.Add(24*time.Hour)) {
+			age := at.Sub(stamp)
+			switch {
+			case age <= 30*24*time.Hour:
+				score += 5
+			case age <= 90*24*time.Hour:
+				score += 2
+			case age > 180*24*time.Hour:
+				score -= 4
+			}
+		}
+		if row.Posts30d != nil {
+			switch {
+			case *row.Posts30d >= 3:
+				score += 2
+			case *row.Posts30d == 0:
+				score -= 2
+			}
+		}
+		if discoveryQueryEvidenceMatch(query, row.Title+" "+row.About) {
+			score++
+		}
+		ranked = append(ranked, rankedCandidate{c, score})
+		if len(ranked) >= 30 {
 			break
 		}
+	}
+	sort.SliceStable(ranked, func(i,j int) bool { return ranked[i].score > ranked[j].score })
+	out := make([]DiscoveryCandidate,0,min(8,len(ranked)))
+	for _, r := range ranked[:min(8,len(ranked))] {
+		out = append(out,r.candidate)
 	}
 	return out, nil
 }
 
 func (u *U) autopilotTelegramIndexRequest(query string) ([]DiscoveryCandidate, error) {
 	req := jx.M{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": jx.M{
-		"name": "find_venues", "arguments": jx.M{"query": query, "type": "channel", "sort": "relevance", "limit": 8},
+		"name": "find_venues", "arguments": jx.M{"query": query, "type": "channel", "sort": "relevance", "limit": 30},
 	}}
 	r, err := u.FetchPublic("https://chatcrawler.app/mcp", FetchOpts{
 		Method: "POST", Body: string(jx.Marshal(req)), MaxBytes: 256 << 10, Timeout: 10 * time.Second,
@@ -79,7 +125,7 @@ func (u *U) autopilotTelegramIndexRequest(query string) ([]DiscoveryCandidate, e
 		}
 		return nil, fmt.Errorf("Telegram directory HTTP %d", r.Status)
 	}
-	return autopilotTelegramIndexCandidates(r.Bytes)
+	return autopilotTelegramIndexRankedCandidates(r.Bytes,query,time.Now())
 }
 
 // A small optional fallback, not a bulk crawler. Four requests per UTC day
@@ -96,7 +142,11 @@ func (u *U) autopilotTelegramIndex(query string) ([]DiscoveryCandidate, error) {
 	}
 	day := now.Format("2006-01-02")
 	id := fmt.Sprintf("telegram_index:%s:%x", day, sha256.Sum256([]byte(strings.ToLower(query))))
-	if err := reserveAutopilotBudget(u.Ctx, u.DB, id, "server", "telegram_index", now, 1, 4); err != nil {
+	job, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob)
+	if !leased || !validAutopilotPublicJob(job) {
+		return nil, errors.New("Telegram directory requires an active public worker")
+	}
+	if err := reserveAutopilotJobBudget(u.Ctx, u.DB, job, id, "server", "telegram_index", now, 1, 4); err != nil {
 		return nil, err
 	}
 	out, err := u.autopilotTelegramIndexRequest(query)

@@ -1,6 +1,9 @@
 package posta
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestAutopilotTelegramIndexCandidates(t *testing.T) {
 	data := []byte(`{"jsonrpc":"2.0","id":1,"result":{"structuredContent":{"results":[
@@ -21,5 +24,18 @@ func TestAutopilotTelegramIndexCandidates(t *testing.T) {
 	}
 	if _, err := autopilotTelegramIndexCandidates([]byte(`{"jsonrpc":"2.0","result":{"content":[]}}`)); err == nil {
 		t.Fatal("unknown response was interpreted as empty results")
+	}
+}
+
+
+func TestAutopilotTelegramIndexRanksActiveBeforeStale(t *testing.T) {
+	data := []byte(`{"jsonrpc":"2.0","id":1,"result":{"structuredContent":{"results":[
+		{"type":"channel","username":"stale_channel","telegram_url":"https://t.me/stale_channel","title":"Astronomy","last_post_at":"2022-01-01T00:00:00","posts_30d":0},
+		{"type":"channel","username":"unknown_channel","telegram_url":"https://t.me/unknown_channel","title":"Astronomy"},
+		{"type":"channel","username":"active_channel","telegram_url":"https://t.me/active_channel","title":"Astronomy","last_post_at":"2026-11-22T10:00:00","posts_30d":5}
+	]}}}`)
+	got,err:=autopilotTelegramIndexRankedCandidates(data,"astronomy",time.Date(2026,11,24,0,0,0,0,time.UTC))
+	if err!=nil || len(got)!=3 || got[0].ID!="active_channel" || got[1].ID!="unknown_channel" || got[2].ID!="stale_channel" {
+		t.Fatalf("unexpected ranking: %+v %v",got,err)
 	}
 }

@@ -629,7 +629,7 @@ func TestAutopilotLiveTelegramIndex(t *testing.T) {
 	for _, c := range got {
 		t.Logf("TELEGRAM CANDIDATE: id=%q title=%q", c.ID, jx.Str(c.Info, "title"))
 	}
-	usable := 0
+	usable, recent := 0, 0
 	for _, c := range got {
 		if ctx.Err() != nil {
 			break
@@ -647,9 +647,12 @@ func TestAutopilotLiveTelegramIndex(t *testing.T) {
 		}
 		if err == nil && len(posts) > 0 {
 			usable++
+			if len(autopilotFreshRSSSamples(posts,time.Now().Unix()))>0 {
+				recent++
+			}
 		}
 	}
-	t.Logf("TELEGRAM SUMMARY: candidates=%d usable_feeds=%d",len(got),usable)
+	t.Logf("TELEGRAM SUMMARY: candidates=%d usable_feeds=%d fresh_feeds=%d",len(got),usable,recent)
 	if usable == 0 {
 		t.Skip("search works, but sampled channel pages unavailable")
 	}
@@ -663,9 +666,9 @@ func TestAutopilotLiveBlueskyAuthorFallback(t *testing.T) {
 	ctx,cancel:=context.WithTimeout(context.Background(),45*time.Second)
 	defer cancel()
 	u:=(&App{}).User(ctx,"",nil)
-	_,globalErr:=u.autopilotBlueskySearchData("photography")
+	_,globalErr:=u.autopilotBlueskySearchData("software engineering")
 	t.Logf("BLUESKY GLOBAL: error=%v",globalErr)
-	posts,err:=autopilotBlueskyAuthorFallback("photography",time.Now().Unix(),func(raw string)([]byte,error){
+	posts,err:=autopilotBlueskyAuthorFallback("software engineering",time.Now().Unix(),func(raw string)([]byte,error){
 		p,_:=url.Parse(raw)
 		body,err:=u.searchGetJSON(raw)
 		t.Logf("BLUESKY AUTHOR API: endpoint=%s bytes=%d error=%v",p.Path,len(body),err)
