@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -68,6 +69,7 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 		Video struct {
 			ID    string     `json:"videoId"`
 			Title resultText `json:"title"`
+			Published resultText `json:"publishedTimeText"`
 			Owner struct {
 				Runs []struct {
 					Text     string `json:"text"`
@@ -83,6 +85,7 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 	type nomination struct {
 		id, name, sample string
 		matchingVideos   int
+		freshMatches     int
 		matchingName     bool
 	}
 	query := p.Query().Get("search_query")
@@ -132,6 +135,9 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 				}
 				if discoveryQueryEvidenceMatch(query, title) {
 					n.matchingVideos++
+					if autopilotYouTubeRecentPublication(readText(item.Video.Published)) {
+						n.freshMatches++
+					}
 					n.sample = trimRunes(title, 180)
 				}
 			}
@@ -142,7 +148,7 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 	// without literal overlap retain their native rank rather than being
 	// discarded before the normal content review.
 	score := func(n *nomination) int {
-		rank := min(n.matchingVideos, 3) * 2
+		rank := min(n.matchingVideos, 3)*2 + min(n.freshMatches, 3)*5
 		if n.matchingName {
 			rank++
 		}
@@ -152,9 +158,38 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 	var out []DiscoveryCandidate
 	for _, n := range ranked[:min(len(ranked), 8)] {
 		out = append(out, DiscoveryCandidate{Platform: PlatformRSS, ID: YouTubeChannelFeedURL(n.id), OriginKind: "youtube",
-			Info: jx.M{"title": n.name, "search_video_title": n.sample, "matching_videos": n.matchingVideos}})
+			Info: jx.M{"title": n.name, "search_video_title": n.sample, "matching_videos": n.matchingVideos, "fresh_matches": n.freshMatches}})
 	}
 	return out, nil
+}
+
+// Relative publication time is only a positive ranking signal. Unknown or
+// localized labels never exclude a channel, and live broadcasts are not
+// assumed to have completed. Full review still uses actual publication dates.
+func autopilotYouTubeRecentPublication(label string) bool {
+	words := strings.Fields(strings.ToLower(label))
+	if len(words) == 4 && (words[0] == "streamed" || words[0] == "premiered") {
+		words = words[1:]
+	}
+	if len(words) != 3 || words[2] != "ago" {
+		return false
+	}
+	n, err := strconv.Atoi(words[0])
+	if err != nil || n < 0 {
+		return false
+	}
+	switch strings.TrimSuffix(words[1], "s") {
+	case "second", "minute", "hour":
+		return n <= 60
+	case "day":
+		return n <= 30
+	case "week":
+		return n <= 4
+	case "month":
+		return n <= 1
+	default:
+		return false
+	}
 }
 
 var autopilotNativeYouTubePause struct {
