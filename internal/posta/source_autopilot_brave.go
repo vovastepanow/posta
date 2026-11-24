@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/net/html"
 )
 
 func autopilotBraveRetryAt(at time.Time, header string) time.Time {
@@ -49,4 +51,143 @@ func (u *U) autopilotBraveSearchWith(query string, fetch func(string, int64, tim
 		}
 	}
 	return r
+}
+
+// Search documents are not a list of sources. URLs in scripts, unrelated
+// snippets, tracking parameters and lookalike hostnames must not nominate a
+// publisher. Accept only actual result hyperlinks (or the already validated
+// plain URL list from the TikTok Bing RSS adapter).
+func autopilotSearchLinkedCandidates(r FetchResultURL, platform string) []DiscoveryCandidate {
+	final, err := url.Parse(r.URL)
+	if !r.OK || err != nil || final.Scheme != "https" || final.User != nil || final.Port() != "" {
+		return nil
+	}
+	var links []string
+	switch final.Hostname() {
+	case "search.brave.com":
+		z := html.NewTokenizer(strings.NewReader(string(r.Bytes)))
+		for {
+			t := z.Next()
+			if t == html.ErrorToken {
+				break
+			}
+			if t != html.StartTagToken && t != html.SelfClosingTagToken {
+				continue
+			}
+			token := z.Token()
+			if token.Data != "a" {
+				continue
+			}
+			for _, attr := range token.Attr {
+				if attr.Key == "href" {
+					links = append(links, attr.Val)
+					break
+				}
+			}
+		}
+	case "www.bing.com":
+		if platform != PlatformTikTok {
+			return nil
+		}
+		links = strings.Fields(string(r.Bytes))
+	default:
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []DiscoveryCandidate
+	for _, raw := range links {
+		p, err := url.Parse(raw)
+		if err != nil || (p.Scheme != "https" && p.Scheme != "http") || p.User != nil || p.Port() != "" {
+			continue
+		}
+		host := strings.ToLower(p.Hostname())
+		parts := strings.Split(strings.Trim(p.Path, "/"), "/")
+		if len(parts) == 0 || parts[0] == "" {
+			continue
+		}
+		var candidate DiscoveryCandidate
+		candidate.Platform = platform
+		switch platform {
+		case PlatformTelegram:
+			if host != "t.me" && host != "telegram.me" {
+				continue
+			}
+			if parts[0] == "s" {
+				parts = parts[1:]
+			}
+			if len(parts) < 1 || len(parts) > 2 {
+				continue
+			}
+			if len(parts) == 2 {
+				if n, err := strconv.ParseUint(parts[1], 10, 64); err != nil || n == 0 {
+					continue
+				}
+			}
+			candidate.ID = parts[0]
+		case PlatformVK:
+			if host != "vk.com" && host != "www.vk.com" && host != "m.vk.com" || len(parts) != 1 {
+				continue
+			}
+			candidate.ID = parts[0]
+			// A wall post is not a public-page slug. Resolve community
+			// wall posts to their numeric club, never to a personal ID.
+			if strings.HasPrefix(candidate.ID, "wall-") {
+				owner, post, ok := strings.Cut(strings.TrimPrefix(candidate.ID, "wall-"), "_")
+				n, ownerErr := strconv.ParseUint(owner, 10, 64)
+				m, postErr := strconv.ParseUint(post, 10, 64)
+				if !ok || ownerErr != nil || postErr != nil || n == 0 || m == 0 {
+					continue
+				}
+				candidate.ID = "club" + owner
+			} else if strings.HasPrefix(candidate.ID, "wall") || strings.HasPrefix(candidate.ID, "photo") || strings.HasPrefix(candidate.ID, "video") {
+				// These may be post/media routes rather than communities.
+				// Leave genuine similarly named groups discoverable through
+				// the ordinary post-search and other discovery adapters.
+				continue
+			}
+		case PlatformTikTok:
+			if host != "www.tiktok.com" && host != "tiktok.com" || !strings.HasPrefix(parts[0], "@") {
+				continue
+			}
+			if len(parts) != 1 {
+				if _, _, ok := autopilotTikTokVideoParts("https://www.tiktok.com" + p.Path); !ok {
+					continue
+				}
+			}
+			candidate.ID = strings.TrimPrefix(parts[0], "@")
+		case PlatformRSS:
+			if host != "youtube.com" && host != "www.youtube.com" && host != "m.youtube.com" {
+				continue
+			}
+			if len(parts) >= 2 && parts[0] == "channel" && ytChannelIDRe.MatchString(parts[1]) {
+				candidate.ID = YouTubeChannelFeedURL(parts[1])
+			} else if strings.HasPrefix(parts[0], "@") {
+				handle := "https://www.youtube.com/" + parts[0]
+				match := lsYTHandleRe.FindStringSubmatch(handle)
+				if len(match) != 2 || "@"+match[1] != parts[0] {
+					continue
+				}
+				candidate.ID = handle
+			} else {
+				continue
+			}
+		default:
+			continue
+		}
+		id, ok := autopilotCandidateID(candidate)
+		// YouTube handles need the existing public-page resolution before
+		// they can become valid feed identities.
+		if !ok && platform == PlatformRSS && strings.HasPrefix(candidate.ID, "https://www.youtube.com/@") {
+			id, ok = candidate.ID, true
+		}
+		if !ok || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, candidate)
+		if len(out) >= discoveryLinksMax {
+			break
+		}
+	}
+	return out
 }
