@@ -684,3 +684,43 @@ func TestAutopilotLiveBlueskyAuthorFallback(t *testing.T) {
 		}
 	}
 }
+
+// Verify historical recovery leads against the official feed identity.
+// This read-only check does not mutate a catalog or approve any source.
+func TestAutopilotLiveLegacyFeedIdentities(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+	defer cancel()
+	u := (&App{}).User(ctx, "", nil)
+	verified, attempted := 0, 0
+	for _, id := range autopilotYouTubeRecoveryLeads {
+		if ctx.Err() != nil {
+			break
+		}
+		HostThrottle("www.youtube.com", 1500*time.Millisecond)
+		feed := YouTubeChannelFeedURL(id)
+		r := u.RSSGet(feed, rssMaxBytes, 8*time.Second, HTTPUA)
+		attempted++
+		ok := autopilotVerifiedYouTubeIdentity(feed, r)
+		if ok {
+			verified++
+		}
+		t.Logf("IDENTITY RECOVERY: channel=%s HTTP=%d verified=%t", id, r.Status, ok)
+		if r.Status == 429 {
+			break
+		}
+	}
+	habr := "https://habr.com/ru/rss/hubs/business_models/articles/all/?fl=ru"
+	fixed, ok := autopilotPublicRSSID(habr)
+	if !ok {
+		t.Fatal("Habr identity failed normalization")
+	}
+	r := autopilotReadRSS(strings.TrimPrefix(fixed, "rss:"), u.RSSGet)
+	t.Logf("HABR RECOVERY: feed=%s HTTP=%d valid=%t", fixed, r.Status, r.OK && rssIsFeed(rssLoad(r.Bytes)))
+	t.Logf("IDENTITY SUMMARY: leads=%d attempted=%d verified=%d", len(autopilotYouTubeRecoveryLeads), attempted, verified)
+	if verified == 0 {
+		t.Skip("no historical YouTube identity was confirmed in this environment")
+	}
+}

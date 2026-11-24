@@ -1498,6 +1498,7 @@ func (a *App) autopilotQueueSourceReaudit(ctx context.Context, job *autopilotJob
 				evidence=s.evidence || '{"review_policy_v3_scheduled":true}'::jsonb
 			WHERE s.scope=$1 AND s.topic_key=$2 AND s.checked_at>0
 			AND s.state IN ('candidate','probation','active','cooldown','rejected')
+			AND s.reason<>'source_identity_recovered'
 			AND NOT (s.evidence ? 'review_policy_v3_scheduled')
 			AND NOT (s.evidence ? 'review_policy_v3_checked')
 			AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o
