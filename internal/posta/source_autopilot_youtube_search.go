@@ -105,7 +105,7 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 		if name != "" && n.name == "" {
 			n.name = trimRunes(name, 120)
 		}
-		n.matchingName = n.matchingName || blueskyQueryEvidenceMatch(query, name)
+		n.matchingName = n.matchingName || discoveryQueryEvidenceMatch(query, name)
 		return n
 	}
 	for _, raw := range sections {
@@ -130,7 +130,7 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 				if n.sample == "" {
 					n.sample = trimRunes(title, 180)
 				}
-				if blueskyQueryEvidenceMatch(query, title) {
+				if discoveryQueryEvidenceMatch(query, title) {
 					n.matchingVideos++
 					n.sample = trimRunes(title, 180)
 				}
