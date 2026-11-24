@@ -305,13 +305,12 @@ func (a *App) autopilotReconsiderTechnicalRejects(ctx context.Context, job *auto
 	return nil
 }
 
-// A previous 160-rune source prescreen could reject a useful publisher before
-// the actual point of a long post. Revisit those decisions at most 20/day,
-// preserving the old rejection until the normal review runs. Every source is
-// scheduled only once, even if the new assessment rejects it again.
+// Revisit legacy preliminary verdicts with the fuller, evidence-aware
+// source policy. The daily cap and existing review budgets stay in place.
+// Only decisions made before actual reviewed-sample counts were recorded
+// are eligible; previously scheduled v1 rechecks can be revisited once.
 func (a *App) autopilotScheduleFullContextRechecks(ctx context.Context, job *autopilotJob) error {
-	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope ||
-		autopilotCanonicalTopic(job.Topic) != "SMM и блогинг" {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope {
 		return nil
 	}
 	at := time.Now().UTC()
@@ -324,11 +323,13 @@ func (a *App) autopilotScheduleFullContextRechecks(ctx context.Context, job *aut
 			SELECT s.source_id FROM source_autopilot_sources s
 			WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='rejected'
 			AND s.reason='preliminary_topic_mismatch'
+			AND NOT (s.evidence ? 'reviewed_samples')
 			AND s.next_check_at>$3
 			AND NOT EXISTS (
 				SELECT 1 FROM source_autopilot_decisions d WHERE d.scope=$1
 				AND d.topic_key=$2 AND d.source_id=s.source_id
-				AND d.reason='full_context_reaudit_scheduled')
+				AND d.reason='full_context_reaudit_scheduled'
+				AND d.evidence @> '{"review_policy_v2":true}'::jsonb)
 			AND NOT EXISTS (
 				SELECT 1 FROM source_autopilot_overrides o WHERE o.scope=$1
 				AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id
@@ -346,7 +347,7 @@ func (a *App) autopilotScheduleFullContextRechecks(ctx context.Context, job *aut
 		INSERT INTO source_autopilot_decisions
 			(scope,topic_key,source_id,old_state,new_state,reason,evidence,policy_version,at)
 		SELECT $1,$2,source_id,'rejected','rejected','full_context_reaudit_scheduled',
-			'{"explanation":"recheck_with_fuller_captions"}'::jsonb,$5,$3 FROM scheduled`,
+			'{"explanation":"recheck_with_fuller_captions_and_reviewed_sample_count","review_policy_v2":true}'::jsonb,$5,$3 FROM scheduled`,
 			job.Scope, job.TopicKey, at.Unix(), at.Truncate(24*time.Hour).Unix(), TopicProfileVersion)
 		return err
 	})
