@@ -884,3 +884,61 @@ func TestAutopilotLiveUnresolvedYouTubeIdentities(t *testing.T) {
 		t.Logf("IDENTITY NATIVE: key=%s candidates=%d verified=%t", tc.key, len(candidates), verified)
 	}
 }
+
+// A positive-control panel chosen from independent public publisher sites,
+// not from the search being evaluated. This measures access and parsability;
+// the publisher name is NOT a gold relevance label for all its posts.
+func TestAutopilotLiveSMMControlRead(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	u := (&App{}).User(ctx, "", nil)
+	feeds := []struct {
+		name, raw string
+	}{
+		{"Buffer", "https://buffer.com/resources/feed"},
+		{"Hootsuite", "https://blog.hootsuite.com/feed/"},
+		{"Social Media Examiner", "https://www.socialmediaexaminer.com/feed/"},
+		{"Sprout Social", "https://sproutsocial.com/insights/feed/"},
+		{"Social Media Today", "https://www.socialmediatoday.com/feeds/news/"},
+		{"Metricool", "https://metricool.com/feed/"},
+		{"HubSpot Marketing", "https://blog.hubspot.com/marketing/rss.xml"},
+		{"SMMplanner", "https://smmplanner.com/blog/rss/"},
+	}
+	readable, fresh := 0, 0
+	for _, f := range feeds {
+		if ctx.Err() != nil {
+			t.Logf("SMM CONTROL %s: not attempted", f.name)
+			continue
+		}
+		res := u.RSSGet(f.raw, rssMaxBytes, 8*time.Second, HTTPUA)
+		if !res.OK || !rssIsFeed(rssLoad(res.Bytes)) {
+			t.Logf("SMM CONTROL %s: HTTP=%d not_readable", f.name, res.Status)
+			continue
+		}
+		posts, err := RSSParse(res.Bytes, 20, "", f.raw, true, true, 0)
+		if err != nil {
+			t.Logf("SMM CONTROL %s: parse_failed", f.name)
+			continue
+		}
+		readable++
+		current := autopilotFreshRSSSamples(posts, time.Now().Unix())
+		textCount, mediaCount := 0, 0
+		for _, post := range current {
+			if AnalysisText(post) != "" {
+				textCount++
+			}
+			if PostItemHasVideo(post) || ContentImageKey(post) != "" {
+				mediaCount++
+			}
+		}
+		fresh += len(current)
+		t.Logf("SMM CONTROL %s: parsed=%d fresh=%d with_text=%d with_media=%d", f.name, len(posts), len(current), textCount, mediaCount)
+	}
+	t.Logf("SMM CONTROL TOTAL: readable=%d/%d fresh_items=%d", readable, len(feeds), fresh)
+	if readable == 0 || fresh == 0 {
+		t.Fatal("no independent SMM control feed yielded fresh posts")
+	}
+}
