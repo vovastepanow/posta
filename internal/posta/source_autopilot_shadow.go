@@ -1132,7 +1132,7 @@ func (u *U) autopilotEvaluateSource(info jx.M, posts []jx.M, topic string) *sour
 		return nil
 	}
 	score := review.Score
-	return &sourceEvaluation{Score: score, Text: &score, TextOnly: true, Reason: review.Reason, PersonalBlog: review.PersonalBlog}
+	return &sourceEvaluation{Score: score, Text: &score, TextOnly: true, Reason: review.Reason, PersonalBlog: review.PersonalBlog, ReviewedSamples: review.Samples}
 }
 
 // Keep bounded, publicly readable evidence for an independent source audit.
@@ -1640,6 +1640,14 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				evidence["assessment_cause"] = cause
 			} else {
 				evidence["preliminary_score"] = evaluation.Score
+				evidence["threshold"] = threshold
+				evidence["reviewed_samples"] = evaluation.ReviewedSamples
+				if evaluation.Text != nil {
+					evidence["text_score"] = *evaluation.Text
+				}
+				if len(evaluation.Images) > 0 {
+					evidence["image_score"] = evaluation.Images[0]
+				}
 				if jx.Str(sourceInfo, "source_kind") != "category" {
 					if format := personalBlogLabelFromReview(evaluation.PersonalBlog); format != personalBlogUnknown {
 						evidence["personal_blog"] = format
@@ -1669,7 +1677,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					// samples do not justify a definitive thematic rejection.
 					evidence["threshold"] = threshold
 					decision, decisionReason, retry := "cooldown", "preliminary_match_uncertain", 7*24*time.Hour
-					if autopilotPreliminaryReject(evaluation.Score, threshold, len(samples)) {
+					if autopilotPreliminaryReject(evaluation.Score, threshold, min(len(samples), evaluation.ReviewedSamples)) {
 						decision, decisionReason, retry = "rejected", "preliminary_topic_mismatch", 30*24*time.Hour
 					}
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
