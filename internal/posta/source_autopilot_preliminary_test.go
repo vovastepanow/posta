@@ -36,6 +36,38 @@ func TestAutopilotPreliminaryPass(t *testing.T) {
 	}
 }
 
+func TestAutopilotSourceTopicVerdicts(t *testing.T) {
+	tests := []struct {
+		name, reply            string
+		expected, score, known int
+		pass, reject           bool
+	}{
+		{"fully relevant", `{"verdicts":["relevant","relevant","relevant"]}`, 3, 100, 3, true, false},
+		{"mixed useful source", `{"verdicts":["relevant","relevant","relevant","adjacent","off_topic"]}`, 5, 70, 5, true, false},
+		{"clearly unrelated", `{"verdicts":["off_topic","off_topic","off_topic","off_topic","relevant"]}`, 5, 20, 5, false, true},
+		{"adjacent is not off-topic", `{"verdicts":["adjacent","adjacent","adjacent","adjacent","adjacent"]}`, 5, 50, 5, false, false},
+		{"insufficient readable coverage", `{"verdicts":["relevant","relevant","unknown","unknown","unknown"]}`, 5, 50, 0, false, false},
+		{"insufficient negative sample", `{"verdicts":["off_topic","off_topic","off_topic","unknown","unknown"]}`, 5, 50, 0, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ev := autopilotSourceTopicVerdicts(tt.reply, tt.expected)
+			if ev == nil || ev.Score != tt.score || ev.ReviewedSamples != tt.known {
+				t.Fatalf("evaluation=%+v, want score=%d reviewed=%d", ev, tt.score, tt.known)
+			}
+			pass, reject := autopilotSourcePreliminaryDecision(ev, 85, tt.expected)
+			if pass != tt.pass || reject != tt.reject {
+				t.Fatalf("pass=%t reject=%t, want %t %t", pass, reject, tt.pass, tt.reject)
+			}
+		})
+	}
+	for _, reply := range []string{`{"verdicts":["relevant"]}`, `{"verdicts":["relevant","invalid","off_topic"]}`, `{"score":100}`} {
+		if ev := autopilotSourceTopicVerdicts(reply, 3); ev != nil {
+			t.Fatalf("accepted malformed verdicts: %+v", ev)
+		}
+	}
+}
+
 func TestAutopilotPreliminaryReject(t *testing.T) {
 	tests := []struct {
 		name                      string
