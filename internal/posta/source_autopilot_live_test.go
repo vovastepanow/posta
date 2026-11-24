@@ -668,10 +668,52 @@ func TestAutopilotLiveBlueskyAuthorFallback(t *testing.T) {
 	u:=(&App{}).User(ctx,"",nil)
 	_,globalErr:=u.autopilotBlueskySearchData("software engineering")
 	t.Logf("BLUESKY GLOBAL: error=%v",globalErr)
-	posts,err:=autopilotBlueskyAuthorFallback("software engineering",time.Now().Unix(),func(raw string)([]byte,error){
+	at := time.Now().Unix()
+	posts,err:=autopilotBlueskyAuthorFallback("software engineering",at,func(raw string)([]byte,error){
 		p,_:=url.Parse(raw)
 		body,err:=u.searchGetJSON(raw)
 		t.Logf("BLUESKY AUTHOR API: endpoint=%s bytes=%d error=%v",p.Path,len(body),err)
+		if err == nil && strings.HasSuffix(p.Path, "/app.bsky.feed.getAuthorFeed") {
+			var response struct {
+				Feed []struct {
+					Reason json.RawMessage `json:"reason"`
+					Reply json.RawMessage `json:"reply"`
+					Post struct {
+						Embed json.RawMessage `json:"embed"`
+						Labels []json.RawMessage `json:"labels"`
+						Author struct {
+							DID string `json:"did"`
+							Labels []json.RawMessage `json:"labels"`
+						} `json:"author"`
+						Record struct {
+							CreatedAt string `json:"createdAt"`
+							Embed json.RawMessage `json:"embed"`
+							Reply json.RawMessage `json:"reply"`
+							Labels json.RawMessage `json:"labels"`
+						} `json:"record"`
+					} `json:"post"`
+				} `json:"feed"`
+			}
+			if decodeErr := json.Unmarshal(body, &response); decodeErr != nil {
+				t.Logf("BLUESKY AUTHOR DIAGNOSTIC: parse=%v", decodeErr)
+			} else {
+				present := func(v json.RawMessage) bool { return len(v)>0 && string(v)!="null" }
+				own, original, fresh, embedded, labeled := 0,0,0,0,0
+				for _, row := range response.Feed {
+					if row.Post.Author.DID != p.Query().Get("actor") { continue }
+					own++
+					if present(row.Reason) || present(row.Reply) || present(row.Post.Record.Reply) { continue }
+					original++
+					stamp, stampErr := time.Parse(time.RFC3339Nano,row.Post.Record.CreatedAt)
+					if stampErr != nil || stamp.Unix()>at+300 || IsPostOutdated(stamp.Unix(),at,2) { continue }
+					fresh++
+					if present(row.Post.Embed) || present(row.Post.Record.Embed) { embedded++ }
+					if len(row.Post.Labels)>0 || len(row.Post.Author.Labels)>0 || present(row.Post.Record.Labels) { labeled++ }
+				}
+				eligible, parseErr := autopilotBlueskyAuthorTextPosts(body,p.Query().Get("actor"),at)
+				t.Logf("BLUESKY AUTHOR DIAGNOSTIC: rows=%d own=%d original=%d fresh=%d embedded=%d labeled=%d eligible=%d parse=%v",len(response.Feed),own,original,fresh,embedded,labeled,len(eligible),parseErr)
+			}
+		}
 		return body,err
 	})
 	t.Logf("BLUESKY FALLBACK: safe_recent_text_posts=%d error=%v",len(posts),err)
