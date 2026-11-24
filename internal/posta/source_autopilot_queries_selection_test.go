@@ -69,3 +69,34 @@ func TestAutopilotSelectQueryAvoidsNegativeNetYield(t *testing.T) {
 		t.Fatalf("all-negative query yields should explore instead: %q", got)
 	}
 }
+
+func TestAutopilotSMMDiscoveryQueriesPreferExplicitIntents(t *testing.T) {
+	queries := autopilotCleanDiscoveryQueries("SMM и блогинг", []string{"SMM", "смм", "блогинг", "новый вариант"})
+	if len(queries) < 10 || queries[0] != "продвижение в социальных сетях" {
+		t.Fatalf("missing specific discovery intents: %v", queries)
+	}
+	foundEnglish, foundGenerated := false, false
+	for _, query := range queries {
+		switch strings.ToLower(query) {
+		case "smm", "смм", "блогинг":
+			t.Fatalf("ambiguous standalone query retained: %q", query)
+		case "social media marketing":
+			foundEnglish = true
+		case "новый вариант":
+			foundGenerated = true
+		}
+	}
+	if !foundEnglish || !foundGenerated {
+		t.Fatalf("lost English or additional search intent: %v", queries)
+	}
+}
+
+func TestAutopilotReauditDoesNotBlockDiscoveryIndefinitely(t *testing.T) {
+	const now int64 = 10000
+	if autopilotShouldDrainReaudit(0, now-30, now) ||
+		autopilotShouldDrainReaudit(100, 0, now) ||
+		autopilotShouldDrainReaudit(100, now-15*60, now) ||
+		!autopilotShouldDrainReaudit(100, now-14*60, now) {
+		t.Fatal("historical audit must yield periodically to new discovery")
+	}
+}
