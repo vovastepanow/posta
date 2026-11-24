@@ -80,6 +80,12 @@ func TestAutopilotFullRecheckPostgres(t *testing.T) {
 		if err != nil || stats.Evaluated != 1 || stats.Eligible != 0 {
 			t.Fatalf("old verdict was not replaced by fresh verdict: %+v %v", stats, err)
 		}
+		if !jx.Bool(jx.Unmarshal(job.Checkpoint), "full_recheck_v4_started") {
+			t.Fatal("restart checkpoint missing")
+		}
+		// Even if the in-memory checkpoint is lost, the persisted source
+		// generation prevents another mass reset.
+		job.Checkpoint = jx.Marshal(jx.M{})
 		return a.autopilotQueueFullRecheck(work, job)
 	}); err != nil {
 		t.Fatal(err)

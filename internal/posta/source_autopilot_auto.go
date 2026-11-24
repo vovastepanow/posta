@@ -121,12 +121,14 @@ func (a *App) autopilotObservedContent(ctx context.Context, job *autopilotJob) (
 	since := time.Now().Add(-7 * 24 * time.Hour).Unix()
 	rows, err := a.DB.Pool.Query(ctx, `WITH latest AS (
 		SELECT DISTINCT ON (source_id,post_hash) source_id,post_hash,content_hash,published_at,eligible
-		FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2
+		FROM source_autopilot_post_evidence e WHERE scope=$1 AND topic_key=$2
+		AND e.observed_at >= COALESCE((SELECT (s.evidence->>'full_recheck_at')::bigint
+			FROM source_autopilot_sources s WHERE s.scope=e.scope AND s.topic_key=e.topic_key AND s.source_id=e.source_id),0)
 		ORDER BY source_id,post_hash,policy_version DESC
 	), covered AS (
 		SELECT s.source_id FROM source_autopilot_sources s
 		JOIN source_autopilot_collection_passes p ON p.scope=s.scope AND p.topic_key=s.topic_key AND p.source_id=s.source_id
-		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='active' AND p.fetched_at >= $3
+		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='active' AND p.fetched_at >= GREATEST($3,COALESCE((s.evidence->>'full_recheck_at')::bigint,0))
 		GROUP BY s.source_id HAVING count(DISTINCT (p.fetched_at/86400)) >= 2
 	), useful AS (
 		SELECT DISTINCT source_id,content_hash FROM latest

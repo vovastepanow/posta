@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"posta/internal/jx"
 )
 
 // The parameters $1/$2/$3 always identify scope, topic and source. A new
@@ -22,7 +23,14 @@ func (a *App) autopilotQueueFullRecheck(ctx context.Context, job *autopilotJob) 
 	if !validAutopilotPublicJob(job) {
 		return errors.New("invalid full recheck job")
 	}
-	return withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
+	checkpoint := jx.Unmarshal(job.Checkpoint)
+	if checkpoint == nil {
+		checkpoint = jx.M{}
+	}
+	if jx.Bool(checkpoint, "full_recheck_v4_started") {
+		return nil
+	}
+	err := withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
 		if err := ensureAutopilotShadowDemand(ctx, tx, job); err != nil {
 			return err
 		}
@@ -34,6 +42,8 @@ func (a *App) autopilotQueueFullRecheck(ctx context.Context, job *autopilotJob) 
 					AND o.source_id=s.source_id AND o.owner_id='' AND o.decision='pinned') AS pinned
 			FROM source_autopilot_sources s
 			WHERE s.scope=$1 AND s.topic_key=$2 AND s.reason<>'source_identity_recovered'
+			AND NOT EXISTS (SELECT 1 FROM source_autopilot_sources previous
+				WHERE previous.scope=$1 AND previous.topic_key=$2 AND previous.evidence ? 'full_recheck_at')
 			AND NOT EXISTS (SELECT 1 FROM source_autopilot_decisions d WHERE d.scope=$1 AND d.topic_key=$2
 				AND d.reason='full_recheck_v4_scheduled')
 			AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o
@@ -58,6 +68,17 @@ func (a *App) autopilotQueueFullRecheck(ctx context.Context, job *autopilotJob) 
 		SELECT $1,$2,source_id,old_state,state,'full_recheck_v4_scheduled',
 			jsonb_build_object('previous_reason',old_reason,'full_recheck_at',$3::bigint),$4,$3 FROM reset`,
 			job.Scope, job.TopicKey, at, TopicProfileVersion)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE source_autopilot_jobs
+			SET checkpoint=checkpoint || '{"full_recheck_v4_started":true}'::jsonb
+			WHERE scope=$1 AND topic_key=$2 AND kind=$3`, job.Scope, job.TopicKey, job.Kind)
 		return err
 	})
+	if err == nil {
+		checkpoint["full_recheck_v4_started"] = true
+		job.Checkpoint = jx.Marshal(checkpoint)
+	}
+	return err
 }

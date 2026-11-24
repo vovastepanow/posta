@@ -90,7 +90,9 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	if a.DB != nil {
 		rows, err := a.DB.Pool.Query(ctx, `WITH latest AS (
 			SELECT DISTINCT ON (source_id,post_hash) source_id,post_hash,content_hash,published_at,eligible
-			FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2
+			FROM source_autopilot_post_evidence e WHERE scope=$1 AND topic_key=$2
+			AND e.observed_at >= COALESCE((SELECT (s.evidence->>'full_recheck_at')::bigint
+				FROM source_autopilot_sources s WHERE s.scope=e.scope AND s.topic_key=e.topic_key AND s.source_id=e.source_id),0)
 			ORDER BY source_id,post_hash,policy_version DESC
 		), recent AS (SELECT * FROM latest WHERE published_at >= $3)
 		SELECT q.query,
