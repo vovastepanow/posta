@@ -225,6 +225,207 @@ func (a *App) autopilotReconsiderTechnicalRejects(ctx context.Context, job *auto
 	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope {
 		return nil
 	}
+	// Existing Rutube entries were sent to cooldown because channel HTML
+	// was incorrectly parsed as XML. Schedule a single retry with the
+	// corrected JSON adapter; normal leases and review budgets still apply.
+	if err := withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE source_autopilot_sources s
+			SET next_check_at=LEAST(s.next_check_at,$3),
+				evidence=s.evidence || '{"rutube_json_reaudit_v1":true}'::jsonb
+			WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='cooldown'
+			AND s.reason='unrecognized_feed'
+			AND s.source_id ~ '^rss:https://rutube[.]ru/(channel|video/person)/[1-9][0-9]*/?
+		AND NOT (evidence ? 'technical_reaudit_v1')
+		ORDER BY source_id LIMIT 100`, job.Scope, job.TopicKey)
+	if err != nil {
+		return err
+	}
+	var sources []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		sources = append(sources, id)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, old := range sources {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		canonical := ""
+		if len(old) > 4 && old[:4] == "rss:" {
+			if normalized, ok := autopilotPublicRSSID(old[4:]); ok &&
+				SourceIDFor(PlatformRSS, normalized[4:]) == normalized {
+				canonical = normalized
+			}
+		} else if _, _, _, ok := autopilotSourceParts(old); ok {
+			canonical = old
+		}
+		at := time.Now()
+		if canonical == old {
+			// This is only a request to retry, not an approval or a bypass
+			// of manual exclusions or the normal model gates.
+			err := transitionAutopilotSource(ctx, a.DB, job, old, "rejected", "candidate",
+				"technical_reaudit", []byte(`{"technical_reaudit_v1":true}`), at, at)
+			if err != nil && !errors.Is(err, errAutopilotSourceChanged) &&
+				!errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+		} else if canonical != "" {
+			if err := registerAutopilotCandidate(ctx, a.DB, job, canonical, at); err != nil {
+				return err
+			}
+		}
+		// Keep the original, possibly irrecoverable entry auditable. In
+		// particular, lowercase legacy YouTube IDs cannot safely be guessed.
+		if _, err := a.DB.Pool.Exec(ctx, `UPDATE source_autopilot_sources
+			SET evidence=evidence || '{"technical_reaudit_v1":true}'::jsonb
+			WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND state='rejected'`,
+			job.Scope, job.TopicKey, old); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// A previous 160-rune source prescreen could reject a useful publisher before
+// the actual point of a long post. Revisit those decisions at most 20/day,
+// preserving the old rejection until the normal review runs. Every source is
+// scheduled only once, even if the new assessment rejects it again.
+func (a *App) autopilotScheduleFullContextRechecks(ctx context.Context, job *autopilotJob) error {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope ||
+		autopilotCanonicalTopic(job.Topic) != "SMM и блогинг" {
+		return nil
+	}
+	at := time.Now().UTC()
+	return withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `WITH quota AS (
+			SELECT GREATEST(0,20-count(*)::int) AS available
+			FROM source_autopilot_decisions
+			WHERE scope=$1 AND topic_key=$2 AND reason='full_context_reaudit_scheduled' AND at >= $4
+		), candidates AS (
+			SELECT s.source_id FROM source_autopilot_sources s
+			WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='rejected'
+			AND s.reason='preliminary_topic_mismatch'
+			AND s.next_check_at>$3
+			AND NOT EXISTS (
+				SELECT 1 FROM source_autopilot_decisions d WHERE d.scope=$1
+				AND d.topic_key=$2 AND d.source_id=s.source_id
+				AND d.reason='full_context_reaudit_scheduled')
+			AND NOT EXISTS (
+				SELECT 1 FROM source_autopilot_overrides o WHERE o.scope=$1
+				AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id
+				AND o.decision='excluded')
+			ORDER BY s.checked_at,s.source_id
+			LIMIT (SELECT available FROM quota)
+			FOR UPDATE OF s SKIP LOCKED
+		), scheduled AS (
+			UPDATE source_autopilot_sources s
+			SET next_check_at=$3
+			FROM candidates c
+			WHERE s.scope=$1 AND s.topic_key=$2 AND s.source_id=c.source_id
+			RETURNING s.source_id
+		)
+		INSERT INTO source_autopilot_decisions
+			(scope,topic_key,source_id,old_state,new_state,reason,evidence,policy_version,at)
+		SELECT $1,$2,source_id,'rejected','rejected','full_context_reaudit_scheduled',
+			'{"explanation":"recheck_with_fuller_captions"}'::jsonb,$5,$3 FROM scheduled`,
+			job.Scope, job.TopicKey, at.Unix(), at.Truncate(24*time.Hour).Unix(), TopicProfileVersion)
+		return err
+	})
+}
+
+func (a *App) reconcileAutopilotProjections(ctx context.Context, job *autopilotJob) error {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope {
+		return errors.New("invalid projection job")
+	}
+	if err := a.autopilotRescheduleOldOKRejections(ctx, job); err != nil {
+		return err
+	}
+	if err := a.autopilotReconsiderTechnicalRejects(ctx, job); err != nil {
+		return err
+	}
+	if err := a.autopilotScheduleFullContextRechecks(ctx, job); err != nil {
+		return err
+	}
+	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,state FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND state IN ('probation','active','rejected') ORDER BY source_id`, job.Scope, job.TopicKey)
+	if err != nil {
+		return err
+	}
+	type projection struct{ source, state string }
+	var projections []projection
+	for rows.Next() {
+		var p projection
+		if err := rows.Scan(&p.source, &p.state); err != nil {
+			rows.Close()
+			return err
+		}
+		projections = append(projections, p)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, p := range projections {
+		// Legacy manual suggestions with unsupported identities are now
+		// retained as rejected, auditable rows. They cannot have a valid
+		// catalog projection. Attempting to unproject them previously
+		// returned "invalid public source" on EVERY job run, stopping the
+		// entire auto worker at prepare before any candidate reviews.
+		if _, _, _, valid := autopilotSourceParts(p.source); !valid {
+			if p.state == "rejected" {
+				continue
+			}
+			// Old malformed trials also must not prevent healthy sources from
+			// reaching review. Quarantine rather than activating or deleting.
+			at := time.Now()
+			err = transitionAutopilotSource(ctx, a.DB, job, p.source, p.state,
+				"cooldown", "unsupported_source_format", []byte(`{}`), at,
+				time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC))
+			if err != nil && !errors.Is(err, errAutopilotSourceChanged) &&
+				!errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+			continue
+		}
+		if p.state == "rejected" {
+			err = a.unprojectAutopilotSource(ctx, job, p.source)
+		} else {
+			err = a.projectAutopilotSource(ctx, job, p.source, p.state)
+		}
+		if errors.Is(err, errAutopilotProjectionConflict) && p.state != "rejected" {
+			at := time.Now()
+			transitionErr := transitionAutopilotSource(ctx, a.DB, job, p.source, p.state, "cooldown", "projection_conflict", []byte(`{}`), at, at.Add(7*24*time.Hour))
+			if transitionErr != nil && !errors.Is(transitionErr, errAutopilotSourceChanged) && !errors.Is(transitionErr, errAutopilotSourceOverride) {
+				return transitionErr
+			}
+			continue
+		}
+		if err != nil && !errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) && !errors.Is(err, errAutopilotProjectionConflict) {
+			return err
+		}
+	}
+	return nil
+}
+
+			AND NOT (s.evidence ? 'rutube_json_reaudit_v1')
+			AND NOT EXISTS (
+				SELECT 1 FROM source_autopilot_overrides o
+				WHERE o.scope=s.scope AND o.topic_key=s.topic_key AND o.source_id=s.source_id
+				AND o.owner_id='' AND o.decision='excluded')`,
+			job.Scope, job.TopicKey, time.Now().Unix())
+		return err
+	}); err != nil {
+		return err
+	}
 	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id FROM source_autopilot_sources
 		WHERE scope=$1 AND topic_key=$2 AND state='rejected'
 		AND reason IN ('invalid_source_identity','unsupported_source_format')
