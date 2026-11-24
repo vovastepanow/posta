@@ -84,16 +84,32 @@ func autopilotVerifiedYouTubeIdentity(feed string, res FetchResultURL) bool {
 	if doc==nil || doc.N!="feed" {
 		return false
 	}
-	id:=strings.TrimSpace(doc.kid("yt:channelId").text())
-	if !ytChannelIDRe.MatchString(id) || YouTubeChannelFeedURL(id)!=feed {
+	// YouTube's feed-level channelId may omit the fixed UC prefix,
+	// unlike entry-level channelId. Never change the remaining case.
+	id := strings.TrimSpace(doc.kid("yt:channelId").text())
+	if len(id) == 22 {
+		id = "UC" + id
+	}
+	if !ytChannelIDRe.MatchString(id) || YouTubeChannelFeedURL(id) != feed {
 		return false
 	}
-	for _,entry:=range doc.kids("entry") {
-		if strings.TrimSpace(entry.kid("yt:channelId").text())!=id {
+	// Require independent matching evidence from entries or the
+	// official alternate channel URL, including for empty channels.
+	entries := doc.kids("entry")
+	for _, entry := range entries {
+		if strings.TrimSpace(entry.kid("yt:channelId").text()) != id {
 			return false
 		}
 	}
-	return true
+	if len(entries) > 0 {
+		return true
+	}
+	for _, link := range doc.kids("link") {
+		if link.A["rel"] == "alternate" && link.A["href"] == "https://www.youtube.com/channel/"+id {
+			return true
+		}
+	}
+	return false
 }
 
 // Preserve the old decision, including manual overrides. The verified

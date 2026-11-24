@@ -707,7 +707,17 @@ func TestAutopilotLiveLegacyFeedIdentities(t *testing.T) {
 		if ok {
 			verified++
 		}
-		t.Logf("IDENTITY RECOVERY: channel=%s HTTP=%d verified=%t", id, r.Status, ok)
+		doc := rssLoad(r.Bytes)
+		atom := ""
+		entries := 0
+		if doc != nil && doc.N == "feed" {
+			candidate := strings.TrimSpace(doc.kid("yt:channelId").text())
+			if ytChannelIDRe.MatchString(candidate) || (len(candidate) == 22 && ytChannelIDRe.MatchString("UC"+candidate)) {
+				atom = candidate
+			}
+			entries = len(doc.kids("entry"))
+		}
+		t.Logf("IDENTITY RECOVERY: channel=%s HTTP=%d atom_id=%q entries=%d verified=%t", id, r.Status, atom, entries, ok)
 		if r.Status == 429 {
 			break
 		}
