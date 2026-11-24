@@ -142,9 +142,12 @@ func (a *App) autopilotAssessDirectPostsWith(ctx context.Context, job *autopilot
 	}
 	var posts []jx.M
 	var texts, sources []string
+	// Inspect all bounded staged hints before giving up; cached rejections
+	// and prior successes do not consume any of the six model slots.
+	scanLimit := min(len(candidates), autopilotDirectMaxPerRun*autopilotPostHintLimit) * autopilotPostHintLimit
 	for _, candidate := range autopilotInterleaveDirectPosts(candidates, func(source string) []jx.M {
 		return a.autopilotPendingPublicPosts(ctx, job, source)
-	}, autopilotDirectMaxPerRun*autopilotPostHintLimit) {
+	}, scanLimit) {
 		if len(posts) == autopilotDirectMaxPerRun {
 			break
 		}
