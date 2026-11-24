@@ -20,7 +20,7 @@ jobs:
           cache: true
       - name: Check formatting
         run: |
-          files=$(gofmt -l internal/posta/source_autopilot_auto.go internal/posta/source_autopilot_auto_interval_test.go internal/posta/source_autopilot_queries.go internal/posta/source_autopilot_queries_selection_test.go internal/posta/source_autopilot_shadow.go internal/posta/source_autopilot_worker_health.go internal/posta/source_autopilot_worker_health_test.go internal/posta/source_autopilot_prepare_projection_test.go internal/posta/source_autopilot_projection.go internal/posta/app.go internal/posta/app_init.go internal/posta/source_autopilot_backend_failures_test.go internal/posta/source_autopilot_fairness_test.go internal/posta/source_autopilot_lifecycle_test.go internal/posta/source_autopilot_resilience_test.go internal/posta/source_autopilot_restart_test.go internal/posta/source_autopilot_media_test.go internal/posta/source_autopilot_queries_test.go internal/posta/discovery.go internal/posta/source_autopilot_preliminary_test.go internal/posta/analysis.go internal/posta/parser.go internal/posta/professional_value_test.go internal/posta/topic_fast_search_test.go internal/posta/source_autopilot_hints.go internal/posta/source_autopilot_hints_test.go internal/posta/post_search.go internal/posta/query_search.go internal/posta/source_autopilot_post_hints.go internal/posta/source_autopilot_post_hints_test.go internal/posta/source_autopilot_direct.go internal/posta/source_autopilot_direct_test.go internal/posta/source_autopilot_delivery.go internal/posta/source_autopilot_delivery_isolation_test.go internal/posta/source_autopilot_queue.go internal/posta/source_autopilot_api.go internal/posta/kv.go)
+          files=$(gofmt -l internal/posta/source_autopilot_auto.go internal/posta/source_autopilot_auto_interval_test.go internal/posta/source_autopilot_queries.go internal/posta/source_autopilot_queries_selection_test.go internal/posta/source_autopilot_shadow.go internal/posta/source_autopilot_worker_health.go internal/posta/source_autopilot_worker_health_test.go internal/posta/source_autopilot_prepare_projection_test.go internal/posta/source_autopilot_projection.go internal/posta/app.go internal/posta/app_init.go internal/posta/source_autopilot_backend_failures_test.go internal/posta/source_autopilot_fairness_test.go internal/posta/source_autopilot_lifecycle_test.go internal/posta/source_autopilot_resilience_test.go internal/posta/source_autopilot_restart_test.go internal/posta/source_autopilot_media_test.go internal/posta/source_autopilot_queries_test.go internal/posta/discovery.go internal/posta/source_autopilot_preliminary_test.go internal/posta/analysis.go internal/posta/parser.go internal/posta/professional_value_test.go internal/posta/topic_fast_search_test.go internal/posta/source_autopilot_hints.go internal/posta/source_autopilot_hints_test.go internal/posta/post_search.go internal/posta/query_search.go internal/posta/source_autopilot_post_hints.go internal/posta/source_autopilot_post_hints_test.go internal/posta/source_autopilot_direct.go internal/posta/source_autopilot_direct_test.go internal/posta/source_autopilot_delivery.go internal/posta/source_autopilot_delivery_isolation_test.go internal/posta/source_autopilot_queue.go internal/posta/source_autopilot_api.go internal/posta/kv.go internal/posta/source_youtube_keys.go internal/posta/source_youtube_poll_keys_test.go internal/posta/sources.go)
           if [ -n "$files" ]; then
             for file in $files; do gofmt -d "$file"; done
             exit 1
@@ -34,9 +34,9 @@ jobs:
           fi
       - name: Ensure Python stays outside the application runtime
         run: |
-          # Python is allowed in isolated PMR research trees, never in the Go app or deploy paths.
-          if find . \( -path './research/pmr_datasets' -o -path './research/posta_multi' \) -prune -o -type f \( -name '*.py' -o -name '*.pyc' \) -print -quit | grep -q .; then
-            echo "Python files outside isolated PMR research trees must not be checked in."
+          # Python is allowed only in the isolated PMR and source-audit research trees, never in the Go app or deploy paths.
+          if find . \( -path './research/pmr_datasets' -o -path './research/posta_multi' -o -path './research/source_audit' \) -prune -o -type f \( -name '*.py' -o -name '*.pyc' \) -print -quit | grep -q .; then
+            echo "Python files outside explicitly permitted isolated research trees must not be checked in."
             exit 1
           fi
           if grep -q 'python3' deploy/auto-update.sh; then
@@ -51,6 +51,8 @@ jobs:
         run: |
           PYTHONPATH=research/posta_multi python3 -m unittest discover \
             -s research/posta_multi -p 'test_av_checkpoint_compare.py' -v
+      - name: Unit-test independent source audit helper (Python stdlib)
+        run: python3 -m unittest discover -s research/source_audit/tests -v
       - name: Check autopilot interface JavaScript
         run: node --check js/sources.js
       - name: Unit tests
