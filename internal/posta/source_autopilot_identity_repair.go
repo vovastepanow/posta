@@ -31,6 +31,8 @@ var autopilotYouTubeRecoveryLeads = []string{
 	"UCR0djoCNqqYcDLVjluHBL0w",
 	"UCVtFh_62yrW-vj95T0TvYiw",
 	"UCZlFmJ-8aj_wch2T2CWoe8w",
+	"UCLJ8r2PpeJtDs716V4YaO9A",
+	"UCw0r50dHcAHmAdPaw36O8Xw",
 }
 
 func autopilotYouTubeLostKey(old string) string {
