@@ -420,6 +420,10 @@ function renderAutopilot(data) {
                     number(topic.audit_funnel.stages?.assessed_no_eligible) + ' оценены, но нет пригодных · ' +
                     number(topic.audit_funnel.stages?.eligible_no_saved_result) + ' с пригодными, но без сохранённых результатов · ' +
                     number(topic.audit_funnel.actual_state_changes) + ' фактических смен состояния (не всех записей решений).' }) : '',
+                topic.audit_funnel?.policy_comparison?.length ? el('span', { textContent: 'Сравнение политик (последняя общая выборка, не эталон): ' +
+                    topic.audit_funnel.policy_comparison.map(item => item.strict_next + ' → ' + item.yield_next + ': ' + number(item.sources)).join(' · ') +
+                    ' · режим: ' + (topic.yield_policy_enabled ? 'по отдаче (эксперимент)' : 'старый, сравнение в фоне') }) : '',
+                topic.audit_funnel_unavailable ? el('span', { textContent: 'Расширенная диагностическая воронка временно недоступна.' }) : '',
                 el('span', { textContent: 'За 24 часа: ' + number(topic.decisions_24h) + ' записанных решений · ' +
                     number(topic.promoted_24h) + ' прошли предварительный отбор · ' +
                     number(topic.rejected_24h) + ' отклонены' }),

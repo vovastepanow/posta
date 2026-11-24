@@ -262,6 +262,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 		if exists {
 			if !wasEligible {
 				entry["outcome"] = "already_assessed"
+				entry["cached_eligible"] = wasEligible
 				continue
 			}
 			saved, err := a.autopilotHasSavedResult(ctx, job, source, postHash)
@@ -270,6 +271,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 			}
 			if saved {
 				entry["outcome"] = "already_assessed"
+				entry["cached_eligible"] = wasEligible
 				continue
 			}
 		}
@@ -346,6 +348,7 @@ func (a *App) assessAutopilotVideoPost(ctx context.Context, job *autopilotJob, s
 	if exists {
 		if !wasEligible {
 			entry["outcome"] = "already_assessed"
+			entry["cached_eligible"] = wasEligible
 			return nil
 		}
 		saved, err := a.refreshAutopilotMedia(ctx, job, source, postHash, post, true)
@@ -354,6 +357,7 @@ func (a *App) assessAutopilotVideoPost(ctx context.Context, job *autopilotJob, s
 		}
 		if saved {
 			entry["outcome"] = "already_assessed"
+			entry["cached_eligible"] = wasEligible
 			return nil
 		}
 	}
@@ -512,6 +516,7 @@ func (a *App) assessAutopilotImagePost(ctx context.Context, job *autopilotJob, s
 	if exists {
 		if !wasEligible {
 			entry["outcome"] = "already_assessed"
+			entry["cached_eligible"] = wasEligible
 			return nil
 		}
 		saved, err := a.refreshAutopilotMedia(ctx, job, source, postHash, post, false)
@@ -520,6 +525,7 @@ func (a *App) assessAutopilotImagePost(ctx context.Context, job *autopilotJob, s
 		}
 		if saved {
 			entry["outcome"] = "already_assessed"
+			entry["cached_eligible"] = wasEligible
 			return nil
 		}
 	}

@@ -83,14 +83,22 @@ func AutopilotAuditFunnel(ctx context.Context, q db.Querier, scope, key string, 
 		'stage_state_reason',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY stage,state,reason) FROM
 			(SELECT stage,state,reason,count(*) AS sources FROM per_source GROUP BY stage,state,reason) b),'[]'::jsonb),
 		'direct_results', (SELECT count(*) FROM source_autopilot_direct_results WHERE scope=$1 AND topic_key=$2 AND assessed_at <= $3),
+		'recent_review_outcomes',COALESCE((SELECT jsonb_object_agg(outcome,n) FROM (
+			SELECT t.key AS outcome,sum(CASE WHEN jsonb_typeof(t.value)='number' THEN (t.value::text)::numeric ELSE 0 END) AS n
+			FROM source_autopilot_sources s CROSS JOIN LATERAL jsonb_each(
+				CASE WHEN jsonb_typeof(s.evidence->'post_audit_outcomes')='object'
+				THEN s.evidence->'post_audit_outcomes' ELSE '{}'::jsonb END) t
+			WHERE s.scope=$1 AND s.topic_key=$2 AND
+				CASE WHEN jsonb_typeof(s.evidence->'post_audit_at')='number'
+				THEN (s.evidence->>'post_audit_at')::numeric BETWEEN $4 AND $3 ELSE false END
+			GROUP BY t.key) o),'{}'::jsonb),
 		'policy_comparison',COALESCE((SELECT jsonb_agg(to_jsonb(v) ORDER BY strict_next,yield_next) FROM (
 			SELECT evidence->'yield_comparison'->>'strict_next' AS strict_next,
 				evidence->'yield_comparison'->>'yield_next' AS yield_next,count(*) AS sources
 			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
 			AND jsonb_typeof(evidence->'yield_comparison')='object'
-			AND jsonb_typeof(evidence->'yield_comparison'->'at')='number'
-			AND (evidence->'yield_comparison'->>'at')::numeric >= $4
-			AND (evidence->'yield_comparison'->>'at')::numeric <= $3
+			AND CASE WHEN jsonb_typeof(evidence->'yield_comparison'->'at')='number'
+			THEN (evidence->'yield_comparison'->>'at')::numeric BETWEEN $4 AND $3 ELSE false END
 			GROUP BY 1,2) v),'[]'::jsonb)
 	) FROM summary`, scope, key, at.Unix(), at.Add(-30*24*time.Hour).Unix()).Scan(&raw)
 	if err != nil {

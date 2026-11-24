@@ -1522,7 +1522,13 @@ func autopilotAuditPostSamples(posts []jx.M) []jx.M {
 		if published := jx.Int(post, "posted_at"); published > 0 {
 			entry["published_at"] = published
 		}
-		out = append(out, entry)
+		candidate := append(out, entry)
+		// Leave room for model audit counters and source decision statistics.
+		// Multi-byte text and JSON escaping both count against the DB limit.
+		if len(jx.Marshal(candidate)) > 8000 {
+			break
+		}
+		out = candidate
 	}
 	return out
 }
@@ -2204,8 +2210,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			reviewPosts := autopilotFreshRSSSamples(samples, at.Unix())
 			traceCtx, trace := newAutopilotPostAudit(ctx, reviewPosts)
 			assessErr := assess(traceCtx, source, reviewPosts)
-			evidence["post_audit"] = trace.entries
-			evidence["post_audit_at"] = at.Unix()
+			autopilotAttachPostAudit(evidence, trace, time.Now())
 			if err := assessErr; err != nil {
 				evidence["assessment_cause"] = autopilotAssessmentCause(err)
 				if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
@@ -2214,7 +2219,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				if reason := autopilotStreamUnavailableReason(err); newTrial && reason != "" {
+				if reason := autopilotStreamUnavailableReason(err); newTrial && reason != "" && !autopilotPostAuditHasUseful(trace) {
 					if transitionErr := transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown", reason, jx.Marshal(evidence), at, at.Add(24*time.Hour)); transitionErr != nil && !errors.Is(transitionErr, errAutopilotSourceChanged) && !errors.Is(transitionErr, errAutopilotSourceOverride) {
 						return transitionErr
 					}
@@ -2222,7 +2227,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				}
 				reason = "assessment_unavailable"
 			} else {
-				stats, err := autopilotEvidenceWindow(ctx, a.DB.Pool, job.Scope, job.TopicKey, source, at.Add(-30*24*time.Hour), at.Add(time.Second))
+				decisionAt := time.Now()
+				stats, err := autopilotEvidenceWindow(ctx, a.DB.Pool, job.Scope, job.TopicKey, source, decisionAt.Add(-30*24*time.Hour), decisionAt.Add(time.Second))
 				if err != nil {
 					return err
 				}
@@ -2235,14 +2241,14 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				strictEvidence := sourceEvidence{Evaluated: stats.Evaluated, Relevant: stats.Relevant, Eligible: stats.Eligible, RequireEligible: professional, FreshUnique: stats.FreshUnique, CuratedUnique: stats.CuratedUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates, SameSourceDuplicates: stats.SameSourceDuplicates}
 				next, why := decideSourceState(state, strictEvidence, policy)
 				if policy.YieldMinLive > 0 {
-					yieldEvidence, err := autopilotYieldEvidenceWindow(ctx, a.DB.Pool, job.Scope, job.TopicKey, source, at.Add(-30*24*time.Hour), at.Add(time.Second))
+					yieldEvidence, err := autopilotYieldEvidenceWindow(ctx, a.DB.Pool, job.Scope, job.TopicKey, source, decisionAt.Add(-30*24*time.Hour), decisionAt.Add(time.Second))
 					if err != nil {
 						return err
 					}
 					yieldEvidence.Evidence = strictEvidence
 					yieldEvidence.CompleteSample = autopilotPostAuditComplete(trace)
 					yieldNext, yieldWhy := decideSourceYieldState(state, yieldEvidence, policy)
-					evidence["yield_comparison"] = jx.M{"strict_next": next, "strict_reason": why, "yield_next": yieldNext, "yield_reason": yieldWhy, "useful_unique": yieldEvidence.UsefulUnique, "live_unique": yieldEvidence.LiveUnique, "trial_passes": yieldEvidence.TrialPasses, "trial_started_at": yieldEvidence.TrialStartedAt, "complete_sample": yieldEvidence.CompleteSample, "at": at.Unix()}
+					evidence["yield_comparison"] = jx.M{"strict_next": next, "strict_reason": why, "yield_next": yieldNext, "yield_reason": yieldWhy, "useful_unique": yieldEvidence.UsefulUnique, "live_unique": yieldEvidence.LiveUnique, "trial_passes": yieldEvidence.TrialPasses, "trial_started_at": yieldEvidence.TrialStartedAt, "complete_sample": yieldEvidence.CompleteSample, "at": decisionAt.Unix()}
 					evidence["source_decision_policy"] = "strict_v1"
 					if policy.YieldEnabled {
 						next, why = yieldNext, yieldWhy

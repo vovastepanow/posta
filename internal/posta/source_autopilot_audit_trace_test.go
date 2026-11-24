@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"posta/internal/jx"
 )
@@ -25,5 +26,17 @@ func TestAutopilotPostAuditBoundedAndNoPayload(t *testing.T) {
 		if strings.Contains(raw, secret) {
 			t.Fatalf("trace includes payload %q", secret)
 		}
+	}
+}
+
+func TestAutopilotPostAuditDetailLimit(t *testing.T) {
+	trace := &autopilotPostAudit{}
+	for i := 0; i < 20; i++ {
+		trace.entries = append(trace.entries, jx.M{"post_hash": strings.Repeat("x", 64), "kind": "text", "outcome": "verdict_completed", "model": strings.Repeat("m", 120), "eligible": true, "model_relevance": 90})
+	}
+	evidence := jx.M{}
+	autopilotAttachPostAudit(evidence, trace, time.Unix(100, 0))
+	if jx.Int(evidence, "post_audit_total") != 20 || len(jx.Marshal(evidence["post_audit"])) > 3500 || !autopilotPostAuditHasUseful(trace) {
+		t.Fatalf("bad bounded audit: %+v", evidence)
 	}
 }

@@ -2,6 +2,7 @@ package posta
 
 import (
 	"context"
+	"time"
 
 	"posta/internal/jx"
 )
@@ -80,4 +81,34 @@ func autopilotPostAuditVerdict(entry, analysis jx.M, relevant, eligible, ad bool
 	default:
 		entry["admission"] = "other_content_filter"
 	}
+}
+
+// Retain aggregate coverage of every entry but bound detail bytes. The
+// complete in-memory sample, not this truncated diagnostic, drives policy.
+func autopilotAttachPostAudit(evidence jx.M, trace *autopilotPostAudit, at time.Time) {
+	counts := map[string]int{}
+	kinds := map[string]int{}
+	details := make([]jx.M, 0)
+	for _, entry := range trace.entries {
+		counts[jx.Str(entry, "outcome")]++
+		kinds[jx.Str(entry, "kind")]++
+		candidate := append(details, entry)
+		if len(jx.Marshal(candidate)) <= 3500 {
+			details = candidate
+		}
+	}
+	evidence["post_audit"] = details
+	evidence["post_audit_at"] = at.Unix()
+	evidence["post_audit_outcomes"] = counts
+	evidence["post_audit_kinds"] = kinds
+	evidence["post_audit_total"] = len(trace.entries)
+}
+
+func autopilotPostAuditHasUseful(trace *autopilotPostAudit) bool {
+	for _, entry := range trace.entries {
+		if jx.Bool(entry, "eligible") || jx.Bool(entry, "cached_eligible") {
+			return true
+		}
+	}
+	return false
 }
