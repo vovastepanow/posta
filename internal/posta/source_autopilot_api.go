@@ -137,20 +137,25 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		// legacy discovery "found" counter these are persistent source rows,
 		// so operators can distinguish backlog from scheduled retry and AI stalls.
 		var ready, delayed, unchecked, recentChecks, aiPending int
+		var reauditTotal, reauditChecked, reauditReady int
 		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT
 			count(*) FILTER (WHERE state='candidate' AND (next_check_at <= $3 OR reason='probation_full' OR
 				(reason IN ('feed_unavailable','insufficient_fresh_samples') AND checked_at < $3-3600))),
 			count(*) FILTER (WHERE state='candidate' AND next_check_at > $3 AND reason<>'probation_full'),
 			count(*) FILTER (WHERE state='candidate' AND checked_at=0),
 			count(*) FILTER (WHERE checked_at >= $4),
-			count(*) FILTER (WHERE reason='assessment_unavailable' AND checked_at >= $4)
+			count(*) FILTER (WHERE reason='assessment_unavailable' AND checked_at >= $4),
+			count(*) FILTER (WHERE evidence ? 'review_policy_v3_scheduled'),
+			count(*) FILTER (WHERE evidence ? 'review_policy_v3_scheduled' AND evidence ? 'review_policy_v3_checked'),
+			count(*) FILTER (WHERE evidence ? 'review_policy_v3_scheduled' AND NOT (evidence ? 'review_policy_v3_checked') AND next_check_at <= $3)
 			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`,
-			scope, key, time.Now().Unix(), time.Now().Add(-24*time.Hour).Unix()).Scan(&ready, &delayed, &unchecked, &recentChecks, &aiPending)
+			scope, key, time.Now().Unix(), time.Now().Add(-24*time.Hour).Unix()).Scan(&ready, &delayed, &unchecked, &recentChecks, &aiPending, &reauditTotal, &reauditChecked, &reauditReady)
 		if err != nil {
 			return nil, err
 		}
 		row["queue_ready"], row["queue_delayed"], row["queue_unchecked"] = ready, delayed, unchecked
 		row["checked_24h"], row["assessment_unavailable"] = recentChecks, aiPending
+		row["reaudit_total"], row["reaudit_checked"], row["reaudit_ready"] = reauditTotal, reauditChecked, reauditReady
 		// Progress counters based on persisted decisions, not the instantaneous
 		// candidate total. This distinguishes real verification from a stuck job.
 		var decisions24h, promoted24h, rejected24h int
