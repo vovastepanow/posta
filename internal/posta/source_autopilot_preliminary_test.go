@@ -288,3 +288,23 @@ func TestSMMSourceReviewGuidanceSeparatesAdjacentSubjects(t *testing.T) {
 		t.Fatal("SMM criteria must not leak into unrelated source topics")
 	}
 }
+
+func TestAutopilotSearchInterleavesBackendRanksAndDeduplicates(t *testing.T) {
+	tg := func(id string) DiscoveryCandidate { return DiscoveryCandidate{Platform: PlatformTelegram, ID: id} }
+	groups := [][]DiscoveryCandidate{
+		{tg("first_digest"), tg("second_digest"), tg("third_digest")},
+		{tg("FIRST_DIGEST"), {Platform: PlatformRSS, ID: "https://example.org/top.xml"}},
+		{{Platform: PlatformVK, ID: "public123"}, tg("invalidbot")},
+	}
+	got := autopilotInterleaveSearchResults(groups)
+	want := []string{"telegram:first_digest", "vk:public123", "telegram:second_digest", "rss:https://example.org/top.xml", "telegram:third_digest"}
+	if len(got) != len(want) {
+		t.Fatalf("candidate count %d: %+v", len(got), got)
+	}
+	for i, c := range got {
+		id, ok := autopilotCandidateID(c)
+		if !ok || id != want[i] {
+			t.Fatalf("rank %d: %q, want %q", i, id, want[i])
+		}
+	}
+}
