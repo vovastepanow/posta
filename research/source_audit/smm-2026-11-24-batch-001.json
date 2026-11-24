@@ -1,0 +1,420 @@
+{
+  "schema_version": 1,
+  "topic": "SMM и блогинг",
+  "baseline_commit": "1286dd8c1f940875952aa62db03307743c4af8c3",
+  "baseline_path": "research/source_audit/smm-2026-11-24-baseline.json",
+  "batch": 1,
+  "review_date": "2026-11-24",
+  "range": [
+    1,
+    20
+  ],
+  "notes": "Independent review of visible public text, excerpts and previews only; no images or videos watched, no claim of full review of ten latest posts for each source. Samples are described in original paraphrases. Counts refer to explicitly listed distinct visible samples, not entire feed. Missing access is not a negative relevance label. All recommendations provisional; no gold labels or production state updates.",
+  "counts": {
+    "probation": 3,
+    "access_unverified": 10,
+    "needs_more_evidence": 5,
+    "reject_for_topic_provisional": 1,
+    "reject_low_yield_provisional": 1
+  },
+  "rows": [
+    {
+      "baseline_index": 1,
+      "source_id": "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=792654",
+      "name": "Марианна Иноземцева",
+      "source_url": "https://vc.ru/",
+      "initial_state": "probation",
+      "review_status": "profile_post_previews",
+      "visible_post_samples": 12,
+      "sample_topics": [
+        "Новые инструменты для авторов LinkedIn",
+        "Совместные публикации",
+        "Продвижение через комментарии Telegram (медиа не просмотрено)",
+        "Самопрезентация автора",
+        "Поиск B2B-инфлюенсеров",
+        "Анонс выступления",
+        "Метрика охвата неподписчиков",
+        "AI-native",
+        "Динамика охватов",
+        "Монетизация консультаций LinkedIn",
+        "Форматы постов",
+        "Исследование вовлеченности"
+      ],
+      "evidence_urls": [
+        "https://vc.ru/id792654",
+        "https://vc.ru/id792654/3267667-top-employee-content-programm-dlya-prodvizheniya-brenda",
+        "https://vc.ru/id792654/3218520-posty-v-sotsialnykh-setiakh-izmeneniia-v-okhvataikh-i-effektivnosti"
+      ],
+      "recommendation": "probation",
+      "reason": "Сильная тематическая связь. Профильная лента доступна из поискового индекса, API недоступен. Превью старее даты аудита; последние материалы в поиске подтверждают продолжение тематики. Свежий объем не измерен.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 2,
+      "source_id": "rss:https://mastodon.social/@optimatesocial.rss",
+      "name": "Mastodon",
+      "source_url": "https://mastodon.social/@optimatesocial",
+      "initial_state": "probation",
+      "review_status": "none",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [],
+      "recommendation": "access_unverified",
+      "reason": "Mastodon не открывается; точный профиль не найден в результатах.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 3,
+      "source_id": "rss:https://mastodon.social/@thesocialmediatoolsguy.rss",
+      "name": "Mastodon",
+      "source_url": "https://mastodon.social/@thesocialmediatoolsguy",
+      "initial_state": "probation",
+      "review_status": "possible_cross_platform_match",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [
+        "https://www.livequote.org/hashtag/socialmediatips",
+        "https://www.livequote.org/hashtag/TikTokTips?tab=latest"
+      ],
+      "recommendation": "access_unverified",
+      "reason": "Одноименный автор пишет про соцсети, но принадлежность аккаунту Mastodon не подтверждена.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 4,
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCcJ7z3yGO0V-X_P1qVuwQGg",
+      "name": "Market SMM",
+      "source_url": "https://www.youtube.com/channel/UCcJ7z3yGO0V-X_P1qVuwQGg/videos",
+      "initial_state": "probation",
+      "review_status": "none",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [],
+      "recommendation": "access_unverified",
+      "reason": "YouTube не открывается; точный ID не найден в поисковой выдаче.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 5,
+      "source_id": "telegram:bossmarketer",
+      "name": "Гладченко про маркетинг",
+      "source_url": "https://t.me/bossmarketer",
+      "initial_state": "probation",
+      "review_status": "historical_post_text",
+      "visible_post_samples": 6,
+      "sample_topics": [
+        "Оптимизация оформления заказа",
+        "Ретаргетинг корзин, включая VK",
+        "Маркировка рекламы",
+        "Автотаргетинг в поиске",
+        "Исследование ЦА",
+        "Сравнение SEO и контекстной рекламы"
+      ],
+      "evidence_urls": [
+        "https://t.me/s/bossmarketer/234"
+      ],
+      "recommendation": "needs_more_evidence",
+      "reason": "Архивная страница: основной фокус PPC/SEO, отдельные материалы про соцсети. Нельзя измерить актуальную долю SMM.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 6,
+      "source_id": "telegram:cases_adindex",
+      "name": "Рекламные кейсы / AdIndex",
+      "source_url": "https://t.me/cases_adindex",
+      "initial_state": "probation",
+      "review_status": "public_feed_text",
+      "visible_post_samples": 20,
+      "sample_topics": [
+        "Медийный охват медицинской компании",
+        "Брендирование футбольной лиги",
+        "Контент-проекты Дзена по регионам",
+        "Медийная реклама Авито",
+        "Smart TV",
+        "Юбилей ТВ-канала",
+        "HR-реклама Авито",
+        "Roblox спецпроект",
+        "Авито для автосервиса",
+        "Мобильный performance",
+        "Анонс премии",
+        "Радиореклама",
+        "Очистка рекламного инвентаря",
+        "ИИ для маркетплейсов",
+        "ТВ+digital",
+        "Нативный контент Дзена",
+        "Видеореклама",
+        "UGC-креативы музыкального сервиса",
+        "Модерация Google Ads",
+        "Товарный фид туризма"
+      ],
+      "evidence_urls": [
+        "https://t.me/s/cases_adindex"
+      ],
+      "recommendation": "reject_for_topic_provisional",
+      "reason": "Качественное медиа общей рекламы; два кейса Дзена явно относятся к контентным платформам, UGC потенциально смежный, большинство материалов не посвящено ведению соцсетей. Предварительный отказ по узкой теме, не по качеству. Полные внешние кейсы и изображения не просмотрены.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 7,
+      "source_id": "telegram:devs_today",
+      "name": "Че там у застройщиков",
+      "source_url": "https://t.me/devs_today",
+      "initial_state": "probation",
+      "review_status": "mirror_post_text",
+      "visible_post_samples": 5,
+      "sample_topics": [
+        "Стрим GTA как инфоповод",
+        "Вакансии маркетологов",
+        "Шоурум как маркетинговый инструмент",
+        "Наружная реклама",
+        "Вопрос о жанре фильма про девелопмент"
+      ],
+      "evidence_urls": [
+        "https://telemoon.app/ru/channel/devs_today",
+        "https://tg.me/devs_today",
+        "https://telemetr.io/uk/channels/3726259628-devs_today"
+      ],
+      "recommendation": "needs_more_evidence",
+      "reason": "Есть профильные разборы контента и коммуникаций. Выборка смешивает наружную рекламу, офлайн и SMM; альбомы без текста не оценены. Не отклонять по названию.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 8,
+      "source_id": "telegram:dmitriy_verbniakov",
+      "name": "Дмитрий Вербняков",
+      "source_url": "https://t.me/dmitriy_verbniakov",
+      "initial_state": "probation",
+      "review_status": "linked_external_author_material",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [
+        "https://rutube.ru/video/5f7e10e0357ccc4188aa9b108b11b0bb/",
+        "https://rutube.ru/video/79dab0d5efcfa1c25d4aab76af08bb3a/"
+      ],
+      "recommendation": "needs_more_evidence",
+      "reason": "Два описания уроков про Telegram Ads и креативы с явной ссылкой на целевой канал. Саму ленту не прочитал; перспективен, но не размечен.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 9,
+      "source_id": "telegram:elama_russia",
+      "name": "eLama: всё об интернет-рекламе и маркетинге",
+      "source_url": "https://t.me/elama_russia",
+      "initial_state": "probation",
+      "review_status": "public_feed_text",
+      "visible_post_samples": 9,
+      "sample_topics": [
+        "Продвижение MAX (с промо)",
+        "Проверка накруток в MAX",
+        "Стратегии Авито",
+        "Тренды инфлюенс-маркетинга",
+        "Курс Авито",
+        "Фриланс и партнерское вознаграждение",
+        "Анонсы вебинаров",
+        "Розыгрыш",
+        "Партнерская программа"
+      ],
+      "evidence_urls": [
+        "https://t.me/s/eLama_russia",
+        "https://t.me/s/eLama_russia?before=8994"
+      ],
+      "recommendation": "probation",
+      "reason": "Смешанный источник: имеются непосредственно полезные для SMM материалы, но много PPC, промо и анонсов. Пробация только для измерения полезного потока. Свежая видимая лента короче десяти текстовых постов.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 10,
+      "source_id": "telegram:komreda",
+      "name": "КОМРЕДА про маркетинг",
+      "source_url": "https://t.me/komreda",
+      "initial_state": "probation",
+      "review_status": "public_feed_text",
+      "visible_post_samples": 10,
+      "sample_topics": [
+        "Интервью с SMM-командой банка",
+        "Интервью о креативах eLama",
+        "Поддержка партнеров",
+        "Аналитика форматов и охвата X5",
+        "Реклама услуги видеопродвижения",
+        "Короткая шутка про отпуск",
+        "Контентные метрики DevRel",
+        "Редакционные процессы B2B",
+        "Метрики коммуникаций VK Tech",
+        "Кейс развития блога Cloud.ru"
+      ],
+      "evidence_urls": [
+        "https://t.me/s/komreda"
+      ],
+      "recommendation": "probation",
+      "reason": "Несколько явных профессиональных материалов; есть самореклама и развлекательный контент. Еще два блока без достаточного текста исключены из числа прочитанных. Полные интервью и медиа не просмотрены.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 11,
+      "source_id": "telegram:novikovalaw",
+      "name": "Ольга Новикова | Документы юриста",
+      "source_url": "https://t.me/novikovalaw",
+      "initial_state": "probation",
+      "review_status": "profile_description",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [
+        "https://t.me/novikovalaw"
+      ],
+      "recommendation": "needs_more_evidence",
+      "reason": "Описание юридической функции, команд, документов, автоматизации. Вероятно вне темы, но публикации не прочитаны.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 12,
+      "source_id": "telegram:positivpp",
+      "name": "Позитивное предпринимательство",
+      "source_url": "https://t.me/positivpp",
+      "initial_state": "probation",
+      "review_status": "profile_metadata",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [
+        "https://tgcast.ru/channels/@positivpp",
+        "https://tgmarket.io/c/positivpp"
+      ],
+      "recommendation": "access_unverified",
+      "reason": "Доступны только карточки канала, не тексты публикаций.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 13,
+      "source_id": "telegram:promoactivnaya",
+      "name": "Маркетинг в контексте | Ирина Дроздова",
+      "source_url": "https://t.me/promoactivnaya",
+      "initial_state": "probation",
+      "review_status": "historical_post_text",
+      "visible_post_samples": 4,
+      "sample_topics": [
+        "Продвижение через ПромоСтраницы",
+        "Шутка о генерации изображений",
+        "Сертификат Яндекс Директ",
+        "Форматы медийной рекламы Яндекса"
+      ],
+      "evidence_urls": [
+        "https://t.me/s/promoactivnaya/294"
+      ],
+      "recommendation": "needs_more_evidence",
+      "reason": "Историческая выборка указывает на PPC, но актуальная лента недостаточна для отказа.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 14,
+      "source_id": "telegram:surrrovo",
+      "name": "Суровый Питерский форум",
+      "source_url": "https://t.me/surrrovo",
+      "initial_state": "probation",
+      "review_status": "public_feed_text",
+      "visible_post_samples": 12,
+      "sample_topics": [
+        "Технический анонс записей",
+        "Оплата участия в премии",
+        "Приглашение участников премии",
+        "Доступ к записям",
+        "Приглашение партнеров",
+        "Представление жюри",
+        "Номинации премии",
+        "Продвижение сервиса TargetHunter",
+        "Скидка на премию",
+        "Продажа билетов на AI-конференцию",
+        "Продвижение Vitamin.tools",
+        "Платное участие за экспертным столом"
+      ],
+      "evidence_urls": [
+        "https://t.me/s/surrrovo"
+      ],
+      "recommendation": "reject_low_yield_provisional",
+      "reason": "Основной видимый поток — продажи мероприятий и партнерские предложения. Не приравнивать это к отсутствию тематической связи. Видео и платные доклады не просмотрены.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 15,
+      "source_id": "ok:70000005382415",
+      "name": "70000005382415",
+      "source_url": "https://ok.ru/group/70000005382415",
+      "initial_state": "cooldown",
+      "review_status": "http_404",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [],
+      "recommendation": "access_unverified",
+      "reason": "Публичная ссылка OK вернула 404 в веб-инструменте. Не доказательство удаления группы.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 16,
+      "source_id": "rss:https://biz-nautros-15.tumblr.com/rss",
+      "name": "biz-nautros-15.tumblr.com",
+      "source_url": "https://biz-nautros-15.tumblr.com/",
+      "initial_state": "cooldown",
+      "review_status": "none",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [],
+      "recommendation": "access_unverified",
+      "reason": "Tumblr не открывается.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 17,
+      "source_id": "rss:https://botq.tumblr.com/rss",
+      "name": "botq.tumblr.com",
+      "source_url": "https://botq.tumblr.com/",
+      "initial_state": "cooldown",
+      "review_status": "none",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [],
+      "recommendation": "access_unverified",
+      "reason": "Tumblr не открывается.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 18,
+      "source_id": "rss:https://bsky.app/profile/did:plc:2g45p75tutnl47mxky4mp3d4/rss",
+      "name": "КнигоТорба",
+      "source_url": "https://bsky.app/profile/did:plc:2g45p75tutnl47mxky4mp3d4",
+      "initial_state": "cooldown",
+      "review_status": "none",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [],
+      "recommendation": "access_unverified",
+      "reason": "Профиль Bluesky с точным DID не открылся.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 19,
+      "source_id": "rss:https://bsky.app/profile/did:plc:2xo263dkk4awnfizwv5u4not/rss",
+      "name": "bsky.app",
+      "source_url": "https://bsky.app/profile/did:plc:2xo263dkk4awnfizwv5u4not",
+      "initial_state": "cooldown",
+      "review_status": "none",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [],
+      "recommendation": "access_unverified",
+      "reason": "Профиль Bluesky с точным DID не открылся.",
+      "gold_label": null
+    },
+    {
+      "baseline_index": 20,
+      "source_id": "rss:https://bsky.app/profile/did:plc:3a36hfnma6d7b2yeshvwpbeq/rss",
+      "name": "Callsign Chewbacca",
+      "source_url": "https://bsky.app/profile/did:plc:3a36hfnma6d7b2yeshvwpbeq",
+      "initial_state": "cooldown",
+      "review_status": "none",
+      "visible_post_samples": 0,
+      "sample_topics": [],
+      "evidence_urls": [],
+      "recommendation": "access_unverified",
+      "reason": "Профиль Bluesky с точным DID не открылся.",
+      "gold_label": null
+    }
+  ]
+}
