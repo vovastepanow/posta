@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -85,7 +86,38 @@ func autopilotYouTubeSearchCandidates(r FetchResultURL) ([]DiscoveryCandidate, e
 	return out, nil
 }
 
+var autopilotNativeYouTubePause struct {
+	sync.Mutex
+	until time.Time
+}
+
 func (u *U) autopilotNativeYouTubeSearch(query string) ([]DiscoveryCandidate, error) {
-	r := u.RSSGet("https://www.youtube.com/results?search_query="+url.QueryEscape(query), 5<<20, 15*time.Second, BrowserUA)
+	return u.autopilotNativeYouTubeSearchWith(query, u.RSSGet)
+}
+
+func (u *U) autopilotNativeYouTubeSearchWith(query string, fetch func(string, int64, time.Duration, string) FetchResultURL) ([]DiscoveryCandidate, error) {
+	autopilotNativeYouTubePause.Lock()
+	until := autopilotNativeYouTubePause.until
+	autopilotNativeYouTubePause.Unlock()
+	if u.DB != nil {
+		if saved := KV(u.App, u.Ctx, "autopilot_youtube_search_pause_until", int64(0)); saved > until.Unix() {
+			until = time.Unix(saved, 0)
+		}
+	}
+	if time.Now().Before(until) {
+		return nil, errors.New("YouTube search cooldown")
+	}
+	r := fetch("https://www.youtube.com/results?search_query="+url.QueryEscape(query), 5<<20, 15*time.Second, BrowserUA)
+	if r.Status == 429 {
+		until = autopilotBraveRetryAt(time.Now(), r.RetryAfter)
+		autopilotNativeYouTubePause.Lock()
+		if until.After(autopilotNativeYouTubePause.until) {
+			autopilotNativeYouTubePause.until = until
+		}
+		autopilotNativeYouTubePause.Unlock()
+		if u.DB != nil {
+			_ = u.KVSet(u.Ctx, "autopilot_youtube_search_pause_until", until.Unix(), time.Until(until))
+		}
+	}
 	return autopilotYouTubeSearchCandidates(r)
 }
