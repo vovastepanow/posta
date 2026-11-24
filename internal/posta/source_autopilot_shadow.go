@@ -1188,6 +1188,41 @@ func autopilotAuditPostSamples(posts []jx.M) []jx.M {
 	return out
 }
 
+// Parse the same public JSON listing as the regular collector, but verify
+// ownership: unrelated search results must not be attributed to this channel.
+func autopilotRutubeChannelPosts(data []byte, channel string) ([]jx.M, error) {
+	var envelope struct {
+		Results []json.RawMessage `json:"results"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return nil, err
+	}
+	if envelope.Results == nil || channel == "" {
+		return nil, errors.New("unrecognized Rutube channel listing")
+	}
+	posts, err := RutubeParse(data)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]jx.M, 0, min(len(posts), 20))
+	for _, post := range posts {
+		if jx.Str(post, "source_key") != "rutube:"+channel || jx.Bool(post, "source_sensitive") {
+			continue
+		}
+		if name := jx.Str(post, "author_name"); name != "" {
+			post["source"] = name
+		}
+		out = append(out, post)
+		if len(out) == 20 {
+			break
+		}
+	}
+	if len(posts) > 0 && len(out) == 0 {
+		return nil, errors.New("Rutube listing has no attributable public posts")
+	}
+	return out, nil
+}
+
 // Review only public feed data. An unavailable feed, model error or small
 // sample remains uncertain; none of them proves poor source quality.
 func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilotJob, limit int) error {
@@ -1215,6 +1250,9 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 			}
 			if host, id := osnovaTimelineSource(feed); host != "" {
 				return u.RSSGet(osnovaTimelineURL(host, id), rssMaxBytes, 15*time.Second, HTTPUA)
+			}
+			if id := RutubeChannelID(feed); id != "" {
+				return u.RSSGet("https://rutube.ru/api/video/person/"+id+"/?page=1&format=json", rssMaxBytes, 15*time.Second, HTTPUA)
 			}
 			if pikabuCommunityURL(feed) != "" {
 				return u.RSSGet(feed, rssMaxBytes, 15*time.Second, BrowserUA)
@@ -1450,6 +1488,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				posts, err = autopilotMastodonSafeStatuses(res.Bytes, feed)
 			} else if host, id := osnovaTimelineSource(feed); host != "" {
 				posts, err = osnovaTimelinePosts(res.Bytes, host, id)
+			} else if channel := RutubeChannelID(feed); channel != "" {
+				posts, err = autopilotRutubeChannelPosts(res.Bytes, channel)
 			} else if source := pikabuCommunityURL(feed); source != "" {
 				posts, err = pikabuCommunityPosts(res.Bytes, source, 20, true)
 			} else if !rssIsFeed(rssLoad(res.Bytes)) {
