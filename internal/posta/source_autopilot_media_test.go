@@ -53,7 +53,11 @@ func TestEvaluateTextOnlySourceWithoutImage(t *testing.T) {
 			return
 		}
 		calls++
-		_ = json.NewEncoder(w).Encode(jx.M{"choices": []any{jx.M{"message": jx.M{"content": `{"score":92,"reason":"По теме"}`}}}})
+		content := `{"score":92,"reason":"По теме"}`
+		if calls == 3 {
+			content = `{"verdicts":["relevant","relevant","relevant"],"personal_blog":"yes"}`
+		}
+		_ = json.NewEncoder(w).Encode(jx.M{"choices": []any{jx.M{"message": jx.M{"content": content}}}})
 	}))
 	defer srv.Close()
 
@@ -92,14 +96,14 @@ func TestEvaluateTextOnlySourceWithoutImage(t *testing.T) {
 	// text request, without trying the advertised (unavailable) images.
 	// This protects the public-fetch budget without skipping post-level checks.
 	var rich []jx.M
-	for i := 0; i < 3; i++ {
+	for _, caption := range []string{"Практический разбор SMM-стратегии и результатов рекламной кампании.", "Как измерить рост охватов и вовлеченность подписчиков канала.", "Кейс: контент-план и статистика публикаций в Telegram."} {
 		rich = append(rich, jx.M{
-			"text":  "Подробный практический разбор SMM-стратегии и результатов рекламной кампании.",
+			"text":  caption,
 			"image": "http://127.0.0.1:1/unavailable.png",
 		})
 	}
 	ev = u.autopilotEvaluateSource(jx.M{"title": "Практика SMM"}, rich, "SMM и блогинг")
-	if ev == nil || ev.Score != 92 || ev.Text == nil || !ev.TextOnly {
+	if ev == nil || ev.Score != 100 || ev.ReviewedSamples != 3 || ev.Text == nil || !ev.TextOnly || ev.PersonalBlog != personalBlogYes {
 		t.Fatalf("text-first prescreen failed for image-advertising feed: %+v", ev)
 	}
 	if calls != 3 {
