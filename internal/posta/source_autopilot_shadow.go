@@ -1324,6 +1324,12 @@ func autopilotPreliminaryPass(score, threshold, freshSamples int) bool {
 	return score >= threshold
 }
 
+// Failing the admission threshold is not proof that the publisher is off-topic.
+// A negative verdict needs a broader sample and a clear margin from the gate.
+func autopilotPreliminaryReject(score, threshold, samples int) bool {
+	return samples >= 5 && score >= 0 && score <= 100 && threshold >= 10 && threshold <= 100 && score <= threshold-10
+}
+
 func autopilotStreamUnavailableReason(err error) string {
 	if errors.Is(err, errAutopilotTikTokStreamUnavailable) {
 		return "tiktok_stream_unavailable"
@@ -1659,13 +1665,16 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					state = "probation"
 					nextCheck = at.Add(autopilotSourceReviewInterval(job, state))
 				} else {
-					// A completed preliminary assessment with enough fresh posts
-					// but insufficient topic relevance is a negative decision,
-					// not an indefinitely waiting unverified candidate.
+					// Keep the admission threshold unchanged. Small or borderline
+					// samples do not justify a definitive thematic rejection.
 					evidence["threshold"] = threshold
+					decision, decisionReason, retry := "cooldown", "preliminary_match_uncertain", 7*24*time.Hour
+					if autopilotPreliminaryReject(evaluation.Score, threshold, len(samples)) {
+						decision, decisionReason, retry = "rejected", "preliminary_topic_mismatch", 30*24*time.Hour
+					}
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
-						"rejected", "preliminary_topic_mismatch", jx.Marshal(evidence), at,
-						at.Add(30*24*time.Hour)); err != nil &&
+						decision, decisionReason, jx.Marshal(evidence), at,
+						at.Add(retry)); err != nil &&
 						!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
 						return err
 					}
