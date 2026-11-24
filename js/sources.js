@@ -29,7 +29,7 @@ const autopilotSourceReasonLabels = {
     assessment_unavailable: 'AI-оценка временно недоступна', probation_full: 'Все места испытания заняты', probation_full_verified: 'Группа проверена; все места испытания заняты', projection_conflict: 'Конфликт подключения',
     shadow_preliminary_pass: 'Прошёл предварительную проверку',
     observed_useful: 'Полезность подтверждена', observed_useful_curation: 'Одобрен как куратор качественных публикаций', insufficient_evidence: 'Недостаточно данных для решения',
-    observed_irrelevant: 'Недостаточно публикаций по теме', quality_drift: 'Качество снизилось',
+    observed_irrelevant: 'Недостаточно публикаций по теме', observed_low_yield: 'Мало полезных публикаций после фильтров', quality_drift: 'Качество снизилось',
     observed_ad_or_duplicates: 'Слишком много рекламы или дублей'
 };
 function autopilotSourceIdentity(raw) {
@@ -386,6 +386,10 @@ function renderAutopilot(data) {
                 el('span', { textContent: 'Очередь: ' + number(topic.queue_ready) + ' готовы к проверке · ' +
                     number(topic.queue_delayed) + ' ожидают повторной попытки · ' +
                     number(topic.queue_unchecked) + ' ещё ни разу не проверялись' }),
+                Number(topic.reaudit_total || 0) > 0 ? el('span', { textContent: 'Полная переоценка: ' +
+                    number(topic.reaudit_checked) + ' из ' + number(topic.reaudit_total) + ' проверено по новым правилам · ' +
+                    number(topic.reaudit_ready) + ' готовы к проверке · ' +
+                    number(Math.max(0, Number(topic.reaudit_total) - Number(topic.reaudit_checked) - Number(topic.reaudit_ready))) + ' ожидают или недоступны' }) : '',
                 el('span', { textContent: 'Причины ожидания: ' + Object.entries(topic.candidate_reasons || {})
                     .sort((a, b) => Number(b[1]) - Number(a[1]))
                     .map(([reason, count]) => (({
@@ -474,7 +478,7 @@ function renderAutopilot(data) {
                 historyLoaded = true;
                 for (const decision of result.decisions || []) {
                     const states = { candidate: 'кандидат', probation: 'испытание', active: 'подтверждён', rejected: 'отклонён', cooldown: 'ожидание' };
-                    const reasons = { discovered: 'найден', shadow_preliminary_pass: 'прошёл предварительную проверку', observed_useful: 'подтверждена полезность', observed_ad_or_duplicates: 'слишком много рекламы или дублей', observed_irrelevant: 'недостаточно материалов по теме', quality_drift: 'качество снизилось' };
+                    const reasons = { discovered: 'найден', shadow_preliminary_pass: 'прошёл предварительную проверку', observed_useful: 'подтверждена полезность', observed_ad_or_duplicates: 'слишком много рекламы или дублей', observed_irrelevant: 'недостаточно материалов по теме', observed_low_yield: 'мало полезных публикаций после фильтров', source_reaudit_v3_scheduled: 'назначена повторная проверка', quality_drift: 'качество снизилось' };
                     const text = `${decision.source_id}: ${states[decision.old_state] || 'найден'} → ${states[decision.new_state] || decision.new_state}; ${reasons[decision.reason] || decision.reason}. ${formatAgo(decision.at)}.`;
                     historyList.append(el('p', { textContent: text }));
                 }
