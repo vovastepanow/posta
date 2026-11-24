@@ -451,3 +451,54 @@ func TestAutopilotLiveRSSAutoDelivery(t *testing.T) {
 		t.Fatalf("live delivery stalled: results=%d pool=%d admissions=%d", results, pool, admissions)
 	}
 }
+
+// Compare both extractors on exactly the same live HTML. This is a bounded
+// public connectivity and parser check, NOT a semantic precision benchmark:
+// no search provider key or AI credentials are used in this workflow.
+func TestAutopilotLiveSearchLinkComparison(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	u := (&App{}).User(ctx, "", nil)
+	cases := []struct {
+		query, platform string
+	}{
+		{"site:t.me продвижение telegram каналов", PlatformTelegram},
+		{"site:vk.com уход за домашними кошками", PlatformVK},
+		{"site:youtube.com/channel astrophotography tutorials", PlatformRSS},
+	}
+	available, found := 0, 0
+	for _, tc := range cases {
+		if ctx.Err() != nil {
+			break
+		}
+		res := u.autopilotBraveSearch(tc.query)
+		p, err := url.Parse(res.URL)
+		if !res.OK || err != nil || p.Host != "search.brave.com" ||
+			strings.Contains(strings.ToLower(string(res.Bytes)), "captcha") {
+			t.Logf("LIVE SEARCH: query=%q unavailable HTTP=%d", tc.query, res.Status)
+			continue
+		}
+		available++
+		old := map[string]bool{}
+		for _, candidate := range SourceLinkedSources(string(res.Bytes)) {
+			if candidate.Platform == tc.platform {
+				old[candidate.ID] = true
+			}
+		}
+		newIDs := []string{}
+		for _, candidate := range autopilotSearchLinkedCandidates(res, tc.platform) {
+			newIDs = append(newIDs, candidate.ID)
+		}
+		found += len(newIDs)
+		t.Logf("LIVE SEARCH: query=%q legacy=%d direct=%d ids=%v", tc.query, len(old), len(newIDs), newIDs[:min(len(newIDs), 8)])
+	}
+	if available == 0 {
+		t.Skip("anonymous search provider unavailable; no live comparison can be claimed")
+	}
+	if found == 0 {
+		t.Fatal("search returned accessible documents but no supported direct publisher hyperlinks; inspect live provider markup")
+	}
+}
