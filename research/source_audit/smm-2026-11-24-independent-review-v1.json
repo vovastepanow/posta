@@ -25,12 +25,13 @@
     "Batch 015: 22 direct feed attempts 378–399; 46 short text observations; no exhaustive review or external model. Inaccessible feeds remain retryable.",
     "Batch 016: 21 source attempts 400–416 and 419–422; 46 text/caption observations, two provisional probation recommendations. No exhaustive review or external model.",
     "Batch 017: 20 direct feed attempts 425–444; 36 partial text/caption observations. No definitive gold label or external model consultation.",
-    "Batch 018: 20 new direct feed attempts 445–464; 6 with visible posts, 24 partial text/caption observations. No final gold labels or external model consultation. Access failures remain unresolved."
+    "Batch 018: 20 new direct feed attempts 445–464; 6 with visible posts, 24 partial text/caption observations. No final gold labels or external model consultation. Access failures remain unresolved.",
+    "Batch 019: 27 new attempts 465–492 excluding 476; 8 direct feeds, 14 third-party archives with readable content, 3 profile-only, 2 unresolved; 117 observed text/caption excerpts. 3 provisional probation recommendations. No gold labels, media inspection, external AI or production changes. Earlier batch 018 lacks verifiable per-item evidence and requires independent recheck before trusting its observations."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 274,
-    "structured_with_visible_post_samples": 151,
+    "structured_attempted": 301,
+    "structured_with_visible_post_samples": 173,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -53,7 +54,8 @@
     "batch_015_readable_texts": 46,
     "batch_016_readable_texts": 46,
     "batch_017_readable_texts": 36,
-    "batch_018_readable_texts": 24
+    "batch_018_readable_texts": 24,
+    "batch_019_readable_texts": 117
   },
   "rows": [
     {
@@ -17546,7 +17548,32 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/trafficonwb",
+          "https://tg.me/trafficonwb"
+        ],
+        "visible_post_samples": 1,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Документ проекта для клиента: бриф, медиаплан, сверка план-факт, семантика, задачи",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/trafficonwb"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Видны смежные или единичные релевантные материалы; тематическая доля недостаточно установлена.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 466,
@@ -17558,7 +17585,32 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/trapeznikovabusiness",
+          "https://list.tg/channel/trapeznikovabusiness"
+        ],
+        "visible_post_samples": 1,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение на клинический практикум для медицинских специалистов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://list.tg/channel/trapeznikovabusiness"
+          }
+        ],
+        "recommendation": "needs_more_evidence",
+        "reason": "Слишком мало доступных публикаций для решения.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 467,
@@ -17570,7 +17622,62 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/trendagent_commercial",
+          "https://telemetr.io/ru/channels/2830480399-trendagent_commercial/posts",
+          "https://list.tg/channel/trendagent_commercial",
+          "https://telemetr.io/ru/channels/2830480399-trendagent_commercial/posts?cursor=ICg%3D",
+          "https://telemetr.io/ru/channels/2830480399-trendagent_commercial"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Условия рассрочки на коммерческую недвижимость ЛСР",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/2830480399-trendagent_commercial/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Старт бронирования коммерческих помещений ЖК Уютный 7",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/2830480399-trendagent_commercial/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Экскурсии по офисной и торговой недвижимости в Москве",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/2830480399-trendagent_commercial/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение на экскурсию в бизнес-центр Флип с темой возврата НДС",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/2830480399-trendagent_commercial/posts"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 468,
@@ -17582,7 +17689,76 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/univertechpred"
+        ],
+        "visible_post_samples": 6,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Интервью с основателем стартапа противотревожного средства с ИИ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/univertechpred"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс игры по продвижению техпредпринимательства внутри вуза",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/univertechpred"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение стартапов на венчурный форум",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/univertechpred"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс привлечения восьми клиентов одним комментарием в профильном Telegram-чате",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/univertechpred"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Напоминание о регистрации на форум",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/univertechpred"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс-сессия о грантах и первых заказчиках",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/univertechpred"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 469,
@@ -17594,7 +17770,50 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/uprav_nalog",
+          "https://tg.me/uprav_nalog"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс продукта для тренировки профессионального мышления",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/uprav_nalog"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Вопрос о требованиях налоговой по цепочке контрагентов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/uprav_nalog"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Критика предложения бухгалтера простить долг директора с налоговыми последствиями",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/uprav_nalog"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 470,
@@ -17606,7 +17825,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "profile_only",
+        "evidence_urls": [
+          "https://t.me/s/uroventop",
+          "https://t.me/uroventop"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Найдена только страница/описание, публикации не прочитаны.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 471,
@@ -17618,7 +17852,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "profile_only",
+        "evidence_urls": [
+          "https://t.me/s/uspenskiy100",
+          "https://uspenskiy.pro/contacts"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Найдена только страница/описание, публикации не прочитаны.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 472,
@@ -17630,7 +17879,148 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/vedomosti"
+        ],
+        "visible_post_samples": 14,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Планы реконструкции дорог",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Назначение спецпредставителя по исторической памяти",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Закон о МРОТ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кредиты бизнеса на оборотные средства",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Изменение состава совета по правам человека",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Проект регулирования ИИ в США",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Законопроект о списании долгов военнослужащих",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дефолт производителя насосного оборудования",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Задержание регионального чиновника",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Предложение купить акции Циана",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Перевод флота под российский флаг",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Варианты европейской архитектуры безопасности",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Курсы валют",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ограничения импорта гибридных автомобилей",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vedomosti"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 473,
@@ -17642,7 +18032,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "profile_only",
+        "evidence_urls": [
+          "https://t.me/s/ventureinpics",
+          "https://t.me/ventureinpics"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Найдена только страница/описание, публикации не прочитаны.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 474,
@@ -17654,7 +18059,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/vibeboarding"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента не открылась, поиском не найден доступный материал с подтвержденной идентичностью.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 475,
@@ -17666,7 +18085,50 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/vitrinajobs",
+          "https://tg.me/vitrinajobs"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Скидки на материалы о поиске работы",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/vitrinajobs"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Розыгрыш карьерного сопровождения с механикой репоста в сторис и подписки",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/vitrinajobs"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дайджест вакансий включая контент-маркетолога и influence-маркетинг",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/vitrinajobs"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Видны смежные или единичные релевантные материалы; тематическая доля недостаточно установлена.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 476,
@@ -17788,7 +18250,113 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/vlasov_blog",
+          "https://www.tgchannel.net/vlasov_blog"
+        ],
+        "visible_post_samples": 10,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс эфира о позиционировании B2B-агентств",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://www.tgchannel.net/vlasov_blog"
+          },
+          {
+            "url": "https://t.me/vlasov_blog/1596",
+            "publication_date": null,
+            "summary": "Кейс сборки вебинарной воронки в Telegram-боте с Claude и GetCourse",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://www.tgchannel.net/vlasov_blog"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Личная история об отцовстве",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://www.tgchannel.net/vlasov_blog"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение на разбор позиционирования",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://www.tgchannel.net/vlasov_blog"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Предпринимательское бинго",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://www.tgchannel.net/vlasov_blog"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс вебинара о нишевании",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://www.tgchannel.net/vlasov_blog"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шаблон управления бизнесом через воронку отделов",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://www.tgchannel.net/vlasov_blog"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Бытовой пример использования Claude для поиска корта",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://www.tgchannel.net/vlasov_blog"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Размышления об отказе от миллиардного бизнеса",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://www.tgchannel.net/vlasov_blog"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Комментарий о блогерах и программировании",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://www.tgchannel.net/vlasov_blog"
+          }
+        ],
+        "recommendation": "probation",
+        "reason": "Наблюдаются прямо релевантные публикации среди более широкого маркетингового или бизнес-контента; рекомендована повторная проверка для probation, не автоматическое одобрение.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 478,
@@ -17800,7 +18368,86 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/voronapublichnik",
+          "https://telemoon.app/ru/channel/voronapublichnik"
+        ],
+        "visible_post_samples": 7,
+        "posts": [
+          {
+            "url": "https://t.me/voronapublichnik/6888",
+            "publication_date": "2026-11-20",
+            "summary": "Наблюдение на записи заседания Конституционного суда",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemoon.app/ru/channel/voronapublichnik"
+          },
+          {
+            "url": "https://t.me/voronapublichnik/6887",
+            "publication_date": "2026-11-20",
+            "summary": "Предзаказ практического пособия по КС РФ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemoon.app/ru/channel/voronapublichnik"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс вебинара о конституционном правосудии",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemoon.app/ru/channel/voronapublichnik"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Упоминание выступления о личном бренде без содержательных рекомендаций",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemoon.app/ru/channel/voronapublichnik"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Толкование правовых принципов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemoon.app/ru/channel/voronapublichnik"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Биография судьи Клеандрова",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemoon.app/ru/channel/voronapublichnik"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Сообщение о смерти бывшего судьи КС",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemoon.app/ru/channel/voronapublichnik"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 479,
@@ -17812,7 +18459,51 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/vsecivilno",
+          "https://tg.me/vsecivilno",
+          "https://telemoon.app/ru/channel/vsecivilno"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Размышления о социальных льготах и патернализме в праве",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/vsecivilno"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Статья о происхождении обязательной силы договора",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/vsecivilno"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс интенсива по теории сделок",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/vsecivilno"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 480,
@@ -17824,7 +18515,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/vtb_career"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Карьерная история руководителя банка и парашютный спорт",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vtb_career"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс-чемпионат по международным расчетам",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vtb_career"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Истории сотрудников контакт-центра",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vtb_career"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Опрос о привлекательности работодателей",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vtb_career"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Беговой клуб сотрудников ВТБ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/vtb_career"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 481,
@@ -17836,7 +18587,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/websofthr"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента не открылась, поиском не найден доступный материал с подтвержденной идентичностью.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 482,
@@ -17848,7 +18613,50 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/workisnotvolk",
+          "https://tg.me/workisnotvolk"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Пленарное заседание о карьере психолога",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/workisnotvolk"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ярмарка вакансий и стажировок психологов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/workisnotvolk"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс видео о предыдущем Дне карьеры",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/workisnotvolk"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 483,
@@ -17867,7 +18675,193 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/worldppc"
+        ],
+        "visible_post_samples": 19,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Идеи новогодних подарков партнерам",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс рекламного спецпроекта Простоквашино в Яндекс Лавке",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Доступ к задачам Gemini",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дайджест инструментов продаж, таргетинга и редактора ПромоСтраниц",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Воркшоп о click-out рекламе Ozon",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс самостоятельного поискового продвижения сайта",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отслеживание конверсий в B2B рекламе оборудования",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Новость о модели Gemini",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс performance и brandformance CDEK.Shopping",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шуточный тест для digital-специалистов",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дайджест функций ИИ-поиска и агентов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": "https://t.me/worldppc/11270",
+            "publication_date": null,
+            "summary": "Возможность делиться постами MAX в историях",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Возврат денег с Wildberries",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Чекаут в товарных объявлениях Директа",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Аудит контекстной рекламы недвижимости",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Таргетинг Авито и аналитика спроса Вордстата",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс привлечения бронирований экскурсий",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Новая механика предложения цены рекламных размещений в Telegram и MAX",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Идеи праздничных акций и контента в соцсетях",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/worldppc"
+          }
+        ],
+        "recommendation": "probation",
+        "reason": "Наблюдаются прямо релевантные публикации среди более широкого маркетингового или бизнес-контента; рекомендована повторная проверка для probation, не автоматическое одобрение.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 484,
@@ -17879,7 +18873,32 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/wtfwithservice",
+          "https://tgmarket.io/c/wtfwithservice"
+        ],
+        "visible_post_samples": 1,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Критика передачи коллегам неосмысленных документов, сгенерированных ИИ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tgmarket.io/c/wtfwithservice"
+          }
+        ],
+        "recommendation": "needs_more_evidence",
+        "reason": "Слишком мало доступных публикаций для решения.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 485,
@@ -17891,7 +18910,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/yandexbusiness"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Восстановление функций рекламного кабинета и карточек организаций",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yandexbusiness"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Исследование покупательского поведения перед Черной пятницей с рекомендацией рекламы в мессенджерах",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yandexbusiness"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Статистика новых организаций и ресторанов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yandexbusiness"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Обновление конструктора сайтов и ИИ-лендингов",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yandexbusiness"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Скидки и бонусы для рекламодателей Яндекс Бизнеса",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yandexbusiness"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Видны смежные или единичные релевантные материалы; тематическая доля недостаточно установлена.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 486,
@@ -17903,7 +18982,59 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/yandex_fedorov",
+          "https://tg.me/yandex_fedorov"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Подбор стратегии контекстной рекламы по конверсиям, кликам, показам или просмотрам",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/yandex_fedorov"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Расходы и списания рекламного бюджета",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/yandex_fedorov"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Пример автоматического написания постов роботом для автора канала",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/yandex_fedorov"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Разбор отслеживания нажатий на телефон из рекламы",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/yandex_fedorov"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Видны смежные или единичные релевантные материалы; тематическая доля недостаточно установлена.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 487,
@@ -17922,7 +19053,76 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/yantech"
+        ],
+        "visible_post_samples": 6,
+        "posts": [
+          {
+            "url": "https://t.me/YANtech/5128",
+            "publication_date": null,
+            "summary": "Контент-стратегия фармбрендов для поиска, соцсетей и ИИ",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yantech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Продвижение каналов MAX и монетизация авторов через ПроБлогер",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yantech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ограничения интерфейсов рекламы и аналитики",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yantech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Перенос рекламной конференции и состояние сервисов",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yantech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Восстановление рекламных и партнерских кабинетов",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yantech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Обновление о доступности статистики и рекламных инструментов",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yantech"
+          }
+        ],
+        "recommendation": "probation",
+        "reason": "Наблюдаются прямо релевантные публикации среди более широкого маркетингового или бизнес-контента; рекомендована повторная проверка для probation, не автоматическое одобрение.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 488,
@@ -17941,7 +19141,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/yndx_ed"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": "https://t.me/yndx_ed/3937",
+            "publication_date": null,
+            "summary": "Вебинар по настройке и оценке рекламы в MAX",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yndx_ed"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Выбор автоматических стратегий Директа по KPI",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yndx_ed"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Вебинар по персонализации текстов объявлений и A/B-тестам",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yndx_ed"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Объединение поиска и РСЯ в performance-кампании",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/yndx_ed"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Видны смежные или единичные релевантные материалы; тематическая доля недостаточно установлена.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 489,
@@ -17953,7 +19204,32 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/yuniorapp",
+          "https://tgmarket.io/ru/c/yuniorapp"
+        ],
+        "visible_post_samples": 1,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Подборка вакансий и стажировок для начинающих дизайнеров, менеджеров и разработчиков",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tgmarket.io/ru/c/yuniorapp"
+          }
+        ],
+        "recommendation": "needs_more_evidence",
+        "reason": "Слишком мало доступных публикаций для решения.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 490,
@@ -17972,7 +19248,112 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/zakon_news"
+        ],
+        "visible_post_samples": 10,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отставка судьи экономической коллегии",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/zakon_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Реклама сервиса мониторинга судебных дел",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/zakon_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Правовой анализ рекламных рассылок через Госуслуги",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/zakon_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Взыскание дополнительных расходов на ребенка",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/zakon_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Неосновательное обогащение из ошибочных платежей",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/zakon_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс курса по цифровым сделкам",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/zakon_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Взаиморасчеты продавцов с маркетплейсами",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/zakon_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Реклама книги о советском праве",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/zakon_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Выселение бывшего супруга после развода",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/zakon_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Судебные споры с иностранным элементом",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/zakon_news"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 491,
@@ -17984,7 +19365,68 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/zakon_vsrf",
+          "https://tg.me/zakon_vsrf"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Институт добросовестного приобретателя",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/zakon_vsrf"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Итоги дискуссии по экономическим делам Верховного суда",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/zakon_vsrf"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс аудиозаписи правового обсуждения",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/zakon_vsrf"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Раздел премии после развода",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/zakon_vsrf"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Возврат ошибочно перечисленной пенсии",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/zakon_vsrf"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 492,
@@ -17996,7 +19438,41 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_019": {
+        "review_date": "2026-11-24",
+        "review_status": "third_party_archive_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/zametki_opitnogo_hr",
+          "https://tg.me/zametki_opitnogo_hr"
+        ],
+        "visible_post_samples": 2,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Красные флаги в формулировках вакансий",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/zametki_opitnogo_hr"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Почему стаж не гарантирует компетентность",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://tg.me/zametki_opitnogo_hr"
+          }
+        ],
+        "recommendation": "provisional_retain_rejected",
+        "reason": "Наблюдаемая выборка преимущественно относится к иной теме; предварительное сохранение отклонения, не gold label.",
+        "coverage": "Nonexhaustive visible text/caption excerpts; mirror snapshots may be historical. Unresolved dates/permalinks left null; no media inspection. Direct-access failure is not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     }
   ]
 }
