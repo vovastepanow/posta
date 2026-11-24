@@ -1519,6 +1519,11 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 	if err := a.autopilotQueueSourceReaudit(ctx, job); err != nil {
 		return err
 	}
+	if job.Scope == autopilotAutoScope {
+		if err := a.autopilotRecoverLegacyYouTube(ctx, job); err != nil {
+			return err
+		}
+	}
 	ctx = withAutopilotAssessmentProbe(ctx)
 	u := a.User(ctx, "", nil)
 	return a.autopilotReviewShadowCandidatesWith(ctx, job, limit, a.TInt("autopilot_preliminary_score"),
