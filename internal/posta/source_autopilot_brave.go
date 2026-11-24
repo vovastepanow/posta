@@ -53,6 +53,43 @@ func (u *U) autopilotBraveSearchWith(query string, fetch func(string, int64, tim
 	return r
 }
 
+// Both engines are public, anonymous endpoints. Their rate limits remain
+// independent; a Brave 429 does not make all publisher discovery unavailable.
+// Bing's site: filter is not trusted: the shared extractor verifies hosts.
+func (u *U) autopilotPublisherSearch(query, platform string) FetchResultURL {
+	return autopilotPublisherSearchWith(query, platform, u.autopilotBraveSearch, u.autopilotTikTokBingFetch)
+}
+
+func autopilotPublisherSearchWith(query, platform string, brave func(string) FetchResultURL, bing func(string, int64, time.Duration, string) FetchResultURL) FetchResultURL {
+	primary := brave(query)
+	if autopilotPublisherSearchResponseValid(primary) && len(autopilotSearchLinkedCandidates(primary, platform)) > 0 {
+		return primary
+	}
+	secondary := bing("https://www.bing.com/search?q="+url.QueryEscape(query)+"&format=rss", rssMaxBytes, 15*time.Second, BrowserUA)
+	if autopilotPublisherSearchResponseValid(secondary) {
+		if len(autopilotSearchLinkedCandidates(secondary, platform)) > 0 || !autopilotPublisherSearchResponseValid(primary) {
+			return secondary
+		}
+	}
+	return primary
+}
+
+func autopilotPublisherSearchResponseValid(r FetchResultURL) bool {
+	p, err := url.Parse(r.URL)
+	if !r.OK || err != nil || p.Scheme != "https" || p.User != nil || p.Port() != "" || p.Path != "/search" {
+		return false
+	}
+	switch p.Host {
+	case "search.brave.com":
+		lower := strings.ToLower(string(r.Bytes))
+		return !strings.Contains(lower, "captcha") && !strings.Contains(lower, "challenge_required")
+	case "www.bing.com":
+		return rssIsFeed(rssLoad(r.Bytes))
+	default:
+		return false
+	}
+}
+
 // Search documents are not a list of sources. URLs in scripts, unrelated
 // snippets, tracking parameters and lookalike hostnames must not nominate a
 // publisher. Accept only actual result hyperlinks (or the already validated
@@ -86,10 +123,17 @@ func autopilotSearchLinkedCandidates(r FetchResultURL, platform string) []Discov
 			}
 		}
 	case "www.bing.com":
-		if platform != PlatformTikTok {
+		doc := rssLoad(r.Bytes)
+		if rssIsFeed(doc) {
+			for _, item := range rssItems(doc) {
+				links = append(links, autopilotTikTokUnwrapBing(rssItemLink(item, r.URL)))
+			}
+		} else if platform == PlatformTikTok {
+			// The older TikTok adapter returns a normalized URL list.
+			links = strings.Fields(string(r.Bytes))
+		} else {
 			return nil
 		}
-		links = strings.Fields(string(r.Bytes))
 	default:
 		return nil
 	}
