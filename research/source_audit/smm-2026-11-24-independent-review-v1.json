@@ -10,18 +10,21 @@
     "First batch quality check: counts agree with listed paraphrases, but individual post URLs, timestamps and item-level verdicts were not consistently recorded; old recommendations remain provisional. Three sources partially reconfirmed, not all prior samples rechecked.",
     "Second batch: all 20 Bluesky identities (21–40) attempted; five profile descriptions, zero posts. Some web fetches fail and XML is unsupported; this is a tool-access limitation, not proof of source failure. Additional sources sampled out of order to make content progress. All recommendations provisional. No production data changed.",
     "Next audit rounds should append item-level source URL, date, relevant/adjacent/off_topic/unknown and usefulness separately; target 10–20 recent posts, or document feed completeness for inactive sources.",
-    "Batch 003: five Telegram feeds with per-post URLs resolved from feed anchors, paraphrases, separate topical and usefulness labels, exact dates unavailable; five unsuccessful direct fetches. No Gemini or other independent model consulted: available plugin discovery returned no matching Gemini capability. No gold labels assigned; prior observations preserved."
+    "Batch 003: five Telegram feeds with per-post URLs resolved from feed anchors, paraphrases, separate topical and usefulness labels, exact dates unavailable; five unsuccessful direct fetches. No Gemini or other independent model consulted: available plugin discovery returned no matching Gemini capability. No gold labels assigned; prior observations preserved.",
+    "Batch 004: baseline indices 236,237,239–244 (8 new structured attempts). Four direct Telegram feeds with 41 individually resolved post links; three third-party archive samples with 18 excerpts, some without individual links; one inaccessible. No independent external model response received. No new integration or production changes in this batch. Provisional recommendations only; no gold labels."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 55,
-    "structured_with_visible_post_samples": 16,
+    "structured_attempted": 63,
+    "structured_with_visible_post_samples": 23,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
     "item_level_sources_batch_003": 5,
     "item_level_entries_batch_003": 49,
-    "item_level_readable_texts_batch_003": 48
+    "item_level_readable_texts_batch_003": 48,
+    "batch_004_direct_posts": 41,
+    "batch_004_mirror_excerpts": 18
   },
   "rows": [
     {
@@ -3586,7 +3589,97 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_004": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/a101broker_cre"
+        ],
+        "visible_post_samples": 8,
+        "posts": [
+          {
+            "url": "https://t.me/a101broker_cre/4219",
+            "publication_date": null,
+            "summary": "Продажа торгового помещения",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/a101broker_cre/4223",
+            "publication_date": null,
+            "summary": "Условия рассрочки на помещения",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/a101broker_cre/4226",
+            "publication_date": null,
+            "summary": "Новый жилой проект и комиссия",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/a101broker_cre/4230",
+            "publication_date": null,
+            "summary": "Подборка торговых объектов",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/a101broker_cre/4233",
+            "publication_date": null,
+            "summary": "Лизинг помещений",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/a101broker_cre/4234",
+            "publication_date": null,
+            "summary": "Продажа последнего офиса",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/a101broker_cre/4238",
+            "publication_date": null,
+            "summary": "Повышение цен и бронирование",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/a101broker_cre/4241",
+            "publication_date": null,
+            "summary": "Подборка помещений в Ленобласти",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          }
+        ],
+        "counts": {
+          "off_topic": 8
+        },
+        "recommendation": "reject_for_topic_provisional",
+        "reason": "Продажа недвижимости, комиссии брокеров, финансовые условия. В восьми прочитанных текстах нет профессионального SMM; сам факт публикации рекламы не означает, что канал обучает SMM.",
+        "coverage": "Visible feed excerpts, not guaranteed consecutive; date not verified, media not inspected. Different cached views may cover different snapshots.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 237,
@@ -3598,7 +3691,72 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_004": {
+        "review_status": "mirror_excerpt_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://telemoon.app/ru/channel/aakhromova"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": "https://t.me/aakhromova/879",
+            "publication_date": "2026-11-20",
+            "summary": "Личная рефлексия о возрасте",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemoon.app/ru/channel/aakhromova"
+          },
+          {
+            "url": "https://t.me/aakhromova/878",
+            "publication_date": "2026-11-19",
+            "summary": "Реклама курса ИИ для отдела продаж",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemoon.app/ru/channel/aakhromova"
+          },
+          {
+            "url": "https://t.me/aakhromova/877",
+            "publication_date": "2026-11-17",
+            "summary": "История о заработке стоматолога и предпринимательстве",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemoon.app/ru/channel/aakhromova"
+          },
+          {
+            "url": "https://t.me/aakhromova/871",
+            "publication_date": "2026-11-10",
+            "summary": "Разбор рекламной акции банка и данных о покупках",
+            "relevance": "adjacent",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemoon.app/ru/channel/aakhromova"
+          },
+          {
+            "url": "https://t.me/aakhromova/870",
+            "publication_date": "2026-11-09",
+            "summary": "Тизер уличной рекламной кампании",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemoon.app/ru/channel/aakhromova"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Личный бизнес-блог; пять проверенных фрагментов, в том числе общий рекламный кейс. Недостаточно для надежного окончательного решения.",
+        "coverage": "Direct public preview failed. Third-party archive excerpts; individual permalinks unavailable where null. Dates from explicit mirror or month/day in current-year archive; no media inspection.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 238,
@@ -3652,7 +3810,72 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_004": {
+        "review_status": "mirror_excerpt_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1500406598-ab_context/posts"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Адаптация клиентских бизнесов к рынку",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/1500406598-ab_context/posts"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-18",
+            "summary": "Учет длинного цикла B2B-сделок",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/1500406598-ab_context/posts"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-17",
+            "summary": "Диагностика потерь в CRM",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/1500406598-ab_context/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рабочие проекты и преподавание Директа",
+            "relevance": "adjacent",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/1500406598-ab_context/posts"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-28",
+            "summary": "Чек-лист отключения площадок РСЯ",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/1500406598-ab_context/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Полезный контекстный маркетинг и аналитика, но проверенные фрагменты не подтверждают специализацию SMM.",
+        "coverage": "Direct public preview failed. Third-party archive excerpts; individual permalinks unavailable where null. Dates from explicit mirror or month/day in current-year archive; no media inspection.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 240,
@@ -3664,7 +3887,102 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_004": {
+        "review_status": "mirror_excerpt_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/2056511483-able_plus"
+        ],
+        "visible_post_samples": 8,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Стратегическое планирование и сессии",
+            "relevance": "off_topic",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/2056511483-able_plus"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Предложение практической фасилитации",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/2056511483-able_plus"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Причины задержек исполнения стратегии",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/2056511483-able_plus"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс конференции инвестиционной компании",
+            "relevance": "off_topic",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/2056511483-able_plus"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Влог о работе со стратегией",
+            "relevance": "off_topic",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/2056511483-able_plus"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Обсуждение вызовов event-рынка",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/2056511483-able_plus"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс стратегической сессии на форуме",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/2056511483-able_plus"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Прекращение неэффективных проектов",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "mirror_url": "https://telemetr.io/ru/channels/2056511483-able_plus"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Видимые материалы посвящены фасилитации и бизнес-стратегии, не SMM; влог служит иллюстрацией работы, а не обучением блогингу. Неполная выборка.",
+        "coverage": "Direct public preview failed. Third-party archive excerpts; individual permalinks unavailable where null. Dates from explicit mirror or month/day in current-year archive; no media inspection.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 241,
@@ -3683,7 +4001,125 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_004": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/adpass_media"
+        ],
+        "visible_post_samples": 11,
+        "posts": [
+          {
+            "url": "https://t.me/adpass_media/14955",
+            "publication_date": null,
+            "summary": "Дайджест блогов о бизнесе, рекламе и событиях",
+            "relevance": "adjacent",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adpass_media/14956",
+            "publication_date": null,
+            "summary": "Устройство для ухода за растениями",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adpass_media/14959",
+            "publication_date": null,
+            "summary": "Мошеннические показы телерекламы",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adpass_media/14960",
+            "publication_date": null,
+            "summary": "Покупка из объявления в поиске",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adpass_media/14961",
+            "publication_date": null,
+            "summary": "Приглашение на встречу директоров по маркетингу",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adpass_media/14962",
+            "publication_date": null,
+            "summary": "Кассовые сборы фильма",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adpass_media/14964",
+            "publication_date": null,
+            "summary": "Таргетинг объявлений Авито",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adpass_media/14968",
+            "publication_date": null,
+            "summary": "Измерение цифровой аудитории телеканалов",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adpass_media/14969",
+            "publication_date": null,
+            "summary": "Носимый ИИ-помощник",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adpass_media/14972",
+            "publication_date": null,
+            "summary": "Измерение наружной рекламы",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adpass_media/14974",
+            "publication_date": null,
+            "summary": "Атрибуция эффектов наружной рекламы",
+            "relevance": "adjacent",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          }
+        ],
+        "counts": {
+          "adjacent": 8,
+          "off_topic": 3
+        },
+        "recommendation": "reject_for_topic_provisional",
+        "reason": "Профессиональный ресурс общей рекламы, но среди одиннадцати проверенных текстов нет явно профильного для SMM. Недавняя выборка не непрерывна; возможно наличие отдельных полезных материалов в других выпусках.",
+        "coverage": "Visible feed excerpts, not guaranteed consecutive; date not verified, media not inspected. Different cached views may cover different snapshots.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 242,
@@ -3695,7 +4131,81 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_004": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/advertising_law_channel"
+        ],
+        "visible_post_samples": 6,
+        "posts": [
+          {
+            "url": "https://t.me/advertising_law_channel/2039",
+            "publication_date": null,
+            "summary": "Копирование рекламных материалов и конкуренция",
+            "relevance": "adjacent",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/advertising_law_channel/2046",
+            "publication_date": null,
+            "summary": "Предложение рекламного размещения в канале",
+            "relevance": "relevant",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/advertising_law_channel/2048",
+            "publication_date": null,
+            "summary": "Рекомендация обучения ИИ для юристов",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/advertising_law_channel/2049",
+            "publication_date": null,
+            "summary": "Таймкоды подкаста о работе агентства с блогерами и интеграциями",
+            "relevance": "relevant",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/advertising_law_channel/2050",
+            "publication_date": null,
+            "summary": "Законопроект о семейных образах в социальной рекламе",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/advertising_law_channel/2052",
+            "publication_date": null,
+            "summary": "Анонс интервью о юридических технологиях",
+            "relevance": "off_topic",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          }
+        ],
+        "counts": {
+          "adjacent": 2,
+          "relevant": 2,
+          "off_topic": 2
+        },
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Есть материал о работе с блогерами и интеграциях; остальное в доступной части — рекламное право, юридические технологии, коммерческие анонсы. Не исключать профильную правовую практику для блогеров. Аудио и карусели не просмотрены.",
+        "coverage": "Visible feed excerpts, not guaranteed consecutive; date not verified, media not inspected. Different cached views may cover different snapshots.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 243,
@@ -3707,7 +4217,171 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_004": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/adv_system"
+        ],
+        "visible_post_samples": 16,
+        "posts": [
+          {
+            "url": "https://t.me/adv_system/1058",
+            "publication_date": null,
+            "summary": "Опрос о персональных данных",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1059",
+            "publication_date": null,
+            "summary": "Правовой статус телефонных номеров",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1061",
+            "publication_date": null,
+            "summary": "Материалы по рекламе в MAX и VK",
+            "relevance": "relevant",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1062",
+            "publication_date": null,
+            "summary": "Настройка владельца площадки в ОРД, включая Telegram",
+            "relevance": "relevant",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1064",
+            "publication_date": null,
+            "summary": "Отчетность по рекламным постам и видео YouTube/VK",
+            "relevance": "relevant",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1065",
+            "publication_date": null,
+            "summary": "Приглашение участвовать в исследовании бизнеса",
+            "relevance": "adjacent",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1066",
+            "publication_date": null,
+            "summary": "Сроки проверки начислений рекламного сбора",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1067",
+            "publication_date": null,
+            "summary": "Автосбор статистики рекламных креативов VK и Дзена",
+            "relevance": "relevant",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1068",
+            "publication_date": null,
+            "summary": "Праздничная шутка о рекламе",
+            "relevance": "adjacent",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1069",
+            "publication_date": null,
+            "summary": "Тарифы оператора рекламных данных",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1071",
+            "publication_date": null,
+            "summary": "Вопросы по сбору за рекламу, включая блогерские интеграции",
+            "relevance": "relevant",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1072",
+            "publication_date": null,
+            "summary": "Опрос о маркировке объявлений Авито",
+            "relevance": "adjacent",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1073",
+            "publication_date": null,
+            "summary": "Правила маркировки рекламных форматов Авито",
+            "relevance": "adjacent",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1074",
+            "publication_date": null,
+            "summary": "Квитанции и проверка рекламного сбора",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1077",
+            "publication_date": null,
+            "summary": "Порядок проверки и оплаты рекламного сбора",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          },
+          {
+            "url": "https://t.me/adv_system/1078",
+            "publication_date": null,
+            "summary": "Анонс конференции о праве, включая UGC и фабрики контента",
+            "relevance": "relevant",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption; post permalink independently resolved from displayed time link"
+          }
+        ],
+        "counts": {
+          "off_topic": 2,
+          "relevant": 6,
+          "adjacent": 8
+        },
+        "recommendation": "probation_provisional",
+        "reason": "Смешанный источник о регулировании интернет-рекламы. Присутствуют конкретные инструкции для каналов, создателей видео и специалистов по рекламе в социальных сетях. Общие новости ОРД и сборы не считать автоматически профильными; проверить полезный поток на пробации.",
+        "coverage": "Visible feed excerpts, not guaranteed consecutive; date not verified, media not inspected. Different cached views may cover different snapshots.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 244,
@@ -3719,7 +4393,20 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_004": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/adv_titan_stoic"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct public page could not be opened and search did not provide reliable matching publication content.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 245,
