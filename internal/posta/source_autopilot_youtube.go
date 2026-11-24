@@ -268,7 +268,7 @@ func (u *U) autopilotFindYouTube(query string) []DiscoveryCandidate {
 		status = "empty"
 		seen := map[string]bool{}
 		handles := 0
-		for _, candidate := range SourceLinkedSources(string(r.Bytes)) {
+		for _, candidate := range autopilotSearchLinkedCandidates(r, PlatformRSS) {
 			if candidate.Platform != PlatformRSS {
 				continue
 			}
