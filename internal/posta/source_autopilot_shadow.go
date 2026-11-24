@@ -996,8 +996,18 @@ func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJ
 	plan := autopilotPublicPostQueryPlan(query)
 	// The public worker has no personal Telegram login. Use only backends
 	// that can search without a subscriber's private account.
-	only := map[string]bool{"VK": true, "vc/dtf": true, "Lemmy": true, "Mastodon": true}
+	// Bluesky's public post search is separate from account discovery.
+	// Check it before the slower backends so it gets a share of the fetch
+	// budget. The worker uses no user's private VK/Telegram session.
+	var bluesky []jx.M
+	if a.TBool("search_bluesky") {
+		bluesky, _ = u.autopilotSearchBlueskyPosts(query)
+	}
+	only := map[string]bool{"vc/dtf": true, "Lemmy": true, "Mastodon": true}
 	posts, _ := u.searchEngineRun(plan, 0, 25*time.Second, only)
+	if len(bluesky) > 0 {
+		posts["bluesky"] = bluesky
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
