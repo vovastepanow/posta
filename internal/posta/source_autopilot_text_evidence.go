@@ -156,6 +156,35 @@ func (a *App) refreshAutopilotMedia(ctx context.Context, job *autopilotJob, sour
 	return true, err
 }
 
+// Rotate each media lane independently across successful feed passes. Otherwise
+// the first already-reviewed or inaccessible image/video consumes the same
+// bounded attempt slot on every pass, starving the rest of an unchanged feed.
+// Text posts keep their positions and order; the original sample is unchanged.
+func autopilotRotateMediaReview(posts []jx.M, pass int) []jx.M {
+	var images, videos []int
+	for i, post := range posts {
+		if PostItemHasVideo(post) {
+			videos = append(videos, i)
+		} else if ContentImageKey(post) != "" {
+			images = append(images, i)
+		}
+	}
+	if len(images) <= 2 && len(videos) <= 1 {
+		return posts
+	}
+	rotated := append([]jx.M(nil), posts...)
+	for _, lane := range [][]int{images, videos} {
+		if len(lane) == 0 {
+			continue
+		}
+		offset := max(0, pass) % len(lane)
+		for i, index := range lane {
+			rotated[index] = posts[lane[(i+offset)%len(lane)]]
+		}
+	}
+	return rotated
+}
+
 // assessAutopilotPublicPosts records completed public analyses. A video
 // remains unknown unless both its storyboard and full classification succeed.
 func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob, source string, posts []jx.M) error {
@@ -164,7 +193,16 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 	var texts []string
 	imageAttempts := 0
 	videoAttempts := 0
-	for _, post := range posts {
+	var passes int
+	if len(posts) > 2 {
+		// Collection passes are persisted before assessment and deduplicated
+		// by collection slot. Progress survives restarts without increasing
+		// the existing model/network attempt budget.
+		if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_collection_passes WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, job.TopicKey, source).Scan(&passes); err != nil {
+			return err
+		}
+	}
+	for _, post := range autopilotRotateMediaReview(posts, max(0, passes-1)) {
 		if !autopilotPublicPostURL(jx.Str(post, "url"), false) {
 			continue
 		}
