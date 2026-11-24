@@ -99,3 +99,23 @@ func TestAutopilotProbationNotStarvedByCandidateBacklogPostgres(t *testing.T) {
 		t.Fatalf("full probation delayed %d unreviewed candidates: %v", deferred, err)
 	}
 }
+
+func TestAutopilotBacklogDirectSearch(t *testing.T) {
+	const now = int64(10000)
+	for _, tc := range []struct {
+		scope string
+		due   int
+		last  int64
+		want  bool
+	}{
+		{autopilotAutoScope, 500, 0, true},
+		{autopilotAutoScope, 500, now - 900, true},
+		{autopilotAutoScope, 500, now - 899, false},
+		{autopilotAutoScope, 0, 0, false},
+		{autopilotShadowScope, 500, 0, false},
+	} {
+		if got := autopilotBacklogDirectSearch(tc.scope, tc.due, tc.last, now); got != tc.want {
+			t.Errorf("%+v: got %t", tc, got)
+		}
+	}
+}

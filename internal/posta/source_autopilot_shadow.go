@@ -494,9 +494,10 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			return err
 		}
 	}
-	// Do not keep searching while the existing candidate queue needs
-	// verification. This applies to shadow and auto modes alike: previously
-	// shadow mode could accumulate hundreds of unreviewed sources.
+	// Do not grow a raw candidate backlog indefinitely. In auto mode,
+	// periodically reserve a narrow search for actual posts instead: a large
+	// or temporarily blocked queue must not prevent useful content delivery.
+	directOnly := false
 	{
 		var dueCandidates, dueReaudit int
 		if err := a.DB.Pool.QueryRow(ctx, `SELECT
@@ -510,8 +511,10 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&dueCandidates, &dueReaudit); err != nil {
 			return err
 		}
-		if autopilotShouldDrainCandidateBacklog(dueCandidates) ||
-			autopilotShouldDrainReaudit(dueReaudit, jx.Int(jx.Unmarshal(job.Checkpoint), "last_search_at"), time.Now().Unix()) {
+		lastSearch := jx.Int(jx.Unmarshal(job.Checkpoint), "last_search_at")
+		directOnly = autopilotBacklogDirectSearch(job.Scope, dueCandidates, lastSearch, time.Now().Unix())
+		if !directOnly && (autopilotShouldDrainCandidateBacklog(dueCandidates) ||
+			autopilotShouldDrainReaudit(dueReaudit, lastSearch, time.Now().Unix())) {
 			if err := a.autopilotMarkPhase(ctx, job, "review"); err != nil {
 				return err
 			}
@@ -593,6 +596,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		if a.TBool("search_news") {
 			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindNewsFeeds([]string{query}) })
 		}
+		if directOnly {
+			backends = nil
+		}
 		enabledBackends = len(backends)
 		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
 		// Spend a bounded share of the existing search budget on finding
@@ -606,7 +612,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			directAttempted = true
 			postCtx := withAutopilotSearchFetchCap(searchCtx, 30)
 			postCandidates, nominations, postErr := a.autopilotFindSourcesFromPosts(postCtx, job, query, autopilotDirectMaxPerRun*autopilotPostHintLimit)
-			postNominations = nominations
+			if !directOnly {
+				postNominations = nominations
+			}
 			directErr = postErr
 			if directErr == nil {
 				directErr = a.autopilotAssessDirectPosts(ctx, job, postCandidates)
@@ -622,7 +630,10 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		if knownErr != nil {
 			return verified, knownErr
 		}
-		raw := autopilotRunSearchBackendsAdaptiveKnown(searchCtx, turn, backends, 6, 64, known)
+		var raw []DiscoveryCandidate
+		if !directOnly {
+			raw = autopilotRunSearchBackendsAdaptiveKnown(searchCtx, turn, backends, 6, 64, known)
+		}
 		sourceSearchCount = len(raw) + len(postNominations)
 		candidates := append(append([]DiscoveryCandidate(nil), verified...), postNominations...)
 		candidates = append(candidates, raw...)
@@ -737,6 +748,12 @@ func (a *App) autopilotFinishBacklog(ctx context.Context, job *autopilotJob) err
 // already-discovered candidates and wasting the search budget.
 func autopilotShouldDrainCandidateBacklog(dueCandidates int) bool {
 	return dueCandidates > 0
+}
+
+// Keep ordinary discovery backpressure, but allow the direct-post path
+// (and only its independently verified publishers) once per 15 minutes.
+func autopilotBacklogDirectSearch(scope string, due int, lastSearch, now int64) bool {
+	return scope == autopilotAutoScope && due > 0 && (lastSearch <= 0 || now-lastSearch >= 15*60)
 }
 
 // A historical audit must not suppress all new discovery for hours. The
