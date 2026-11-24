@@ -8,7 +8,7 @@ import (
 	"posta/internal/jx"
 )
 
-// Search uses the anonymous web endpoint only. The returned links are merely
+// Search uses public endpoints only. The returned links are merely
 // candidates and always go through public-page validation and assessment.
 func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandidate {
 	host := "t.me"
@@ -45,6 +45,18 @@ func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandida
 		}
 		if len(out) > 0 {
 			status = "ok"
+		}
+	}
+	if platform == PlatformTelegram && len(out) == 0 && u.Ctx.Err() == nil && autopilotBudgetError(u.Ctx) == nil {
+		if found, err := u.autopilotTelegramIndex(query); err == nil {
+			status = "empty"
+			for _, candidate := range found {
+				candidate.Origin = "публичный каталог Telegram «" + query + "»"
+				out = append(out, candidate)
+			}
+			if len(out) > 0 {
+				status = "ok"
+			}
 		}
 	}
 	if u.discoverySearchObservation != nil {
