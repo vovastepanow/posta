@@ -74,6 +74,15 @@ func autopilotPostMatchesSource(source string, post jx.M) bool {
 		if err != nil || feed.Hostname() == "" {
 			return false
 		}
+		if site, publisherID := osnovaTimelineSource(id); site != "" {
+			return autopilotOsnovaPostMatchesSource(site, publisherID, link, post)
+		}
+		if name, ok := autopilotMastodonFeed(id); ok {
+			parts := strings.Split(strings.Trim(link.Path, "/"), "/")
+			return link.Scheme == "https" && link.Host == "mastodon.social" && link.RawQuery == "" &&
+				link.Fragment == "" && len(parts) == 2 && parts[0] == "@"+name &&
+				autopilotMastodonID.MatchString(parts[1])
+		}
 		if feed.Hostname() == "bsky.app" {
 			did := autopilotBlueskyProfileDID(strings.TrimSuffix(id, "/rss"))
 			parts := strings.Split(strings.Trim(link.Path, "/"), "/")
@@ -84,6 +93,30 @@ func autopilotPostMatchesSource(source string, post jx.M) bool {
 		return strings.EqualFold(host, feed.Hostname()) || strings.EqualFold(strings.TrimPrefix(host, "www."), strings.TrimPrefix(strings.ToLower(feed.Hostname()), "www."))
 	}
 	return false
+}
+
+// API subsite identities use api.vc.ru/api.dtf.ru, while article
+// links use the corresponding public site. Require the exact publisher
+// path and numeric article ID supplied by the official result.
+func autopilotOsnovaPostMatchesSource(site string, publisherID int64, link *url.URL, post jx.M) bool {
+	if link == nil || link.Scheme != "https" || link.User != nil || link.Host != site ||
+		link.Fragment != "" || link.RawQuery != "" || publisherID <= 0 || jx.Int(post, "publisher_id") != publisherID {
+		return false
+	}
+	publisherPath := strings.Trim(jx.Str(post, "publisher_uri"), "/")
+	if publisherPath == "" {
+		publisherPath = "id" + strconv.FormatInt(publisherID, 10)
+	}
+	if strings.ContainsAny(publisherPath, "/?#") || publisherPath == "." || publisherPath == ".." {
+		return false
+	}
+	parts := strings.Split(strings.Trim(link.Path, "/"), "/")
+	if len(parts) != 2 || parts[0] != publisherPath {
+		return false
+	}
+	rawID, _, _ := strings.Cut(parts[1], "-")
+	articleID, err := strconv.ParseInt(rawID, 10, 64)
+	return err == nil && articleID > 0 && articleID == jx.Int(post, "publisher_post_id")
 }
 
 // Validate every post against its extracted public author, not the mutable

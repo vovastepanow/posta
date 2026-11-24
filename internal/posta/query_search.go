@@ -336,9 +336,25 @@ func googleNewsPublishers(doc *xnode) map[string]string {
 func (u *U) queryOsnovaSearch(q string) []jx.M {
 	var out []jx.M
 	for _, host := range []string{"vc.ru", "dtf.ru"} {
-		body, status, err := u.HTTPGetStatus("https://api."+host+"/v2.10/search/posts?q="+url.QueryEscape(q), 15*time.Second, map[string]string{"User-Agent": HTTPUA})
-		if err != nil || status != 200 {
-			continue
+		endpoint := "https://api." + host + "/v2.10/search/posts?q=" + url.QueryEscape(q)
+		var body []byte
+		if _, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); leased {
+			// Public autopilot calls must consume the same network budget
+			// as all other source adapters, not the legacy App HTTP path.
+			r := u.RSSGet(endpoint, rssMaxBytes, 15*time.Second, HTTPUA)
+			final, err := url.Parse(r.URL)
+			if !r.OK || err != nil || final.Scheme != "https" || final.Host != "api."+host ||
+				final.User != nil || final.Path != "/v2.10/search/posts" || final.Query().Get("q") != q {
+				continue
+			}
+			body = r.Bytes
+		} else {
+			var status int
+			var err error
+			body, status, err = u.HTTPGetStatus(endpoint, 15*time.Second, map[string]string{"User-Agent": HTTPUA})
+			if err != nil || status != 200 {
+				continue
+			}
 		}
 		for _, it := range jx.Maps(jx.Map(jx.Unmarshal(body), "result"), "items") {
 			if p := osnovaSearchPost(jx.Map(it, "data"), host, q); p != nil {
@@ -366,6 +382,11 @@ func osnovaSearchPost(d jx.M, host, q string) jx.M {
 	if sub := jx.Map(d, "subsite"); jx.Int(sub, "id") > 0 {
 		p["source_author_url"] = osnovaTimelineURL(host, jx.Int(sub, "id"))
 		p["author_name"] = jx.Str(sub, "name")
+		// Preserve the official API's publisher and article identity
+		// for the public post-to-source gate, not just the site name.
+		p["publisher_id"] = jx.Int(sub, "id")
+		p["publisher_uri"] = jx.Str(sub, "uri")
+		p["publisher_post_id"] = jx.Int(d, "id")
 	}
 	return p
 }

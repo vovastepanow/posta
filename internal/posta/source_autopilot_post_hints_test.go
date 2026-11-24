@@ -105,3 +105,32 @@ func TestAutopilotPostMatchesSourceRejectsImpersonation(t *testing.T) {
 		}
 	}
 }
+
+func TestAutopilotOsnovaAndMastodonRequireExactPublisher(t *testing.T) {
+	source := "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199123"
+	post := jx.M{
+		"source_author_url": osnovaTimelineURL("vc.ru", 199123),
+		"publisher_id":      199123,
+		"publisher_uri":     "/life",
+		"publisher_post_id": 3168963,
+		"url":               "https://vc.ru/life/3168963-article",
+	}
+	if !autopilotPostMatchesSource(source, post) {
+		t.Fatal("valid official API article was rejected")
+	}
+	for _, raw := range []string{"https://vc.ru/marketing/3168963-article", "https://vc.ru/life/111-other", "https://vc.ru.evil.example/life/3168963-article"} {
+		forged := jx.Copy(post)
+		forged["url"] = raw
+		if autopilotPostMatchesSource(source, forged) {
+			t.Fatalf("different publisher or article accepted: %s", raw)
+		}
+	}
+	mastodon := jx.M{"source_key": "mastodon:123", "source_author_url": "https://mastodon.social/@example", "url": "https://mastodon.social/@example/456"}
+	if !autopilotPostMatchesSource("rss:https://mastodon.social/@example.rss", mastodon) {
+		t.Fatal("valid Mastodon post rejected")
+	}
+	mastodon["url"] = "https://mastodon.social/@other/456"
+	if autopilotPostMatchesSource("rss:https://mastodon.social/@example.rss", mastodon) {
+		t.Fatal("same-instance impersonation accepted")
+	}
+}

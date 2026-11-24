@@ -160,4 +160,12 @@ func TestOsnovaSearchPost(t *testing.T) {
 	if jx.Str(p, "url") == "" || jx.Str(p, "text") == "" || jx.Str(p, "source_key") != "rss:vc.ru" {
 		t.Errorf("поля: url=%q source_key=%q text=%q", jx.Str(p, "url"), jx.Str(p, "source_key"), jx.Str(p, "text"))
 	}
+	author := PostSearchAuthor(p)
+	if author == nil {
+		t.Fatal("real article lost its publisher")
+	}
+	source, ok := autopilotCandidateID(*author)
+	if !ok || !autopilotPostMatchesSource(source, p) {
+		t.Fatalf("real API article did not match publisher: %q", source)
+	}
 }
