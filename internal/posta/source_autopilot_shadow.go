@@ -498,18 +498,20 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	// verification. This applies to shadow and auto modes alike: previously
 	// shadow mode could accumulate hundreds of unreviewed sources.
 	{
-		var dueCandidates int
-		if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
+		var dueCandidates, dueReaudit int
+		if err := a.DB.Pool.QueryRow(ctx, `SELECT
+			count(*) FILTER (WHERE state='candidate' AND (next_check_at <= $3 OR reason='probation_full' OR
+				(reason IN ('feed_unavailable','insufficient_fresh_samples') AND checked_at < $3-3600))),
+			count(*) FILTER (WHERE evidence ? 'review_policy_v3_scheduled' AND NOT (evidence ? 'review_policy_v3_checked') AND next_check_at <= $3)
+			FROM source_autopilot_sources
 			WHERE scope=$1 AND topic_key=$2
-			AND ((state='candidate' AND (next_check_at <= $3 OR reason='probation_full' OR
-			     (reason IN ('feed_unavailable','insufficient_fresh_samples') AND checked_at < $3-3600)))
-			     OR (evidence ? 'review_policy_v3_scheduled' AND NOT (evidence ? 'review_policy_v3_checked') AND next_check_at <= $3))
 			AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public'))
 				AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=source_autopilot_sources.source_id AND o.decision='excluded')`,
-			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&dueCandidates); err != nil {
+			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&dueCandidates, &dueReaudit); err != nil {
 			return err
 		}
-		if autopilotShouldDrainCandidateBacklog(dueCandidates) {
+		if autopilotShouldDrainCandidateBacklog(dueCandidates) ||
+			autopilotShouldDrainReaudit(dueReaudit, jx.Int(jx.Unmarshal(job.Checkpoint), "last_search_at"), time.Now().Unix()) {
 			if err := a.autopilotMarkPhase(ctx, job, "review"); err != nil {
 				return err
 			}
@@ -721,6 +723,13 @@ func (a *App) autopilotFinishBacklog(ctx context.Context, job *autopilotJob) err
 // already-discovered candidates and wasting the search budget.
 func autopilotShouldDrainCandidateBacklog(dueCandidates int) bool {
 	return dueCandidates > 0
+}
+
+// A historical audit must not suppress all new discovery for hours. The
+// initial review batch still runs before every search, and real new candidates
+// still take priority. Audit-only work yields to discovery every 15 minutes.
+func autopilotShouldDrainReaudit(due int, lastSearch, now int64) bool {
+	return due > 0 && lastSearch > 0 && now-lastSearch < 15*60
 }
 
 func autopilotDiscoveryOutcome(backends, sourceCount, directCount int, observed, available, directAttempted bool) string {
