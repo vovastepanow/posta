@@ -12,12 +12,13 @@
     "Next audit rounds should append item-level source URL, date, relevant/adjacent/off_topic/unknown and usefulness separately; target 10–20 recent posts, or document feed completeness for inactive sources.",
     "Batch 003: five Telegram feeds with per-post URLs resolved from feed anchors, paraphrases, separate topical and usefulness labels, exact dates unavailable; five unsuccessful direct fetches. No Gemini or other independent model consulted: available plugin discovery returned no matching Gemini capability. No gold labels assigned; prior observations preserved.",
     "Batch 004: baseline indices 236,237,239–244 (8 new structured attempts). Four direct Telegram feeds with 41 individually resolved post links; three third-party archive samples with 18 excerpts, some without individual links; one inaccessible. No independent external model response received. No new integration or production changes in this batch. Provisional recommendations only; no gold labels.",
-    "Batch 005: 16 new source attempts (245–260); 4 direct feeds, 7 third-party mirrors, five inaccessible. 73 individually described entries, 69 readable texts/captions. Explicit nulls where individual URLs or dates unavailable. Media-only entries excluded from readable count. No independent external AI consultation. No gold labels."
+    "Batch 005: 16 new source attempts (245–260); 4 direct feeds, 7 third-party mirrors, five inaccessible. 73 individually described entries, 69 readable texts/captions. Explicit nulls where individual URLs or dates unavailable. Media-only entries excluded from readable count. No independent external AI consultation. No gold labels.",
+    "Batch 006: ten new sources, 261–270. Direct and archive snapshots read; individual post links not resolved, no gold labels. External AI not consulted."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 79,
-    "structured_with_visible_post_samples": 34,
+    "structured_attempted": 89,
+    "structured_with_visible_post_samples": 42,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -27,7 +28,8 @@
     "batch_004_direct_posts": 41,
     "batch_004_mirror_excerpts": 18,
     "batch_005_entries_examined": 73,
-    "batch_005_readable_texts": 69
+    "batch_005_readable_texts": 69,
+    "batch_006_readable_texts": 63
   },
   "rows": [
     {
@@ -5658,7 +5660,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_006": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1670469974-b1_customs/posts"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Изменения транзитного таможенного режима и пошлин",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1670469974-b1_customs/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Параллельный импорт (другой языковой архив)",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1670469974-b1_customs/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Таможенная стоимость и дивиденды (другой архив)",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1670469974-b1_customs/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence",
+        "reason": "Архив исторический, часть материалов в стороннем архиве может относиться к посторонним каналам; только отчетливо идентифицированные таможенные фрагменты учтены.",
+        "coverage": "Partial excerpts; individual permalinks not resolved; no exact latest-N claim. No media inspection.",
+        "gold_label": null,
+        "external_model_review": null
+      }
     },
     {
       "baseline_index": 262,
@@ -5670,7 +5714,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_006": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/1512457804-b1_news"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Форум коммерческой недвижимости",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1512457804-b1_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс мероприятия гостиничного бизнеса",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1512457804-b1_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рынок строительства и ипотека",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1512457804-b1_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Метрики вознаграждения сотрудников",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1512457804-b1_news"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Российско-китайское деловое сотрудничество",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1512457804-b1_news"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Разрозненные фрагменты общего корпоративного консалтинга, не репрезентативная лента.",
+        "coverage": "Partial excerpts; individual permalinks not resolved; no exact latest-N claim. No media inspection.",
+        "gold_label": null,
+        "external_model_review": null
+      }
     },
     {
       "baseline_index": 263,
@@ -5682,7 +5786,148 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_006": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/b1_tax"
+        ],
+        "visible_post_samples": 14,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "16 ноября: налоговый дайджест",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Судебная статистика налоговых споров",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "17 ноября: налоговый дайджест",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Тренинг по контролируемым иностранным компаниям",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "18 ноября: налоговый дайджест",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Конференция по налоговому контролю",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Налоговые изменения ОАЭ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Поправки к налоговому законодательству 2027",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "23 ноября: налоговый дайджест",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Семинар по защите частного капитала",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Встреча об инвестициях в зарубежную недвижимость",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Итоги работы ФНС",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "24 ноября: налоговый дайджест",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Требования к переводам документов и штрафам по ТЦО",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/b1_tax"
+          }
+        ],
+        "recommendation": "reject_for_topic_provisional",
+        "reason": "Все 14 видимых текстовых блоков посвящены налогам, праву и инвестициям; никаких профильных SMM материалов. Даты некоторых дайджестов указаны в тексте, индивидуальные ссылки не разрешены.",
+        "coverage": "Partial excerpts; individual permalinks not resolved; no exact latest-N claim. No media inspection.",
+        "gold_label": null,
+        "external_model_review": null
+      }
     },
     {
       "baseline_index": 264,
@@ -5694,7 +5939,112 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_006": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/bcmgimo"
+        ],
+        "visible_post_samples": 10,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Встреча о французских компаниях",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/bcmgimo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Напоминание о стратегическом консалтинге",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/bcmgimo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Итоги встречи о консалтинге",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/bcmgimo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Деловая игра о зеленом финансировании",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/bcmgimo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс-чемпионат по комплаенсу",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/bcmgimo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Напоминание о встрече французских компаний",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/bcmgimo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Итоги встречи",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/bcmgimo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отчет о встрече с основателем Skyeng и uForce",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/bcmgimo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс лекции об IPO Henderson",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/bcmgimo"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дайджест студенческих мероприятий",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/bcmgimo"
+          }
+        ],
+        "recommendation": "reject_for_topic_provisional",
+        "reason": "Студенческие мероприятия и общие предпринимательские темы; отчет о встрече с маркетинговым предпринимателем лишь смежный. Два видеоблока без текста не оценены.",
+        "coverage": "Partial excerpts; individual permalinks not resolved; no exact latest-N claim. No media inspection.",
+        "gold_label": null,
+        "external_model_review": null
+      }
     },
     {
       "baseline_index": 265,
@@ -5706,7 +6056,130 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_006": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/belaya_kaska"
+        ],
+        "visible_post_samples": 12,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Импорт металлоконструкций",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Снятие ареста с недвижимости",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Происшествие в жилом доме",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Сроки ввода офисных площадей",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Расследование в энергетической компании",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Экономика архитектурного проектирования",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Расчет тарифа управляющей компании",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Прогнозы ввода жилья",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс отраслевой премии",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Запуск продаж ЖК и роль медийного обсуждения",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Налогообложение вкладов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Архитектурный проект с титановым фасадом",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/belaya_kaska"
+          }
+        ],
+        "recommendation": "reject_for_topic_provisional",
+        "reason": "Отдельный материал смежен с продвижением, остальные тексты про недвижимость и экономику. Снимки ленты менялись во время чтения, выборка не заявлена последовательной.",
+        "coverage": "Partial excerpts; individual permalinks not resolved; no exact latest-N claim. No media inspection.",
+        "gold_label": null,
+        "external_model_review": null
+      }
     },
     {
       "baseline_index": 266,
@@ -5718,7 +6191,85 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_006": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1523514108-belleragexlnc/posts"
+        ],
+        "visible_post_samples": 7,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Воинский учет организаций",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1523514108-belleragexlnc/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Контроль долговой нагрузки",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1523514108-belleragexlnc/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Уточненная программа налогового семинара",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1523514108-belleragexlnc/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение на налоговый семинар",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1523514108-belleragexlnc/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рейтинг LegalTech и собственный продукт",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1523514108-belleragexlnc/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Конференция по бухгалтерскому учету",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1523514108-belleragexlnc/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Автоматизация юридической фирмы",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1523514108-belleragexlnc/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Семь различимых архивных блоков по праву, учету и консалтингу.",
+        "coverage": "Partial excerpts; individual permalinks not resolved; no exact latest-N claim. No media inspection.",
+        "gold_label": null,
+        "external_model_review": null
+      }
     },
     {
       "baseline_index": 267,
@@ -5730,7 +6281,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_006": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/1872691484-best_direkt/posts"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Доступный архив девятимесячной давности; в открытом участке только репост и недоступное фото. Не считать тематическим отказом.",
+        "coverage": "Partial excerpts; individual permalinks not resolved; no exact latest-N claim. No media inspection.",
+        "gold_label": null,
+        "external_model_review": null
+      }
     },
     {
       "baseline_index": 268,
@@ -5742,7 +6307,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_006": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/uk/channels/1853977630-betterchance_ru/posts"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Обзор права и финансового регулирования",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1853977630-betterchance_ru/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дайджест по структурным облигациям и управлению активами",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1853977630-betterchance_ru/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Судебная практика по мисселлингу",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1853977630-betterchance_ru/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Личная история юриста",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1853977630-betterchance_ru/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Вакансия корпоративного юриста",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/uk/channels/1853977630-betterchance_ru/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Юридический архив; некоторые примеры из поисковой выдачи, не все последние публикации.",
+        "coverage": "Partial excerpts; individual permalinks not resolved; no exact latest-N claim. No media inspection.",
+        "gold_label": null,
+        "external_model_review": null
+      }
     },
     {
       "baseline_index": 269,
@@ -5754,7 +6379,85 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_006": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/2517580528-bgp_litigation"
+        ],
+        "visible_post_samples": 7,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Автоматизация юридических отделов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2517580528-bgp_litigation"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Уступка требований и специальные счета",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2517580528-bgp_litigation"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Редомициляция компаний",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2517580528-bgp_litigation"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Допуск акций к торгам",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2517580528-bgp_litigation"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Пауза стройки и права подрядчика",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2517580528-bgp_litigation"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Изменения санкционного регулирования",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2517580528-bgp_litigation"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Тренды юридического рынка",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2517580528-bgp_litigation"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Снимок двухмесячной давности, юридические вопросы, медиаблоки не исследованы.",
+        "coverage": "Partial excerpts; individual permalinks not resolved; no exact latest-N claim. No media inspection.",
+        "gold_label": null,
+        "external_model_review": null
+      }
     },
     {
       "baseline_index": 270,
@@ -5766,7 +6469,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_006": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/bincubatornch"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Веб-страница не открылась, подходящий архив не найден.",
+        "coverage": "Partial excerpts; individual permalinks not resolved; no exact latest-N claim. No media inspection.",
+        "gold_label": null,
+        "external_model_review": null
+      }
     },
     {
       "baseline_index": 271,
