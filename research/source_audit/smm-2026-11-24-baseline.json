@@ -1,0 +1,3951 @@
+{
+  "schema_version": 1,
+  "topic": "SMM и блогинг",
+  "baseline_revision": "a2a50b2",
+  "captured_at": "2026-11-24T12:40:13.223Z",
+  "source_count": 492,
+  "initial_counts": {
+    "probation": 14,
+    "cooldown": 112,
+    "rejected": 366
+  },
+  "note": "Immutable cohort from the pre-v3 audit export; initial_state and initial_reason are system predictions, NOT reference labels. No independent publication evidence in original export. Source identities must not be added or removed in subsequent comparisons.",
+  "sources": [
+    {
+      "source_id": "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=792654",
+      "url": "https://vc.ru/",
+      "name": "Марианна Иноземцева",
+      "initial_state": "probation",
+      "initial_reason": "feed_unavailable",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@optimatesocial.rss",
+      "url": "https://mastodon.social/@optimatesocial",
+      "name": "Mastodon",
+      "initial_state": "probation",
+      "initial_reason": "feed_unavailable",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@thesocialmediatoolsguy.rss",
+      "url": "https://mastodon.social/@thesocialmediatoolsguy",
+      "name": "Mastodon",
+      "initial_state": "probation",
+      "initial_reason": "retain",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCcJ7z3yGO0V-X_P1qVuwQGg",
+      "url": "https://www.youtube.com/channel/UCcJ7z3yGO0V-X_P1qVuwQGg/videos",
+      "name": "Market SMM",
+      "initial_state": "probation",
+      "initial_reason": "feed_unavailable",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:bossmarketer",
+      "url": "https://t.me/bossmarketer",
+      "name": "Гладченко про маркетинг",
+      "initial_state": "probation",
+      "initial_reason": "insufficient_evidence",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:cases_adindex",
+      "url": "https://t.me/cases_adindex",
+      "name": "Рекламные кейсы / AdIndex",
+      "initial_state": "probation",
+      "initial_reason": "insufficient_evidence",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:devs_today",
+      "url": "https://t.me/devs_today",
+      "name": "Че там у застройщиков",
+      "initial_state": "probation",
+      "initial_reason": "retain",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:dmitriy_verbniakov",
+      "url": "https://t.me/dmitriy_verbniakov",
+      "name": "Дмитрий Вербняков",
+      "initial_state": "probation",
+      "initial_reason": "insufficient_evidence",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:elama_russia",
+      "url": "https://t.me/elama_russia",
+      "name": "eLama: всё об интернет-рекламе и маркетинге",
+      "initial_state": "probation",
+      "initial_reason": "feed_unavailable",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:komreda",
+      "url": "https://t.me/komreda",
+      "name": "КОМРЕДА про маркетинг",
+      "initial_state": "probation",
+      "initial_reason": "feed_unavailable",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:novikovalaw",
+      "url": "https://t.me/novikovalaw",
+      "name": "Ольга Новикова | Документы юриста",
+      "initial_state": "probation",
+      "initial_reason": "insufficient_evidence",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:positivpp",
+      "url": "https://t.me/positivpp",
+      "name": "Позитивное предпринимательство",
+      "initial_state": "probation",
+      "initial_reason": "insufficient_evidence",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:promoactivnaya",
+      "url": "https://t.me/promoactivnaya",
+      "name": "Маркетинг в контексте | Ирина Дроздова",
+      "initial_state": "probation",
+      "initial_reason": "insufficient_evidence",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:surrrovo",
+      "url": "https://t.me/surrrovo",
+      "name": "Суровый Питерский форум",
+      "initial_state": "probation",
+      "initial_reason": "insufficient_evidence",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "ok:70000005382415",
+      "url": "https://ok.ru/group/70000005382415",
+      "name": "70000005382415",
+      "initial_state": "cooldown",
+      "initial_reason": "feed_unavailable",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://biz-nautros-15.tumblr.com/rss",
+      "url": "https://biz-nautros-15.tumblr.com/",
+      "name": "biz-nautros-15.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://botq.tumblr.com/rss",
+      "url": "https://botq.tumblr.com/",
+      "name": "botq.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:2g45p75tutnl47mxky4mp3d4/rss",
+      "url": "https://bsky.app/profile/did:plc:2g45p75tutnl47mxky4mp3d4",
+      "name": "КнигоТорба",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:2xo263dkk4awnfizwv5u4not/rss",
+      "url": "https://bsky.app/profile/did:plc:2xo263dkk4awnfizwv5u4not",
+      "name": "bsky.app",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:3a36hfnma6d7b2yeshvwpbeq/rss",
+      "url": "https://bsky.app/profile/did:plc:3a36hfnma6d7b2yeshvwpbeq",
+      "name": "Callsign Chewbacca",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:3mhmu724to7k5ptq6txyfikz/rss",
+      "url": "https://bsky.app/profile/did:plc:3mhmu724to7k5ptq6txyfikz",
+      "name": "Susan Morgan",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:3pbdsskldqjnr2ducdsew6s6/rss",
+      "url": "https://bsky.app/profile/did:plc:3pbdsskldqjnr2ducdsew6s6",
+      "name": "Крис🐀",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:3qw4ltq7b33d5hep3x56zxqy/rss",
+      "url": "https://bsky.app/profile/did:plc:3qw4ltq7b33d5hep3x56zxqy",
+      "name": "Настя",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:3twewyvkgddjmlrogewjyxcw/rss",
+      "url": "https://bsky.app/profile/did:plc:3twewyvkgddjmlrogewjyxcw",
+      "name": "bsky.app",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:3zxitn77w34htihfacwhorph/rss",
+      "url": "https://bsky.app/profile/did:plc:3zxitn77w34htihfacwhorph",
+      "name": "bsky.app",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:425ebfs5d2ldnyldsszartvr/rss",
+      "url": "https://bsky.app/profile/did:plc:425ebfs5d2ldnyldsszartvr",
+      "name": "Посторонним В.",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:4sl3fj72fltcf3ix57shsaid/rss",
+      "url": "https://bsky.app/profile/did:plc:4sl3fj72fltcf3ix57shsaid",
+      "name": "УкрАрт в Блускай",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:4v2ddyj42i2pqznhx7wsh6wh/rss",
+      "url": "https://bsky.app/profile/did:plc:4v2ddyj42i2pqznhx7wsh6wh",
+      "name": "Ϛϱ⍴ж неग़ƤuŦyƛA 4149 4998 0278 5889 Р.С.",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:5cdgl54riss32me4iuii6xqj/rss",
+      "url": "https://bsky.app/profile/did:plc:5cdgl54riss32me4iuii6xqj",
+      "name": "чія ганебниця",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:7kpvitpihoxi253bwnyjefno/rss",
+      "url": "https://bsky.app/profile/did:plc:7kpvitpihoxi253bwnyjefno",
+      "name": "Fr Stephen McClatchie SMMS 🇨🇦",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:aet4xjwcbg6lfo3mqupimsaw/rss",
+      "url": "https://bsky.app/profile/did:plc:aet4xjwcbg6lfo3mqupimsaw",
+      "name": "церква святого інвайту⛪️",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:atbiurjlsg6l4bg267cdne3l/rss",
+      "url": "https://bsky.app/profile/did:plc:atbiurjlsg6l4bg267cdne3l",
+      "name": "metata² || 박서라 🌟",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:b242it6qnp2vck7x3gxu5ye7/rss",
+      "url": "https://bsky.app/profile/did:plc:b242it6qnp2vck7x3gxu5ye7",
+      "name": "bsky.app",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:b5fpw4haw2oyjham7ejnv4pk/rss",
+      "url": "https://bsky.app/profile/did:plc:b5fpw4haw2oyjham7ejnv4pk",
+      "name": "Степан Срака, главний інженер",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:bmjomljebcsuxolnygfgqtap/rss",
+      "url": "https://bsky.app/profile/did:plc:bmjomljebcsuxolnygfgqtap",
+      "name": "Стало краще",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:cwphhiy3fspsimymxyf7km6w/rss",
+      "url": "https://bsky.app/profile/did:plc:cwphhiy3fspsimymxyf7km6w",
+      "name": "WWWTXT (1980-94) ☺︎",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:d34r652g5wblmzpreh4ndffa/rss",
+      "url": "https://bsky.app/profile/did:plc:d34r652g5wblmzpreh4ndffa",
+      "name": "Sarah-Myriam Martin-Brule",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:dfth52ezbdrqxyvtm2tdkowl/rss",
+      "url": "https://bsky.app/profile/did:plc:dfth52ezbdrqxyvtm2tdkowl",
+      "name": "незнайома добродійка🌻🌿",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:dvgliotey33vix3wlltybgkd/rss",
+      "url": "https://bsky.app/profile/did:plc:dvgliotey33vix3wlltybgkd",
+      "name": "Жовтий кластер у Блакитному небі",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:eiwd5yr5b7cjr2mp65uypcmo/rss",
+      "url": "https://bsky.app/profile/did:plc:eiwd5yr5b7cjr2mp65uypcmo",
+      "name": "echovch.bsky.social",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:enmnrfjq3wyepbxf3bv7auhz/rss",
+      "url": "https://bsky.app/profile/did:plc:enmnrfjq3wyepbxf3bv7auhz",
+      "name": "Наста",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:f3th4ycsc2cnqzy6lq2ldbob/rss",
+      "url": "https://bsky.app/profile/did:plc:f3th4ycsc2cnqzy6lq2ldbob",
+      "name": "Пані сонечко",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:fcxt5r7sdjih6heohqjvfikr/rss",
+      "url": "https://bsky.app/profile/did:plc:fcxt5r7sdjih6heohqjvfikr",
+      "name": "🎄УкрРайт: Фанфікшн та Ориджі. 🎄",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:fhsrn2ufx6m4u6gwphkocyja/rss",
+      "url": "https://bsky.app/profile/did:plc:fhsrn2ufx6m4u6gwphkocyja",
+      "name": "А повне ім'я як",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:gjq6pk3k4dut5tfnlvkvzx6t/rss",
+      "url": "https://bsky.app/profile/did:plc:gjq6pk3k4dut5tfnlvkvzx6t",
+      "name": "매미",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:inex2telxs3l6bjcvbowiben/rss",
+      "url": "https://bsky.app/profile/did:plc:inex2telxs3l6bjcvbowiben",
+      "name": "Ukrainian YouTube",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:jf5wgnrrhypmug5auxorui33/rss",
+      "url": "https://bsky.app/profile/did:plc:jf5wgnrrhypmug5auxorui33",
+      "name": "Аня ✨️ или Хаосима",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:jl3dl2zzfhcwamcqm5fhtj5h/rss",
+      "url": "https://bsky.app/profile/did:plc:jl3dl2zzfhcwamcqm5fhtj5h",
+      "name": "Щек⚜️",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:jsjzz5ufqk7n626iw4roh4vf/rss",
+      "url": "https://bsky.app/profile/did:plc:jsjzz5ufqk7n626iw4roh4vf",
+      "name": "Medgoblin",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:kovc44nljg2c74uguqz7lkmk/rss",
+      "url": "https://bsky.app/profile/did:plc:kovc44nljg2c74uguqz7lkmk",
+      "name": "Julia Blake",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:ludfks4jhyp4ip37tki7gbwy/rss",
+      "url": "https://bsky.app/profile/did:plc:ludfks4jhyp4ip37tki7gbwy",
+      "name": "Smmathai",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:lvgcakfm7u2fmgo4ifqqadm2/rss",
+      "url": "https://bsky.app/profile/did:plc:lvgcakfm7u2fmgo4ifqqadm2",
+      "name": "Fr Kieron Rowley SMMS",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:m7oyfppdoc3v452gdrjdnx2d/rss",
+      "url": "https://bsky.app/profile/did:plc:m7oyfppdoc3v452gdrjdnx2d",
+      "name": "smmi 🍉",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:mct5xpjzhp3tgpanefdcecwr/rss",
+      "url": "https://bsky.app/profile/did:plc:mct5xpjzhp3tgpanefdcecwr",
+      "name": "Sarah Mimms",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:mdche6tqcpuvqe5xkka2k3k4/rss",
+      "url": "https://bsky.app/profile/did:plc:mdche6tqcpuvqe5xkka2k3k4",
+      "name": "мжичка за вікном",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:ngc4frm2csskh33mbertqkpb/rss",
+      "url": "https://bsky.app/profile/did:plc:ngc4frm2csskh33mbertqkpb",
+      "name": "Йозеф Кнехт",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:niw6lnh7ckwvxfuqqhihvtl7/rss",
+      "url": "https://bsky.app/profile/did:plc:niw6lnh7ckwvxfuqqhihvtl7",
+      "name": "retleen.bsky.social",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:nvbwc2fvk6wml3kyp3kcrkpp/rss",
+      "url": "https://bsky.app/profile/did:plc:nvbwc2fvk6wml3kyp3kcrkpp",
+      "name": "Гість з Гіркіно-Диркіно 25%",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:oz7gp265cht2d55fcfqicflw/rss",
+      "url": "https://bsky.app/profile/did:plc:oz7gp265cht2d55fcfqicflw",
+      "name": "Ham",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:ppfgoi67npnxywzplhrhf6uh/rss",
+      "url": "https://bsky.app/profile/did:plc:ppfgoi67npnxywzplhrhf6uh",
+      "name": "Sara",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:qqka36h7ft7yblx5bnl4hrf6/rss",
+      "url": "https://bsky.app/profile/did:plc:qqka36h7ft7yblx5bnl4hrf6",
+      "name": "Lavender 🎃",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:r3xqf6623jjbsg52zmshjoc3/rss",
+      "url": "https://bsky.app/profile/did:plc:r3xqf6623jjbsg52zmshjoc3",
+      "name": "Бакі Г'юберт",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:roeyqlk2xm4wxjtbqgfs6qsh/rss",
+      "url": "https://bsky.app/profile/did:plc:roeyqlk2xm4wxjtbqgfs6qsh",
+      "name": "Sodarami Mech",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:rtf5pxqfgq2kr3qpcibv3u4p/rss",
+      "url": "https://bsky.app/profile/did:plc:rtf5pxqfgq2kr3qpcibv3u4p",
+      "name": "Belly Calypse",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:sapnyiifwqfqaukcd7y5ei2d/rss",
+      "url": "https://bsky.app/profile/did:plc:sapnyiifwqfqaukcd7y5ei2d",
+      "name": "Pastor",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:sosd2caltiuv4j5onhrf5wy6/rss",
+      "url": "https://bsky.app/profile/did:plc:sosd2caltiuv4j5onhrf5wy6",
+      "name": "bsky.app",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:ua7o4ofeipitf7xxf7xvamoy/rss",
+      "url": "https://bsky.app/profile/did:plc:ua7o4ofeipitf7xxf7xvamoy",
+      "name": "Мама Саші",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:v5cry62gqt5dhhxyhi7bsyeq/rss",
+      "url": "https://bsky.app/profile/did:plc:v5cry62gqt5dhhxyhi7bsyeq",
+      "name": "ось така хуйня малята",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:vgaj2ys5eqg3lmenxwizrdzm/rss",
+      "url": "https://bsky.app/profile/did:plc:vgaj2ys5eqg3lmenxwizrdzm",
+      "name": "GROUCHY",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:wfpbnaparyptoqufzya4fv5x/rss",
+      "url": "https://bsky.app/profile/did:plc:wfpbnaparyptoqufzya4fv5x",
+      "name": "Грузний Клоун",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:wk7adlrig3yyzkbdroqh3rmw/rss",
+      "url": "https://bsky.app/profile/did:plc:wk7adlrig3yyzkbdroqh3rmw",
+      "name": "Contrigra",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:wpsqyaoonskaiugza3og44tp/rss",
+      "url": "https://bsky.app/profile/did:plc:wpsqyaoonskaiugza3og44tp",
+      "name": "sam mercer",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:xfmbqeqverwq7y5pas32y2rl/rss",
+      "url": "https://bsky.app/profile/did:plc:xfmbqeqverwq7y5pas32y2rl",
+      "name": "Kateryna Halushka",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:xhrzstkfcqbmtgt5rl5cp6gs/rss",
+      "url": "https://bsky.app/profile/did:plc:xhrzstkfcqbmtgt5rl5cp6gs",
+      "name": "спасите акси (пожалуйста)",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:y33oysl5r7jl3hghgxe7ajoj/rss",
+      "url": "https://bsky.app/profile/did:plc:y33oysl5r7jl3hghgxe7ajoj",
+      "name": "Olga Razmakhova",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:ysrjjhjdivaizhgt2nqkdmhp/rss",
+      "url": "https://bsky.app/profile/did:plc:ysrjjhjdivaizhgt2nqkdmhp",
+      "name": "🆃🅲🇹🇷🅳🅴🅽🅸🆉☑️",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:zpcdvxcmm6xlfy47ajypz557/rss",
+      "url": "https://bsky.app/profile/did:plc:zpcdvxcmm6xlfy47ajypz557",
+      "name": "Маша✨",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://franshizavip-2021.tumblr.com/rss",
+      "url": "https://franshizavip-2021.tumblr.com/",
+      "name": "franshizavip-2021.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://her-exgifriend.tumblr.com/rss",
+      "url": "https://her-exgifriend.tumblr.com/",
+      "name": "her-exgifriend.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://lemmy.ml/feeds/c/smm.xml",
+      "url": "https://lemmy.ml/c/smm",
+      "name": "Social Media Marketing",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://lemmy.today/feeds/c/womensmma.xml",
+      "url": "https://lemmy.today/c/womensmma",
+      "name": "lemmy.today",
+      "initial_state": "cooldown",
+      "initial_reason": "feed_unavailable",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://lemmy.world/feeds/c/communismmemes.xml",
+      "url": "https://lemmy.world/c/communismmemes",
+      "name": "Communism Memes",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://lemmy.world/feeds/c/socialismmemes.xml",
+      "url": "https://lemmy.world/c/socialismmemes",
+      "name": "Socialism Memes",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://magic-visions.tumblr.com/rss",
+      "url": "https://magic-visions.tumblr.com/",
+      "name": "magic-visions.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@spacehubglobal.rss",
+      "url": "https://mastodon.social/@spacehubglobal",
+      "name": "mastodon.social",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://pikabu.ru/community/assenizator",
+      "url": "https://pikabu.ru/community/assenizator",
+      "name": "Ассенизаторский Бизнес",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://pikabu.ru/community/biznes_proizvodstvo",
+      "url": "https://pikabu.ru/community/biznes_proizvodstvo",
+      "name": "Инженер. Бизнес и производство",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://pikabu.ru/community/business_live",
+      "url": "https://pikabu.ru/community/business_live",
+      "name": "Бизнес Life",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/17719511/",
+      "url": "https://rutube.ru/",
+      "name": "Aleksandr",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/22406763/",
+      "url": "https://rutube.ru/",
+      "name": "Предприниматель Матвей Северянин",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/24161964/",
+      "url": "https://rutube.ru/",
+      "name": "РБК Инвестиции",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/24444154/",
+      "url": "https://rutube.ru/",
+      "name": "PromoPult — продвижение бизнеса в интернете",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/24809514/",
+      "url": "https://rutube.ru/",
+      "name": "Calltouch",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/25310103/",
+      "url": "https://rutube.ru/",
+      "name": "СберБизнес",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/27919231/",
+      "url": "https://rutube.ru/",
+      "name": "Vitamin.tools",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/30517799/",
+      "url": "https://rutube.ru/",
+      "name": "Быков — Практика Медиа",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/30654048/",
+      "url": "https://rutube.ru/",
+      "name": "Максим Федоров",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/34585419/",
+      "url": "https://rutube.ru/",
+      "name": "🎤Интервью | Степан Про Сообщества",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/35374429/",
+      "url": "https://rutube.ru/",
+      "name": "Иван Немцев",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/37929823/",
+      "url": "https://rutube.ru/",
+      "name": "ПРО БИЗНЕС",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/38159231/",
+      "url": "https://rutube.ru/",
+      "name": "Владислав Ушаков",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/38218663/",
+      "url": "https://rutube.ru/",
+      "name": "Мысли Санчеса",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/38533844/",
+      "url": "https://rutube.ru/",
+      "name": "Марат Гарифуллин",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/42317787/",
+      "url": "https://rutube.ru/",
+      "name": "Дмитрий Засухин. Юридический маркетинг",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/44357953/",
+      "url": "https://rutube.ru/",
+      "name": "Нескучные финансы",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/49654550/",
+      "url": "https://rutube.ru/",
+      "name": "Таргетированная реклама | Клиенты из вконтакте",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/50239133/",
+      "url": "https://rutube.ru/",
+      "name": "Михаил Дашкиев",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/55912508/",
+      "url": "https://rutube.ru/",
+      "name": "Обучающая платформа VK Бизнес",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/66730594/",
+      "url": "https://rutube.ru/",
+      "name": "О Бизнесе",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/72382717/",
+      "url": "https://rutube.ru/",
+      "name": "Егор Ясников",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rutube.ru/channel/832267/",
+      "url": "https://rutube.ru/",
+      "name": "Павел Багрянцев | Личный бренд",
+      "initial_state": "cooldown",
+      "initial_reason": "unrecognized_feed",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://rytikovsergei.tumblr.com/rss",
+      "url": "https://rytikovsergei.tumblr.com/",
+      "name": "rytikovsergei.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://seoglobaltrends.tumblr.com/rss",
+      "url": "https://seoglobaltrends.tumblr.com/",
+      "name": "seoglobaltrends.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://sr-vlas-blog.tumblr.com/rss",
+      "url": "https://sr-vlas-blog.tumblr.com/",
+      "name": "sr-vlas-blog.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://teahouseblog.tumblr.com/rss",
+      "url": "https://teahouseblog.tumblr.com/",
+      "name": "teahouseblog.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://watsonkg.tumblr.com/rss",
+      "url": "https://watsonkg.tumblr.com/",
+      "name": "watsonkg.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://yustolyarov.tumblr.com/rss",
+      "url": "https://yustolyarov.tumblr.com/",
+      "name": "yustolyarov.tumblr.com",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "tiktok:hameensanomat",
+      "url": "https://www.tiktok.com/@hameensanomat",
+      "name": "@hameensanomat",
+      "initial_state": "cooldown",
+      "initial_reason": "rate_limited",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "tiktok:sextok4life",
+      "url": "https://www.tiktok.com/@sextok4life",
+      "name": "@sextok4life",
+      "initial_state": "cooldown",
+      "initial_reason": "rate_limited",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "vk:andreichecko",
+      "url": "https://vk.com/andreichecko",
+      "name": "АНДРЕЙ ЧЕКО",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "vk:fokininvest",
+      "url": "https://vk.com/fokininvest",
+      "name": "Евгений Фокин. Инвестиции/Финансы.",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "vk:lenaecomarketing",
+      "url": "https://vk.com/lenaecomarketing",
+      "name": "ЭкоЛогичный маркетинг и продающий контент",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "vk:rus_business",
+      "url": "https://vk.com/rus_business",
+      "name": "Акулы Бизнеса",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "vk:spbucareer",
+      "url": "https://vk.com/spbucareer",
+      "name": "Центр карьер СПбГУ",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "vk:straightforward_boss",
+      "url": "https://vk.com/straightforward_boss",
+      "name": "Частный предприниматель",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "vk:vk_ads",
+      "url": "https://vk.com/vk_ads",
+      "name": "VK Реклама",
+      "initial_state": "cooldown",
+      "initial_reason": "sparse_publisher",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "ok:55214023442607",
+      "url": "https://ok.ru/group/55214023442607",
+      "name": "Кухня",
+      "initial_state": "rejected",
+      "initial_reason": "off_topic_group",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "ok:70000002193382",
+      "url": "https://ok.ru/group/70000002193382",
+      "name": "Школа вязания Татьяны Лещенко",
+      "initial_state": "rejected",
+      "initial_reason": "off_topic_group",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "ok:70000007630509",
+      "url": "https://ok.ru/group/70000007630509",
+      "name": "Куклы ручной работы Зои Середа",
+      "initial_state": "rejected",
+      "initial_reason": "off_topic_group",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "ok:70000032322741",
+      "url": "https://ok.ru/group/70000032322741",
+      "name": "Григорий Нефедов | Ревматолог Терапевт | УЗИ ЭКГ",
+      "initial_state": "rejected",
+      "initial_reason": "off_topic_group",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=17789",
+      "url": "https://vc.ru/",
+      "name": "Roman Zaripov",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199113",
+      "url": "https://vc.ru/",
+      "name": "Маркетинг",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199116",
+      "url": "https://vc.ru/",
+      "name": "Трибуна",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199120",
+      "url": "https://vc.ru/",
+      "name": "Право",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199122",
+      "url": "https://vc.ru/",
+      "name": "Маркетплейсы",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199123",
+      "url": "https://vc.ru/",
+      "name": "Личный опыт",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199128",
+      "url": "https://vc.ru/",
+      "name": "Еда",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://api.vc.ru/v2.10/timeline?sorting=new&subsitesids=199791",
+      "url": "https://vc.ru/",
+      "name": "Офтоп",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://asigemi.tumblr.com/rss",
+      "url": "https://asigemi.tumblr.com/",
+      "name": "asigemi.tumblr.com",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://bilgiteknikeri.tumblr.com/rss",
+      "url": "https://bilgiteknikeri.tumblr.com/",
+      "name": "bilgiteknikeri.tumblr.com",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:3tkb3equ4w4nz3hiplaner7d/rss",
+      "url": "https://bsky.app/profile/did:plc:3tkb3equ4w4nz3hiplaner7d",
+      "name": "Natallia_Planet",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:6r4z6wx7atiwwor63ugniuyy/rss",
+      "url": "https://bsky.app/profile/did:plc:6r4z6wx7atiwwor63ugniuyy",
+      "name": "глянцевый пиздец",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:7kkz7quifbnujh2i4y76c5md/rss",
+      "url": "https://bsky.app/profile/did:plc:7kkz7quifbnujh2i4y76c5md",
+      "name": "Vladimir Modenov",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:a6joruowls3uin2dnocccgxd/rss",
+      "url": "https://bsky.app/profile/did:plc:a6joruowls3uin2dnocccgxd",
+      "name": "Daily news",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:abcmcgjz5l3ffcos4u5474q6/rss",
+      "url": "https://bsky.app/profile/did:plc:abcmcgjz5l3ffcos4u5474q6",
+      "name": "Southern Minnesota Museum of Natural History",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:b7u37d3qxkjg5x6bwpw4tg5a/rss",
+      "url": "https://bsky.app/profile/did:plc:b7u37d3qxkjg5x6bwpw4tg5a",
+      "name": "mr. bang",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:bh3jdrs6ysca6uihfvprmz3c/rss",
+      "url": "https://bsky.app/profile/did:plc:bh3jdrs6ysca6uihfvprmz3c",
+      "name": "GАY ВDSМ & FЕТISН",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:cg4zazuwsxezrvim7ygfjcij/rss",
+      "url": "https://bsky.app/profile/did:plc:cg4zazuwsxezrvim7ygfjcij",
+      "name": "тревога матрёшности",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:cnletzqisnpyzimz5xk6baol/rss",
+      "url": "https://bsky.app/profile/did:plc:cnletzqisnpyzimz5xk6baol",
+      "name": "Сергей Смирнов",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:ct44vuzkgksyh2cexn3ifh6b/rss",
+      "url": "https://bsky.app/profile/did:plc:ct44vuzkgksyh2cexn3ifh6b",
+      "name": "Дайс / HradSpain 🤦",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:dgkyncbh6kcchafzi55rqltt/rss",
+      "url": "https://bsky.app/profile/did:plc:dgkyncbh6kcchafzi55rqltt",
+      "name": "Sean Marotta",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:dm7oigy2qry5qpaib23s2slm/rss",
+      "url": "https://bsky.app/profile/did:plc:dm7oigy2qry5qpaib23s2slm",
+      "name": "みなみ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:eptbn4ms2ljpqt2suj45irmq/rss",
+      "url": "https://bsky.app/profile/did:plc:eptbn4ms2ljpqt2suj45irmq",
+      "name": "귀요미",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:exbvg42sfxwfvetnl3iz2bgt/rss",
+      "url": "https://bsky.app/profile/did:plc:exbvg42sfxwfvetnl3iz2bgt",
+      "name": "Квирь",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:fkp5vruf5nbeeahop3dzotsr/rss",
+      "url": "https://bsky.app/profile/did:plc:fkp5vruf5nbeeahop3dzotsr",
+      "name": "Надазовський хруст графіту на зубах",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:fljxa7a7qg2dq5lrpcc3dkvq/rss",
+      "url": "https://bsky.app/profile/did:plc:fljxa7a7qg2dq5lrpcc3dkvq",
+      "name": "(не) окрщик",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:gltisfurr5kwxktxkqtoatom/rss",
+      "url": "https://bsky.app/profile/did:plc:gltisfurr5kwxktxkqtoatom",
+      "name": "आधिदैविक",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:go2cmtx2zyixjlir2vl6j3vc/rss",
+      "url": "https://bsky.app/profile/did:plc:go2cmtx2zyixjlir2vl6j3vc",
+      "name": "кιм ѕυвιм",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:hj6cg4czkvptho4gdymbhyjb/rss",
+      "url": "https://bsky.app/profile/did:plc:hj6cg4czkvptho4gdymbhyjb",
+      "name": "Pekarka",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:hydicvwxi2bhmxnjlhecnyud/rss",
+      "url": "https://bsky.app/profile/did:plc:hydicvwxi2bhmxnjlhecnyud",
+      "name": "bsky.app",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:ihtk273glcjjkvjesntojngu/rss",
+      "url": "https://bsky.app/profile/did:plc:ihtk273glcjjkvjesntojngu",
+      "name": "хези бармалейко",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:ir7a5emdiwdrt4ejifjdecdr/rss",
+      "url": "https://bsky.app/profile/did:plc:ir7a5emdiwdrt4ejifjdecdr",
+      "name": "Анна",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:jtw7wmn7252nh44ob34y4v5w/rss",
+      "url": "https://bsky.app/profile/did:plc:jtw7wmn7252nh44ob34y4v5w",
+      "name": "Ramisha.mp3",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:jxsiwud72eicsdaaaa4nntkk/rss",
+      "url": "https://bsky.app/profile/did:plc:jxsiwud72eicsdaaaa4nntkk",
+      "name": "Solarpunk 2050 Ukraine",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:lobq244yi23df4vd7ucs4ynp/rss",
+      "url": "https://bsky.app/profile/did:plc:lobq244yi23df4vd7ucs4ynp",
+      "name": "пані Миша 🐭💙💛",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:q2iqnkafwns5mz3luwvf2src/rss",
+      "url": "https://bsky.app/profile/did:plc:q2iqnkafwns5mz3luwvf2src",
+      "name": "плавучая ёбеба",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:qeqcsmels7pljkxkjceqnsrw/rss",
+      "url": "https://bsky.app/profile/did:plc:qeqcsmels7pljkxkjceqnsrw",
+      "name": "Steven Manson",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:ra4a6scu3l6tr266vjcnkcri/rss",
+      "url": "https://bsky.app/profile/did:plc:ra4a6scu3l6tr266vjcnkcri",
+      "name": "Пупка",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:rmkolly22qyomrqpg22dfjp6/rss",
+      "url": "https://bsky.app/profile/did:plc:rmkolly22qyomrqpg22dfjp6",
+      "name": "Атакуючий Алкаш",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:t5bul6tdm2bfdtjifszfpkxt/rss",
+      "url": "https://bsky.app/profile/did:plc:t5bul6tdm2bfdtjifszfpkxt",
+      "name": "Саня",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:tyvdgqbyy4hiolvdsqzcp2zp/rss",
+      "url": "https://bsky.app/profile/did:plc:tyvdgqbyy4hiolvdsqzcp2zp",
+      "name": "BB Lion 🦁",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:u2nkdv52wkecf5grx5bp2isc/rss",
+      "url": "https://bsky.app/profile/did:plc:u2nkdv52wkecf5grx5bp2isc",
+      "name": "Sαηвαcк (CW)",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:v25yrirnmbd4wregoevey4rn/rss",
+      "url": "https://bsky.app/profile/did:plc:v25yrirnmbd4wregoevey4rn",
+      "name": "Олександр 🎓 Академія",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:vw4vi4cu5tr7gfeavf3o5esd/rss",
+      "url": "https://bsky.app/profile/did:plc:vw4vi4cu5tr7gfeavf3o5esd",
+      "name": "Seth Munson",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:wuv4nhg5igtr2vivkul65cx6/rss",
+      "url": "https://bsky.app/profile/did:plc:wuv4nhg5igtr2vivkul65cx6",
+      "name": "怒っている洗熊🦝💢",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:wzynmb5e4ot3ak66e2c7nhfa/rss",
+      "url": "https://bsky.app/profile/did:plc:wzynmb5e4ot3ak66e2c7nhfa",
+      "name": "𝘮𝘪𝘯𝘴𝘯𝘢𝘱𝘴",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:xc6svsoxodzqqezykug5jr6s/rss",
+      "url": "https://bsky.app/profile/did:plc:xc6svsoxodzqqezykug5jr6s",
+      "name": "Smmtx",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:y6gvbb7uspv4qfjg3akcdaww/rss",
+      "url": "https://bsky.app/profile/did:plc:y6gvbb7uspv4qfjg3akcdaww",
+      "name": "Воронесса (cidre)",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:yenwszc6yqhtteeojvbhurpu/rss",
+      "url": "https://bsky.app/profile/did:plc:yenwszc6yqhtteeojvbhurpu",
+      "name": "Папирус🍓",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:yodsjgml34lora7e5gmb3zeb/rss",
+      "url": "https://bsky.app/profile/did:plc:yodsjgml34lora7e5gmb3zeb",
+      "name": "Taras Yarosh",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:zegpzuecwcrjhi7kf2ofl65v/rss",
+      "url": "https://bsky.app/profile/did:plc:zegpzuecwcrjhi7kf2ofl65v",
+      "name": "🐾 Ми були за крок від життя 🐌",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://bsky.app/profile/did:plc:zv5mnqax2o2u2jeyfqgpdlae/rss",
+      "url": "https://bsky.app/profile/did:plc:zv5mnqax2o2u2jeyfqgpdlae",
+      "name": "SMMedical",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://feddit.cl/feeds/c/tecnologia.xml",
+      "url": "https://feddit.cl/c/tecnologia",
+      "name": "Feddit.cl - tecnologia",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://habr.com/ru/rss/hubs/business_models/articles/all/",
+      "url": "https://habr.com/ru/hubs/business_models/",
+      "name": "habr.com",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://habr.com/ru/rss/hubs/business_models/articles/all/?fl=ru",
+      "url": "",
+      "name": "Бизнес-модели",
+      "initial_state": "rejected",
+      "initial_reason": "unsupported_source_format",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://huzuryolu.tumblr.com/rss",
+      "url": "https://huzuryolu.tumblr.com/",
+      "name": "huzuryolu.tumblr.com",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://lemmy.ml/feeds/c/linux.xml",
+      "url": "https://lemmy.ml/c/linux",
+      "name": "Lemmy - linux",
+      "initial_state": "rejected",
+      "initial_reason": "off_topic_group",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://lemmy.zip/feeds/c/autismmemes.xml",
+      "url": "https://lemmy.zip/c/autismmemes",
+      "name": "Autism Memes",
+      "initial_state": "rejected",
+      "initial_reason": "off_topic_group",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@ai_smm.rss",
+      "url": "https://mastodon.social/@ai_smm",
+      "name": "AI SMM · social media with AI",
+      "initial_state": "rejected",
+      "initial_reason": "observed_ad_or_duplicates",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@bloggingfromparadise.rss",
+      "url": "https://mastodon.social/@bloggingfromparadise",
+      "name": "Mastodon",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@golubev.rss",
+      "url": "https://mastodon.social/@golubev",
+      "name": "mastodon.social",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@jcafesin.rss",
+      "url": "https://mastodon.social/@jcafesin",
+      "name": "mastodon.social",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@postorun.rss",
+      "url": "https://mastodon.social/@postorun",
+      "name": "mastodon.social",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@pulsepost.rss",
+      "url": "https://mastodon.social/@pulsepost",
+      "name": "mastodon.social",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@rankmarket99.rss",
+      "url": "https://mastodon.social/@rankmarket99",
+      "name": "mastodon.social",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://mastodon.social/@scottgraffius.rss",
+      "url": "https://mastodon.social/@scottgraffius",
+      "name": "Scott M. Graffius",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://mavikurabiye.tumblr.com/rss",
+      "url": "https://mavikurabiye.tumblr.com/",
+      "name": "mavikurabiye.tumblr.com",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://news.abolish.capital/feeds/c/latam.xml",
+      "url": "https://news.abolish.capital/c/latam",
+      "name": "Abolish Capital! - latam",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://news.abolish.capital/feeds/c/pravda_news.xml",
+      "url": "https://news.abolish.capital/c/pravda_news",
+      "name": "Abolish Capital! - pravda_news",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://pikabu.ru/community/lnk",
+      "url": "https://pikabu.ru/community/lnk",
+      "name": "Лига налоговых консультантов",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://renklielma.tumblr.com/rss",
+      "url": "https://renklielma.tumblr.com/",
+      "name": "renklielma.tumblr.com",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UC2fEvCzr9KcGZx3E_TAHs_w",
+      "url": "https://www.youtube.com/channel/UC2fEvCzr9KcGZx3E_TAHs_w/videos",
+      "name": "Hope Group: подкаст «А как?» и полезные видео",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=uc2rt4-m51tdaiyod6uboz6w",
+      "url": "",
+      "name": "www.youtube.com",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=uc4mo3iaira9mzi3wuejiubw",
+      "url": "",
+      "name": "SLOTH AGENCY - ДИДЖИТАЛ АГЕНТСТВО 🦥",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=uc6idxt7jtymev4299tlhw_g",
+      "url": "",
+      "name": "Игорь Суворов | Программа «Я – Управленец»",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UC9aFCPXdF5AtiQd8L62GkSA",
+      "url": "https://www.youtube.com/channel/UC9aFCPXdF5AtiQd8L62GkSA/videos",
+      "name": "Latasha James",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCBQMFzn13FTTZt8UjsN3-5w",
+      "url": "https://www.youtube.com/channel/UCBQMFzn13FTTZt8UjsN3-5w/videos",
+      "name": "Михаил Князев | Реклама у блогеров",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucby8hqx2qogm8i85ndrhtma",
+      "url": "",
+      "name": "Ната Анарбаева. Маркетинг и привлечение клиентов",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucctd_pod3i2-x62y_prclsa",
+      "url": "",
+      "name": "О Бизнесе",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucdcbdigxpip3hw-1gmbgdfg",
+      "url": "",
+      "name": "Анна Хакимова | Контент, ведение блогов",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucegqkcxk91n8y19dsqidopg",
+      "url": "",
+      "name": "МАРКЕТ ШОУ | Новости маркетплейсов",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucgvje-ez4bcej8ilrm7g5sq",
+      "url": "",
+      "name": "www.youtube.com",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=uchb8ib3bh9uxpkl2kwy7via",
+      "url": "",
+      "name": "www.youtube.com",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucijvr2rgfxy0pwnzi0rk_pq",
+      "url": "",
+      "name": "Батхель про налоги | Консалтинг",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=uci_ziyb69ehcdy0e2rlmotw",
+      "url": "",
+      "name": "Артём Губарец | Управление и лидерство",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucjpinc_0j6iq5rpbnx-ci6g",
+      "url": "",
+      "name": "Лебедев про нейросети: с нуля до PRO",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=uckptgckvanx9aukzuuh6aqq",
+      "url": "",
+      "name": "это Слава в МЛМ",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=uclj8r2ppejtds716v4yao9a",
+      "url": "",
+      "name": "Sergey Urasov",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucm0jn7c90ysi2stqcxvzzbg",
+      "url": "",
+      "name": "www.youtube.com",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UC-MOOUr5XUEyZfoJHIRjKpw",
+      "url": "https://www.youtube.com/channel/UC-MOOUr5XUEyZfoJHIRjKpw/videos",
+      "name": "София Рожновская | О блоге и личном бренде",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucoeajcsmhyogw3cnsp4x6ow",
+      "url": "",
+      "name": "IDTONE – агентство digital-маркетинга",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucpsomf3w4lfrrufakozdgww",
+      "url": "",
+      "name": "МИРЕНА в мире бизнеса",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucq2gzvhtaigbmytfha_zrhg",
+      "url": "",
+      "name": "Предприниматель Дела",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucr0djocnqqycdlvjluhbl0w",
+      "url": "",
+      "name": "Алексей Ткачук — DNative",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucrarik56yl7ui2wuaks3nga",
+      "url": "",
+      "name": "Александр Бубнов",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucvtfh_62yrw-vj95t0tvyiw",
+      "url": "",
+      "name": "Саидмурод Давлатов | Бизнес - наставник с Востока",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucw0r50dhcahmadpaw36o8xw",
+      "url": "",
+      "name": "Business Driver",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=ucwd43zy8gzlbwc0y_b4spug",
+      "url": "",
+      "name": "Станислав Покрышкин | Зубастый коммерс",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=uczlfmj-8aj_wch2t2cwoe8w",
+      "url": "",
+      "name": "Александр Высоцкий",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=uczsdbcmxzmf-246fqkfb5ag",
+      "url": "",
+      "name": "Андрей Гусаров",
+      "initial_state": "rejected",
+      "initial_reason": "invalid_source_identity",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?playlist_id=UUSH2fEvCzr9KcGZx3E_TAHs_w",
+      "url": "https://www.youtube.com/channel/UC2fEvCzr9KcGZx3E_TAHs_w/shorts",
+      "name": "www.youtube.com",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?playlist_id=UUSH9aFCPXdF5AtiQd8L62GkSA",
+      "url": "https://www.youtube.com/channel/UC9aFCPXdF5AtiQd8L62GkSA/shorts",
+      "name": "www.youtube.com",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?playlist_id=UUSHBQMFzn13FTTZt8UjsN3-5w",
+      "url": "https://www.youtube.com/channel/UCBQMFzn13FTTZt8UjsN3-5w/shorts",
+      "name": "www.youtube.com",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?playlist_id=UUSHcJ7z3yGO0V-X_P1qVuwQGg",
+      "url": "https://www.youtube.com/channel/UCcJ7z3yGO0V-X_P1qVuwQGg/shorts",
+      "name": "Short videos",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "rss:https://www.youtube.com/feeds/videos.xml?playlist_id=UUSH-MOOUr5XUEyZfoJHIRjKpw",
+      "url": "https://www.youtube.com/channel/UC-MOOUr5XUEyZfoJHIRjKpw/shorts",
+      "name": "Short videos",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:a101broker_cre",
+      "url": "https://t.me/a101broker_cre",
+      "name": "ГК «А101» - Брокер | Коммерция",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:aakhromova",
+      "url": "https://t.me/aakhromova",
+      "name": "Арина Хромова",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:aba_association",
+      "url": "https://t.me/aba_association",
+      "name": "АБА | Инфлюенс в России",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:ab_context",
+      "url": "https://t.me/ab_context",
+      "name": "Бережинская про контекст и фриланс",
+      "initial_state": "rejected",
+      "initial_reason": "observed_irrelevant",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:able_plus",
+      "url": "https://t.me/able_plus",
+      "name": "Стратегические сессии с [able]",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:adpass_media",
+      "url": "https://t.me/adpass_media",
+      "name": "ADPASS",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:advertising_law_channel",
+      "url": "https://t.me/advertising_law_channel",
+      "name": "Рекламное право",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:adv_system",
+      "url": "https://t.me/adv_system",
+      "name": "Всё о рекламе и маркировке: законы, новости, практика",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:adv_titan_stoic",
+      "url": "https://t.me/adv_titan_stoic",
+      "name": "Рекламщик. Титан. Стоик.",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:afanasyevpro",
+      "url": "https://t.me/afanasyevpro",
+      "name": "АЛЕКСАНДР АФАНАСЬЕВ | ПРО БИЗНЕС | РАЗВИТИЕ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:agencymanagement",
+      "url": "https://t.me/agencymanagement",
+      "name": "Управление агентством, веб-студией, продакшеном",
+      "initial_state": "rejected",
+      "initial_reason": "observed_irrelevant",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:agilixru",
+      "url": "https://t.me/agilixru",
+      "name": "Адаптивные организации",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:aklaskovaya",
+      "url": "https://t.me/aklaskovaya",
+      "name": "Ласковый менеджмент",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:alfabank_career",
+      "url": "https://t.me/alfabank_career",
+      "name": "Карьера в Альфа-Банке",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:alfadigital_jobs",
+      "url": "https://t.me/alfadigital_jobs",
+      "name": "Alfa Digital",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:allbillboards",
+      "url": "https://t.me/allbillboards",
+      "name": "Наружная реклама России / Секреты наружки",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:allthingslegal",
+      "url": "https://t.me/allthingslegal",
+      "name": "All Things Legal",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:amolotnikov2020",
+      "url": "https://t.me/amolotnikov2020",
+      "name": "Анонимный Молотников 🎓",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:andkulagin",
+      "url": "https://t.me/andkulagin",
+      "name": "Отвечает Кулагин",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:apcbc_ru",
+      "url": "https://t.me/apcbc_ru",
+      "name": "АПКБК | Другой взгляд на бизнес",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:arturdulkarnaev",
+      "url": "https://t.me/arturdulkarnaev",
+      "name": "Артур Дулкарнаев",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:avetov",
+      "url": "https://t.me/avetov",
+      "name": "Аветов",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:avito_career",
+      "url": "https://t.me/avito_career",
+      "name": "Avito Career",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:b1_belarus_tax",
+      "url": "https://t.me/b1_belarus_tax",
+      "name": "Б1 в Беларуси | Аудит. Налоги. Технологии",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:b1_careers",
+      "url": "https://t.me/b1_careers",
+      "name": "Б1 | Карьера🍀",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:b1_customs",
+      "url": "https://t.me/b1_customs",
+      "name": "Б1 | Таможня.ВЭД.Логистика",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:b1_news",
+      "url": "https://t.me/b1_news",
+      "name": "Б1",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:b1_tax",
+      "url": "https://t.me/b1_tax",
+      "name": "Б1 | Налоги и Право",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:bcmgimo",
+      "url": "https://t.me/bcmgimo",
+      "name": "Бизнес-клуб МГИМО",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:belaya_kaska",
+      "url": "https://t.me/belaya_kaska",
+      "name": "Белая Каска",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:belleragexlnc",
+      "url": "https://t.me/belleragexlnc",
+      "name": "Bellerage",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:best_direkt",
+      "url": "https://t.me/best_direkt",
+      "name": "Несносный дед PRO - Яндекс Директ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:betterchance_ru",
+      "url": "https://t.me/betterchance_ru",
+      "name": "Better Chance",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:bgp_litigation",
+      "url": "https://t.me/bgp_litigation",
+      "name": "BGP Litigation",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:bincubatornch",
+      "url": "https://t.me/bincubatornch",
+      "name": "Бизнес-инкубатор Челны",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:biznesc",
+      "url": "https://t.me/biznesc",
+      "name": "Бизнес мотивация",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:biznesw",
+      "url": "https://t.me/biznesw",
+      "name": "Александр Разумовский",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:blogcalltouch",
+      "url": "https://t.me/blogcalltouch",
+      "name": "Calltouch | Про маркетинг для бизнеса",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:blogconsulting",
+      "url": "https://t.me/blogconsulting",
+      "name": "Юридический центр для блогеров и агентств",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:boilerroomchannel",
+      "url": "https://t.me/boilerroomchannel",
+      "name": "Бойлерная",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:bricscompcentre",
+      "url": "https://t.me/bricscompcentre",
+      "name": "Антимонопольный центр БРИКС",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:budni_evangelista",
+      "url": "https://t.me/budni_evangelista",
+      "name": "Канал евангелиста | Никита Кравченко про платный трафик",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:budujobs",
+      "url": "https://t.me/budujobs",
+      "name": "БУДУ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:buisness_ideal",
+      "url": "https://t.me/buisness_ideal",
+      "name": "Бизнес Идеи | Стартапы",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:businesspro_inc",
+      "url": "https://t.me/businesspro_inc",
+      "name": "БИЗНЕС PRO | Брендинг и Маркетинг",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:business_stoyanov",
+      "url": "https://t.me/business_stoyanov",
+      "name": "Игорь Стоянов",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:careercentreitmo",
+      "url": "https://t.me/careercentreitmo",
+      "name": "Центр карьеры ИТМО",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:careersber",
+      "url": "https://t.me/careersber",
+      "name": "Карьера в Сбере!",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:careerwithh",
+      "url": "https://t.me/careerwithh",
+      "name": "Эйч",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:changellenge",
+      "url": "https://t.me/changellenge",
+      "name": "Changellenge >> х Ozon",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:cifrograd_finans",
+      "url": "https://t.me/cifrograd_finans",
+      "name": "Финансы бизнеса с Никулиной",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:cliquejobs",
+      "url": "https://t.me/cliquejobs",
+      "name": "DUAL 🔗 КЛИК — вакансии & развитие карьеры",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:coreboot_marketing",
+      "url": "https://t.me/coreboot_marketing",
+      "name": "Корбут и коллеги",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:cozy_hr",
+      "url": "https://t.me/cozy_hr",
+      "name": "Вакансии для своих✨",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:cryptovalerii",
+      "url": "https://t.me/cryptovalerii",
+      "name": "Время Валеры",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:cx_quality",
+      "url": "https://t.me/cx_quality",
+      "name": "Клиентский опыт и качество",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:dankmarketing",
+      "url": "https://t.me/dankmarketing",
+      "name": "Зашкваркетинг",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:dealsma",
+      "url": "https://t.me/dealsma",
+      "name": "M&A Новости",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:decenter",
+      "url": "https://t.me/decenter",
+      "name": "DeCenter — блокчейн, биткоин, инвестиции",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:delcredere_law",
+      "url": "https://t.me/delcredere_law",
+      "name": "Delcredere",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:delret_career",
+      "url": "https://t.me/delret_career",
+      "name": "Карьера в ДРТ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:denuolaw",
+      "url": "https://t.me/denuolaw",
+      "name": "Denuo",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:dgalera",
+      "url": "https://t.me/dgalera",
+      "name": "Digital-галера",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:dhprime_ppc",
+      "url": "https://t.me/dhprime_ppc",
+      "name": "Маркировка рекламы, отчетность в ОРД и рекламный сбор | Дмитрий Хатин",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:digitalallianceofficial",
+      "url": "https://t.me/digitalallianceofficial",
+      "name": "Digital Alliance️️",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:digitalbublik",
+      "url": "https://t.me/digitalbublik",
+      "name": "Цифровой Бизнес | Бублик, Финансы, Тренды",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:dimabeseda",
+      "url": "https://t.me/dimabeseda",
+      "name": "Dima Beseda",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:dimtriy_telegramovich_ads",
+      "url": "https://t.me/dimtriy_telegramovich_ads",
+      "name": "Telegram Ads и Дмитрий",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:drumyanzev",
+      "url": "https://t.me/drumyanzev",
+      "name": "Румянцев Рулит",
+      "initial_state": "rejected",
+      "initial_reason": "observed_ad_or_duplicates",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:dtcenter_global",
+      "url": "https://t.me/dtcenter_global",
+      "name": "Центр дизайн-мышления",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:ecopsy_consulting",
+      "url": "https://t.me/ecopsy_consulting",
+      "name": "ЭКОПСИ Консалтинг",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:edunetflix",
+      "url": "https://t.me/edunetflix",
+      "name": "Netflix в сфере образования",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:eklapshinaofficial",
+      "url": "https://t.me/eklapshinaofficial",
+      "name": "Екатерина Лапшина",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:elwi_legal",
+      "url": "https://t.me/elwi_legal",
+      "name": "E L W I",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:eumoney",
+      "url": "https://t.me/eumoney",
+      "name": "Деньги. Инвестиции. Налоги",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:fakturastroiki",
+      "url": "https://t.me/fakturastroiki",
+      "name": "Ольга Вoлoдина | Фактура стройки",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:faudix_channel",
+      "url": "https://t.me/faudix_channel",
+      "name": "Управленческий учёт FAUDIX ©",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:fincareer",
+      "url": "https://t.me/fincareer",
+      "name": "Финунивер | Центр карьеры",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:finctrl",
+      "url": "https://t.me/finctrl",
+      "name": "Финансист",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:findit_spb",
+      "url": "https://t.me/findit_spb",
+      "name": "Найти IT – 24 октября, СПб, DAA EXPO",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:fintablo",
+      "url": "https://t.me/fintablo",
+      "name": "Финтабло",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:fomichevkirill",
+      "url": "https://t.me/fomichevkirill",
+      "name": "Кирилл Фомичев",
+      "initial_state": "rejected",
+      "initial_reason": "observed_irrelevant",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:forklog",
+      "url": "https://t.me/forklog",
+      "name": "ForkLog",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:ftladvisers",
+      "url": "https://t.me/ftladvisers",
+      "name": "FTL Advisers",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:ftsec",
+      "url": "https://t.me/ftsec",
+      "name": "42 секунды",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:futru_spb",
+      "url": "https://t.me/futru_spb",
+      "name": "FutureToday | СПб",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:getads_official",
+      "url": "https://t.me/getads_official",
+      "name": "getads",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:ggreat_of_development",
+      "url": "https://t.me/ggreat_of_development",
+      "name": "Всё о стройке",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:gidprava",
+      "url": "https://t.me/gidprava",
+      "name": "GidPrava I Юридический консалтинг",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:gmtlegal",
+      "url": "https://t.me/gmtlegal",
+      "name": "GMT Legal",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:gnusnyi_marketing",
+      "url": "https://t.me/gnusnyi_marketing",
+      "name": "Гнусный Маркетинг",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:goodfinance",
+      "url": "https://t.me/goodfinance",
+      "name": "Финансы ПопроЩе 💸 | Илья Щетников",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:grebenukm",
+      "url": "https://t.me/grebenukm",
+      "name": "Михаил Гребенюк",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:group4media_news",
+      "url": "https://t.me/group4media_news",
+      "name": "Group4Media",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:gsom_spbu_official",
+      "url": "https://t.me/gsom_spbu_official",
+      "name": "ВШМ СПбГУ говорит",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:gsom_startuplab",
+      "url": "https://t.me/gsom_startuplab",
+      "name": "Преакселератор ВШМ СтартапЛаб",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:happycareer",
+      "url": "https://t.me/happycareer",
+      "name": "Без сознания о бизнесе | Ирина Бражникова",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:honestmarketing",
+      "url": "https://t.me/honestmarketing",
+      "name": "Что вы мне рекламируете?",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:howtomake10x",
+      "url": "https://t.me/howtomake10x",
+      "name": "Виталий Крылов - Команда А",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:hrandmuchmore",
+      "url": "https://t.me/hrandmuchmore",
+      "name": "Про HR и не только | Наталья Володина",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:hrmrktng",
+      "url": "https://t.me/hrmrktng",
+      "name": "Артём, в чём сила hr-бренда?",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:hrtechru",
+      "url": "https://t.me/hrtechru",
+      "name": "HRTech | Технологии для управления персоналом",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:hsecareer",
+      "url": "https://t.me/hsecareer",
+      "name": "HSE Career",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:hypothesismap",
+      "url": "https://t.me/hypothesismap",
+      "name": "Карта гипотез™ | Стратегия для бизнеса и жизни",
+      "initial_state": "rejected",
+      "initial_reason": "observed_ad_or_duplicates",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:ikarcompliance",
+      "url": "https://t.me/ikarcompliance",
+      "name": "Фискальный комплаенс Юлии Беляковой",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:ilovedocs",
+      "url": "https://t.me/ilovedocs",
+      "name": "@ilovedocs",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:imnsrb_minsk",
+      "url": "https://t.me/imnsrb_minsk",
+      "name": "Управление оперативных мероприятий инспекции МНС по г. Минску",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:impergroup",
+      "url": "https://t.me/impergroup",
+      "name": "Инструменты фасилитации",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:incubatorperm",
+      "url": "https://t.me/incubatorperm",
+      "name": "Пермский бизнес-инкубатор",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:infotaxme",
+      "url": "https://t.me/infotaxme",
+      "name": "infotax.me",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:insight_comcon",
+      "url": "https://t.me/insight_comcon",
+      "name": "Инсайт Комкон",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:inteamwetrust_rus",
+      "url": "https://t.me/inteamwetrust_rus",
+      "name": "Школа развития Доверия",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:integria_ru",
+      "url": "https://t.me/integria_ru",
+      "name": "INTEGRIA I О чем думают клиенты?",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:ipeskova",
+      "url": "https://t.me/ipeskova",
+      "name": "Ирина Пескова | ДИРЕКТОР ПО СЧАСТЬЮ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:iprosviriakova",
+      "url": "https://t.me/iprosviriakova",
+      "name": "Просвирякова: Дневник Развития Бизнеса",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:irina_mitter",
+      "url": "https://t.me/irina_mitter",
+      "name": "Irina Mitter Law",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:it_analitika",
+      "url": "https://t.me/it_analitika",
+      "name": "Аналитика в IT: бизнес и системный анализ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:ivanovaknows",
+      "url": "https://t.me/ivanovaknows",
+      "name": "Иванова знает то, что клево",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:jelezobetonniyzames",
+      "url": "https://t.me/jelezobetonniyzames",
+      "name": "Железобетонный замес",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:juniors_rabota_jobs",
+      "url": "https://t.me/juniors_rabota_jobs",
+      "name": "Джуниор Вакансии Стажировки IT",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:kantor_ai",
+      "url": "https://t.me/kantor_ai",
+      "name": "Kantor.AI",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:karpovaventures",
+      "url": "https://t.me/karpovaventures",
+      "name": "Karpova.Ventures",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:kept_graduate",
+      "url": "https://t.me/kept_graduate",
+      "name": "Карьера в Kept",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:kept_tax",
+      "url": "https://t.me/kept_tax",
+      "name": "Kept | Налоги и право",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:klyuchevoikandidat",
+      "url": "https://t.me/klyuchevoikandidat",
+      "name": "Ключевой Кандидат| Находим тех, кто двигает ваш бизнес вперед",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:knfedorov",
+      "url": "https://t.me/knfedorov",
+      "name": "Стратегия бизнеса | Метод Федорова",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:kpd1c",
+      "url": "https://t.me/kpd1c",
+      "name": "1С-КПД про документооборот и бизнес-процессы",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:krabouttax",
+      "url": "https://t.me/krabouttax",
+      "name": "Комплаенс Решения",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:ktagirova",
+      "url": "https://t.me/ktagirova",
+      "name": "Предпринимательский дзен",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:kyrillic",
+      "url": "https://t.me/kyrillic",
+      "name": "@kyrillic",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:kyuzhanina",
+      "url": "https://t.me/kyuzhanina",
+      "name": "Екатерина Южанина | СИЛА БРЕНДА",
+      "initial_state": "rejected",
+      "initial_reason": "observed_ad_or_duplicates",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:latech",
+      "url": "https://t.me/latech",
+      "name": "Lamoda Tech",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:legalexecutives",
+      "url": "https://t.me/legalexecutives",
+      "name": "The Paragraph LIVE",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:legalinsightmagazine",
+      "url": "https://t.me/legalinsightmagazine",
+      "name": "Legal Insight Magazine",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:legalprocesses",
+      "url": "https://t.me/legalprocesses",
+      "name": "Бизнес-процессы юристов | Юрий Донников",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:mads_courses",
+      "url": "https://t.me/mads_courses",
+      "name": "mads media",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:maratyus",
+      "url": "https://t.me/maratyus",
+      "name": "👨🏻‍💻/ Марат Юсупов",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:marillionru",
+      "url": "https://t.me/marillionru",
+      "name": "Мариллион",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:marketingold",
+      "url": "https://t.me/marketingold",
+      "name": "олдскульный маркетинг",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:mashapoluyanova",
+      "url": "https://t.me/mashapoluyanova",
+      "name": "Маша Полуянова",
+      "initial_state": "rejected",
+      "initial_reason": "observed_irrelevant",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:matron_olga",
+      "url": "https://t.me/matron_olga",
+      "name": "Матрон Inside: законы бизнеса",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:mcwgsom",
+      "url": "https://t.me/mcwgsom",
+      "name": "Management Career Week",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:mediascout_ord",
+      "url": "https://t.me/mediascout_ord",
+      "name": "ОРД МедиаСкаут",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:menngornal",
+      "url": "https://t.me/menngornal",
+      "name": "Венчур Менна и Горного",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:mgimo_career",
+      "url": "https://t.me/mgimo_career",
+      "name": "Центр карьеры МГИМО",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:mgimocareer",
+      "url": "https://t.me/mgimocareer",
+      "name": "2b.mgimo.career",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:mirkreatorovjob",
+      "url": "https://t.me/mirkreatorovjob",
+      "name": "МИР КРЕАТОРОВ | Вакансии",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:mister_sosister",
+      "url": "https://t.me/mister_sosister",
+      "name": "MISTER SOSISTER ~ PRAYING FOR EXITS",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:mixxrussiadigital",
+      "url": "https://t.me/mixxrussiadigital",
+      "name": "МИКС в большом диджитал",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:moibiz",
+      "url": "https://t.me/moibiz",
+      "name": "Мой бизнес – малый бизнес",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:morejobs",
+      "url": "https://t.me/morejobs",
+      "name": "Больше джобсов",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:mtokovinin",
+      "url": "https://t.me/mtokovinin",
+      "name": "Mikhail Tokovinin",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:mtsbankcareer",
+      "url": "https://t.me/mtsbankcareer",
+      "name": "МТС Банк | Карьера",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:myfin_news",
+      "url": "https://t.me/myfin_news",
+      "name": "Myfin.by",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:national_advertising_forum",
+      "url": "https://t.me/national_advertising_forum",
+      "name": "Юбилейный НРФ | Неделя рекламы в Москве",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:nb_fund",
+      "url": "https://t.me/nb_fund",
+      "name": "Социальный бизнес",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:nmionair",
+      "url": "https://t.me/nmionair",
+      "name": "NMi on air🎙️",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:normrabota",
+      "url": "https://t.me/normrabota",
+      "name": "Норм работа",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:not_typical_hr",
+      "url": "https://t.me/not_typical_hr",
+      "name": "(не)Типичный HR",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:nsvcons",
+      "url": "https://t.me/nsvcons",
+      "name": "Налоги. Право. Частный капитал — NSV Consulting",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:offervacancy",
+      "url": "https://t.me/offervacancy",
+      "name": "Changellenge >>: стажировки и вакансии",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:officelife_media",
+      "url": "https://t.me/officelife_media",
+      "name": "Office Life Бизнес-новости",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:okkam_official",
+      "url": "https://t.me/okkam_official",
+      "name": "OKKAM OFFICIAL",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:okkam_retail_ecom",
+      "url": "https://t.me/okkam_retail_ecom",
+      "name": "Okkam Retail & Ecom",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:olesyanesterova_direct",
+      "url": "https://t.me/olesyanesterova_direct",
+      "name": "Олеся FM. Вещаю о Директе",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:omdomgroup_news",
+      "url": "https://t.me/omdomgroup_news",
+      "name": "OMD Новости",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:ozoncamp",
+      "url": "https://t.me/ozoncamp",
+      "name": "Ozon Camp",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:parallax_news",
+      "url": "https://t.me/parallax_news",
+      "name": "Parallax news",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:parentaladvisorytax",
+      "url": "https://t.me/parentaladvisorytax",
+      "name": "Налоги 18+",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:pavel_alferov_rim_iii",
+      "url": "https://t.me/pavel_alferov_rim_iii",
+      "name": "РИМ-III. Когда нужен результат",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:pavlichenko_ilia",
+      "url": "https://t.me/pavlichenko_ilia",
+      "name": "Стратегия, AI и организационный дизайн",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:pbondareva",
+      "url": "https://t.me/pbondareva",
+      "name": "Полина Бондарева про контекст",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:peremennyuspeh",
+      "url": "https://t.me/peremennyuspeh",
+      "name": "Марина с переменным успехом",
+      "initial_state": "rejected",
+      "initial_reason": "observed_irrelevant",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:petrochenkow",
+      "url": "https://t.me/petrochenkow",
+      "name": "Телеграм Петроченкова",
+      "initial_state": "rejected",
+      "initial_reason": "observed_ad_or_duplicates",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:pgantitrust",
+      "url": "https://t.me/pgantitrust",
+      "name": "PG Antitrust | Антимонопольное право",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:pg_tax",
+      "url": "https://t.me/pg_tax",
+      "name": "PG Tax | Налоги",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:pifagortrade",
+      "url": "https://t.me/pifagortrade",
+      "name": "PIFAGOR TRADE",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:pimenov_spoken",
+      "url": "https://t.me/pimenov_spoken",
+      "name": "Пименов Вещает",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:planfact_io",
+      "url": "https://t.me/planfact_io",
+      "name": "ПланФакт — про бизнес и деньги",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:pnk_rb",
+      "url": "https://t.me/pnk_rb",
+      "name": "Палата налоговых консультантов",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:polya_rzhd",
+      "url": "https://t.me/polya_rzhd",
+      "name": "Полина Рождественская",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:pomogay_marketing",
+      "url": "https://t.me/pomogay_marketing",
+      "name": "Помогающий Маркетолог",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:ppckantrop",
+      "url": "https://t.me/ppckantrop",
+      "name": "PPCкантроп|Ме́ркетинг и ололология",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:profit_maker",
+      "url": "https://t.me/profit_maker",
+      "name": "Инструменты маркетолога",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:proleaderslab",
+      "url": "https://t.me/proleaderslab",
+      "name": "PROLEADERSLAB® | ЛАБОРАТОРИЯ ПРОЛИДЕРОВ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:prolearning",
+      "url": "https://t.me/prolearning",
+      "name": "Живое обучение",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:pronalogprof",
+      "url": "https://t.me/pronalogprof",
+      "name": "PRONALOG | Консультации для бизнеса",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:pstmarketing",
+      "url": "https://t.me/pstmarketing",
+      "name": "Постмаркетинг",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:rbccrypto",
+      "url": "https://t.me/rbccrypto",
+      "name": "РБК Крипто",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:rendarevskaya",
+      "url": "https://t.me/rendarevskaya",
+      "name": "Рендаревская #НЕкоучит",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:ritoricheski_otvet",
+      "url": "https://t.me/ritoricheski_otvet",
+      "name": "риторический ответ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:rmp_vo",
+      "url": "https://t.me/rmp_vo",
+      "name": "Развитие молодёжного предпринимательства",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:rusadmarketchannel",
+      "url": "https://t.me/rusadmarketchannel",
+      "name": "Рекламная индустрия России | РИР",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:rus_hr",
+      "url": "https://t.me/rus_hr",
+      "name": "Русский HR",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:saleshousegpm",
+      "url": "https://t.me/saleshousegpm",
+      "name": "MediaTalk GPM",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:sber_university",
+      "url": "https://t.me/sber_university",
+      "name": "СберУниверситет",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:scrum_mastery",
+      "url": "https://t.me/scrum_mastery",
+      "name": "Scrum Mastery Club",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:scrumtrek_official",
+      "url": "https://t.me/scrumtrek_official",
+      "name": "ScrumTrek",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:sharksbz",
+      "url": "https://t.me/sharksbz",
+      "name": "Акула Бизнеса",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:shl_hr_club",
+      "url": "https://t.me/shl_hr_club",
+      "name": "HR Club",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:sidorkinaorgdesign",
+      "url": "https://t.me/sidorkinaorgdesign",
+      "name": "Сидоркина про организационный дизайн",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:skd_russia",
+      "url": "https://t.me/skd_russia",
+      "name": "Стартап как диплом",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:slezisatoshi",
+      "url": "https://t.me/slezisatoshi",
+      "name": "СЛЕЗЫ САТОШИ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:sokolay",
+      "url": "https://t.me/sokolay",
+      "name": "Sokolovskiy",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:sosindex",
+      "url": "https://t.me/sosindex",
+      "name": "Sosindex",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:sostav",
+      "url": "https://t.me/sostav",
+      "name": "Sostav",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:sostav_networking",
+      "url": "https://t.me/sostav_networking",
+      "name": "Нетворкинг & ХедХантинг",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:sovcomstudents",
+      "url": "https://t.me/sovcomstudents",
+      "name": "Совкомбанк Будущее",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:spbucareer",
+      "url": "https://t.me/spbucareer",
+      "name": "Центр карьер СПбГУ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:startap0",
+      "url": "https://t.me/startap0",
+      "name": "Стартап",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:startupoftheday",
+      "url": "https://t.me/startupoftheday",
+      "name": "Стартап дня. Александр Горный.",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:strategy_arbpro",
+      "url": "https://t.me/strategy_arbpro",
+      "name": "АРБ Про. Стратегия бизнеса",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:stud_career",
+      "url": "https://t.me/stud_career",
+      "name": "Что мне делать",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:subsidii_msk",
+      "url": "https://t.me/subsidii_msk",
+      "name": "Предпринимай!",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:synapslab",
+      "url": "https://t.me/synapslab",
+      "name": "Синапс Лаб",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:taxadvisor_ru",
+      "url": "https://t.me/taxadvisor_ru",
+      "name": "Taxadvisor - все о налогах. От алертов до подкастов",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:tax_advocate_yagolovich",
+      "url": "https://t.me/tax_advocate_yagolovich",
+      "name": "Налоговый адвокат",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:t_crew",
+      "url": "https://t.me/t_crew",
+      "name": "T-Crew",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:teamshapers",
+      "url": "https://t.me/teamshapers",
+      "name": "theTeam | Команды меняют бизнес",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:tech_training",
+      "url": "https://t.me/tech_training",
+      "name": "Тренинги МФТИ | Шаг в техпред",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:tedo_academy",
+      "url": "https://t.me/tedo_academy",
+      "name": "Академия «Технологий Доверия»",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:tedo_career",
+      "url": "https://t.me/tedo_career",
+      "name": "ТеДо | Карьера",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:tedo_my_taxadvisor",
+      "url": "https://t.me/tedo_my_taxadvisor",
+      "name": "Новости от@личного консультанта",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:tedotaxpro",
+      "url": "https://t.me/tedotaxpro",
+      "name": "ТеДо | ПроНалоги. TaxPro",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:thebalitskaya",
+      "url": "https://t.me/thebalitskaya",
+      "name": "Балицкая / TheBalitskaya",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:theblueprintcareer",
+      "url": "https://t.me/theblueprintcareer",
+      "name": "«Карьера» The Blueprint",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:tplaw_hr_blog",
+      "url": "https://t.me/tplaw_hr_blog",
+      "name": "От стажёра до партнёра | \"Томашевская и партнеры\"",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:tplaw_protector_blog",
+      "url": "https://t.me/tplaw_protector_blog",
+      "name": "Безбашенный Протектор | \"Томашевская и партнеры\"",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:trade001k",
+      "url": "https://t.me/trade001k",
+      "name": "001k.Trade",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:trafficonwb",
+      "url": "https://t.me/trafficonwb",
+      "name": "Шпаргалки по Яндекс Директу",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:trapeznikovabusiness",
+      "url": "https://t.me/trapeznikovabusiness",
+      "name": "Бизнес и развитие в сфере здоровья",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:trendagent_commercial",
+      "url": "https://t.me/trendagent_commercial",
+      "name": "TrendAgent Коммерция",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:univertechpred",
+      "url": "https://t.me/univertechpred",
+      "name": "Платформа университетского технологического предпринимательства",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:uprav_nalog",
+      "url": "https://t.me/uprav_nalog",
+      "name": "Управление налогами",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:uroventop",
+      "url": "https://t.me/uroventop",
+      "name": "УровеньТОП🔝Инны Можайской",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:uspenskiy100",
+      "url": "https://t.me/uspenskiy100",
+      "name": "Uspenskiy.pro crypto",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:vedomosti",
+      "url": "https://t.me/vedomosti",
+      "name": "ВЕДОМОСТИ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:ventureinpics",
+      "url": "https://t.me/ventureinpics",
+      "name": "Венчур в картинках",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:vibeboarding",
+      "url": "https://t.me/vibeboarding",
+      "name": "Вайбкодинг финансовой отчетности в Claude | Простые Финансы™ | Нейросети Бизнеса",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:vitrinajobs",
+      "url": "https://t.me/vitrinajobs",
+      "name": "витрина | vitrina.jobs",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:vk_ads",
+      "url": "https://t.me/vk_ads",
+      "name": "VK Реклама",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:vlasov_blog",
+      "url": "https://t.me/vlasov_blog",
+      "name": "Антон Власов",
+      "initial_state": "rejected",
+      "initial_reason": "observed_ad_or_duplicates",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:voronapublichnik",
+      "url": "https://t.me/voronapublichnik",
+      "name": "Публичник || Это Брикульский!",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:vsecivilno",
+      "url": "https://t.me/vsecivilno",
+      "name": "Все цивильно",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:vtb_career",
+      "url": "https://t.me/vtb_career",
+      "name": "Карьера в ВТБ",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:websofthr",
+      "url": "https://t.me/websofthr",
+      "name": "Websoft",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:workisnotvolk",
+      "url": "https://t.me/workisnotvolk",
+      "name": "Работа не волк: психологам о карьере",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:worldppc",
+      "url": "https://t.me/worldppc",
+      "name": "ppc.world — бесплатно о платном трафике",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:wtfwithservice",
+      "url": "https://t.me/wtfwithservice",
+      "name": "ЧАДИН | WTF SERVICE",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:yandexbusiness",
+      "url": "https://t.me/yandexbusiness",
+      "name": "Яндекс для предпринимателей",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:yandex_fedorov",
+      "url": "https://t.me/yandex_fedorov",
+      "name": "Федоров про контекст",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    },
+    {
+      "source_id": "telegram:yantech",
+      "url": "https://t.me/yantech",
+      "name": "Яндекс Реклама",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:yndx_ed",
+      "url": "https://t.me/yndx_ed",
+      "name": "Яндекс Реклама ПРО",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:yuniorapp",
+      "url": "https://t.me/yuniorapp",
+      "name": "Юниор: стажировки и вакансии для молодых специалистов",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "unknown"
+    },
+    {
+      "source_id": "telegram:zakon_news",
+      "url": "https://t.me/zakon_news",
+      "name": "Закон.ру",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:zakon_vsrf",
+      "url": "https://t.me/zakon_vsrf",
+      "name": "Верховный суд - Главное от Закон.ру",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "no"
+    },
+    {
+      "source_id": "telegram:zametki_opitnogo_hr",
+      "url": "https://t.me/zametki_opitnogo_hr",
+      "name": "Заметки опытного hr✍️",
+      "initial_state": "rejected",
+      "initial_reason": "preliminary_topic_mismatch",
+      "initial_personal_blog": "yes"
+    }
+  ]
+}
