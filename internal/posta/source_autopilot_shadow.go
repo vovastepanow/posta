@@ -1948,6 +1948,11 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					}
 				}
 				pass, reject := autopilotSourcePreliminaryDecision(evaluation, threshold, len(samples))
+				// Only explicit per-post off-topic evidence may penalize the
+				// search query. A low aggregate score or unavailable media
+				// is not a confirmed retrieval error.
+				evidence["preliminary_off_topic_confirmed"] = reject &&
+					evaluation.Quality["topic_relevant"] != nil && evaluation.Quality["topic_off_topic"] != nil
 				if state != "candidate" {
 					if reject {
 						// Revisit confirmed publishers conservatively: demote
