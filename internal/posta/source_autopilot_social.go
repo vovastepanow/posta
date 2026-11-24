@@ -23,13 +23,11 @@ func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandida
 	if platform == PlatformTikTok {
 		r = u.autopilotTikTokSearch(search)
 	} else {
-		r = u.autopilotBraveSearch(search)
+		r = u.autopilotPublisherSearch(search, platform)
 	}
 	status := "unavailable"
 	var out []DiscoveryCandidate
-	final, parseErr := url.Parse(r.URL)
-	page := strings.ToLower(string(r.Bytes))
-	valid := r.OK && parseErr == nil && final.Scheme == "https" && final.Host == "search.brave.com" && !strings.Contains(page, "captcha") && !strings.Contains(page, "challenge_required")
+	valid := autopilotPublisherSearchResponseValid(r)
 	if platform == PlatformTikTok {
 		valid = autopilotTikTokSearchResponseValid(r)
 	}
