@@ -77,12 +77,12 @@ func autopilotPublicSocialPosts(platform, id string, res FetchResultURL) ([]jx.M
 	}
 	switch platform {
 	case PlatformTelegram:
-		if u.Hostname() != "t.me" || strings.TrimSuffix(u.Path, "/") != "/s/"+id || !strings.Contains(page, "tgme_widget_message") {
+		if u.Hostname() != "t.me" || !strings.EqualFold(strings.TrimSuffix(u.Path, "/"), "/s/"+id) || !strings.Contains(page, "tgme_widget_message") {
 			return nil, errors.New("invalid public Telegram channel page")
 		}
 		return TelegramPostsFromHTML(page, jx.M{"id": id, "name": id}, 10, true, 0), nil
 	case PlatformVK:
-		if u.Hostname() != "vk.com" || strings.TrimSuffix(u.Path, "/") != "/"+id || (!strings.Contains(page, "wall_post") && !strings.Contains(page, "PostText")) {
+		if (u.Hostname() != "vk.com" && u.Hostname() != "www.vk.com" && u.Hostname() != "m.vk.com") || !strings.EqualFold(strings.TrimSuffix(u.Path, "/"), "/"+id) || (!strings.Contains(page, "wall_post") && !strings.Contains(page, "PostText")) {
 			return nil, errors.New("invalid public VK page")
 		}
 		return vkPublicParse(res.Bytes, id, id, 10, true, 0), nil

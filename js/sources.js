@@ -22,7 +22,7 @@ const autopilotSourceStates = { found: 'Найдено за цикл', candidate
 const autopilotSourceStateLabels = { candidate: 'Ожидает проверки', probation: 'На испытании', active: 'Подтверждён', cooldown: 'Повторная проверка', rejected: 'Отклонён' };
 const autopilotSourceReasonLabels = {
     discovered: 'Ожидает первой проверки', insufficient_fresh_samples: 'Недостаточно публикаций в коротком окне (устаревшая проверка)', sparse_publisher: 'Публикует редко — мониторинг без отклонения',
-    feed_unavailable: 'Лента недоступна', rate_limited: 'Ограничение запросов площадки',
+    feed_unavailable: 'Лента недоступна', feed_access_restricted: 'Площадка ограничила публичный доступ', feed_too_large: 'Ответ ленты превышает лимит размера', rate_limited: 'Ограничение запросов площадки',
     source_identity_recovered: 'Адрес исправлен — проверяется новый источник', invalid_source_identity: 'Повреждён идентификатор источника', unsupported_source_format: 'Формат источника не поддерживается',
     source_not_found: 'Источник не найден', unrecognized_feed: 'Формат ленты не распознан',
     feed_parse_failed: 'Ошибка разбора ленты', preliminary_match_uncertain: 'Недостаточно высокая оценка тематики',
@@ -397,6 +397,8 @@ function renderAutopilot(data) {
                         not_checked: 'ещё не проверены',
                         insufficient_fresh_samples: 'мало свежих публикаций',
                         feed_unavailable: 'лента недоступна',
+                        feed_access_restricted: 'доступ ограничен площадкой',
+                        feed_too_large: 'слишком большая лента',
                         rate_limited: 'ограничение площадки',
                         source_not_found: 'источник не найден',
                         unrecognized_feed: 'не распознана лента',

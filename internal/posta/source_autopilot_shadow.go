@@ -1531,11 +1531,11 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 			if platform, id, _, ok := autopilotSourceParts(feed); ok {
 				switch platform {
 				case PlatformTelegram:
-					return u.RSSGet("https://t.me/s/"+id, rssMaxBytes, 15*time.Second, BrowserUA)
+					return autopilotReadListing("https://t.me/s/"+id, BrowserUA, u.RSSGet)
 				case PlatformVK:
-					return u.RSSGet("https://vk.com/"+id, rssMaxBytes, 15*time.Second, BrowserUA)
+					return autopilotReadListing("https://vk.com/"+id, BrowserUA, u.RSSGet)
 				case PlatformOK:
-					return u.RSSGet(okGroupURL(id), rssMaxBytes, 15*time.Second, BrowserUA)
+					return autopilotReadListing(okGroupURL(id), BrowserUA, u.RSSGet)
 				case PlatformTikTok:
 					return u.autopilotTikTokListing(id)
 				}
@@ -1555,7 +1555,7 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 			if pikabuCommunityURL(feed) != "" {
 				return u.RSSGet(feed, rssMaxBytes, 15*time.Second, BrowserUA)
 			}
-			return u.RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
+			return autopilotReadRSS(feed, u.RSSGet)
 		}, u.autopilotEvaluateSource,
 		func(ctx context.Context, source string, posts []jx.M) error {
 			return a.assessAutopilotPublicPosts(ctx, job, source, posts)
@@ -1813,13 +1813,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		nextCheck := at.Add(autopilotSourceReviewInterval(job, state))
 		var posts []jx.M
 		if !res.OK {
-			reason = "feed_unavailable"
-			if res.Status == http.StatusTooManyRequests {
-				reason = "rate_limited"
-			}
-			if res.Status == http.StatusNotFound || res.Status == http.StatusGone {
-				reason = "source_not_found"
-			}
+			reason = autopilotFeedReadReason(res)
 			nextCheck = autopilotRetryAt(at, source, res.RetryAfter)
 		} else {
 			if platform == PlatformTikTok {
@@ -1871,7 +1865,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		// their history and a scheduled retry instead of clogging the review
 		// queue. Confirmed missing sources are rejected separately below.
 		if state == "candidate" && (reason == "feed_unavailable" || reason == "rate_limited" ||
-			reason == "unrecognized_feed" || reason == "feed_parse_failed") {
+			reason == "unrecognized_feed" || reason == "feed_parse_failed" || reason == "feed_access_restricted" || reason == "feed_too_large") {
 			retry := nextCheck
 			if reason == "unrecognized_feed" || reason == "feed_parse_failed" {
 				retry = at.Add(7 * 24 * time.Hour)

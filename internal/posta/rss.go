@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/html/charset"
 	"posta/internal/jx"
 )
 
@@ -116,8 +117,39 @@ func xname(n xml.Name) string {
 	return p + ":" + n.Local
 }
 
+var rssEncodingDeclaration = regexp.MustCompile(`(?i)^\s*<\?xml\s+[^>]{0,200}encoding\s*=\s*["']([a-z0-9_.-]+)["']`)
+
+// Decode declared legacy encodings before parsing; XML offsets then refer
+// to the same UTF-8 bytes as the extracted markup, not the original bytes.
+func rssUTF8(data []byte) ([]byte, bool) {
+	data = bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})
+	label := ""
+	if bytes.HasPrefix(data, []byte{0xff, 0xfe}) {
+		label = "utf-16le"
+		data = data[2:]
+	} else if bytes.HasPrefix(data, []byte{0xfe, 0xff}) {
+		label = "utf-16be"
+		data = data[2:]
+	} else if m := rssEncodingDeclaration.FindSubmatch(data[:min(len(data), 256)]); len(m) == 2 {
+		label = strings.ToLower(string(m[1]))
+	}
+	if label == "" || label == "utf-8" || label == "utf8" {
+		return data, true
+	}
+	reader, err := charset.NewReaderLabel(label, bytes.NewReader(data))
+	if err != nil {
+		return nil, false
+	}
+	decoded, err := io.ReadAll(io.LimitReader(reader, 16<<20+1))
+	return decoded, err == nil && len(decoded) <= 16<<20
+}
+
 // rssLoad — дерево XML или nil (не XML).
 func rssLoad(data []byte) *xnode {
+	data, ok := rssUTF8(data)
+	if !ok {
+		return nil
+	}
 	d := xml.NewDecoder(bytes.NewReader(data))
 	d.Strict = false
 	// HTMLAutoClose здесь не нужен: он закрывал <link> сразу после открытия, и лента RSS 2.0 обрывалась на первом же <link>
