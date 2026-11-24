@@ -1438,6 +1438,30 @@ func autopilotPreliminaryReject(score, threshold, samples int) bool {
 	return samples >= 5 && score >= 0 && score <= 100 && threshold >= 10 && threshold <= 100 && score <= threshold-10
 }
 
+// A mixed publisher with a substantial number of directly relevant posts
+// may enter probation, not active status. Each post still passes the normal
+// admission pipeline, and the established promotion threshold is unchanged.
+func autopilotSourcePreliminaryDecision(ev *sourceEvaluation, threshold, fetched int) (pass, reject bool) {
+	if ev == nil {
+		return false, false
+	}
+	reviewed := min(fetched, ev.ReviewedSamples)
+	if reviewed == 0 && ev.Text == nil && len(ev.Images) == 0 && ev.Quality == nil {
+		// Legacy injected evaluations without component scores.
+		reviewed = fetched
+	}
+	pass = autopilotPreliminaryPass(ev.Score, threshold, reviewed)
+	reject = autopilotPreliminaryReject(ev.Score, threshold, min(fetched, ev.ReviewedSamples))
+	if ev.Quality != nil && ev.Quality["topic_relevant"] != nil {
+		relevant := int(jx.Int(ev.Quality, "topic_relevant"))
+		offTopic := int(jx.Int(ev.Quality, "topic_off_topic"))
+		pass = pass || (reviewed >= 5 && relevant >= 3 && relevant*2 >= reviewed &&
+			ev.Score >= max(60, threshold-20))
+		reject = reject && offTopic*5 >= reviewed*3
+	}
+	return pass, reject && !pass
+}
+
 func autopilotStreamUnavailableReason(err error) string {
 	if errors.Is(err, errAutopilotTikTokStreamUnavailable) {
 		return "tiktok_stream_unavailable"
@@ -1715,8 +1739,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
 				"cooldown", "sparse_publisher", jx.Marshal(jx.M{
 					"quality_samples":     len(samples),
-					"quality_window_days": autopilotSourceQualityDays,
-					"review_samples":      auditSamples,
+					"quality_window_days":       autopilotSourceQualityDays,
+					"review_samples":            auditSamples,
+					"review_policy_v3_checked": true,
 				}), at, at.Add(30*24*time.Hour)); err != nil &&
 				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
 				return err
@@ -1730,7 +1755,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		if res.Status > 0 {
 			evidence["http_status"] = res.Status
 		}
-		if reason == "" && state == "candidate" {
+		if reason == "" && (state == "candidate" || (row.reaudit && (state == "probation" || state == "active"))) {
 			autopilotResetAssessmentCause(ctx)
 			evaluation := evaluate(sourceInfo, samples, job.Topic)
 			if err := autopilotBudgetError(ctx); err != nil {
@@ -1754,6 +1779,12 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				evidence["preliminary_score"] = evaluation.Score
 				evidence["threshold"] = threshold
 				evidence["reviewed_samples"] = evaluation.ReviewedSamples
+				evidence["review_policy_v3_checked"] = true
+				for _, field := range []string{"topic_relevant", "topic_adjacent", "topic_off_topic", "topic_unknown"} {
+					if value, ok := evaluation.Quality[field]; ok {
+						evidence[field] = value
+					}
+				}
 				if evaluation.Text != nil {
 					evidence["text_score"] = *evaluation.Text
 				}
@@ -1765,7 +1796,27 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 						evidence["personal_blog"] = format
 					}
 				}
-				if autopilotPreliminaryPass(evaluation.Score, threshold, len(samples)) {
+				pass, reject := autopilotSourcePreliminaryDecision(evaluation, threshold, len(samples))
+				if state != "candidate" {
+					if reject {
+						// Revisit confirmed publishers conservatively: demote
+						// active sources to probation before a final rejection.
+						next := "rejected"
+						retry := 30 * 24 * time.Hour
+						if state == "active" {
+							next = "probation"
+							retry = 6 * time.Hour
+						}
+						if err := transitionAutopilotSource(ctx, a.DB, job, source, state, next,
+							"preliminary_topic_mismatch", jx.Marshal(evidence), at, at.Add(retry)); err != nil &&
+							!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+							return err
+						}
+						continue
+					}
+					// A borderline new sample is not sufficient to revoke
+					// an existing decision. Continue post-level observation.
+				} else if pass {
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate", "probation", "shadow_preliminary_pass", jx.Marshal(evidence), at, at.Add(autopilotSourceReviewInterval(job, "probation"))); err != nil {
 						if errors.Is(err, errAutopilotProbationLimit) {
 							// Actual source evaluation passed. Keep a record of the
@@ -1789,7 +1840,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					// samples do not justify a definitive thematic rejection.
 					evidence["threshold"] = threshold
 					decision, decisionReason, retry := "cooldown", "preliminary_match_uncertain", 7*24*time.Hour
-					if autopilotPreliminaryReject(evaluation.Score, threshold, min(len(samples), evaluation.ReviewedSamples)) {
+					if reject {
 						decision, decisionReason, retry = "rejected", "preliminary_topic_mismatch", 30*24*time.Hour
 					}
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
@@ -1832,8 +1883,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				}
 				professional := a.User(ctx, "", nil).professionalValueTopic(job.Topic)
 				effectiveRelevant := effectiveSourceRelevant(stats.Relevant, stats.Eligible, professional)
-				evidence = jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "effective_relevant": effectiveRelevant, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "curated_unique": stats.CuratedUnique, "successful_passes": stats.SuccessfulPasses, "review_samples": auditSamples}
-				for key, value := range displayEvidence {
+				for key, value := range (jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "effective_relevant": effectiveRelevant, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "curated_unique": stats.CuratedUnique, "successful_passes": stats.SuccessfulPasses, "review_samples": auditSamples}) {
 					evidence[key] = value
 				}
 				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: effectiveRelevant, FreshUnique: stats.FreshUnique, CuratedUnique: stats.CuratedUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates}, policy)
