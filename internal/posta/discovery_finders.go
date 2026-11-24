@@ -380,7 +380,7 @@ func discoveryBlueskyPostAuthors(data []byte) ([]DiscoveryCandidate, error) {
 // Require word-level evidence rather than fuzzy substring matches: SMM must
 // not match MMA (nor should a broad result be deemed topical just because
 // Bluesky returned it). This is a cheap prefilter, never final approval.
-func blueskyQueryEvidenceMatch(query, evidence string) bool {
+func discoveryQueryEvidenceMatch(query, evidence string) bool {
 	tokenize := func(text string) []string {
 		words := strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
 			return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '+' && r != '#'
@@ -443,7 +443,7 @@ func discoveryBlueskyRelevantPostAuthors(data []byte, query string) ([]Discovery
 		// Duplicate results or copy-pasted captions do not constitute two
 		// independent examples of a publisher's topical focus.
 		key := post.Author.DID + "|" + strings.ToLower(collapseSpaces(body))
-		if !seenText[key] && blueskyQueryEvidenceMatch(query, body) {
+		if !seenText[key] && discoveryQueryEvidenceMatch(query, body) {
 			matched[post.Author.DID]++
 			seenText[key] = true
 		}
@@ -451,7 +451,7 @@ func discoveryBlueskyRelevantPostAuthors(data []byte, query string) ([]Discovery
 	out := make([]DiscoveryCandidate, 0, len(all))
 	for _, candidate := range all {
 		did := strings.TrimSuffix(strings.TrimPrefix(candidate.ID, "https://bsky.app/profile/"), "/rss")
-		if matched[did] >= 2 || matched[did] == 1 && blueskyQueryEvidenceMatch(query,
+		if matched[did] >= 2 || matched[did] == 1 && discoveryQueryEvidenceMatch(query,
 			jx.Str(candidate.Info, "title")+" "+jx.Str(candidate.Info, "handle")) {
 			out = append(out, candidate)
 		}
@@ -473,7 +473,7 @@ func (u *U) discoveryFindBluesky(queries []string) []DiscoveryCandidate {
 				u.discoverySearchObservation("bluesky", q, "ok")
 			}
 			for _, c := range found {
-				if !blueskyQueryEvidenceMatch(q, jx.Str(c.Info, "title")+" "+jx.Str(c.Info, "handle")+" "+jx.Str(c.Info, "description")) {
+				if !discoveryQueryEvidenceMatch(q, jx.Str(c.Info, "title")+" "+jx.Str(c.Info, "handle")+" "+jx.Str(c.Info, "description")) {
 					continue
 				}
 				c.Origin, c.OriginKind = "поиск аккаунтов Bluesky «"+q+"»", "other"
