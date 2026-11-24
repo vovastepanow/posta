@@ -942,9 +942,9 @@ func autopilotAssessablePostCandidates(by map[string][]jx.M, at int64, limit int
 				continue
 			}
 			filtered[platform] = append(filtered[platform], safe[0])
-			if len(bySource[source]) < autopilotPostHintLimit {
-				bySource[source] = append(bySource[source], safe[0])
-			}
+			// Deduplicate before capping so repeated search hits cannot
+			// displace a different post from the same author.
+			bySource[source] = autopilotSafePostHints(source, append(bySource[source], safe[0]), at)
 			total++
 		}
 	}
