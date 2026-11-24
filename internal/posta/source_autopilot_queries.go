@@ -75,8 +75,10 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 		rows, err := a.DB.Pool.Query(ctx, `SELECT q.query,
 			count(DISTINCT e.content_hash) FILTER (WHERE s.state IN ('probation','active') AND e.eligible AND e.content_hash<>'' AND NOT EXISTS
 				(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful,
+			count(DISTINCT s.source_id) FILTER (WHERE s.state IN ('probation','active') AND e.eligible AND e.content_hash<>'' AND NOT EXISTS
+				(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful_sources,
 			count(DISTINCT s.source_id) FILTER (WHERE s.state='rejected' AND s.reason IN
-				('preliminary_topic_mismatch','off_topic_group','observed_irrelevant','observed_ad_or_duplicates','observed_low_yield')) AS off_topic
+				('observed_irrelevant','observed_ad_or_duplicates','observed_low_yield')) AS observed_bad
 			FROM source_autopilot_query_sources q
 			JOIN source_autopilot_sources s ON s.scope=q.scope AND s.topic_key=q.topic_key AND s.source_id=q.source_id
 			LEFT JOIN source_autopilot_post_evidence e ON e.scope=q.scope AND e.topic_key=q.topic_key AND e.source_id=q.source_id AND e.published_at >= $3
@@ -87,16 +89,12 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 		}
 		for rows.Next() {
 			var q string
-			var useful, offTopic int64
-			if err := rows.Scan(&q, &useful, &offTopic); err != nil {
+			var useful, usefulSources, observedBad int64
+			if err := rows.Scan(&q, &useful, &usefulSources, &observedBad); err != nil {
 				rows.Close()
 				return "", err
 			}
-			// Useful unique posts dominate, but consistently off-topic
-			// discoveries make a query less attractive. Unsupported formats,
-			// temporary errors and unverified candidates carry no penalty.
-			// With no positive net yield, we keep exploring other queries.
-			scores[q] = 20*useful - 3*offTopic
+			scores[q] = autopilotQueryQualityScore(useful, usefulSources, observedBad)
 		}
 		err = rows.Err()
 		rows.Close()
@@ -142,6 +140,18 @@ func autopilotCleanDiscoveryQueries(topic string, choices []string) []string {
 		clean = []string{topic}
 	}
 	return clean
+}
+
+// Rank by observed source-level precision first, with a small prior to
+// avoid declaring a query perfect from one lucky hit. Useful unique posts
+// break close ties but a prolific source cannot compensate for many bad
+// publishers. Preliminary rejections and unavailable feeds are unknown,
+// not independently observed negative outcomes.
+func autopilotQueryQualityScore(useful, usefulSources, observedBad int64) int64 {
+	if useful <= 0 || usefulSources <= 0 || observedBad < 0 {
+		return 0
+	}
+	return 10000*usefulSources/(usefulSources+observedBad+2) + min(useful, int64(99))
 }
 
 // Explore rapidly until at least one query produces eligible unique posts.
