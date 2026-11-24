@@ -202,10 +202,16 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 	if direct {
 		table, age = "source_autopilot_direct_results", autopilotDirectMaxAge
 	}
+	// Direct results are independent of the source trial. Old source-feed
+	// assessments remain stored, but cannot deliver again until rechecked.
+	recheckFilter := ""
+	if !direct {
+		recheckFilter = " AND assessed_at >= " + autopilotFullRecheckEpochSQL
+	}
 	// Both table names are constants owned by this function.
 	rows, err := a.DB.Pool.Query(ctx, `SELECT post,analysis,assessed_at FROM `+table+`
 		WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND published_at >= $4
-		AND policy_version=$5 ORDER BY published_at DESC LIMIT 100`,
+		AND policy_version=$5`+recheckFilter+` ORDER BY published_at DESC LIMIT 100`,
 		job.Scope, job.TopicKey, source, time.Now().Add(-age).Unix(), TopicProfileVersion)
 	if err != nil {
 		return err

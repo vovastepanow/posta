@@ -31,10 +31,10 @@ func autopilotYieldEvidenceWindow(ctx context.Context, q db.Querier, scope, key,
 	err := q.QueryRow(ctx, `WITH trial AS (
 		SELECT COALESCE(max(at),0) AS started FROM source_autopilot_decisions
 		WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND old_state IN ('candidate','active')
-		AND new_state='probation' AND at < $5
+		AND new_state='probation' AND at < $5 AND at >= `+autopilotFullRecheckEpochSQL+`
 	), latest AS (
 		SELECT DISTINCT ON (post_hash) post_hash,content_hash,published_at,observed_at,eligible
-		FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND observed_at < $5
+		FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND observed_at < $5 AND observed_at >= `+autopilotFullRecheckEpochSQL+`
 		ORDER BY post_hash,policy_version DESC
 	), recent AS (
 		SELECT * FROM latest WHERE published_at >= $4 AND published_at < $5

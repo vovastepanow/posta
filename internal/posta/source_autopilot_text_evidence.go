@@ -46,7 +46,7 @@ func (a *App) autopilotHasSavedResult(ctx context.Context, job *autopilotJob, so
 		return true, nil
 	}
 	var saved bool
-	err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_content_results WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5)`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&saved)
+	err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_content_results WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5 AND assessed_at >= `+autopilotFullRecheckEpochSQL+`)`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&saved)
 	return saved, err
 }
 
@@ -57,7 +57,7 @@ func (a *App) refreshAutopilotMedia(ctx context.Context, job *autopilotJob, sour
 		return true, nil
 	}
 	var raw []byte
-	err := a.DB.Pool.QueryRow(ctx, `SELECT post FROM source_autopilot_content_results WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&raw)
+	err := a.DB.Pool.QueryRow(ctx, `SELECT post FROM source_autopilot_content_results WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5 AND assessed_at >= `+autopilotFullRecheckEpochSQL+``, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -260,7 +260,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 		}
 		postHash := repeatDigest(CandidatePostKey(post))
 		var exists, wasEligible bool
-		if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5), COALESCE((SELECT eligible FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5),false)`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&exists, &wasEligible); err != nil {
+		if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5 AND observed_at >= `+autopilotFullRecheckEpochSQL+`), COALESCE((SELECT eligible FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5 AND observed_at >= `+autopilotFullRecheckEpochSQL+`),false)`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&exists, &wasEligible); err != nil {
 			return err
 		}
 		if exists {
@@ -346,7 +346,7 @@ func (a *App) assessAutopilotVideoPost(ctx context.Context, job *autopilotJob, s
 	entry := autopilotPostAuditEntry(ctx, post)
 	postHash := repeatDigest(CandidatePostKey(post))
 	var exists, wasEligible bool
-	if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5), COALESCE((SELECT eligible FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5),false)`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&exists, &wasEligible); err != nil {
+	if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5 AND observed_at >= `+autopilotFullRecheckEpochSQL+`), COALESCE((SELECT eligible FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5 AND observed_at >= `+autopilotFullRecheckEpochSQL+`),false)`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&exists, &wasEligible); err != nil {
 		return err
 	}
 	if exists {
@@ -514,7 +514,7 @@ func (a *App) assessAutopilotImagePost(ctx context.Context, job *autopilotJob, s
 	entry := autopilotPostAuditEntry(ctx, post)
 	postHash := repeatDigest(CandidatePostKey(post))
 	var exists, wasEligible bool
-	if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5), COALESCE((SELECT eligible FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5),false)`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&exists, &wasEligible); err != nil {
+	if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5 AND observed_at >= `+autopilotFullRecheckEpochSQL+`), COALESCE((SELECT eligible FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5 AND observed_at >= `+autopilotFullRecheckEpochSQL+`),false)`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&exists, &wasEligible); err != nil {
 		return err
 	}
 	if exists {

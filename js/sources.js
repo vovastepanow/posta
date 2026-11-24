@@ -417,6 +417,11 @@ function renderAutopilot(data) {
                         probation_full: 'старое ограничение испытания',
                         sparse_publisher: 'редко публикуют'
                     })[reason] || reason) + ': ' + number(count)).join(' · ') || 'нет кандидатов' }),
+                topic.audit_funnel?.full_recheck?.scheduled ? el('span', { textContent: 'Полная повторная проверка: ' +
+                    number(topic.audit_funnel.full_recheck.scheduled) + ' источников поставлено в очередь · ' +
+                    number(topic.audit_funnel.full_recheck.waiting_first_check) + ' ожидают первого прохода · ' +
+                    number(topic.audit_funnel.full_recheck.preliminary_checked) + ' с новой предварительной оценкой · ' +
+                    number(topic.audit_funnel.full_recheck.fresh_post_assessment) + ' с новой проверкой постов.' }) : '',
                 topic.audit_funnel ? el('span', { textContent: 'Воронка сохранённых данных: ' +
                     number(topic.audit_funnel.sources) + ' источников · ' +
                     number(topic.audit_funnel.sources_with_fetch) + ' с успешным чтением · ' +

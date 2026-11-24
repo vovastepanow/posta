@@ -86,6 +86,15 @@ func AutopilotAuditFunnel(ctx context.Context, q db.Querier, scope, key string, 
 		'stages',COALESCE((SELECT jsonb_object_agg(stage,n) FROM (SELECT stage,count(*) AS n FROM per_source GROUP BY stage) a),'{}'::jsonb),
 		'stage_state_reason',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY stage,state,reason) FROM
 			(SELECT stage,state,reason,count(*) AS sources FROM per_source GROUP BY stage,state,reason) b),'[]'::jsonb),
+		'full_recheck', (SELECT jsonb_build_object(
+			'scheduled',count(*),
+			'waiting_first_check',count(*) FILTER (WHERE checked_at < (evidence->>'full_recheck_at')::bigint OR reason IN ('full_recheck_v4_scheduled','periodic_reconsideration','cooldown_elapsed')),
+			'preliminary_checked',count(*) FILTER (WHERE evidence ? 'review_policy_v3_checked'),
+			'fresh_post_assessment',count(*) FILTER (WHERE CASE WHEN jsonb_typeof(evidence->'post_audit_at')='number'
+				THEN (evidence->>'post_audit_at')::numeric >= (evidence->>'full_recheck_at')::bigint ELSE false END),
+			'current_states',COALESCE((SELECT jsonb_object_agg(state,n) FROM (
+				SELECT state,count(*) AS n FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND evidence ? 'full_recheck_at' GROUP BY state) v),'{}'::jsonb))
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND evidence ? 'full_recheck_at'),
 		'discovery_paths',COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY discovery_origin) FROM (
 			SELECT discovery_origin,count(*) AS sources,
 				count(*) FILTER (WHERE passes>0) AS readable,

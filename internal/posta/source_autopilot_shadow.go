@@ -456,6 +456,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	if _, err := a.autopilotImportLegacyPending(ctx, job, 60); err != nil {
 		return err
 	}
+	if err := a.autopilotQueueFullRecheck(ctx, job); err != nil {
+		return err
+	}
 	if job.Scope == autopilotAutoScope {
 		// Source suggestions originating from fully accepted posts enter the
 		// same candidate verification queue as backend discoveries.
@@ -1809,6 +1812,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			CASE WHEN jsonb_typeof(s.evidence->'search_rank')='number'
 				THEN (s.evidence->>'search_rank')::numeric ELSE 1000000 END AS search_rank,
 			(s.evidence ? 'review_policy_v3_scheduled' AND NOT (s.evidence ? 'review_policy_v3_checked')) AS reaudit,
+			(s.evidence ? 'full_recheck_at' AND s.checked_at < (s.evidence->>'full_recheck_at')::bigint) AS fresh_recheck,
 			(s.state IN ('candidate','rejected') AND s.evidence ? 'preliminary_probe_scheduled' AND NOT (s.evidence ? 'preliminary_post_probe')) AS probe_priority,
 			COALESCE(s.evidence @> '{"yield_pilot":true}'::jsonb,false) AS pilot,
 			COALESCE(s.evidence->'preliminary_post_probe' @> jsonb_build_object('has_eligible',true,'policy_version',$5::integer),false) AS probe_positive,
@@ -1831,7 +1835,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
 	), ranked AS (
 		SELECT source_id,state,resume_state,lane,reaudit,pilot,probe_positive,
-			row_number() OVER (PARTITION BY lane ORDER BY probe_priority DESC,reaudit DESC,checked_at,first_seen_at,search_rank,source_id) AS lane_rank
+			row_number() OVER (PARTITION BY lane ORDER BY fresh_recheck DESC NULLS LAST,probe_priority DESC,reaudit DESC,checked_at,first_seen_at,search_rank,source_id) AS lane_rank
 		FROM due
 	)
 	SELECT source_id,state,resume_state,reaudit,pilot,probe_positive FROM ranked
