@@ -3,9 +3,12 @@ package posta
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"posta/internal/jx"
@@ -73,9 +76,8 @@ func autopilotBlueskyTextPosts(data []byte, at int64) ([]jx.M, error) {
 		}
 		profile := "https://bsky.app/profile/" + did
 		source := "rss:" + profile + "/rss"
-		post := jx.M{"url": profile + "/post/" + key, "source_url": profile,
-			"source_key": source, "source": row.Author.DisplayName, "platform": PlatformRSS,
-			"posted_at": stamp.Unix(), "text": strings.TrimSpace(row.Record.Text)}
+		post := searchPost(PlatformRSS, source, profile, "", strings.TrimSpace(row.Record.Text), "", "", profile+"/post/"+key, stamp.Unix())
+		post["source"] = row.Author.DisplayName
 		if len(autopilotSafePostHints(source, []jx.M{post}, at)) != 1 {
 			continue
 		}
@@ -88,12 +90,135 @@ func autopilotBlueskyTextPosts(data []byte, at int64) ([]jx.M, error) {
 	return out, nil
 }
 
-func (u *U) autopilotSearchBlueskyPosts(query string) ([]jx.M, error) {
-	endpoint := "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?limit=25&sort=latest&q=" + url.QueryEscape(query)
-	r := u.RSSGet(endpoint, 2<<20, 12*time.Second, HTTPUA)
-	p, err := url.Parse(r.URL)
-	if !r.OK || err != nil || p.Scheme != "https" || p.Host != "public.api.bsky.app" || p.User != nil || p.Path != "/xrpc/app.bsky.feed.searchPosts" {
-		return nil, errors.New("public Bluesky post search unavailable")
+const autopilotBlueskyAPI = "https://public.api.bsky.app/xrpc/"
+
+var errAutopilotBlueskySearchRestricted = errors.New("Bluesky global post search requires access")
+var autopilotBlueskyPostSearchPause struct {
+	sync.Mutex
+	until time.Time
+}
+
+// Only pause the restricted global post search, not public actor or feed reads.
+func (u *U) autopilotBlueskySearchData(query string) ([]byte, error) {
+	autopilotBlueskyPostSearchPause.Lock()
+	paused := time.Now().Before(autopilotBlueskyPostSearchPause.until)
+	autopilotBlueskyPostSearchPause.Unlock()
+	if paused {
+		return nil, errAutopilotBlueskySearchRestricted
 	}
-	return autopilotBlueskyTextPosts(r.Bytes, time.Now().Unix())
+	endpoint := autopilotBlueskyAPI + "app.bsky.feed.searchPosts?limit=25&sort=latest&q=" + url.QueryEscape(query)
+	r, err := u.FetchPublic(endpoint, FetchOpts{MaxBytes: 2 << 20, Timeout: 12*time.Second, UserAgent: HTTPUA, Headers: map[string]string{"Accept": "application/json"}})
+	if err != nil {
+		return nil, err
+	}
+	if r.Status == http.StatusUnauthorized || r.Status == http.StatusForbidden {
+		autopilotBlueskyPostSearchPause.Lock()
+		autopilotBlueskyPostSearchPause.until = time.Now().Add(6*time.Hour)
+		autopilotBlueskyPostSearchPause.Unlock()
+		return nil, errAutopilotBlueskySearchRestricted
+	}
+	if !r.OK {
+		return nil, fmt.Errorf("Bluesky post search HTTP %d", r.Status)
+	}
+	return r.Bytes, nil
+}
+
+// An author feed may include reposts and replies. Only a record written by
+// the requested stable DID is eligible, not a quoted or republished record.
+func autopilotBlueskyAuthorTextPosts(data []byte, did string, at int64) ([]jx.M, error) {
+	if !blueskyDID.MatchString(did) {
+		return nil, errors.New("invalid Bluesky author")
+	}
+	var response struct {
+		Feed []struct {
+			Post json.RawMessage `json:"post"`
+			Reason json.RawMessage `json:"reason"`
+			Reply json.RawMessage `json:"reply"`
+		} `json:"feed"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	if response.Feed == nil {
+		return nil, errors.New("unrecognized Bluesky author feed")
+	}
+	records := make([]json.RawMessage, 0, len(response.Feed))
+	for _, row := range response.Feed {
+		if (len(row.Reason)>0 && string(row.Reason)!="null") || (len(row.Reply)>0 && string(row.Reply)!="null") {
+			continue
+		}
+		if len(row.Post)>0 {
+			records = append(records,row.Post)
+		}
+	}
+	body, err := json.Marshal(map[string][]json.RawMessage{"posts":records})
+	if err != nil {
+		return nil, err
+	}
+	posts, err := autopilotBlueskyTextPosts(body, at)
+	if err != nil {
+		return nil, err
+	}
+	var out []jx.M
+	for _, post := range posts {
+		if jx.Str(post,"source_key") == "rss:https://bsky.app/profile/"+did+"/rss" {
+			out = append(out,post)
+		}
+	}
+	return out,nil
+}
+
+// A bounded fallback uses public actor search and author feeds. The
+// individual posts still go through the existing independent AI gate.
+func autopilotBlueskyAuthorFallback(query string, at int64, fetch func(string)([]byte,error)) ([]jx.M,error) {
+	body,err := fetch(autopilotBlueskyAPI+"app.bsky.actor.searchActors?limit=12&q="+url.QueryEscape(query))
+	if err!=nil {
+		return nil,err
+	}
+	actors,err:=discoveryBlueskyActors(body)
+	if err!=nil {
+		return nil,err
+	}
+	seen:=map[string]bool{}
+	var out []jx.M
+	var lastErr error
+	attempted, successful:=0,0
+	for _, actor:=range actors {
+		did:=autopilotBlueskyProfileDID(strings.TrimSuffix(actor.ID,"/rss"))
+		if did=="" || seen[did] {
+			continue
+		}
+		seen[did]=true
+		if attempted>=3 {
+			break
+		}
+		attempted++
+		data,err:=fetch(autopilotBlueskyAPI+"app.bsky.feed.getAuthorFeed?limit=12&filter=posts_no_replies&actor="+url.QueryEscape(did))
+		if err!=nil {
+			lastErr=err
+			continue
+		}
+		posts,err:=autopilotBlueskyAuthorTextPosts(data,did,at)
+		if err!=nil {
+			lastErr=err
+			continue
+		}
+		successful++
+		out=append(out,posts...)
+	}
+	if successful==0 && lastErr!=nil {
+		return nil,lastErr
+	}
+	return out,nil
+}
+
+func (u *U) autopilotSearchBlueskyPosts(query string) ([]jx.M, error) {
+	data, err := u.autopilotBlueskySearchData(query)
+	if errors.Is(err, errAutopilotBlueskySearchRestricted) {
+		return autopilotBlueskyAuthorFallback(query,time.Now().Unix(),u.searchGetJSON)
+	}
+	if err != nil {
+		return nil,err
+	}
+	return autopilotBlueskyTextPosts(data,time.Now().Unix())
 }

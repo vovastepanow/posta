@@ -487,7 +487,7 @@ func (u *U) discoveryFindBluesky(queries []string) []DiscoveryCandidate {
 			}
 			u.Log("-> Bluesky «%s»: %s", q, err)
 		}
-		body, err = u.searchGetJSON("https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?limit=25&q=" + url.QueryEscape(q))
+		body, err = u.autopilotBlueskySearchData(q)
 		if err != nil {
 			if u.discoverySearchObservation != nil {
 				u.discoverySearchObservation("bluesky", q, "unavailable")
