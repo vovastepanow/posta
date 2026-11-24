@@ -3,6 +3,7 @@ package posta
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,9 +46,13 @@ func autopilotPostMatchesSource(source string, post jx.M) bool {
 		if host != "t.me" && host != "telegram.me" {
 			return false
 		}
-		path := strings.Trim(link.Path, "/")
-		path = strings.TrimPrefix(path, "s/")
-		return strings.EqualFold(strings.SplitN(path, "/", 2)[0], id)
+		path := strings.TrimPrefix(strings.Trim(link.Path, "/"), "s/")
+		parts := strings.Split(path, "/")
+		if link.Scheme != "https" || link.Port() != "" || len(parts) != 2 || !strings.EqualFold(parts[0], id) {
+			return false
+		}
+		postID, err := strconv.ParseUint(parts[1], 10, 64)
+		return err == nil && postID > 0
 	case PlatformVK:
 		if host != "vk.com" && host != "m.vk.com" && host != "www.vk.com" {
 			return false

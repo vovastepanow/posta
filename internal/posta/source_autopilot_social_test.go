@@ -224,3 +224,13 @@ func TestAutopilotSocialProjectionAndPersonalControlPostgres(t *testing.T) {
 		}
 	}
 }
+
+
+func TestAutopilotTelegramPageDoesNotAttributeForeignPosts(t *testing.T) {
+	date := time.Now().UTC().Format(time.RFC3339)
+	page := fmt.Sprintf(`<div class="tgme_widget_message" data-post="ForeignChannel/123"><div class="tgme_widget_message_text">Foreign text</div><time datetime="%s"></time></div><div class="tgme_widget_message" data-post="ExampleChannel/123"><div class="tgme_widget_message_text">Own text</div><time datetime="%s"></time></div><div class="tgme_widget_message" data-post="ForeignChannel/456"><div class="tgme_widget_message_text">Another foreign text</div><time datetime="%s"></time></div>`,date,date,date)
+	posts,err := autopilotPublicSocialPosts(PlatformTelegram,"examplechannel",FetchResultURL{URL:"https://t.me/s/examplechannel",FetchResult:FetchResult{Bytes:[]byte(page)}})
+	if err!=nil || len(posts)!=1 || jx.Str(posts[0],"text")!="Own text" || jx.Str(posts[0],"url")!="https://t.me/examplechannel/123" {
+		t.Fatalf("foreign or incorrectly attributed posts: %+v %v",posts,err)
+	}
+}

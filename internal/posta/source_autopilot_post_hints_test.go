@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -42,7 +43,7 @@ func TestAutopilotSafePostHintsBounded(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		posts = append(posts, jx.M{
 			"source_url": "https://t.me/marketing_digest",
-			"url":        "https://t.me/marketing_digest/" + string(rune('a'+i)),
+			"url":        "https://t.me/marketing_digest/" + strconv.Itoa(i+1),
 			"posted_at":  at,
 			"text":       "Полезная публикация",
 		})
@@ -89,6 +90,10 @@ func TestAutopilotPostMatchesSourceRejectsImpersonation(t *testing.T) {
 		{"telegram:marketing_digest", "https://t.me/marketing_digest/1", "https://t.me/marketing_digest", true},
 		{"telegram:marketing_digest", "https://evil.example.org/post/1", "https://t.me/marketing_digest", false},
 		{"telegram:marketing_digest", "https://t.me/other_channel/1", "https://t.me/marketing_digest", false},
+		{"telegram:marketing_digest", "https://t.me/marketing_digest", "https://t.me/marketing_digest", false},
+		{"telegram:marketing_digest", "https://t.me/marketing_digest/not_a_post", "https://t.me/marketing_digest", false},
+		{"telegram:marketing_digest", "https://t.me/marketing_digest/0", "https://t.me/marketing_digest", false},
+		{"telegram:marketing_digest", "https://t.me/s/Marketing_Digest/123", "https://t.me/marketing_digest", true},
 		{"vk:club12345", "https://vk.com/wall-12345_8", "https://vk.com/club12345", true},
 		{"vk:club12345", "https://vk.com/wall-99999_8", "https://vk.com/club12345", false},
 		{"vk:club12345", "https://other.example.org/post", "https://vk.com/club12345", false},

@@ -618,7 +618,7 @@ func TestAutopilotLiveTelegramIndex(t *testing.T) {
 	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
 		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	u := (&App{}).User(ctx, "", nil)
 	got, err := u.autopilotTelegramIndexRequest("продвижение в социальных сетях")
@@ -630,7 +630,11 @@ func TestAutopilotLiveTelegramIndex(t *testing.T) {
 		t.Logf("TELEGRAM CANDIDATE: id=%q title=%q", c.ID, jx.Str(c.Info, "title"))
 	}
 	usable := 0
-	for _, c := range got[:min(2, len(got))] {
+	for _, c := range got {
+		if ctx.Err() != nil {
+			break
+		}
+		HostThrottle("t.me", 1500*time.Millisecond)
 		r := u.RSSGet("https://t.me/s/"+c.ID, rssMaxBytes, 10*time.Second, BrowserUA)
 		if !r.OK {
 			t.Logf("TELEGRAM FEED: id=%q status=%d", c.ID, r.Status)
@@ -638,11 +642,42 @@ func TestAutopilotLiveTelegramIndex(t *testing.T) {
 		}
 		posts, err := autopilotPublicSocialPosts(PlatformTelegram, c.ID, r)
 		t.Logf("TELEGRAM FEED: id=%q posts=%d error=%v", c.ID, len(posts), err)
+		for _, post := range posts[:min(3,len(posts))] {
+			t.Logf("TELEGRAM SAMPLE: id=%q url=%q posted=%d media=%t text=%q",c.ID,jx.Str(post,"url"),jx.Int(post,"posted_at"),PostItemHasMedia(post),trimRunes(AnalysisText(post),180))
+		}
 		if err == nil && len(posts) > 0 {
 			usable++
 		}
 	}
+	t.Logf("TELEGRAM SUMMARY: candidates=%d usable_feeds=%d",len(got),usable)
 	if usable == 0 {
 		t.Skip("search works, but sampled channel pages unavailable")
+	}
+}
+
+
+func TestAutopilotLiveBlueskyAuthorFallback(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx,cancel:=context.WithTimeout(context.Background(),45*time.Second)
+	defer cancel()
+	u:=(&App{}).User(ctx,"",nil)
+	_,globalErr:=u.autopilotBlueskySearchData("photography")
+	t.Logf("BLUESKY GLOBAL: error=%v",globalErr)
+	posts,err:=autopilotBlueskyAuthorFallback("photography",time.Now().Unix(),func(raw string)([]byte,error){
+		p,_:=url.Parse(raw)
+		body,err:=u.searchGetJSON(raw)
+		t.Logf("BLUESKY AUTHOR API: endpoint=%s bytes=%d error=%v",p.Path,len(body),err)
+		return body,err
+	})
+	t.Logf("BLUESKY FALLBACK: safe_recent_text_posts=%d error=%v",len(posts),err)
+	if err!=nil || len(posts)==0 {
+		t.Skip("author fallback could not produce independently assessable recent text in this environment")
+	}
+	for _,post:=range posts{
+		if !autopilotPostMatchesSource(jx.Str(post,"source_key"),post){
+			t.Fatal("foreign author returned from fallback")
+		}
 	}
 }

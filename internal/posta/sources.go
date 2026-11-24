@@ -434,7 +434,7 @@ func (a *App) FetchTelegramChannelPage(channel string, before int64) string {
 	return string(b)
 }
 
-type tgBlock struct{ ID, Content string }
+type tgBlock struct{ Channel, ID, Content string }
 
 var dataPostRe = regexp.MustCompile(`data-post="([^"]+)"`)
 
@@ -450,7 +450,7 @@ func TelegramPageBlocks(page string) []tgBlock {
 		}
 		parts := strings.SplitN(full, "/", 2)
 		if len(parts) == 2 && dvachIDRe.MatchString(parts[1]) {
-			out = append(out, tgBlock{parts[1], page[l[1]:end]})
+			out = append(out, tgBlock{parts[0], parts[1], page[l[1]:end]})
 		}
 	}
 	return out
@@ -496,9 +496,13 @@ type tgEngagement struct {
 }
 
 func TelegramPageEngagement(page string) (map[string]tgEngagement, []string) {
+	return telegramPageEngagementBlocks(TelegramPageBlocks(page))
+}
+
+func telegramPageEngagementBlocks(blocks []tgBlock) (map[string]tgEngagement, []string) {
 	out := map[string]tgEngagement{}
 	var order []string
-	for _, b := range TelegramPageBlocks(page) {
+	for _, b := range blocks {
 		r := map[string]int64{}
 		for _, m := range reactionRe.FindAllStringSubmatch(b.Content, -1) {
 			r[m[1]] += TelegramParseCounter(m[2])
@@ -701,8 +705,17 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 	if m := channelTitleRe.FindStringSubmatch(page); m != nil {
 		channelTitle = CleanHTMLText(m[1])
 	}
-	eng, _ := TelegramPageEngagement(page)
+	// A public channel page may include other embedded posts. Never
+	// attribute a foreign data-post identifier to the requested channel.
 	blocks := TelegramPageBlocks(page)
+	own := blocks[:0]
+	for _, b := range blocks {
+		if strings.EqualFold(b.Channel, channel) {
+			own = append(own, b)
+		}
+	}
+	blocks = own
+	eng, _ := telegramPageEngagementBlocks(blocks)
 	posts := []jx.M{}
 	for i := len(blocks) - 1; i >= 0 && len(posts) < count; i-- {
 		b := blocks[i]
