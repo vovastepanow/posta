@@ -121,8 +121,11 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(sum(used) FILTER (WHERE resource='public_fetch'),0),COALESCE(sum(used) FILTER (WHERE resource='llm_attempt'),0) FROM source_autopilot_budget WHERE scope=$1 AND day=(now() AT TIME ZONE 'UTC')::date`, autopilotAutoScope+":"+key).Scan(&fetchUsed, &modelUsed); err != nil {
 			return nil, err
 		}
+		row["fetch_limit"], row["model_limit"] = u.TInt("autopilot_fetch_topic_daily"), u.TInt("autopilot_model_topic_daily")
+		row["fetch_used"], row["model_used"] = fetchUsed, modelUsed
 		row["fetch_remaining"] = max(0, int64(u.TInt("autopilot_fetch_topic_daily"))-fetchUsed)
 		row["model_remaining"] = max(0, int64(u.TInt("autopilot_model_topic_daily"))-modelUsed)
+		row["budget_resets_at"] = time.Now().UTC().Truncate(24 * time.Hour).Add(24 * time.Hour).Unix()
 		row["server_fetch_remaining"], row["server_model_remaining"] = serverFetchRemaining, serverModelRemaining
 		row["server_fetch_limit"], row["server_model_limit"] = u.TInt("autopilot_fetch_server_daily"), u.TInt("autopilot_model_server_daily")
 		var next, lease int64

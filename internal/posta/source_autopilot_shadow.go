@@ -189,8 +189,8 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 		// A previous day-cap failure must not keep the job asleep until
 		// midnight after an administrator increases the cap (or after defaults
 		// are upgraded). Resume only when the persisted ledgers confirm spare
-		// fetch, model AND paid capacity. If the account explicitly retains
-		// the old 1000-fetch limit, its intentional quota remains respected.
+		// fetch, model AND paid capacity. Respect explicit administrator
+		// limits and never clear or refund charged attempts.
 		if enabled {
 			paidLimitMicro := int64(min(0.10, a.TFloat("autopilot_paid_daily_usd"))*1000000 + 0.5)
 			if paidLimitMicro > 0 {
@@ -199,11 +199,8 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 					WHERE j.scope=$1 AND j.kind=$2 AND j.enabled AND j.demand_active
 					AND j.lease_until <= extract(epoch FROM clock_timestamp())::bigint
 					AND j.last_error=$4 AND j.next_run_at>$3
-					-- Only rescue the historical 1000-fetch cap. Other quota
-					-- backoffs (including paid limits) remain protected.
-					AND COALESCE((SELECT used FROM source_autopilot_budget
-						WHERE scope=(CASE WHEN j.scope='public:shadow' THEN 'public' ELSE j.scope END)||':'||j.topic_key
-						AND resource='public_fetch' AND day=(now() AT TIME ZONE 'UTC')::date),0) >= 1000
+					-- A raised topic model cap can also release a previously
+					-- exhausted job. Recheck all actual ledger limits below.
 					AND COALESCE((SELECT used FROM source_autopilot_budget
 						WHERE scope=(CASE WHEN j.scope='public:shadow' THEN 'public' ELSE j.scope END)||':'||j.topic_key
 						AND resource='public_fetch' AND day=(now() AT TIME ZONE 'UTC')::date),0) < $5
