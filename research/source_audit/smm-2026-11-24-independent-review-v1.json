@@ -20,12 +20,13 @@
     "Batch 010: ten new attempts 311–321 except previously reviewed 318; 36 partial excerpts; no gold labels or external AI consultation.",
     "Batch 011: ten new attempts 322–332 except previously reviewed 326; 38 partial excerpts; no gold labels or external AI consultation.",
     "Batch 012: 15 new source attempts 333–347; 62 excerpts; provisional probation for honestmarketing, mixed evidence for hrmrktng and insight_comcon. No external AI or final gold labels.",
-    "Batch 013: 15 new source attempts 348–362; 56 partial excerpts; provisional probation for ivanovaknows; no external AI consultation or gold labels."
+    "Batch 013: 15 new source attempts 348–362; 56 partial excerpts; provisional probation for ivanovaknows; no external AI consultation or gold labels.",
+    "Batch 014: 15 new attempts 363–377, 12 with 80 text/caption observations. Partial evidence; two provisional probation recommendations. No external AI or gold labels."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 176,
-    "structured_with_visible_post_samples": 105,
+    "structured_attempted": 191,
+    "structured_with_visible_post_samples": 117,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -43,7 +44,8 @@
     "batch_010_readable_texts": 36,
     "batch_011_readable_texts": 38,
     "batch_012_readable_texts": 62,
-    "batch_013_readable_texts": 56
+    "batch_013_readable_texts": 56,
+    "batch_014_readable_texts": 80
   },
   "rows": [
     {
@@ -12642,7 +12644,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/es/channels/1622730484-krabouttax/posts"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Лизинг машины через личный фонд",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1622730484-krabouttax/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Проверки льготных страховых взносов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1622730484-krabouttax/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ограничения ИИ в налоговых консультациях",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1622730484-krabouttax/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Налоговая схема перепродажи имущественного комплекса",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1622730484-krabouttax/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Налоговая практика; исторический снимок двухмесячной давности.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 364,
@@ -12654,7 +12707,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/ktagirova"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Лента не открылась; публикации в выдаче не установлены.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 365,
@@ -12666,7 +12733,112 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/kyrillic"
+        ],
+        "visible_post_samples": 10,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Удаленная работа на зарубежные компании",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/kyrillic"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Опрос об удаленных сотрудниках",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/kyrillic"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дейтинг айтишников",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/kyrillic"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Обсуждение семейного опыта",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/kyrillic"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Опрос о появлении детей",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/kyrillic"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Стабильность LLM и идеи для бизнеса",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/kyrillic"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отношение эмигрантов к оставшимся",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/kyrillic"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Налоговый обмен CRS",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/kyrillic"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Банковские оценки риска гражданства",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/kyrillic"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Исправления ошибок в авторских текстах",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/kyrillic"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Преимущественно эмиграция, работа и личные темы; последняя публикация смежна с редактурой, но не доказывает профильный поток.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 366,
@@ -12678,7 +12850,40 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1159346891-kyuzhanina"
+        ],
+        "visible_post_samples": 2,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Нетворкинг выпускников программы личного бренда",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1159346891-kyuzhanina"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс выступления о публичности предпринимателя",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1159346891-kyuzhanina"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Есть смежная тема личного бренда, но лишь два преимущественно событийных поста.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 367,
@@ -12690,7 +12895,121 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/latech"
+        ],
+        "visible_post_samples": 11,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Голосование за специалистов кибербезопасности",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отчет о форуме стажировок",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс стажировок с форума",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Набор стажеров DevOps и ИБ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Голосование за работодателей",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дайджест октября",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Повторное приглашение голосовать за работодателя",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Подборка IT-вакансий",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рейтинг IT-работодателей",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Вакансии с фото сотрудников",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс восстановления данных Kafka",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/latech"
+          }
+        ],
+        "recommendation": "reject_for_topic_provisional",
+        "reason": "Корпоративный карьерный канал и инженерные материалы. Самопродвижение не является экспертным материалом про SMM.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 368,
@@ -12702,7 +13021,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1395427241-legalexecutives"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Зеркало подтверждает handle, но тексты не изучены.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 369,
@@ -12714,7 +13047,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1767815469-legalinsightmagazine/posts"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Санкционное право и перевод ценных бумаг",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1767815469-legalinsightmagazine/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс сессии трансграничных споров",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1767815469-legalinsightmagazine/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Программа юридического форума",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1767815469-legalinsightmagazine/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Назначение главы юридической практики фармацевтики",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1767815469-legalinsightmagazine/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Юридический архив девятимесячной давности.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 370,
@@ -12726,7 +13110,31 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/2016031805-legalprocesses"
+        ],
+        "visible_post_samples": 1,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Бенчмарк договорной работы юридического отдела",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/2016031805-legalprocesses"
+          }
+        ],
+        "recommendation": "needs_more_evidence",
+        "reason": "Один индексированный фрагмент, нельзя оценить долю тем.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 371,
@@ -12738,7 +13146,94 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/mads_courses"
+        ],
+        "visible_post_samples": 8,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Критерии уместности мемов в контенте бренда",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/mads_courses"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Процесс разработки креативной идеи",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/mads_courses"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс ESG-воркшопа",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/mads_courses"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отчет о трендах инфлюенс-маркетинга и рейтинг блогеров",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/mads_courses"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс лекции об усталости аудитории",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/mads_courses"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Продажа пакета курсов по генеративному визуалу",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/mads_courses"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс недели фестивального креатива",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/mads_courses"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Польза фестивальных наград агентствам",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/mads_courses"
+          }
+        ],
+        "recommendation": "probation_provisional",
+        "reason": "Релевантны мемы в коммуникации бренда, инфлюенс-маркетинг и креативы; много анонсов и продаж, пробация нужна для измерения полезного выхода.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 372,
@@ -12750,7 +13245,85 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1626002518-maratyus/posts"
+        ],
+        "visible_post_samples": 7,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отчет о ходе аукциона рекламы на ноутбуке",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1626002518-maratyus/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Запуск аукциона с освещением в авторских видео",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1626002518-maratyus/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рекламная монетизация ChatGPT",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1626002518-maratyus/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рынок средств против облысения",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1626002518-maratyus/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Личная заметка об общении интроверта",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1626002518-maratyus/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Интервью о выборе между производством и брендом",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1626002518-maratyus/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс конференции о вайбкодинге",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1626002518-maratyus/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Интересный авторский рекламный эксперимент, но несколько записей относятся к одному кейсу; архив двухмесячной давности.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 373,
@@ -12762,7 +13335,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/1336561208-marillionru/posts"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Защита международных инвестиций",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1336561208-marillionru/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Налоговый режим для самозанятых",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1336561208-marillionru/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Внедрение кадрового ЭДО",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1336561208-marillionru/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Управление кассовым разрывом",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1336561208-marillionru/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Консалтинг, право и финансы.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 374,
@@ -12781,7 +13405,166 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/marketingold"
+        ],
+        "visible_post_samples": 16,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Монетизация виртуальных инфлюенсеров",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шутка про полицейского",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Видео с непонятной без медиа подписью",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Спрос на товары для выживания",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шутка об энергии без контекста",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Неясный видеоролик",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Новости райдера певца",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шутка о самооценке",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шутка о кофейне",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Штрафы за отсутствие маркировки",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Неясный ролик о доставке еды",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Инфляция цен на маркетплейсах",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шрифтовая шутка без изображения",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ностальгический креатив с чесночником",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ролик о кавказской еде",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ситуативная акция KFC к релизу игры",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/marketingold"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Есть отдельные кейсы и монетизация авторов, но много медиа без достаточного текстового контекста. Без просмотра видео не делать окончательный отказ.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 375,
@@ -12793,7 +13576,130 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+        ],
+        "visible_post_samples": 12,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шутка о предпринимателях",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Продвижение услуг бизнес-консультанта",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Примеры позиционирования эксперта",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс поста о бесплатных консультациях",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Комментарий об интерфейсе MAX",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс кейса набора подписчиков Telegram из Threads",
+            "relevance": "relevant",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Первый рекламодатель нового канала",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение подписаться на MAX",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Еще одно приглашение в MAX",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Репост о реакции на запуск MAX",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс аудио о причинах запуска канала",
+            "relevance": "relevant",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс рекомендаций по темам экспертного контента",
+            "relevance": "relevant",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1312562888-mashapoluyanova/posts?cursor=ICg%3D"
+          }
+        ],
+        "recommendation": "probation_provisional",
+        "reason": "Архив подтверждает профильный авторский опыт: позиционирование, межплатформенный рост, монетизация. Много переходов на другую площадку и самопромо, нужны полные материалы и свежий поток.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 376,
@@ -12805,7 +13711,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/matron_olga"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента не открылась, совпадающие тексты не установлены.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 377,
@@ -12817,7 +13737,31 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_014": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/1575362072-mcwgsom"
+        ],
+        "visible_post_samples": 1,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Промокод для участников карьерного мероприятия",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1575362072-mcwgsom"
+          }
+        ],
+        "recommendation": "needs_more_evidence",
+        "reason": "Один поисковый фрагмент; зеркало при открытии вернуло 502.",
+        "coverage": "Partial excerpts; dates and individual permalinks not resolved. Text/captions only; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 378,
