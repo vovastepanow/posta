@@ -15,6 +15,7 @@ func TestAutopilotSourcePolicy(t *testing.T) {
 		// A curator can qualify through varied independently verified good
 		// reposts; reposting never turns into original-content credit.
 		{"probation", sourceEvidence{Evaluated: 10, Relevant: 9, FreshUnique: 0, CuratedUnique: 5, SuccessfulPasses: 3, Duplicates: 9}, "active", "observed_useful_curation"},
+		{"probation", sourceEvidence{Evaluated: 10, Relevant: 9, FreshUnique: 0, CuratedUnique: 3, SuccessfulPasses: 3, Duplicates: 9, SameSourceDuplicates: 6}, "rejected", "observed_ad_or_duplicates"},
 		{"probation", sourceEvidence{Evaluated: 10, Relevant: 9, FreshUnique: 0, CuratedUnique: 1, SuccessfulPasses: 3, Duplicates: 9}, "rejected", "observed_ad_or_duplicates"},
 		{"probation", sourceEvidence{Evaluated: 10, Relevant: 5, FreshUnique: 0, CuratedUnique: 4, SuccessfulPasses: 3, Duplicates: 9}, "rejected", "observed_ad_or_duplicates"},
 		{"probation", sourceEvidence{Evaluated: 10, Relevant: 9, FreshUnique: 0, CuratedUnique: 5, SuccessfulPasses: 1, Duplicates: 9}, "probation", "insufficient_evidence"},

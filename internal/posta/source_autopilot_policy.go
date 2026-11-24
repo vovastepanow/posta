@@ -6,7 +6,7 @@ import "math"
 // model failures are tracked separately and never enter the denominator.
 type sourceEvidence struct {
 	Evaluated, Relevant, FreshUnique, CuratedUnique, SuccessfulPasses int
-	Advertising, Duplicates                                           int
+	Advertising, Duplicates, SameSourceDuplicates                      int
 	TechnicalFailure                                                  bool
 	Eligible                                                          int
 	RequireEligible                                                   bool
@@ -40,7 +40,7 @@ func decideSourceState(state string, e sourceEvidence, p sourcePolicy) (string, 
 	if e.TechnicalFailure {
 		return state, "access_unavailable"
 	}
-	if p.MinEvaluated <= 0 || p.MinPasses <= 0 || p.MinFreshUnique <= 0 || math.IsNaN(p.PromoteRate) || math.IsNaN(p.DemoteRate) || math.IsNaN(p.MaxAdvertisingRate) || math.IsNaN(p.MaxDuplicateRate) || p.DemoteRate < 0 || p.PromoteRate > 1 || p.DemoteRate >= p.PromoteRate || p.MaxAdvertisingRate < 0 || p.MaxAdvertisingRate > 1 || p.MaxDuplicateRate < 0 || p.MaxDuplicateRate > 1 || e.Evaluated < 0 || e.Relevant < 0 || e.Relevant > e.Evaluated || e.FreshUnique < 0 || e.FreshUnique > e.Evaluated || e.CuratedUnique < 0 || e.CuratedUnique > e.Evaluated || e.SuccessfulPasses < 0 || e.Advertising < 0 || e.Advertising > e.Evaluated || e.Duplicates < 0 || e.Duplicates > e.Evaluated {
+	if p.MinEvaluated <= 0 || p.MinPasses <= 0 || p.MinFreshUnique <= 0 || math.IsNaN(p.PromoteRate) || math.IsNaN(p.DemoteRate) || math.IsNaN(p.MaxAdvertisingRate) || math.IsNaN(p.MaxDuplicateRate) || p.DemoteRate < 0 || p.PromoteRate > 1 || p.DemoteRate >= p.PromoteRate || p.MaxAdvertisingRate < 0 || p.MaxAdvertisingRate > 1 || p.MaxDuplicateRate < 0 || p.MaxDuplicateRate > 1 || e.Evaluated < 0 || e.Relevant < 0 || e.Relevant > e.Evaluated || e.FreshUnique < 0 || e.FreshUnique > e.Evaluated || e.CuratedUnique < 0 || e.CuratedUnique > e.Evaluated || e.SuccessfulPasses < 0 || e.Advertising < 0 || e.Advertising > e.Evaluated || e.Duplicates < 0 || e.Duplicates > e.Evaluated || e.SameSourceDuplicates < 0 || e.SameSourceDuplicates > e.Duplicates {
 		return state, "invalid_evidence_or_policy"
 	}
 	if e.Evaluated < p.MinEvaluated || e.SuccessfulPasses < p.MinPasses {
@@ -59,7 +59,9 @@ func decideSourceState(state string, e sourceEvidence, p sourcePolicy) (string, 
 	// A single viral repost repeated many times earns no additional credit.
 	valuableCuration := e.CuratedUnique >= p.MinFreshUnique &&
 		rate >= p.PromoteRate && !excessAds
-	poorQuality := excessAds || (float64(e.Duplicates)/float64(e.Evaluated) > p.MaxDuplicateRate && !valuableCuration)
+	// Curation credit never excuses a publisher repeating its own posts.
+	excessSelfRepeats := float64(e.SameSourceDuplicates)/float64(e.Evaluated) > p.MaxDuplicateRate
+	poorQuality := excessAds || excessSelfRepeats || (float64(e.Duplicates)/float64(e.Evaluated) > p.MaxDuplicateRate && !valuableCuration)
 	switch state {
 	case "probation":
 		if !poorQuality && rate >= p.PromoteRate && e.FreshUnique >= p.MinFreshUnique {

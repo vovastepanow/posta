@@ -36,6 +36,7 @@ func recordAutopilotPostEvidence(ctx context.Context, database *db.DB, job *auto
 
 type autopilotEvidenceStats struct {
 	Evaluated, Relevant, Eligible, Advertising, Duplicates, FreshUnique, CuratedUnique, SuccessfulPasses int
+	SameSourceDuplicates int
 }
 
 // A matching content hash from multiple sources marks every copy as duplicate;
@@ -49,16 +50,20 @@ func autopilotEvidenceWindow(ctx context.Context, q db.Querier, scope, topicKey,
 		SELECT DISTINCT ON (source_id,post_hash) source_id,post_hash,content_hash,published_at,relevant,eligible,advertising
 		FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2
 		ORDER BY source_id,post_hash,policy_version DESC
-	), windowed AS (SELECT * FROM latest WHERE published_at >= $4 AND published_at < $5),
+	), windowed AS (
+		SELECT *, row_number() OVER (PARTITION BY source_id,content_hash ORDER BY published_at,post_hash) AS content_copy
+		FROM latest WHERE published_at >= $4 AND published_at < $5
+	),
 	shared AS (SELECT content_hash FROM windowed WHERE content_hash<>'' GROUP BY content_hash HAVING count(DISTINCT source_id)>1)
 	SELECT count(*),count(*) FILTER(WHERE relevant),count(*) FILTER(WHERE eligible),count(*) FILTER(WHERE advertising),
-	count(*) FILTER(WHERE content_hash IN (SELECT content_hash FROM shared)),
+	count(*) FILTER(WHERE content_hash<>'' AND (content_copy>1 OR content_hash IN (SELECT content_hash FROM shared))),
+	count(*) FILTER(WHERE content_hash<>'' AND content_copy>1),
 	count(DISTINCT content_hash) FILTER(WHERE eligible AND content_hash<>'' AND content_hash NOT IN (SELECT content_hash FROM shared)),
 	-- The same useful material can be selected by multiple publishers.
 	-- Preserve its value as curation, not falsely as original authorship.
 	count(DISTINCT content_hash) FILTER(WHERE eligible AND relevant AND NOT advertising AND content_hash<>'' AND content_hash IN (SELECT content_hash FROM shared)),
 	(SELECT count(*) FROM source_autopilot_collection_passes WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND fetched_at >= $4 AND fetched_at < $5)
 	FROM windowed WHERE source_id=$3`, scope, topicKey, source, since.Unix(), until.Unix()).
-		Scan(&s.Evaluated, &s.Relevant, &s.Eligible, &s.Advertising, &s.Duplicates, &s.FreshUnique, &s.CuratedUnique, &s.SuccessfulPasses)
+		Scan(&s.Evaluated, &s.Relevant, &s.Eligible, &s.Advertising, &s.Duplicates, &s.SameSourceDuplicates, &s.FreshUnique, &s.CuratedUnique, &s.SuccessfulPasses)
 	return s, err
 }

@@ -2156,11 +2156,11 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				}
 				professional := a.User(ctx, "", nil).professionalValueTopic(job.Topic)
 				effectiveRelevant := effectiveSourceRelevant(stats.Relevant, stats.Eligible, professional)
-				statsEvidence := jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "effective_relevant": effectiveRelevant, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "curated_unique": stats.CuratedUnique, "successful_passes": stats.SuccessfulPasses, "review_samples": auditSamples}
+				statsEvidence := jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "effective_relevant": effectiveRelevant, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "same_source_duplicates": stats.SameSourceDuplicates, "fresh_unique": stats.FreshUnique, "curated_unique": stats.CuratedUnique, "successful_passes": stats.SuccessfulPasses, "review_samples": auditSamples}
 				for key, value := range statsEvidence {
 					evidence[key] = value
 				}
-				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: stats.Relevant, Eligible: stats.Eligible, RequireEligible: professional, FreshUnique: stats.FreshUnique, CuratedUnique: stats.CuratedUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates}, policy)
+				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: stats.Relevant, Eligible: stats.Eligible, RequireEligible: professional, FreshUnique: stats.FreshUnique, CuratedUnique: stats.CuratedUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates, SameSourceDuplicates: stats.SameSourceDuplicates}, policy)
 				if next != state {
 					nextCheck := at.Add(autopilotSourceReviewInterval(job, next))
 					if next == "rejected" {

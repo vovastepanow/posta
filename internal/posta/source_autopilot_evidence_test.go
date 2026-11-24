@@ -78,4 +78,13 @@ func TestAutopilotEvidenceDedupPostgres(t *testing.T) {
 	if err != nil || s.Duplicates != 1 || s.FreshUnique != 0 || s.CuratedUnique != 1 {
 		t.Fatalf("other source stats=%+v err=%v", s, err)
 	}
+	e.PostHash = "post-5"
+	e.ContentHash = "unique"
+	if err = recordAutopilotPostEvidence(ctx, d, job, "source-a", e); err != nil {
+		t.Fatal(err)
+	}
+	s, err = autopilotEvidenceWindow(ctx, d.Pool, "test-evidence", "topic", "source-a", at.Add(-24*time.Hour), at.Add(time.Second))
+	if err != nil || s.Evaluated != 4 || s.Duplicates != 2 || s.SameSourceDuplicates != 1 || s.FreshUnique != 1 || s.CuratedUnique != 1 {
+		t.Fatalf("same-source repetition inflated evidence: %+v err=%v", s, err)
+	}
 }
