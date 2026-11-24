@@ -308,3 +308,28 @@ func TestAutopilotSearchInterleavesBackendRanksAndDeduplicates(t *testing.T) {
 		}
 	}
 }
+
+func TestAutopilotAdaptiveSearchCountsNovelNotRediscoveredSources(t *testing.T) {
+	calls := 0
+	makeBackend := func(id string) func() []DiscoveryCandidate {
+		return func() []DiscoveryCandidate {
+			calls++
+			return []DiscoveryCandidate{{Platform: PlatformTelegram, ID: id}}
+		}
+	}
+	backends := []func() []DiscoveryCandidate{
+		makeBackend("known_digest"),
+		makeBackend("rejected_digest"),
+		makeBackend("new_digest"),
+		makeBackend("second_digest"),
+		makeBackend("third_digest"),
+	}
+	known := map[string]bool{"telegram:known_digest": true, "telegram:rejected_digest": true}
+	got := autopilotRunSearchBackendsAdaptiveKnown(context.Background(), 0, backends, 2, 2, known)
+	if calls != 4 || len(got) != 4 {
+		t.Fatalf("known candidates prematurely stopped discovery: calls=%d got=%+v", calls, got)
+	}
+	if got[0].ID != "known_digest" || got[3].ID != "second_digest" {
+		t.Fatalf("lost attribution or discovery order: %+v", got)
+	}
+}
