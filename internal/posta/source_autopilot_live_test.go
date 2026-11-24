@@ -611,3 +611,38 @@ func TestAutopilotLiveNativeYouTubeTopicEvidence(t *testing.T) {
 		t.Skip("search works, but no inspected YouTube feed returned usable samples in this environment")
 	}
 }
+
+// Probe the documented public MCP interface before integrating it as a
+// bounded Telegram discovery provider. Never send any credentials or
+// private user data. This logs only public tool metadata and a test query.
+func TestAutopilotLiveTelegramIndexProbe(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	u := (&App{}).User(ctx, "", nil)
+	call := func(method string, params jx.M) FetchResult {
+		req := jx.M{"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+		r, err := u.FetchPublic("https://chatcrawler.app/mcp", FetchOpts{
+			Method: "POST", Body: string(jx.Marshal(req)), MaxBytes: 256 << 10, Timeout: 10 * time.Second,
+			Headers: map[string]string{"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "MCP-Protocol-Version": "2025-03-26"},
+		})
+		t.Logf("TELEGRAM INDEX: method=%s status=%d type=%q bytes=%d error=%v", method, r.Status, r.Type, len(r.Bytes), err)
+		return r
+	}
+	init := call("initialize", jx.M{"protocolVersion": "2025-03-26", "capabilities": jx.M{}, "clientInfo": jx.M{"name": "Posta public discovery test", "version": "1.0"}})
+	if !init.OK {
+		t.Skip("documented Telegram index unavailable")
+	}
+	list := call("tools/list", jx.M{})
+	if !list.OK {
+		t.Skip("tool discovery unavailable; no unsupported assumption made")
+	}
+	t.Logf("TELEGRAM INDEX TOOLS: %s", trimRunes(string(list.Bytes), 10000))
+	result := call("tools/call", jx.M{"name": "find_venues", "arguments": jx.M{"query": "social media marketing", "limit": 3}})
+	if !result.OK {
+		t.Skip("public channel search unavailable")
+	}
+	t.Logf("TELEGRAM INDEX RESULT: %s", trimRunes(string(result.Bytes), 6000))
+}
