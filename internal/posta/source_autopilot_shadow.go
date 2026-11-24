@@ -617,7 +617,11 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		}
 		// Keep exploration across platforms. Raw directory hits are
 		// still unverified and never bypass the normal probation gate.
-		raw := autopilotRunSearchBackendsAdaptive(searchCtx, turn, backends, 6, 64)
+		known, knownErr := a.autopilotKnownSearchSources(ctx, job)
+		if knownErr != nil {
+			return verified, knownErr
+		}
+		raw := autopilotRunSearchBackendsAdaptiveKnown(searchCtx, turn, backends, 6, 64, known)
 		sourceSearchCount = len(raw)
 		candidates := append(append([]DiscoveryCandidate(nil), verified...), raw...)
 		seenSources := map[string]bool{}
@@ -809,6 +813,36 @@ func recordAutopilotBackendStatus(statuses map[string]string, backend, status st
 // searching and spend the remaining budget on verifying those candidates.
 // The limits are per pass, never daily; later passes can explore other sites.
 func autopilotRunSearchBackendsAdaptive(ctx context.Context, turn int64, backends []func() []DiscoveryCandidate, minBackends, targetCandidates int) []DiscoveryCandidate {
+	return autopilotRunSearchBackendsAdaptiveKnown(ctx, turn, backends, minBackends, targetCandidates, nil)
+}
+
+// Existing sources and explicit global exclusions are not novel discoveries.
+// Scope and topic isolation are the same as for the review worker.
+func (a *App) autopilotKnownSearchSources(ctx context.Context, job *autopilotJob) (map[string]bool, error) {
+	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2
+		UNION SELECT source_id FROM source_autopilot_overrides
+		WHERE (scope=$1 OR ($1='public:shadow' AND scope='public'))
+		AND topic_key=$2 AND owner_id='' AND decision='excluded'`, job.Scope, job.TopicKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	known := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		known[id] = true
+	}
+	return known, rows.Err()
+}
+
+// Rediscovered publishers still supply query attribution, but must not
+// satisfy the target for new sources and prevent later platforms from
+// being explored. The caller supplies topic-scoped known source IDs.
+func autopilotRunSearchBackendsAdaptiveKnown(ctx context.Context, turn int64, backends []func() []DiscoveryCandidate, minBackends, targetCandidates int, known map[string]bool) []DiscoveryCandidate {
 	if len(backends) == 0 {
 		return nil
 	}
@@ -825,7 +859,7 @@ func autopilotRunSearchBackendsAdaptive(ctx context.Context, turn int64, backend
 		group := backends[(start+i)%len(backends)]()
 		groups = append(groups, group)
 		for _, candidate := range group {
-			if id, ok := autopilotCandidateID(candidate); ok {
+			if id, ok := autopilotCandidateID(candidate); ok && !known[id] {
 				seen[id] = true
 			}
 		}
