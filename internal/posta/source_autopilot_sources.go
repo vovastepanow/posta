@@ -162,7 +162,10 @@ func transitionAutopilotSource(ctx context.Context, database *db.DB, job *autopi
 		newResume := ""
 		if next == "cooldown" {
 			newResume = current
-			if reason == "youtube_stream_unavailable" && current == "probation" {
+			if (reason == "youtube_stream_unavailable" && current == "probation") ||
+				reason == "no_recent_publications" || reason == "source_not_found" {
+				// Require a fresh preliminary review before re-admitting
+				// a publisher that stopped delivering or disappeared.
 				newResume = "candidate"
 			}
 		}
