@@ -159,14 +159,18 @@ func (a *App) projectAutopilotSource(ctx context.Context, job *autopilotJob, sou
 // unprojectAutopilotSource removes only the rejected profile and never removes
 // a manually adopted source or another profile's projection.
 func (a *App) unprojectAutopilotSource(ctx context.Context, job *autopilotJob, source string) error {
-	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope {
+	return a.unprojectAutopilotSourceState(ctx, job, source, "rejected")
+}
+
+func (a *App) unprojectAutopilotSourceState(ctx context.Context, job *autopilotJob, source, state string) error {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope || (state != "rejected" && state != "cooldown" && state != "candidate") {
 		return errors.New("invalid source projection")
 	}
 	_, feed, kind, ok := autopilotSourceParts(source)
 	if !ok {
 		return errors.New("invalid public source")
 	}
-	ctx = withAutopilotProjection(contextWithAutopilotLease(ctx, job), source, "rejected", true)
+	ctx = withAutopilotProjection(contextWithAutopilotLease(ctx, job), source, state, true)
 	_, err := a.UpdateCatalog(ctx, func(d *SourceDB) bool {
 		list := d.List(kind)
 		for i, entry := range *list {
@@ -367,8 +371,23 @@ func (a *App) reconcileAutopilotProjections(ctx context.Context, job *autopilotJ
 	if err := a.autopilotScheduleFullContextRechecks(ctx, job); err != nil {
 		return err
 	}
+	// Only admitted states belong in the automatic catalog. A failed or
+	// interrupted trial can leave a stale projection after a state change.
+	// Filter removals to profiles that actually exist in the catalog.
+	projected := map[string]bool{}
+	catalog := a.Catalog()
+	for _, kind := range CatalogKinds {
+		for _, entry := range *catalog.List(kind.Kind) {
+			if !jx.Bool(entry, "autopilot_managed") || jx.Bool(entry, "autopilot_manual") {
+				continue
+			}
+			if _, exists := jx.Map(entry, "autopilot_profiles")[job.TopicKey]; exists {
+				projected[SourceIDFor(kind.Platform, jx.Str(entry, "id"))] = true
+			}
+		}
+	}
 	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id,state FROM source_autopilot_sources
-		WHERE scope=$1 AND topic_key=$2 AND state IN ('probation','active','rejected') ORDER BY source_id`, job.Scope, job.TopicKey)
+		WHERE scope=$1 AND topic_key=$2 ORDER BY source_id`, job.Scope, job.TopicKey)
 	if err != nil {
 		return err
 	}
@@ -394,7 +413,7 @@ func (a *App) reconcileAutopilotProjections(ctx context.Context, job *autopilotJ
 		// returned "invalid public source" on EVERY job run, stopping the
 		// entire auto worker at prepare before any candidate reviews.
 		if _, _, _, valid := autopilotSourceParts(p.source); !valid {
-			if p.state == "rejected" {
+			if p.state != "probation" && p.state != "active" {
 				continue
 			}
 			// Old malformed trials also must not prevent healthy sources from
@@ -409,12 +428,15 @@ func (a *App) reconcileAutopilotProjections(ctx context.Context, job *autopilotJ
 			}
 			continue
 		}
-		if p.state == "rejected" {
-			err = a.unprojectAutopilotSource(ctx, job, p.source)
+		if p.state != "probation" && p.state != "active" {
+			if !projected[p.source] {
+				continue
+			}
+			err = a.unprojectAutopilotSourceState(ctx, job, p.source, p.state)
 		} else {
 			err = a.projectAutopilotSource(ctx, job, p.source, p.state)
 		}
-		if errors.Is(err, errAutopilotProjectionConflict) && p.state != "rejected" {
+		if errors.Is(err, errAutopilotProjectionConflict) && (p.state == "probation" || p.state == "active") {
 			at := time.Now()
 			transitionErr := transitionAutopilotSource(ctx, a.DB, job, p.source, p.state, "cooldown", "projection_conflict", []byte(`{}`), at, at.Add(7*24*time.Hour))
 			if transitionErr != nil && !errors.Is(transitionErr, errAutopilotSourceChanged) && !errors.Is(transitionErr, errAutopilotSourceOverride) {
