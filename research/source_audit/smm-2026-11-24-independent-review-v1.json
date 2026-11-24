@@ -38,7 +38,8 @@
     "Recheck 028: independently retrieved web text for 22 additional source rows, including all 15 earlier recheck 025/026 rows, three priority Telegram sources and four RUTUBE author descriptions. Six legacy YouTube ID candidates reverified (four official page titles, two external references). Prior observations remain historical, not certified. No source gold labels or production-state changes.",
     "Final disposition 029: baseline inventory reconciled exactly (492 unique IDs); 54 independently revisited content/access records this turn, 46 with 121 text/description observations, 25 legacy identity cases with 17 recovery candidates (11 cached official page titles, 3 official indexed results, 3 third-party references), 8 unresolved. Remaining historical records are explicitly not certified. All rows dispositioned; content audit and gold benchmark remain blocked. No production changes.",
     "Imported Terra's earlier exported database snapshot, matching all 492 source IDs and retaining 33 manual text assessments of system-selected Mastodon posts. Original DNS failure pertains to that snapshot, not subsequent reported network recovery. Later feed corpus and production fixes not included in upload. No new gold labels or production changes.",
-    "Continuation 031: verified current snapshot counts; rechecked six mismatch rejects and two current candidates. New evidence appended per row as recheck_031; previous labels/dispositions retained. No production changes."
+    "Continuation 031: verified current snapshot counts; rechecked six mismatch rejects and two current candidates. New evidence appended per row as recheck_031; previous labels/dispositions retained. No production changes.",
+    "Continuation 032: explicitly reverified continuation 031 using public channel pages and linked post targets. Eight exact post/text associations confirmed; remaining prior item-level claims are not independently substantiated in this recheck and must not be counted as verified. Two directories only, one unavailable channel. Preserved earlier records for provenance, no gold labels or automatic source changes."
   ],
   "stats": {
     "baseline": 492,
@@ -424,6 +425,38 @@
       "external_models_used": false,
       "representative_sample": false,
       "limitations": "No exact dates, no media, no historical decision-time evidence; selected examples cannot estimate false rejection rate. Existing disposition and historical counts preserved."
+    },
+    "continuation_032": {
+      "date": "2026-11-24",
+      "scope": "verification of continuation 031 provenance and public discovery engineering",
+      "rows_rechecked": 8,
+      "exact_text_post_associations_confirmed": 8,
+      "source_pages_with_text": 5,
+      "metadata_only": 2,
+      "unavailable": 1,
+      "prior_item_claims_unconfirmed": 4,
+      "gold_labels_added": 0,
+      "production_db_modified": false,
+      "source_code_commits": [
+        "1697e3878c545f10228bf7e6cda6d3ef86f1e226",
+        "8b9688060cc50b181a249efd318e4c19a776a0a3"
+      ],
+      "ci_runs": {
+        "previous_go_passed": 45461660456,
+        "previous_live_run_failed_external_search": 45461660228,
+        "bluesky_fallback_go_passed": 45462313038,
+        "current_go": 45462545031,
+        "current_live": 45462545004
+      },
+      "previous_live_findings": {
+        "telegram_candidates": 8,
+        "telegram_sampled_feeds": 2,
+        "telegram_usable_feeds": 1,
+        "youtube_successful_queries": 3,
+        "youtube_attempted_feeds": 6,
+        "youtube_usable_feeds": 5
+      },
+      "limitations": "No representative gold corpus, no production access; external search and media eligibility are not certified."
     }
   },
   "rows": [
@@ -1334,6 +1367,39 @@
         ],
         "production_action": "none",
         "gold_label": null
+      },
+      "recheck_032": {
+        "date": "2026-11-24",
+        "verification_tier": "partial_text_and_post_link_verified",
+        "page_url": "https://telegram.me/s/bossmarketer",
+        "confirmed_items": [
+          {
+            "url": "https://t.me/bossmarketer/849",
+            "summary": "Отчёт о конференции VK и практических докладах о продвижении сообществ; содержимое видео не проверено.",
+            "relevance": "relevant_or_adjacent",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/bossmarketer/853",
+            "summary": "Практическое сравнение привлечения подписчиков MAX через посадочную страницу, прямую рекламу и посевы; есть самопродвижение.",
+            "relevance": "relevant",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/bossmarketer/864",
+            "summary": "Сравнение способов продвижения канала MAX; повторяются идеи другого материала этого автора.",
+            "relevance": "relevant",
+            "published_at": null,
+            "media_reviewed": false
+          }
+        ],
+        "prior_claims_not_confirmed": [],
+        "note": "Есть тематическая практика; не доказана доля пригодных самостоятельных публикаций. Приоритет повторной проверки, без автоматического одобрения.",
+        "gold_label": null,
+        "production_action": "none",
+        "limitations": "Text snippets from public channel pages; exact post IDs checked via linked post targets. No exact dates, linked article bodies, images or videos. Nonrandom examples."
       }
     },
     {
@@ -1486,6 +1552,35 @@
         ],
         "production_action": "none",
         "gold_label": null
+      },
+      "recheck_032": {
+        "date": "2026-11-24",
+        "verification_tier": "partial_text_and_post_link_verified",
+        "page_url": "https://t.me/s/cases_adindex",
+        "confirmed_items": [
+          {
+            "url": "https://t.me/cases_adindex/1596",
+            "summary": "Брендовая интеграция в игровой мир Roblox; смежная digital-тема, не обязательно SMM.",
+            "relevance": "adjacent",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/cases_adindex/1607",
+            "summary": "Кейс привлечения подписчиков музыкального сервиса UGC-креативами; часть подробностей в внешней статье.",
+            "relevance": "relevant_or_adjacent",
+            "published_at": null,
+            "media_reviewed": false
+          }
+        ],
+        "prior_claims_not_confirmed": [
+          "https://t.me/cases_adindex/1581",
+          "https://t.me/cases_adindex/1605"
+        ],
+        "note": "Смешанный поток рекламных кейсов и репостов; /1581 и /1605 в открытом фрагменте не подтверждены.",
+        "gold_label": null,
+        "production_action": "none",
+        "limitations": "Text snippets from public channel pages; exact post IDs checked via linked post targets. No exact dates, linked article bodies, images or videos. Nonrandom examples."
       }
     },
     {
@@ -1655,6 +1750,17 @@
         ],
         "production_action": "none",
         "gold_label": null
+      },
+      "recheck_032": {
+        "date": "2026-11-24",
+        "verification_tier": "unavailable",
+        "page_url": "https://t.me/s/dmitriy_verbniakov",
+        "confirmed_items": [],
+        "prior_claims_not_confirmed": [],
+        "note": "Веб-инструмент не открыл ленту; это не отрицательная тематическая оценка.",
+        "gold_label": null,
+        "production_action": "none",
+        "limitations": "Text snippets from public channel pages; exact post IDs checked via linked post targets. No exact dates, linked article bodies, images or videos. Nonrandom examples."
       }
     },
     {
@@ -2180,6 +2286,17 @@
         ],
         "production_action": "none",
         "gold_label": null
+      },
+      "recheck_032": {
+        "date": "2026-11-24",
+        "verification_tier": "directory_metadata_only",
+        "page_url": "https://tgmarket.io/c/positivpp",
+        "confirmed_items": [],
+        "prior_claims_not_confirmed": [],
+        "note": "Каталог подтверждает предпринимательский профиль; публикации не оценены.",
+        "gold_label": null,
+        "production_action": "none",
+        "limitations": "Text snippets from public channel pages; exact post IDs checked via linked post targets. No exact dates, linked article bodies, images or videos. Nonrandom examples."
       }
     },
     {
@@ -2256,6 +2373,17 @@
         ],
         "production_action": "none",
         "gold_label": null
+      },
+      "recheck_032": {
+        "date": "2026-11-24",
+        "verification_tier": "directory_metadata_only",
+        "page_url": "https://tgmarket.io/ru/c/promoactivnaya",
+        "confirmed_items": [],
+        "prior_claims_not_confirmed": [],
+        "note": "Каталог подтверждает профиль контекстной рекламы; публикации не оценены.",
+        "gold_label": null,
+        "production_action": "none",
+        "limitations": "Text snippets from public channel pages; exact post IDs checked via linked post targets. No exact dates, linked article bodies, images or videos. Nonrandom examples."
       }
     },
     {
@@ -2372,6 +2500,28 @@
         ],
         "production_action": "none",
         "gold_label": null
+      },
+      "recheck_032": {
+        "date": "2026-11-24",
+        "verification_tier": "partial_text_and_post_link_verified",
+        "page_url": "https://t.me/s/surrrovo",
+        "confirmed_items": [
+          {
+            "url": "https://t.me/surrrovo/2497",
+            "summary": "Инструкция по подаче заявки на платную маркетинговую премию; упоминается SMM, но содержание преимущественно промо.",
+            "relevance": "relevant_but_promotional",
+            "published_at": null,
+            "media_reviewed": false
+          }
+        ],
+        "prior_claims_not_confirmed": [
+          "https://t.me/surrrovo/2503",
+          "https://t.me/surrrovo/2510"
+        ],
+        "note": "Лента показывает серию коммерческих анонсов премии и записей докладов. /2503 и /2510 не подтверждены содержательно.",
+        "gold_label": null,
+        "production_action": "none",
+        "limitations": "Text snippets from public channel pages; exact post IDs checked via linked post targets. No exact dates, linked article bodies, images or videos. Nonrandom examples."
       }
     },
     {
@@ -40641,6 +40791,25 @@
         ],
         "production_action": "none",
         "gold_label": null
+      },
+      "recheck_032": {
+        "date": "2026-11-24",
+        "verification_tier": "partial_text_and_post_link_verified",
+        "page_url": "https://t.me/s/worldppc",
+        "confirmed_items": [
+          {
+            "url": "https://t.me/worldppc/11270",
+            "summary": "Короткая новость о возможности делиться постами MAX в историях; есть внешняя ссылка.",
+            "relevance": "relevant",
+            "published_at": null,
+            "media_reviewed": false
+          }
+        ],
+        "prior_claims_not_confirmed": [],
+        "note": "Смешанный поток PPC, SEO, коммерции, digital-новостей. Текст не подтверждает самостоятельную полезность всей ленты.",
+        "gold_label": null,
+        "production_action": "none",
+        "limitations": "Text snippets from public channel pages; exact post IDs checked via linked post targets. No exact dates, linked article bodies, images or videos. Nonrandom examples."
       }
     },
     {
@@ -41259,6 +41428,25 @@
         ],
         "production_action": "none",
         "gold_label": null
+      },
+      "recheck_032": {
+        "date": "2026-11-24",
+        "verification_tier": "partial_text_and_post_link_verified",
+        "page_url": "https://t.me/s/yantech",
+        "confirmed_items": [
+          {
+            "url": "https://t.me/YANtech/5135",
+            "summary": "Объявление рекламных инструментов MAX и монетизации через Яндекс ПроБлогер; корпоративное продвижение продукта.",
+            "relevance": "relevant_but_promotional",
+            "published_at": null,
+            "media_reviewed": false
+          }
+        ],
+        "prior_claims_not_confirmed": [],
+        "note": "Тематика частично соответствует, качество и реклама требуют отдельной оценки.",
+        "gold_label": null,
+        "production_action": "none",
+        "limitations": "Text snippets from public channel pages; exact post IDs checked via linked post targets. No exact dates, linked article bodies, images or videos. Nonrandom examples."
       }
     },
     {
