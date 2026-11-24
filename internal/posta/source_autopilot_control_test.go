@@ -9,8 +9,8 @@ import (
 
 func TestAutopilotControlPanelSummary(t *testing.T) {
 	checkpoint := jx.M{autopilotControlPanelKey: jx.M{"last_attempt_at": 1000, "results": jx.M{
-		"Buffer": jx.M{"status": "readable", "fresh": 12, "preliminary_completed": true, "preliminary_score": 30, "preliminary_pass": false, "post_probe": jx.M{"status": "completed_or_partial", "submitted": 6, "completed": 5, "eligible": 2, "secret": "not public"}},
-		"Hootsuite": jx.M{"status": "not_readable", "http_status": 429},
+		"Buffer":            jx.M{"status": "readable", "fresh": 12, "preliminary_completed": true, "preliminary_score": 30, "preliminary_pass": false, "post_probe": jx.M{"status": "completed_or_partial", "submitted": 6, "completed": 5, "eligible": 2, "secret": "not public"}},
+		"Hootsuite":         jx.M{"status": "not_readable", "http_status": 429},
 		"unknown publisher": jx.M{"status": "readable", "post_probe": jx.M{"eligible": 100}},
 	}}}
 	out := autopilotControlPanelSummary(checkpoint)
