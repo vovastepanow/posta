@@ -259,6 +259,29 @@ func TestAutopilotDirectDeliversWithoutApprovedSourcePostgres(t *testing.T) {
 			}
 		})
 	}
+	// A verified author must get a review slot before an older unverified
+	// directory hit, without granting either source probation or approval.
+	rawSource := "telegram:aaa_raw_digest"
+	if err := registerAutopilotCandidate(ctx, d, job, rawSource, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerAutopilotCandidate(ctx, d, job, source, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	var reviewed []string
+	err = a.autopilotReviewShadowCandidatesWith(ctx, job, 2, 85, func(feed string) FetchResultURL {
+		reviewed = append(reviewed, feed)
+		return FetchResultURL{FetchResult: FetchResult{Status: 429}}
+	}, func(jx.M, []jx.M, string) *sourceEvaluation {
+		t.Error("unavailable feed must not receive a verdict")
+		return nil
+	}, func(context.Context, string, []jx.M) error {
+		t.Error("unavailable feed must not receive a post assessment")
+		return nil
+	}, sourcePolicy{})
+	if err != nil || len(reviewed) != 2 || reviewed[0] != source || reviewed[1] != rawSource {
+		t.Fatalf("verified author priority or raw exploration lost: %v %v", reviewed, err)
+	}
 	// A stored assessment cannot be used after the worker lease is revoked.
 	if _, err := setAutopilotJobEnabled(ctx, d.Pool, autopilotAutoScope, key, autopilotAutoKind, false); err != nil {
 		t.Fatal(err)
