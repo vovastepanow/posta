@@ -18,15 +18,15 @@ import (
 func autopilotTelegramIndexCandidates(data []byte) ([]DiscoveryCandidate, error) {
 	var response struct {
 		JSONRPC string `json:"jsonrpc"`
-		Error json.RawMessage `json:"error"`
+		Error   json.RawMessage `json:"error"`
 		Result struct {
-			IsError bool `json:"isError"`
+			IsError    bool `json:"isError"`
 			Structured struct {
 				Results []struct {
-					Type string `json:"type"`
-					Username string `json:"username"`
+					Type        string `json:"type"`
+					Username    string `json:"username"`
 					TelegramURL string `json:"telegram_url"`
-					Title string `json:"title"`
+					Title       string `json:"title"`
 				} `json:"results"`
 			} `json:"structuredContent"`
 		} `json:"result"`
@@ -73,6 +73,10 @@ func (u *U) autopilotTelegramIndexRequest(query string) ([]DiscoveryCandidate, e
 		return nil, err
 	}
 	if !r.OK {
+		if r.Status == 429 && u.DB != nil {
+			until := max(time.Now().UTC().Add(24*time.Hour).Unix(), autopilotBraveRetryAt(time.Now(), r.RetryAfter).Unix())
+			_ = u.KVSet(u.Ctx, "autopilot_telegram_index_pause_until", until, time.Until(time.Unix(until, 0)))
+		}
 		return nil, fmt.Errorf("Telegram directory HTTP %d", r.Status)
 	}
 	return autopilotTelegramIndexCandidates(r.Bytes)
@@ -97,8 +101,8 @@ func (u *U) autopilotTelegramIndex(query string) ([]DiscoveryCandidate, error) {
 	}
 	out, err := u.autopilotTelegramIndexRequest(query)
 	if err != nil {
-		until := now.Truncate(24*time.Hour).Add(24*time.Hour)
-		_ = u.KVSet(u.Ctx, "autopilot_telegram_index_pause_until", until.Unix(), time.Until(until))
+		until := max(now.Add(24*time.Hour).Unix(), KV(u.App, u.Ctx, "autopilot_telegram_index_pause_until", int64(0)))
+		_ = u.KVSet(u.Ctx, "autopilot_telegram_index_pause_until", until, time.Until(time.Unix(until, 0)))
 		return nil, err
 	}
 	return out, nil
