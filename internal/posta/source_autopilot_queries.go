@@ -70,8 +70,11 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	// query on every run instead of repeating the same unproven query four
 	// times. Once yield is observed, keep the slower exploit/explore cadence.
 	scores := map[string]int64{}
-	// Exploration turns and model-gate tests must not require a database.
-	if turn%4 != 0 && a.DB != nil {
+	// The selector must see whether any query has evidence even on
+	// exploration turns. Skipping this lookup every fourth turn made it
+	// fall back to cold-start rotation, repeatedly missing the same
+	// alternatives when the number of queries was divisible by four.
+	if a.DB != nil {
 		rows, err := a.DB.Pool.Query(ctx, `SELECT q.query,
 			count(DISTINCT e.content_hash) FILTER (WHERE s.state IN ('probation','active') AND e.eligible AND e.content_hash<>'' AND NOT EXISTS
 				(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful,
