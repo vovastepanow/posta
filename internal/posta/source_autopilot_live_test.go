@@ -612,34 +612,24 @@ func TestAutopilotLiveNativeYouTubeTopicEvidence(t *testing.T) {
 	}
 }
 
-// Verify the exact directory adapter, then independently open a nominated
-// channel. A search hit is not a semantic classification.
+// Inspect the post search schema using a single bounded public query. Do
+// not use snippets as admitted posts; only discover and verify publishers.
 func TestAutopilotLiveTelegramIndex(t *testing.T) {
 	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
 		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 	u := (&App{}).User(ctx, "", nil)
-	got, err := u.autopilotTelegramIndexRequest("SMM")
-	t.Logf("TELEGRAM INDEX: candidates=%d error=%v", len(got), err)
-	if err != nil || len(got) == 0 {
-		t.Skip("directory unavailable or no public channels for this query")
+	req := jx.M{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": jx.M{
+		"name": "search_posts", "arguments": jx.M{"query": "SMM кейсы", "days": 30, "limit": 5},
+	}}
+	r, err := u.FetchPublic("https://chatcrawler.app/mcp", FetchOpts{
+		Method: "POST", Body: string(jx.Marshal(req)), MaxBytes: 256 << 10, Timeout: 10 * time.Second,
+		Headers: map[string]string{"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "MCP-Protocol-Version": "2025-03-26"},
+	})
+	t.Logf("TELEGRAM POST PROBE: status=%d error=%v data=%s", r.Status, err, trimRunes(string(r.Bytes), 7000))
+	if !r.OK {
+		t.Skip("public post search unavailable")
 	}
-	for _, c := range got {
-		t.Logf("TELEGRAM CANDIDATE: id=%q title=%q", c.ID, jx.Str(c.Info, "title"))
-	}
-	for _, c := range got[:min(2,len(got))] {
-		r := u.RSSGet("https://t.me/s/"+c.ID, rssMaxBytes, 10*time.Second, BrowserUA)
-		if !r.OK {
-			t.Logf("TELEGRAM FEED: id=%q status=%d", c.ID, r.Status)
-			continue
-		}
-		posts, err := autopilotPublicSocialPosts(PlatformTelegram,c.ID,r)
-		t.Logf("TELEGRAM FEED: id=%q posts=%d error=%v", c.ID, len(posts), err)
-		if err == nil && len(posts)>0 {
-			return
-		}
-	}
-	t.Skip("search works, but sampled channel pages unavailable")
 }
