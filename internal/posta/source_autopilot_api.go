@@ -221,21 +221,28 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			return nil, causeErr
 		}
 		row["candidate_assessment_causes"] = assessmentCauses
-		probationReasons := jx.M{}
-		probationRows, probationErr := u.DB.Pool.Query(u.Ctx, `SELECT COALESCE(NULLIF(reason,''),'not_checked'),count(*)
-			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state='probation'
-			GROUP BY 1`, scope, key)
+		probationReasons, rejectedReasons, cooldownReasons := jx.M{}, jx.M{}, jx.M{}
+		probationRows, probationErr := u.DB.Pool.Query(u.Ctx, `SELECT state,COALESCE(NULLIF(reason,''),'not_checked'),count(*)
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state IN ('probation','rejected','cooldown')
+			GROUP BY 1,2`, scope, key)
 		if probationErr != nil {
 			return nil, probationErr
 		}
 		for probationRows.Next() {
-			var reason string
+			var state, reason string
 			var count int
-			if err := probationRows.Scan(&reason, &count); err != nil {
+			if err := probationRows.Scan(&state, &reason, &count); err != nil {
 				probationRows.Close()
 				return nil, err
 			}
-			probationReasons[reason] = count
+			switch state {
+			case "probation":
+				probationReasons[reason] = count
+			case "rejected":
+				rejectedReasons[reason] = count
+			case "cooldown":
+				cooldownReasons[reason] = count
+			}
 		}
 		probationErr = probationRows.Err()
 		probationRows.Close()
@@ -243,6 +250,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			return nil, probationErr
 		}
 		row["probation_reasons"] = probationReasons
+		row["rejected_reasons"], row["cooldown_reasons"] = rejectedReasons, cooldownReasons
 		var lastSuccess int64
 		if err = u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(max(fetched_at),0) FROM source_autopilot_collection_passes WHERE scope=$1 AND topic_key=$2`, scope, key).Scan(&lastSuccess); err != nil {
 			return nil, err
