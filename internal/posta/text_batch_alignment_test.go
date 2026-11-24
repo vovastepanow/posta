@@ -101,3 +101,25 @@ func TestCaptionAloneCannotRejectRealVideoCandidates(t *testing.T) {
 		t.Fatal("complete text-only evidence must remain usable")
 	}
 }
+
+func TestMalformedModelScoresAreUnknownNotNegativeEvidence(t *testing.T) {
+	for _, value := range []any{nil, false, true, "unknown", "NaN", "Inf", -1, 101, []any{90}} {
+		row := jx.M{"index": 0, "relevance": value, "advertising": false}
+		if rows := alignTextBatchAnalysis([]jx.M{row}, []string{"First post", "Second post"}); rows[0] != nil || rows[1] != nil {
+			t.Fatalf("malformed score %v became an assessment: %v", value, rows)
+		}
+	}
+	for _, index := range []any{nil, false, "unknown", 0.5, -1, 2} {
+		row := jx.M{"index": index, "relevance": 90, "advertising": false}
+		if rows := alignTextBatchAnalysis([]jx.M{row}, []string{"First post", "Second post"}); rows[0] != nil || rows[1] != nil {
+			t.Fatalf("invalid index %v assigned a verdict: %v", index, rows)
+		}
+	}
+	if validModelContentVerdict(jx.M{"relevance": 90, "advertising": false, "topic_match": "false"}) {
+		t.Fatal("invalid topic-match type accepted")
+	}
+	if !validModelContentVerdict(jx.M{"relevance": 0, "advertising": false, "topic_match": false}) ||
+		!validModelContentVerdict(jx.M{"relevance": "90", "advertising": false}) {
+		t.Fatal("valid model score lost")
+	}
+}

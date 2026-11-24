@@ -435,7 +435,7 @@ func (u *U) sourceReviewRequest(prompt string, images [][]byte) *sourceReview {
 		return nil
 	}
 	a := llm.DecodeJSON(r.Text)
-	if a == nil || a["score"] == nil {
+	if a == nil || !validModelPercent(a["score"]) {
 		autopilotNoteAssessmentCause(u.Ctx, "invalid_model_response")
 		return nil
 	}
@@ -568,7 +568,7 @@ func (u *U) combinedSourceReview(title, desc, topic string, posts []jx.M, caps [
 
 func parseCombinedSourceReview(reply string, hasTaste bool) *sourceEvaluation {
 	data := llm.DecodeJSON(reply)
-	if data == nil || data["text_score"] == nil || data["image_score"] == nil || (hasTaste && data["taste_score"] == nil) {
+	if data == nil || !validModelPercent(data["text_score"]) || !validModelPercent(data["image_score"]) || (hasTaste && !validModelPercent(data["taste_score"])) {
 		return nil
 	}
 	textScore := llm.ClampScore(jx.Float(data, "text_score"))

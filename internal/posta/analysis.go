@@ -1,11 +1,13 @@
 package posta
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +20,41 @@ import (
 
 // Analysis — итог полного анализа записи.
 type Analysis = jx.M
+
+// Model responses are untrusted even when a JSON schema was requested.
+// Distinguish an invalid score from a genuine zero; permissive conversion
+// would otherwise turn a malformed response into negative training evidence.
+func modelNumber(value any) (float64, bool) {
+	switch v := value.(type) {
+	case float64, float32, int, int64:
+		return jx.ToFloat(v), true
+	case json.Number:
+		n, err := v.Float64()
+		return n, err == nil
+	case string:
+		n, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return n, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func validModelPercent(value any) bool {
+	n, ok := modelNumber(value)
+	return ok && n >= 0 && n <= 100
+}
+
+func validModelContentVerdict(row jx.M) bool {
+	if _, ok := row["advertising"].(bool); !ok || !validModelPercent(row["relevance"]) {
+		return false
+	}
+	if value := row["topic_match"]; value != nil {
+		if _, ok := value.(bool); !ok {
+			return false
+		}
+	}
+	return true
+}
 
 func contentFormatsLine() string {
 	var parts []string
@@ -390,7 +427,7 @@ func (u *U) AnalyzeContentWithVision(images [][]byte, caption string, h History,
 			OnThinking: u.thinkingLogger()})
 		if err == nil {
 			a := llm.DecodeJSON(r.Text)
-			if _, ok := a["advertising"].(bool); a != nil && a["relevance"] != nil && ok {
+			if validModelContentVerdict(a) && (query == "" || validModelPercent(a["query_match"])) {
 				result := u.finishAnalysis(a, topic, query, video != nil, encoded[0], private, r.Model)
 				tagCaption := caption
 				if text := PostCaptionForAI(item); text != "" {
@@ -735,7 +772,7 @@ func (u *U) AnalyzeTextBatch(texts []string, topic string, h History) ([]Analysi
 	rows := alignTextBatchAnalysis(jx.Maps(a, "items"), texts)
 	out := make([]Analysis, len(texts))
 	for i, row := range rows {
-		if row != nil {
+		if row != nil && (query == "" || validModelPercent(row["query_match"])) {
 			out[i] = u.finishTextAnalysis(row, topic, r.Model)
 			// Verify against this record only, after batch alignment.
 			u.applyContentClassification(out[i], "", texts[i], u.TopicIsRestricted(topic))
@@ -777,17 +814,20 @@ func alignTextBatchAnalysis(items []jx.M, texts []string) []jx.M {
 	out := make([]jx.M, len(texts))
 	counts := make([]int, len(texts))
 	for _, item := range items {
-		_, adOK := item["advertising"].(bool)
-		if item["relevance"] == nil || !adOK {
+		if !validModelContentVerdict(item) {
 			continue
 		}
-		i := int(jx.Int(item, "index"))
+		i := 0
 		if len(texts) == 1 {
 			i = 0 // There is only one possible source, even with a one-based index.
 		} else if owner := textEvidenceOwner(jx.Str(item, "evidence"), texts); owner >= 0 {
 			i = owner
-		} else if !jx.Has(item, "index") {
-			continue
+		} else {
+			index, ok := modelNumber(item["index"])
+			if !ok || !(index >= 0 && index < float64(len(texts))) || index != float64(int(index)) {
+				continue
+			}
+			i = int(index)
 		}
 		if i < 0 || i >= len(texts) {
 			continue

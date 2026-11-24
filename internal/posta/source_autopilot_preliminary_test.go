@@ -361,3 +361,18 @@ func TestAutopilotSourceCaptionSampleDoesNotCherryPick(t *testing.T) {
 		t.Fatalf("bounded sample was replaced by later text: %q", captions)
 	}
 }
+
+func TestCombinedSourceReviewRejectsMalformedScores(t *testing.T) {
+	for _, reply := range []string{
+		`{"text_score":"unknown","image_score":90}`,
+		`{"text_score":90,"image_score":false}`,
+		`{"text_score":90,"image_score":101}`,
+	} {
+		if ev := parseCombinedSourceReview(reply, false); ev != nil {
+			t.Fatalf("invalid source score became a verdict: %+v", ev)
+		}
+	}
+	if ev := parseCombinedSourceReview(`{"text_score":0,"image_score":90}`, false); ev == nil || ev.Score != 0 {
+		t.Fatal("valid negative source verdict was lost")
+	}
+}
