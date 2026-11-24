@@ -40,7 +40,8 @@
     "Imported Terra's earlier exported database snapshot, matching all 492 source IDs and retaining 33 manual text assessments of system-selected Mastodon posts. Original DNS failure pertains to that snapshot, not subsequent reported network recovery. Later feed corpus and production fixes not included in upload. No new gold labels or production changes.",
     "Continuation 031: verified current snapshot counts; rechecked six mismatch rejects and two current candidates. New evidence appended per row as recheck_031; previous labels/dispositions retained. No production changes.",
     "Continuation 032: explicitly reverified continuation 031 using public channel pages and linked post targets. Eight exact post/text associations confirmed; remaining prior item-level claims are not independently substantiated in this recheck and must not be counted as verified. Two directories only, one unavailable channel. Preserved earlier records for provenance, no gold labels or automatic source changes.",
-    "Continuation 033: attempted 12 additional sources from preliminary_topic_mismatch, independently read five public channel pages and confirmed 17 exact text/post URL associations; seven could not be retrieved through either public URL form. One priority reconsideration (adv_system), one mixed legal/influencer source (advertising_law_channel), three observed off-topic text samples, no source-level gold verdicts. Public text only, no media or decision-time reconstruction."
+    "Continuation 033: attempted 12 additional sources from preliminary_topic_mismatch, independently read five public channel pages and confirmed 17 exact text/post URL associations; seven could not be retrieved through either public URL form. One priority reconsideration (adv_system), one mixed legal/influencer source (advertising_law_channel), three observed off-topic text samples, no source-level gold verdicts. Public text only, no media or decision-time reconstruction.",
+    "Final CI check for continuation 033: Go/PostgreSQL succeeded (45462964801). Ranked Telegram search produced eight candidates, seven readable with at least one fresh item (45462964810), but several excerpts remain promotional or off-topic; no AI classification. Bluesky author-feed endpoint responded for three authors, zero safe recent text items. Whole live smoke remains failed because anonymous legacy publisher search yielded no supported direct links."
   ],
   "stats": {
     "baseline": 492,
@@ -496,7 +497,41 @@
         "go": 45462964801,
         "live": 45462964810
       },
-      "limitations": "Selected examples, no media inspected, exact dates not exposed; cannot establish source precision or historical error rate."
+      "limitations": "Selected examples, no media inspected, exact dates not exposed; cannot establish source precision or historical error rate.",
+      "ranking_ci_results": {
+        "go": "success",
+        "live": "failure (legacy external publisher link search still returned no supported links); individual Telegram test passed",
+        "telegram": {
+          "candidates": 8,
+          "readable_feeds": 7,
+          "feeds_with_fresh_posts": 7,
+          "source_ids": [
+            "iamagencysmm",
+            "anesterova88",
+            "soloovieva",
+            "gafar0vv",
+            "gorenko_olga",
+            "airsmm",
+            "djulia_bar",
+            "topp_7777"
+          ],
+          "unreadable": [
+            "topp_7777"
+          ],
+          "caveat": "Text excerpts include off-topic personal posts, service records and promotional material; freshness is not relevance."
+        },
+        "bluesky": {
+          "global_search": "restricted",
+          "public_author_feeds_retrieved": 3,
+          "assessable_recent_text_posts": 0
+        },
+        "youtube": {
+          "successful_queries": 2,
+          "usable_feeds": 4,
+          "attempted_feeds": 4
+        },
+        "production_verified": false
+      }
     }
   },
   "rows": [
