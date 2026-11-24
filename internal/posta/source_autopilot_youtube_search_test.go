@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"posta/internal/jx"
 )
 
 func TestAutopilotNativeYouTubeSearchOnlyMainResults(t *testing.T) {
@@ -64,5 +66,22 @@ func TestAutopilotNativeYouTubeSearchHonorsRateLimit(t *testing.T) {
 	}
 	if _, err := u.autopilotNativeYouTubeSearchWith("photography", fetch); err == nil || calls != 1 {
 		t.Fatalf("rate-limit cooldown not enforced: calls=%d err=%v", calls, err)
+	}
+}
+
+func TestAutopilotNativeYouTubeRanksIndependentMatchingVideos(t *testing.T) {
+	page := `<script>var ytInitialData = {"contents":{"twoColumnSearchResultsRenderer":{"primaryContents":{"sectionListRenderer":{"contents":[{"itemSectionRenderer":{"contents":[
+		{"videoRenderer":{"videoId":"aaaaaaaaaaa","title":{"runs":[{"text":"A day in my life"}]},"ownerText":{"runs":[{"text":"Daily life","navigationEndpoint":{"browseEndpoint":{"browseId":"UCabcdefghijklmnopqrstuv"}}}]}}},
+		{"videoRenderer":{"videoId":"bbbbbbbbbbb","title":{"runs":[{"text":"Astrophotography tutorials"}]},"ownerText":{"runs":[{"text":"Sky studio","navigationEndpoint":{"browseEndpoint":{"browseId":"UCABCDEFGHIJKLMNOPQRSTUV"}}}]}}},
+		{"videoRenderer":{"videoId":"bbbbbbbbbbb","title":{"runs":[{"text":"Astrophotography tutorials"}]},"ownerText":{"runs":[{"text":"Sky studio","navigationEndpoint":{"browseEndpoint":{"browseId":"UCABCDEFGHIJKLMNOPQRSTUV"}}}]}}},
+		{"videoRenderer":{"videoId":"ccccccccccc","title":{"runs":[{"text":"Astrophotography tutorials for beginners"}]},"ownerText":{"runs":[{"text":"Sky studio","navigationEndpoint":{"browseEndpoint":{"browseId":"UCABCDEFGHIJKLMNOPQRSTUV"}}}]}}}
+	]}}]}}}}};</script>`
+	r := FetchResultURL{URL: "https://www.youtube.com/results?search_query=astrophotography+tutorials", FetchResult: FetchResult{OK: true, Bytes: []byte(page)}}
+	got, err := autopilotYouTubeSearchCandidates(r)
+	if err != nil || len(got) != 2 || got[0].ID != YouTubeChannelFeedURL("UCABCDEFGHIJKLMNOPQRSTUV") {
+		t.Fatalf("ranked candidates: %+v %v", got, err)
+	}
+	if jx.Int(got[0].Info, "matching_videos") != 2 || jx.Str(got[0].Info, "title") != "Sky studio" {
+		t.Fatalf("repeated video inflated evidence or owner lost: %+v", got[0].Info)
 	}
 }
