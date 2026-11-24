@@ -85,3 +85,16 @@ func TestAutopilotNativeYouTubeRanksIndependentMatchingVideos(t *testing.T) {
 		t.Fatalf("repeated video inflated evidence or owner lost: %+v", got[0].Info)
 	}
 }
+
+func TestAutopilotYouTubeRecentPublication(t *testing.T) {
+	for _, v := range []string{"2 days ago", "3 weeks ago", "Streamed 1 month ago", "5 hours ago"} {
+		if !autopilotYouTubeRecentPublication(v) {
+			t.Errorf("recent publication not recognized: %q", v)
+		}
+	}
+	for _, v := range []string{"2 years ago", "5 weeks ago", "2 months ago", "Live now", "", "2 дня назад", "-2 days ago"} {
+		if autopilotYouTubeRecentPublication(v) {
+			t.Errorf("old or unknown publication assigned a freshness bonus: %q", v)
+		}
+	}
+}
