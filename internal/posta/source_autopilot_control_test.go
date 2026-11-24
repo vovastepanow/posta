@@ -3,6 +3,7 @@ package posta
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"posta/internal/jx"
 )
@@ -22,5 +23,32 @@ func TestAutopilotControlPanelSummary(t *testing.T) {
 	}
 	if raw := string(jx.Marshal(out)); strings.Contains(raw, "secret") || strings.Contains(raw, "unknown publisher") {
 		t.Fatalf("untrusted checkpoint data escaped: %s", raw)
+	}
+}
+
+func TestAutopilotControlRetryIsBounded(t *testing.T) {
+	at := time.Unix(100000, 0)
+	results := jx.M{}
+	for i, f := range autopilotSMMControlFeeds {
+		if got := autopilotControlNextPublisher(results, at); got != i {
+			t.Fatalf("first pass order: got %d want %d", got, i)
+		}
+		results[f.name] = jx.M{"status": "readable", "at": at.Add(-2 * time.Hour).Unix(), "attempts": 1, "fresh": 10, "preliminary_completed": true, "preliminary_pass": false, "post_probe": jx.M{"submitted": 6, "completed": 6, "eligible": 0}}
+	}
+	if got := autopilotControlNextPublisher(results, at); got != -1 {
+		t.Fatalf("completed negative verdict retried: %d", got)
+	}
+	results[autopilotSMMControlFeeds[0].name] = jx.M{"status": "not_readable", "at": at.Add(-2 * time.Hour).Unix(), "attempts": 1}
+	if got := autopilotControlNextPublisher(results, at); got != 0 {
+		t.Fatalf("unavailable publisher was not retried: %d", got)
+	}
+	jx.Map(results, autopilotSMMControlFeeds[0].name)["attempts"] = 2
+	jx.Map(jx.Map(results, autopilotSMMControlFeeds[1].name), "post_probe")["completed"] = 5
+	if got := autopilotControlNextPublisher(results, at); got != 1 {
+		t.Fatalf("incomplete model batch was not retried: %d", got)
+	}
+	jx.Map(results, autopilotSMMControlFeeds[1].name)["at"] = at.Unix()
+	if got := autopilotControlNextPublisher(results, at); got != -1 {
+		t.Fatalf("retry backoff ignored: %d", got)
 	}
 }

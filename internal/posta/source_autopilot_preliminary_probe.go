@@ -26,7 +26,9 @@ func (a *App) autopilotProbePreliminaryRejection(ctx context.Context, job *autop
 		count(*) FILTER (WHERE evidence ? 'preliminary_post_probe' OR evidence ? 'preliminary_probe_scheduled'),
 		count(*) FILTER (WHERE evidence ? 'preliminary_post_probe' AND NOT (evidence ? 'preliminary_probe_scheduled')),
 		count(*) FILTER (WHERE state IN ('candidate','rejected') AND next_check_at <= $4
-			AND evidence ? 'preliminary_probe_scheduled' AND NOT (evidence ? 'preliminary_post_probe'))
+			AND evidence ? 'preliminary_probe_scheduled' AND NOT (evidence ? 'preliminary_post_probe')
+			AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE o.scope=$1 AND o.topic_key=$2
+				AND o.owner_id='' AND o.source_id=source_autopilot_sources.source_id AND o.decision='excluded'))
 		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`,
 		job.Scope, job.TopicKey, source, time.Now().Unix()).Scan(&already, &scheduled, &reserved, &unreserved, &pending); err != nil {
 		return nil, false, err

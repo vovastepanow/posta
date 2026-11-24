@@ -31,7 +31,15 @@ const autopilotSourceReasonLabels = {
     shadow_preliminary_pass: 'Прошёл предварительную проверку',
     observed_useful: 'Полезность подтверждена', observed_useful_curation: 'Одобрен как куратор качественных публикаций', insufficient_evidence: 'Недостаточно данных для решения',
     observed_irrelevant: 'Недостаточно публикаций по теме', observed_low_yield: 'Мало полезных публикаций после фильтров', quality_drift: 'Качество снизилось',
-    observed_ad_or_duplicates: 'Слишком много рекламы или дублей'
+    observed_ad_or_duplicates: 'Слишком много рекламы или дублей',
+    preliminary_probe_scheduled: 'Назначена повторная диагностика старого отказа',
+    yield_readable_trial: 'Испытание по полезной отдаче',
+    yield_confirmed: 'Полезная отдача подтверждена новыми публикациями',
+    yield_observing: 'Ожидаем новые полезные публикации',
+    yield_retain: 'Полезный источник продолжает наблюдаться',
+    yield_declined: 'Полезная отдача снизилась',
+    yield_no_useful_posts: 'Не найдено полезных постов в оценённой выборке',
+    yield_ad_or_self_repeats: 'Слишком много рекламы или собственных повторов'
 };
 function autopilotSourceIdentity(raw) {
     const source = String(raw || '').trim();
@@ -603,6 +611,11 @@ function autopilotDiagnosticReport(data) {
             candidate_reasons: topic.candidate_reasons,
             candidate_assessment_causes: topic.candidate_assessment_causes,
             probation_reasons: topic.probation_reasons,
+            audit_funnel: topic.audit_funnel,
+            audit_funnel_unavailable: topic.audit_funnel_unavailable,
+            yield_policy_enabled: topic.yield_policy_enabled,
+            yield_pilot_enabled: topic.yield_pilot_enabled,
+            control_audit: topic.control_audit,
             fetch_remaining: topic.fetch_remaining, model_remaining: topic.model_remaining,
             server_fetch_remaining: topic.server_fetch_remaining,
             server_model_remaining: topic.server_model_remaining,

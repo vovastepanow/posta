@@ -50,21 +50,54 @@ func (a *App) autopilotRunControlAudit(ctx context.Context, job *autopilotJob) e
 	if results == nil {
 		results = jx.M{}
 	}
-	for _, f := range autopilotSMMControlFeeds {
-		if jx.Has(results, f.name) {
+	index := autopilotControlNextPublisher(results, at)
+	if index < 0 {
+		return nil
+	}
+	f := autopilotSMMControlFeeds[index]
+	result, err := a.autopilotControlPublisher(ctx, job, f.raw, at)
+	if err != nil {
+		return err
+	}
+	previous := jx.Map(results, f.name)
+	if len(previous) > 0 {
+		result["attempts"] = 2
+		result["first_status"] = jx.Str(previous, "status")
+		result["first_preliminary_completed"] = jx.Bool(previous, "preliminary_completed")
+		result["first_post_status"] = jx.Str(jx.Map(previous, "post_probe"), "status")
+	} else {
+		result["attempts"] = 1
+	}
+	results[f.name] = result
+	panel["results"], panel["last_attempt_at"] = results, at.Unix()
+	checkpoint[autopilotControlPanelKey] = panel
+	job.Checkpoint = jx.Marshal(checkpoint)
+	return saveAutopilotCheckpoint(ctx, a.DB, job)
+}
+
+// Complete the first panel before spending one bounded retry on an
+// incomplete reading or model response. A genuine negative completed
+// assessment is not retried simply because the score was low.
+func autopilotControlNextPublisher(results jx.M, at time.Time) int {
+	for i, f := range autopilotSMMControlFeeds {
+		if len(jx.Map(results, f.name)) == 0 {
+			return i
+		}
+	}
+	for i, f := range autopilotSMMControlFeeds {
+		result := jx.Map(results, f.name)
+		if jx.Int(result, "attempts") >= 2 || jx.Int(result, "at") > at.Add(-time.Hour).Unix() {
 			continue
 		}
-		result, err := a.autopilotControlPublisher(ctx, job, f.raw, at)
-		if err != nil {
-			return err
+		probe := jx.Map(result, "post_probe")
+		if jx.Str(result, "status") != "readable" ||
+			(jx.Int(result, "fresh") > 0 && (!jx.Bool(result, "preliminary_completed") ||
+				jx.Int(probe, "completed") < jx.Int(probe, "submitted") ||
+				jx.Str(probe, "status") == "provider_failure")) {
+			return i
 		}
-		results[f.name] = result
-		panel["results"], panel["last_attempt_at"] = results, at.Unix()
-		checkpoint[autopilotControlPanelKey] = panel
-		job.Checkpoint = jx.Marshal(checkpoint)
-		return saveAutopilotCheckpoint(ctx, a.DB, job)
 	}
-	return nil
+	return -1
 }
 
 func (a *App) autopilotControlPublisher(ctx context.Context, job *autopilotJob, feed string, at time.Time) (jx.M, error) {
@@ -133,7 +166,14 @@ func autopilotControlPanelSummary(checkpoint jx.M) jx.M {
 			continue
 		}
 		add("attempted", 1)
-		item := jx.M{"publisher": f.name, "at": jx.Int(result, "at"), "http_status": jx.Int(result, "http_status")}
+		attempts := max(int64(1), jx.Int(result, "attempts"))
+		add("attempts", attempts)
+		item := jx.M{"publisher": f.name, "at": jx.Int(result, "at"), "http_status": jx.Int(result, "http_status"), "attempts": attempts}
+		if attempts > 1 {
+			item["first_status"] = jx.Str(result, "first_status")
+			item["first_preliminary_completed"] = jx.Bool(result, "first_preliminary_completed")
+			item["first_post_status"] = jx.Str(result, "first_post_status")
+		}
 		switch status := jx.Str(result, "status"); status {
 		case "readable", "not_readable", "parse_failed":
 			item["status"] = status
