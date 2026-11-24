@@ -60,11 +60,27 @@ func TestAutopilotFullRecheckPostgres(t *testing.T) {
 	if err := enqueueAutopilotJob(ctx, d.Pool, autopilotShadowScope, key, autopilotShadowKind, topic, "test", 1, at); err != nil {
 		t.Fatal(err)
 	}
+	// Schedule while the job is asleep with a recorded error. This must
+	// not require a claim, a model, a budget, or a successful supply check.
+	exec(`UPDATE source_autopilot_jobs SET next_run_at=$2,last_error='supply_unavailable'
+		WHERE scope='public:shadow' AND topic_key=$1`, key, future)
+	a := &App{DB: d}
+	if err := a.reconcileAutopilotMode(ctx, true, "shadow", autopilotShadowScope, autopilotShadowKind); err != nil {
+		t.Fatal(err)
+	}
+	var scheduledState string
+	if err := d.Pool.QueryRow(ctx, `SELECT state FROM source_autopilot_sources WHERE scope='public:shadow' AND topic_key=$1 AND source_id='active'`, key).Scan(&scheduledState); err != nil || scheduledState != "candidate" {
+		t.Fatalf("idle scheduler did not reset source: %q %v", scheduledState, err)
+	}
+	var scheduledNext int64
+	if err := d.Pool.QueryRow(ctx, `SELECT next_run_at FROM source_autopilot_jobs WHERE scope='public:shadow' AND topic_key=$1`, key).Scan(&scheduledNext); err != nil || scheduledNext != future {
+		t.Fatalf("scheduler discarded failure backoff: %d %v", scheduledNext, err)
+	}
+	exec(`UPDATE source_autopilot_jobs SET next_run_at=0,last_error='' WHERE scope='public:shadow' AND topic_key=$1`, key)
 	job, err := claimAutopilotJobKind(ctx, d.Pool, at.Add(time.Second), time.Minute, autopilotShadowKind)
 	if err != nil || job == nil || job.TopicKey != key {
 		t.Fatalf("claim=%+v err=%v", job, err)
 	}
-	a := &App{DB: d}
 	if err := runAutopilotLeased(ctx, d, job, time.Minute, 10*time.Second, 100, 100, 100, 100, func(work context.Context) error {
 		if err := a.autopilotQueueFullRecheck(work, job); err != nil {
 			return err

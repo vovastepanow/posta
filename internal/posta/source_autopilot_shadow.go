@@ -165,15 +165,8 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 				return err
 			}
 		}
-		// Wake existing enabled topics once for the explicit full recheck.
-		// Do not override pauses, live leases or exhausted budget backoff.
 		if enabled {
-			if _, err := tx.Exec(ctx, `UPDATE source_autopilot_jobs j SET next_run_at=LEAST(j.next_run_at,$3)
-				WHERE j.scope=$1 AND j.kind=$2 AND j.enabled AND j.demand_active
-				AND j.lease_until <= extract(epoch FROM clock_timestamp())::bigint
-				AND j.last_error='' AND NOT (j.checkpoint @> '{"full_recheck_v4_started":true}'::jsonb)
-				AND EXISTS (SELECT 1 FROM source_autopilot_sources s WHERE s.scope=j.scope AND s.topic_key=j.topic_key)`,
-				scope, kind, time.Now().Unix()); err != nil {
+			if err := autopilotScheduleIdleFullRechecks(ctx, tx, scope, kind, mode); err != nil {
 				return err
 			}
 		}
