@@ -23,12 +23,13 @@
     "Batch 013: 15 new source attempts 348–362; 56 partial excerpts; provisional probation for ivanovaknows; no external AI consultation or gold labels.",
     "Batch 014: 15 new attempts 363–377, 12 with 80 text/caption observations. Partial evidence; two provisional probation recommendations. No external AI or gold labels.",
     "Batch 015: 22 direct feed attempts 378–399; 46 short text observations; no exhaustive review or external model. Inaccessible feeds remain retryable.",
-    "Batch 016: 21 source attempts 400–416 and 419–422; 46 text/caption observations, two provisional probation recommendations. No exhaustive review or external model."
+    "Batch 016: 21 source attempts 400–416 and 419–422; 46 text/caption observations, two provisional probation recommendations. No exhaustive review or external model.",
+    "Batch 017: 20 direct feed attempts 425–444; 36 partial text/caption observations. No definitive gold label or external model consultation."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 234,
-    "structured_with_visible_post_samples": 137,
+    "structured_attempted": 254,
+    "structured_with_visible_post_samples": 145,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -49,7 +50,8 @@
     "batch_013_readable_texts": 56,
     "batch_014_readable_texts": 80,
     "batch_015_readable_texts": 46,
-    "batch_016_readable_texts": 46
+    "batch_016_readable_texts": 46,
+    "batch_017_readable_texts": 36
   },
   "rows": [
     {
@@ -15948,7 +15950,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/rendarevskaya"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 426,
@@ -15960,7 +15976,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/ritoricheski_otvet"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 427,
@@ -15972,7 +16002,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/rmp_vo"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 428,
@@ -15984,7 +16028,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/rusadmarketchannel"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Исследование эффективности промокодов в инфлюенс-маркетинге",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/rusadmarketchannel"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Выводы исследования о PR и автоматизации",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/rusadmarketchannel"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс митапа о потребительском поведении",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/rusadmarketchannel"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс отраслевого журнала о медиа и коммуникациях",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/rusadmarketchannel"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Первый текст прямо релевантен и содержит конкретные результаты исследования. Остальные — общая реклама, PR и анонсы. Требуется более широкая выборка.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 429,
@@ -15996,7 +16091,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/rus_hr"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 430,
@@ -16008,7 +16117,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/saleshousegpm"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 431,
@@ -16020,7 +16143,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/sber_university"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Подготовка к встрече с ментором",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sber_university"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Исследование влияния GenAI на рынок труда",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sber_university"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Использование ИИ для сокращения числа совещаний",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sber_university"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Бизнес-образование и управление; три текста, не SMM.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 432,
@@ -16032,7 +16197,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/scrum_mastery"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 433,
@@ -16044,7 +16223,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/scrumtrek_official"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 434,
@@ -16056,7 +16249,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/sharksbz"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 435,
@@ -16068,7 +16275,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/shl_hr_club"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 436,
@@ -16080,7 +16301,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/sidorkinaorgdesign"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс интенсива о стрессе сотрудников",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sidorkinaorgdesign"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс курса о расчете численности персонала",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sidorkinaorgdesign"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Причины организационного кризиса и трудности изменений",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sidorkinaorgdesign"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Организационное развитие и HR; три текста.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 437,
@@ -16092,7 +16355,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/skd_russia"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 438,
@@ -16104,7 +16381,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/slezisatoshi"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Предположение о взломе криптобиржи",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/slezisatoshi"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Статистика ликвидаций торговых позиций",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/slezisatoshi"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Сообщение о задержке прямого эфира",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/slezisatoshi"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анализ криптопроекта ZKSync",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/slezisatoshi"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Критика инвестиционных рекомендаций другого автора",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/slezisatoshi"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Крипторынок. Использование прямых эфиров и ссылок на соцсети не делает материал о блогинге.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 439,
@@ -16116,7 +16453,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/sokolay"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Реклама жилого проекта через тему среды и продуктивности",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sokolay"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс подкаста с основателем Smartcat",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sokolay"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Короткая подпись к видео об отдыхе",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sokolay"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс интервью о построении глобального бизнеса",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sokolay"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Реклама банковского предложения для бизнеса",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sokolay"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Предпринимательство и спонсорские интеграции. Подкаст не просмотрен, видео о паузе неизвестно.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 440,
@@ -16128,7 +16525,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/sosindex"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 441,
@@ -16140,7 +16551,94 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/sostav"
+        ],
+        "visible_post_samples": 8,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Новость о руководителе Nvidia",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sostav"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ироничная рекламная кампания браузера Яндекса",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sostav"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Подкаст о юморе брендов",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sostav"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рождественская рекламная кампания Verizon",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sostav"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Вопрос специалистам об устаревших трендах и охватах",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sostav"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Комментарий к ролику креативного директора",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sostav"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Новость об изменении МРОТ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sostav"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Подпись к видео о раздражающих фейках",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sostav"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Несколько общих креативных кейсов, но каналы распространения не всегда указаны; часть ответов доступна только в видео. Не приравнивать всю рекламу к SMM.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 442,
@@ -16152,7 +16650,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/sostav_networking"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 443,
@@ -16164,7 +16676,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/sovcomstudents"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс карьерного мероприятия с лидерами мнений",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sovcomstudents"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс карьерного паблик-тока",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sovcomstudents"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Подборка вакансий банка",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sovcomstudents"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Интерактивный карьерный гороскоп с баскетболом в комментариях",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/sovcomstudents"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Карьера; последний пост представляет собственную механику вовлечения, но не ее профессиональный разбор.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 444,
@@ -16176,7 +16739,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_017": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/spbucareer"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Студенческие соревнования 1С",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/spbucareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс-чемпионат VK",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/spbucareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс вебинара о поиске работы",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/spbucareer"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Опрос о карьерных предпочтениях студентов",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/spbucareer"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Общая студенческая карьера; участие VK не является свидетельством SMM.",
+        "coverage": "Short nonconsecutive accessible excerpts; individual permalinks and publication dates unresolved; no media inspection. Direct-access failure not a source verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 445,
