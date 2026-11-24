@@ -813,14 +813,15 @@ func autopilotRunSearchBackendsAdaptive(ctx context.Context, turn int64, backend
 		turn = 0
 	}
 	start := int(turn % int64(len(backends)))
-	var out []DiscoveryCandidate
+	var groups [][]DiscoveryCandidate
 	seen := make(map[string]bool)
 	for i := 0; i < len(backends); i++ {
 		if ctx.Err() != nil || autopilotBudgetError(ctx) != nil || autopilotSearchFetchCapReached(ctx) {
 			break
 		}
-		for _, candidate := range backends[(start+i)%len(backends)]() {
-			out = append(out, candidate)
+		group := backends[(start+i)%len(backends)]()
+		groups = append(groups, group)
+		for _, candidate := range group {
 			if id, ok := autopilotCandidateID(candidate); ok {
 				seen[id] = true
 			}
@@ -829,7 +830,35 @@ func autopilotRunSearchBackendsAdaptive(ctx context.Context, turn int64, backend
 			break
 		}
 	}
-	return out
+	return autopilotInterleaveSearchResults(groups)
+}
+
+
+// Retain the best-ranked result of every backend before its tail. A large
+// directory cannot monopolize the first review slots, and repeated source
+// aliases do not cost another registration or review slot.
+func autopilotInterleaveSearchResults(groups [][]DiscoveryCandidate) []DiscoveryCandidate {
+	var out []DiscoveryCandidate
+	seen := map[string]bool{}
+	for rank := 0; ; rank++ {
+		more := false
+		for _, group := range groups {
+			if rank >= len(group) {
+				continue
+			}
+			more = true
+			candidate := group[rank]
+			id, ok := autopilotCandidateID(candidate)
+			if !ok || seen[id] {
+				continue
+			}
+			seen[id] = true
+			out = append(out, candidate)
+		}
+		if !more {
+			return out
+		}
+	}
 }
 
 func autopilotRunSearchBackends(ctx context.Context, turn int64, backends []func() []DiscoveryCandidate) []DiscoveryCandidate {
@@ -1050,12 +1079,16 @@ func (a *App) autopilotShadowSearchWith(ctx context.Context, job *autopilotJob, 
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
+	seen := map[string]bool{}
+	at := time.Now()
 	for _, candidate := range candidates {
 		sourceID, ok := autopilotCandidateID(candidate)
-		if !ok {
+		if !ok || seen[sourceID] {
 			continue
 		}
-		if err := registerAutopilotCandidate(ctx, a.DB, job, sourceID, time.Now()); err != nil {
+		seen[sourceID] = true
+		evidence := jx.Marshal(jx.M{"search_rank": len(seen)})
+		if err := registerAutopilotCandidateWithEvidence(ctx, a.DB, job, sourceID, "discovered", evidence, at); err != nil {
 			return err
 		}
 		if err := recordAutopilotQuerySource(ctx, a, job, sourceID); err != nil {
@@ -1592,6 +1625,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 	// capacity for each lane even when another lane has thousands of entries.
 	rows, err := a.DB.Pool.Query(ctx, `WITH due AS (
 		SELECT s.source_id,s.state,s.resume_state,s.checked_at,s.first_seen_at,
+			CASE WHEN jsonb_typeof(s.evidence->'search_rank')='number'
+				THEN (s.evidence->>'search_rank')::numeric ELSE 1000000 END AS search_rank,
 			(s.evidence ? 'review_policy_v3_scheduled' AND NOT (s.evidence ? 'review_policy_v3_checked')) AS reaudit,
 			CASE
 				WHEN s.state='probation' THEN 0
@@ -1611,7 +1646,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
 	), ranked AS (
 		SELECT source_id,state,resume_state,lane,reaudit,
-			row_number() OVER (PARTITION BY lane ORDER BY reaudit DESC,checked_at,first_seen_at,source_id) AS lane_rank
+			row_number() OVER (PARTITION BY lane ORDER BY reaudit DESC,checked_at,first_seen_at,search_rank,source_id) AS lane_rank
 		FROM due
 	)
 	SELECT source_id,state,resume_state,reaudit FROM ranked
