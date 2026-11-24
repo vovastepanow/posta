@@ -105,6 +105,13 @@ func TestAutopilotPrepareSkipsInvalidRejectedProjectionsPostgres(t *testing.T) {
 			t.Fatalf("source=%q state=%q want=%q err=%v", check.source, got, check.state, err)
 		}
 	}
+	var repairedReason, replacement string
+	if err := d.Pool.QueryRow(ctx, `SELECT reason, COALESCE(evidence->>'replacement_source_id','')
+		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`,
+		autopilotAutoScope, key, oldHabr).Scan(&repairedReason, &replacement); err != nil ||
+		repairedReason != "source_identity_recovered" || replacement != fixedHabr {
+		t.Fatalf("old Habr identity still treated as unsupported: %s %s %v", repairedReason, replacement, err)
+	}
 	// A lost lowercase YouTube ID is never guessed or accidentally
 	// activated. Technical source rechecks are exactly once per old key.
 	var marked bool

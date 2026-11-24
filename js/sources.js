@@ -23,6 +23,7 @@ const autopilotSourceStateLabels = { candidate: 'Ожидает проверки
 const autopilotSourceReasonLabels = {
     discovered: 'Ожидает первой проверки', insufficient_fresh_samples: 'Недостаточно публикаций в коротком окне (устаревшая проверка)', sparse_publisher: 'Публикует редко — мониторинг без отклонения',
     feed_unavailable: 'Лента недоступна', rate_limited: 'Ограничение запросов площадки',
+    source_identity_recovered: 'Адрес исправлен — проверяется новый источник', invalid_source_identity: 'Повреждён идентификатор источника', unsupported_source_format: 'Формат источника не поддерживается',
     source_not_found: 'Источник не найден', unrecognized_feed: 'Формат ленты не распознан',
     feed_parse_failed: 'Ошибка разбора ленты', preliminary_match_uncertain: 'Недостаточно высокая оценка тематики',
     preliminary_topic_mismatch: 'Проверен и отклонён: не соответствует теме', off_topic_group: 'Группа не соответствует теме',

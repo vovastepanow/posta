@@ -246,7 +246,8 @@ func (a *App) autopilotReconsiderTechnicalRejects(ctx context.Context, job *auto
 	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id FROM source_autopilot_sources
 		WHERE scope=$1 AND topic_key=$2 AND state='rejected'
 		AND reason IN ('invalid_source_identity','unsupported_source_format')
-		AND NOT (evidence ? 'technical_reaudit_v1')
+		AND NOT (evidence ? 'technical_repair_v2')
+		AND (NOT (evidence ? 'technical_reaudit_v1') OR source_id LIKE 'rss:https://habr.com/ru/rss/%?fl=ru')
 		ORDER BY source_id LIMIT 100`, job.Scope, job.TopicKey)
 	if err != nil {
 		return err
@@ -289,7 +290,7 @@ func (a *App) autopilotReconsiderTechnicalRejects(ctx context.Context, job *auto
 				return err
 			}
 		} else if canonical != "" {
-			if err := registerAutopilotCandidate(ctx, a.DB, job, canonical, at); err != nil {
+			if err := a.autopilotRepairVerifiedSource(ctx, job, old, canonical, at); err != nil {
 				return err
 			}
 		}

@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"context"
 	"errors"
 	"net"
 	"testing"
@@ -42,4 +43,31 @@ func TestPublicDNSFallbackAndAddressValidation(t *testing.T) {
 	if _, addr, err := publicResolveWithLookup("https://example.test/path", good); err != nil || addr != "93.184.216.34:443" {
 		t.Fatalf("public result: %s %v", addr, err)
 	}
+}
+
+func TestPublicAddressFailoverUsesOnlyValidatedDNSAnswer(t *testing.T) {
+	lookup := func(string) ([]net.IP, error) {
+		return []net.IP{net.ParseIP("93.184.216.34"), net.ParseIP("1.1.1.1"), net.ParseIP("1.1.1.1")}, nil
+	}
+	_, addresses, err := publicResolveAddresses("https://example.test/feed", lookup)
+	if err != nil || len(addresses) != 2 {
+		t.Fatalf("validated addresses: %v %v", addresses, err)
+	}
+	calls := 0
+	conn, err := dialPublicAddresses(context.Background(), addresses, func(_ context.Context, network, address string) (net.Conn, error) {
+		if network != "tcp4" || address != addresses[calls] {
+			t.Fatalf("unvalidated dial target: %s %s", network, address)
+		}
+		calls++
+		if calls == 1 {
+			return nil, errors.New("first host down")
+		}
+		a, b := net.Pipe()
+		b.Close()
+		return a, nil
+	})
+	if err != nil || calls != 2 || conn == nil {
+		t.Fatalf("failover: %v %d %v", conn, calls, err)
+	}
+	conn.Close()
 }

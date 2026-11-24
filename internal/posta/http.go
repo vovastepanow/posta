@@ -135,42 +135,77 @@ func publicResolve(raw string) (*url.URL, string, error) {
 }
 
 func publicResolveWithLookup(raw string, lookup func(string) ([]net.IP, error)) (*url.URL, string, error) {
+	u, addresses, err := publicResolveAddresses(raw, lookup)
+	if err != nil {
+		return nil, "", err
+	}
+	return u, addresses[0], nil
+}
+
+// Validate the entire IPv4 answer before dialing any address. Fail over
+// only within this pinned DNS answer, never to an unchecked resolver result.
+func publicResolveAddresses(raw string, lookup func(string) ([]net.IP, error)) (*url.URL, []string, error) {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil {
-		return nil, "", Bad("Укажите прямую публичную ссылку на изображение.")
+		return nil, nil, Bad("Укажите прямую публичную ссылку на изображение.")
 	}
 	port := u.Port()
 	std := map[string]string{"http": "80", "https": "443"}[u.Scheme]
 	if port != "" && port != std {
-		return nil, "", Bad("Ссылка должна использовать стандартный порт HTTP или HTTPS.")
+		return nil, nil, Bad("Ссылка должна использовать стандартный порт HTTP или HTTPS.")
 	}
 	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
 	if ip := net.ParseIP(host); ip != nil {
 		if !publicIP(ip) {
-			return nil, "", Bad("Ссылка должна вести на публичный IPv4-адрес или домен.")
+			return nil, nil, Bad("Ссылка должна вести на публичный IPv4-адрес или домен.")
 		}
-		return u, net.JoinHostPort(host, std), nil
+		return u, []string{net.JoinHostPort(ip.String(), std)}, nil
 	}
 	ips, err := lookup(host)
 	if err != nil || len(ips) == 0 {
-		return nil, "", Bad("Не удалось найти адрес сайта из ссылки.")
+		return nil, nil, Bad("Не удалось найти адрес сайта из ссылки.")
 	}
-	var first net.IP
+	var addresses []string
+	seen := map[string]bool{}
 	for _, ip := range ips {
 		if ip.To4() == nil {
 			continue
 		}
 		if !publicIP(ip) {
-			return nil, "", Bad("Ссылка ведёт на непубличный адрес.")
+			return nil, nil, Bad("Ссылка ведёт на непубличный адрес.")
 		}
-		if first == nil {
-			first = ip
+		address := net.JoinHostPort(ip.String(), std)
+		if !seen[address] {
+			seen[address] = true
+			addresses = append(addresses, address)
 		}
 	}
-	if first == nil {
-		return nil, "", Bad("Ссылка ведёт на непубличный адрес.")
+	if len(addresses) == 0 {
+		return nil, nil, Bad("Ссылка ведёт на непубличный адрес.")
 	}
-	return u, net.JoinHostPort(first.String(), std), nil
+	return u, addresses[:min(len(addresses), 4)], nil
+}
+
+// TCP connection failures are not HTTP rate limits or permission failures.
+// Retry the other validated addresses within the original request deadline.
+func dialPublicAddresses(ctx context.Context, addresses []string, dial func(context.Context, string, string) (net.Conn, error)) (net.Conn, error) {
+	var lastErr error
+	for _, address := range addresses {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		attempt, cancel := context.WithTimeout(ctx, 3*time.Second)
+		conn, err := dial(attempt, "tcp4", address)
+		cancel()
+		if err == nil {
+			return conn, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = errors.New("no validated public addresses")
+	}
+	return nil, lastErr
 }
 
 // A fallback is opt-in because directing DNS queries outside the configured
@@ -315,7 +350,7 @@ func (a *App) fetchPublicContext(parent context.Context, raw string, o FetchOpts
 	if err := parent.Err(); err != nil {
 		return FetchResult{}, err
 	}
-	u, addr, err := publicResolve(raw)
+	u, addresses, err := publicResolveAddresses(raw, lookupPublicHost)
 	if err != nil {
 		return FetchResult{}, err
 	}
@@ -330,7 +365,7 @@ func (a *App) fetchPublicContext(parent context.Context, raw string, o FetchOpts
 		Timeout: o.Timeout,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				return dialer.DialContext(ctx, "tcp4", addr)
+				return dialPublicAddresses(ctx, addresses, dialer.DialContext)
 			},
 			TLSHandshakeTimeout: 8 * time.Second,
 		},
