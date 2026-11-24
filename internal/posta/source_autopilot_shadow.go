@@ -1544,7 +1544,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 	if fetch == nil || evaluate == nil || assess == nil || threshold < 0 || threshold > 100 {
 		return errors.New("invalid shadow review policy")
 	}
-	// Give probation, new candidates and established feeds separate lanes.
+	// Give probation, independently nominated authors, raw candidates and established feeds separate lanes.
 	// Otherwise a large backlog of never-checked candidates (checked_at=0)
 	// always wins over probation sources, preventing them from collecting the
 	// evidence required to become active. Interleave by rank to reserve review
@@ -1552,7 +1552,16 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 	rows, err := a.DB.Pool.Query(ctx, `WITH due AS (
 		SELECT s.source_id,s.state,s.resume_state,s.checked_at,s.first_seen_at,
 			(s.evidence ? 'review_policy_v3_scheduled' AND NOT (s.evidence ? 'review_policy_v3_checked')) AS reaudit,
-			CASE s.state WHEN 'probation' THEN 0 WHEN 'candidate' THEN 1 WHEN 'active' THEN 2 ELSE 3 END AS lane
+			CASE
+				WHEN s.state='probation' THEN 0
+				WHEN s.state='candidate' AND EXISTS (
+					SELECT 1 FROM source_autopilot_direct_results d
+					WHERE d.scope=s.scope AND d.topic_key=s.topic_key AND d.source_id=s.source_id
+					AND d.policy_version=$5 AND d.published_at >= $6 AND d.assessed_at >= $6
+				) THEN 1
+				WHEN s.state='candidate' THEN 2
+				WHEN s.state='active' THEN 3
+				ELSE 4 END AS lane
 		FROM source_autopilot_sources s
 		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown')
 		AND (s.next_check_at <= $3 OR (s.state='candidate' AND
@@ -1565,7 +1574,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		FROM due
 	)
 	SELECT source_id,state,resume_state,reaudit FROM ranked
-	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit)
+	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit,
+		TopicProfileVersion, time.Now().Add(-autopilotDirectMaxAge).Unix())
 	if err != nil {
 		return err
 	}
