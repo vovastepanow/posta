@@ -139,11 +139,20 @@ func autopilotSearchLinkedCandidates(r FetchResultURL, platform string) []Discov
 					continue
 				}
 				candidate.ID = "club" + owner
-			} else if strings.HasPrefix(candidate.ID, "wall") || strings.HasPrefix(candidate.ID, "photo") || strings.HasPrefix(candidate.ID, "video") {
-				// These may be post/media routes rather than communities.
-				// Leave genuine similarly named groups discoverable through
-				// the ordinary post-search and other discovery adapters.
-				continue
+			} else {
+				// Reject numeric post/media routes, not legitimate slugs
+				// such as wallstreet, photography or videomaker.
+				mediaRoute := false
+				for _, prefix := range []string{"wall", "photo", "video", "clip", "album", "topic"} {
+					tail, ok := strings.CutPrefix(candidate.ID, prefix)
+					if ok && len(tail) > 0 && (tail[0] == '-' || (tail[0] >= '0' && tail[0] <= '9')) && strings.Contains(tail, "_") {
+						mediaRoute = true
+						break
+					}
+				}
+				if mediaRoute {
+					continue
+				}
 			}
 		case PlatformTikTok:
 			if host != "www.tiktok.com" && host != "tiktok.com" || !strings.HasPrefix(parts[0], "@") {
