@@ -382,20 +382,37 @@ func discoveryBlueskyPostAuthors(data []byte) ([]DiscoveryCandidate, error) {
 // Bluesky returned it). This is a cheap prefilter, never final approval.
 func blueskyQueryEvidenceMatch(query, evidence string) bool {
 	tokenize := func(text string) []string {
-		return strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
-			return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+		words := strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '+' && r != '#'
 		})
+		for i, word := range words {
+			words[i] = strings.TrimLeft(word, "#")
+		}
+		return words
 	}
 	observed := map[string]bool{}
 	for _, word := range tokenize(evidence) {
 		observed[word] = true
 	}
+	// Matching one generic word ("media" in "social media marketing")
+	// is weak evidence. Require a majority of distinct meaningful terms,
+	// while preserving exact acronyms and C#/C++ as different tokens.
+	stop := map[string]bool{"and": true, "the": true, "for": true, "with": true, "from": true, "about": true,
+		"how": true, "to": true, "in": true, "of": true, "a": true, "an": true, "or": true,
+		"и": true, "или": true, "для": true, "по": true, "на": true, "про": true, "как": true,
+		"об": true, "о": true, "в": true, "с": true}
+	terms := map[string]bool{}
+	matched := 0
 	for _, word := range tokenize(query) {
-		if len([]rune(word)) >= 3 && observed[word] {
-			return true
+		if !letterAnyRe.MatchString(word) || stop[word] || terms[word] {
+			continue
+		}
+		terms[word] = true
+		if observed[word] {
+			matched++
 		}
 	}
-	return false
+	return len(terms) > 0 && matched >= (2*len(terms)+2)/3
 }
 
 // Post search frequently returns authors who mentioned a topic once without
@@ -417,9 +434,18 @@ func discoveryBlueskyRelevantPostAuthors(data []byte, query string) ([]Discovery
 		return nil, err
 	}
 	matched := map[string]int{}
+	seenText := map[string]bool{}
 	for _, post := range response.Posts {
-		if blueskyQueryEvidenceMatch(query, post.Record.Text+" "+post.Text) {
+		body := strings.TrimSpace(post.Record.Text)
+		if body == "" {
+			body = strings.TrimSpace(post.Text)
+		}
+		// Duplicate results or copy-pasted captions do not constitute two
+		// independent examples of a publisher's topical focus.
+		key := post.Author.DID + "|" + strings.ToLower(collapseSpaces(body))
+		if !seenText[key] && blueskyQueryEvidenceMatch(query, body) {
 			matched[post.Author.DID]++
+			seenText[key] = true
 		}
 	}
 	out := make([]DiscoveryCandidate, 0, len(all))
