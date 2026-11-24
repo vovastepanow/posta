@@ -500,9 +500,12 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	{
 		var dueCandidates int
 		if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
-			WHERE scope=$1 AND topic_key=$2 AND state='candidate'
-			AND (next_check_at <= $3 OR reason='probation_full' OR
-			     (reason IN ('feed_unavailable','insufficient_fresh_samples') AND checked_at < $3-3600))`,
+			WHERE scope=$1 AND topic_key=$2
+			AND ((state='candidate' AND (next_check_at <= $3 OR reason='probation_full' OR
+			     (reason IN ('feed_unavailable','insufficient_fresh_samples') AND checked_at < $3-3600)))
+			     OR (evidence ? 'review_policy_v3_scheduled' AND NOT (evidence ? 'review_policy_v3_checked') AND next_check_at <= $3))
+			AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public'))
+				AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=source_autopilot_sources.source_id AND o.decision='excluded')`,
 			job.Scope, job.TopicKey, time.Now().Unix()).Scan(&dueCandidates); err != nil {
 			return err
 		}
@@ -1138,7 +1141,7 @@ func autopilotSourceTopicVerdicts(reply string, expected int) *sourceEvaluation 
 	}
 	known := relevant + adjacent + offTopic
 	score := 50
-	if known > 0 && known*2 >= expected {
+	if known > 0 && known*3 >= expected*2 {
 		score = (100*relevant + 50*adjacent) / known
 	} else {
 		known = 0
@@ -1293,9 +1296,44 @@ func autopilotRutubeChannelPosts(data []byte, channel string) ([]jx.M, error) {
 	return out, nil
 }
 
+// Schedule all previously inspected sources once under the new review policy.
+// Keep their states and historical decisions; the worker owns the transitions.
+// Respect explicit exclusions and provider backoff instead of resetting them.
+func (a *App) autopilotQueueSourceReaudit(ctx context.Context, job *autopilotJob) error {
+	if !validAutopilotPublicJob(job) {
+		return errors.New("invalid source reaudit job")
+	}
+	return withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
+		if err := ensureAutopilotShadowDemand(ctx, tx, job); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `WITH scheduled AS (
+			UPDATE source_autopilot_sources s
+			SET next_check_at=CASE WHEN s.reason='rate_limited' THEN s.next_check_at ELSE LEAST(s.next_check_at,$3) END,
+				evidence=s.evidence || '{"review_policy_v3_scheduled":true}'::jsonb
+			WHERE s.scope=$1 AND s.topic_key=$2 AND s.checked_at>0
+			AND s.state IN ('candidate','probation','active','cooldown','rejected')
+			AND NOT (s.evidence ? 'review_policy_v3_scheduled')
+			AND NOT (s.evidence ? 'review_policy_v3_checked')
+			AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o
+				WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public'))
+				AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
+			RETURNING source_id,state
+		)
+		INSERT INTO source_autopilot_decisions
+			(scope,topic_key,source_id,old_state,new_state,reason,evidence,policy_version,at)
+		SELECT $1,$2,source_id,state,state,'source_reaudit_v3_scheduled','{"review_policy_v3_scheduled":true}'::jsonb,$4,$3 FROM scheduled`,
+			job.Scope, job.TopicKey, time.Now().Unix(), TopicProfileVersion)
+		return err
+	})
+}
+
 // Review only public feed data. An unavailable feed, model error or small
 // sample remains uncertain; none of them proves poor source quality.
 func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilotJob, limit int) error {
+	if err := a.autopilotQueueSourceReaudit(ctx, job); err != nil {
+		return err
+	}
 	ctx = withAutopilotAssessmentProbe(ctx)
 	u := a.User(ctx, "", nil)
 	return a.autopilotReviewShadowCandidatesWith(ctx, job, limit, a.TInt("autopilot_preliminary_score"),
@@ -1424,6 +1462,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 	// capacity for each lane even when another lane has thousands of entries.
 	rows, err := a.DB.Pool.Query(ctx, `WITH due AS (
 		SELECT s.source_id,s.state,s.resume_state,s.checked_at,s.first_seen_at,
+			(s.evidence ? 'review_policy_v3_scheduled' AND NOT (s.evidence ? 'review_policy_v3_checked')) AS reaudit,
 			CASE s.state WHEN 'probation' THEN 0 WHEN 'candidate' THEN 1 WHEN 'active' THEN 2 ELSE 3 END AS lane
 		FROM source_autopilot_sources s
 		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown')
@@ -1432,20 +1471,23 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			 (s.reason IN ('feed_unavailable','insufficient_fresh_samples') AND s.checked_at < $3-3600))))
 		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
 	), ranked AS (
-		SELECT source_id,state,resume_state,lane,
-			row_number() OVER (PARTITION BY lane ORDER BY checked_at,first_seen_at,source_id) AS lane_rank
+		SELECT source_id,state,resume_state,lane,reaudit,
+			row_number() OVER (PARTITION BY lane ORDER BY reaudit DESC,checked_at,first_seen_at,source_id) AS lane_rank
 		FROM due
 	)
-	SELECT source_id,state,resume_state FROM ranked
+	SELECT source_id,state,resume_state,reaudit FROM ranked
 	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit)
 	if err != nil {
 		return err
 	}
-	type sourceRow struct{ id, state, resume string }
+	type sourceRow struct {
+		id, state, resume string
+		reaudit           bool
+	}
 	var ids []sourceRow
 	for rows.Next() {
 		var row sourceRow
-		if err := rows.Scan(&row.id, &row.state, &row.resume); err != nil {
+		if err := rows.Scan(&row.id, &row.state, &row.resume, &row.reaudit); err != nil {
 			rows.Close()
 			return err
 		}
