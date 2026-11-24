@@ -11,12 +11,13 @@
     "Second batch: all 20 Bluesky identities (21–40) attempted; five profile descriptions, zero posts. Some web fetches fail and XML is unsupported; this is a tool-access limitation, not proof of source failure. Additional sources sampled out of order to make content progress. All recommendations provisional. No production data changed.",
     "Next audit rounds should append item-level source URL, date, relevant/adjacent/off_topic/unknown and usefulness separately; target 10–20 recent posts, or document feed completeness for inactive sources.",
     "Batch 003: five Telegram feeds with per-post URLs resolved from feed anchors, paraphrases, separate topical and usefulness labels, exact dates unavailable; five unsuccessful direct fetches. No Gemini or other independent model consulted: available plugin discovery returned no matching Gemini capability. No gold labels assigned; prior observations preserved.",
-    "Batch 004: baseline indices 236,237,239–244 (8 new structured attempts). Four direct Telegram feeds with 41 individually resolved post links; three third-party archive samples with 18 excerpts, some without individual links; one inaccessible. No independent external model response received. No new integration or production changes in this batch. Provisional recommendations only; no gold labels."
+    "Batch 004: baseline indices 236,237,239–244 (8 new structured attempts). Four direct Telegram feeds with 41 individually resolved post links; three third-party archive samples with 18 excerpts, some without individual links; one inaccessible. No independent external model response received. No new integration or production changes in this batch. Provisional recommendations only; no gold labels.",
+    "Batch 005: 16 new source attempts (245–260); 4 direct feeds, 7 third-party mirrors, five inaccessible. 73 individually described entries, 69 readable texts/captions. Explicit nulls where individual URLs or dates unavailable. Media-only entries excluded from readable count. No independent external AI consultation. No gold labels."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 63,
-    "structured_with_visible_post_samples": 23,
+    "structured_attempted": 79,
+    "structured_with_visible_post_samples": 34,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -24,7 +25,9 @@
     "item_level_entries_batch_003": 49,
     "item_level_readable_texts_batch_003": 48,
     "batch_004_direct_posts": 41,
-    "batch_004_mirror_excerpts": 18
+    "batch_004_mirror_excerpts": 18,
+    "batch_005_entries_examined": 73,
+    "batch_005_readable_texts": 69
   },
   "rows": [
     {
@@ -4418,7 +4421,78 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "mirror_excerpt_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://telemetr.io/uk/channels/2824049256-afanasyevpro/posts"
+        ],
+        "visible_post_samples": 5,
+        "entries_examined": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": "2026-11-11",
+            "summary": "Баланс текущих задач и стратегии",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/uk/channels/2824049256-afanasyevpro/posts",
+            "evidence_lines": "220–224"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-09",
+            "summary": "Приглашение на практикум собственников",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/uk/channels/2824049256-afanasyevpro/posts",
+            "evidence_lines": "235–243"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-07",
+            "summary": "Планирование финансовых результатов",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/uk/channels/2824049256-afanasyevpro/posts",
+            "evidence_lines": "277–279"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-05",
+            "summary": "Шутливый вопрос о предпринимателях",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/uk/channels/2824049256-afanasyevpro/posts",
+            "evidence_lines": "291–293"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Принятие стратегических решений руководителем",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/uk/channels/2824049256-afanasyevpro/posts",
+            "evidence_lines": "319–321"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Управление и финансы; доступная выборка не подтверждает SMM.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 246,
@@ -4430,7 +4504,100 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "mirror_excerpt_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/1130885557-agencymanagement/posts?cursor=IDw%3D"
+        ],
+        "visible_post_samples": 7,
+        "entries_examined": 7,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": "2026-10-22",
+            "summary": "Изменение роли руководителя продаж под влиянием ИИ",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/en/channels/1130885557-agencymanagement/posts?cursor=IDw%3D",
+            "evidence_lines": "132–134"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-22",
+            "summary": "Автоматизация регламентов продаж",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/en/channels/1130885557-agencymanagement/posts?cursor=IDw%3D",
+            "evidence_lines": "145–147"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-22",
+            "summary": "ИИ для коммерческих предложений и пресейла",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/en/channels/1130885557-agencymanagement/posts?cursor=IDw%3D",
+            "evidence_lines": "158–160"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-22",
+            "summary": "Разделение ролей продаж и адаптация персонала",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/en/channels/1130885557-agencymanagement/posts?cursor=IDw%3D",
+            "evidence_lines": "171–173"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-22",
+            "summary": "Изменения спроса на услуги агентств и контент",
+            "relevance": "adjacent",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/en/channels/1130885557-agencymanagement/posts?cursor=IDw%3D",
+            "evidence_lines": "304–306"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-22",
+            "summary": "Спрос на аутстаффинг",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/en/channels/1130885557-agencymanagement/posts?cursor=IDw%3D",
+            "evidence_lines": "344–346"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-22",
+            "summary": "Падение спроса на простые сайты",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/en/channels/1130885557-agencymanagement/posts?cursor=IDw%3D",
+            "evidence_lines": "358–360"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Архив одного дня: управление агентством, продажи и разработка, не самостоятельная практика SMM. Слайды не просмотрены.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 247,
@@ -4442,7 +4609,45 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "mirror_excerpt_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://telemetr.me/content/agilixru"
+        ],
+        "visible_post_samples": 2,
+        "entries_examined": 2,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": "2026-09-03",
+            "summary": "Преодоление замкнутых групп внутри организации",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.me/content/agilixru",
+            "evidence_lines": "180–208"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-09-01",
+            "summary": "Сопротивление организационным изменениям",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.me/content/agilixru",
+            "evidence_lines": "213–228"
+          }
+        ],
+        "recommendation": "needs_more_evidence",
+        "reason": "Два архивных материала про организационное управление. Недостаточно для окончательной оценки.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 248,
@@ -4454,7 +4659,20 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/aklaskovaya"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct public feed unavailable; no publication text retrieved. Profile-only evidence is not a topical verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 249,
@@ -4466,7 +4684,144 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/alfabank_career"
+        ],
+        "visible_post_samples": 10,
+        "entries_examined": 11,
+        "posts": [
+          {
+            "url": "https://t.me/alfabank_career/3056",
+            "publication_date": null,
+            "summary": "Медиа без доступного текста",
+            "relevance": "unknown",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "35–41"
+          },
+          {
+            "url": "https://t.me/alfabank_career/3058",
+            "publication_date": null,
+            "summary": "Рассказ о карьерном переезде",
+            "relevance": "off_topic",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "61–78"
+          },
+          {
+            "url": "https://t.me/alfabank_career/3062",
+            "publication_date": null,
+            "summary": "Вакансии центрального офиса",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "80–102"
+          },
+          {
+            "url": "https://t.me/alfabank_career/3063",
+            "publication_date": null,
+            "summary": "Награды работодателя",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "104–118"
+          },
+          {
+            "url": "https://t.me/alfabank_career/3064",
+            "publication_date": null,
+            "summary": "Курс по ИИ для детей и родителей",
+            "relevance": "off_topic",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "120–138"
+          },
+          {
+            "url": "https://t.me/alfabank_career/3065",
+            "publication_date": null,
+            "summary": "Опрос о подготовке к встречам",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "140–150"
+          },
+          {
+            "url": "https://t.me/alfabank_career/3067",
+            "publication_date": null,
+            "summary": "Рабочие суеверия и офисный юмор",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "162–181"
+          },
+          {
+            "url": "https://t.me/alfabank_career/3070",
+            "publication_date": null,
+            "summary": "Реферальная программа найма",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "213–230"
+          },
+          {
+            "url": "https://t.me/alfabank_career/3071",
+            "publication_date": null,
+            "summary": "Игровой креатив для рекрутинга",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "234–247"
+          },
+          {
+            "url": "https://t.me/alfabank_career/3072",
+            "publication_date": null,
+            "summary": "Опрос об игре GTA",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "249–259"
+          },
+          {
+            "url": "https://t.me/alfabank_career/3074",
+            "publication_date": null,
+            "summary": "Промо банковского бренда",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfabank_career",
+            "evidence_lines": "261–278"
+          }
+        ],
+        "recommendation": "reject_for_topic_provisional",
+        "reason": "Карьерный канал; собственные креативы банка не являются разбором практики SMM. Десять читаемых записей и один нечитаемый медиапост. Даты не установлены.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 250,
@@ -4478,7 +4833,89 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/alfadigital_jobs"
+        ],
+        "visible_post_samples": 6,
+        "entries_examined": 6,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Типы характеров и распределение задач",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfadigital_jobs",
+            "evidence_lines": "32–48"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс встречи о безопасности ИИ",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfadigital_jobs",
+            "evidence_lines": "50–62"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Мутационное тестирование ПО",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfadigital_jobs",
+            "evidence_lines": "76–92"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Награда за внедрение ИИ",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfadigital_jobs",
+            "evidence_lines": "104–120"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Креатив о банковском бренде",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfadigital_jobs",
+            "evidence_lines": "132–150"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Использование ИИ для исследования UX",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/alfadigital_jobs",
+            "evidence_lines": "152–167"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "IT, разработка и карьера. Промо бренда без методики SMM. Индивидуальные ссылки не получены.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 251,
@@ -4490,7 +4927,122 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "mirror_excerpt_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://telemoon.app/ru/channel/allbillboards"
+        ],
+        "visible_post_samples": 6,
+        "entries_examined": 9,
+        "posts": [
+          {
+            "url": "https://t.me/allbillboards/8591",
+            "publication_date": "2026-11-24",
+            "summary": "Комментарий о перепечатке отраслевой новости",
+            "relevance": "adjacent",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemoon.app/ru/channel/allbillboards",
+            "evidence_lines": "224–226"
+          },
+          {
+            "url": "https://t.me/allbillboards/8590",
+            "publication_date": "2026-11-24",
+            "summary": "Судебные требования рекламных групп к девелоперу",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemoon.app/ru/channel/allbillboards",
+            "evidence_lines": "236–240"
+          },
+          {
+            "url": "https://t.me/allbillboards/8588",
+            "publication_date": "2026-11-21",
+            "summary": "Реакция бренда на сбой Microsoft, изображение не изучено",
+            "relevance": "adjacent",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemoon.app/ru/channel/allbillboards",
+            "evidence_lines": "285–286"
+          },
+          {
+            "url": "https://t.me/allbillboards/8587",
+            "publication_date": "2026-11-21",
+            "summary": "Видео без текста",
+            "relevance": "unknown",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemoon.app/ru/channel/allbillboards",
+            "evidence_lines": "318–320"
+          },
+          {
+            "url": "https://t.me/allbillboards/8586",
+            "publication_date": "2026-11-21",
+            "summary": "Создание объемной наружной рекламы",
+            "relevance": "adjacent",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemoon.app/ru/channel/allbillboards",
+            "evidence_lines": "352–354"
+          },
+          {
+            "url": "https://t.me/allbillboards/8585",
+            "publication_date": "2026-11-20",
+            "summary": "Пересланный материал без текста",
+            "relevance": "unknown",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemoon.app/ru/channel/allbillboards",
+            "evidence_lines": "385–389"
+          },
+          {
+            "url": "https://t.me/allbillboards/8584",
+            "publication_date": "2026-11-20",
+            "summary": "Видео без текста",
+            "relevance": "unknown",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemoon.app/ru/channel/allbillboards",
+            "evidence_lines": "422–424"
+          },
+          {
+            "url": "https://t.me/allbillboards/8583",
+            "publication_date": "2026-11-20",
+            "summary": "Фотоальбом с отсылкой к игре",
+            "relevance": "unknown",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemoon.app/ru/channel/allbillboards",
+            "evidence_lines": "456–458"
+          },
+          {
+            "url": "https://t.me/allbillboards/8582",
+            "publication_date": "2026-11-20",
+            "summary": "Хронология проблем девелопера",
+            "relevance": "off_topic",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemoon.app/ru/channel/allbillboards",
+            "evidence_lines": "489–491"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Наружная реклама и рекламный бизнес; часть материалов состоит из недоступных фото и видео. Нельзя судить об их тематике без просмотра.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 252,
@@ -4502,7 +5054,56 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "mirror_excerpt_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1761701179-allthingslegal"
+        ],
+        "visible_post_samples": 3,
+        "entries_examined": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Конфиденциальность и редактирование PDF",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/ru/channels/1761701179-allthingslegal",
+            "evidence_lines": "554–556"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Книга о стратегии юридического рынка",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/ru/channels/1761701179-allthingslegal",
+            "evidence_lines": "557"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Почасовая оплата юристов за письма",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://telemetr.io/ru/channels/1761701179-allthingslegal",
+            "evidence_lines": "558"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Юридические технологии и бизнес, проверено три содержательных фрагмента.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 253,
@@ -4514,7 +5115,20 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/amolotnikov2020"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct public feed unavailable; no publication text retrieved. Profile-only evidence is not a topical verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 254,
@@ -4526,7 +5140,20 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/andkulagin"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct public feed unavailable; no publication text retrieved. Profile-only evidence is not a topical verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 255,
@@ -4538,7 +5165,20 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/apcbc_ru"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct public feed unavailable; no publication text retrieved. Profile-only evidence is not a topical verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 256,
@@ -4550,7 +5190,100 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "mirror_excerpt_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://tg.me/arturdulkarnaev"
+        ],
+        "visible_post_samples": 7,
+        "entries_examined": 7,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": "2026-11-02",
+            "summary": "Обзор налога на наследование",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/arturdulkarnaev",
+            "evidence_lines": "158"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-02",
+            "summary": "Международный справочник корпоративных налогов",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/arturdulkarnaev",
+            "evidence_lines": "159–160"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-02",
+            "summary": "Ответственность за валютные операции",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/arturdulkarnaev",
+            "evidence_lines": "161–164"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-01",
+            "summary": "Отчетность по иностранным компаниям",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/arturdulkarnaev",
+            "evidence_lines": "173–177"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-01",
+            "summary": "Справочник экономических ограничений",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/arturdulkarnaev",
+            "evidence_lines": "178–179"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-27",
+            "summary": "Налоговый запрос о зарубежных доходах",
+            "relevance": "off_topic",
+            "usefulness": "mixed",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/arturdulkarnaev",
+            "evidence_lines": "180"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-27",
+            "summary": "Дайджест налоговых и таможенных вопросов",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/arturdulkarnaev",
+            "evidence_lines": "181"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Налоговая тематика, не SMM. Доступный архив не является полной последней выборкой.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 257,
@@ -4562,7 +5295,111 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/avetov"
+        ],
+        "visible_post_samples": 8,
+        "entries_examined": 8,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Посещение студии художника",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/avetov",
+            "evidence_lines": "38–45"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Организационные сведения для участников саммита",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/avetov",
+            "evidence_lines": "49–65"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Подготовка к бизнес-мероприятию",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/avetov",
+            "evidence_lines": "69–73"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Итоги первого дня саммита",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/avetov",
+            "evidence_lines": "98–109"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс программы саммита",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/avetov",
+            "evidence_lines": "112–120"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Бизнес-завтрак и выступление о сделках",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/avetov",
+            "evidence_lines": "135–142"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Завершение бизнес-саммита",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/avetov",
+            "evidence_lines": "158–170"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Организация, продажи и финансовые результаты события",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/avetov",
+            "evidence_lines": "173–188"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Преобладают материалы одного бизнес-саммита; возможна временная событийная выборка. Без просмотра видео и второй временной выборки не отклонять окончательно.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 258,
@@ -4574,7 +5411,133 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "mirror_excerpt_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://tg.me/avito_career"
+        ],
+        "visible_post_samples": 10,
+        "entries_examined": 10,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": "2026-11-19",
+            "summary": "Вакансия разработчика базы данных",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/avito_career",
+            "evidence_lines": "144"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-17",
+            "summary": "Вакансии продаж",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/avito_career",
+            "evidence_lines": "145–150"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-16",
+            "summary": "Вакансия руководителя стажировок",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/avito_career",
+            "evidence_lines": "152"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-11-03",
+            "summary": "Вакансии HR и обучения",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/avito_career",
+            "evidence_lines": "163"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-30",
+            "summary": "Вакансия контент-продюсера",
+            "relevance": "relevant",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/avito_career",
+            "evidence_lines": "164"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-29",
+            "summary": "Вакансия руководителя DS",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/avito_career",
+            "evidence_lines": "165"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-28",
+            "summary": "Вакансия аналитика технической платформы",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/avito_career",
+            "evidence_lines": "166–167"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-28",
+            "summary": "Голосование за работодателя",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/avito_career",
+            "evidence_lines": "168"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-27",
+            "summary": "Набор на буткемп аналитиков",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/avito_career",
+            "evidence_lines": "169–171"
+          },
+          {
+            "url": null,
+            "publication_date": "2026-10-26",
+            "summary": "Вакансия специалиста по бренд-коммуникациям и соцсетям",
+            "relevance": "relevant",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "third_party_mirror_excerpt",
+            "evidence_page": "https://tg.me/avito_career",
+            "evidence_lines": "172"
+          }
+        ],
+        "recommendation": "reject_for_topic_provisional",
+        "reason": "Лента вакансий: отдельные вакансии относятся к контенту и карьерным соцсетям, но это объявления, не профессиональные материалы SMM.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 259,
@@ -4586,7 +5549,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/b1_belarus_tax",
+          "https://t.me/b1_belarus_tax"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct public feed unavailable; no publication text retrieved. Profile-only evidence is not a topical verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 260,
@@ -4598,7 +5575,78 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_005": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/b1_careers"
+        ],
+        "visible_post_samples": 5,
+        "entries_examined": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Угадывание профессии по рабочим выражениям",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/b1_careers",
+            "evidence_lines": "33–55"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Вакансии в налогах и консалтинге",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/b1_careers",
+            "evidence_lines": "57–85"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Советы для первого звонка рекрутера",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/b1_careers",
+            "evidence_lines": "89–175"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отдых сотрудников",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/b1_careers",
+            "evidence_lines": "179–200"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Советы по оформлению резюме",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption",
+            "evidence_page": "https://t.me/s/b1_careers",
+            "evidence_lines": "204–216"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Карьера, аудит, консалтинг. Пять читаемых публикаций из одного снимка, дополнительные посты из другого снимка не смешивались.",
+        "coverage": "Partial accessible texts/captions; missing dates and individual URLs are null; no media inspection or complete latest-N claim. Line locators refer to retrieved snapshots and may change.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 261,
