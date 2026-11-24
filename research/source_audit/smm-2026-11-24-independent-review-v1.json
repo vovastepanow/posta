@@ -28,12 +28,13 @@
     "Batch 018: 20 new direct feed attempts 445–464; 6 with visible posts, 24 partial text/caption observations. No final gold labels or external model consultation. Access failures remain unresolved.",
     "Batch 019: 27 new attempts 465–492 excluding 476; 8 direct feeds, 14 third-party archives with readable content, 3 profile-only, 2 unresolved; 117 observed text/caption excerpts. 3 provisional probation recommendations. No gold labels, media inspection, external AI or production changes. Earlier batch 018 lacks verifiable per-item evidence and requires independent recheck before trusting its observations.",
     "Batch 020: 23 RUTUBE source listings (89–111), 297 observed video titles, 8 separately opened author descriptions from 7 sources. Titles excluded from readable-content count. No video playback or final labels. Prior batches 018–019 are not independently verified in this turn and must be rechecked before use as gold evidence.",
-    "Batch 021: 28 new source attempts, 10 with 52 text excerpts, 21 title-only observations and 2 individually opened article bodies (one partial). Bluesky API test and Mastodon web access failed; unrelated search results excluded for Pikabu. Habr variant 185 remains unverified, possible duplicate of 184. No gold labels or external model."
+    "Batch 021: 28 new source attempts, 10 with 52 text excerpts, 21 title-only observations and 2 individually opened article bodies (one partial). Bluesky API test and Mastodon web access failed; unrelated search results excluded for Pikabu. Habr variant 185 remains unverified, possible duplicate of 184. No gold labels or external model.",
+    "Batch 022: 9 case-preserved YouTube feed/listing attempts, 2 syndicated descriptions for Latasha James. 25 separate legacy lowercase identity checks (NOT counted as content attempts), 6 externally evidenced case-preserved candidates, require authoritative validation before registration. Existing code source_autopilot_projection.go already deliberately avoids guessing lost ID casing; no production change. Prior 018–019 require independent recheck."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 352,
-    "structured_with_visible_post_samples": 190,
+    "structured_attempted": 361,
+    "structured_with_visible_post_samples": 191,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -62,7 +63,10 @@
     "batch_020_author_descriptions": 8,
     "batch_021_readable_texts": 52,
     "batch_021_title_samples": 21,
-    "batch_021_article_body_samples": 2
+    "batch_021_article_body_samples": 2,
+    "batch_022_syndicated_descriptions": 2,
+    "technical_youtube_lowercase_ids": 25,
+    "technical_youtube_candidate_recoveries": 6
   },
   "rows": [
     {
@@ -8059,7 +8063,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_022": {
+        "review_date": "2026-11-24",
+        "review_status": "direct_listing_unavailable",
+        "evidence_urls": [
+          "https://www.youtube.com/channel/UC2fEvCzr9KcGZx3E_TAHs_w/videos"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не дала проверяемых публикаций; контент не оценен.",
+        "coverage": "No playback or transcript inspection; no source-level final verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 203,
@@ -8071,7 +8089,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "uc2rt4-m51tdaiyod6uboz6w",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 204,
@@ -8083,7 +8111,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "case_preserved_candidate_found",
+        "original_id": "uc4mo3iaira9mzi3wuejiubw",
+        "candidate_channel_id": "UC4mO3iaIrA9mZI3WUEjiubw",
+        "evidence_url": "https://xn--80aaa0anw0aiz.xn--24-6kci4amthgkj1f.xn--80asehdb/астана/бизнес/патентные_услуги",
+        "evidence_type": "third_party_directory",
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 205,
@@ -8095,7 +8133,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "uc6idxt7jtymev4299tlhw_g",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 206,
@@ -8115,7 +8163,44 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_022": {
+        "review_date": "2026-11-24",
+        "review_status": "syndicated_description_partial",
+        "evidence_urls": [
+          "https://www.youtube.com/channel/UC9aFCPXdF5AtiQd8L62GkSA/videos",
+          "https://podwise.ai/episodes/6955664",
+          "https://podcasts.apple.com/ie/podcast/the-easiest-instagram-reels-strategy/id1339512399?i=1000568429992"
+        ],
+        "visible_post_samples": 2,
+        "posts": [
+          {
+            "summary": "Обзор обновлений соцсетей за декабрь 2025: защита Reels, аналитика конкурентов, управление лентой Threads, обновления TikTok, отчет об использовании соцсетей. Таймкоды и рекламная интеграция в описании; видео не просмотрено.",
+            "relevance": "relevant",
+            "usefulness": "not_assessed",
+            "evidence_type": "syndicated_episode_description",
+            "url": null,
+            "publication_date": "2025-12-07",
+            "media_reviewed": false,
+            "evidence_page": "https://podwise.ai/episodes/6955664"
+          },
+          {
+            "summary": "Стратегия Reels для одного автора: повторное использование материалов, B-roll и видеоредактор. Описание связывает выпуск с конкретным видео.",
+            "relevance": "relevant",
+            "usefulness": "not_assessed",
+            "evidence_type": "syndicated_episode_description",
+            "url": "https://youtu.be/DQQL5lmDifs",
+            "publication_date": "2022-07-01",
+            "media_reviewed": false,
+            "evidence_page": "https://podcasts.apple.com/ie/podcast/the-easiest-instagram-reels-strategy/id1339512399?i=1000568429992"
+          }
+        ],
+        "recommendation": "candidate_probation_pending_video",
+        "reason": "Прямо релевантные описания выпусков; автор и точный канал связаны в описании. Актуальность и доля релевантности не установлены.",
+        "coverage": "No playback or transcript inspection; no source-level final verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 207,
@@ -8135,7 +8220,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_022": {
+        "review_date": "2026-11-24",
+        "review_status": "direct_listing_unavailable",
+        "evidence_urls": [
+          "https://www.youtube.com/channel/UCBQMFzn13FTTZt8UjsN3-5w/videos"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не дала проверяемых публикаций; контент не оценен.",
+        "coverage": "No playback or transcript inspection; no source-level final verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 208,
@@ -8147,7 +8246,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "case_preserved_candidate_found",
+        "original_id": "ucby8hqx2qogm8i85ndrhtma",
+        "candidate_channel_id": "UCby8Hqx2qogm8I85ndrHtMA",
+        "evidence_url": "https://www.youtube.com/channel/UCby8Hqx2qogm8I85ndrHtMA",
+        "evidence_type": "direct_channel_title",
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 209,
@@ -8159,7 +8268,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "case_preserved_candidate_found",
+        "original_id": "ucctd_pod3i2-x62y_prclsa",
+        "candidate_channel_id": "UCCTd_Pod3I2-X62y_PrCLSA",
+        "evidence_url": "https://www.telderi.ru/ru/search/youtube",
+        "evidence_type": "third_party_marketplace",
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 210,
@@ -8171,7 +8290,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "case_preserved_candidate_found",
+        "original_id": "ucdcbdigxpip3hw-1gmbgdfg",
+        "candidate_channel_id": "UCDCbdigxpip3hW-1gmBGdfg",
+        "evidence_url": "https://www.youtube.com/channel/UCDCbdigxpip3hW-1gmBGdfg",
+        "evidence_type": "direct_channel_title",
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 211,
@@ -8183,7 +8312,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucegqkcxk91n8y19dsqidopg",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 212,
@@ -8195,7 +8334,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucgvje-ez4bcej8ilrm7g5sq",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 213,
@@ -8207,7 +8356,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "uchb8ib3bh9uxpkl2kwy7via",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 214,
@@ -8219,7 +8378,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucijvr2rgfxy0pwnzi0rk_pq",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 215,
@@ -8231,7 +8400,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "uci_ziyb69ehcdy0e2rlmotw",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 216,
@@ -8243,7 +8422,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "case_preserved_candidate_found",
+        "original_id": "ucjpinc_0j6iq5rpbnx-ci6g",
+        "candidate_channel_id": "UCjPiNc_0J6iq5rPBnx-cI6g",
+        "evidence_url": "https://www.speakrj.com/audit/report/UCjPiNc_0J6iq5rPBnx-cI6g/youtube",
+        "evidence_type": "third_party_archive",
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 217,
@@ -8255,7 +8444,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "uckptgckvanx9aukzuuh6aqq",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 218,
@@ -8267,7 +8466,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "uclj8r2ppejtds716v4yao9a",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 219,
@@ -8279,7 +8488,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucm0jn7c90ysi2stqcxvzzbg",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 220,
@@ -8291,7 +8510,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_022": {
+        "review_date": "2026-11-24",
+        "review_status": "direct_listing_unavailable",
+        "evidence_urls": [
+          "https://www.youtube.com/channel/UC-MOOUr5XUEyZfoJHIRjKpw/videos"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не дала проверяемых публикаций; контент не оценен.",
+        "coverage": "No playback or transcript inspection; no source-level final verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 221,
@@ -8303,7 +8536,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucoeajcsmhyogw3cnsp4x6ow",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 222,
@@ -8315,7 +8558,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucpsomf3w4lfrrufakozdgww",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 223,
@@ -8327,7 +8580,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucq2gzvhtaigbmytfha_zrhg",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 224,
@@ -8347,7 +8610,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "case_preserved_candidate_found",
+        "original_id": "ucr0djocnqqycdlvjluhbl0w",
+        "candidate_channel_id": "UCR0djoCNqqYcDLVjluHBL0w",
+        "evidence_url": "https://www.mypodcastdata.com/fr/podcast/show/dnative-aleksey-tkachuk-rFEe3tAb/links",
+        "evidence_type": "third_party_podcast_links",
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 225,
@@ -8359,7 +8632,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucrarik56yl7ui2wuaks3nga",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 226,
@@ -8371,7 +8654,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucvtfh_62yrw-vj95t0tvyiw",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 227,
@@ -8383,7 +8676,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucw0r50dhcahmadpaw36o8xw",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 228,
@@ -8395,7 +8698,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "ucwd43zy8gzlbwc0y_b4spug",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 229,
@@ -8407,7 +8720,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "uczlfmj-8aj_wch2t2cwoe8w",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 230,
@@ -8419,7 +8742,17 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "technical_review_022": {
+        "review_date": "2026-11-24",
+        "status": "legacy_lowercase_id_unresolved",
+        "original_id": "uczsdbcmxzmf-246fqkfb5ag",
+        "candidate_channel_id": null,
+        "evidence_url": null,
+        "evidence_type": null,
+        "content_verified": false,
+        "recommendation": "validate_identity_and_refetch_feed_before_topic_decision"
+      }
     },
     {
       "baseline_index": 231,
@@ -8431,7 +8764,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_022": {
+        "review_date": "2026-11-24",
+        "review_status": "direct_listing_unavailable",
+        "evidence_urls": [
+          "https://www.youtube.com/channel/UC2fEvCzr9KcGZx3E_TAHs_w/shorts"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не дала проверяемых публикаций; контент не оценен.",
+        "coverage": "No playback or transcript inspection; no source-level final verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 232,
@@ -8443,7 +8790,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_022": {
+        "review_date": "2026-11-24",
+        "review_status": "direct_listing_unavailable",
+        "evidence_urls": [
+          "https://www.youtube.com/channel/UC9aFCPXdF5AtiQd8L62GkSA/shorts"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не дала проверяемых публикаций; контент не оценен.",
+        "coverage": "No playback or transcript inspection; no source-level final verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 233,
@@ -8455,7 +8816,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_022": {
+        "review_date": "2026-11-24",
+        "review_status": "direct_listing_unavailable",
+        "evidence_urls": [
+          "https://www.youtube.com/channel/UCBQMFzn13FTTZt8UjsN3-5w/shorts"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не дала проверяемых публикаций; контент не оценен.",
+        "coverage": "No playback or transcript inspection; no source-level final verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 234,
@@ -8467,7 +8842,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_022": {
+        "review_date": "2026-11-24",
+        "review_status": "direct_listing_unavailable",
+        "evidence_urls": [
+          "https://www.youtube.com/channel/UCcJ7z3yGO0V-X_P1qVuwQGg/shorts"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не дала проверяемых публикаций; контент не оценен.",
+        "coverage": "No playback or transcript inspection; no source-level final verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 235,
@@ -8479,7 +8868,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_022": {
+        "review_date": "2026-11-24",
+        "review_status": "direct_listing_unavailable",
+        "evidence_urls": [
+          "https://www.youtube.com/channel/UC-MOOUr5XUEyZfoJHIRjKpw/shorts"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не дала проверяемых публикаций; контент не оценен.",
+        "coverage": "No playback or transcript inspection; no source-level final verdict.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 236,
