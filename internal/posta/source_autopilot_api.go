@@ -196,6 +196,11 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			return nil, outcomeErr
 		}
 		row["candidate_reasons"] = outcomes
+		funnel, err := AutopilotAuditFunnel(u.Ctx, u.DB.Pool, scope, key, time.Now())
+		if err != nil {
+			return nil, err
+		}
+		row["audit_funnel"] = funnel
 		// Only fixed categories are persisted; never expose raw provider replies,
 		// prompts, credentials or source URLs in the owner-facing diagnostics.
 		assessmentCauses := jx.M{}
