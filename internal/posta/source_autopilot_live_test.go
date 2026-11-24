@@ -549,3 +549,65 @@ func TestAutopilotLiveNativePublisherSearch(t *testing.T) {
 		}
 	})
 }
+
+// Inspect live search evidence and real feed accessibility separately from
+// source admission. Public titles help inspect search quality, but do not
+// substitute for the production multimodal classifier or ground truth.
+func TestAutopilotLiveNativeYouTubeTopicEvidence(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	u := (&App{}).User(ctx, "", nil)
+	searches, feeds, usable := 0, 0, 0
+	for _, query := range []string{"social media marketing case studies", "astrophotography tutorials", "C# programming"} {
+		if ctx.Err() != nil {
+			break
+		}
+		got, err := u.autopilotNativeYouTubeSearch(query)
+		t.Logf("YT TOPIC: query=%q candidates=%d error=%v", query, len(got), err)
+		if err != nil || len(got) == 0 {
+			continue
+		}
+		searches++
+		for _, c := range got[:min(len(got), 5)] {
+			t.Logf("YT EVIDENCE: query=%q channel=%q name=%q video=%q matching=%d", query, c.ID, jx.Str(c.Info, "title"), jx.Str(c.Info, "search_video_title"), jx.Int(c.Info, "matching_videos"))
+		}
+		for _, c := range got[:min(len(got), 2)] {
+			if ctx.Err() != nil {
+				break
+			}
+			res := u.RSSGet(c.ID, rssMaxBytes, 8*time.Second, HTTPUA)
+			feeds++
+			if !res.OK || !rssIsFeed(rssLoad(res.Bytes)) {
+				t.Logf("YT FEED: channel=%q status=%d unavailable", c.ID, res.Status)
+				if res.Status == 429 {
+					break
+				}
+				continue
+			}
+			posts, err := RSSParse(res.Bytes, 20, "", res.URL, true, true, 0)
+			if err != nil {
+				t.Logf("YT FEED: channel=%q parse_failed", c.ID)
+				continue
+			}
+			samples := autopilotSourceQualitySamples(posts, time.Now().Unix())
+			if len(samples) > 0 {
+				usable++
+			}
+			var titles []string
+			for _, post := range samples[:min(len(samples), 3)] {
+				titles = append(titles, trimRunes(jx.Str(post, "title"), 120))
+			}
+			t.Logf("YT FEED: channel=%q samples=%d titles=%q", c.ID, len(samples), titles)
+		}
+	}
+	t.Logf("YT SUMMARY: successful_searches=%d attempted_feeds=%d usable_feeds=%d", searches, feeds, usable)
+	if searches == 0 {
+		t.Skip("native YouTube unavailable")
+	}
+	if usable == 0 {
+		t.Skip("search works, but no inspected YouTube feed returned usable samples in this environment")
+	}
+}
