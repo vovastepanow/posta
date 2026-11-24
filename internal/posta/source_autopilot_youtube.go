@@ -260,11 +260,10 @@ func autopilotDownloadYouTubeWithSolver(pageURL, dest string, fetch func(string,
 // Search pages supply candidate channel links only; each resulting feed is
 // fetched and assessed independently by the ordinary source pipeline.
 func (u *U) autopilotFindYouTube(query string) []DiscoveryCandidate {
-	r := u.autopilotBraveSearch("site:youtube.com/channel " + query)
-	final, err := url.Parse(r.URL)
+	r := u.autopilotPublisherSearch("site:youtube.com/channel "+query, PlatformRSS)
 	status := "unavailable"
 	var out []DiscoveryCandidate
-	if r.OK && err == nil && final.Scheme == "https" && final.Host == "search.brave.com" && !strings.Contains(strings.ToLower(string(r.Bytes)), "captcha") {
+	if autopilotPublisherSearchResponseValid(r) {
 		status = "empty"
 		seen := map[string]bool{}
 		handles := 0
