@@ -260,6 +260,17 @@ func autopilotDownloadYouTubeWithSolver(pageURL, dest string, fetch func(string,
 // Search pages supply candidate channel links only; each resulting feed is
 // fetched and assessed independently by the ordinary source pipeline.
 func (u *U) autopilotFindYouTube(query string) []DiscoveryCandidate {
+	// Native video search returns the author of matching videos even
+	// when their channel pages are absent from external indexes.
+	if native, err := u.autopilotNativeYouTubeSearch(query); err == nil && len(native) > 0 {
+		for i := range native {
+			native[i].Origin = "публичный поиск видео YouTube «" + query + "»"
+		}
+		if u.discoverySearchObservation != nil {
+			u.discoverySearchObservation("youtube", query, "ok")
+		}
+		return native
+	}
 	r := u.autopilotPublisherSearch("site:youtube.com/channel "+query, PlatformRSS)
 	status := "unavailable"
 	var out []DiscoveryCandidate
