@@ -1,6 +1,10 @@
 package posta
 
-import "testing"
+import (
+	"context"
+	"testing"
+	"time"
+)
 
 func TestAutopilotNativeYouTubeSearchOnlyMainResults(t *testing.T) {
 	page := `<html><script>var ytInitialData = {
@@ -36,5 +40,29 @@ func TestAutopilotNativeYouTubeSearchOnlyMainResults(t *testing.T) {
 	r.Bytes = []byte(`<script>var ytInitialData = {"contents":{}};</script>`)
 	if _, err := autopilotYouTubeSearchCandidates(r); err == nil {
 		t.Fatal("unknown search layout was treated as an empty result")
+	}
+}
+
+func TestAutopilotNativeYouTubeSearchHonorsRateLimit(t *testing.T) {
+	autopilotNativeYouTubePause.Lock()
+	old := autopilotNativeYouTubePause.until
+	autopilotNativeYouTubePause.until = time.Time{}
+	autopilotNativeYouTubePause.Unlock()
+	t.Cleanup(func() {
+		autopilotNativeYouTubePause.Lock()
+		autopilotNativeYouTubePause.until = old
+		autopilotNativeYouTubePause.Unlock()
+	})
+	u := (&App{}).User(context.Background(), "", nil)
+	calls := 0
+	fetch := func(string, int64, time.Duration, string) FetchResultURL {
+		calls++
+		return FetchResultURL{FetchResult: FetchResult{Status: 429, RetryAfter: "7200"}}
+	}
+	if _, err := u.autopilotNativeYouTubeSearchWith("cats", fetch); err == nil {
+		t.Fatal("rate limit treated as a successful search")
+	}
+	if _, err := u.autopilotNativeYouTubeSearchWith("photography", fetch); err == nil || calls != 1 {
+		t.Fatalf("rate-limit cooldown not enforced: calls=%d err=%v", calls, err)
 	}
 }
