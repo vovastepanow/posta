@@ -1672,18 +1672,22 @@ func (a *App) SaveCatalogEntryUpdates(ctx context.Context, updates map[string]jx
 		return
 	}
 	a.UpdateCatalog(ctx, func(d *SourceDB) bool {
-		changed := false
-		for _, c := range CatalogKinds {
-			l := d.List(c.Kind)
-			for i, e := range *l {
-				if n, ok := updates[c.Kind+":"+strings.ToLower(jx.Str(e, "id"))]; ok {
-					(*l)[i] = n
-					changed = true
-				}
+		return applyCatalogEntryUpdates(d, updates)
+	})
+}
+
+func applyCatalogEntryUpdates(d *SourceDB, updates map[string]jx.M) bool {
+	changed := false
+	for _, c := range CatalogKinds {
+		l := d.List(c.Kind)
+		for i, e := range *l {
+			if n, ok := updates[catalogSourceUpdateKey(c.Kind, c.Platform, jx.Str(e, "id"))]; ok {
+				(*l)[i] = n
+				changed = true
 			}
 		}
-		return changed
-	})
+	}
+	return changed
 }
 
 // SourcePreviewImages — до 4 картинок самых свежих постов (карточка на вкладке «Источники»).

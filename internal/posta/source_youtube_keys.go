@@ -56,3 +56,22 @@ func sourceKnownWithLegacy(known map[string]bool, source string) bool {
 	}
 	return legacy != source && known[strings.Replace(legacy, "rss:https://www.youtube.com/", "rss:https://youtube.com/", 1)]
 }
+
+// Only YouTube's validated feed identities use case-sensitive canonical keys.
+// Preserve the existing normalization of all other platforms.
+func catalogEntryIDKey(platform, id string) string {
+	if platform == PlatformRSS {
+		if feed, ok := canonicalYouTubeFeed(id); ok {
+			return feed
+		}
+	}
+	return strings.ToLower(id)
+}
+
+func sourcePollMapKey(platform, id string) string {
+	return platform + "|" + catalogEntryIDKey(platform, id)
+}
+
+func catalogSourceUpdateKey(kind, platform, id string) string {
+	return kind + ":" + catalogEntryIDKey(platform, id)
+}

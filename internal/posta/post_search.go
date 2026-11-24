@@ -46,8 +46,15 @@ func sourcePollLateness(e jx.M, at int64) float64 {
 }
 
 func SourcePollCacheKey(platform, id string) string {
-	h := sha1.Sum([]byte(platform + "|" + strings.ToLower(id)))
-	return "source_posts:" + hex.EncodeToString(h[:])
+	prefix := "source_posts:"
+	if platform == PlatformRSS {
+		if _, ok := canonicalYouTubeFeed(id); ok {
+			// Never read the old ambiguous, case-folded YouTube cache.
+			prefix = "source_posts:v2:"
+		}
+	}
+	h := sha1.Sum([]byte(sourcePollMapKey(platform, id)))
+	return prefix + hex.EncodeToString(h[:])
 }
 
 func personalSourcePollKey(uid, platform, id string) string {
@@ -303,7 +310,7 @@ func (u *U) SourceAddManual(input, topic string) (jx.M, error) {
 		list := d.List(kind)
 		found := false
 		for _, e := range *list {
-			if !strings.EqualFold(strings.TrimLeft(jx.Str(e, "id"), "@"), id) {
+			if !sameCatalogSource(platform, strings.TrimLeft(jx.Str(e, "id"), "@"), id) {
 				continue
 			}
 			found = true

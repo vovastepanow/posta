@@ -119,13 +119,17 @@ def fetch_posts(source, limit):
         posts = []
         for entry in result.get("feed", []):
             p = entry.get("post", {})
-            if entry.get("reason") or p.get("author", {}).get("did") != actor:
+            author = p.get("author", {})
+            did = author.get("did", "")
+            if entry.get("reason") or not did or not (
+                did == actor or author.get("handle", "").lower() == actor.lower()
+            ):
                 continue
             rec = p.get("record", {})
             uri = p.get("uri", "")
-            if not uri.startswith("at://" + actor + "/app.bsky.feed.post/"):
+            if not uri.startswith("at://" + did + "/app.bsky.feed.post/"):
                 continue
-            posts.append({"url": "https://bsky.app/profile/" + actor + "/post/" + uri.rsplit("/", 1)[-1],
+            posts.append({"url": "https://bsky.app/profile/" + did + "/post/" + uri.rsplit("/", 1)[-1],
                           "date": rec.get("createdAt"), "text": rec.get("text", ""), "media_reviewed": False})
         return "bluesky_public_author_feed", posts[:limit]
     return "unsupported_platform", []
@@ -169,7 +173,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", type=int, default=21)
     ap.add_argument("--count", type=int, default=10)
-    ap.add_argument("--limit", type=int, default=15, choices=range(10, 21))
+    ap.add_argument("--limit", type=int, default=30, choices=range(10, 31))
     ap.add_argument("--models", nargs=2, help="two different explicit :free model IDs")
     ap.add_argument("--out", required=True, type=pathlib.Path)
     args = ap.parse_args()

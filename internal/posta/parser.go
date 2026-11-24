@@ -467,10 +467,10 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 				id := strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@")
 				var shared sharedPosts
 				if sharedSourceEligible(c.Platform, e) && u.CacheGet(u.Ctx, sharedSourceKey(c.Platform, id), &shared) {
-					sharedCache[c.Platform+"|"+strings.ToLower(jx.Str(e, "id"))] = shared
+					sharedCache[sourcePollMapKey(c.Platform, jx.Str(e, "id"))] = shared
 					continue // готовый общий источник не занимает бюджет сетевых запросов
 				}
-				poll[c.Platform+"|"+strings.ToLower(jx.Str(e, "id"))] = e
+				poll[sourcePollMapKey(c.Platform, jx.Str(e, "id"))] = e
 			}
 		}
 	}
@@ -515,7 +515,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 			}
 			label := platformLabel(c.Platform, e)
 			rep[label].Sources++
-			pkey := c.Platform + "|" + strings.ToLower(jx.Str(e, "id"))
+			pkey := sourcePollMapKey(c.Platform, jx.Str(e, "id"))
 			var posts []jx.M
 			var updated jx.M
 			event := ""
@@ -553,7 +553,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 				stats[event]++
 			}
 			if updated != nil {
-				updates[c.Kind+":"+strings.ToLower(jx.Str(e, "id"))] = updated
+				updates[catalogSourceUpdateKey(c.Kind, c.Platform, jx.Str(e, "id"))] = updated
 			}
 			if len(posts) > 0 {
 				rep[label].With++
