@@ -198,6 +198,25 @@ func TestAutopilotQueryUsesObservedYieldAndExploresPostgres(t *testing.T) {
 	if err != nil || query != "вариант бета" {
 		t.Fatalf("confirmed off-topic source did not penalize query: %q %v", query, err)
 	}
+	// A superseded positive assessment cannot reward the old query or
+	// claim that the source is still capable of supplying useful posts.
+	if _, err = d.Pool.Exec(ctx, `INSERT INTO source_autopilot_post_evidence(scope,topic_key,source_id,post_hash,content_hash,policy_version,published_at,observed_at,relevant,eligible,advertising) VALUES($1,$2,'rss:test','post','content',2,$3,$3,false,false,false)`, scope, key, stamp); err != nil {
+		t.Fatal(err)
+	}
+	observed, err = a.autopilotObservedYield(ctx, job)
+	if err != nil || observed["rss:test"] != 0 {
+		t.Fatalf("obsolete positive verdict counted as useful: %+v %v", observed, err)
+	}
+	// Remove the independent rejection so the old alpha query would
+	// win an otherwise tied score if the superseded post still counted.
+	if _, err = d.Pool.Exec(ctx, `UPDATE source_autopilot_sources SET evidence='{}'::jsonb WHERE scope=$1 AND topic_key=$2 AND source_id='rss:negative'`, scope, key); err != nil {
+		t.Fatal(err)
+	}
+	job.Checkpoint = []byte(`{"query_turn":1}`)
+	query, err = a.autopilotChooseQuery(ctx, job)
+	if err != nil || query != "вариант бета" {
+		t.Fatalf("superseded verdict rewarded query: %q %v", query, err)
+	}
 }
 
 func TestAutopilotQueryQualityPrefersCleanSourcesOverRawVolume(t *testing.T) {

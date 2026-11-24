@@ -116,9 +116,14 @@ func autopilotRetryInterval(mode string, coveredByObservedYield bool) time.Durat
 // two distinct days of successful collection; missing coverage is unknown.
 func (a *App) autopilotObservedYield(ctx context.Context, job *autopilotJob) (map[string]float64, error) {
 	since := time.Now().Add(-7 * 24 * time.Hour).Unix()
-	rows, err := a.DB.Pool.Query(ctx, `SELECT s.source_id,
-		(SELECT count(DISTINCT e.content_hash) FROM source_autopilot_post_evidence e WHERE e.scope=s.scope AND e.topic_key=s.topic_key AND e.source_id=s.source_id AND e.eligible AND e.content_hash<>'' AND e.published_at >= $3
-		AND NOT EXISTS(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)),
+	rows, err := a.DB.Pool.Query(ctx, `WITH latest AS (
+		SELECT DISTINCT ON (source_id,post_hash) source_id,post_hash,content_hash,published_at,eligible
+		FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2
+		ORDER BY source_id,post_hash,policy_version DESC
+	), recent AS (SELECT * FROM latest WHERE published_at >= $3)
+	SELECT s.source_id,
+		(SELECT count(DISTINCT e.content_hash) FROM recent e WHERE e.source_id=s.source_id AND e.eligible AND e.content_hash<>''
+		AND NOT EXISTS(SELECT 1 FROM recent other WHERE other.content_hash=e.content_hash AND other.source_id<>e.source_id)),
 		(SELECT count(DISTINCT (p.fetched_at/86400)) FROM source_autopilot_collection_passes p WHERE p.scope=s.scope AND p.topic_key=s.topic_key AND p.source_id=s.source_id AND p.fetched_at >= $3)
 		FROM source_autopilot_sources s WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='active'`, job.Scope, job.TopicKey, since)
 	if err != nil {

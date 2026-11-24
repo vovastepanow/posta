@@ -88,17 +88,22 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	// fall back to cold-start rotation, repeatedly missing the same
 	// alternatives when the number of queries was divisible by four.
 	if a.DB != nil {
-		rows, err := a.DB.Pool.Query(ctx, `SELECT q.query,
+		rows, err := a.DB.Pool.Query(ctx, `WITH latest AS (
+			SELECT DISTINCT ON (source_id,post_hash) source_id,post_hash,content_hash,published_at,eligible
+			FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2
+			ORDER BY source_id,post_hash,policy_version DESC
+		), recent AS (SELECT * FROM latest WHERE published_at >= $3)
+		SELECT q.query,
 			count(DISTINCT e.content_hash) FILTER (WHERE s.state IN ('probation','active') AND e.eligible AND e.content_hash<>'' AND NOT EXISTS
-				(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful,
+				(SELECT 1 FROM recent other WHERE other.content_hash=e.content_hash AND other.source_id<>e.source_id)) AS useful,
 			count(DISTINCT s.source_id) FILTER (WHERE s.state IN ('probation','active') AND e.eligible AND e.content_hash<>'' AND NOT EXISTS
-				(SELECT 1 FROM source_autopilot_post_evidence other WHERE other.scope=e.scope AND other.topic_key=e.topic_key AND other.content_hash=e.content_hash AND other.source_id<>e.source_id AND other.published_at >= $3)) AS useful_sources,
+				(SELECT 1 FROM recent other WHERE other.content_hash=e.content_hash AND other.source_id<>e.source_id)) AS useful_sources,
 			count(DISTINCT s.source_id) FILTER (WHERE s.state='rejected' AND
 				(s.reason IN ('observed_irrelevant','observed_ad_or_duplicates','observed_low_yield') OR
 				(s.reason='preliminary_topic_mismatch' AND s.evidence @> '{"preliminary_off_topic_confirmed":true}'::jsonb))) AS observed_bad
 			FROM source_autopilot_query_sources q
 			JOIN source_autopilot_sources s ON s.scope=q.scope AND s.topic_key=q.topic_key AND s.source_id=q.source_id
-			LEFT JOIN source_autopilot_post_evidence e ON e.scope=q.scope AND e.topic_key=q.topic_key AND e.source_id=q.source_id AND e.published_at >= $3
+			LEFT JOIN recent e ON e.source_id=q.source_id
 			WHERE q.scope=$1 AND q.topic_key=$2 GROUP BY q.query`,
 			job.Scope, job.TopicKey, time.Now().Add(-30*24*time.Hour).Unix())
 		if err != nil {
