@@ -809,6 +809,7 @@ func TestAutopilotLiveOsnovaPublisherAttribution(t *testing.T) {
 		}
 		rows := jx.Maps(jx.Map(jx.Unmarshal(r.Bytes), "result"), "items")
 		parsed, matched, safe := 0, 0, 0
+		var parsedPosts []jx.M
 		at := time.Now().Unix()
 		for _, row := range rows {
 			post := osnovaSearchPost(jx.Map(row, "data"), tc.host, tc.query)
@@ -816,6 +817,7 @@ func TestAutopilotLiveOsnovaPublisherAttribution(t *testing.T) {
 				continue
 			}
 			parsed++
+			parsedPosts = append(parsedPosts, post)
 			candidate := PostSearchAuthor(post)
 			if candidate == nil {
 				continue
@@ -827,7 +829,10 @@ func TestAutopilotLiveOsnovaPublisherAttribution(t *testing.T) {
 			matched++
 			safe += len(autopilotSafePostHints(source, []jx.M{post}, at))
 		}
-		t.Logf("OSNOVA LIVE: host=%s HTTP=%d rows=%d parsed=%d publisher_matches=%d safe_recent_text=%d", tc.host, r.Status, len(rows), parsed, matched, safe)
+		by := map[string][]jx.M{PlatformRSS: parsedPosts}
+		_, direct := autopilotAssessablePostCandidates(by, at, 24, 0)
+		nominations := autopilotPostSearchNominations(by, tc.query, at, 8, direct)
+		t.Logf("OSNOVA LIVE: host=%s HTTP=%d rows=%d parsed=%d publisher_matches=%d safe_recent_text=%d fallback_source_nominations=%d", tc.host, r.Status, len(rows), parsed, matched, safe, len(nominations))
 		verified += matched
 	}
 	if verified == 0 {

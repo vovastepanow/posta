@@ -101,3 +101,25 @@ func TestAutopilotDirectCandidatesReserveSlotsForAssessablePosts(t *testing.T) {
 		t.Fatalf("later authors lost to unchanged search order: %+v", got)
 	}
 }
+
+func TestAutopilotPostSearchNominationsDoNotBypassDirectAssessment(t *testing.T) {
+	at := time.Now().Unix()
+	posts := map[string][]jx.M{
+		PlatformTelegram: {
+			{"source_url": "https://t.me/media_digest", "url": "https://t.me/media_digest/1", "posted_at": at, "image": "https://example.org/1.jpg", "text": "Social media marketing campaign"},
+			{"source_url": "https://t.me/other_digest", "url": "https://t.me/other_digest/1", "posted_at": at, "image": "https://example.org/2.jpg", "text": "Travel photography"},
+			{"source_url": "https://t.me/old_digest", "url": "https://t.me/old_digest/1", "posted_at": at - 400*86400, "text": "Social media marketing campaign"},
+			{"source_url": "https://t.me/text_digest", "url": "https://t.me/text_digest/1", "posted_at": at, "text": "Social media marketing campaign"},
+			{"source_url": "https://t.me/foreign_digest", "url": "https://t.me/media_digest/2", "posted_at": at, "image": "https://example.org/3.jpg", "text": "Social media marketing campaign"},
+			{"source_url": "https://t.me/ad_digest", "url": "https://t.me/ad_digest/1", "posted_at": at, "advertising": true, "text": "Social media marketing campaign"},
+		},
+	}
+	_, direct := autopilotAssessablePostCandidates(posts, at, 10, 0)
+	got := autopilotPostSearchNominations(posts, "social media marketing", at, 8, direct)
+	if len(got) != 1 || got[0].ID != "media_digest" {
+		t.Fatalf("unexpected media nominations: %+v", got)
+	}
+	if len(autopilotPostSearchNominations(posts, "social media marketing", at, 0, direct)) != 0 {
+		t.Fatal("nomination limit ignored")
+	}
+}

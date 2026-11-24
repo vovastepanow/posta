@@ -600,12 +600,13 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		// independently admitted posts nominate their authors here. Broad
 		// source search remains available for image/video and cold-start
 		// topics or when the text classifier is unavailable.
-		var verified []DiscoveryCandidate
+		var verified, postNominations []DiscoveryCandidate
 		var directErr error
 		if job.Scope == autopilotAutoScope && ctx.Err() == nil && autopilotBudgetError(ctx) == nil {
 			directAttempted = true
 			postCtx := withAutopilotSearchFetchCap(searchCtx, 30)
-			postCandidates, postErr := a.autopilotFindSourcesFromPosts(postCtx, job, query, autopilotDirectMaxPerRun*autopilotPostHintLimit)
+			postCandidates, nominations, postErr := a.autopilotFindSourcesFromPosts(postCtx, job, query, autopilotDirectMaxPerRun*autopilotPostHintLimit)
+			postNominations = nominations
 			directErr = postErr
 			if directErr == nil {
 				directErr = a.autopilotAssessDirectPosts(ctx, job, postCandidates)
@@ -622,8 +623,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			return verified, knownErr
 		}
 		raw := autopilotRunSearchBackendsAdaptiveKnown(searchCtx, turn, backends, 6, 64, known)
-		sourceSearchCount = len(raw)
-		candidates := append(append([]DiscoveryCandidate(nil), verified...), raw...)
+		sourceSearchCount = len(raw) + len(postNominations)
+		candidates := append(append([]DiscoveryCandidate(nil), verified...), postNominations...)
+		candidates = append(candidates, raw...)
 		seenSources := map[string]bool{}
 		lastSearchSourceIDs = []string{}
 		for _, candidate := range candidates {
@@ -1025,9 +1027,39 @@ func autopilotAssessablePostCandidates(by map[string][]jx.M, at int64, limit int
 	return selected, bySource
 }
 
-func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJob, query string, limit int) ([]DiscoveryCandidate, error) {
+// A recent public article with media may identify a relevant publisher
+// even though it cannot enter the independent text assessment path.
+// Require the query to appear in the article itself, not just the source
+// title, and leave source admission to the regular unbiased feed review.
+func autopilotPostSearchNominations(by map[string][]jx.M, query string, at int64, limit int, direct map[string][]jx.M) []DiscoveryCandidate {
+	if strings.TrimSpace(query) == "" || limit <= 0 {
+		return nil
+	}
+	filtered := map[string][]jx.M{}
+	for _, platform := range sortedKeys(by) {
+		for _, post := range by[platform] {
+			if !queryPhraseHit(jx.Str(post, "title")+" "+AnalysisText(post), query) {
+				continue
+			}
+			author := PostSearchAuthor(post)
+			if author == nil {
+				continue
+			}
+			id, ok := autopilotCandidateID(*author)
+			if !ok || len(direct[id]) > 0 {
+				// A source with assessable text must earn a nomination
+				// through independent admission, not this media fallback.
+				continue
+			}
+			filtered[platform] = append(filtered[platform], post)
+		}
+	}
+	return autopilotCandidatesFromPosts(filtered, at, limit)
+}
+
+func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJob, query string, limit int) ([]DiscoveryCandidate, []DiscoveryCandidate, error) {
 	if job == nil || job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind || strings.TrimSpace(query) == "" || limit <= 0 || ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
-		return nil, autopilotBudgetError(ctx)
+		return nil, nil, autopilotBudgetError(ctx)
 	}
 	u := a.User(ctx, "", nil)
 	plan := autopilotPublicPostQueryPlan(query)
@@ -1046,12 +1078,14 @@ func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJ
 		posts["bluesky"] = bluesky
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := autopilotBudgetError(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	candidates, bySource := autopilotAssessablePostCandidates(posts, time.Now().Unix(), limit, jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn"))
+	at := time.Now().Unix()
+	candidates, bySource := autopilotAssessablePostCandidates(posts, at, limit, jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn"))
+	nominations := autopilotPostSearchNominations(posts, query, at, min(8, limit), bySource)
 	// Stage only actually assessable posts tied to the selected authors.
 	// The model still evaluates at most autopilotDirectMaxPerRun posts.
 	for _, candidate := range candidates {
@@ -1060,10 +1094,10 @@ func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJ
 			continue
 		}
 		if err := a.autopilotStagePublicPosts(ctx, job, source, bySource[source]); err != nil {
-			return candidates, err
+			return candidates, nominations, err
 		}
 	}
-	return candidates, nil
+	return candidates, nominations, nil
 }
 
 // A verified post is a reason to inspect an author, not to approve its
