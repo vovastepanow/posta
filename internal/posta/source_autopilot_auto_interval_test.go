@@ -27,3 +27,26 @@ func TestAutopilotRetryInterval(t *testing.T) {
 		})
 	}
 }
+
+func TestAutopilotObservedOwnerRateDeduplicatesAfterExclusions(t *testing.T) {
+	observed := map[string][]string{
+		"a": {"shared", "a", "a"},
+		"b": {"shared", "b"},
+		"c": nil,
+	}
+	rate, covered := autopilotObservedOwnerRate(observed, nil)
+	if !covered || rate != 3.0/7.0 {
+		t.Fatalf("shared item counted incorrectly: %f %v", rate, covered)
+	}
+	rate, covered = autopilotObservedOwnerRate(observed, func(source string) bool { return source == "a" })
+	if !covered || rate != 2.0/7.0 {
+		t.Fatalf("owner exclusion lost shared item: %f %v", rate, covered)
+	}
+	rate, covered = autopilotObservedOwnerRate(observed, func(source string) bool { return source != "c" })
+	if !covered || rate != 0 {
+		t.Fatalf("observed zero supply became unknown: %f %v", rate, covered)
+	}
+	if _, covered := autopilotObservedOwnerRate(observed, func(string) bool { return true }); covered {
+		t.Fatal("no eligible source is not observed coverage")
+	}
+}

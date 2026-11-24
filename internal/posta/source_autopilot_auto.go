@@ -40,7 +40,7 @@ func (a *App) autopilotAutoInterval(ctx context.Context, job *autopilotJob) (tim
 		return 0, err
 	}
 	mode := "healthy"
-	observed, err := a.autopilotObservedYield(ctx, job)
+	observed, err := a.autopilotObservedContent(ctx, job)
 	if err != nil {
 		return 0, err
 	}
@@ -55,12 +55,14 @@ func (a *App) autopilotAutoInterval(ctx context.Context, job *autopilotJob) (tim
 		if decision.Mode == "bootstrap" || (decision.Mode == "refill" && mode != "bootstrap") {
 			mode = decision.Mode
 		}
-		rate := 0.0
 		overrides := u.sourceOverridesForTopic(d.topic)
-		for source, daily := range observed {
-			if !sourceExcludedByOverride(overrides, source) {
-				rate += daily
-			}
+		rate, covered := autopilotObservedOwnerRate(observed, func(source string) bool {
+			return sourceExcludedByOverride(overrides, source)
+		})
+		if !covered {
+			// Unobserved supply must not inherit another owner's estimate.
+			minimumCoverage = 0
+			continue
 		}
 		coverage := rate / d.rate
 		if minimumCoverage < 0 || coverage < minimumCoverage {
@@ -112,34 +114,59 @@ func autopilotRetryInterval(mode string, coveredByObservedYield bool) time.Durat
 	}
 }
 
-// Count only eligible, non-cloned content from active sources with at least
-// two distinct days of successful collection; missing coverage is unknown.
-func (a *App) autopilotObservedYield(ctx context.Context, job *autopilotJob) (map[string]float64, error) {
+// Retain hashes by source so the owner-level estimate can count their
+// union after applying that owner's exclusions. A shared useful post still
+// supplies one item, not zero or one item per publisher.
+func (a *App) autopilotObservedContent(ctx context.Context, job *autopilotJob) (map[string][]string, error) {
 	since := time.Now().Add(-7 * 24 * time.Hour).Unix()
 	rows, err := a.DB.Pool.Query(ctx, `WITH latest AS (
 		SELECT DISTINCT ON (source_id,post_hash) source_id,post_hash,content_hash,published_at,eligible
 		FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2
 		ORDER BY source_id,post_hash,policy_version DESC
-	), recent AS (SELECT * FROM latest WHERE published_at >= $3)
-	SELECT s.source_id,
-		(SELECT count(DISTINCT e.content_hash) FROM recent e WHERE e.source_id=s.source_id AND e.eligible AND e.content_hash<>''
-		AND NOT EXISTS(SELECT 1 FROM recent other WHERE other.content_hash=e.content_hash AND other.source_id<>e.source_id)),
-		(SELECT count(DISTINCT (p.fetched_at/86400)) FROM source_autopilot_collection_passes p WHERE p.scope=s.scope AND p.topic_key=s.topic_key AND p.source_id=s.source_id AND p.fetched_at >= $3)
-		FROM source_autopilot_sources s WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='active'`, job.Scope, job.TopicKey, since)
+	), covered AS (
+		SELECT s.source_id FROM source_autopilot_sources s
+		JOIN source_autopilot_collection_passes p ON p.scope=s.scope AND p.topic_key=s.topic_key AND p.source_id=s.source_id
+		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='active' AND p.fetched_at >= $3
+		GROUP BY s.source_id HAVING count(DISTINCT (p.fetched_at/86400)) >= 2
+	), useful AS (
+		SELECT DISTINCT source_id,content_hash FROM latest
+		WHERE published_at >= $3 AND eligible AND content_hash<>''
+	)
+	SELECT s.source_id,COALESCE(e.content_hash,'') FROM covered s
+	LEFT JOIN useful e ON e.source_id=s.source_id`, job.Scope, job.TopicKey, since)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	result := map[string]float64{}
+	result := map[string][]string{}
 	for rows.Next() {
-		var source string
-		var useful, days int64
-		if err := rows.Scan(&source, &useful, &days); err != nil {
+		var source, hash string
+		if err := rows.Scan(&source, &hash); err != nil {
 			return nil, err
 		}
-		if days >= 2 {
-			result[source] = float64(useful) / 7
+		if _, ok := result[source]; !ok {
+			result[source] = nil
+		}
+		if hash != "" {
+			result[source] = append(result[source], hash)
 		}
 	}
 	return result, rows.Err()
+}
+
+func autopilotObservedOwnerRate(observed map[string][]string, excluded func(string) bool) (float64, bool) {
+	unique := map[string]bool{}
+	covered := false
+	for source, hashes := range observed {
+		if excluded != nil && excluded(source) {
+			continue
+		}
+		covered = true
+		for _, hash := range hashes {
+			if hash != "" {
+				unique[hash] = true
+			}
+		}
+	}
+	return float64(len(unique)) / 7, covered
 }

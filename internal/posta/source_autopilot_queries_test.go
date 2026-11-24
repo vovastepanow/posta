@@ -126,7 +126,7 @@ func TestAutopilotQueryUsesObservedYieldAndExploresPostgres(t *testing.T) {
 	if _, err = d.Pool.Exec(ctx, `INSERT INTO source_autopilot_post_evidence(scope,topic_key,source_id,post_hash,content_hash,policy_version,published_at,observed_at,relevant,eligible,advertising) VALUES($1,$2,'rss:test','post','content',1,$3,$3,true,true,false)`, scope, key, time.Now().Unix()); err != nil {
 		t.Fatal(err)
 	}
-	observed, err := a.autopilotObservedYield(ctx, job)
+	observed, err := a.autopilotObservedContent(ctx, job)
 	if err != nil || len(observed) != 0 {
 		t.Fatalf("insufficient coverage counted: %+v %v", observed, err)
 	}
@@ -134,8 +134,8 @@ func TestAutopilotQueryUsesObservedYieldAndExploresPostgres(t *testing.T) {
 	if _, err = d.Pool.Exec(ctx, `INSERT INTO source_autopilot_collection_passes(scope,topic_key,source_id,slot,fetched_at,fetched_count) VALUES($1,$2,'rss:test',1,$3,1),($1,$2,'rss:test',2,$4,1)`, scope, key, stamp, stamp-86400); err != nil {
 		t.Fatal(err)
 	}
-	observed, err = a.autopilotObservedYield(ctx, job)
-	if err != nil || observed["rss:test"] != 1.0/7.0 {
+	observed, err = a.autopilotObservedContent(ctx, job)
+	if err != nil || len(observed["rss:test"]) != 1 {
 		t.Fatalf("covered yield: %+v %v", observed, err)
 	}
 	query, err = a.autopilotChooseQuery(ctx, job)
@@ -203,8 +203,8 @@ func TestAutopilotQueryUsesObservedYieldAndExploresPostgres(t *testing.T) {
 	if _, err = d.Pool.Exec(ctx, `INSERT INTO source_autopilot_post_evidence(scope,topic_key,source_id,post_hash,content_hash,policy_version,published_at,observed_at,relevant,eligible,advertising) VALUES($1,$2,'rss:test','post','content',2,$3,$3,false,false,false)`, scope, key, stamp); err != nil {
 		t.Fatal(err)
 	}
-	observed, err = a.autopilotObservedYield(ctx, job)
-	if err != nil || observed["rss:test"] != 0 {
+	observed, err = a.autopilotObservedContent(ctx, job)
+	if err != nil || len(observed["rss:test"]) != 0 {
 		t.Fatalf("obsolete positive verdict counted as useful: %+v %v", observed, err)
 	}
 	// Remove the independent rejection so the old alpha query would
