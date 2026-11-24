@@ -9,15 +9,19 @@
     "This is the single cumulative review ledger. Older review-v1 metadata triage and batch-001 findings are retained for provenance but are NOT verified gold labels.",
     "First batch quality check: counts agree with listed paraphrases, but individual post URLs, timestamps and item-level verdicts were not consistently recorded; old recommendations remain provisional. Three sources partially reconfirmed, not all prior samples rechecked.",
     "Second batch: all 20 Bluesky identities (21–40) attempted; five profile descriptions, zero posts. Some web fetches fail and XML is unsupported; this is a tool-access limitation, not proof of source failure. Additional sources sampled out of order to make content progress. All recommendations provisional. No production data changed.",
-    "Next audit rounds should append item-level source URL, date, relevant/adjacent/off_topic/unknown and usefulness separately; target 10–20 recent posts, or document feed completeness for inactive sources."
+    "Next audit rounds should append item-level source URL, date, relevant/adjacent/off_topic/unknown and usefulness separately; target 10–20 recent posts, or document feed completeness for inactive sources.",
+    "Batch 003: five Telegram feeds with per-post URLs resolved from feed anchors, paraphrases, separate topical and usefulness labels, exact dates unavailable; five unsuccessful direct fetches. No Gemini or other independent model consulted: available plugin discovery returned no matching Gemini capability. No gold labels assigned; prior observations preserved."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 49,
-    "structured_with_visible_post_samples": 12,
+    "structured_attempted": 55,
+    "structured_with_visible_post_samples": 16,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
-    "gold_labels": 0
+    "gold_labels": 0,
+    "item_level_sources_batch_003": 5,
+    "item_level_entries_batch_003": 49,
+    "item_level_readable_texts_batch_003": 48
   },
   "rows": [
     {
@@ -370,7 +374,20 @@
       },
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_003": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/novikovalaw"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct web fetch failed; this is not proof of source unavailability or off-topic status.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 12,
@@ -3610,7 +3627,20 @@
         "reason": "Прямой запрос публичной страницы в текущем сеансе не вернул содержимое. Не доказательство отсутствия публикаций или нерелевантности.",
         "gold_label": null
       },
-      "gold_label": null
+      "gold_label": null,
+      "batch_003": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/aba_association"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct web fetch failed; this is not proof of source unavailability or off-topic status.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 239,
@@ -4092,7 +4122,127 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_003": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/budni_evangelista"
+        ],
+        "visible_post_samples": 11,
+        "posts": [
+          {
+            "url": "https://t.me/budni_evangelista/971",
+            "publication_date": null,
+            "summary": "Практика рекламы на Авито",
+            "relevance": "adjacent",
+            "usefulness": "mixed_promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/budni_evangelista/972",
+            "publication_date": null,
+            "summary": "Статус дела о рекламе в Telegram",
+            "relevance": "relevant",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/budni_evangelista/974",
+            "publication_date": null,
+            "summary": "Подготовка юридического вебинара",
+            "relevance": "unknown",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/budni_evangelista/975",
+            "publication_date": null,
+            "summary": "Сбой хостинга Beget",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/budni_evangelista/976",
+            "publication_date": null,
+            "summary": "Анонс юридической конференции, включая право блогеров",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/budni_evangelista/978",
+            "publication_date": null,
+            "summary": "Приглашение на юридический вебинар",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/budni_evangelista/979",
+            "publication_date": null,
+            "summary": "Обсуждение слова года",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/budni_evangelista/984",
+            "publication_date": null,
+            "summary": "Анонс эфира о бизнесе digital-агентств",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/budni_evangelista/985",
+            "publication_date": null,
+            "summary": "Персонализация объявлений Яндекс Директа",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/budni_evangelista/989",
+            "publication_date": null,
+            "summary": "Рекламный вебинар о Google Ads",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/budni_evangelista/990",
+            "publication_date": null,
+            "summary": "Обновления Яндекс Директа и Аудиторий",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          }
+        ],
+        "counts": {
+          "adjacent": 7,
+          "relevant": 1,
+          "unknown": 1,
+          "off_topic": 2
+        },
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Преобладает общий платный трафик; есть прямо относящееся к рекламе в Telegram правовое сообщение. Нужна репрезентативная выборка, чтобы не отвергнуть полезный смешанный источник.",
+        "coverage": "Non-contiguous visible excerpts; exact dates not exposed by web reader; no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 278,
@@ -4351,7 +4501,152 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_003": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/dgalera"
+        ],
+        "visible_post_samples": 14,
+        "posts": [
+          {
+            "url": "https://t.me/dgalera/2765",
+            "publication_date": null,
+            "summary": "Выбор подрядчика для холодных контактов",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2767",
+            "publication_date": null,
+            "summary": "Нишевание агентства",
+            "relevance": "adjacent",
+            "usefulness": "mixed_promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2768",
+            "publication_date": null,
+            "summary": "Найм и обучение стажеров",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2770",
+            "publication_date": null,
+            "summary": "Партнерский челлендж клуба",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2771",
+            "publication_date": null,
+            "summary": "Резервирование сайтов после сбоя хостинга",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2773",
+            "publication_date": null,
+            "summary": "Приглашение на встречи владельцев агентств",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2774",
+            "publication_date": null,
+            "summary": "Аутрич: портрет клиента, тестирование офферов",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2775",
+            "publication_date": null,
+            "summary": "Анонс разбора продаж агентства",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2777",
+            "publication_date": null,
+            "summary": "Система оплаты и мотивации команды",
+            "relevance": "off_topic",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2783",
+            "publication_date": null,
+            "summary": "Приглашение на совет директоров",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2784",
+            "publication_date": null,
+            "summary": "Анонс видео об альтернативном лидгене",
+            "relevance": "adjacent",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2785",
+            "publication_date": null,
+            "summary": "Продвижение встреч клуба",
+            "relevance": "off_topic",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2786",
+            "publication_date": null,
+            "summary": "Продажи холодным лидам",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/dgalera/2787",
+            "publication_date": null,
+            "summary": "Продвижение клубной партнерской программы",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          }
+        ],
+        "counts": {
+          "adjacent": 6,
+          "off_topic": 8
+        },
+        "recommendation": "reject_for_topic_provisional",
+        "reason": "Материалы полезны для управления агентствами, продаж и предпринимательства, но не демонстрируют самостоятельного потока о ведении соцсетей. Часть — продвижение клуба. Видео, файлы и карточки не изучены.",
+        "coverage": "Non-contiguous visible excerpts; exact dates not exposed by web reader; no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 299,
@@ -4419,7 +4714,20 @@
         "reason": "Прямой запрос публичной страницы в текущем сеансе не вернул содержимое. Не доказательство отсутствия публикаций или нерелевантности.",
         "gold_label": null
       },
-      "gold_label": null
+      "gold_label": null,
+      "batch_003": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/dimtriy_telegramovich_ads"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct web fetch failed; this is not proof of source unavailability or off-topic status.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 304,
@@ -4723,7 +5031,117 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_003": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/gnusnyi_marketing"
+        ],
+        "visible_post_samples": 10,
+        "posts": [
+          {
+            "url": "https://t.me/gnusnyi_marketing/1719",
+            "publication_date": null,
+            "summary": "Изменение интерфейса Яндекса",
+            "relevance": "unknown",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/gnusnyi_marketing/1720",
+            "publication_date": null,
+            "summary": "Реакция на непоказанный результат",
+            "relevance": "unknown",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/gnusnyi_marketing/1721",
+            "publication_date": null,
+            "summary": "Обновление сервиса квалификации лидов",
+            "relevance": "adjacent",
+            "usefulness": "mixed_promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/gnusnyi_marketing/1722",
+            "publication_date": null,
+            "summary": "Шутка о показателе 146%",
+            "relevance": "unknown",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/gnusnyi_marketing/1727",
+            "publication_date": null,
+            "summary": "Падел в офисе Яндекса",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/gnusnyi_marketing/1728",
+            "publication_date": null,
+            "summary": "Шутливая игра про офис Яндекса",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/gnusnyi_marketing/1729",
+            "publication_date": null,
+            "summary": "Тест генерации заголовков в Директе",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/gnusnyi_marketing/1730",
+            "publication_date": null,
+            "summary": "Комментарий о тесте заголовков",
+            "relevance": "adjacent",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/gnusnyi_marketing/1733",
+            "publication_date": null,
+            "summary": "Опрос о запретах",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/gnusnyi_marketing/1739",
+            "publication_date": null,
+            "summary": "Отключение персонализации объявлений Директа",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          }
+        ],
+        "counts": {
+          "unknown": 3,
+          "adjacent": 4,
+          "off_topic": 3
+        },
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Тексты преимущественно о контекстной рекламе, аналитике лидов и юморе. Десять видимых подписей/текстов, но несколько зависят от непросмотренных изображений; нельзя уверенно исключить тематический контент.",
+        "coverage": "Non-contiguous visible excerpts; exact dates not exposed by web reader; no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 327,
@@ -5836,7 +6254,20 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_003": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/pomogay_marketing"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct web fetch failed; this is not proof of source unavailability or off-topic status.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 418,
@@ -5848,7 +6279,20 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_003": {
+        "review_status": "access_unverified",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/ppckantrop"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Direct web fetch failed; this is not proof of source unavailability or off-topic status.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 419,
@@ -5915,7 +6359,98 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_003": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/pstmarketing"
+        ],
+        "visible_post_samples": 8,
+        "posts": [
+          {
+            "url": "https://t.me/pstmarketing/15036",
+            "publication_date": null,
+            "summary": "Ограничение регистрации компаний у совладельца DNS",
+            "relevance": "off_topic",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/pstmarketing/15037",
+            "publication_date": null,
+            "summary": "Таргетинг SMS/MMS на данных ритейлеров",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/pstmarketing/15038",
+            "publication_date": null,
+            "summary": "Спонсорство студенческого киберспорта",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/pstmarketing/15047",
+            "publication_date": null,
+            "summary": "Мошенничество в отчетности CTV",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/pstmarketing/15048",
+            "publication_date": null,
+            "summary": "Судебный спор рекламной группы",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/pstmarketing/15053",
+            "publication_date": null,
+            "summary": "Анализ скидочной инициативы рекламного агентства",
+            "relevance": "adjacent",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/pstmarketing/15054",
+            "publication_date": null,
+            "summary": "Иск рекламного агентства к девелоперу",
+            "relevance": "off_topic",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/pstmarketing/15055",
+            "publication_date": null,
+            "summary": "Комментарий о классической ТВ-рекламе",
+            "relevance": "adjacent",
+            "usefulness": "low",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          }
+        ],
+        "counts": {
+          "off_topic": 3,
+          "adjacent": 5
+        },
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "В восьми постах преобладает рынок общей рекламы, бизнес и телевидение. Неполная и не последовательная выборка, поэтому не окончательный отказ.",
+        "coverage": "Non-contiguous visible excerpts; exact dates not exposed by web reader; no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 424,
@@ -6601,7 +7136,81 @@
         "reason": "Два из четырех текстов содержат профессиональные советы по рекламе и выбору форматов, остальные продвигают мероприятие и акцию. Один видеоблок без текста не оценен. Предварительный допуск для измерения потока, не окончательное подтверждение.",
         "gold_label": null
       },
-      "gold_label": null
+      "gold_label": null,
+      "batch_003": {
+        "review_status": "item_level_partial",
+        "review_date": "2026-11-24",
+        "evidence_urls": [
+          "https://t.me/s/vk_ads"
+        ],
+        "visible_post_samples": 6,
+        "posts": [
+          {
+            "url": "https://t.me/vk_ads/2486",
+            "publication_date": null,
+            "summary": "Представление жюри премии VK",
+            "relevance": "adjacent",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/vk_ads/2494",
+            "publication_date": null,
+            "summary": "Принципы эффективного рекламного креатива",
+            "relevance": "relevant",
+            "usefulness": "mixed_promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/vk_ads/2499",
+            "publication_date": null,
+            "summary": "Выбор медийных форматов VK",
+            "relevance": "relevant",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/vk_ads/2505",
+            "publication_date": null,
+            "summary": "Бонусная акция VK Реклама",
+            "relevance": "relevant",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/vk_ads/2506",
+            "publication_date": null,
+            "summary": "Видео без доступного текста",
+            "relevance": "unknown",
+            "usefulness": "unknown",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          },
+          {
+            "url": "https://t.me/vk_ads/2507",
+            "publication_date": null,
+            "summary": "Анонс бесплатного курса по продвижению VK",
+            "relevance": "relevant",
+            "usefulness": "promotional",
+            "media_reviewed": false,
+            "evidence": "public_feed_text_or_caption"
+          }
+        ],
+        "counts": {
+          "adjacent": 1,
+          "relevant": 4,
+          "unknown": 1
+        },
+        "recommendation": "probation_provisional",
+        "reason": "Видимые посты включают практику креативов и выбора форматов, но также продвижение премии, акции и курса. Пробация оправдана для проверки потока; недостаточно для активации.",
+        "coverage": "Non-contiguous visible excerpts; exact dates not exposed by web reader; no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 477,
