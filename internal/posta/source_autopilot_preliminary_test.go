@@ -334,7 +334,6 @@ func TestAutopilotAdaptiveSearchCountsNovelNotRediscoveredSources(t *testing.T) 
 	}
 }
 
-
 func TestAutopilotSourceCaptionSampleDoesNotCherryPick(t *testing.T) {
 	posts := []jx.M{
 		{"text": "Detailed social media case study."},
