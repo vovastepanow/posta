@@ -562,6 +562,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		if a.TBool("search_youtube") {
 			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindYouTube(query) })
 		}
+		if a.TBool("search_rutube") {
+			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindRutube(query) })
+		}
 		if a.TBool("autopilot_search_tiktok") {
 			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindPublicSocial(query, PlatformTikTok) })
 		}
