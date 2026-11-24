@@ -1192,7 +1192,7 @@ func (u *U) autopilotEvaluateSource(info jx.M, posts []jx.M, topic string) *sour
 		"\nИсточник (только контекст для определения тега автора): " + trimRunes(jx.Str(info, "title"), 180) +
 		"\nПубликации как JSON-массив данных: " + string(payload)
 	props := jx.M{
-		"verdicts": jx.M{"type": "array", "items": jx.M{"type": "string", "enum": []string{"relevant", "adjacent", "off_topic", "unknown"}}},
+		"verdicts":      jx.M{"type": "array", "items": jx.M{"type": "string", "enum": []string{"relevant", "adjacent", "off_topic", "unknown"}}},
 		"personal_blog": jx.M{"type": "string", "enum": []string{"yes", "no", "unknown"}},
 	}
 	reply, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt,
@@ -1442,7 +1442,7 @@ func autopilotPreliminaryReject(score, threshold, samples int) bool {
 // may enter probation, not active status. Each post still passes the normal
 // admission pipeline, and the established promotion threshold is unchanged.
 func autopilotSourcePreliminaryDecision(ev *sourceEvaluation, threshold, fetched int) (pass, reject bool) {
-	if ev == nil {
+	if ev == nil || threshold < 0 || threshold > 100 {
 		return false, false
 	}
 	reviewed := min(fetched, ev.ReviewedSamples)
@@ -1738,9 +1738,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			// must not block all other candidates for another 24 hours.
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
 				"cooldown", "sparse_publisher", jx.Marshal(jx.M{
-					"quality_samples":     len(samples),
-					"quality_window_days":       autopilotSourceQualityDays,
-					"review_samples":            auditSamples,
+					"quality_samples":          len(samples),
+					"quality_window_days":      autopilotSourceQualityDays,
+					"review_samples":           auditSamples,
 					"review_policy_v3_checked": true,
 				}), at, at.Add(30*24*time.Hour)); err != nil &&
 				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
@@ -1883,7 +1883,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				}
 				professional := a.User(ctx, "", nil).professionalValueTopic(job.Topic)
 				effectiveRelevant := effectiveSourceRelevant(stats.Relevant, stats.Eligible, professional)
-				for key, value := range (jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "effective_relevant": effectiveRelevant, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "curated_unique": stats.CuratedUnique, "successful_passes": stats.SuccessfulPasses, "review_samples": auditSamples}) {
+				statsEvidence := jx.M{"window_days": 30, "evaluated": stats.Evaluated, "relevant": stats.Relevant, "eligible": stats.Eligible, "effective_relevant": effectiveRelevant, "advertising": stats.Advertising, "duplicates": stats.Duplicates, "fresh_unique": stats.FreshUnique, "curated_unique": stats.CuratedUnique, "successful_passes": stats.SuccessfulPasses, "review_samples": auditSamples}
+				for key, value := range statsEvidence {
 					evidence[key] = value
 				}
 				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: effectiveRelevant, FreshUnique: stats.FreshUnique, CuratedUnique: stats.CuratedUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates}, policy)
