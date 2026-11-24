@@ -29,12 +29,13 @@
     "Batch 019: 27 new attempts 465–492 excluding 476; 8 direct feeds, 14 third-party archives with readable content, 3 profile-only, 2 unresolved; 117 observed text/caption excerpts. 3 provisional probation recommendations. No gold labels, media inspection, external AI or production changes. Earlier batch 018 lacks verifiable per-item evidence and requires independent recheck before trusting its observations.",
     "Batch 020: 23 RUTUBE source listings (89–111), 297 observed video titles, 8 separately opened author descriptions from 7 sources. Titles excluded from readable-content count. No video playback or final labels. Prior batches 018–019 are not independently verified in this turn and must be rechecked before use as gold evidence.",
     "Batch 021: 28 new source attempts, 10 with 52 text excerpts, 21 title-only observations and 2 individually opened article bodies (one partial). Bluesky API test and Mastodon web access failed; unrelated search results excluded for Pikabu. Habr variant 185 remains unverified, possible duplicate of 184. No gold labels or external model.",
-    "Batch 022: 9 case-preserved YouTube feed/listing attempts, 2 syndicated descriptions for Latasha James. 25 separate legacy lowercase identity checks (NOT counted as content attempts), 6 externally evidenced case-preserved candidates, require authoritative validation before registration. Existing code source_autopilot_projection.go already deliberately avoids guessing lost ID casing; no production change. Prior 018–019 require independent recheck."
+    "Batch 022: 9 case-preserved YouTube feed/listing attempts, 2 syndicated descriptions for Latasha James. 25 separate legacy lowercase identity checks (NOT counted as content attempts), 6 externally evidenced case-preserved candidates, require authoritative validation before registration. Existing code source_autopilot_projection.go already deliberately avoids guessing lost ID casing; no production change. Prior 018–019 require independent recheck.",
+    "Batch 023: 29 direct access attempts, all 14 Tumblr sources attempted via two URL forms; VK/TikTok/Mastodon/Habr access unverified, four OK groups with 16 text excerpts and 27 headings. Title-only material is not counted as post text. No gold labels."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 361,
-    "structured_with_visible_post_samples": 191,
+    "structured_attempted": 390,
+    "structured_with_visible_post_samples": 195,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -66,7 +67,9 @@
     "batch_021_article_body_samples": 2,
     "batch_022_syndicated_descriptions": 2,
     "technical_youtube_lowercase_ids": 25,
-    "technical_youtube_candidate_recoveries": 6
+    "technical_youtube_candidate_recoveries": 6,
+    "batch_023_readable_texts": 16,
+    "batch_023_title_samples": 27
   },
   "rows": [
     {
@@ -1691,7 +1694,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://franshizavip-2021.tumblr.com/",
+          "https://www.tumblr.com/franshizavip-2021"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 79,
@@ -1703,7 +1722,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://her-exgifriend.tumblr.com/",
+          "https://www.tumblr.com/her-exgifriend"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 80,
@@ -1807,7 +1842,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://magic-visions.tumblr.com/",
+          "https://www.tumblr.com/magic-visions"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 85,
@@ -1819,7 +1870,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://mastodon.social/@spacehubglobal"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 86,
@@ -5956,7 +6022,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://rytikovsergei.tumblr.com/",
+          "https://www.tumblr.com/rytikovsergei"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 113,
@@ -5968,7 +6050,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://seoglobaltrends.tumblr.com/",
+          "https://www.tumblr.com/seoglobaltrends"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 114,
@@ -5980,7 +6078,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://sr-vlas-blog.tumblr.com/",
+          "https://www.tumblr.com/sr-vlas-blog"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 115,
@@ -5992,7 +6106,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://teahouseblog.tumblr.com/",
+          "https://www.tumblr.com/teahouseblog"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 116,
@@ -6004,7 +6134,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://watsonkg.tumblr.com/",
+          "https://www.tumblr.com/watsonkg"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 117,
@@ -6016,7 +6162,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://yustolyarov.tumblr.com/",
+          "https://www.tumblr.com/yustolyarov"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 118,
@@ -6028,7 +6190,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://www.tiktok.com/@hameensanomat"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 119,
@@ -6040,7 +6217,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://www.tiktok.com/@sextok4life"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 120,
@@ -6052,7 +6244,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://vk.com/andreichecko"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 121,
@@ -6064,7 +6271,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://vk.com/fokininvest"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 122,
@@ -6076,7 +6298,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://vk.com/lenaecomarketing"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 123,
@@ -6088,7 +6325,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://vk.com/rus_business"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 124,
@@ -6100,7 +6352,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://vk.com/spbucareer"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 125,
@@ -6112,7 +6379,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://vk.com/straightforward_boss"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 126,
@@ -6124,7 +6406,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://vk.com/vk_ads"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 127,
@@ -6136,7 +6433,204 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_partial",
+        "evidence_urls": [
+          "https://ok.ru/group/55214023442607"
+        ],
+        "visible_post_samples": 6,
+        "visible_title_samples": 11,
+        "posts": [
+          {
+            "summary": "Критерии выбора кастрюли: материал и дно с учетом блюда.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Квашение капусты с рассолом и медом.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Рецепт творожной шарлотки.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Салат из копченой курицы, моркови, кукурузы и огурца.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Чесночный соус для шаурмы.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Карельские пирожки с картофельной начинкой.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Хинкал с говядиной",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Курица карри с жасминовым рисом",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Суп с фрикадельками из индейки",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Запеченная тыква с фетой",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Кета с овощами",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Тыквенный пирог",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Курица с картофелем",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Ризотто по-милански",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Тефтели в томатном соусе",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Суп айнтопф",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Оссобуко",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/55214023442607",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Публикации посвящены собственной предметной области, а не обучению SMM и блогингу. Присутствие автора в соцсетях само по себе не делает публикации тематическими.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 128,
@@ -6148,7 +6642,107 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_partial",
+        "evidence_urls": [
+          "https://ok.ru/group/70000002193382"
+        ],
+        "visible_post_samples": 4,
+        "visible_title_samples": 4,
+        "posts": [
+          {
+            "summary": "Вязаные колокольчики: материалы, обозначения и начало схемы.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/70000002193382",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Осенний праздник ремесел и вязание курочки.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/70000002193382",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Поздравление с днем рукоделия.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/70000002193382",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Осенняя заметка о вязаной тыкве.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/70000002193382",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Елочка из бабушкиного квадрата",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000002193382",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Прихватка подсолнух",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000002193382",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Мини-салфетка подсолнух",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000002193382",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Поздравление рукодельниц",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000002193382",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Публикации посвящены собственной предметной области, а не обучению SMM и блогингу. Присутствие автора в соцсетях само по себе не делает публикации тематическими.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 129,
@@ -6160,7 +6754,109 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_partial",
+        "evidence_urls": [
+          "https://ok.ru/group/70000007630509"
+        ],
+        "visible_post_samples": 2,
+        "visible_title_samples": 6,
+        "posts": [
+          {
+            "summary": "Автор описывает процесс росписи лица куклы и изменение образа.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/70000007630509",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Ответ на частый вопрос о технологических отверстиях в куклах.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/70000007630509",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Как заказать и купить куклу",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000007630509",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Ведьмочка номер четыре",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000007630509",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Отзыв покупателя",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000007630509",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Почему кукла не стоит",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000007630509",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Кораблик из ткани",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000007630509",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Кому не подходят авторские куклы",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000007630509",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Публикации посвящены собственной предметной области, а не обучению SMM и блогингу. Присутствие автора в соцсетях само по себе не делает публикации тематическими.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 130,
@@ -6172,7 +6868,129 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_partial",
+        "evidence_urls": [
+          "https://ok.ru/group/70000032322741"
+        ],
+        "visible_post_samples": 4,
+        "visible_title_samples": 6,
+        "posts": [
+          {
+            "summary": "Публикация о роли калия для ритма сердца.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/70000032322741",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Публикация о связи веса и нагрузки на органы.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/70000032322741",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Личная история заболевания ветряной оспой.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/70000032322741",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Публикация о различиях сахарозаменителей и метаболизме.",
+            "relevance": "off_topic",
+            "evidence_type": "feed_text_excerpt",
+            "evidence_page": "https://ok.ru/group/70000032322741",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Что делать при обнаружении клеща",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000032322741",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Связь ожирения и щитовидной железы",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000032322741",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Цикл о метаболическом здоровье, 21 октября",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000032322741",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Цикл о метаболическом здоровье, 18 октября",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000032322741",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Начало цикла о метаболическом здоровье",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000032322741",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          },
+          {
+            "summary": "Витамин D",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "title_only",
+            "evidence_page": "https://ok.ru/group/70000032322741",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed"
+          }
+        ],
+        "recommendation": "provisional_off_topic_partial_evidence",
+        "reason": "Публикации посвящены собственной предметной области, а не обучению SMM и блогингу. Присутствие автора в соцсетях само по себе не делает публикации тематическими.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 131,
@@ -6882,7 +7700,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://asigemi.tumblr.com/",
+          "https://www.tumblr.com/asigemi"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 140,
@@ -6894,7 +7728,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://bilgiteknikeri.tumblr.com/",
+          "https://www.tumblr.com/bilgiteknikeri"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 141,
@@ -7485,7 +8335,22 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://habr.com/ru/rss/hubs/business_models/articles/all/?fl=ru"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "RSS с параметром не удалось прочитать; возможная связь с 184 не подтверждает идентичность потоков.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 186,
@@ -7497,7 +8362,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://huzuryolu.tumblr.com/",
+          "https://www.tumblr.com/huzuryolu"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 187,
@@ -7846,7 +8727,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://mavikurabiye.tumblr.com/",
+          "https://www.tumblr.com/mavikurabiye"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 198,
@@ -8051,7 +8948,23 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_023": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://renklielma.tumblr.com/",
+          "https://www.tumblr.com/renklielma"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая страница не открылась через текущий веб-инструмент; тематический вывод невозможен.",
+        "coverage": "Text excerpts and headings separately recorded; no full media inspection or source-level gold label.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 202,
