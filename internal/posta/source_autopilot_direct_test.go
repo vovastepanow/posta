@@ -158,7 +158,7 @@ func TestAutopilotDirectDeliversWithoutApprovedSourcePostgres(t *testing.T) {
 	if err != nil || job == nil || job.TopicKey != key {
 		t.Fatalf("claim=%+v err=%v", job, err)
 	}
-	post := jx.M{"source_url": "https://t.me/marketing_digest", "url": "https://t.me/marketing_digest/1337", "posted_at": time.Now().Unix(), "text": "Подробное объяснение решения, конкретные результаты эксперимента и этапы работы."}
+	post := jx.M{"source_url": "https://t.me/marketing_digest", "url": "https://t.me/marketing_digest/1337", "posted_at": time.Now().Unix(), "text": "Подробное объяснение решения, конкретные результаты эксперимента и этапы работы. https://t.me/citation_digest/42 https://t.me/citation_blocked https://t.me/citation_digest"}
 	analysis := jx.M{"advertising": false, "relevance": 95, "topic_match": true, "model": "test", "description": "Содержательная публикация", "why_relevant": "Соответствует теме", "tags": []any{}}
 	defer a.KVDelete(context.Background(), autopilotPostHintKey(key, source))
 	defer a.KVDelete(context.Background(), autopilotDirectSeenKey(key, source, repeatDigest(CandidatePostKey(post))))
@@ -281,6 +281,29 @@ func TestAutopilotDirectDeliversWithoutApprovedSourcePostgres(t *testing.T) {
 	}, sourcePolicy{})
 	if err != nil || len(reviewed) != 2 || reviewed[0] != source || reviewed[1] != rawSource {
 		t.Fatalf("verified author priority or raw exploration lost: %v %v", reviewed, err)
+	}
+	// Snowball discovery can use an admitted post from an otherwise unapproved
+	// author, but references are merely candidates and global exclusions win.
+	if _, err := d.Pool.Exec(ctx, `INSERT INTO source_autopilot_overrides
+		(scope,topic_key,source_id,owner_id,decision,updated_at)
+		VALUES($1,$2,'telegram:citation_blocked','','excluded',$3)`, job.Scope, key, time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	defer d.Pool.Exec(context.Background(), `DELETE FROM source_autopilot_overrides WHERE scope=$1 AND topic_key=$2 AND source_id='telegram:citation_blocked' AND owner_id=''`, job.Scope, key)
+	for i := 0; i < 2; i++ {
+		if err := a.autopilotConsumeCitations(contextWithAutopilotLease(ctx, job), job); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var citationState, origin string
+	if err := d.Pool.QueryRow(ctx, `SELECT state,evidence->>'discovery_origin' FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id='telegram:citation_digest'`, job.Scope, key).Scan(&citationState, &origin); err != nil || citationState != "candidate" || origin != "citation" {
+		t.Fatalf("citation was not staged as an unverified candidate: %q %q %v", citationState, origin, err)
+	}
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id='telegram:citation_blocked'`, job.Scope, key).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("global exclusion bypassed: %d %v", count, err)
+	}
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_decisions WHERE scope=$1 AND topic_key=$2 AND source_id='telegram:citation_digest'`, job.Scope, key).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("repeated citations duplicated registration: %d %v", count, err)
 	}
 	// A stored assessment cannot be used after the worker lease is revoked.
 	if _, err := setAutopilotJobEnabled(ctx, d.Pool, autopilotAutoScope, key, autopilotAutoKind, false); err != nil {

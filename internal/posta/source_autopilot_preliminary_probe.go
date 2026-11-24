@@ -18,15 +18,22 @@ func (a *App) autopilotProbePreliminaryRejection(ctx context.Context, job *autop
 	if job.Scope != autopilotAutoScope || a.LLM == nil || autopilotBudgetError(ctx) != nil {
 		return nil, false, nil
 	}
-	var already bool
-	var count int
+	var already, scheduled bool
+	var reserved, unreserved, pending int
 	if err := a.DB.Pool.QueryRow(ctx, `SELECT
-		COALESCE(bool_or(source_id=$3),false),count(*)
-		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND evidence ? 'preliminary_post_probe'`,
-		job.Scope, job.TopicKey, source).Scan(&already, &count); err != nil {
+		COALESCE(bool_or(source_id=$3 AND evidence ? 'preliminary_post_probe'),false),
+		COALESCE(bool_or(source_id=$3 AND evidence ? 'preliminary_probe_scheduled'),false),
+		count(*) FILTER (WHERE evidence ? 'preliminary_post_probe' OR evidence ? 'preliminary_probe_scheduled'),
+		count(*) FILTER (WHERE evidence ? 'preliminary_post_probe' AND NOT (evidence ? 'preliminary_probe_scheduled')),
+		count(*) FILTER (WHERE state IN ('candidate','rejected') AND next_check_at <= $4
+			AND evidence ? 'preliminary_probe_scheduled' AND NOT (evidence ? 'preliminary_post_probe'))
+		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`,
+		job.Scope, job.TopicKey, source, time.Now().Unix()).Scan(&already, &scheduled, &reserved, &unreserved, &pending); err != nil {
 		return nil, false, err
 	}
-	if already || count >= autopilotPreliminaryProbeLimit {
+	// Leave room for historic rejected sources, and do not let an ordinary
+	// candidate consume the only probe slot while a scheduled one is due.
+	if already || (!scheduled && (reserved >= autopilotPreliminaryProbeLimit || unreserved >= 10 || pending > 0)) {
 		return nil, false, nil
 	}
 	out, err := a.autopilotProbeTextSample(ctx, job, source, posts)
@@ -111,8 +118,8 @@ func (a *App) autopilotProbeTextSample(ctx context.Context, job *autopilotJob, s
 
 // Reopen a small, stable cohort of historical thematic rejections, not
 // technical failures or excluded publishers. Schedule rather than approve.
-// While the strict policy is selected this merely enables counterfactual
-// diagnosis; with the explicit yield switch it allows a bounded re-trial.
+// While the strict policy is selected this enables counterfactual diagnosis
+// and, with the limited pilot enabled, a normal trial on a positive probe.
 func (a *App) autopilotSchedulePreliminaryProbe(ctx context.Context, job *autopilotJob, yield bool) error {
 	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope || a.LLM == nil {
 		return nil
@@ -130,7 +137,6 @@ func (a *App) autopilotSchedulePreliminaryProbe(ctx context.Context, job *autopi
 			SELECT s.source_id FROM source_autopilot_sources s
 			WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='rejected'
 			AND (s.reason='preliminary_topic_mismatch' OR ($6 AND s.reason IN ('observed_irrelevant','observed_low_yield')))
-			AND s.next_check_at > $3
 			AND NOT (s.evidence ? 'preliminary_post_probe') AND NOT (s.evidence ? 'preliminary_probe_scheduled')
 			AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o
 				WHERE o.scope=s.scope AND o.topic_key=s.topic_key AND o.source_id=s.source_id
