@@ -171,4 +171,3 @@ func TestAutopilotCandidateToActiveLifecyclePostgres(t *testing.T) {
 		t.Fatalf("stale publisher reason=%s resume=%s err=%v", reason, resume, err)
 	}
 }
-
