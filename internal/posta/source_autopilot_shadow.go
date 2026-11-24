@@ -1625,6 +1625,9 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 		return err
 	}
 	if job.Scope == autopilotAutoScope {
+		if err := a.autopilotSchedulePreliminaryProbe(ctx, job, a.TBool("autopilot_yield_policy")); err != nil {
+			return err
+		}
 		if err := a.autopilotRecoverLegacyYouTube(ctx, job); err != nil {
 			return err
 		}

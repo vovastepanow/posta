@@ -448,6 +448,36 @@ func autopilotPublicSourceReviewEvidence(raw []byte) jx.M {
 	if len(reviewSamples) > 0 {
 		out["review_samples"] = reviewSamples
 	}
+	if probe := jx.Map(original, "preliminary_post_probe"); len(probe) > 0 {
+		safe := jx.M{}
+		for _, key := range []string{"at", "fresh_sample", "media_excluded", "local_excluded", "submitted", "completed", "eligible"} {
+			if jx.Has(probe, key) {
+				safe[key] = jx.Int(probe, key)
+			}
+		}
+		switch status := jx.Str(probe, "status"); status {
+		case "no_text_only_input", "provider_failure", "completed_or_partial":
+			safe["status"] = status
+		}
+		safe["has_eligible"] = jx.Bool(probe, "has_eligible")
+		out["preliminary_post_probe"] = safe
+	}
+	if comparison := jx.Map(original, "yield_comparison"); len(comparison) > 0 {
+		safe := jx.M{}
+		for _, key := range []string{"at", "useful_unique", "live_unique", "trial_passes", "trial_started_at"} {
+			if jx.Has(comparison, key) {
+				safe[key] = jx.Int(comparison, key)
+			}
+		}
+		for _, key := range []string{"strict_next", "yield_next"} {
+			switch state := jx.Str(comparison, key); state {
+			case "candidate", "probation", "active", "rejected", "cooldown":
+				safe[key] = state
+			}
+		}
+		safe["complete_sample"] = jx.Bool(comparison, "complete_sample")
+		out["yield_comparison"] = safe
+	}
 	if cause := jx.Str(original, "assessment_cause"); cause != "" {
 		switch cause {
 		case "provider_rate_limited", "provider_forbidden", "provider_unauthorized",

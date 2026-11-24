@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"posta/internal/jx"
 )
 
@@ -96,4 +97,47 @@ func (a *App) autopilotProbePreliminaryRejection(ctx context.Context, job *autop
 	out["has_eligible"] = eligibleCount > 0
 	autopilotAttachPostAudit(out, trace, time.Now())
 	return out, true, nil
+}
+
+// Reopen a small, stable cohort of historical thematic rejections, not
+// technical failures or excluded publishers. Schedule rather than approve.
+// While the strict policy is selected this merely enables counterfactual
+// diagnosis; with the explicit yield switch it allows a bounded re-trial.
+func (a *App) autopilotSchedulePreliminaryProbe(ctx context.Context, job *autopilotJob, yield bool) error {
+	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope || a.LLM == nil {
+		return nil
+	}
+	at := time.Now().UTC()
+	return withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `WITH quota AS (
+			SELECT LEAST(5,GREATEST(0,30-count(*)::int)) AS available
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
+			AND (evidence ? 'preliminary_post_probe' OR evidence ? 'preliminary_probe_scheduled')
+		), daily AS (
+			SELECT GREATEST(0,5-count(*)::int) AS available FROM source_autopilot_decisions
+			WHERE scope=$1 AND topic_key=$2 AND reason='preliminary_probe_scheduled' AND at >= $4
+		), candidates AS (
+			SELECT s.source_id FROM source_autopilot_sources s
+			WHERE s.scope=$1 AND s.topic_key=$2 AND s.state='rejected'
+			AND (s.reason='preliminary_topic_mismatch' OR ($6 AND s.reason IN ('observed_irrelevant','observed_low_yield')))
+			AND s.next_check_at > $3
+			AND NOT (s.evidence ? 'preliminary_post_probe') AND NOT (s.evidence ? 'preliminary_probe_scheduled')
+			AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o
+				WHERE o.scope=s.scope AND o.topic_key=s.topic_key AND o.source_id=s.source_id
+				AND o.owner_id='' AND o.decision='excluded')
+			ORDER BY md5(s.source_id),s.source_id
+			LIMIT (SELECT LEAST(quota.available,daily.available) FROM quota,daily)
+			FOR UPDATE OF s SKIP LOCKED
+		), scheduled AS (
+			UPDATE source_autopilot_sources s SET next_check_at=$3,
+			evidence=s.evidence || '{"preliminary_probe_scheduled":true}'::jsonb
+			FROM candidates c WHERE s.scope=$1 AND s.topic_key=$2 AND s.source_id=c.source_id
+			RETURNING s.source_id
+		)
+		INSERT INTO source_autopilot_decisions(scope,topic_key,source_id,old_state,new_state,reason,evidence,policy_version,at)
+		SELECT $1,$2,source_id,'rejected','rejected','preliminary_probe_scheduled',
+		'{"preliminary_probe_scheduled":true}'::jsonb,$5,$3 FROM scheduled`,
+			job.Scope, job.TopicKey, at.Unix(), at.Truncate(24*time.Hour).Unix(), TopicProfileVersion, yield)
+		return err
+	})
 }

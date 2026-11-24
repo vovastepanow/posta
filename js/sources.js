@@ -420,6 +420,11 @@ function renderAutopilot(data) {
                     number(topic.audit_funnel.stages?.assessed_no_eligible) + ' оценены, но нет пригодных · ' +
                     number(topic.audit_funnel.stages?.eligible_no_saved_result) + ' с пригодными, но без сохранённых результатов · ' +
                     number(topic.audit_funnel.actual_state_changes) + ' фактических смен состояния (не всех записей решений).' }) : '',
+                topic.audit_funnel?.preliminary_post_probes?.sources ? el('span', { textContent: 'Повторная диагностика тематического отказа: ' +
+                    number(topic.audit_funnel.preliminary_post_probes.sources) + ' источников · ' +
+                    number(topic.audit_funnel.preliminary_post_probes.sources_with_eligible) + ' с пригодными постами · ' +
+                    number(topic.audit_funnel.preliminary_post_probes.no_text_only_input) + ' без подходящего текстового входа · ' +
+                    number(topic.audit_funnel.preliminary_post_probes.provider_failure) + ' с ошибкой модели. Только текст, не независимая разметка.' }) : '',
                 topic.audit_funnel?.policy_comparison?.length ? el('span', { textContent: 'Сравнение политик (последняя общая выборка, не эталон): ' +
                     topic.audit_funnel.policy_comparison.map(item => item.strict_next + ' → ' + item.yield_next + ': ' + number(item.sources)).join(' · ') +
                     ' · режим: ' + (topic.yield_policy_enabled ? 'по отдаче (эксперимент)' : 'старый, сравнение в фоне') }) : '',
