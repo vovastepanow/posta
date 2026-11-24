@@ -63,6 +63,15 @@ func searchBackends() []SearchBackend {
 	}
 }
 
+// Shared autopilot evidence must not reuse cached results from personal search.
+func searchBackendCacheKey(name, query string, page int, publicAutopilot bool) string {
+	prefix := "search_engine:"
+	if publicAutopilot {
+		prefix = "search_engine_public_autopilot_v2:"
+	}
+	return prefix + sha1Short(name+"|"+query+"|"+strconv.Itoa(page), 20)
+}
+
 // searchBackendCall — один вызов площадки с кэшем на час; паника или ошибка — пусто, остальные площадки идут дальше.
 func (u *U) searchBackendCall(b SearchBackend, q string, page int) (posts []jx.M) {
 	defer func() {
@@ -71,7 +80,8 @@ func (u *U) searchBackendCall(b SearchBackend, q string, page int) (posts []jx.M
 			posts = nil
 		}
 	}()
-	key := "search_engine:" + sha1Short(b.Name+"|"+q+"|"+strconv.Itoa(page), 20)
+	_, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob)
+	key := searchBackendCacheKey(b.Name, q, page, leased)
 	var cached []jx.M
 	if u.CacheGet(u.Ctx, key, &cached) {
 		return cached

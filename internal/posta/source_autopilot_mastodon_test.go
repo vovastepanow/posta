@@ -28,6 +28,13 @@ func TestAutopilotMastodonRequiresExplicitPublicSafety(t *testing.T) {
 	if err != nil || len(posts) != 1 {
 		t.Fatalf("safe posts=%v err=%v", posts, err)
 	}
+	searchPosts, err := autopilotMastodonSafeStatuses(data, "")
+	if err != nil || len(searchPosts) != 2 {
+		t.Fatalf("public search must reject private, sensitive and unknown posts: %v %v", searchPosts, err)
+	}
+	if searchBackendCacheKey("Mastodon", "cats", 1, false) == searchBackendCacheKey("Mastodon", "cats", 1, true) {
+		t.Fatal("public autopilot and personal search share a cache key")
+	}
 	c := PostSearchAuthor(posts[0])
 	if c == nil || c.ID != feed {
 		t.Fatalf("unexpected source: %#v", c)

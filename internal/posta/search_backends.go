@@ -434,6 +434,10 @@ func (u *U) SearchMastodon(q string, page int) ([]jx.M, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
+	if _, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); leased {
+		posts, err := autopilotMastodonSafeStatuses(body, "")
+		return posts, false, err
+	}
 	posts, err := MastodonParse(body)
 	return posts, false, err
 }
