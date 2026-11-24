@@ -55,6 +55,7 @@ func AutopilotAuditFunnel(ctx context.Context, q db.Querier, scope, key string, 
 			COALESCE(r.n,0) AS saved,COALESCE(h.n,0) AS decisions,COALESCE(h.changes,0) AS changes,
 			(s.state IN ('probation','active') OR COALESCE(h.trial,false)) AS trial,
 			CASE WHEN COALESCE(r.n,0)>0 THEN 'saved_result'
+				WHEN COALESCE(v.eligible,0)>0 AND $1='public:shadow' THEN 'eligible_shadow_not_delivered'
 				WHEN COALESCE(v.eligible,0)>0 THEN 'eligible_no_saved_result'
 				WHEN COALESCE(v.n,0)>0 THEN 'assessed_no_eligible'
 				WHEN COALESCE(p.n,0)>0 THEN 'fetched_no_post_verdict'
@@ -83,6 +84,13 @@ func AutopilotAuditFunnel(ctx context.Context, q db.Querier, scope, key string, 
 		'stage_state_reason',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY stage,state,reason) FROM
 			(SELECT stage,state,reason,count(*) AS sources FROM per_source GROUP BY stage,state,reason) b),'[]'::jsonb),
 		'direct_results', (SELECT count(*) FROM source_autopilot_direct_results WHERE scope=$1 AND topic_key=$2 AND assessed_at <= $3),
+		'preliminary_post_probes', (SELECT jsonb_build_object(
+			'sources',count(*),
+			'sources_with_eligible',count(*) FILTER (WHERE evidence->'preliminary_post_probe' @> '{"has_eligible":true}'::jsonb),
+			'no_text_only_input',count(*) FILTER (WHERE evidence->'preliminary_post_probe' @> '{"status":"no_text_only_input"}'::jsonb),
+			'complete_or_partial',count(*) FILTER (WHERE evidence->'preliminary_post_probe' @> '{"status":"completed_or_partial"}'::jsonb),
+			'provider_failure',count(*) FILTER (WHERE evidence->'preliminary_post_probe' @> '{"status":"provider_failure"}'::jsonb))
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND evidence ? 'preliminary_post_probe'),
 		'recent_review_outcomes',COALESCE((SELECT jsonb_object_agg(outcome,n) FROM (
 			SELECT t.key AS outcome,sum(CASE WHEN jsonb_typeof(t.value)='number' THEN (t.value::text)::numeric ELSE 0 END) AS n
 			FROM source_autopilot_sources s CROSS JOIN LATERAL jsonb_each(
@@ -110,6 +118,7 @@ func AutopilotAuditFunnel(ctx context.Context, q db.Querier, scope, key string, 
 	}
 	out["as_of"] = at.UTC().Format(time.RFC3339)
 	out["evidence_scope"] = scope
+	out["saved_results_applicable"] = scope == autopilotAutoScope
 	out["retention_limited"] = true
 	out["independent_quality_measured"] = false
 	return out, nil

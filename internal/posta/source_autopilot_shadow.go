@@ -1829,6 +1829,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 	if err != nil {
 		return err
 	}
+	diagnosticAttempted := false
 	for _, row := range ids {
 		source, state := row.id, row.state
 		newTrial := state == "candidate"
@@ -2187,6 +2188,16 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					decision, decisionReason, retry := "cooldown", "preliminary_match_uncertain", 7*24*time.Hour
 					if reject {
 						decision, decisionReason, retry = "rejected", "preliminary_topic_mismatch", 30*24*time.Hour
+					}
+					if !diagnosticAttempted && job.Scope == autopilotAutoScope && a.LLM != nil {
+						probe, attempted, err := a.autopilotProbePreliminaryRejection(ctx, job, source, autopilotFreshRSSSamples(samples, at.Unix()))
+						if err != nil {
+							return err
+						}
+						if attempted {
+							diagnosticAttempted = true
+							evidence["preliminary_post_probe"] = probe
+						}
 					}
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
 						decision, decisionReason, jx.Marshal(evidence), at,
