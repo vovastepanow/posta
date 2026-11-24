@@ -194,7 +194,11 @@ func dialPublicAddresses(ctx context.Context, addresses []string, dial func(cont
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		attempt, cancel := context.WithTimeout(ctx, 3*time.Second)
+		timeout := 3*time.Second
+		if len(addresses) == 1 {
+			timeout = 8*time.Second
+		}
+		attempt, cancel := context.WithTimeout(ctx, timeout)
 		conn, err := dial(attempt, "tcp4", address)
 		cancel()
 		if err == nil {

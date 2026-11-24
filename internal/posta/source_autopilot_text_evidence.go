@@ -82,7 +82,7 @@ func (a *App) refreshAutopilotMedia(ctx context.Context, job *autopilotJob, sour
 	u := a.User(ctx, "", nil)
 	var media []byte
 	if !video {
-		media, err = u.FetchPublicImage(ContentImageKey(post))
+		media, _, err = u.autopilotReadPostImage(post)
 	} else {
 		rawURL := jx.Str(post, "video")
 		_, _, tiktokPage := autopilotTikTokVideoParts(jx.Str(post, "video_page"))
@@ -191,6 +191,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 	u := a.User(ctx, "", nil)
 	var items []jx.M
 	var texts []string
+	var deferredStreamError error
 	imageAttempts := 0
 	videoAttempts := 0
 	var passes int
@@ -214,13 +215,18 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 			if videoAttempts < 1 && (autopilotPublicPostURL(jx.Str(post, "video"), true) || autopilotYouTubeVideoID(jx.Str(post, "video_page")) != "" || tiktokPage) {
 				videoAttempts++
 				if err := a.assessAutopilotVideoPost(ctx, job, source, post); err != nil {
-					return err
+					// A missing stream is not a reason to lose the other
+					// independently reviewable publications in this feed.
+					if autopilotStreamUnavailableReason(err) == "" || ctx.Err()!=nil || autopilotBudgetError(ctx)!=nil {
+						return err
+					}
+					deferredStreamError=err
 				}
 			}
 			continue
 		}
 		if ContentImageKey(post) != "" {
-			if !autopilotPublicPostURL(ContentImageKey(post), true) {
+			if !autopilotPublicPostURL(ContentImageKey(post), true) && !autopilotPublicPostURL(jx.Str(post,"image_fallback"), true) {
 				continue
 			}
 			if imageAttempts >= 2 {
@@ -273,7 +279,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 		texts = append(texts, text)
 	}
 	if len(items) == 0 {
-		return nil
+		return deferredStreamError
 	}
 	analyses, err := u.AnalyzeTextBatch(texts, job.Topic, EmptyHistory())
 	if err != nil {
@@ -310,7 +316,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 			return err
 		}
 	}
-	return nil
+	return deferredStreamError
 }
 
 func (a *App) assessAutopilotVideoPost(ctx context.Context, job *autopilotJob, source string, post jx.M) error {
@@ -491,7 +497,7 @@ func (a *App) assessAutopilotImagePost(ctx context.Context, job *autopilotJob, s
 		}
 	}
 	u := a.User(ctx, "", nil)
-	image, err := u.FetchPublicImage(ContentImageKey(post))
+	image, resolvedImage, err := u.autopilotReadPostImage(post)
 	if err != nil {
 		return autopilotBudgetError(ctx)
 	}
@@ -527,7 +533,8 @@ func (a *App) assessAutopilotImagePost(ctx context.Context, job *autopilotJob, s
 	delete(verifiedPost, "media")
 	delete(verifiedPost, "image_local")
 	delete(verifiedPost, "video_local")
-	verifiedPost["image"] = ContentImageKey(post)
+	delete(verifiedPost, "image_fallback")
+	verifiedPost["image"] = resolvedImage
 	verifiedPost["phash"] = ImagePhash(image)
 	verifiedPost["repeat_file_hashes"] = []any{hex.EncodeToString(digest[:])}
 	local, err := a.cacheAutopilotMedia(ctx, job, source, hex.EncodeToString(digest[:]), image, false)
