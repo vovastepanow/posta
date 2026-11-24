@@ -833,7 +833,6 @@ func autopilotRunSearchBackendsAdaptive(ctx context.Context, turn int64, backend
 	return autopilotInterleaveSearchResults(groups)
 }
 
-
 // Retain the best-ranked result of every backend before its tail. A large
 // directory cannot monopolize the first review slots, and repeated source
 // aliases do not cost another registration or review slot.
