@@ -428,6 +428,17 @@ function renderAutopilot(data) {
                 topic.audit_funnel?.policy_comparison?.length ? el('span', { textContent: 'Сравнение политик (последняя общая выборка, не эталон): ' +
                     topic.audit_funnel.policy_comparison.map(item => item.strict_next + ' → ' + item.yield_next + ': ' + number(item.sources)).join(' · ') +
                     ' · режим: ' + (topic.yield_policy_enabled ? 'по отдаче (эксперимент)' : 'старый, сравнение в фоне') }) : '',
+                topic.yield_pilot_enabled && !topic.yield_policy_enabled && topic.audit_funnel ? el('span', { textContent: 'Ограниченный пилот отдачи: ' +
+                    number(topic.audit_funnel.yield_pilot_states?.probation) + ' на испытании · ' +
+                    number(topic.audit_funnel.yield_pilot_states?.active) + ' подтверждены · ' +
+                    number(topic.audit_funnel.yield_pilot_states?.rejected) + ' отклонены. Только после положительной проверки отдельного поста.' }) : '',
+                topic.control_audit ? el('span', { textContent: 'Независимые контрольные издатели SMM: ' +
+                    number(topic.control_audit.attempted) + '/' + number(topic.control_audit.panel_size) + ' проверены · ' +
+                    number(topic.control_audit.readable) + ' прочитаны · ' +
+                    number(topic.control_audit.preliminary_pass) + ' прошли старый порог · ' +
+                    number(topic.control_audit.completed) + '/' + number(topic.control_audit.submitted) + ' завершённых оценок постов · ' +
+                    number(topic.control_audit.eligible) + ' пригодных · ' +
+                    number(topic.control_audit.sources_with_eligible) + ' издателей с пригодными постами. Не подключаются автоматически; не ручная разметка.' }) : '',
                 topic.audit_funnel_unavailable ? el('span', { textContent: 'Расширенная диагностическая воронка временно недоступна.' }) : '',
                 el('span', { textContent: 'За 24 часа: ' + number(topic.decisions_24h) + ' записанных решений · ' +
                     number(topic.promoted_24h) + ' прошли предварительный отбор · ' +

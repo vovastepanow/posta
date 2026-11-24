@@ -29,6 +29,13 @@ func (a *App) autopilotProbePreliminaryRejection(ctx context.Context, job *autop
 	if already || count >= autopilotPreliminaryProbeLimit {
 		return nil, false, nil
 	}
+	out, err := a.autopilotProbeTextSample(ctx, job, source, posts)
+	return out, err == nil, err
+}
+
+// Assess public text without changing source state or delivery. Reused by
+// the historical rejection probe and the independent publisher control panel.
+func (a *App) autopilotProbeTextSample(ctx context.Context, job *autopilotJob, source string, posts []jx.M) (jx.M, error) {
 	u := a.User(ctx, "", nil)
 	var inputs []jx.M
 	var texts []string
@@ -57,19 +64,19 @@ func (a *App) autopilotProbePreliminaryRejection(ctx context.Context, job *autop
 		"local_excluded": localExcluded, "submitted": len(inputs), "has_eligible": false}
 	if len(inputs) == 0 {
 		out["status"] = "no_text_only_input"
-		return out, true, nil
+		return out, nil
 	}
 	analyses, err := u.AnalyzeTextBatch(texts, job.Topic, EmptyHistory())
 	if ctx.Err() != nil {
-		return nil, false, ctx.Err()
+		return nil, ctx.Err()
 	}
 	if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
-		return nil, false, budgetErr
+		return nil, budgetErr
 	}
 	if err != nil {
 		out["status"] = "provider_failure"
 		out["cause"] = autopilotAssessmentCause(err)
-		return out, true, nil
+		return out, nil
 	}
 	traceCtx, trace := newAutopilotPostAudit(ctx, inputs)
 	completed, eligibleCount := 0, 0
@@ -99,7 +106,7 @@ func (a *App) autopilotProbePreliminaryRejection(ctx context.Context, job *autop
 	out["completed"], out["eligible"] = completed, eligibleCount
 	out["has_eligible"] = eligibleCount > 0
 	autopilotAttachPostAudit(out, trace, time.Now())
-	return out, true, nil
+	return out, nil
 }
 
 // Reopen a small, stable cohort of historical thematic rejections, not

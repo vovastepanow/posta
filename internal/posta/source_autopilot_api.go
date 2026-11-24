@@ -315,6 +315,9 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 				row[key] = jx.Int(stats, key)
 			}
 			if d.Mode == "auto" {
+				if autopilotCanonicalTopic(d.Topic) == "SMM и блогинг" {
+					row["control_audit"] = autopilotControlPanelSummary(stats)
+				}
 				row["direct_reviewed_total"] = jx.Int(stats, "direct_reviewed_total")
 				row["direct_accepted_total"] = jx.Int(stats, "direct_accepted_total")
 				row["direct_rejected_total"] = jx.Int(stats, "direct_rejected_total")
@@ -448,6 +451,9 @@ func autopilotPublicSourceReviewEvidence(raw []byte) jx.M {
 	}
 	if len(reviewSamples) > 0 {
 		out["review_samples"] = reviewSamples
+	}
+	if jx.Bool(original, "yield_pilot") {
+		out["yield_pilot"] = true
 	}
 	if probe := jx.Map(original, "preliminary_post_probe"); len(probe) > 0 {
 		safe := jx.M{}

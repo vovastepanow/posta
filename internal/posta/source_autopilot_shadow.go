@@ -497,6 +497,11 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			return err
 		}
 	}
+	// A small independent read-only control panel exercises the configured
+	// model on real publishers, after regular source reviews and delivery.
+	if err := a.autopilotRunControlAudit(ctx, job); err != nil {
+		return err
+	}
 	// Do not grow a raw candidate backlog indefinitely. In auto mode,
 	// periodically reserve a narrow search for actual posts instead: a large
 	// or temporarily blocked queue must not prevent useful content delivery.
@@ -1821,7 +1826,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		return err
 	}
 	type sourceRow struct {
-		id, state, resume string
+		id, state, resume             string
 		reaudit, pilot, probePositive bool
 	}
 	var ids []sourceRow

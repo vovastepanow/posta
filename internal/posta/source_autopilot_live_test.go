@@ -895,18 +895,7 @@ func TestAutopilotLiveSMMControlRead(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	u := (&App{}).User(ctx, "", nil)
-	feeds := []struct {
-		name, raw string
-	}{
-		{"Buffer", "https://buffer.com/resources/feed"},
-		{"Hootsuite", "https://blog.hootsuite.com/feed/"},
-		{"Social Media Examiner", "https://www.socialmediaexaminer.com/feed/"},
-		{"Sprout Social", "https://sproutsocial.com/insights/feed/"},
-		{"Social Media Today", "https://www.socialmediatoday.com/feeds/news/"},
-		{"Metricool", "https://metricool.com/feed/"},
-		{"HubSpot Marketing", "https://blog.hubspot.com/marketing/rss.xml"},
-		{"SMMplanner", "https://smmplanner.com/blog/rss/"},
-	}
+	feeds := autopilotSMMControlFeeds
 	readable, fresh := 0, 0
 	for _, f := range feeds {
 		if ctx.Err() != nil {
