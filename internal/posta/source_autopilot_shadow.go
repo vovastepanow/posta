@@ -602,7 +602,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		if job.Scope == autopilotAutoScope && ctx.Err() == nil && autopilotBudgetError(ctx) == nil {
 			directAttempted = true
 			postCtx := withAutopilotSearchFetchCap(searchCtx, 30)
-			postCandidates, postErr := a.autopilotFindSourcesFromPosts(postCtx, job, query, 6)
+			postCandidates, postErr := a.autopilotFindSourcesFromPosts(postCtx, job, query, autopilotDirectMaxPerRun*autopilotPostHintLimit)
 			directErr = postErr
 			if directErr == nil {
 				directErr = a.autopilotAssessDirectPosts(ctx, job, postCandidates)
@@ -915,6 +915,51 @@ func autopilotPublicPostQueryPlan(query string) QueryPlan {
 	return plan
 }
 
+// The independent direct path can attest only recent public text. Do not
+// spend all nomination slots on video, old or empty posts that staging
+// would immediately discard. Media discovery retains its separate path.
+// Rotate the bounded inspection window so stable result lists still expose
+// later authors after the first batch has been classified.
+func autopilotAssessablePostCandidates(by map[string][]jx.M, at int64, limit int, turn int64) ([]DiscoveryCandidate, map[string][]jx.M) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	filtered := map[string][]jx.M{}
+	bySource := map[string][]jx.M{}
+	total := 0
+	for _, platform := range sortedKeys(by) {
+		for _, post := range by[platform] {
+			candidate := PostSearchAuthor(post)
+			if candidate == nil {
+				continue
+			}
+			source, ok := autopilotCandidateID(*candidate)
+			if !ok {
+				continue
+			}
+			safe := autopilotSafePostHints(source, []jx.M{post}, at)
+			if len(safe) != 1 {
+				continue
+			}
+			filtered[platform] = append(filtered[platform], safe[0])
+			if len(bySource[source]) < autopilotPostHintLimit {
+				bySource[source] = append(bySource[source], safe[0])
+			}
+			total++
+		}
+	}
+	all := autopilotCandidatesFromPosts(filtered, at, total)
+	if len(all) <= limit {
+		return all, bySource
+	}
+	offset := int(max(int64(0), turn) % int64(len(all)))
+	selected := make([]DiscoveryCandidate, 0, limit)
+	for i := 0; i < limit; i++ {
+		selected = append(selected, all[(offset+i)%len(all)])
+	}
+	return selected, bySource
+}
+
 func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJob, query string, limit int) ([]DiscoveryCandidate, error) {
 	if job == nil || job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind || strings.TrimSpace(query) == "" || limit <= 0 || ctx.Err() != nil || autopilotBudgetError(ctx) != nil {
 		return nil, autopilotBudgetError(ctx)
@@ -931,19 +976,15 @@ func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJ
 	if err := autopilotBudgetError(ctx); err != nil {
 		return nil, err
 	}
-	candidates := autopilotCandidatesFromPosts(posts, time.Now().Unix(), limit)
-	// Store only small, public text candidates tied to the verified author
-	// identity. Media never enters this staging queue.
+	candidates, bySource := autopilotAssessablePostCandidates(posts, time.Now().Unix(), limit, jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn"))
+	// Stage only actually assessable posts tied to the selected authors.
+	// The model still evaluates at most autopilotDirectMaxPerRun posts.
 	for _, candidate := range candidates {
 		source, ok := autopilotCandidateID(candidate)
 		if !ok {
 			continue
 		}
-		var sourcePosts []jx.M
-		for _, platform := range sortedKeys(posts) {
-			sourcePosts = append(sourcePosts, posts[platform]...)
-		}
-		if err := a.autopilotStagePublicPosts(ctx, job, source, sourcePosts); err != nil {
+		if err := a.autopilotStagePublicPosts(ctx, job, source, bySource[source]); err != nil {
 			return candidates, err
 		}
 	}
