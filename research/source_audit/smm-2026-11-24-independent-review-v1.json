@@ -39,7 +39,8 @@
     "Final disposition 029: baseline inventory reconciled exactly (492 unique IDs); 54 independently revisited content/access records this turn, 46 with 121 text/description observations, 25 legacy identity cases with 17 recovery candidates (11 cached official page titles, 3 official indexed results, 3 third-party references), 8 unresolved. Remaining historical records are explicitly not certified. All rows dispositioned; content audit and gold benchmark remain blocked. No production changes.",
     "Imported Terra's earlier exported database snapshot, matching all 492 source IDs and retaining 33 manual text assessments of system-selected Mastodon posts. Original DNS failure pertains to that snapshot, not subsequent reported network recovery. Later feed corpus and production fixes not included in upload. No new gold labels or production changes.",
     "Continuation 031: verified current snapshot counts; rechecked six mismatch rejects and two current candidates. New evidence appended per row as recheck_031; previous labels/dispositions retained. No production changes.",
-    "Continuation 032: explicitly reverified continuation 031 using public channel pages and linked post targets. Eight exact post/text associations confirmed; remaining prior item-level claims are not independently substantiated in this recheck and must not be counted as verified. Two directories only, one unavailable channel. Preserved earlier records for provenance, no gold labels or automatic source changes."
+    "Continuation 032: explicitly reverified continuation 031 using public channel pages and linked post targets. Eight exact post/text associations confirmed; remaining prior item-level claims are not independently substantiated in this recheck and must not be counted as verified. Two directories only, one unavailable channel. Preserved earlier records for provenance, no gold labels or automatic source changes.",
+    "Continuation 033: attempted 12 additional sources from preliminary_topic_mismatch, independently read five public channel pages and confirmed 17 exact text/post URL associations; seven could not be retrieved through either public URL form. One priority reconsideration (adv_system), one mixed legal/influencer source (advertising_law_channel), three observed off-topic text samples, no source-level gold verdicts. Public text only, no media or decision-time reconstruction."
   ],
   "stats": {
     "baseline": 492,
@@ -457,6 +458,45 @@
         "youtube_usable_feeds": 5
       },
       "limitations": "No representative gold corpus, no production access; external search and media eligibility are not certified."
+    },
+    "continuation_033": {
+      "date": "2026-11-24",
+      "scope": "next 12 preliminary_topic_mismatch sources in baseline index order",
+      "attempts": 12,
+      "readable_text_sources": 5,
+      "unavailable_sources": 7,
+      "exact_text_post_associations": 17,
+      "priority_reconsideration_indices": [
+        243
+      ],
+      "needs_more_evidence_indices": [
+        242
+      ],
+      "observed_off_topic_sample_indices": [
+        11,
+        249,
+        250
+      ],
+      "gold_labels_added": 0,
+      "production_db_modified": false,
+      "external_models_used": false,
+      "source_code_commit": "a961d003385962ae44942c5124764623ea4314da",
+      "live_before_ranking": {
+        "run": 45462545004,
+        "telegram_candidates": 8,
+        "telegram_readable_feeds": 6,
+        "bluesky_public_author_feeds_read": 3,
+        "bluesky_assessable_recent_text_posts": 0,
+        "youtube_usable_feeds": 5,
+        "youtube_attempted_feeds": 6,
+        "overall_result": "failure: external web search yielded no supported publisher links"
+      },
+      "go_run_passed": 45462545031,
+      "ranking_ci_runs": {
+        "go": 45462964801,
+        "live": 45462964810
+      },
+      "limitations": "Selected examples, no media inspected, exact dates not exposed; cannot establish source precision or historical error rate."
     }
   },
   "rows": [
@@ -2221,6 +2261,40 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "partial_text_and_post_link_verified",
+        "page_url": "https://telegram.me/s/novikovalaw",
+        "page_crawl_age": "2 months old",
+        "items": [
+          {
+            "url": "https://t.me/novikovalaw/1572",
+            "summary": "Переработка структуры и оформления договора клиента.",
+            "relevance": "off_topic",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/novikovalaw/1574",
+            "summary": "Автоматизация юридических процессов и уход клиента к ИИ.",
+            "relevance": "off_topic",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/novikovalaw/1581",
+            "summary": "Опыт выбора индивидуальных консультаций вместо обучения; запуск YouTube упомянут вскользь.",
+            "relevance": "off_topic_or_adjacent",
+            "published_at": null,
+            "media_reviewed": false
+          }
+        ],
+        "note": "Архивная лента о юридических документах и управлении юридической практикой. Не подтверждает SMM как основную тему.",
+        "selection_method": "available text posts, purposeful partial selection; not chronological random sample",
+        "recommendation": "observed_off_topic_sample",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -18632,6 +18706,18 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "unavailable",
+        "attempted_urls": [
+          "https://t.me/s/able_plus",
+          "https://telegram.me/s/able_plus"
+        ],
+        "items": [],
+        "note": "Both public web retrieval attempts unavailable; existence, freshness and thematic relevance not decided.",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -18897,6 +18983,47 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "partial_text_and_post_link_verified",
+        "page_url": "https://t.me/s/advertising_law_channel",
+        "page_crawl_age": "today",
+        "items": [
+          {
+            "url": "https://t.me/advertising_law_channel/2039",
+            "summary": "Правовые риски копирования рекламы; рекомендации в недоступной карусели.",
+            "relevance": "adjacent",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/advertising_law_channel/2046",
+            "summary": "Прямое предложение рекламных размещений в собственном канале.",
+            "relevance": "promotional",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/advertising_law_channel/2049",
+            "summary": "Описание подкаста о работе агентства с блогерами, согласовании интеграций и ограничениях площадок; аудио не прослушано.",
+            "relevance": "relevant_caption_only",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/advertising_law_channel/2063",
+            "summary": "Анонс вебинара о налогообложении маркетинговых расходов и бартере.",
+            "relevance": "adjacent_event_promo",
+            "published_at": null,
+            "media_reviewed": false
+          }
+        ],
+        "note": "Смешанная лента права и influencer-маркетинга. Нужен отдельный просмотр содержательных материалов, не принимать по одному описанию.",
+        "selection_method": "available text posts, purposeful partial selection; not chronological random sample",
+        "recommendation": "needs_more_evidence",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -19094,6 +19221,47 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "partial_text_and_post_link_verified",
+        "page_url": "https://t.me/s/adv_system",
+        "page_crawl_age": "today",
+        "items": [
+          {
+            "url": "https://t.me/adv_system/1061",
+            "summary": "Подборка руководств по рекламе MAX через VK и Директ с коммерческим предложением eLama.",
+            "relevance": "relevant_mixed_promotional",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/adv_system/1064",
+            "summary": "Порядок передачи статистики рекламных креативов, включая авторские видео на YouTube, Rutube и VK.",
+            "relevance": "relevant",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/adv_system/1067",
+            "summary": "Настройка автоматического сбора статистики рекламных постов, историй, клипов и видео VK/Дзен.",
+            "relevance": "relevant",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/adv_system/1071",
+            "summary": "Ответы на вопросы об обязательном сборе за рекламу, включая работу агентств и бартер.",
+            "relevance": "adjacent_or_relevant",
+            "published_at": null,
+            "media_reviewed": false
+          }
+        ],
+        "note": "Приоритет повторной проверки: есть конкретные инструкции для практики рекламы в соцсетях. Не подтверждает все публикации или историческую ошибку.",
+        "selection_method": "available text posts, purposeful partial selection; not chronological random sample",
+        "recommendation": "priority_reconsideration",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -19140,6 +19308,18 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "unavailable",
+        "attempted_urls": [
+          "https://t.me/s/adv_titan_stoic",
+          "https://telegram.me/s/adv_titan_stoic"
+        ],
+        "items": [],
+        "note": "Both public web retrieval attempts unavailable; existence, freshness and thematic relevance not decided.",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -19244,6 +19424,18 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "unavailable",
+        "attempted_urls": [
+          "https://t.me/s/afanasyevpro",
+          "https://telegram.me/s/afanasyevpro"
+        ],
+        "items": [],
+        "note": "Both public web retrieval attempts unavailable; existence, freshness and thematic relevance not decided.",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -19454,6 +19646,18 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "unavailable",
+        "attempted_urls": [
+          "https://t.me/s/agilixru",
+          "https://telegram.me/s/agilixru"
+        ],
+        "items": [],
+        "note": "Both public web retrieval attempts unavailable; existence, freshness and thematic relevance not decided.",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -19500,6 +19704,18 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "unavailable",
+        "attempted_urls": [
+          "https://t.me/s/aklaskovaya",
+          "https://telegram.me/s/aklaskovaya"
+        ],
+        "items": [],
+        "note": "Both public web retrieval attempts unavailable; existence, freshness and thematic relevance not decided.",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -19670,6 +19886,40 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "partial_text_and_post_link_verified",
+        "page_url": "https://t.me/s/alfabank_career",
+        "page_crawl_age": "today",
+        "items": [
+          {
+            "url": "https://t.me/alfabank_career/3057",
+            "summary": "Шоу с собеседованиями и рабочими кейсами кандидатов.",
+            "relevance": "off_topic",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/alfabank_career/3058",
+            "summary": "Карьерная история сотрудника после переезда.",
+            "relevance": "off_topic",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/alfabank_career/3062",
+            "summary": "Подборка вакансий в центральном офисе банка.",
+            "relevance": "off_topic",
+            "published_at": null,
+            "media_reviewed": false
+          }
+        ],
+        "note": "Наблюдаемая цель — HR и найм; само размещение материалов в социальных сетях не делает их практическими материалами SMM.",
+        "selection_method": "available text posts, purposeful partial selection; not chronological random sample",
+        "recommendation": "observed_off_topic_sample",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -19785,6 +20035,40 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "partial_text_and_post_link_verified",
+        "page_url": "https://t.me/s/alfadigital_jobs",
+        "page_crawl_age": "today",
+        "items": [
+          {
+            "url": "https://t.me/alfadigital_jobs/6672",
+            "summary": "Организация командной работы с учётом темперамента коллег.",
+            "relevance": "off_topic",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/alfadigital_jobs/6678",
+            "summary": "Анонс встречи по информационной безопасности ИИ.",
+            "relevance": "off_topic",
+            "published_at": null,
+            "media_reviewed": false
+          },
+          {
+            "url": "https://t.me/alfadigital_jobs/6687",
+            "summary": "Практика мутационного тестирования ПО.",
+            "relevance": "off_topic",
+            "published_at": null,
+            "media_reviewed": false
+          }
+        ],
+        "note": "Наблюдаемый профиль — IT и карьера. Digital в названии не означает SMM.",
+        "selection_method": "available text posts, purposeful partial selection; not chronological random sample",
+        "recommendation": "observed_off_topic_sample",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -20061,6 +20345,18 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "unavailable",
+        "attempted_urls": [
+          "https://t.me/s/amolotnikov2020",
+          "https://telegram.me/s/amolotnikov2020"
+        ],
+        "items": [],
+        "note": "Both public web retrieval attempts unavailable; existence, freshness and thematic relevance not decided.",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
@@ -20107,6 +20403,18 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "recheck_033": {
+        "date": "2026-11-24",
+        "verification_tier": "unavailable",
+        "attempted_urls": [
+          "https://t.me/s/andkulagin",
+          "https://telegram.me/s/andkulagin"
+        ],
+        "items": [],
+        "note": "Both public web retrieval attempts unavailable; existence, freshness and thematic relevance not decided.",
+        "gold_label": null,
+        "production_action": "none"
       }
     },
     {
