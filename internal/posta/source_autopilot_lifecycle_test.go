@@ -150,4 +150,25 @@ func TestAutopilotCandidateToActiveLifecyclePostgres(t *testing.T) {
 	if preliminary != 1 || assessCalls != 10 {
 		t.Fatalf("repeated cycles: preliminary=%d, assessments=%d; want 1 and 10", preliminary, assessCalls)
 	}
+
+	// The previously qualified publisher stops publishing. A successful
+	// dated feed is evidence of inactivity, not thematic mismatch.
+	old := at.Add(-60 * 24 * time.Hour)
+	staleFeed := strings.ReplaceAll(feed.String(), at.Format(time.RFC1123Z), old.Format(time.RFC1123Z))
+	if _, err := d.Pool.Exec(ctx, `UPDATE source_autopilot_sources SET next_check_at=0 WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, key, source); err != nil {
+		t.Fatal(err)
+	}
+	if err := runAutopilotLeased(ctx, d, job, time.Minute, 10*time.Second, 100, 100, 100, 100, func(work context.Context) error {
+		return a.autopilotReviewShadowCandidatesWith(work, job, 1, 85, func(raw string) FetchResultURL {
+			return FetchResultURL{FetchResult: FetchResult{OK: true, Bytes: []byte(staleFeed)}, URL: raw}
+		}, evaluate, assess, policy)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	verifyState("cooldown")
+	var reason, resume string
+	if err := d.Pool.QueryRow(ctx, `SELECT reason,resume_state FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, key, source).Scan(&reason, &resume); err != nil || reason != "no_recent_publications" || resume != "candidate" {
+		t.Fatalf("stale publisher reason=%s resume=%s err=%v", reason, resume, err)
+	}
 }
+
