@@ -934,3 +934,60 @@ func TestAutopilotLiveSMMControlRead(t *testing.T) {
 		t.Fatal("no independent SMM control feed yielded fresh posts")
 	}
 }
+
+// The fixed cohort was selected from the 492-source baseline before reading
+// current feeds. This is a parser/access check, not a relevance oracle.
+func TestAutopilotLiveHistoricTelegramCohort(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Second)
+	defer cancel()
+	u := (&App{}).User(ctx, "", nil)
+	ids := []string{"cryptovalerii", "impergroup", "budni_evangelista", "aakhromova", "pnk_rb", "iprosviriakova", "alfabank_career", "aba_association", "kyuzhanina", "avito_career", "betterchance_ru", "bossmarketer", "elama_russia", "komreda", "dmitriy_verbniakov", "agencymanagement", "devs_today"}
+	attempted, readable, fresh := 0, 0, 0
+	at := time.Now().Unix()
+	for _, id := range ids {
+		if ctx.Err() != nil {
+			break
+		}
+		HostThrottle("t.me", 1500*time.Millisecond)
+		attempted++
+		res := autopilotReadListing("https://t.me/s/"+id, BrowserUA, u.RSSGet)
+		if !res.OK {
+			t.Logf("HISTORIC TELEGRAM: id=%q status=%d unavailable", id, res.Status)
+			continue
+		}
+		posts, err := autopilotPublicSocialPosts(PlatformTelegram, id, res)
+		if err != nil || len(posts) == 0 {
+			t.Logf("HISTORIC TELEGRAM: id=%q status=%d parsed=%d error=%v", id, res.Status, len(posts), err)
+			continue
+		}
+		readable++
+		recent := autopilotFreshRSSSamples(posts, at)
+		if len(recent) > 0 {
+			fresh++
+		}
+		textOnly, media, unknown := 0, 0, 0
+		for _, p := range recent {
+			if PostItemHasMedia(p) {
+				media++
+			} else if AnalysisText(p) != "" {
+				textOnly++
+			} else {
+				unknown++
+			}
+		}
+		t.Logf("HISTORIC TELEGRAM: id=%q parsed=%d fresh=%d text_only=%d media=%d unknown=%d", id, len(posts), len(recent), textOnly, media, unknown)
+		for _, p := range recent[:min(5,len(recent))] {
+			if jx.Bool(p, "source_sensitive") || jx.Bool(p, "nsfw") || len(jx.ToStrs(p["safety"])) > 0 {
+				continue
+			}
+			t.Logf("HISTORIC TELEGRAM SAMPLE: id=%q posted=%d media=%t text=%q", id, jx.Int(p,"posted_at"), PostItemHasMedia(p), trimRunes(AnalysisText(p), 260))
+		}
+	}
+	t.Logf("HISTORIC TELEGRAM TOTAL: cohort=%d attempted=%d readable=%d fresh_feeds=%d", len(ids), attempted, readable, fresh)
+	if readable == 0 {
+		t.Skip("no cohort preview available; no thematic verdict")
+	}
+}
