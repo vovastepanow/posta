@@ -38,9 +38,9 @@ func TestAutopilotPreliminaryPass(t *testing.T) {
 
 func TestAutopilotPreliminaryReject(t *testing.T) {
 	tests := []struct {
-		name string
+		name                      string
 		score, threshold, samples int
-		want bool
+		want                      bool
 	}{
 		{"two poor posts are inconclusive", 10, 85, 2, false},
 		{"four poor posts are inconclusive", 10, 85, 4, false},
