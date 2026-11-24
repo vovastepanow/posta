@@ -20,7 +20,10 @@ func AutopilotAuditFunnel(ctx context.Context, q db.Querier, scope, key string, 
 	}
 	var raw []byte
 	err := q.QueryRow(ctx, `WITH sources AS (
-		SELECT source_id,state,reason,checked_at,first_seen_at FROM source_autopilot_sources
+		SELECT source_id,state,reason,checked_at,first_seen_at,
+			CASE WHEN evidence->>'discovery_origin' IN ('verified_post','post_nomination','directory','citation')
+				THEN evidence->>'discovery_origin' ELSE 'unknown' END AS discovery_origin
+		FROM source_autopilot_sources
 		WHERE scope=$1 AND topic_key=$2
 	), passes AS (
 		SELECT source_id,count(*) AS n,sum(fetched_count) AS items
@@ -83,6 +86,13 @@ func AutopilotAuditFunnel(ctx context.Context, q db.Querier, scope, key string, 
 		'stages',COALESCE((SELECT jsonb_object_agg(stage,n) FROM (SELECT stage,count(*) AS n FROM per_source GROUP BY stage) a),'{}'::jsonb),
 		'stage_state_reason',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY stage,state,reason) FROM
 			(SELECT stage,state,reason,count(*) AS sources FROM per_source GROUP BY stage,state,reason) b),'[]'::jsonb),
+		'discovery_paths',COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY discovery_origin) FROM (
+			SELECT discovery_origin,count(*) AS sources,
+				count(*) FILTER (WHERE passes>0) AS readable,
+				count(*) FILTER (WHERE evaluated>0) AS assessed,
+				count(*) FILTER (WHERE eligible>0) AS with_eligible,
+				count(*) FILTER (WHERE state='active') AS active
+			FROM per_source GROUP BY discovery_origin) p),'[]'::jsonb),
 		'direct_results', (SELECT count(*) FROM source_autopilot_direct_results WHERE scope=$1 AND topic_key=$2 AND assessed_at <= $3),
 		'yield_pilot_states',COALESCE((SELECT jsonb_object_agg(state,n) FROM (
 			SELECT state,count(*) AS n FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2

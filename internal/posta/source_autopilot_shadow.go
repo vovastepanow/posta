@@ -643,8 +643,16 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			raw = autopilotRunSearchBackendsAdaptiveKnown(searchCtx, turn, backends, 6, 64, known)
 		}
 		sourceSearchCount = len(raw) + len(postNominations)
-		candidates := append(append([]DiscoveryCandidate(nil), verified...), postNominations...)
-		candidates = append(candidates, raw...)
+		candidates := make([]DiscoveryCandidate, 0, len(verified)+len(postNominations)+len(raw))
+		for _, group := range []struct {
+			kind string
+			list []DiscoveryCandidate
+		}{{"verified_post", verified}, {"post_nomination", postNominations}, {"directory", raw}} {
+			for _, candidate := range group.list {
+				candidate.OriginKind = group.kind
+				candidates = append(candidates, candidate)
+			}
+		}
 		seenSources := map[string]bool{}
 		lastSearchSourceIDs = []string{}
 		for _, candidate := range candidates {
@@ -1192,7 +1200,13 @@ func (a *App) autopilotShadowSearchWith(ctx context.Context, job *autopilotJob, 
 			continue
 		}
 		seen[sourceID] = true
-		evidence := jx.Marshal(jx.M{"search_rank": len(seen)})
+		origin := candidate.OriginKind
+		switch origin {
+		case "verified_post", "post_nomination", "directory":
+		default:
+			origin = "unknown"
+		}
+		evidence := jx.Marshal(jx.M{"search_rank": len(seen), "discovery_origin": origin})
 		if err := registerAutopilotCandidateWithEvidence(ctx, a.DB, job, sourceID, "discovered", evidence, at); err != nil {
 			return err
 		}

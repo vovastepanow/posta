@@ -983,7 +983,7 @@ func TestAutopilotLiveHistoricTelegramCohort(t *testing.T) {
 			if jx.Bool(p, "source_sensitive") || jx.Bool(p, "nsfw") || len(jx.ToStrs(p["safety"])) > 0 {
 				continue
 			}
-			t.Logf("HISTORIC TELEGRAM SAMPLE: id=%q posted=%d media=%t text=%q", id, jx.Int(p,"posted_at"), PostItemHasMedia(p), trimRunes(AnalysisText(p), 260))
+			t.Logf("HISTORIC TELEGRAM SAMPLE: id=%q posted=%d media=%t text=%q", id, jx.Int(p,"posted_at"), PostItemHasMedia(p), trimRunes(jx.Str(p, "text"), 360))
 		}
 	}
 	t.Logf("HISTORIC TELEGRAM TOTAL: cohort=%d attempted=%d readable=%d fresh_feeds=%d", len(ids), attempted, readable, fresh)

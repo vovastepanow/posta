@@ -70,8 +70,8 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 	}
 	find := func(context.Context) ([]DiscoveryCandidate, error) {
 		return []DiscoveryCandidate{
-			{Platform: PlatformRSS, ID: "https://example.org/feed"}, {Platform: PlatformRSS, ID: "https://example.org/feed"},
-			{Platform: PlatformRSS, ID: "https://example.org/empty"},
+			{Platform: PlatformRSS, ID: "https://example.org/feed", OriginKind: "verified_post"}, {Platform: PlatformRSS, ID: "https://example.org/feed", OriginKind: "directory"},
+			{Platform: PlatformRSS, ID: "https://example.org/empty", OriginKind: "directory"},
 			{Platform: PlatformRSS, ID: "https://example.org/feed?token=private"},
 		}, nil
 	}
@@ -112,6 +112,10 @@ func TestAutopilotShadowQueuePostgres(t *testing.T) {
 		FROM source_autopilot_sources WHERE scope='public:shadow' AND topic_key=$1 AND source_id=$2`,
 		key, "rss:https://example.org/feed").Scan(&personalBlog); err != nil || personalBlog != personalBlogYes {
 		t.Fatalf("classified personal blog tag was lost on transition: %q err=%v", personalBlog, err)
+	}
+	var origin string
+	if err = d.Pool.QueryRow(ctx, `SELECT evidence->>'discovery_origin' FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, autopilotShadowScope, key, "rss:https://example.org/feed").Scan(&origin); err != nil || origin != "verified_post" {
+		t.Fatalf("first discovery provenance was lost: %q %v", origin, err)
 	}
 	// The modal must receive the human publisher title from the fetched
 	// feed, even after the candidate has moved into probation.

@@ -18,7 +18,14 @@
       "initial_state": "rejected",
       "initial_reason": "preliminary_topic_mismatch",
       "review": "mostly_off_topic",
-      "note": "Публичная лента преимущественно о ML, работе с данными, найме и выступлениях."
+      "note": "Публичная лента преимущественно о ML, работе с данными, найме и выступлениях.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 6,
+        "media": 4,
+        "unknown": 0
+      }
     },
     {
       "source_id": "telegram:impergroup",
@@ -26,7 +33,18 @@
       "initial_state": "rejected",
       "initial_reason": "preliminary_topic_mismatch",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 0,
+        "media": 10,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "mostly_off_topic",
+        "note": "Фасилитация, совещания, управление командой."
+      }
     },
     {
       "source_id": "telegram:budni_evangelista",
@@ -34,7 +52,14 @@
       "initial_state": "rejected",
       "initial_reason": "preliminary_topic_mismatch",
       "review": "mixed_with_topic_posts",
-      "note": "Есть материалы о рекламе в Telegram и MAX и статистике рекламных площадок; также контекстная реклама и более широкий маркетинг."
+      "note": "Есть материалы о рекламе в Telegram и MAX и статистике рекламных площадок; также контекстная реклама и более широкий маркетинг.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 7,
+        "media": 3,
+        "unknown": 0
+      }
     },
     {
       "source_id": "telegram:aakhromova",
@@ -42,7 +67,18 @@
       "initial_state": "rejected",
       "initial_reason": "preliminary_topic_mismatch",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 4,
+        "media": 6,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "mixed_topic_signal",
+        "note": "Личные финансы, найм, личные записи, отдельный материал о таргетировании."
+      }
     },
     {
       "source_id": "telegram:pnk_rb",
@@ -50,7 +86,14 @@
       "initial_state": "rejected",
       "initial_reason": "preliminary_topic_mismatch",
       "review": "mostly_off_topic",
-      "note": "Преимущественно налоговые консультации; отдельное упоминание TikTok связано с налогами, а не продвижением."
+      "note": "Преимущественно налоговые консультации; отдельное упоминание TikTok связано с налогами, а не продвижением.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 2,
+        "media": 8,
+        "unknown": 0
+      }
     },
     {
       "source_id": "telegram:iprosviriakova",
@@ -58,7 +101,14 @@
       "initial_state": "rejected",
       "initial_reason": "preliminary_topic_mismatch",
       "review": "mostly_off_topic",
-      "note": "Преимущественно управление бизнесом, лидерство, личный опыт."
+      "note": "Преимущественно управление бизнесом, лидерство, личный опыт.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 3,
+        "media": 7,
+        "unknown": 0
+      }
     },
     {
       "source_id": "telegram:alfabank_career",
@@ -66,7 +116,14 @@
       "initial_state": "rejected",
       "initial_reason": "preliminary_topic_mismatch",
       "review": "mostly_off_topic",
-      "note": "Преимущественно карьера и набор сотрудников; корпоративные публикации не означают SMM-экспертизу."
+      "note": "Преимущественно карьера и набор сотрудников; корпоративные публикации не означают SMM-экспертизу.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 0,
+        "media": 10,
+        "unknown": 0
+      }
     },
     {
       "source_id": "telegram:aba_association",
@@ -74,7 +131,18 @@
       "initial_state": "rejected",
       "initial_reason": "preliminary_topic_mismatch",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 1,
+        "media": 9,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "mixed_topic_signal",
+        "note": "Новости инфлюенсеров, показатели аудитории, правовые вопросы блогов; полезность новостей для практики SMM не проверена."
+      }
     },
     {
       "source_id": "telegram:kyuzhanina",
@@ -82,7 +150,18 @@
       "initial_state": "rejected",
       "initial_reason": "observed_ad_or_duplicates",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 9,
+        "fresh": 9,
+        "text_only": 3,
+        "media": 6,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "mixed_topic_signal",
+        "note": "Личный бренд, исследования, продвижение собственных продуктов, личные записи; не подтверждает отсутствие рекламы."
+      }
     },
     {
       "source_id": "telegram:avito_career",
@@ -90,7 +169,18 @@
       "initial_state": "rejected",
       "initial_reason": "preliminary_topic_mismatch",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 1,
+        "media": 9,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "mostly_off_topic",
+        "note": "Вакансии, включая найм сотрудников рекламного направления, но не обучение SMM."
+      }
     },
     {
       "source_id": "telegram:betterchance_ru",
@@ -98,7 +188,18 @@
       "initial_state": "rejected",
       "initial_reason": "preliminary_topic_mismatch",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 0,
+        "media": 10,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "mostly_off_topic",
+        "note": "Юридические обзоры и корпоративные записи."
+      }
     },
     {
       "source_id": "telegram:bossmarketer",
@@ -106,7 +207,18 @@
       "initial_state": "probation",
       "initial_reason": "insufficient_evidence",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 9,
+        "text_only": 2,
+        "media": 7,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "mostly_adjacent_in_excerpt",
+        "note": "Общие рекламные инструменты, аналитика сайтов, SEO и вебинары."
+      }
     },
     {
       "source_id": "telegram:elama_russia",
@@ -114,7 +226,18 @@
       "initial_state": "probation",
       "initial_reason": "feed_unavailable",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 9,
+        "fresh": 9,
+        "text_only": 0,
+        "media": 9,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "mixed_topic_signal",
+        "note": "Партнёрская программа, анонсы и материалы о продвижении каналов MAX и проверке аудитории."
+      }
     },
     {
       "source_id": "telegram:komreda",
@@ -122,7 +245,14 @@
       "initial_state": "probation",
       "initial_reason": "feed_unavailable",
       "review": "mixed_with_topic_posts",
-      "note": "Есть интервью с руководителями SMM и кейсы агентств, вместе с более широким контентом о маркетинге и рекламными анонсами."
+      "note": "Есть интервью с руководителями SMM и кейсы агентств, вместе с более широким контентом о маркетинге и рекламными анонсами.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 3,
+        "text_only": 1,
+        "media": 2,
+        "unknown": 0
+      }
     },
     {
       "source_id": "telegram:dmitriy_verbniakov",
@@ -130,7 +260,18 @@
       "initial_state": "probation",
       "initial_reason": "insufficient_evidence",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 9,
+        "text_only": 6,
+        "media": 3,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "insufficient_excerpt",
+        "note": "Префикс атрибуции пересылки занял большую часть фрагментов; по нему нельзя оценить содержание."
+      }
     },
     {
       "source_id": "telegram:agencymanagement",
@@ -138,7 +279,18 @@
       "initial_state": "rejected",
       "initial_reason": "observed_irrelevant",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 10,
+        "fresh": 10,
+        "text_only": 0,
+        "media": 10,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "mostly_adjacent_in_excerpt",
+        "note": "Бизнес-процессы агентств, управление, операционные решения."
+      }
     },
     {
       "source_id": "telegram:devs_today",
@@ -146,7 +298,30 @@
       "initial_state": "probation",
       "initial_reason": "retain",
       "review": "unknown",
-      "note": "Public preview could not be independently read in the available web environment."
+      "note": "Public preview could not be independently read in the available web environment.",
+      "parser_replay": {
+        "parsed": 7,
+        "fresh": 7,
+        "text_only": 3,
+        "media": 4,
+        "unknown": 0
+      },
+      "excerpt_review": {
+        "label": "mixed_topic_signal",
+        "note": "Секторный маркетинг девелоперов; отдельные материалы о ведении соцсетей и ньюсджекинге."
+      }
     }
-  ]
+  ],
+  "parser_replay": {
+    "workflow": "https://github.com/vovastepanow/posta/actions/runs/45504025819",
+    "commit": "46faaf5abccf557a8db93ba95dc4f562488e21fc",
+    "readable_feeds": 17,
+    "fresh_feeds": 17,
+    "parsed": 165,
+    "fresh": 156,
+    "text_only": 39,
+    "media": 117,
+    "unknown": 0,
+    "note": "Current Posta parser, not independent retrieval or classifier evaluation. Freshness uses existing 30-day window. Sample excerpts do not establish post eligibility; media was not independently viewed."
+  }
 }
