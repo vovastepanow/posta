@@ -36,6 +36,46 @@ func TestAutopilotPreliminaryPass(t *testing.T) {
 	}
 }
 
+func TestAutopilotPreliminaryReject(t *testing.T) {
+	tests := []struct {
+		name string
+		score, threshold, samples int
+		want bool
+	}{
+		{"two poor posts are inconclusive", 10, 85, 2, false},
+		{"four poor posts are inconclusive", 10, 85, 4, false},
+		{"near threshold is inconclusive", 84, 85, 10, false},
+		{"clear mismatch with sufficient sample", 55, 85, 5, true},
+		{"clear mismatch boundary", 75, 85, 5, true},
+		{"invalid negative score", -1, 85, 5, false},
+		{"invalid threshold", 0, 101, 5, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := autopilotPreliminaryReject(tt.score, tt.threshold, tt.samples); got != tt.want {
+				t.Fatalf("got %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAutopilotRutubeChannelPosts(t *testing.T) {
+	body := []byte(`{"results":[{"id":"one","title":"Public post","author":{"id":123,"name":"Publisher"}},{"id":"two","title":"Foreign post","author":{"id":456,"name":"Other"}},{"id":"three","title":"Sensitive post","is_adult":true,"author":{"id":123,"name":"Publisher"}}]}`)
+	posts, err := autopilotRutubeChannelPosts(body, "123")
+	if err != nil || len(posts) != 1 || jx.Str(posts[0], "source") != "Publisher" || jx.Str(posts[0], "source_key") != "rutube:123" {
+		t.Fatalf("unexpected channel posts: %+v, err=%v", posts, err)
+	}
+	if _, err := autopilotRutubeChannelPosts([]byte(`{"error":"unavailable"}`), "123"); err == nil {
+		t.Fatal("missing results must not be interpreted as sparse publisher")
+	}
+	if _, err := autopilotRutubeChannelPosts(body, "999"); err == nil {
+		t.Fatal("unrelated authors must not be accepted as this channel")
+	}
+	if posts, err := autopilotRutubeChannelPosts([]byte(`{"results":[]}`), "123"); err != nil || len(posts) != 0 {
+		t.Fatalf("valid empty channel listing: %+v, err=%v", posts, err)
+	}
+}
+
 func TestAutopilotSourceReviewInterval(t *testing.T) {
 	auto := &autopilotJob{Scope: autopilotAutoScope, Kind: autopilotAutoKind}
 	shadow := &autopilotJob{Scope: autopilotShadowScope, Kind: autopilotShadowKind}
