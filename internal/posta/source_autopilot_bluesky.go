@@ -1,12 +1,14 @@
 package posta
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -93,6 +95,28 @@ func autopilotBlueskyTextPosts(data []byte, at int64) ([]jx.M, error) {
 const autopilotBlueskyAPI = "https://public.api.bsky.app/xrpc/"
 
 var errAutopilotBlueskySearchRestricted = errors.New("Bluesky global post search requires access")
+var errAutopilotBlueskyFeedRateLimited = errors.New("Bluesky public feed rate limited")
+var errAutopilotBlueskyFeedRestricted = errors.New("Bluesky public feed restricted")
+
+// Use the ordinary bounded public fetch path. Preserve the actual HTTP
+// status so the fallback stops, rather than moving to more authors, when
+// the provider rate-limits or restricts access.
+func (u *U) autopilotBlueskyFeedJSON(raw string) ([]byte, error) {
+	r, err := u.FetchPublic(raw, FetchOpts{MaxBytes: 2 << 20, Timeout: 6 * time.Second, UserAgent: HTTPUA, Headers: map[string]string{"Accept": "application/json"}})
+	if err != nil {
+		return nil, err
+	}
+	switch r.Status {
+	case http.StatusTooManyRequests:
+		return nil, errAutopilotBlueskyFeedRateLimited
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return nil, errAutopilotBlueskyFeedRestricted
+	}
+	if !r.OK {
+		return nil, fmt.Errorf("Bluesky author feed HTTP %d", r.Status)
+	}
+	return r.Bytes, nil
+}
 var autopilotBlueskyPostSearchPause struct {
 	sync.Mutex
 	until time.Time
@@ -179,23 +203,37 @@ func autopilotBlueskyAuthorFallback(query string, at int64, fetch func(string)([
 	if err!=nil {
 		return nil,err
 	}
-	seen:=map[string]bool{}
+	// Prefer authors whose public metadata supports the search intent,
+	// without excluding indirect or multilingual matches. Directory order
+	// is not proof of content quality or activity.
+	matches := func(c DiscoveryCandidate) bool {
+		return discoveryQueryEvidenceMatch(query, jx.Str(c.Info, "title")+" "+jx.Str(c.Info, "handle")+" "+jx.Str(c.Info, "description"))
+	}
+	sort.SliceStable(actors, func(i, j int) bool { return matches(actors[i]) && !matches(actors[j]) })
+	seen := map[string]bool{}
 	var out []jx.M
 	var lastErr error
-	attempted, successful:=0,0
+	attempted, successful, usefulAuthors := 0, 0, 0
 	for _, actor:=range actors {
 		did:=autopilotBlueskyProfileDID(strings.TrimSuffix(actor.ID,"/rss"))
 		if did=="" || seen[did] {
 			continue
 		}
 		seen[did]=true
-		if attempted>=3 {
+		// The previous three-author cap often exhausted the entire
+		// search on inactive accounts. Stop early when diverse useful
+		// material is available, otherwise inspect at most six authors.
+		if attempted >= 6 || (len(out) >= 6 && usefulAuthors >= 3) {
 			break
 		}
 		attempted++
 		data,err:=fetch(autopilotBlueskyAPI+"app.bsky.feed.getAuthorFeed?limit=12&filter=posts_no_replies&actor="+url.QueryEscape(did))
-		if err!=nil {
-			lastErr=err
+		if err != nil {
+			lastErr = err
+			if errors.Is(err, errAutopilotBlueskyFeedRateLimited) || errors.Is(err, errAutopilotBlueskyFeedRestricted) ||
+				errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				break
+			}
 			continue
 		}
 		posts,err:=autopilotBlueskyAuthorTextPosts(data,did,at)
@@ -204,6 +242,9 @@ func autopilotBlueskyAuthorFallback(query string, at int64, fetch func(string)([
 			continue
 		}
 		successful++
+		if len(posts) > 0 {
+			usefulAuthors++
+		}
 		out=append(out,posts...)
 	}
 	if successful==0 && lastErr!=nil {
@@ -214,11 +255,16 @@ func autopilotBlueskyAuthorFallback(query string, at int64, fetch func(string)([
 
 func (u *U) autopilotSearchBlueskyPosts(query string) ([]jx.M, error) {
 	data, err := u.autopilotBlueskySearchData(query)
+	at := time.Now().Unix()
 	if errors.Is(err, errAutopilotBlueskySearchRestricted) {
-		return autopilotBlueskyAuthorFallback(query,time.Now().Unix(),u.searchGetJSON)
+		return autopilotBlueskyAuthorFallback(query, at, u.autopilotBlueskyFeedJSON)
 	}
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
-	return autopilotBlueskyTextPosts(data,time.Now().Unix())
+	posts, err := autopilotBlueskyTextPosts(data, at)
+	if err == nil && len(posts) == 0 {
+		return autopilotBlueskyAuthorFallback(query, at, u.autopilotBlueskyFeedJSON)
+	}
+	return posts, err
 }

@@ -671,7 +671,7 @@ func TestAutopilotLiveBlueskyAuthorFallback(t *testing.T) {
 	at := time.Now().Unix()
 	posts,err:=autopilotBlueskyAuthorFallback("software engineering",at,func(raw string)([]byte,error){
 		p,_:=url.Parse(raw)
-		body,err:=u.searchGetJSON(raw)
+		body,err:=u.autopilotBlueskyFeedJSON(raw)
 		t.Logf("BLUESKY AUTHOR API: endpoint=%s bytes=%d error=%v",p.Path,len(body),err)
 		if err == nil && strings.HasSuffix(p.Path, "/app.bsky.feed.getAuthorFeed") {
 			var response struct {

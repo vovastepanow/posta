@@ -81,3 +81,43 @@ func TestAutopilotBlueskyAuthorFallbackRequiresOwnOriginalPosts(t *testing.T) {
 		t.Fatalf("calls=%d posts=%+v err=%v",calls,got,err)
 	}
 }
+
+func TestAutopilotBlueskyFallbackExpandsOnlyWhenFirstAuthorsEmpty(t *testing.T) {
+	at := time.Now()
+	actors := []jx.M{}
+	for _, suffix := range []string{"a", "b", "c", "d", "e", "f", "g"} {
+		actors = append(actors, jx.M{"did": "did:plc:"+strings.Repeat("a", 23)+suffix, "displayName":"Astronomy"})
+	}
+	calls := 0
+	fetch := func(raw string) ([]byte,error) {
+		calls++
+		p, _ := url.Parse(raw)
+		if strings.HasSuffix(p.Path, "searchActors") {
+			return json.Marshal(jx.M{"actors":actors})
+		}
+		did := p.Query().Get("actor")
+		if calls <= 4 {
+			return []byte(`{"feed":[]}`),nil
+		}
+		return json.Marshal(jx.M{"feed":[]jx.M{{"post":jx.M{
+			"uri":"at://"+did+"/app.bsky.feed.post/own",
+			"author":jx.M{"did":did},
+			"record":jx.M{"$type":"app.bsky.feed.post","text":"A detailed original telescope calibration tutorial.","createdAt":at.Format(time.RFC3339Nano)},
+		}}}})
+	}
+	got, err := autopilotBlueskyAuthorFallback("astronomy",at.Unix(),fetch)
+	if err != nil || calls != 7 || len(got) != 3 {
+		t.Fatalf("calls=%d posts=%d err=%v",calls,len(got),err)
+	}
+	calls = 0
+	_, err = autopilotBlueskyAuthorFallback("astronomy",at.Unix(),func(raw string)([]byte,error){
+		calls++
+		if strings.Contains(raw,"searchActors") {
+			return json.Marshal(jx.M{"actors":actors})
+		}
+		return nil,errAutopilotBlueskyFeedRateLimited
+	})
+	if err != errAutopilotBlueskyFeedRateLimited || calls != 2 {
+		t.Fatalf("rate limit must stop author fallback: calls=%d err=%v",calls,err)
+	}
+}
