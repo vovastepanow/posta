@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -114,5 +115,47 @@ func TestAutopilotSearchLinksPreserveValidatedBingFallback(t *testing.T) {
 	got := autopilotSearchLinkedCandidates(r, PlatformTikTok)
 	if len(got) != 1 || got[0].ID != "cats" {
 		t.Fatalf("Bing fallback lost or polluted: %+v", got)
+	}
+}
+
+func TestAutopilotPublisherSearchUsesBingWhenBraveUnavailable(t *testing.T) {
+	brave := func(string) FetchResultURL {
+		return FetchResultURL{FetchResult: FetchResult{Status: 429}}
+	}
+	calls := 0
+	bing := func(raw string, limit int64, _ time.Duration, _ string) FetchResultURL {
+		calls++
+		if !strings.HasPrefix(raw, "https://www.bing.com/search?") || limit != rssMaxBytes {
+			t.Fatal("unbounded or untrusted fallback")
+		}
+		body := `<rss><channel>
+<item><link>https://t.me/s/camera_digest/123</link></item>
+<item><link>https://t.me.evil.example/fakechannel</link></item>
+<item><link>https://example.org/unrelated</link></item>
+<item><link>https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv</link></item>
+</channel></rss>`
+		return FetchResultURL{URL: raw, FetchResult: FetchResult{OK: true, Bytes: []byte(body)}}
+	}
+	for _, tc := range []struct{ platform, want string }{
+		{PlatformTelegram, "camera_digest"},
+		{PlatformRSS, YouTubeChannelFeedURL("UCabcdefghijklmnopqrstuv")},
+	} {
+		got := autopilotPublisherSearchWith("camera lenses", tc.platform, brave, bing)
+		candidates := autopilotSearchLinkedCandidates(got, tc.platform)
+		if !autopilotPublisherSearchResponseValid(got) || len(candidates) != 1 || candidates[0].ID != tc.want {
+			t.Fatalf("fallback lost real result or accepted unrelated host: %+v", candidates)
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("fallback calls=%d", calls)
+	}
+	healthy := func(string) FetchResultURL {
+		return FetchResultURL{URL: "https://search.brave.com/search", FetchResult: FetchResult{
+			OK: true, Bytes: []byte(`<a href="https://t.me/camera_digest">Camera tutorials</a>`),
+		}}
+	}
+	autopilotPublisherSearchWith("camera lenses", PlatformTelegram, healthy, bing)
+	if calls != 2 {
+		t.Fatal("healthy primary search caused an extra fallback request")
 	}
 }
