@@ -42,8 +42,8 @@ func TestProfessionalSourceYieldUsesEligiblePosts(t *testing.T) {
 		t.Fatalf("eligible count cannot exceed relevant evidence: %d", got)
 	}
 	p := sourcePolicy{MinEvaluated: 10, MinPasses: 3, MinFreshUnique: 3, PromoteRate: .8, DemoteRate: .4, MaxAdvertisingRate: .2, MaxDuplicateRate: .5}
-	e := sourceEvidence{Evaluated: 10, Relevant: effectiveSourceRelevant(9, 2, true), FreshUnique: 3, SuccessfulPasses: 3}
-	if state, _ := decideSourceState("probation", e, p); state != "rejected" {
+	e := sourceEvidence{Evaluated: 10, Relevant: 9, Eligible: 2, RequireEligible: true, FreshUnique: 3, SuccessfulPasses: 3}
+	if state, reason := decideSourceState("probation", e, p); state != "rejected" || reason != "observed_low_yield" {
 		t.Fatalf("professional source with mostly unusable posts became %s", state)
 	}
 }
