@@ -2023,7 +2023,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				continue
 			}
 		}
-		if reason == "" && state == "candidate" && len(samples) < 2 {
+		if reason == "" && state == "candidate" && (len(samples) == 0 || (!policy.YieldEnabled && len(samples) < 2)) {
 			// A sparse publisher is worth revisiting, not rejecting. It also
 			// must not block all other candidates for another 24 hours.
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
@@ -2057,7 +2057,17 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 			continue
 		}
-		if reason == "" && (state == "candidate" || (row.reaudit && (state == "probation" || state == "active"))) {
+		if policy.YieldEnabled && row.reaudit && (state == "probation" || state == "active") {
+			evidence["review_policy_v3_checked"] = true
+		}
+		if reason == "" && policy.YieldEnabled && state == "candidate" && len(autopilotFreshRSSSamples(samples, at.Unix())) == 0 {
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown", "insufficient_fresh_samples", jx.Marshal(evidence), at, at.Add(7*24*time.Hour)); err != nil &&
+				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+			continue
+		}
+		if reason == "" && (state == "candidate" || (!policy.YieldEnabled && row.reaudit && (state == "probation" || state == "active"))) {
 			autopilotResetAssessmentCause(ctx)
 			evaluation := evaluate(sourceInfo, samples, job.Topic)
 			if err := autopilotBudgetError(ctx); err != nil {
@@ -2067,7 +2077,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				return err
 			}
 			if evaluation == nil {
-				reason = "assessment_unavailable"
+				if !policy.YieldEnabled {
+					reason = "assessment_unavailable"
+				}
 				cause := autopilotReadAssessmentCause(ctx)
 				if cause == "" {
 					if sourcePostsHaveImages(samples) {
@@ -2104,7 +2116,10 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				// is not a confirmed retrieval error.
 				evidence["preliminary_off_topic_confirmed"] = reject &&
 					evaluation.Quality["topic_relevant"] != nil && evaluation.Quality["topic_off_topic"] != nil
-				if state != "candidate" {
+				if policy.YieldEnabled {
+					// A source-level score is metadata, not a delivery verdict.
+					// The bounded trial will assess actual publications below.
+				} else if state != "candidate" {
 					if reject {
 						// Revisit confirmed publishers conservatively: demote
 						// active sources to probation before a final rejection.
@@ -2160,6 +2175,26 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				}
 			}
 		}
+		if reason == "" && policy.YieldEnabled && state == "candidate" {
+			evidence["review_policy_v3_checked"] = true
+			evidence["yield_trial_started_at"] = at.Unix()
+			evidence["source_decision_policy"] = "yield_v2"
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "probation", "yield_readable_trial", jx.Marshal(evidence), at, at.Add(autopilotSourceReviewInterval(job, "probation"))); err != nil {
+				if errors.Is(err, errAutopilotProbationLimit) {
+					if saveErr := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, "preliminary_pass_waiting_trial", jx.Marshal(evidence), at, at.Add(30*time.Minute)); saveErr != nil &&
+						!errors.Is(saveErr, errAutopilotSourceChanged) {
+						return saveErr
+					}
+					continue
+				}
+				if errors.Is(err, errAutopilotSourceChanged) || errors.Is(err, errAutopilotSourceOverride) {
+					continue
+				}
+				return err
+			}
+			state = "probation"
+			nextCheck = at.Add(autopilotSourceReviewInterval(job, state))
+		}
 		if reason == "" && (state == "probation" || state == "active") {
 			// Source quality must be measured on its feed, not on posts
 			// preselected for relevance by an independent search. Staged
@@ -2197,7 +2232,26 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				for key, value := range statsEvidence {
 					evidence[key] = value
 				}
-				next, why := decideSourceState(state, sourceEvidence{Evaluated: stats.Evaluated, Relevant: stats.Relevant, Eligible: stats.Eligible, RequireEligible: professional, FreshUnique: stats.FreshUnique, CuratedUnique: stats.CuratedUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates, SameSourceDuplicates: stats.SameSourceDuplicates}, policy)
+				strictEvidence := sourceEvidence{Evaluated: stats.Evaluated, Relevant: stats.Relevant, Eligible: stats.Eligible, RequireEligible: professional, FreshUnique: stats.FreshUnique, CuratedUnique: stats.CuratedUnique, SuccessfulPasses: stats.SuccessfulPasses, Advertising: stats.Advertising, Duplicates: stats.Duplicates, SameSourceDuplicates: stats.SameSourceDuplicates}
+				next, why := decideSourceState(state, strictEvidence, policy)
+				if policy.YieldMinLive > 0 {
+					yieldEvidence, err := autopilotYieldEvidenceWindow(ctx, a.DB.Pool, job.Scope, job.TopicKey, source, at.Add(-30*24*time.Hour), at.Add(time.Second))
+					if err != nil {
+						return err
+					}
+					yieldEvidence.Evidence = strictEvidence
+					yieldEvidence.CompleteSample = autopilotPostAuditComplete(trace)
+					yieldNext, yieldWhy := decideSourceYieldState(state, yieldEvidence, policy)
+					evidence["yield_comparison"] = jx.M{"strict_next": next, "strict_reason": why, "yield_next": yieldNext, "yield_reason": yieldWhy, "useful_unique": yieldEvidence.UsefulUnique, "live_unique": yieldEvidence.LiveUnique, "trial_passes": yieldEvidence.TrialPasses, "trial_started_at": yieldEvidence.TrialStartedAt, "complete_sample": yieldEvidence.CompleteSample, "at": at.Unix()}
+					evidence["source_decision_policy"] = "strict_v1"
+					if policy.YieldEnabled {
+						next, why = yieldNext, yieldWhy
+						evidence["source_decision_policy"] = "yield_v2"
+						if yieldEvidence.CompleteSample {
+							nextCheck = at.Add(autopilotYieldPollInterval(reviewPosts, autopilotSourceReviewInterval(job, state)))
+						}
+					}
+				}
 				if next != state {
 					nextCheck := at.Add(autopilotSourceReviewInterval(job, next))
 					if next == "rejected" {

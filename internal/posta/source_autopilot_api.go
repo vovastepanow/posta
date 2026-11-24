@@ -170,6 +170,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		}
 		row["decisions_24h"], row["promoted_24h"], row["rejected_24h"] = decisions24h, promoted24h, rejected24h
 		row["probation_limit"] = max(1000, u.TInt("autopilot_max_probation"))
+		row["yield_policy_enabled"] = u.TBool("autopilot_yield_policy")
 		// Persisted last outcomes explain why a nonempty candidate queue has
 		// not produced probation sources. Aggregate only; no source IDs leak.
 		outcomes := jx.M{}

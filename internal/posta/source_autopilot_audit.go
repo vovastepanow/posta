@@ -82,7 +82,16 @@ func AutopilotAuditFunnel(ctx context.Context, q db.Querier, scope, key string, 
 		'stages',COALESCE((SELECT jsonb_object_agg(stage,n) FROM (SELECT stage,count(*) AS n FROM per_source GROUP BY stage) a),'{}'::jsonb),
 		'stage_state_reason',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY stage,state,reason) FROM
 			(SELECT stage,state,reason,count(*) AS sources FROM per_source GROUP BY stage,state,reason) b),'[]'::jsonb),
-		'direct_results', (SELECT count(*) FROM source_autopilot_direct_results WHERE scope=$1 AND topic_key=$2 AND assessed_at <= $3)
+		'direct_results', (SELECT count(*) FROM source_autopilot_direct_results WHERE scope=$1 AND topic_key=$2 AND assessed_at <= $3),
+		'policy_comparison',COALESCE((SELECT jsonb_agg(to_jsonb(v) ORDER BY strict_next,yield_next) FROM (
+			SELECT evidence->'yield_comparison'->>'strict_next' AS strict_next,
+				evidence->'yield_comparison'->>'yield_next' AS yield_next,count(*) AS sources
+			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
+			AND jsonb_typeof(evidence->'yield_comparison')='object'
+			AND jsonb_typeof(evidence->'yield_comparison'->'at')='number'
+			AND (evidence->'yield_comparison'->>'at')::numeric >= $4
+			AND (evidence->'yield_comparison'->>'at')::numeric <= $3
+			GROUP BY 1,2) v),'[]'::jsonb)
 	) FROM summary`, scope, key, at.Unix(), at.Add(-30*24*time.Hour).Unix()).Scan(&raw)
 	if err != nil {
 		return nil, err
