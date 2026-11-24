@@ -16,6 +16,14 @@ func TestBlueskyQueryEvidenceIsWholeWord(t *testing.T) {
 		{"маркетинг", "Маркетинг: реальные кейсы", true},
 		{"social media", "daily life and MMA highlights", false},
 		{"social media", "Social media analytics", true},
+		{"social media marketing", "I work in media", false},
+		{"social media marketing", "Practical social media strategy", true},
+		{"C#", "C++ tutorials", false},
+		{"C#", "Practical C# tutorials", true},
+		{"AI", "Daily AI research", true},
+		{"#photography", "Photography and travel", true},
+		{"продвижение в социальных сетях", "Продвижение недвижимости", false},
+		{"продвижение в социальных сетях", "Продвижение в социальных сетях", true},
 	} {
 		if got := blueskyQueryEvidenceMatch(tc.query, tc.evidence); got != tc.want {
 			t.Errorf("query=%q evidence=%q got=%v want=%v", tc.query, tc.evidence, got, tc.want)
@@ -46,5 +54,17 @@ func TestDiscoveryBlueskyPostSearchRejectsIncidentalMentions(t *testing.T) {
 		if c.ID == "https://bsky.app/profile/"+unrelated+"/rss" {
 			t.Fatal("incidental, unrelated MMA author admitted")
 		}
+	}
+}
+
+func TestDiscoveryBlueskyDuplicatePostDoesNotProveSourceFocus(t *testing.T) {
+	const id = "did:plc:oky5czdrnfjpqslsw2a5iclo"
+	body := []byte(fmt.Sprintf(`{"posts":[
+		{"author":{"did":%q,"displayName":"Life notes"},"record":{"text":"An SMM report"}},
+		{"author":{"did":%q,"displayName":"Life notes"},"record":{"text":"an  SMM report"}}
+	]}`, id, id))
+	found, err := discoveryBlueskyRelevantPostAuthors(body, "SMM")
+	if err != nil || len(found) != 0 {
+		t.Fatalf("duplicate caption counted as independent evidence: %+v %v", found, err)
 	}
 }
