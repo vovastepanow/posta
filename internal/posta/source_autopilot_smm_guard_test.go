@@ -261,4 +261,40 @@ func TestAutopilotScheduleFullContextRechecksPostgres(t *testing.T) {
 		autopilotAutoScope, key).Scan(&changedState); err != nil || changedState != 0 {
 		t.Fatalf("scheduled rechecks must not approve or activate: %d err=%v", changedState, err)
 	}
+	// The v3 full audit must schedule every existing lifecycle state, not
+	// just the old batch of twenty negative topic verdicts.
+	for _, state := range []string{"candidate", "probation", "active", "cooldown"} {
+		source := "rss:https://example.org/context-recheck-" + state + ".xml"
+		resume, reason := "", "retain"
+		if state == "cooldown" {
+			resume, reason = "candidate", "rate_limited"
+		}
+		if _, err := d.Pool.Exec(ctx, `INSERT INTO source_autopilot_sources
+			(scope,topic_key,source_id,state,resume_state,reason,policy_version,first_seen_at,checked_at,next_check_at)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8,$9)`,
+			autopilotAutoScope, key, source, state, resume, reason, TopicProfileVersion, at, at+30*86400); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 2; i++ {
+		if err := a.autopilotQueueSourceReaudit(ctx, job); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_decisions
+		WHERE scope=$1 AND topic_key=$2 AND reason='source_reaudit_v3_scheduled'`,
+		autopilotAutoScope, key).Scan(&count); err != nil || count != 26 {
+		t.Fatalf("full audit scheduled %d instead of 26 eligible sources, err=%v", count, err)
+	}
+	var remaining int
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND evidence ? 'review_policy_v3_scheduled'
+		AND next_check_at > $3`, autopilotAutoScope, key, time.Now().Unix()).Scan(&remaining); err != nil || remaining != 1 {
+		t.Fatalf("expected only the rate-limited source to retain its backoff: %d err=%v", remaining, err)
+	}
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_decisions
+		WHERE scope=$1 AND topic_key=$2 AND reason='source_reaudit_v3_scheduled' AND old_state<>new_state`,
+		autopilotAutoScope, key).Scan(&changedState); err != nil || changedState != 0 {
+		t.Fatalf("full audit must preserve prior states until reviewed: %d err=%v", changedState, err)
+	}
 }
