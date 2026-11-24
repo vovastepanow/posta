@@ -17,8 +17,8 @@ import (
 type sourceYieldEvidence struct {
 	Evidence                              sourceEvidence
 	UsefulUnique, LiveUnique, TrialPasses int
-	TrialStartedAt                       int64
-	CompleteSample                       bool
+	TrialStartedAt                        int64
+	CompleteSample                        bool
 }
 
 func autopilotYieldEvidenceWindow(ctx context.Context, q db.Querier, scope, key, source string, since, until time.Time) (sourceYieldEvidence, error) {
