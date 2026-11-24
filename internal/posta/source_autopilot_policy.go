@@ -8,6 +8,8 @@ type sourceEvidence struct {
 	Evaluated, Relevant, FreshUnique, CuratedUnique, SuccessfulPasses int
 	Advertising, Duplicates                                           int
 	TechnicalFailure                                                  bool
+	Eligible                                                          int
+	RequireEligible                                                   bool
 }
 
 type sourcePolicy struct {
@@ -44,7 +46,11 @@ func decideSourceState(state string, e sourceEvidence, p sourcePolicy) (string, 
 	if e.Evaluated < p.MinEvaluated || e.SuccessfulPasses < p.MinPasses {
 		return state, "insufficient_evidence"
 	}
-	rate := float64(e.Relevant) / float64(e.Evaluated)
+	if e.RequireEligible && (e.Eligible < 0 || e.Eligible > e.Evaluated) {
+		return state, "invalid_evidence_or_policy"
+	}
+	topicRate := float64(e.Relevant) / float64(e.Evaluated)
+	rate := float64(effectiveSourceRelevant(e.Relevant, e.Eligible, e.RequireEligible)) / float64(e.Evaluated)
 	excessAds := float64(e.Advertising)/float64(e.Evaluated) > p.MaxAdvertisingRate
 	// Sharing a valuable post is not evidence of authorship. Yet a publisher
 	// consistently selecting diverse, independently assessed useful posts
@@ -65,8 +71,11 @@ func decideSourceState(state string, e sourceEvidence, p sourcePolicy) (string, 
 		if poorQuality {
 			return "rejected", "observed_ad_or_duplicates"
 		}
-		if rate < p.DemoteRate {
+		if topicRate < p.DemoteRate {
 			return "rejected", "observed_irrelevant"
+		}
+		if rate < p.DemoteRate {
+			return "rejected", "observed_low_yield"
 		}
 	case "active":
 		if rate < p.DemoteRate || poorQuality {
