@@ -1157,6 +1157,25 @@ func autopilotFreshRSSSamples(posts []jx.M, at int64) []jx.M {
 	return autopilotSourceSamples(posts, at, config.ContentMaxAgeDays)
 }
 
+// A successfully parsed feed can establish inactivity only from reliable
+// dates. Missing dates, an empty response, and malformed timestamps cannot
+// establish that a source has stopped publishing.
+func autopilotSourceDefinitelyStale(posts []jx.M, at int64) bool {
+	seen := map[string]bool{}
+	for _, post := range posts {
+		published := jx.Int(post, "posted_at")
+		if published <= 0 || published > at || !IsPostOutdated(published, at, config.ContentMaxAgeDays) {
+			return false
+		}
+		key := CandidatePostKey(post)
+		if key == "" || jx.Str(post, "url") == "" {
+			return false
+		}
+		seen[key] = true
+	}
+	return len(seen) >= 2
+}
+
 func autopilotSourceSamples(posts []jx.M, at int64, days int) []jx.M {
 	seen := map[string]bool{}
 	var out []jx.M
@@ -1919,6 +1938,18 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 			continue
 		}
+		// Technical disappearance of an admitted source is reversible, not
+		// a thematic rejection. The catalog will stop collecting it until
+		// it can be verified again.
+		if (state == "probation" || state == "active") && reason == "source_not_found" {
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, state,
+				"cooldown", reason, jx.Marshal(jx.M{"http_status": res.Status}),
+				at, at.Add(24*time.Hour)); err != nil &&
+				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+			continue
+		}
 		// Historical material informs source quality, not eligibility of a
 		// particular old post for today's feed.
 		samples := autopilotSourceQualitySamples(posts, at.Unix())
@@ -1979,6 +2010,18 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		}
 		if res.Status > 0 {
 			evidence["http_status"] = res.Status
+		}
+		// Even a thematically excellent historical feed cannot replenish
+		// the live pool if it no longer publishes. Keep it on a retry
+		// schedule, not in the active trial queue or thematic rejects.
+		if reason == "" && autopilotSourceDefinitelyStale(posts, at.Unix()) {
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, state,
+				"cooldown", "no_recent_publications", jx.Marshal(evidence),
+				at, at.Add(7*24*time.Hour)); err != nil &&
+				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				return err
+			}
+			continue
 		}
 		if reason == "" && (state == "candidate" || (row.reaudit && (state == "probation" || state == "active"))) {
 			autopilotResetAssessmentCause(ctx)
