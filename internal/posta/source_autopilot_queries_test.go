@@ -146,8 +146,8 @@ func TestAutopilotQueryUsesObservedYieldAndExploresPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	query, err = a.autopilotChooseQuery(ctx, job)
-	if err != nil || query != strings.ToLower(topic) {
-		t.Fatalf("rejected source still rewarded: %q %v", query, err)
+	if err != nil || query != "вариант бета" {
+		t.Fatalf("rejected source still rewarded instead of cold-start rotation: %q %v", query, err)
 	}
 	if _, err = d.Pool.Exec(ctx, `UPDATE source_autopilot_sources SET state='active' WHERE scope=$1 AND topic_key=$2 AND source_id='rss:test'`, scope, key); err != nil {
 		t.Fatal(err)
@@ -158,6 +158,11 @@ func TestAutopilotQueryUsesObservedYieldAndExploresPostgres(t *testing.T) {
 	query, err = a.autopilotChooseQuery(ctx, job)
 	if err != nil || query != strings.ToLower(topic) {
 		t.Fatalf("duplicated content rewarded as unique yield: %q %v", query, err)
+	}
+	// Restore a genuine positive signal before testing exploitation plus
+	// exploration; cold-start rotation is tested independently above.
+	if _, err = d.Pool.Exec(ctx, `DELETE FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id='rss:clone'`, scope, key); err != nil {
+		t.Fatal(err)
 	}
 	job.Checkpoint = []byte(`{"query_turn":8}`)
 	query, err = a.autopilotChooseQuery(ctx, job)
