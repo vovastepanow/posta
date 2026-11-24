@@ -15,12 +15,13 @@
     "Batch 005: 16 new source attempts (245–260); 4 direct feeds, 7 third-party mirrors, five inaccessible. 73 individually described entries, 69 readable texts/captions. Explicit nulls where individual URLs or dates unavailable. Media-only entries excluded from readable count. No independent external AI consultation. No gold labels.",
     "Batch 006: ten new sources, 261–270. Direct and archive snapshots read; individual post links not resolved, no gold labels. External AI not consulted.",
     "Batch 007: 17 new attempts 271–288 except previously reviewed 277; 77 visible text excerpts, partial evidence only, no complete feed or media review, no external AI consultation.",
-    "Batch 008: ten new attempts 289–297 and 299; 53 visible text/caption excerpts, 3 verified post permalinks for dankmarketing, two probation recommendations. No definitive gold labels, no external model consultation."
+    "Batch 008: ten new attempts 289–297 and 299; 53 visible text/caption excerpts, 3 verified post permalinks for dankmarketing, two probation recommendations. No definitive gold labels, no external model consultation.",
+    "Batch 009: ten new attempts 300–310 except 303; 45 partial excerpts; provisional probation for dimabeseda based on historical archive; no external AI consultation or gold labels."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 116,
-    "structured_with_visible_post_samples": 62,
+    "structured_attempted": 126,
+    "structured_with_visible_post_samples": 70,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -33,7 +34,8 @@
     "batch_005_readable_texts": 69,
     "batch_006_readable_texts": 63,
     "batch_007_readable_texts": 77,
-    "batch_008_readable_texts": 53
+    "batch_008_readable_texts": 53,
+    "batch_009_readable_texts": 45
   },
   "rows": [
     {
@@ -8694,7 +8696,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_009": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1665116595-digitalallianceofficial/posts"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Панель о цифровом видео и advanced TV",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1665116595-digitalallianceofficial/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Мероприятие продавцов рекламы и агентств о бюджетах",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1665116595-digitalallianceofficial/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Обсуждение брендов и потребителей на TV2B в 2023 году",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/ru/channels/1665116595-digitalallianceofficial/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence",
+        "reason": "Исторический архив, общая медийная реклама, не доказан текущий поток по SMM.",
+        "coverage": "Partial accessible excerpts; individual permalinks and exact dates not independently established; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 301,
@@ -8706,7 +8750,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_009": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/digitalbublik"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Публичная лента недоступна, подходящих текстов не найдено.",
+        "coverage": "Partial accessible excerpts; individual permalinks and exact dates not independently established; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 302,
@@ -8718,7 +8776,112 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_009": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/2418110211-dimabeseda"
+        ],
+        "visible_post_samples": 10,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Исследовательские интервью с клиентами инфлюенс-маркетинга",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2418110211-dimabeseda"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Пример некачественной автоматизации холодного аутрича",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2418110211-dimabeseda"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Автоматизация переговоров, брифов и отчетов инфлюенс-маркетинга",
+            "relevance": "relevant",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2418110211-dimabeseda"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Редактирование ИИ-текстов лид-магнитов в соцсетях",
+            "relevance": "relevant",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2418110211-dimabeseda"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отраслевой отчет о фазах инфлюенс-маркетинга",
+            "relevance": "relevant",
+            "usefulness": "substantive",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2418110211-dimabeseda"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "B2C-пивот и результаты Reels создателя",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2418110211-dimabeseda"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Личные новости и поиск Telegram-продюсера",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2418110211-dimabeseda"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Поиск клиентов с высоким бюджетом на инфлюенс-маркетинг",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2418110211-dimabeseda"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Причины выгорания создателей контента",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2418110211-dimabeseda"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "ИИ и найм в Meta",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2418110211-dimabeseda"
+          }
+        ],
+        "recommendation": "probation_provisional",
+        "reason": "Содержательные материалы об инфлюенс-маркетинге и работе создателей; архив четырехмесячной давности, текущий поток требует подтверждения.",
+        "coverage": "Partial accessible excerpts; individual permalinks and exact dates not independently established; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 303,
@@ -8763,7 +8926,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_009": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/drumyanzev"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Лента не открылась; найдено упоминание в чужом канале, но не публикации автора.",
+        "coverage": "Partial accessible excerpts; individual permalinks and exact dates not independently established; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 305,
@@ -8775,7 +8952,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_009": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/dtcenter_global"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Курс продаж с UX и фасилитацией",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dtcenter_global"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Повторный набор на курс",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dtcenter_global"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс конференции по ИИ, включая маркетинг",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dtcenter_global"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Трансформация клиентского опыта клиники",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dtcenter_global"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Программа амбассадоров дизайн-мышления",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dtcenter_global"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Дизайн-мышление и обучение; маркетинг эпизодически.",
+        "coverage": "Partial accessible excerpts; individual permalinks and exact dates not independently established; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 306,
@@ -8787,7 +9024,76 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_009": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/ecopsy_consulting"
+        ],
+        "visible_post_samples": 6,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рекомендации по стратегическому рекрутингу",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ecopsy_consulting"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "HR-завтрак",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ecopsy_consulting"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Обучение культуре безопасности",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ecopsy_consulting"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Картирование рабочей нагрузки",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ecopsy_consulting"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Семинар об ИИ в HR",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ecopsy_consulting"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс будущих мероприятий",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ecopsy_consulting"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "HR и организационный консалтинг.",
+        "coverage": "Partial accessible excerpts; individual permalinks and exact dates not independently established; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 307,
@@ -8799,7 +9105,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_009": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/1104011392-edunetflix/posts"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Личная заметка в архиве 11 ноября",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1104011392-edunetflix/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Заметка об EdTech 9 ноября",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1104011392-edunetflix/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Заметка об образовательных событиях 8 ноября",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1104011392-edunetflix/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Материал о выходе из EdTech в создание контента для образования",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/1104011392-edunetflix/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence",
+        "reason": "Частичный архив; специализация EdTech, производство контента смежно.",
+        "coverage": "Partial accessible excerpts; individual permalinks and exact dates not independently established; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 308,
@@ -8811,7 +9168,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_009": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/en/channels/2165421312-eklapshinaofficial"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Обучение лидерству",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2165421312-eklapshinaofficial"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Семейная заметка",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2165421312-eklapshinaofficial"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Интервью с CEO EdTech",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/en/channels/2165421312-eklapshinaofficial"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Лидерство, семья, образование; подкаст не просмотрен.",
+        "coverage": "Partial accessible excerpts; individual permalinks and exact dates not independently established; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 309,
@@ -8823,7 +9222,76 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_009": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/elwi_legal"
+        ],
+        "visible_post_samples": 6,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Неделя арбитража в Гонконге",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/elwi_legal"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Мероприятие о проектном финансировании",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/elwi_legal"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Форум M&A",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/elwi_legal"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отзывы о конференции студентов-юристов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/elwi_legal"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс арбитражной конференции",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/elwi_legal"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Розыгрыш билетов на конференцию",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/elwi_legal"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Юридическая тематика.",
+        "coverage": "Partial accessible excerpts; individual permalinks and exact dates not independently established; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 310,
@@ -8835,7 +9303,94 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_009": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/eumoney"
+        ],
+        "visible_post_samples": 8,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Испанский налоговый режим Бекхэма",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/eumoney"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Выборы США и инвесторы",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/eumoney"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Предложения о гражданстве Испании",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/eumoney"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Частные города",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/eumoney"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рейтинг испанских университетов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/eumoney"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Erasmus",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/eumoney"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Экономическая экосистема GTA VI и монетизация создателей",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/eumoney"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Налоговые поправки",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/eumoney"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Общие финансы и жизнь за рубежом; один материал смежен с монетизацией создателей. Фактические утверждения постов отдельно не проверялись.",
+        "coverage": "Partial accessible excerpts; individual permalinks and exact dates not independently established; media not inspected. No complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 311,
