@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -196,11 +197,14 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			return nil, outcomeErr
 		}
 		row["candidate_reasons"] = outcomes
-		funnel, err := AutopilotAuditFunnel(u.Ctx, u.DB.Pool, scope, key, time.Now())
-		if err != nil {
-			return nil, err
+		auditCtx, auditCancel := context.WithTimeout(u.Ctx, 2*time.Second)
+		funnel, auditErr := AutopilotAuditFunnel(auditCtx, u.DB.Pool, scope, key, time.Now())
+		auditCancel()
+		if auditErr == nil {
+			row["audit_funnel"] = funnel
+		} else {
+			row["audit_funnel_unavailable"] = true
 		}
-		row["audit_funnel"] = funnel
 		// Only fixed categories are persisted; never expose raw provider replies,
 		// prompts, credentials or source URLs in the owner-facing diagnostics.
 		assessmentCauses := jx.M{}

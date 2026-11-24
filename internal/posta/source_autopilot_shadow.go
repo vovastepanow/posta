@@ -1462,7 +1462,7 @@ func (u *U) autopilotEvaluateSource(info jx.M, posts []jx.M, topic string) *sour
 		"personal_blog": jx.M{"type": "string", "enum": []string{"yes", "no", "unknown"}},
 	}
 	reply, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt,
-		Schema: jx.M{"type": "object", "properties": props, "required": []string{"verdicts", "personal_blog"}}, MaxTokens: 250, Temperature: 0, UserID: u.ID})
+		Schema: jx.M{"type": "object", "properties": props, "required": []string{"verdicts", "personal_blog"}}, MaxTokens: 250, Temperature: 0, UserID: u.ID, Topic: topic})
 	if err != nil {
 		autopilotNoteAssessmentCause(u.Ctx, autopilotAssessmentCause(err))
 		return nil
@@ -2166,7 +2166,12 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			// search results have their own assessment and delivery path.
 			// Only live-window posts are candidates for delivery. Historical
 			// posts can qualify a publisher but must never be pushed to users.
-			if err := assess(ctx, source, autopilotFreshRSSSamples(samples, at.Unix())); err != nil {
+			reviewPosts := autopilotFreshRSSSamples(samples, at.Unix())
+			traceCtx, trace := newAutopilotPostAudit(ctx, reviewPosts)
+			assessErr := assess(traceCtx, source, reviewPosts)
+			evidence["post_audit"] = trace.entries
+			evidence["post_audit_at"] = at.Unix()
+			if err := assessErr; err != nil {
 				evidence["assessment_cause"] = autopilotAssessmentCause(err)
 				if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
 					return budgetErr

@@ -204,16 +204,21 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 		}
 	}
 	for _, post := range autopilotRotateMediaReview(posts, max(0, passes-1)) {
+		entry := autopilotPostAuditEntry(ctx, post)
 		if !autopilotPublicPostURL(jx.Str(post, "url"), false) {
+			entry["outcome"] = "unsafe_or_missing_post_url"
 			continue
 		}
 		if jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 || a.ContentIsAdult(post) {
+			entry["outcome"] = "public_content_excluded"
 			continue
 		}
 		if PostItemHasVideo(post) {
+			entry["outcome"] = "video_unavailable_or_deferred"
 			_, _, tiktokPage := autopilotTikTokVideoParts(jx.Str(post, "video_page"))
 			if videoAttempts < 1 && (autopilotPublicPostURL(jx.Str(post, "video"), true) || autopilotYouTubeVideoID(jx.Str(post, "video_page")) != "" || tiktokPage) {
 				videoAttempts++
+				entry["outcome"] = "video_attempted"
 				if err := a.assessAutopilotVideoPost(ctx, job, source, post); err != nil {
 					// A missing stream is not a reason to lose the other
 					// independently reviewable publications in this feed.
@@ -226,6 +231,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 			continue
 		}
 		if ContentImageKey(post) != "" {
+			entry["outcome"] = "image_unavailable_or_deferred"
 			if !autopilotPublicPostURL(ContentImageKey(post), true) && !autopilotPublicPostURL(jx.Str(post,"image_fallback"), true) {
 				continue
 			}
@@ -233,16 +239,19 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 				continue
 			}
 			imageAttempts++
+			entry["outcome"] = "image_attempted"
 			if err := a.assessAutopilotImagePost(ctx, job, source, post); err != nil {
 				return err
 			}
 			continue
 		}
 		if len(items) >= 6 {
+			entry["outcome"] = "text_deferred_batch_limit"
 			continue
 		}
 		text := AnalysisText(post)
 		if text == "" {
+			entry["outcome"] = "missing_text"
 			continue
 		}
 		postHash := repeatDigest(CandidatePostKey(post))
@@ -252,6 +261,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 		}
 		if exists {
 			if !wasEligible {
+				entry["outcome"] = "already_assessed"
 				continue
 			}
 			saved, err := a.autopilotHasSavedResult(ctx, job, source, postHash)
@@ -259,10 +269,12 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 				return err
 			}
 			if saved {
+				entry["outcome"] = "already_assessed"
 				continue
 			}
 		}
 		if PostIsAdvertisement(post) || IsSpamContent(CleanPostAttribution(text, post), "") {
+			entry["outcome"] = "local_ad_or_spam"
 			textItem := jx.Copy(post)
 			textItem["text_post"] = true
 			fingerprint := CandidateTextKey(textItem)
@@ -275,6 +287,8 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 			}
 			continue
 		}
+		entry["outcome"] = "text_model_pending"
+		entry["sent_text_runes"] = len([]rune(textAnalysisRecord(text)))
 		items = append(items, post)
 		texts = append(texts, text)
 	}
@@ -299,7 +313,10 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 		}
 		threshold := u.LLM.ThresholdForModel(jx.Str(analysis, "model"), u.TInt("relevance_threshold"))
 		relevant := int(jx.Int(analysis, "relevance")) >= threshold && analysis["topic_match"] != false
-		eligible := u.contentAdmissionReason(analysis, post, job.Topic, texts[i]) == ""
+		admission := u.contentAdmissionReason(analysis, post, job.Topic, texts[i])
+		eligible := admission == ""
+		entry := autopilotPostAuditEntry(ctx, post)
+		autopilotPostAuditVerdict(entry, analysis, relevant, eligible, ad, threshold, admission)
 		textItem := jx.Copy(post)
 		textItem["text_post"] = true
 		fingerprint := CandidateTextKey(textItem)
@@ -320,6 +337,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 }
 
 func (a *App) assessAutopilotVideoPost(ctx context.Context, job *autopilotJob, source string, post jx.M) error {
+	entry := autopilotPostAuditEntry(ctx, post)
 	postHash := repeatDigest(CandidatePostKey(post))
 	var exists, wasEligible bool
 	if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5), COALESCE((SELECT eligible FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5),false)`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&exists, &wasEligible); err != nil {
@@ -327,6 +345,7 @@ func (a *App) assessAutopilotVideoPost(ctx context.Context, job *autopilotJob, s
 	}
 	if exists {
 		if !wasEligible {
+			entry["outcome"] = "already_assessed"
 			return nil
 		}
 		saved, err := a.refreshAutopilotMedia(ctx, job, source, postHash, post, true)
@@ -334,6 +353,7 @@ func (a *App) assessAutopilotVideoPost(ctx context.Context, job *autopilotJob, s
 			return err
 		}
 		if saved {
+			entry["outcome"] = "already_assessed"
 			return nil
 		}
 	}
@@ -404,6 +424,8 @@ func (a *App) assessAutopilotVideoPost(ctx context.Context, job *autopilotJob, s
 	if board == nil || len(board.Frames) < 2 || ctx.Err() != nil {
 		return ctx.Err()
 	}
+	entry["outcome"] = "vision_model_pending"
+	entry["media_frames_prepared"] = len(board.Frames)
 	analysis, caption, err := u.analyzeCandidateVision(board.Frames, post, EmptyHistory(), job.Topic, board)
 	if err != nil {
 		if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
@@ -430,7 +452,9 @@ func (a *App) assessAutopilotVideoPost(ctx context.Context, job *autopilotJob, s
 	}
 	threshold := u.LLM.ThresholdForModel(jx.Str(analysis, "model"), u.TInt("relevance_threshold"))
 	relevant := int(jx.Int(analysis, "relevance")) >= threshold && analysis["topic_match"] != false
-	eligible := u.contentAdmissionReason(analysis, post, job.Topic, AnalysisText(post)) == ""
+	admission := u.contentAdmissionReason(analysis, post, job.Topic, AnalysisText(post))
+	eligible := admission == ""
+	autopilotPostAuditVerdict(entry, analysis, relevant, eligible, ad, threshold, admission)
 	digest := sha256.Sum256(video)
 	e := autopilotPostEvidence{PostHash: postHash, ContentHash: "video:" + hex.EncodeToString(digest[:]), PublishedAt: jx.Int(post, "posted_at"), ObservedAt: time.Now().Unix(), Relevant: relevant, Eligible: eligible, Advertising: ad || PostIsAdvertisement(post)}
 	if !eligible {
@@ -479,6 +503,7 @@ func (a *App) assessAutopilotVideoPost(ctx context.Context, job *autopilotJob, s
 }
 
 func (a *App) assessAutopilotImagePost(ctx context.Context, job *autopilotJob, source string, post jx.M) error {
+	entry := autopilotPostAuditEntry(ctx, post)
 	postHash := repeatDigest(CandidatePostKey(post))
 	var exists, wasEligible bool
 	if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5), COALESCE((SELECT eligible FROM source_autopilot_post_evidence WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND post_hash=$4 AND policy_version=$5),false)`, job.Scope, job.TopicKey, source, postHash, TopicProfileVersion).Scan(&exists, &wasEligible); err != nil {
@@ -486,6 +511,7 @@ func (a *App) assessAutopilotImagePost(ctx context.Context, job *autopilotJob, s
 	}
 	if exists {
 		if !wasEligible {
+			entry["outcome"] = "already_assessed"
 			return nil
 		}
 		saved, err := a.refreshAutopilotMedia(ctx, job, source, postHash, post, false)
@@ -493,6 +519,7 @@ func (a *App) assessAutopilotImagePost(ctx context.Context, job *autopilotJob, s
 			return err
 		}
 		if saved {
+			entry["outcome"] = "already_assessed"
 			return nil
 		}
 	}
@@ -501,6 +528,8 @@ func (a *App) assessAutopilotImagePost(ctx context.Context, job *autopilotJob, s
 	if err != nil {
 		return autopilotBudgetError(ctx)
 	}
+	entry["outcome"] = "vision_model_pending"
+	entry["media_frames_prepared"] = 1
 	analysis, _, err := u.analyzeCandidateVision([][]byte{image}, post, EmptyHistory(), job.Topic, nil)
 	if err != nil {
 		if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
@@ -521,7 +550,9 @@ func (a *App) assessAutopilotImagePost(ctx context.Context, job *autopilotJob, s
 	threshold := u.LLM.ThresholdForModel(jx.Str(analysis, "model"), u.TInt("relevance_threshold"))
 	relevant := int(jx.Int(analysis, "relevance")) >= threshold && analysis["topic_match"] != false
 	text := AnalysisText(post)
-	eligible := u.contentAdmissionReason(analysis, post, job.Topic, text) == ""
+	admission := u.contentAdmissionReason(analysis, post, job.Topic, text)
+	eligible := admission == ""
+	autopilotPostAuditVerdict(entry, analysis, relevant, eligible, ad, threshold, admission)
 	digest := sha256.Sum256(image)
 	e := autopilotPostEvidence{PostHash: postHash, ContentHash: "image:" + hex.EncodeToString(digest[:]), PublishedAt: jx.Int(post, "posted_at"), ObservedAt: time.Now().Unix(), Relevant: relevant, Eligible: eligible, Advertising: ad || PostIsAdvertisement(post)}
 	if !eligible {

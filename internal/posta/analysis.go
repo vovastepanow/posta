@@ -493,7 +493,7 @@ func (u *U) finishAnalysis(a jx.M, topic, query string, isVideo bool, firstImage
 		rel = min(rel, config.JokeNoCap)
 	}
 	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(a, "description")), config.AnalysisDescriptionMax), "why_relevant": analysisExplanation(a, evidence), "format": format,
-		"tags": u.contentAnalysisTags(topic, a["tags"], a["safety"]), "quote": a["quote"] == true, "entity": ContentEntityClean(a["entity"]), "geo": GeoFromAnalysis(a), "evidence": evidence, "joke": trimRunes(llm.StripCJK(jx.Str(a, "joke")), config.AnalysisEvidenceMax), "meme_kind": jx.Str(a, "meme_kind"), "relevance": rel, "topic_match": a["topic_match"], "rating": nil,
+		"tags": u.contentAnalysisTags(topic, a["tags"], a["safety"]), "quote": a["quote"] == true, "entity": ContentEntityClean(a["entity"]), "geo": GeoFromAnalysis(a), "evidence": evidence, "joke": trimRunes(llm.StripCJK(jx.Str(a, "joke")), config.AnalysisEvidenceMax), "meme_kind": jx.Str(a, "meme_kind"), "relevance": rel, "model_relevance": a["relevance"], "topic_match": a["topic_match"], "rating": nil,
 		"ukraine": a["ukraine"] == true, "advertising": a["advertising"], "subtopic": nil, "subtopic_p": nil, "model": model, "interest": a["interest"], "practical_value": a["practical_value"], "specificity": a["specificity"]}
 }
 
@@ -866,7 +866,7 @@ func (u *U) finishTextAnalysis(it jx.M, topic, model string) Analysis {
 
 	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(it, "description")), config.AnalysisDescriptionMax), "why_relevant": analysisExplanation(it, evidence), "format": format,
 		"tags": u.contentAnalysisTags(topic, it["tags"], it["safety"]), "quote": it["quote"] == true, "entity": ContentEntityClean(it["entity"]), "geo": GeoFromAnalysis(it), "evidence": evidence, "joke": joke, "meme_kind": jx.Str(it, "meme_kind"),
-		"ukraine": it["ukraine"] == true, "advertising": it["advertising"], "relevance": rel, "topic_match": it["topic_match"], "rating": nil, "model": model, "interest": it["interest"], "practical_value": it["practical_value"], "specificity": it["specificity"]}
+		"ukraine": it["ukraine"] == true, "advertising": it["advertising"], "relevance": rel, "model_relevance": it["relevance"], "topic_match": it["topic_match"], "rating": nil, "model": model, "interest": it["interest"], "practical_value": it["practical_value"], "specificity": it["specificity"]}
 }
 
 var _ = sort.Strings
@@ -898,6 +898,10 @@ func (u *U) editableVisionPrompt(topic, caption string, h History, video *Storyb
 	return valueRule + "tags: пустой массив; тематические метки определяет отдельный классификатор.\n" + "quote (boolean): true, если запись в основном цитата или афоризм; её смысл укажи в tags.\n" + u.prompt("vision_analysis", map[string]string{"relevance_rule": rule, "humor_rule": humor, "formats": contentFormatsLine(), "entity_rule": u.prompt("entity_rule", nil), "place_rule": u.prompt("place_rule", nil), "topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "complaints": u.complaintPrompt(topic, h), "query_rule": query, "context": context, "record": record}) + advertisingPrompt + "\nexplanation (string): одно связное законченное предложение ПО-РУССКИ, почему запись подходит заявленной теме или почему не подходит. Это вывод из содержания, НЕ цитата и НЕ обрывок текста. evidence оставь отдельной короткой точной цитатой.\n"
 }
 
+func textAnalysisRecord(text string) string {
+	return trimRunes(strings.TrimSpace(text), 6000)
+}
+
 func (u *U) editableTextPrompt(topic string, texts []string, h History) string {
 	query, humor := "", ""
 	if q := TopicQueryOf(topic); q != "" {
@@ -908,7 +912,7 @@ func (u *U) editableTextPrompt(topic string, texts []string, h History) string {
 	}
 	lines := make([]string, 0, len(texts))
 	for i, t := range texts {
-		lines = append(lines, fmt.Sprintf("[%d] %s", i, trimRunes(strings.TrimSpace(t), 6000)))
+		lines = append(lines, fmt.Sprintf("[%d] %s", i, textAnalysisRecord(t)))
 	}
 	valueRule := ""
 	if u.professionalValueTopic(topic) {

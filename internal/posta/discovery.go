@@ -424,12 +424,12 @@ type sourceReview struct {
 
 const sourceFormatPrompt = "\nДополнительно определи тип ИСТОЧНИКА, независимо от темы: поле personal_blog = yes, когда по нескольким публикациям ясно, что это личный блог одного постоянного автора/ведущего (в том числе появляется перед камерой); no, когда это медиа, бренд, группа авторов или безличная подборка; unknown, когда надёжных признаков недостаточно. Не делай вывод по одному лицу или одному посту. Верни это поле в JSON."
 
-func (u *U) sourceReviewRequest(prompt string, images [][]byte) *sourceReview {
+func (u *U) sourceReviewRequest(prompt, topic string, images [][]byte) *sourceReview {
 	prompt += sourceFormatPrompt
 	schema := jx.M{"type": "object", "properties": jx.M{"score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "reason": jx.M{"type": "string"},
 		"personal_blog": jx.M{"type": "string", "enum": []string{"yes", "no", "unknown"}}},
 		"required": []string{"score", "reason"}}
-	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Images: images, Schema: schema, MaxTokens: 120, Temperature: 0, UserID: u.ID})
+	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Images: images, Schema: schema, MaxTokens: 120, Temperature: 0, UserID: u.ID, Topic: topic})
 	if err != nil {
 		autopilotNoteAssessmentCause(u.Ctx, autopilotAssessmentCause(err))
 		return nil
@@ -495,7 +495,7 @@ func (u *U) sourceTextReview(title, desc, topic string, texts []string) *sourceR
 	}
 	prompt := u.prompt("source_text", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "description": trimRunes(desc, 400), "captions": strings.Join(t, "»; «"), "query_rule": sourceQueryRule(topic), "shop_rule": notShop})
 	prompt += sourceReviewTopicGuidance(topic)
-	review := u.sourceReviewRequest(prompt, nil)
+	review := u.sourceReviewRequest(prompt, topic, nil)
 	if review != nil {
 		review.Samples = len(t)
 	}
@@ -517,7 +517,7 @@ func (u *U) sourceImagesReview(title, topic string, posts []jx.M) *sourceReview 
 	}
 	prompt := u.prompt("source_images", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "query_rule": sourceQueryRule(topic), "shop_rule": notShop})
 	prompt += sourceReviewTopicGuidance(topic)
-	review := u.sourceReviewRequest(prompt, StoryboardSheets(frames))
+	review := u.sourceReviewRequest(prompt, topic, StoryboardSheets(frames))
 	if review != nil {
 		review.Samples = len(frames)
 	}
@@ -550,7 +550,7 @@ func (u *U) combinedSourceReview(title, desc, topic string, posts []jx.M, caps [
 	prompt := u.prompt("source_combined", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "description": trimRunes(desc, 400), "query_rule": sourceQueryRule(topic), "captions": strings.Join(texts, "»; «"), "shop_rule": notShop}) + sourceFormatPrompt + sourceReviewTopicGuidance(topic)
 	props := jx.M{"text_score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "image_score": jx.M{"type": "integer", "minimum": 0, "maximum": 100}, "reason": jx.M{"type": "string"}, "personal_blog": jx.M{"type": "string", "enum": []string{"yes", "no", "unknown"}}}
 	required := []string{"text_score", "image_score", "reason"}
-	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Images: StoryboardSheets(frames), Schema: jx.M{"type": "object", "properties": props, "required": required}, MaxTokens: 180, Temperature: 0, UserID: u.ID})
+	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Images: StoryboardSheets(frames), Schema: jx.M{"type": "object", "properties": props, "required": required}, MaxTokens: 180, Temperature: 0, UserID: u.ID, Topic: topic})
 	if err != nil {
 		autopilotNoteAssessmentCause(u.Ctx, autopilotAssessmentCause(err))
 		u.Log("-> Объединённая оценка: ошибка модели: %v", err)
