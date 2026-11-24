@@ -839,3 +839,48 @@ func TestAutopilotLiveOsnovaPublisherAttribution(t *testing.T) {
 		t.Skip("no real publisher identity was verified in this environment")
 	}
 }
+
+// Recover the exact case of remaining historical channel keys from native
+// search results. A similar name never suffices: the lowercased channel
+// ID must match exactly and the official Atom feed must confirm it.
+func TestAutopilotLiveUnresolvedYouTubeIdentities(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Second)
+	defer cancel()
+	u := (&App{}).User(ctx, "", nil)
+	cases := []struct{ name, key string }{
+		{"это Слава в МЛМ", "uckptgckvanx9aukzuuh6aqq"},
+		{"IDTONE агентство digital-маркетинга", "ucoeajcsmhyogw3cnsp4x6ow"},
+		{"МИРЕНА в мире бизнеса", "ucpsomf3w4lfrrufakozdgww"},
+		{"Александр Бубнов", "ucrarik56yl7ui2wuaks3nga"},
+		{"Станислав Покрышкин Зубастый коммерс", "ucwd43zy8gzlbwc0y_b4spug"},
+	}
+	for _, tc := range cases {
+		if ctx.Err() != nil {
+			break
+		}
+		candidates, err := u.autopilotNativeYouTubeSearch(tc.name)
+		if err != nil {
+			t.Logf("IDENTITY NATIVE: key=%s error=%v", tc.key, err)
+			continue
+		}
+		verified := false
+		for _, candidate := range candidates {
+			p, err := url.Parse(candidate.ID)
+			if err != nil {
+				continue
+			}
+			id := p.Query().Get("channel_id")
+			if strings.ToLower(id) != tc.key {
+				continue
+			}
+			r := u.RSSGet(candidate.ID, rssMaxBytes, 8*time.Second, HTTPUA)
+			verified = autopilotVerifiedYouTubeIdentity(candidate.ID, r)
+			t.Logf("IDENTITY NATIVE MATCH: key=%s exact=%s verified=%t HTTP=%d", tc.key, id, verified, r.Status)
+			break
+		}
+		t.Logf("IDENTITY NATIVE: key=%s candidates=%d verified=%t", tc.key, len(candidates), verified)
+	}
+}
