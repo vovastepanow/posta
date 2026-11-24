@@ -282,13 +282,20 @@ func TestAutopilotScheduleFullContextRechecksPostgres(t *testing.T) {
 		}
 	}
 	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_decisions
-		WHERE scope=$1 AND topic_key=$2 AND reason='source_reaudit_v3_scheduled'`,
+		WHERE scope=$1 AND topic_key=$2 AND reason='source_reaudit_v3_scheduled'
+		AND source_id LIKE 'rss:https://example.org/context-recheck-%'`,
 		autopilotAutoScope, key).Scan(&count); err != nil || count != 26 {
 		t.Fatalf("full audit scheduled %d instead of 26 eligible sources, err=%v", count, err)
+	}
+	if err := d.Pool.QueryRow(ctx, `SELECT next_check_at FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND NOT (evidence ? 'review_policy_v3_scheduled')`,
+		autopilotAutoScope, key, blocked).Scan(&blockedNext); err != nil || blockedNext != at+30*86400 {
+		t.Fatalf("full audit must preserve manual exclusion: next=%d err=%v", blockedNext, err)
 	}
 	var remaining int
 	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
 		WHERE scope=$1 AND topic_key=$2 AND evidence ? 'review_policy_v3_scheduled'
+		AND source_id LIKE 'rss:https://example.org/context-recheck-%'
 		AND next_check_at > $3`, autopilotAutoScope, key, time.Now().Unix()).Scan(&remaining); err != nil || remaining != 1 {
 		t.Fatalf("expected only the rate-limited source to retain its backoff: %d err=%v", remaining, err)
 	}
