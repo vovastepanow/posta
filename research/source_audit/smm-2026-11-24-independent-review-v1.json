@@ -14,12 +14,13 @@
     "Batch 004: baseline indices 236,237,239–244 (8 new structured attempts). Four direct Telegram feeds with 41 individually resolved post links; three third-party archive samples with 18 excerpts, some without individual links; one inaccessible. No independent external model response received. No new integration or production changes in this batch. Provisional recommendations only; no gold labels.",
     "Batch 005: 16 new source attempts (245–260); 4 direct feeds, 7 third-party mirrors, five inaccessible. 73 individually described entries, 69 readable texts/captions. Explicit nulls where individual URLs or dates unavailable. Media-only entries excluded from readable count. No independent external AI consultation. No gold labels.",
     "Batch 006: ten new sources, 261–270. Direct and archive snapshots read; individual post links not resolved, no gold labels. External AI not consulted.",
-    "Batch 007: 17 new attempts 271–288 except previously reviewed 277; 77 visible text excerpts, partial evidence only, no complete feed or media review, no external AI consultation."
+    "Batch 007: 17 new attempts 271–288 except previously reviewed 277; 77 visible text excerpts, partial evidence only, no complete feed or media review, no external AI consultation.",
+    "Batch 008: ten new attempts 289–297 and 299; 53 visible text/caption excerpts, 3 verified post permalinks for dankmarketing, two probation recommendations. No definitive gold labels, no external model consultation."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 106,
-    "structured_with_visible_post_samples": 54,
+    "structured_attempted": 116,
+    "structured_with_visible_post_samples": 62,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -31,7 +32,8 @@
     "batch_005_entries_examined": 73,
     "batch_005_readable_texts": 69,
     "batch_006_readable_texts": 63,
-    "batch_007_readable_texts": 77
+    "batch_007_readable_texts": 77,
+    "batch_008_readable_texts": 53
   },
   "rows": [
     {
@@ -7783,7 +7785,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_008": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/cozy_hr"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Не удалось открыть публичную ленту.",
+        "coverage": "Non-consecutive visible text and captions; dates not verified; 3 individual permalinks verified for dankmarketing; no media inspection or full latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 290,
@@ -7795,7 +7811,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_008": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/cryptovalerii"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение на эфир о карьере в ML",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/cryptovalerii"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение на data-митап Higgsfield",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/cryptovalerii"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Организация встречи в Алматы",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/cryptovalerii"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Программа Data Day",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/cryptovalerii"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Фото участников митапа",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/cryptovalerii"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "ML и карьерный рост, а не криптовалюты или SMM; название handle обманчиво.",
+        "coverage": "Non-consecutive visible text and captions; dates not verified; 3 individual permalinks verified for dankmarketing; no media inspection or full latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 291,
@@ -7807,7 +7883,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_008": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/cx_quality"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Объяснение платформы клиентских данных",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/cx_quality"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Прогноз обслуживания клиентов с ИИ-агентами",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/cx_quality"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Еженедельный обмен мемами в комментариях",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/cx_quality"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс эфира о найме и удержании команды",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/cx_quality"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Исследование Visa о покупках через ИИ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/cx_quality"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Профиль — клиентский сервис. Механика обмена мемами потенциально смежна, но не разобрана как SMM-кейс.",
+        "coverage": "Non-consecutive visible text and captions; dates not verified; 3 individual permalinks verified for dankmarketing; no media inspection or full latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 292,
@@ -7826,7 +7962,148 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_008": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/dankmarketing"
+        ],
+        "visible_post_samples": 14,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Необычная упаковка картофеля Burger King",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": "https://t.me/dankmarketing/18722",
+            "publication_date": null,
+            "summary": "Ситуативный креатив аккаунта Huggies к релизу игры",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Акция KFC с дисками к релизу GTA VI",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шутка об игровых заданиях",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ситуативная коммуникация организации о проверке холестерина",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Двусмысленность шрифта (изображение не просмотрено)",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Двусмысленный совет заведения (изображение не просмотрено)",
+            "relevance": "unknown",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рекламная интеграция в ролике с Человеком-пауком",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Коллекция одежды с персонажами мультсериала",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": "https://t.me/dankmarketing/18734",
+            "publication_date": null,
+            "summary": "Ролик официального аккаунта Магнита",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Акция со скидками студии",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": "https://t.me/dankmarketing/18736",
+            "publication_date": null,
+            "summary": "Reels Duolingo с локализованной песней",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Реакция соцсетей на праздничный декор",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Необычная форма холодца",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dankmarketing"
+          }
+        ],
+        "recommendation": "probation_provisional",
+        "reason": "Несколько примеров контента официальных аккаунтов и рекламной интеграции; ценность для SMM — вдохновение и наблюдение за форматами, а не подробные инструкции. Не все креативы относятся к соцсетям. Медиа не просмотрены; пробация оправдана для полноценной оценки.",
+        "coverage": "Non-consecutive visible text and captions; dates not verified; 3 individual permalinks verified for dankmarketing; no media inspection or full latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 293,
@@ -7838,7 +8115,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_008": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/dealsma"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Покупка сервисов делового туризма компанией Туту",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dealsma"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Увеличение доли группы Астра в компании ИИ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dealsma"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Покупка помещений бизнес-центра государством",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dealsma"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Разрозненные материалы о сделках M&A; нужно больше для окончательного отказа.",
+        "coverage": "Non-consecutive visible text and captions; dates not verified; 3 individual permalinks verified for dankmarketing; no media inspection or full latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 294,
@@ -7850,7 +8169,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_008": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/decenter"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямой доступ не получен.",
+        "coverage": "Non-consecutive visible text and captions; dates not verified; 3 individual permalinks verified for dankmarketing; no media inspection or full latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 295,
@@ -7862,7 +8195,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_008": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/delcredere_law"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Проект правил экспортного контроля Китая",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/delcredere_law"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Дайджест международного арбитража в Африке",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/delcredere_law"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Изменения права ЕАЭС и пошлин",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/delcredere_law"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Юридические материалы, не SMM; ограниченная выборка.",
+        "coverage": "Non-consecutive visible text and captions; dates not verified; 3 individual permalinks verified for dankmarketing; no media inspection or full latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 296,
@@ -7874,7 +8249,49 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_008": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/delret_career"
+        ],
+        "visible_post_samples": 3,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Календарь карьерных мероприятий",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/delret_career"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Розыгрыш встречи с партнером компании",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/delret_career"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Мероприятие с отбором на работу в налоговый департамент",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/delret_career"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Карьера и рекрутинг; не профильное обучение.",
+        "coverage": "Non-consecutive visible text and captions; dates not verified; 3 individual permalinks verified for dankmarketing; no media inspection or full latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 297,
@@ -7886,7 +8303,85 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_008": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/denuolaw"
+        ],
+        "visible_post_samples": 7,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Серия вебинаров о ведении бизнеса в Дубае",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/denuolaw"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Вопрос о скорости ответов коллег",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/denuolaw"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Опрос об ожидании ответа в мессенджере",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/denuolaw"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Споры об интеллектуальной собственности",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/denuolaw"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Судебная практика международного арбитража",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/denuolaw"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Юридическое сопровождение покупки акций и финансирования",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/denuolaw"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Недостоверные заверения в договорах покупки бизнеса",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/denuolaw"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Право, корпоративные сделки и рабочие коммуникации; не практика ведения социальных сетей.",
+        "coverage": "Non-consecutive visible text and captions; dates not verified; 3 individual permalinks verified for dankmarketing; no media inspection or full latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 298,
@@ -8055,7 +8550,139 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_008": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/dhprime_ppc"
+        ],
+        "visible_post_samples": 13,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Учет допсоглашения в рекламном реестре",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Разрыв цепочки рекламного учета при несовпадении договоров",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Привязка креативов к доходным актам",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Комментарий о несогласованных рекомендациях регуляторов",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Сбор с рекламы блогеров",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Рекламная выручка Ozon",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Комментарий об операторе рекламных данных VK",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Устойчивость ИИ-инфраструктуры агентств",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Судебное взыскание рекламного сбора с блогера",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Комментарий о будущем рекламы Telegram и YouTube",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Тестирование автоматизации рекламной отчетности",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Правовой риск ссылок на запрещенные соцсети",
+            "relevance": "relevant",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Отчетность по кобрендингу (автор отметил ответ неверным)",
+            "relevance": "adjacent",
+            "usefulness": "incorrect_answer_flagged_by_source",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/dhprime_ppc"
+          }
+        ],
+        "recommendation": "probation_provisional",
+        "reason": "Практические случаи рекламной отчетности, включая блогеров, непосредственно применимы к монетизации и рекламной деятельности в соцсетях. Часть материалов общая, один ответ явно помечен как ошибочный; не использовать его как полезную инструкцию. Пробация для оценки актуальности и качества.",
+        "coverage": "Non-consecutive visible text and captions; dates not verified; 3 individual permalinks verified for dankmarketing; no media inspection or full latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 300,
