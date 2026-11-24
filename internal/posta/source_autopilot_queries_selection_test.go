@@ -54,8 +54,7 @@ func TestAutopilotQueryGenerationPrompt(t *testing.T) {
 
 func TestAutopilotSelectQueryAvoidsNegativeNetYield(t *testing.T) {
 	queries := []string{"плохой запрос", "полезный запрос", "новый запрос"}
-	// Query scores from the database account for both unique eligible
-	// posts and clearly off-topic sources: 20*useful - 3*offTopic.
+	// The selector accepts scored evidence and ignores nonpositive yield.
 	scores := map[string]int64{
 		"плохой запрос":   20*2 - 3*20,
 		"полезный запрос": 20*2 - 3*1,
@@ -98,5 +97,61 @@ func TestAutopilotReauditDoesNotBlockDiscoveryIndefinitely(t *testing.T) {
 		autopilotShouldDrainReaudit(100, now-15*60, now) ||
 		!autopilotShouldDrainReaudit(100, now-14*60, now) {
 		t.Fatal("historical audit must yield periodically to new discovery")
+	}
+}
+
+func TestAutopilotQueriesPreserveMeaningfulQualifiers(t *testing.T) {
+	for _, tc := range []struct {
+		input, want string
+	}{
+		{"Продвижение Telegram каналов", "продвижение telegram каналов"},
+		{"VK реклама сообщества", "vk реклама сообщества"},
+		{"C++ programming", "c++ programming"},
+		{"C# programming", "c# programming"},
+		{".NET разработка", ".net разработка"},
+		{"Node.js performance", "node.js performance"},
+		{"#streetphotography", "#streetphotography"},
+		{"уроки по уходу за домашними кошками", "уроки по уходу за домашними кошками"},
+		{"", ""},
+		{"!!!", ""},
+	} {
+		if got := autopilotCleanQuery(tc.input); got != tc.want {
+			t.Errorf("%q: got %q, want %q", tc.input, got, tc.want)
+		}
+	}
+	queries := autopilotCleanDiscoveryQueries("C#", []string{"C#", "C++", "C"})
+	if len(queries) != 3 {
+		t.Fatalf("different technical topics collapsed into the same query: %v", queries)
+	}
+}
+
+func TestAutopilotQueryPlanningUsesTopicBoundaries(t *testing.T) {
+	profile := &Topic{About: "Public transportation", Profile: &TopicProfile{
+		Criteria: "rail routes and buses", Exclude: "private car dealerships",
+	}}
+	context := autopilotQueryProfileContext(profile)
+	for _, term := range []string{"Public transportation", "rail routes and buses", "private car dealerships", "не инструкции"} {
+		if !strings.Contains(context, term) {
+			t.Fatalf("missing search context %q: %s", term, context)
+		}
+	}
+	if autopilotQueryProfileContext(nil) != "" {
+		t.Fatal("missing profile should keep the ordinary query prompt")
+	}
+}
+
+func TestAutopilotExplorationCoversAllQueriesWithPositiveYield(t *testing.T) {
+	queries := []string{"a", "b", "c", "d"}
+	scores := map[string]int64{"a": 100}
+	seen := map[string]bool{}
+	for turn := int64(0); turn < 16; turn++ {
+		got := autopilotSelectQuery(queries, scores, turn)
+		seen[got] = true
+		if turn%4 != 0 && got != "a" {
+			t.Fatalf("unexpected exploitation turn %d: %q", turn, got)
+		}
+	}
+	if len(seen) != len(queries) {
+		t.Fatalf("exploration missed alternatives: %v", seen)
 	}
 }
