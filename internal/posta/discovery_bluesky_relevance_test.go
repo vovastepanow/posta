@@ -25,7 +25,7 @@ func TestBlueskyQueryEvidenceIsWholeWord(t *testing.T) {
 		{"продвижение в социальных сетях", "Продвижение недвижимости", false},
 		{"продвижение в социальных сетях", "Продвижение в социальных сетях", true},
 	} {
-		if got := blueskyQueryEvidenceMatch(tc.query, tc.evidence); got != tc.want {
+		if got := discoveryQueryEvidenceMatch(tc.query, tc.evidence); got != tc.want {
 			t.Errorf("query=%q evidence=%q got=%v want=%v", tc.query, tc.evidence, got, tc.want)
 		}
 	}
