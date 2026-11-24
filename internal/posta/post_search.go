@@ -753,6 +753,9 @@ func PostSearchAuthor(p jx.M) *DiscoveryCandidate {
 	if author := jx.Str(p, "source_author_url"); author != "" {
 		u = author
 	}
+	if did := autopilotBlueskyProfileDID(u); did != "" {
+		return &DiscoveryCandidate{Platform: PlatformRSS, ID: "https://bsky.app/profile/" + did + "/rss"}
+	}
 	if host, id := osnovaTimelineSource(u); host != "" {
 		return &DiscoveryCandidate{Platform: PlatformRSS, ID: osnovaTimelineURL(host, id), Info: jx.M{"title": jx.Str(p, "author_name")}}
 	}
