@@ -213,6 +213,10 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 			entry["outcome"] = "public_content_excluded"
 			continue
 		}
+		if textArticle := autopilotTextArticleAlternative(source, post, u.TopicsAcceptText([]string{job.Topic})); textArticle != nil {
+			post = textArticle
+			entry["representation"] = "article_text_without_unverified_media"
+		}
 		if PostItemHasVideo(post) {
 			entry["outcome"] = "video_unavailable_or_deferred"
 			_, _, tiktokPage := autopilotTikTokVideoParts(jx.Str(post, "video_page"))

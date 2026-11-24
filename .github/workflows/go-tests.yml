@@ -27,7 +27,7 @@ jobs:
           fi
       - name: Check production health command formatting
         run: |
-          files=$(gofmt -l cmd/posta/autopilot_health.go cmd/posta/autopilot_health_test.go cmd/posta/autopilot_audit.go cmd/posta/main.go internal/posta/source_autopilot_audit.go internal/posta/source_autopilot_audit_test.go internal/posta/source_autopilot_yield.go internal/posta/source_autopilot_yield_test.go internal/posta/source_autopilot_audit_trace.go internal/posta/source_autopilot_audit_trace_test.go internal/posta/source_autopilot_preliminary_probe.go)
+          files=$(gofmt -l cmd/posta/autopilot_health.go cmd/posta/autopilot_health_test.go cmd/posta/autopilot_audit.go cmd/posta/main.go internal/posta/source_autopilot_audit.go internal/posta/source_autopilot_audit_test.go internal/posta/source_autopilot_yield.go internal/posta/source_autopilot_yield_test.go internal/posta/source_autopilot_audit_trace.go internal/posta/source_autopilot_audit_trace_test.go internal/posta/source_autopilot_preliminary_probe.go internal/posta/source_autopilot_article.go internal/posta/source_autopilot_article_test.go)
           if [ -n "$files" ]; then
             for file in $files; do gofmt -d "$file"; done
             exit 1

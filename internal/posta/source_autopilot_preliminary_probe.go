@@ -34,6 +34,9 @@ func (a *App) autopilotProbePreliminaryRejection(ctx context.Context, job *autop
 	var texts []string
 	mediaExcluded, localExcluded := 0, 0
 	for _, post := range posts {
+		if alternative := autopilotTextArticleAlternative(source, post, u.TopicsAcceptText([]string{job.Topic})); alternative != nil {
+			post = alternative
+		}
 		if PostItemHasVideo(post) || ContentImageKey(post) != "" {
 			mediaExcluded++
 			continue

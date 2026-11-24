@@ -528,6 +528,15 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 		feed, _ := url.Parse(feedURL)
 		if kind == "RSS" && video == "" && feed != nil && !strings.HasPrefix(feed.Path, "/feeds/c/") && !strings.HasPrefix(feed.Path, "/@") {
 			p["article_source"] = true
+			// Distinguish a substantive published body from a headline or
+			// description; only the former can independently stand alone
+			// when an optional cover image is not part of the text format.
+			for _, tag := range []string{"content:encoded", "content"} {
+				if runeLen(CleanHTMLText(item.kid(tag).html())) >= 800 {
+					p["rss_article_body"] = true
+					break
+				}
+			}
 		}
 		if imageFallback != "" && img != "" {
 			p["image_fallback"] = imageFallback

@@ -925,7 +925,7 @@ func TestAutopilotLiveSMMControlRead(t *testing.T) {
 		}
 		readable++
 		current := autopilotFreshRSSSamples(posts, time.Now().Unix())
-		textCount, mediaCount := 0, 0
+		textCount, mediaCount, bodyAlternatives := 0, 0, 0
 		for _, post := range current {
 			if AnalysisText(post) != "" {
 				textCount++
@@ -933,9 +933,12 @@ func TestAutopilotLiveSMMControlRead(t *testing.T) {
 			if PostItemHasVideo(post) || ContentImageKey(post) != "" {
 				mediaCount++
 			}
+			if autopilotTextArticleAlternative("rss:"+f.raw, post, true) != nil {
+				bodyAlternatives++
+			}
 		}
 		fresh += len(current)
-		t.Logf("SMM CONTROL %s: parsed=%d fresh=%d with_text=%d with_media=%d", f.name, len(posts), len(current), textCount, mediaCount)
+		t.Logf("SMM CONTROL %s: parsed=%d fresh=%d with_text=%d with_media=%d text_body_alternatives=%d", f.name, len(posts), len(current), textCount, mediaCount, bodyAlternatives)
 	}
 	t.Logf("SMM CONTROL TOTAL: readable=%d/%d fresh_items=%d", readable, len(feeds), fresh)
 	if readable == 0 || fresh == 0 {
