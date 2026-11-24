@@ -55,16 +55,28 @@ main_tip="$(git rev-parse refs/remotes/origin/main)"
 deployed_file="${HOME}/.posta-auto-update-deployed"
 deployed="$(cat "$deployed_file" 2>/dev/null || true)"
 
+# No GitHub API request is necessary when the fetched tip is already deployed.
+if [ "$current" = "$main_tip" ] && [ "$deployed" = "$main_tip" ]; then exit 0; fi
+
 # The newest commit is often still running CI, especially during rapid
 # development. Deploy the newest successful main-branch commit instead of
 # indefinitely skipping releases while main keeps advancing.
-api_url="https://api.github.com/repos/$REPO/actions/workflows/go-tests.yml/runs?branch=main&event=push&status=success&per_page=1"
-ci_json="$(curl --silent --show-error --fail --max-time 15 \
-    -H 'Accept: application/vnd.github+json' \
-    -H 'User-Agent: posta-auto-update' "$api_url")" || {
-    log "GitHub CI unavailable; retry on next schedule."
-    exit 0
-}
+api_path="repos/$REPO/actions/workflows/go-tests.yml/runs?branch=main&event=push&status=success&per_page=1"
+# Reuse the deployment user's GitHub CLI login or GH_TOKEN. Cron runs
+# under the same HOME; do not print tokens or store them in this repository.
+if command -v gh >/dev/null && GH_PROMPT_DISABLED=1 gh auth token --hostname github.com >/dev/null 2>&1; then
+    ci_json="$(GH_PROMPT_DISABLED=1 timeout 20s gh api --hostname github.com "$api_path")" || {
+        log "Authenticated GitHub CI query failed; check gh auth status."
+        exit 0
+    }
+else
+    ci_json="$(curl --silent --show-error --fail --max-time 15 \
+        -H 'Accept: application/vnd.github+json' \
+        -H 'User-Agent: posta-auto-update' "https://api.github.com/$api_path")" || {
+        log "Anonymous GitHub CI query failed; configure gh auth login for this user."
+        exit 0
+    }
+fi
 target="$(printf '%s' "$ci_json" | grep -oE '"head_sha"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' | head -n 1 | grep -oE '[0-9a-f]{40}' || true)"
 if [ -z "$target" ] || ! printf '%s' "$ci_json" | grep -Eq '"conclusion"[[:space:]]*:[[:space:]]*"success"'; then
     log "No successful CI run for main; retry."
