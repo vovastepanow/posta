@@ -465,6 +465,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		if err := a.autopilotConsumeSourceHints(ctx, job, 20); err != nil {
 			return err
 		}
+		if err := a.autopilotConsumeCitations(ctx, job); err != nil {
+			return err
+		}
 		if err := a.autopilotMarkPhase(ctx, job, "prepare_projection"); err != nil {
 			return err
 		}
@@ -1794,9 +1797,10 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					WHERE d.scope=s.scope AND d.topic_key=s.topic_key AND d.source_id=s.source_id
 					AND d.policy_version=$5 AND d.published_at >= $6 AND d.assessed_at >= $6
 				) THEN 1
-				WHEN s.state='candidate' THEN 2
-				WHEN s.state='active' THEN 3
-				ELSE 4 END AS lane
+				WHEN s.state='candidate' AND s.evidence->>'discovery_origin'='citation' THEN 2
+				WHEN s.state='candidate' THEN 3
+				WHEN s.state='active' THEN 4
+				ELSE 5 END AS lane
 		FROM source_autopilot_sources s
 		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown')
 		AND (s.next_check_at <= $3 OR (s.state='candidate' AND
