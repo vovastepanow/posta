@@ -501,3 +501,51 @@ func TestAutopilotLiveSearchLinkComparison(t *testing.T) {
 		t.Fatal("search returned accessible documents but no supported direct publisher hyperlinks; inspect live provider markup")
 	}
 }
+
+// Exercise actual anonymous native endpoints without relying on any
+// external search index. A failure is not a negative topic assessment.
+func TestAutopilotLiveNativePublisherSearch(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	u := (&App{}).User(ctx, "", nil)
+	t.Run("YouTube", func(t *testing.T) {
+		got, err := u.autopilotNativeYouTubeSearch("astrophotography tutorials")
+		t.Logf("NATIVE YOUTUBE: candidates=%d error=%v", len(got), err)
+		if err != nil || len(got) == 0 {
+			t.Skip("public native search unavailable or empty in this environment")
+		}
+		for _, c := range got {
+			if _, ok := canonicalYouTubeFeed(c.ID); !ok {
+				t.Fatalf("invalid channel candidate: %q", c.ID)
+			}
+		}
+	})
+	t.Run("Bluesky", func(t *testing.T) {
+		got, err := u.autopilotSearchBlueskyPosts("photography")
+		t.Logf("NATIVE BLUESKY: assessable text posts=%d error=%v", len(got), err)
+		if err != nil || len(got) == 0 {
+			t.Skip("public post search unavailable or no assessable text in this environment")
+		}
+		for _, post := range got {
+			source := jx.Str(post, "source_key")
+			if !autopilotPostMatchesSource(source, post) {
+				t.Fatalf("invalid Bluesky author attribution")
+			}
+		}
+	})
+	t.Run("Rutube", func(t *testing.T) {
+		got := u.autopilotFindRutube("астрофотография")
+		t.Logf("NATIVE RUTUBE: candidates=%d", len(got))
+		if len(got) == 0 {
+			t.Skip("native search unavailable or empty in this environment")
+		}
+		for _, c := range got {
+			if RutubeChannelID(c.ID) == "" {
+				t.Fatalf("invalid Rutube candidate %q", c.ID)
+			}
+		}
+	})
+}
