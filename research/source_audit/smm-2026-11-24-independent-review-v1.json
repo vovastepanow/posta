@@ -26,12 +26,13 @@
     "Batch 016: 21 source attempts 400–416 and 419–422; 46 text/caption observations, two provisional probation recommendations. No exhaustive review or external model.",
     "Batch 017: 20 direct feed attempts 425–444; 36 partial text/caption observations. No definitive gold label or external model consultation.",
     "Batch 018: 20 new direct feed attempts 445–464; 6 with visible posts, 24 partial text/caption observations. No final gold labels or external model consultation. Access failures remain unresolved.",
-    "Batch 019: 27 new attempts 465–492 excluding 476; 8 direct feeds, 14 third-party archives with readable content, 3 profile-only, 2 unresolved; 117 observed text/caption excerpts. 3 provisional probation recommendations. No gold labels, media inspection, external AI or production changes. Earlier batch 018 lacks verifiable per-item evidence and requires independent recheck before trusting its observations."
+    "Batch 019: 27 new attempts 465–492 excluding 476; 8 direct feeds, 14 third-party archives with readable content, 3 profile-only, 2 unresolved; 117 observed text/caption excerpts. 3 provisional probation recommendations. No gold labels, media inspection, external AI or production changes. Earlier batch 018 lacks verifiable per-item evidence and requires independent recheck before trusting its observations.",
+    "Batch 020: 23 RUTUBE source listings (89–111), 297 observed video titles, 8 separately opened author descriptions from 7 sources. Titles excluded from readable-content count. No video playback or final labels. Prior batches 018–019 are not independently verified in this turn and must be rechecked before use as gold evidence."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 301,
-    "structured_with_visible_post_samples": 173,
+    "structured_attempted": 324,
+    "structured_with_visible_post_samples": 180,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -55,7 +56,9 @@
     "batch_016_readable_texts": 46,
     "batch_017_readable_texts": 36,
     "batch_018_readable_texts": 24,
-    "batch_019_readable_texts": 117
+    "batch_019_readable_texts": 117,
+    "batch_020_title_samples": 297,
+    "batch_020_author_descriptions": 8
   },
   "rows": [
     {
@@ -1824,7 +1827,145 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Aleksandr",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/17719511/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 11,
+        "posts": [
+          {
+            "summary": "Футбольная школа и выгорание",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          },
+          {
+            "summary": "Воспитание и достоинство",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          },
+          {
+            "summary": "История для взрослых",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          },
+          {
+            "summary": "Исполнение мечты",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          },
+          {
+            "summary": "Рост бизнеса и продажи",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          },
+          {
+            "summary": "ИИ и управление бизнесом",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          },
+          {
+            "summary": "Инвестиции в недвижимость",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          },
+          {
+            "summary": "Автономность бизнеса",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          },
+          {
+            "summary": "Пересборка себя и бизнеса",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          },
+          {
+            "summary": "Юридические ошибки",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          },
+          {
+            "summary": "Деньги и проблемы",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/17719511/"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Смешанная или смежная тематика; заголовки не доказывают достаточную долю полезного SMM.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 90,
@@ -1836,7 +1977,180 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Матвей Северянин",
+        "review_status": "video_titles_and_partial_descriptions",
+        "evidence_urls": [
+          "https://rutube.ru/channel/22406763/",
+          "https://rutube.ru/video/7d5fbef0016186ea081f9c3c53736224/"
+        ],
+        "visible_post_samples": 1,
+        "visible_title_samples": 14,
+        "posts": [
+          {
+            "summary": "Идеи бизнеса с нуля",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Риски маркетплейсов",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Бедность в России",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Заработок на схемах из Shorts",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Бизнес для новичков",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Предложение сотрудничества",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Продажа подписчиков Telegram",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Курс маркетинга",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Песня для геймеров",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Биржа Telegram-каналов",
+            "title_relevance": "relevant",
+            "relevance": "relevant",
+            "evidence_type": "author_description_read",
+            "url": "https://rutube.ru/video/7d5fbef0016186ea081f9c3c53736224/",
+            "publication_date": "2025-07-30",
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/",
+            "description_summary": "Авторское описание содержит ссылки на биржу и кейс заработка; подробные цифры только в машинном резюме, не подтверждены просмотром."
+          },
+          {
+            "summary": "Консультация автора",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Песня Warhammer",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Покупка машины через заработок в интернете",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          },
+          {
+            "summary": "Региональные Telegram-каналы",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/22406763/"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Смешанная или смежная тематика; заголовки не доказывают достаточную долю полезного SMM.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 91,
@@ -1848,7 +2162,112 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "РБК Инвестиции",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/24161964/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 8,
+        "posts": [
+          {
+            "summary": "Допэмиссия ВТБ и ставка ЦБ",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24161964/"
+          },
+          {
+            "summary": "Рынок акций и дивиденды",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24161964/"
+          },
+          {
+            "summary": "Первичный рынок долга",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24161964/"
+          },
+          {
+            "summary": "Облигации ЕвроТранса",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24161964/"
+          },
+          {
+            "summary": "Сделка Т-Технологий и Циана",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24161964/"
+          },
+          {
+            "summary": "Налоги ПИФ и акции VK",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24161964/"
+          },
+          {
+            "summary": "Рост акций розничных компаний",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24161964/"
+          },
+          {
+            "summary": "Реакция рынка США на выборы",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24161964/"
+          }
+        ],
+        "recommendation": "provisional_off_topic_titles_only",
+        "reason": "В выборке заголовков доминируют другие темы; окончательное решение требует содержания.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 92,
@@ -1860,7 +2279,202 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "PromoPult",
+        "review_status": "video_titles_and_partial_descriptions",
+        "evidence_urls": [
+          "https://rutube.ru/channel/24444154/",
+          "https://rutube.ru/video/4315b5ca2ea651027fdc6e1874fe7975/"
+        ],
+        "visible_post_samples": 1,
+        "visible_title_samples": 16,
+        "posts": [
+          {
+            "summary": "SEO в 2027",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Посевы в MAX",
+            "title_relevance": "relevant",
+            "relevance": "relevant",
+            "evidence_type": "author_description_read",
+            "url": "https://rutube.ru/video/4315b5ca2ea651027fdc6e1874fe7975/",
+            "publication_date": "2026-11-12",
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/",
+            "description_summary": "Описание перечисляет критерии выбора каналов, ТЗ, креативы, метрики, ошибки и разбор кейсов посевов; есть реклама услуг."
+          },
+          {
+            "summary": "Реклама MAX через VK и Директ",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Изменения инструментов PromoPult",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Длинные запросы в ИИ-поиске",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Белый импорт для селлеров",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Оптовые клиенты через SEO и рекламу",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Обнаружение ошибок нейросети",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "SEO-кейс спортивных площадок",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Продвижение в ИИ-поиске",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Эволюция SEO и GEO",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "ИИ-детекторы",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Вайбкодинг для SEO",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Выбор SEO-подрядчика",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Цитирование в нейроответах",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          },
+          {
+            "summary": "Стратегии SEO/GEO",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24444154/"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Смешанная или смежная тематика; заголовки не доказывают достаточную долю полезного SMM.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 93,
@@ -1872,7 +2486,213 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Calltouch",
+        "review_status": "video_titles_and_partial_descriptions",
+        "evidence_urls": [
+          "https://rutube.ru/channel/24809514/",
+          "https://rutube.ru/video/a69c581111a2646438158e6dda1cfe97/"
+        ],
+        "visible_post_samples": 1,
+        "visible_title_samples": 17,
+        "posts": [
+          {
+            "summary": "Новогоднее поздравление 2025",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Сквозная аналитика клиник",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Медицинская конференция",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Круглый стол о маркетинге",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Функции Calltouch",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Электронная торговля",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "TikTok",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Реклама у блогеров",
+            "title_relevance": "relevant",
+            "relevance": "relevant",
+            "evidence_type": "author_description_read",
+            "url": "https://rutube.ru/video/a69c581111a2646438158e6dda1cfe97/",
+            "publication_date": "2022-04-15",
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/",
+            "description_summary": "Описание обещает обсуждение выбора YouTube-блогеров и составляющих интеграции; промокоды и конкурс. Материал старый."
+          },
+          {
+            "summary": "Синтез речи для обратного звонка",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "SEO",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Юзабилити",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Оптимизация Директа",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Таргетинг VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Семантическое ядро",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Конверсионный аудит",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Виджеты сайта",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          },
+          {
+            "summary": "Оценка медийных кампаний",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/24809514/"
+          }
+        ],
+        "recommendation": "needs_freshness_check",
+        "reason": "Сильные тематические признаки, но видимая лента историческая; проверить свежесть и актуальность инструкций.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 94,
@@ -1884,7 +2704,156 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "СберБизнес",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/25310103/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 12,
+        "posts": [
+          {
+            "summary": "Риски апарт-отеля",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "MVP за 36 часов",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "Студия йоги",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "Определение целевой аудитории",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "Автосервис",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "Проверка ресторана",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "Миллион на развитие бизнеса",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "Керамическое производство",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "Салон красоты",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "Развитие бренда украшений",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "Детейлинг",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          },
+          {
+            "summary": "Елецкие кружева",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/25310103/"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Смешанная или смежная тематика; заголовки не доказывают достаточную долю полезного SMM.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 95,
@@ -1896,7 +2865,156 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Vitamin.tools",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/27919231/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 12,
+        "posts": [
+          {
+            "summary": "Потребительские тренды",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "Неэффективные рекламные креативы",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "Рост digital-агентства",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "Работа digital-агентства в праздники",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "Руководитель digital-команды",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "Стратегия агентства",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "Ускорение пути от идеи до результата",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "Системный маркетинг",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "Планирование маркетинга",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "LTV на фрилансе",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "SEO для агентств",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          },
+          {
+            "summary": "Работа агентства с клиентами",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/27919231/"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Смешанная или смежная тематика; заголовки не доказывают достаточную долю полезного SMM.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 96,
@@ -1908,7 +3026,215 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Быков — Практика Медиа",
+        "review_status": "video_titles_and_partial_descriptions",
+        "evidence_urls": [
+          "https://rutube.ru/channel/30517799/",
+          "https://rutube.ru/video/bf8c4d7ead1fd59346e84d681bd9375e/",
+          "https://rutube.ru/video/24cc62cd00d03fd6df8add1cc7b8c2e8/"
+        ],
+        "visible_post_samples": 2,
+        "visible_title_samples": 17,
+        "posts": [
+          {
+            "summary": "Продвижение VK Видео, клипов и постов",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Блог на VK, Дзене и Rutube",
+            "title_relevance": "relevant",
+            "relevance": "relevant",
+            "evidence_type": "author_description_read",
+            "url": "https://rutube.ru/video/bf8c4d7ead1fd59346e84d681bd9375e/",
+            "publication_date": "2026-04-09",
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/",
+            "description_summary": "Автор объясняет многоплатформенную публикацию, VK, Дзен, Rutube, просмотры, стратегию и монетизацию; рекламирует курс."
+          },
+          {
+            "summary": "Монетизация VK Шопсов",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Сравнение монетизации платформ",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Доход от VK Видео",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Ошибки ИИ",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Старт блога в 2026",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Блогинг с нуля и студия",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Мультиблогинг и организация времени",
+            "title_relevance": "relevant",
+            "relevance": "relevant",
+            "evidence_type": "author_description_read",
+            "url": "https://rutube.ru/video/24cc62cd00d03fd6df8add1cc7b8c2e8/",
+            "publication_date": "2025-06-26",
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/",
+            "description_summary": "Описание содержит адаптацию контента под площадки, UTM, превью и короткие видео; приглашение на эфир."
+          },
+          {
+            "summary": "Банковские вклады",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Монетизация Rutube",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Монетизация Дзена",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Доход от видео VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Личный бренд для инфобизнеса",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Рост сообщества VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "Старт инфобизнеса",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          },
+          {
+            "summary": "SEO VK Видео",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30517799/"
+          }
+        ],
+        "recommendation": "candidate_probation_pending_video",
+        "reason": "Заголовки устойчиво релевантны теме; описание доступного ролика подтверждает предмет там, где отдельно указано. Проверить качество, свежесть и видео до решения.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 97,
@@ -1920,7 +3246,136 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Максим Федоров",
+        "review_status": "video_titles_and_partial_descriptions",
+        "evidence_urls": [
+          "https://rutube.ru/channel/30654048/",
+          "https://rutube.ru/video/27672f6be8560bcba79be12d1dc5c34c/"
+        ],
+        "visible_post_samples": 1,
+        "visible_title_samples": 10,
+        "posts": [
+          {
+            "summary": "Таргет Instagram через Facebook Ads",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30654048/"
+          },
+          {
+            "summary": "Пошаговая реклама VK 2024",
+            "title_relevance": "relevant",
+            "relevance": "relevant",
+            "evidence_type": "author_description_read",
+            "url": "https://rutube.ru/video/27672f6be8560bcba79be12d1dc5c34c/",
+            "publication_date": "2024-09-22",
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30654048/",
+            "description_summary": "Автор заявляет пошаговый запуск рекламы в кабинете VK образца 2024 года; предлагает консультации."
+          },
+          {
+            "summary": "Новый кабинет VK Ads",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30654048/"
+          },
+          {
+            "summary": "Компьютерные находки",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30654048/"
+          },
+          {
+            "summary": "Рабочий день автора",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30654048/"
+          },
+          {
+            "summary": "День фрилансера",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30654048/"
+          },
+          {
+            "summary": "Профессия таргетолога",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30654048/"
+          },
+          {
+            "summary": "Работа таргетологом и семья",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30654048/"
+          },
+          {
+            "summary": "Плюсы профессии",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30654048/"
+          },
+          {
+            "summary": "Переход на фриланс",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/30654048/"
+          }
+        ],
+        "recommendation": "needs_freshness_check",
+        "reason": "Сильные тематические признаки, но видимая лента историческая; проверить свежесть и актуальность инструкций.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 98,
@@ -1932,7 +3387,145 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Степан Про Сообщества",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/34585419/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 11,
+        "posts": [
+          {
+            "summary": "Охваты гибридных конференций",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          },
+          {
+            "summary": "Защита интеллектуальной собственности",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          },
+          {
+            "summary": "Премия МедиаКульт",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          },
+          {
+            "summary": "Мероприятия как реклама бизнеса",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          },
+          {
+            "summary": "Форум Россия-Беларусь",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          },
+          {
+            "summary": "Создание капитала",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          },
+          {
+            "summary": "Сокращение затрат на форум",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          },
+          {
+            "summary": "Коммерческая недвижимость",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          },
+          {
+            "summary": "Робот на форуме",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          },
+          {
+            "summary": "Подписчики Instagram и путешествия",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          },
+          {
+            "summary": "Инвестиционно-технологический форум",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/34585419/"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Смешанная или смежная тематика; заголовки не доказывают достаточную долю полезного SMM.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 99,
@@ -1944,7 +3537,147 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Иван Немцев",
+        "review_status": "video_titles_and_partial_descriptions",
+        "evidence_urls": [
+          "https://rutube.ru/channel/35374429/",
+          "https://rutube.ru/video/68ece3835be21ffc11c081472d3fca71/"
+        ],
+        "visible_post_samples": 1,
+        "visible_title_samples": 11,
+        "posts": [
+          {
+            "summary": "Кейсы таргета",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/"
+          },
+          {
+            "summary": "Кейсы SMM",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/"
+          },
+          {
+            "summary": "Кейсы Директа",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/"
+          },
+          {
+            "summary": "Продвижение магазина одежды и украшений",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/"
+          },
+          {
+            "summary": "Личный бренд",
+            "title_relevance": "relevant",
+            "relevance": "relevant",
+            "evidence_type": "author_description_read",
+            "url": "https://rutube.ru/video/68ece3835be21ffc11c081472d3fca71/",
+            "publication_date": "2026-02-13",
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/",
+            "description_summary": "Таймкоды двух кейсов продвижения личного бренда и ссылки на подробности, сами результаты в описании не раскрыты."
+          },
+          {
+            "summary": "Реклама стоматологии",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/"
+          },
+          {
+            "summary": "SMM отеля",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/"
+          },
+          {
+            "summary": "Таргет для разных ниш",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/"
+          },
+          {
+            "summary": "Таргет мототехники",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/"
+          },
+          {
+            "summary": "Директ для окон, отеля и квестов",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/"
+          },
+          {
+            "summary": "Таргет и Директ для онлайн-школ",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/35374429/"
+          }
+        ],
+        "recommendation": "candidate_probation_pending_video",
+        "reason": "Заголовки устойчиво релевантны теме; описание доступного ролика подтверждает предмет там, где отдельно указано. Проверить качество, свежесть и видео до решения.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 100,
@@ -1956,7 +3689,123 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "ПРО БИЗНЕС",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/37929823/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 9,
+        "posts": [
+          {
+            "summary": "Геномный центр",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/37929823/"
+          },
+          {
+            "summary": "PR и внешние коммуникации бренда",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/37929823/"
+          },
+          {
+            "summary": "Руководство АПЭТ",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/37929823/"
+          },
+          {
+            "summary": "Выставка Cemat",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/37929823/"
+          },
+          {
+            "summary": "Руководитель Oasis",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/37929823/"
+          },
+          {
+            "summary": "HR Ашана",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/37929823/"
+          },
+          {
+            "summary": "Цифровизация VK",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/37929823/"
+          },
+          {
+            "summary": "ИТ-трансформация страховой компании",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/37929823/"
+          },
+          {
+            "summary": "Бизнес-технологии",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/37929823/"
+          }
+        ],
+        "recommendation": "provisional_off_topic_titles_only",
+        "reason": "В выборке заголовков доминируют другие темы; окончательное решение требует содержания.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 101,
@@ -1968,7 +3817,178 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Владислав Ушаков",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/38159231/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 14,
+        "posts": [
+          {
+            "summary": "Отзыв о сайте и рекламе Авито/Яндекс",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Бизнес на Telegram-ботах",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Отзыв адвоката о сайте",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Отзыв лизинговой компании",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Реклама автотехцентров",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Отзыв клиента",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Итоги недели",
+            "title_relevance": "unknown",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Итоги недели",
+            "title_relevance": "unknown",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Отзыв медцентра о сайте",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Рабочая неделя",
+            "title_relevance": "unknown",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Каналы привлечения клиентов",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Кейс Авито для кондиционеров",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Директ B2B",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          },
+          {
+            "summary": "Автозапчасти на Авито",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38159231/"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Смешанная или смежная тематика; заголовки не доказывают достаточную долю полезного SMM.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 102,
@@ -1980,7 +4000,158 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Мысли Санчеса",
+        "review_status": "video_titles_and_partial_descriptions",
+        "evidence_urls": [
+          "https://rutube.ru/channel/38218663/",
+          "https://rutube.ru/video/7827e43c36ecc94951da48b5a129af69/"
+        ],
+        "visible_post_samples": 1,
+        "visible_title_samples": 12,
+        "posts": [
+          {
+            "summary": "Статистика Rutube за ноябрь",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Подбор товаров для обзоров VK Шопсы",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Лимиты и условия Шопсов",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Назначение Шопсов",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Проблемы и решения Шопсов",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Первый заказ и совет начинающим",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Шопсы и регистрация сообществ",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Заметки новичка",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Цены домашнего интернета",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Форматы фото для Шопсов",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Тактика публикации Шопсов",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/"
+          },
+          {
+            "summary": "Стартовый гайд Шопсов",
+            "title_relevance": "relevant",
+            "relevance": "relevant",
+            "evidence_type": "author_description_read",
+            "url": "https://rutube.ru/video/7827e43c36ecc94951da48b5a129af69/",
+            "publication_date": "2026-11-13",
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38218663/",
+            "description_summary": "Автор заявляет обзор VK Шопсов и личный опыт запуска; конкретные шаги в описании не раскрыты."
+          }
+        ],
+        "recommendation": "candidate_probation_pending_video",
+        "reason": "Заголовки устойчиво релевантны теме; описание доступного ролика подтверждает предмет там, где отдельно указано. Проверить качество, свежесть и видео до решения.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 103,
@@ -1992,7 +4163,123 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Марат Гарифуллин",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/38533844/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 9,
+        "posts": [
+          {
+            "summary": "Таргет VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38533844/"
+          },
+          {
+            "summary": "Директ",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38533844/"
+          },
+          {
+            "summary": "Рост выручки санатория",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38533844/"
+          },
+          {
+            "summary": "Доход клиники",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38533844/"
+          },
+          {
+            "summary": "Маркировка рекламы клиник",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38533844/"
+          },
+          {
+            "summary": "Бюджет рекламы клиники",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38533844/"
+          },
+          {
+            "summary": "Реклама клиники",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38533844/"
+          },
+          {
+            "summary": "Продвижение без сайта",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38533844/"
+          },
+          {
+            "summary": "Реклама конкурентов",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/38533844/"
+          }
+        ],
+        "recommendation": "needs_freshness_check",
+        "reason": "Сильные тематические признаки, но видимая лента историческая; проверить свежесть и актуальность инструкций.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 104,
@@ -2004,7 +4291,134 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Дмитрий Засухин",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/42317787/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 10,
+        "posts": [
+          {
+            "summary": "Молебен о юридическом бизнесе",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/42317787/"
+          },
+          {
+            "summary": "Сохранение брака",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/42317787/"
+          },
+          {
+            "summary": "Подготовка к свадьбе",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/42317787/"
+          },
+          {
+            "summary": "Предложение мужчине",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/42317787/"
+          },
+          {
+            "summary": "Намерения партнера",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/42317787/"
+          },
+          {
+            "summary": "Знакомства после 30",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/42317787/"
+          },
+          {
+            "summary": "Привлечение мужчин",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/42317787/"
+          },
+          {
+            "summary": "Выбор партнера",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/42317787/"
+          },
+          {
+            "summary": "Отношения после 30",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/42317787/"
+          },
+          {
+            "summary": "Внимание мужчины",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/42317787/"
+          }
+        ],
+        "recommendation": "provisional_off_topic_titles_only",
+        "reason": "В выборке заголовков доминируют другие темы; окончательное решение требует содержания.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 105,
@@ -2016,7 +4430,189 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Нескучные финансы",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/44357953/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 15,
+        "posts": [
+          {
+            "summary": "Выживание бизнеса в кризис",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Покупка готового бизнеса",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Рынок техники",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Будущее предпринимателей",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Мебельный бизнес",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Таксопарк",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Покупка бизнеса на Авито",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Клиенты в перспективной нише",
+            "title_relevance": "unknown",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Строительный бизнес",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Сеть кофеен",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Отчет P&L",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Продажа энергетиков",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Стратегия бизнеса",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Салон красоты",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          },
+          {
+            "summary": "Отчет движения денег",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/44357953/"
+          }
+        ],
+        "recommendation": "provisional_off_topic_titles_only",
+        "reason": "В выборке заголовков доминируют другие темы; окончательное решение требует содержания.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 106,
@@ -2036,7 +4632,178 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Таргетированная реклама — клиенты из VK",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/49654550/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 14,
+        "posts": [
+          {
+            "summary": "Фриланс без выходных",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Чатбот Senler для VK/MAX/Telegram",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Часы Garmin",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Мотивация",
+            "title_relevance": "unknown",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Настройка таргета MAX",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Привычки",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Обучение таргетолога",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Изменения VK Рекламы 2026",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Кейс VK для пластической хирургии",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Продвижение канала MAX через VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Продуктивность",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Настройка рекламы MAX",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Ретаргетинг VK и пиксель",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          },
+          {
+            "summary": "Пиксель и события VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/49654550/"
+          }
+        ],
+        "recommendation": "candidate_probation_pending_video",
+        "reason": "Заголовки устойчиво релевантны теме; описание доступного ролика подтверждает предмет там, где отдельно указано. Проверить качество, свежесть и видео до решения.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 107,
@@ -2048,7 +4815,189 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Михаил Дашкиев",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/50239133/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 15,
+        "posts": [
+          {
+            "summary": "Выгорание и акселератор",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Пересборка бизнеса",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Стресс и закрытие бизнеса",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Когда остановиться",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Самопознание",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Обычное и великое",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Мотивация",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Партнерство",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Настойчивость",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Приоритеты",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Таблица управления бизнесом",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Бизнес-модели",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Фриланс и найм",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Рост сети Drinkit без рекламного бюджета",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          },
+          {
+            "summary": "Прибыль бренда одежды",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/50239133/"
+          }
+        ],
+        "recommendation": "provisional_off_topic_titles_only",
+        "reason": "В выборке заголовков доминируют другие темы; окончательное решение требует содержания.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 108,
@@ -2060,7 +5009,244 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "VK Бизнес — обучающая платформа",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/55912508/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 20,
+        "posts": [
+          {
+            "summary": "Продвижение бизнес-сообщества VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Настройка рекламы VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Смарт-кампании VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Переход в новый кабинет VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Площадки VK Рекламы",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Рекламные креативы",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Автоматизация общения",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Практики SMM VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Продвижение детского туризма VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Сообщества услуг",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Форматы рекламы",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Ошибки создания бизнеса",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "ИИ в бизнесе",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Маркетплейсы",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Сообщество VK для бизнеса",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "VK Клипы",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Блоги и экспертные бренды",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Обновления VK Рекламы",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Интернет-маркетинг",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          },
+          {
+            "summary": "Контент для сообщества VK",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/55912508/"
+          }
+        ],
+        "recommendation": "needs_freshness_check",
+        "reason": "Сильные тематические признаки, но видимая лента историческая; проверить свежесть и актуальность инструкций.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 109,
@@ -2072,7 +5258,156 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "О Бизнесе",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/66730594/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 12,
+        "posts": [
+          {
+            "summary": "Доход из бесплатного дерева",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Идея бизнеса дома",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Бизнес в гараже с нуля",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Гараж без конкуренции",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Простой гаражный бизнес",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Неизвестная бизнес-идея",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Прибыль гаражного бизнеса",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Запуск бизнес-идеи",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Домашний бизнес",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Домашнее производство",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Пассивный бизнес",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          },
+          {
+            "summary": "Оборудование для старта",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/66730594/"
+          }
+        ],
+        "recommendation": "provisional_off_topic_titles_only",
+        "reason": "В выборке заголовков доминируют другие темы; окончательное решение требует содержания.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 110,
@@ -2084,7 +5419,156 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Егор Ясников",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/72382717/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 12,
+        "posts": [
+          {
+            "summary": "Выпуск 22",
+            "title_relevance": "unknown",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Интервью владельцев дорогих автомобилей",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Источники богатства автовладельцев",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Заработок автовладельцев",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Интервью владельца крупной компании",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Уличные интервью о богатстве",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Истории заработка",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Интервью владельца миллиардной компании",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Опрос о заработке",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Опрос об источниках богатства",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Интервью предпринимателей",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          },
+          {
+            "summary": "Интервью автовладельцев",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/72382717/"
+          }
+        ],
+        "recommendation": "provisional_off_topic_titles_only",
+        "reason": "В выборке заголовков доминируют другие темы; окончательное решение требует содержания.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 111,
@@ -2096,7 +5580,200 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_020": {
+        "review_date": "2026-11-24",
+        "source_name": "Павел Багрянцев",
+        "review_status": "video_titles_only",
+        "evidence_urls": [
+          "https://rutube.ru/channel/832267/"
+        ],
+        "visible_post_samples": 0,
+        "visible_title_samples": 16,
+        "posts": [
+          {
+            "summary": "Подготовка к переговорам",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Инвестиции в квартиры",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Интеллект и деньги",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Личный бренд и харизма",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Богатство и интеллект",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Знания и интеллект",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Страхи и личный бренд",
+            "title_relevance": "adjacent",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Измена",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Юридический бизнес",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Психология денег",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Медийность и личный бренд для привлечения клиентов",
+            "title_relevance": "relevant",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Управление Альфа-Банком",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Телешоу",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Вера в бизнесе",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Разблокирование активов",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          },
+          {
+            "summary": "Списание долгов",
+            "title_relevance": "off_topic",
+            "relevance": "unknown",
+            "evidence_type": "video_title_only",
+            "url": null,
+            "publication_date": null,
+            "media_reviewed": false,
+            "usefulness": "not_assessed",
+            "evidence_page": "https://rutube.ru/channel/832267/"
+          }
+        ],
+        "recommendation": "needs_more_evidence_mixed",
+        "reason": "Смешанная или смежная тематика; заголовки не доказывают достаточную долю полезного SMM.",
+        "coverage": "Direct channel listing read, selected individual author descriptions read where marked. No playback/transcripts; titles are not content labels. Listing relative dates not converted due to snapshot inconsistencies.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 112,
