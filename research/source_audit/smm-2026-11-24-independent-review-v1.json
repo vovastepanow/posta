@@ -17,12 +17,13 @@
     "Batch 007: 17 new attempts 271–288 except previously reviewed 277; 77 visible text excerpts, partial evidence only, no complete feed or media review, no external AI consultation.",
     "Batch 008: ten new attempts 289–297 and 299; 53 visible text/caption excerpts, 3 verified post permalinks for dankmarketing, two probation recommendations. No definitive gold labels, no external model consultation.",
     "Batch 009: ten new attempts 300–310 except 303; 45 partial excerpts; provisional probation for dimabeseda based on historical archive; no external AI consultation or gold labels.",
-    "Batch 010: ten new attempts 311–321 except previously reviewed 318; 36 partial excerpts; no gold labels or external AI consultation."
+    "Batch 010: ten new attempts 311–321 except previously reviewed 318; 36 partial excerpts; no gold labels or external AI consultation.",
+    "Batch 011: ten new attempts 322–332 except previously reviewed 326; 38 partial excerpts; no gold labels or external AI consultation."
   ],
   "stats": {
     "baseline": 492,
-    "structured_attempted": 136,
-    "structured_with_visible_post_samples": 76,
+    "structured_attempted": 146,
+    "structured_with_visible_post_samples": 82,
     "visible_post_samples_first_batch": 78,
     "visible_post_samples_second_batch": 23,
     "gold_labels": 0,
@@ -37,7 +38,8 @@
     "batch_007_readable_texts": 77,
     "batch_008_readable_texts": 53,
     "batch_009_readable_texts": 45,
-    "batch_010_readable_texts": 36
+    "batch_010_readable_texts": 36,
+    "batch_011_readable_texts": 38
   },
   "rows": [
     {
@@ -10034,7 +10036,76 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_011": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/getads_official"
+        ],
+        "visible_post_samples": 6,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Тезисы секции по Connected TV и рекламным метрикам",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/getads_official"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Кейс создания корпоративного сайта getads",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/getads_official"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Инструменты маркировки рекламного видео",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/getads_official"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс доклада об окупаемости shoppable CTV",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/getads_official"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Подкаст о брендинге и перформансе",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/getads_official"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Вебинар по механикам интерактивной телевизионной рекламы",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/getads_official"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Смежный AdTech и медийная реклама; конкретно SMM-поток не подтвержден.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 323,
@@ -10046,7 +10117,76 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_011": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/ggreat_of_development"
+        ],
+        "visible_post_samples": 6,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Новость о региональном строительстве и расследовании",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ggreat_of_development"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Финансирование проекта NEOM",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ggreat_of_development"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс архитектурной рубрики",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ggreat_of_development"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Спрос на элитные квартиры",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ggreat_of_development"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Покупка трех жилых комплексов девелопером",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ggreat_of_development"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Крупномодульное строительство домов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/ggreat_of_development"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Строительное отраслевое СМИ; опубликованные форматы не равнозначны обучению SMM.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 324,
@@ -10058,7 +10198,67 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_011": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/gidprava"
+        ],
+        "visible_post_samples": 5,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Валютные риски покупки зарубежной недвижимости",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/gidprava"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение на будущие мероприятия",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/gidprava"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Валютные штрафы при сделке с недвижимостью",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/gidprava"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ролик о налоговых рисках зарубежных счетов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/gidprava"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Обмен налоговой информацией с Узбекистаном",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/gidprava"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Юридический и налоговый консалтинг; карточки и видео не изучены.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 325,
@@ -10070,7 +10270,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_011": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://telemetr.io/ru/channels/1355241541-gmtlegal"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "В архиве записи скрыты владельцем; описание и теги указывают на юридическую специализацию, но не заменяют чтение постов.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 326,
@@ -10204,7 +10418,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_011": {
+        "review_date": "2026-11-24",
+        "review_status": "mirror_excerpt_partial",
+        "evidence_urls": [
+          "https://telemetr.io/es/channels/1138075571-goodfinance/posts"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Применение инфляции в финансовой модели",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1138075571-goodfinance/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Расписание октябрьских вебинаров по финмоделям и ИИ",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1138075571-goodfinance/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Аудио о лимитах бизнеса в финмодели (описание)",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1138075571-goodfinance/posts"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Голосование за проекты учеников",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://telemetr.io/es/channels/1138075571-goodfinance/posts"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Финансовое моделирование, смежные инструменты ИИ не делают канал профильным.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 328,
@@ -10216,7 +10481,139 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_011": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/grebenukm"
+        ],
+        "visible_post_samples": 13,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Сообщение участника предпринимательской программы",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Приглашение в предпринимательский клуб",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Закрытие набора в клуб",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шутка о продажах",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Бытовая шутка",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс бизнес-мероприятия в Краснодаре",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Поиск HR-руководителя",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Короткое сообщение о мероприятии",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Сообщение о Nvidia",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Анонс нового видеоблога о проекте",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Ролик с развлекательной подписью",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Сообщение о распродаже билетов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Шутка об ответах брендов ночью",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/grebenukm"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Предпринимательство и развлечение; анонс влога и шутка про ответы бренда смежны, но видео не изучены.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 329,
@@ -10228,7 +10625,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_011": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/group4media_news"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Прямая лента недоступна; найденные упоминания Group4Media в других источниках не являются публикациями самого канала.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 330,
@@ -10240,7 +10651,58 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_011": {
+        "review_date": "2026-11-24",
+        "review_status": "public_feed_text_partial",
+        "evidence_urls": [
+          "https://t.me/s/gsom_spbu_official"
+        ],
+        "visible_post_samples": 4,
+        "posts": [
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Итоги карьерной недели, включая выступления о медиа",
+            "relevance": "adjacent",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/gsom_spbu_official"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Спортивное соревнование студентов",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/gsom_spbu_official"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "Номинация HR-кейса",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/gsom_spbu_official"
+          },
+          {
+            "url": null,
+            "publication_date": null,
+            "summary": "VR-тренажер публичных выступлений на форуме",
+            "relevance": "off_topic",
+            "usefulness": "not_systematically_assessed",
+            "media_reviewed": false,
+            "evidence_page": "https://t.me/s/gsom_spbu_official"
+          }
+        ],
+        "recommendation": "needs_more_evidence_low_topic_yield",
+        "reason": "Менеджмент, карьера и студенческая жизнь; один материал содержит смежное упоминание медиа.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 331,
@@ -10252,7 +10714,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_011": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/gsom_startuplab"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Лента не открылась; найденные источники с другим handle не использованы.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 332,
@@ -10264,7 +10740,21 @@
       "batch_001": null,
       "recheck_001": null,
       "batch_002": null,
-      "gold_label": null
+      "gold_label": null,
+      "batch_011": {
+        "review_date": "2026-11-24",
+        "review_status": "access_unverified",
+        "evidence_urls": [
+          "https://t.me/s/happycareer"
+        ],
+        "visible_post_samples": 0,
+        "posts": [],
+        "recommendation": "needs_more_evidence",
+        "reason": "Публичная лента недоступна; публикации не установлены.",
+        "coverage": "Partial accessible text only; individual permalinks not resolved, media not inspected, no complete latest-N claim.",
+        "external_model_review": null,
+        "gold_label": null
+      }
     },
     {
       "baseline_index": 333,
