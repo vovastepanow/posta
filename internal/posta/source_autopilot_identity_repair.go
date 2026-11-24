@@ -169,7 +169,8 @@ func (a *App) autopilotRecoverLegacyYouTube(ctx context.Context,job *autopilotJo
 	rows,err:=a.DB.Pool.Query(ctx,`SELECT source_id FROM source_autopilot_sources
 		WHERE scope=$1 AND topic_key=$2 AND state='rejected' AND reason IN ('unsupported_source_format','invalid_source_identity')
 		AND source_id LIKE 'rss:https://%youtube.com/feeds/videos.xml?channel_id=uc%'
-		AND COALESCE((evidence->>'identity_retry_at')::bigint,0)<=$3 ORDER BY source_id LIMIT 100`,job.Scope,job.TopicKey,time.Now().Unix())
+		AND COALESCE((evidence->>'identity_retry_at')::bigint,0)<=$3
+		ORDER BY COALESCE((evidence->>'identity_retry_at')::bigint,0), source_id LIMIT 100`,job.Scope,job.TopicKey,time.Now().Unix())
 	if err!=nil {
 		return err
 	}
@@ -192,7 +193,18 @@ func (a *App) autopilotRecoverLegacyYouTube(ctx context.Context,job *autopilotJo
 	if len(oldIDs)==0 {
 		return nil
 	}
-	known,err:=a.DB.Pool.Query(ctx,`SELECT DISTINCT source_id FROM source_autopilot_sources WHERE source_id LIKE 'rss:https://www.youtube.com/feeds/videos.xml?channel_id=UC%' LIMIT 10000`)
+	// Search for the specific damaged identities, not an arbitrary first
+	// 10,000 globally known sources. Keep all matching case variants so
+	// ambiguity is never resolved by a database limit or row order.
+	keys := make([]string, 0, len(oldIDs))
+	for _, old := range oldIDs {
+		if key := autopilotYouTubeLostKey(old); key != "" {
+			keys = append(keys, "rss:https://www.youtube.com/feeds/videos.xml?channel_id="+key)
+		}
+	}
+	known,err:=a.DB.Pool.Query(ctx,`SELECT DISTINCT source_id FROM source_autopilot_sources
+		WHERE source_id LIKE 'rss:https://www.youtube.com/feeds/videos.xml?channel_id=UC%'
+		AND lower(source_id)=ANY($1::text[])`, keys)
 	if err!=nil {
 		return err
 	}
@@ -211,6 +223,26 @@ func (a *App) autopilotRecoverLegacyYouTube(ctx context.Context,job *autopilotJo
 	known.Close()
 	if err!=nil {
 		return err
+	}
+	// Unresolved or ambiguous keys must not occupy the first 100 rows
+	// forever. Retry later, because a future search may discover an exact ID.
+	unresolved := make([]string, 0, len(oldIDs))
+	for _, old := range oldIDs {
+		if autopilotYouTubeRecoveryFeed(old, leads) == "" {
+			unresolved = append(unresolved, old)
+		}
+	}
+	if len(unresolved) > 0 {
+		if err := withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, `UPDATE source_autopilot_sources
+				SET evidence=evidence||jsonb_build_object('identity_retry_at',$4::bigint)
+				WHERE scope=$1 AND topic_key=$2 AND source_id=ANY($3::text[])
+				AND state='rejected' AND reason IN ('unsupported_source_format','invalid_source_identity')`,
+				job.Scope, job.TopicKey, unresolved, time.Now().Add(24*time.Hour).Unix())
+			return err
+		}); err != nil {
+			return err
+		}
 	}
 	u:=a.User(ctx,"",nil)
 	attempts:=0
