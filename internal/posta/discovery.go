@@ -416,6 +416,7 @@ func (u *U) QueryDiscoveryQuotaTake(key string) bool {
 }
 
 type sourceReview struct {
+	Samples      int
 	Score        int
 	Reason       string
 	PersonalBlog string
@@ -441,7 +442,7 @@ func (u *U) sourceReviewRequest(prompt string, images [][]byte) *sourceReview {
 	return &sourceReview{Score: llm.ClampScore(jx.Float(a, "score")), Reason: trimRunes(llm.StripCJK(jx.Str(a, "reason")), 80), PersonalBlog: personalBlogLabelFromReview(jx.Str(a, "personal_blog"))}
 }
 
-const notShop = " Канал магазина, компании, сервиса или бренда, который продаёт товары или услуги, — не тема, даже если товар связан с темой."
+const notShop = " Не отклоняй источник только потому, что он принадлежит бренду, компании, агентству, магазину или автору платных услуг. Оцени фактическую тематику публикаций. Каталог товаров, объявления и самореклама без содержательной пользы не являются тематическим материалом. Независимо от тематической оценки реклама и качество отдельно проверяются на уровне публикаций."
 
 // A 160-rune prefix often hides the actual takeaway of long posts. Retain
 // both the opening and conclusion in a bounded snippet; disclose omission
@@ -481,15 +482,24 @@ func sourceReviewTopicGuidance(topic string) string {
 
 func (u *U) sourceTextReview(title, desc, topic string, texts []string) *sourceReview {
 	var t []string
+	seen := map[string]bool{}
 	for _, x := range texts {
 		x = sourceReviewCaption(x)
-		if x != "" && x != EmptyPostText && len(t) < config.SourceReviewCaptions {
+		if x != "" && x != EmptyPostText && !seen[x] && len(t) < config.SourceReviewCaptions {
+			seen[x] = true
 			t = append(t, x)
 		}
 	}
+	if len(t) == 0 {
+		return nil
+	}
 	prompt := u.prompt("source_text", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "description": trimRunes(desc, 400), "captions": strings.Join(t, "»; «"), "query_rule": sourceQueryRule(topic), "shop_rule": notShop})
 	prompt += sourceReviewTopicGuidance(topic)
-	return u.sourceReviewRequest(prompt, nil)
+	review := u.sourceReviewRequest(prompt, nil)
+	if review != nil {
+		review.Samples = len(t)
+	}
+	return review
 }
 
 func (u *U) sourceImagesReview(title, topic string, posts []jx.M) *sourceReview {
@@ -507,7 +517,11 @@ func (u *U) sourceImagesReview(title, topic string, posts []jx.M) *sourceReview 
 	}
 	prompt := u.prompt("source_images", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "query_rule": sourceQueryRule(topic), "shop_rule": notShop})
 	prompt += sourceReviewTopicGuidance(topic)
-	return u.sourceReviewRequest(prompt, StoryboardSheets(frames))
+	review := u.sourceReviewRequest(prompt, StoryboardSheets(frames))
+	if review != nil {
+		review.Samples = len(frames)
+	}
+	return review
 }
 
 // A single multimodal request grades text and images independently and, when
@@ -546,6 +560,8 @@ func (u *U) combinedSourceReview(title, desc, topic string, posts []jx.M, caps [
 	if ev == nil {
 		autopilotNoteAssessmentCause(u.Ctx, "invalid_model_response")
 		u.Log("-> Объединённая оценка: модель не вернула все оценки; использую обычную проверку.")
+	} else {
+		ev.ReviewedSamples = min(len(texts), len(frames))
 	}
 	return ev
 }
@@ -566,16 +582,17 @@ func parseCombinedSourceReview(reply string, hasTaste bool) *sourceEvaluation {
 }
 
 type sourceEvaluation struct {
-	PersonalBlog  string
-	Score         int
-	Images        []int
-	Text          *int
-	TextOnly      bool
-	Reason        string
-	Quality       jx.M
-	Goodness      *GoodnessResult
-	Taste         *int
-	TasteIncluded bool
+	ReviewedSamples int
+	PersonalBlog    string
+	Score           int
+	Images          []int
+	Text            *int
+	TextOnly        bool
+	Reason          string
+	Quality         jx.M
+	Goodness        *GoodnessResult
+	Taste           *int
+	TasteIncluded   bool
 }
 
 // sourcePostsHaveImages checks the presence of media references without fetching
@@ -614,14 +631,14 @@ func (u *U) evaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluat
 	}
 	if text != nil && judge == "text" {
 		s := text.Score
-		return &sourceEvaluation{Score: s, Text: &s, TextOnly: s < config.DiscoveryTextRejectScore, Reason: text.Reason, PersonalBlog: text.PersonalBlog}
+		return &sourceEvaluation{Score: s, Text: &s, TextOnly: s < config.DiscoveryTextRejectScore, Reason: text.Reason, PersonalBlog: text.PersonalBlog, ReviewedSamples: text.Samples}
 	}
 	// Text-only feeds have no storyboard to score. An available text review
 	// is sufficient for non-image topics; do not turn missing media into an
 	// unavailable classifier result. Image-required topics remain strict.
 	if text != nil && judge != "image" && !sourcePostsHaveImages(posts) {
 		s := text.Score
-		return &sourceEvaluation{Score: s, Text: &s, TextOnly: s < config.DiscoveryTextRejectScore, Reason: text.Reason, PersonalBlog: text.PersonalBlog}
+		return &sourceEvaluation{Score: s, Text: &s, TextOnly: s < config.DiscoveryTextRejectScore, Reason: text.Reason, PersonalBlog: text.PersonalBlog, ReviewedSamples: text.Samples}
 	}
 	review := u.sourceImagesReview(title, topic, posts)
 	if review == nil {
@@ -637,15 +654,15 @@ func (u *U) evaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluat
 		// this path never activates it directly.
 		if text != nil && format.Media == "optional" && judge != "image" {
 			score := text.Score
-			return &sourceEvaluation{Score: score, Text: &score, TextOnly: true, Reason: text.Reason, PersonalBlog: text.PersonalBlog}
+			return &sourceEvaluation{Score: score, Text: &score, TextOnly: true, Reason: text.Reason, PersonalBlog: text.PersonalBlog, ReviewedSamples: text.Samples}
 		}
 		return nil
 	}
 	if text == nil {
-		return &sourceEvaluation{Score: review.Score, Images: []int{review.Score}, Reason: review.Reason, PersonalBlog: review.PersonalBlog}
+		return &sourceEvaluation{Score: review.Score, Images: []int{review.Score}, Reason: review.Reason, PersonalBlog: review.PersonalBlog, ReviewedSamples: review.Samples}
 	}
 	s := text.Score
-	return &sourceEvaluation{Score: min(text.Score, review.Score), Images: []int{review.Score}, Text: &s, Reason: review.Reason, PersonalBlog: review.PersonalBlog}
+	return &sourceEvaluation{Score: min(text.Score, review.Score), Images: []int{review.Score}, Text: &s, Reason: review.Reason, PersonalBlog: review.PersonalBlog, ReviewedSamples: min(text.Samples, review.Samples)}
 }
 
 func sourceEvaluationBasis(e *sourceEvaluation) string {
