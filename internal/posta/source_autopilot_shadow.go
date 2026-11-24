@@ -592,16 +592,31 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		}
 		enabledBackends = len(backends)
 		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
-		// Broad discovery should not stop after the first three sites
-		// return a handful of candidates. Legacy discovery searches across
-		// platforms and queries, whereas auto runs only one query per cycle.
-		// Inspect up to six different backends before stopping, with the
-		// existing per-cycle 120-fetch ceiling and daily quotas still enforced.
-		candidates := autopilotRunSearchBackendsAdaptive(searchCtx, turn, backends, 6, 64)
-		sourceSearchCount = len(candidates)
-		// Snapshot the actual source identities found by this search pass.
-		// A candidate may already exist or change state later; querying only
-		// today's 'discovered' decisions cannot reconstruct this list.
+		// Spend a bounded share of the existing search budget on finding
+		// actual publications before scanning publisher directories. Only
+		// independently admitted posts nominate their authors here. Broad
+		// source search remains available for image/video and cold-start
+		// topics or when the text classifier is unavailable.
+		var verified []DiscoveryCandidate
+		var directErr error
+		if job.Scope == autopilotAutoScope && ctx.Err() == nil && autopilotBudgetError(ctx) == nil {
+			directAttempted = true
+			postCtx := withAutopilotSearchFetchCap(searchCtx, 30)
+			postCandidates, postErr := a.autopilotFindSourcesFromPosts(postCtx, job, query, 6)
+			directErr = postErr
+			if directErr == nil {
+				directErr = a.autopilotAssessDirectPosts(ctx, job, postCandidates)
+			}
+			if directErr == nil {
+				verified, directErr = a.autopilotVerifiedDirectSources(ctx, job, postCandidates)
+			}
+			directSourceCount = len(verified)
+		}
+		// Keep exploration across platforms. Raw directory hits are
+		// still unverified and never bypass the normal probation gate.
+		raw := autopilotRunSearchBackendsAdaptive(searchCtx, turn, backends, 6, 64)
+		sourceSearchCount = len(raw)
+		candidates := append(append([]DiscoveryCandidate(nil), verified...), raw...)
 		seenSources := map[string]bool{}
 		lastSearchSourceIDs = []string{}
 		for _, candidate := range candidates {
@@ -612,21 +627,11 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			seenSources[id] = true
 			lastSearchSourceIDs = append(lastSearchSourceIDs, id)
 		}
-		if job.Scope == autopilotAutoScope && (len(candidates) < 3 || turn%3 == 0) && ctx.Err() == nil && autopilotBudgetError(ctx) == nil && !autopilotSearchFetchCapReached(searchCtx) {
-			directAttempted = true
-			// Periodic direct post exploration continues even when broad
-			// source search reports plenty of unverified candidates.
-			postCandidates, postErr := a.autopilotFindSourcesFromPosts(ctx, job, query, 6)
-			if postErr != nil {
-				return candidates, postErr
-			}
-			// Preserve source candidates even if the separate text model
-			// fails: the search result can still enter normal vetting.
-			candidates = append(candidates, postCandidates...)
-			directSourceCount = len(postCandidates)
-			if err := a.autopilotAssessDirectPosts(ctx, job, postCandidates); err != nil {
-				return candidates, err
-			}
+		// The other discovery path can still provide candidates when the
+		// model or a public-post backend is unavailable. Preserve the error
+		// for the worker diagnostics rather than treating it as a mismatch.
+		if directErr != nil {
+			searchErr = directErr
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -943,6 +948,57 @@ func (a *App) autopilotFindSourcesFromPosts(ctx context.Context, job *autopilotJ
 		}
 	}
 	return candidates, nil
+}
+
+// A verified post is a reason to inspect an author, not to approve its
+// source. The direct-results table contains only completed admission
+// decisions, scoped to this public topic and the current review policy.
+func (a *App) autopilotVerifiedDirectSources(ctx context.Context, job *autopilotJob, candidates []DiscoveryCandidate) ([]DiscoveryCandidate, error) {
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+	ids := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if id, ok := autopilotCandidateID(candidate); ok {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := a.DB.Pool.Query(ctx, `SELECT DISTINCT source_id FROM source_autopilot_direct_results
+		WHERE scope=$1 AND topic_key=$2 AND source_id=ANY($3::text[])
+		AND policy_version=$4 AND published_at >= $5 AND assessed_at >= $5`,
+		job.Scope, job.TopicKey, ids, TopicProfileVersion, time.Now().Add(-autopilotDirectMaxAge).Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	verified := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		verified[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return autopilotFilterVerifiedDirectSources(candidates, verified), nil
+}
+
+func autopilotFilterVerifiedDirectSources(candidates []DiscoveryCandidate, verified map[string]bool) []DiscoveryCandidate {
+	var out []DiscoveryCandidate
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		id, ok := autopilotCandidateID(candidate)
+		if ok && verified[id] && !seen[id] {
+			out = append(out, candidate)
+			seen[id] = true
+		}
+	}
+	return out
 }
 
 func (a *App) autopilotShadowSearchWith(ctx context.Context, job *autopilotJob, find func(context.Context) ([]DiscoveryCandidate, error)) error {
