@@ -60,3 +60,59 @@ func TestAutopilotBraveRetryDelay(t *testing.T) {
 		t.Fatalf("date Retry-After ignored: %v", got)
 	}
 }
+
+func TestAutopilotSearchLinksUseActualPlatformDestinations(t *testing.T) {
+	page := `<html>
+<script>const data = "https://t.me/scriptnoise";</script>
+<!-- https://t.me/commentnoise -->
+<p>https://t.me/snippetnoise</p>
+<a href="https://evil.example/t.me/pathnoise">Fake path</a>
+<a href="https://search.brave.com/redirect?u=https://t.me/querynoise">Tracker</a>
+<a href="https://t.me.evil.example/fakechannel">Fake host</a>
+<a href="https://t.me/s/garden_digest/123">Real post</a>
+<a href="https://telegram.me/garden_digest">Same publisher</a>
+<a href="https://t.me/garden_digest/invalid">Invalid post path</a>
+<a href="https://vk.com/wall-123_456">Real community post</a>
+<a href="https://vk.com/wall123_456">Personal wall</a>
+<a href="https://vk.com/video-123_456">Video route</a>
+<a href="https://vk.com/videomaker">Real publisher</a>
+<a href="https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv/videos">Real channel</a>
+<a href="https://www.youtube.com/channel/UCA bcdefghijklmnopqrstuv">Broken channel</a>
+<a href="https://www.youtube.com/@garden_creator">Handle</a>
+<a href="https://www.youtube.com/watch?v=123&other=https://youtube.com/channel/UCabcdefghijklmnopqrstuv">Not a channel result</a>
+<a href="https://www.tiktok.com/@gardencreator">Real TikTok account</a>
+</html>`
+	r := FetchResultURL{URL: "https://search.brave.com/search", FetchResult: FetchResult{OK: true, Bytes: []byte(page)}}
+	for _, tc := range []struct {
+		platform string
+		want []string
+	}{
+		{PlatformTelegram, []string{"garden_digest"}},
+		{PlatformVK, []string{"club123", "videomaker"}},
+		{PlatformRSS, []string{YouTubeChannelFeedURL("UCabcdefghijklmnopqrstuv"), "https://www.youtube.com/@garden_creator"}},
+		{PlatformTikTok, []string{"gardencreator"}},
+	} {
+		got := autopilotSearchLinkedCandidates(r, tc.platform)
+		if len(got) != len(tc.want) {
+			t.Fatalf("%s: got %+v, want %v", tc.platform, got, tc.want)
+		}
+		for i, c := range got {
+			if c.ID != tc.want[i] {
+				t.Fatalf("%s: got %q, want %q", tc.platform, c.ID, tc.want[i])
+			}
+		}
+	}
+	r.URL = "https://evil.example/search"
+	if got := autopilotSearchLinkedCandidates(r, PlatformTelegram); len(got) != 0 {
+		t.Fatal("untrusted search response accepted")
+	}
+}
+
+func TestAutopilotSearchLinksPreserveValidatedBingFallback(t *testing.T) {
+	r := FetchResultURL{URL: "https://www.bing.com/search", FetchResult: FetchResult{OK: true,
+		Bytes: []byte("https://www.tiktok.com/@cats/video/123456789\nhttps://www.tiktok.com/@cats\nhttps://evil.example/@unrelated")}}
+	got := autopilotSearchLinkedCandidates(r, PlatformTikTok)
+	if len(got) != 1 || got[0].ID != "cats" {
+		t.Fatalf("Bing fallback lost or polluted: %+v", got)
+	}
+}
