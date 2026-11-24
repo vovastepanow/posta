@@ -41,7 +41,9 @@ func autopilotYieldEvidenceWindow(ctx context.Context, q db.Querier, scope, key,
 		AND eligible AND content_hash<>''
 	)
 	SELECT (SELECT count(DISTINCT content_hash) FROM recent),
-		(SELECT count(DISTINCT content_hash) FROM recent WHERE trial.started>0 AND published_at>trial.started AND observed_at>=trial.started),
+		(SELECT count(DISTINCT r.content_hash) FROM recent r WHERE trial.started>0 AND r.published_at>trial.started AND r.observed_at>=trial.started
+			AND NOT EXISTS (SELECT 1 FROM latest prior WHERE prior.content_hash=r.content_hash
+				AND (prior.published_at<=trial.started OR prior.observed_at<trial.started))),
 		(SELECT count(*) FROM source_autopilot_collection_passes WHERE scope=$1 AND topic_key=$2 AND source_id=$3
 			AND trial.started>0 AND fetched_at>=GREATEST(trial.started,$4) AND fetched_at<$5),trial.started
 	FROM trial`, scope, key, source, since.Unix(), until.Unix()).Scan(&e.UsefulUnique, &e.LiveUnique, &e.TrialPasses, &e.TrialStartedAt)

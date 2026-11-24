@@ -97,6 +97,7 @@ func TestAutopilotYieldEvidencePostgres(t *testing.T) {
 		VALUES ('public',$1,$2,'a','archive',1,$3,$4,true,true,false),
 		('public',$1,$2,'b','live',1,$5,$5,true,true,false),
 		('public',$1,$2,'c','live',1,$5,$5,true,true,false),
+		('public',$1,$2,'recycled','archive',1,$5,$5,true,true,false),
 		('public',$1,$2,'d','obsolete',1,$5,$5,true,true,false),
 		('public',$1,$2,'d','obsolete',2,$5,$5,false,false,false),
 		('public:shadow',$1,$2,'e','shadow',2,$5,$5,true,true,false)`, key, source, old, trial, live)

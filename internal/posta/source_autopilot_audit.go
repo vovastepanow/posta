@@ -84,6 +84,9 @@ func AutopilotAuditFunnel(ctx context.Context, q db.Querier, scope, key string, 
 		'stage_state_reason',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY stage,state,reason) FROM
 			(SELECT stage,state,reason,count(*) AS sources FROM per_source GROUP BY stage,state,reason) b),'[]'::jsonb),
 		'direct_results', (SELECT count(*) FROM source_autopilot_direct_results WHERE scope=$1 AND topic_key=$2 AND assessed_at <= $3),
+		'yield_pilot_states',COALESCE((SELECT jsonb_object_agg(state,n) FROM (
+			SELECT state,count(*) AS n FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
+			AND evidence @> '{"yield_pilot":true}'::jsonb GROUP BY state) p),'{}'::jsonb),
 		'preliminary_post_probes', (SELECT jsonb_build_object(
 			'sources',count(*),
 			'sources_with_eligible',count(*) FILTER (WHERE evidence->'preliminary_post_probe' @> '{"has_eligible":true}'::jsonb),

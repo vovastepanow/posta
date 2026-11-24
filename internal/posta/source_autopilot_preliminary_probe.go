@@ -53,7 +53,7 @@ func (a *App) autopilotProbePreliminaryRejection(ctx context.Context, job *autop
 			texts = append(texts, txt)
 		}
 	}
-	out := jx.M{"at": time.Now().Unix(), "fresh_sample": len(posts), "media_excluded": mediaExcluded,
+	out := jx.M{"at": time.Now().Unix(), "policy_version": TopicProfileVersion, "fresh_sample": len(posts), "media_excluded": mediaExcluded,
 		"local_excluded": localExcluded, "submitted": len(inputs), "has_eligible": false}
 	if len(inputs) == 0 {
 		out["status"] = "no_text_only_input"
