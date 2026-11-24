@@ -102,7 +102,7 @@ func autopilotEffectTx(ctx context.Context, database *db.DB, fn func(pgx.Tx) err
 				if err := tx.QueryRow(ctx, `SELECT state FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, job.TopicKey, guard.sourceID).Scan(&state); err != nil {
 					return err
 				}
-				if state != guard.state || (!guard.remove && state != "probation" && state != "active") || (guard.remove && state != "rejected") {
+				if state != guard.state || (!guard.remove && state != "probation" && state != "active") || (guard.remove && state != "rejected" && state != "cooldown" && state != "candidate") {
 					return errAutopilotSourceChanged
 				}
 				var blocked bool
