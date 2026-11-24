@@ -108,8 +108,14 @@ func (u *U) autopilotTikTokBingFetch(raw string, maxBytes int64, timeout time.Du
 }
 func autopilotTikTokSearchWith(query string, brave func(string) FetchResultURL, fetch func(string, int64, time.Duration, string) FetchResultURL) FetchResultURL {
 	r := brave(query)
-	if autopilotTikTokSearchResponseValid(r) && autopilotTikTokSearchHasLinks(r.Bytes, strings.Contains(query, "/video/")) {
-		return r
+	if autopilotTikTokSearchResponseValid(r) {
+		if strings.Contains(query, "/video/") {
+			if autopilotTikTokSearchHasLinks(r.Bytes, true) {
+				return r
+			}
+		} else if len(autopilotSearchLinkedCandidates(r, PlatformTikTok)) > 0 {
+			return r
+		}
 	}
 	bing := fetch("https://www.bing.com/search?q="+url.QueryEscape(query)+"&format=rss", rssMaxBytes, 15*time.Second, BrowserUA)
 	links := autopilotTikTokBingLinks(bing)
