@@ -170,3 +170,17 @@ func TestAutopilotQueryUsesObservedYieldAndExploresPostgres(t *testing.T) {
 		t.Fatalf("generated variant ignored: %q %v", query, err)
 	}
 }
+
+func TestAutopilotQueryQualityPrefersCleanSourcesOverRawVolume(t *testing.T) {
+	clean := autopilotQueryQualityScore(8, 4, 0)
+	noisy := autopilotQueryQualityScore(500, 4, 100)
+	if clean <= noisy {
+		t.Fatalf("raw post volume outweighed source precision: clean=%d noisy=%d", clean, noisy)
+	}
+	if autopilotQueryQualityScore(0, 0, 0) != 0 || autopilotQueryQualityScore(0, 0, 20) != 0 {
+		t.Fatal("unknown or bad queries must not gain a positive yield score")
+	}
+	if autopilotQueryQualityScore(8, 4, 0) <= autopilotQueryQualityScore(8, 1, 0) {
+		t.Fatal("independent useful sources must beat one prolific source")
+	}
+}
