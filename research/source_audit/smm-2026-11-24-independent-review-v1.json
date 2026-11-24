@@ -41,7 +41,8 @@
     "Continuation 031: verified current snapshot counts; rechecked six mismatch rejects and two current candidates. New evidence appended per row as recheck_031; previous labels/dispositions retained. No production changes.",
     "Continuation 032: explicitly reverified continuation 031 using public channel pages and linked post targets. Eight exact post/text associations confirmed; remaining prior item-level claims are not independently substantiated in this recheck and must not be counted as verified. Two directories only, one unavailable channel. Preserved earlier records for provenance, no gold labels or automatic source changes.",
     "Continuation 033: attempted 12 additional sources from preliminary_topic_mismatch, independently read five public channel pages and confirmed 17 exact text/post URL associations; seven could not be retrieved through either public URL form. One priority reconsideration (adv_system), one mixed legal/influencer source (advertising_law_channel), three observed off-topic text samples, no source-level gold verdicts. Public text only, no media or decision-time reconstruction.",
-    "Final CI check for continuation 033: Go/PostgreSQL succeeded (45462964801). Ranked Telegram search produced eight candidates, seven readable with at least one fresh item (45462964810), but several excerpts remain promotional or off-topic; no AI classification. Bluesky author-feed endpoint responded for three authors, zero safe recent text items. Whole live smoke remains failed because anonymous legacy publisher search yielded no supported direct links."
+    "Final CI check for continuation 033: Go/PostgreSQL succeeded (45462964801). Ranked Telegram search produced eight candidates, seven readable with at least one fresh item (45462964810), but several excerpts remain promotional or off-topic; no AI classification. Bluesky author-feed endpoint responded for three authors, zero safe recent text items. Whole live smoke remains failed because anonymous legacy publisher search yielded no supported direct links.",
+    "Technical repair 034: independently verified 17 exact YouTube channel identities via official live Atom feed (15 entries each) and one canonical Habr RSS feed using isolated CI 45477459584. Two additional exact-case channel leads observed on indexed official YouTube channel pages; six IDs remain unresolved. Recovery code is in main; no production deployment or DB state verified. No source thematic verdicts changed."
   ],
   "stats": {
     "baseline": 492,
@@ -532,6 +533,21 @@
         },
         "production_verified": false
       }
+    },
+    "continuation_034": {
+      "scope": "technical source format recovery and feed reading",
+      "snapshot_unsupported_count": 26,
+      "youtube_damaged": 25,
+      "youtube_atom_verified": 17,
+      "youtube_additional_leads": 2,
+      "youtube_unresolved": 6,
+      "habr_canonical_feed_verified": 1,
+      "verified_official_feed_run": 45477459584,
+      "go_postgres_success_run": 45477459487,
+      "overall_live_smoke": "failed: unrelated external search and live RSS lifecycle failures",
+      "production_db_verified": false,
+      "main_code_commit": "faf0f03747b15177922b1dea046f9f10e87aa013",
+      "notes": "Technical identity/readability only, no semantic approval."
     }
   },
   "rows": [
@@ -15369,6 +15385,14 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "canonical_feed_read_verified",
+        "canonical_source_id": "rss:https://habr.com/ru/rss/hubs/business_models/articles/all/",
+        "http_status": 200,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -16489,6 +16513,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UC2Rt4-M51tdAIYOD6uBOZ6w",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -16541,6 +16574,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UC4mO3iaIrA9mZI3WUEjiubw",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -16596,6 +16638,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UC6IDxt7jtymev4299tLhW_g",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -16781,6 +16832,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCby8Hqx2qogm8I85ndrHtMA",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -16833,6 +16893,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCCTd_Pod3I2-X62y_PrCLSA",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -16885,6 +16954,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCDCbdigxpip3hW-1gmBGdfg",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -16940,6 +17018,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCEgQKCxk91N8Y19DSqiDOpg",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -16996,6 +17083,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCgVJE-ez4bCEj8ILrM7g5sQ",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17052,6 +17148,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCHb8IB3bh9uXpKL2KwY7viA",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17107,6 +17212,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCiJVR2rgfxY0PwNzI0rK_pQ",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17162,6 +17276,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCi_zIYb69eHcdy0e2rlMotw",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17214,6 +17337,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCjPiNc_0J6iq5rPBnx-cI6g",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17264,6 +17396,11 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "identity_unresolved",
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17325,6 +17462,14 @@
         "live_feed_verified": false,
         "content_verified": false,
         "production_remapped": false
+      },
+      "technical_repair_034": {
+        "status": "official_index_exact_case_lead",
+        "candidate_channel_id": "UCLJ8r2PpeJtDs716V4YaO9A",
+        "evidence_url": "https://www.youtube.com/channel/UCLJ8r2PpeJtDs716V4YaO9A",
+        "atom_verified": false,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17381,6 +17526,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCm0JN7C90ysi2STqCXvZzBg",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17478,6 +17632,11 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "identity_unresolved",
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17528,6 +17687,11 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "identity_unresolved",
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17584,6 +17748,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCq2GZvhTAiGbmYTFHa_Zrhg",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17644,6 +17817,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCR0djoCNqqYcDLVjluHBL0w",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17694,6 +17876,11 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "identity_unresolved",
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17750,6 +17937,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCVtFh_62yrW-vj95T0TvYiw",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17811,6 +18007,14 @@
         "live_feed_verified": false,
         "content_verified": false,
         "production_remapped": false
+      },
+      "technical_repair_034": {
+        "status": "official_index_exact_case_lead",
+        "candidate_channel_id": "UCw0r50dHcAHmAdPaw36O8Xw",
+        "evidence_url": "https://www.youtube.com/channel/UCw0r50dHcAHmAdPaw36O8Xw",
+        "atom_verified": false,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17861,6 +18065,11 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "identity_unresolved",
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17916,6 +18125,15 @@
         "content_results": 0,
         "public_posts_exact_key": 0,
         "content_result_refs": []
+      },
+      "technical_repair_034": {
+        "status": "official_atom_identity_verified",
+        "canonical_source_id": "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UCZlFmJ-8aj_wch2T2CWoe8w",
+        "http_status": 200,
+        "entries": 15,
+        "ci_run": 45477459584,
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
@@ -17977,6 +18195,11 @@
         "live_feed_verified": false,
         "content_verified": false,
         "production_remapped": false
+      },
+      "technical_repair_034": {
+        "status": "identity_unresolved",
+        "production_db_verified": false,
+        "source_relevance_verified": false
       }
     },
     {
