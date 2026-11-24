@@ -194,7 +194,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 	imageAttempts := 0
 	videoAttempts := 0
 	var passes int
-	if len(posts) > 2 {
+	if len(posts) > 1 {
 		// Collection passes are persisted before assessment and deduplicated
 		// by collection slot. Progress survives restarts without increasing
 		// the existing model/network attempt budget.
