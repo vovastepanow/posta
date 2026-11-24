@@ -1148,7 +1148,7 @@ func autopilotSourceTopicVerdicts(reply string, expected int) *sourceEvaluation 
 	}
 	return &sourceEvaluation{Score: score, Text: &score, TextOnly: true, ReviewedSamples: known,
 		PersonalBlog: personalBlogLabelFromReview(jx.Str(data, "personal_blog")),
-		Quality: jx.M{"topic_relevant": relevant, "topic_adjacent": adjacent, "topic_off_topic": offTopic, "topic_unknown": unknown}}
+		Quality:      jx.M{"topic_relevant": relevant, "topic_adjacent": adjacent, "topic_off_topic": offTopic, "topic_unknown": unknown}}
 }
 
 func (u *U) autopilotEvaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluation {
