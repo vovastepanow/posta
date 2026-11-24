@@ -2127,11 +2127,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 		}
 		if reason == "" && (state == "probation" || state == "active") {
-			// Only after source verification: the staged public-search posts
-			// pass the same full analysis and admission checks as feed posts.
-			if job.Scope == autopilotAutoScope {
-				samples = autopilotMergePostHints(source, samples, a.autopilotPendingPublicPosts(ctx, job, source), at.Unix())
-			}
+			// Source quality must be measured on its feed, not on posts
+			// preselected for relevance by an independent search. Staged
+			// search results have their own assessment and delivery path.
 			// Only live-window posts are candidates for delivery. Historical
 			// posts can qualify a publisher but must never be pushed to users.
 			if err := assess(ctx, source, autopilotFreshRSSSamples(samples, at.Unix())); err != nil {

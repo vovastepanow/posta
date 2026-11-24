@@ -125,6 +125,21 @@ func TestAutopilotSocialProjectionAndPersonalControlPostgres(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
+		if tc.platform == PlatformTelegram {
+			hint := jx.M{
+				"source_url": "https://t.me/" + tc.id,
+				"url": "https://t.me/" + tc.id + "/999",
+				"posted_at": time.Now().Unix(),
+				"text": "Самостоятельная публикация, найденная по тематическому поисковому запросу.",
+			}
+			if err := a.autopilotStagePublicPosts(ctx, job, source, []jx.M{hint}); err != nil {
+				t.Fatal(err)
+			}
+			defer a.KVDelete(context.Background(), autopilotPostHintKey(key, source))
+			if len(a.autopilotPendingPublicPosts(ctx, job, source)) != 1 {
+				t.Fatal("independent search hint was not staged")
+			}
+		}
 		text := strings.Repeat("Публичные новости про котов и уход за домашними животными. ", 4)
 		if tc.platform == PlatformVK {
 			text = strings.Repeat("Научные исследования орбит космических аппаратов и планет. ", 4)
@@ -193,6 +208,9 @@ func TestAutopilotSocialProjectionAndPersonalControlPostgres(t *testing.T) {
 			return a.saveAutopilotContentResult(ctx, job, source, posts[0], analysis)
 		}, policy); err != nil {
 			t.Fatal(err)
+		}
+		if tc.platform == PlatformTelegram && len(a.autopilotPendingPublicPosts(ctx, job, source)) != 1 {
+			t.Fatal("feed assessment consumed independent search hints")
 		}
 		if err = a.reconcileAutopilotProjections(ctx, job); err != nil {
 			t.Fatal(err)

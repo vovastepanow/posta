@@ -56,30 +56,6 @@ func TestAutopilotSafePostHintsBounded(t *testing.T) {
 	}
 }
 
-func TestAutopilotMergePostHintsPrioritizesFreshIndependentPosts(t *testing.T) {
-	at := time.Now().Unix()
-	shared := jx.M{"source_url": "https://t.me/marketing_digest", "url": "https://t.me/marketing_digest/10", "posted_at": at, "text": "Общий пост"}
-	original := []jx.M{
-		{"url": "https://t.me/marketing_digest/20", "posted_at": at, "text": "Лента один"},
-		{"url": "https://t.me/marketing_digest/21", "posted_at": at, "text": "Лента два"},
-		shared,
-	}
-	hinted := []jx.M{
-		{"source_url": "https://t.me/marketing_digest", "url": "https://t.me/marketing_digest/30", "posted_at": at, "text": "Новый самостоятельный пост"},
-		shared,
-	}
-	merged := autopilotMergePostHints("telegram:marketing_digest", original, hinted, at)
-	if len(merged) != 4 {
-		t.Fatalf("merged %d posts, expected four unique items: %+v", len(merged), merged)
-	}
-	if jx.Str(merged[0], "url") != "https://t.me/marketing_digest/30" {
-		t.Fatalf("staged post did not reach the front: %+v", merged)
-	}
-	if jx.Str(merged[2], "url") != "https://t.me/marketing_digest/20" {
-		t.Fatalf("original feed order changed: %+v", merged)
-	}
-}
-
 func TestAutopilotPostMatchesSourceRejectsImpersonation(t *testing.T) {
 	cases := []struct {
 		source string

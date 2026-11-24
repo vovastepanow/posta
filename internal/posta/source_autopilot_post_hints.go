@@ -11,8 +11,8 @@ import (
 )
 
 // Independent public search can discover useful posts before a source is
-// verified. Keep a short-lived, bounded set of posts to assess after the
-// source enters probation; do not treat these as approved content.
+// verified. Keep a short-lived, bounded set of posts for independent
+// content assessment; do not treat these as approved content or feed evidence.
 const autopilotPostHintTTL = 48 * time.Hour
 const autopilotPostHintLimit = 4
 
@@ -148,31 +148,6 @@ func autopilotSafePostHints(source string, posts []jx.M, at int64) []jx.M {
 		}
 		seen[key] = true
 		out = append(out, jx.Copy(post))
-	}
-	return out
-}
-
-// Give independently discovered posts their first chance at assessment
-// after probation, then retain the usual spread of feed posts. The two
-// sources are deduplicated by canonical post key, without reducing feed checks
-// or raising the normal per-run model budget.
-func autopilotMergePostHints(source string, feed, hinted []jx.M, at int64) []jx.M {
-	staged := autopilotSafePostHints(source, hinted, at)
-	seen := map[string]bool{}
-	out := make([]jx.M, 0, len(staged)+len(feed))
-	for _, post := range staged {
-		key := CandidatePostKey(post)
-		if key != "" && !seen[key] {
-			seen[key] = true
-			out = append(out, post)
-		}
-	}
-	for _, post := range feed {
-		key := CandidatePostKey(post)
-		if key != "" && !seen[key] {
-			seen[key] = true
-			out = append(out, post)
-		}
 	}
 	return out
 }
