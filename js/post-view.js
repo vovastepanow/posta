@@ -208,10 +208,10 @@ function overlayContext(post) {
 /** Встроенный просмотрщик (лист поста в чужой контейнер, например «Подбор»): без оверлея, ‹ ›, клавиш и ловушки фокуса.
  *  opts: actions(post) — кнопки; zoom: {onPost, postCheck} — зум картинок и видео с кнопкой редактора как в «Подборе»;
  *  watchPending — докачка видео ведётся здесь (иначе место вызова следит само); link, stats — ссылка и статистика, если их показывает место вызова. */
-export function renderPostSheet(container, post, { actions = () => [], zoom = null, watchPending = true, link = true, stats = true, big = false } = {}) {
+export function renderPostSheet(container, post, { actions = () => [], zoom = null, watchPending = true, link = true, stats = true, big = false, onVideoRetry = null } = {}) {
     stopWatches();
     releaseVideos(container);
-    const ctx = { actions, zoom, watchPending, link, stats, sourceUrl: post.url || '' };
+    const ctx = { actions, zoom, watchPending, link, stats, sourceUrl: post.url || '', onVideoRetry };
     container.classList.add('is-embedded');
     if (layoutOf(post) === 'article') container.replaceChildren(articleBlock(post, ctx));
     else container.replaceChildren(el('article', { className: 'pv-read pv-embedded' }, ...sideBlocks(post, { big, ctx })));
@@ -240,8 +240,9 @@ function tileNode(m, i, media, ctx) {
     const youtube = youtubeVideoId(m.page);
     if (youtube) return youtubeTile(m, youtube);
     if (m.pending && m.page) return pendingTile(m, i, media, ctx);
-    if (m.unavailable) return el('button', { type: 'button', className: 'pv-cell', ariaLabel: 'Большое видео', onclick: event => showNote(event.currentTarget, m, i, media, ctx) },
-        posterNode(m.poster), el('span', { className: 'pv-cell-mark', textContent: 'большое видео' }), videoMark());
+    if (m.unavailable && /^https:\/\/t\.me\//.test(m.page || '')) return el('button', { type: 'button', className: 'pv-cell', ariaLabel: 'Загрузить видео Telegram', onclick: event => showNote(event.currentTarget, m, i, media, ctx) },
+        posterNode(m.poster), el('span', { className: 'pv-cell-mark', textContent: m.error || 'Загрузить видео' }), videoMark());
+    if (m.unavailable) return plainTile(m.poster, m.error || 'Видео недоступно');
     if (needsFetch(m, ctx.watchPending)) return fetchTile(m, i, media, ctx);
     if (m.page) return el('a', { className: 'pv-cell pv-cell-link', href: m.page, target: '_blank', rel: 'noopener noreferrer', textContent: 'Смотреть на сайте ↗' });
     return plainTile(m.poster, 'Файл недоступен');
@@ -445,15 +446,30 @@ function plainTile(poster, text) {
 function showNote(tile, mediaItem, index, media, ctx) {
     const note = tile.closest('.pv-media')?.querySelector('.pv-mosaic-note');
     if (!note) return;
-    const message = el('span', { textContent: 'Telegram не показывает это видео в веб-версии. Подключите личный аккаунт, чтобы скачать его.' });
-    const button = el('button', { type: 'button', className: 'pv-tg-connect', textContent: 'Подключить Telegram', onclick: event => {
+    const message = el('span', { textContent: mediaItem.error || 'Для скачивания этого видео нужен личный аккаунт Telegram.' });
+    const button = el('button', { type: 'button', className: 'pv-tg-connect', textContent: 'Загрузить видео', onclick: async event => {
         event.stopPropagation();
-        openTelegramAuth(() => {
-            if (!tile.isConnected) return;
-            mediaItem.unavailable = false;
-            mediaItem.pending = true;
-            tile.replaceWith(pendingTile(mediaItem, index, media, ctx));
-        });
+        button.disabled = true;
+        try {
+            await openTelegramAuth(async () => {
+                if (!tile.isConnected) return;
+                button.disabled = true;
+                try {
+                    if (ctx.onVideoRetry) {
+                        await ctx.onVideoRetry(mediaItem);
+                    } else {
+                        mediaItem.unavailable = false;
+                        mediaItem.pending = false;
+                        tile.replaceWith(fetchTile(mediaItem, index, media, ctx));
+                    }
+                    note.hidden = true;
+                } catch (error) {
+                    message.textContent = error.message || 'Не удалось запустить загрузку.';
+                } finally { button.disabled = false; }
+            });
+        } catch (error) {
+            message.textContent = error.message;
+        } finally { button.disabled = false; }
     } });
     note.replaceChildren(message, button);
     note.hidden = false;

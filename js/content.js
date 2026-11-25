@@ -81,6 +81,12 @@ function renderPostView(item) {
     renderPostSheet($('item-post'), fromRecord({ ...item, text: state.shownText ?? item.text }), {
         zoom: { onPost: item ? () => postItemToTelegram(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) : null, postCheck: item.post_check || null },
         watchPending: false, link: false, stats: false,
+        onVideoRetry: async () => {
+            const key = item.item_key || item.image;
+            const result = await api('retry_item_video', { body: { item_key: key } });
+            if ((state.item?.item_key || state.item?.image) !== key) return;
+            renderCard(result);
+        },
     });
 }
 
@@ -136,7 +142,13 @@ function watchItemVideo(item) {
             bar?.update(p);
         },
         onReady: r => { stop(); if (state.item?.image === item.image) { const next = { ...state.item, video: r.video_local || r.video, video_local: r.video_local || '', display_video: r.video, video_unavailable: false }; if (document.querySelector('#item-post .pv-youtube')) Object.assign(state.item, next); else renderCard(next); } },
-        onFail: () => { stop(); if (state.item?.image === item.image && !/^https:\/\/www\.youtube\.com\//.test(item.video_page || '')) loadCurrentItem(); }
+        onFail: message => {
+            stop();
+            if ((state.item?.item_key || state.item?.image) !== (item.item_key || item.image)) return;
+            if (item.video_via === 'tgu') {
+                renderCard({ ...state.item, video_unavailable: true, video_error: message });
+            } else if (!/^https:\/\/www\.youtube\.com\//.test(item.video_page || '')) loadCurrentItem();
+        }
     });
 }
 

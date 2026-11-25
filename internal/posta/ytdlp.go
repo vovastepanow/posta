@@ -662,6 +662,7 @@ func (a *App) videoAttach(ctx context.Context, j VideoJob, local string) {
 		for _, it := range pool {
 			if ContentImageKey(it) == j.Key && jx.Str(it, "video_via") == jobVia(j) {
 				it["video"], it["video_local"] = local, local
+				it["video_unavailable"], it["video_error"] = false, ""
 			}
 		}
 		return pool
@@ -714,6 +715,7 @@ func (a *App) videoJobFailed(ctx context.Context, u *U, j VideoJob, reason strin
 		for _, it := range pool {
 			if ContentImageKey(it) == j.Key {
 				it["video_unavailable"] = true
+				it["video_error"] = trimRunes(reason, 300)
 			}
 		}
 		return pool

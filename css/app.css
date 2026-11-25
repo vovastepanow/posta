@@ -2613,3 +2613,7 @@ dialog::backdrop {
 @media (min-width: 1500px) {
     #content-tab > .content-pool-section { grid-column: 2 / 5; }
 }
+
+/* Keep the review panels above the full-width suggestion pool. */
+#content-tab > .topic-form,
+#content-tab #item-card-wrapper > .controls { position: static; top: auto; bottom: auto; }

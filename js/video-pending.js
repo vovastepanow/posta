@@ -67,9 +67,10 @@ export function pageCheck(page) {
 export function itemCheck(image) {
     return async () => {
         const r = await api('get_item_video', { params: { image } });
-        if (r.video_unavailable) return { state: 'failed', error: 'Видео не скачалось и показано не будет.' };
+        if (r.video_unavailable) return { state: 'failed', error: r.error || 'Видео не скачалось. Попробуйте повторить загрузку.' };
         if (r.video) return { state: 'ready', video: r.display_video || r.video, video_local: r.video_local };
-        return { state: 'pending', progress: r.progress || null };
+        if (!r.progress) return { state: 'failed', error: r.error || 'Загрузка не поставлена в очередь. Попробуйте снова.' };
+        return { state: 'pending', progress: r.progress };
     };
 }
 

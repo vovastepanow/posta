@@ -27,6 +27,7 @@ func randUID() string {
 
 func init() {
 	get("get_item_video", getItemVideo)
+	post("retry_item_video", retryItemVideo)
 	get("get_current_item", getCurrentItem)
 	get("content_pool", contentPool)
 	post("content_personal_blogs", func(c *Ctx) (any, error) {
@@ -214,6 +215,57 @@ func tabID(c *Ctx) (string, error) {
 	return t, nil
 }
 
+// Explicit retry after Telegram account connection updates the saved pool
+// record before enqueueing, rather than just changing the browser state.
+func retryItemVideo(c *Ctx) (any, error) {
+	u := c.U
+	key := c.Str("item_key")
+	if key == "" {
+		return nil, fail(400, "Не указана запись.")
+	}
+	item := posta.PoolFindItem(u.PoolForCurrentTopic(), key)
+	if item == nil {
+		return nil, fail(404, "Запись больше не доступна в предложке.")
+	}
+	if !u.TelegramUserConnected() {
+		return nil, fail(409, "Подключите личный аккаунт Telegram.")
+	}
+	page := jx.Str(item, "video_page")
+	if posta.VideoPageVia(page) != "tgu" {
+		page = posta.SourcePostURL(item)
+	}
+	if posta.VideoPageVia(page) != "tgu" || (!jx.Bool(item, "video_unavailable") && jx.Str(item, "video_via") != "tgu") {
+		return nil, fail(400, "Запись не содержит скачиваемого видео Telegram.")
+	}
+	if jx.Str(item, "video") != "" {
+		return u.TranslateDisplay(u.ContentForDisplay(item, nil, true)), nil
+	}
+	var updated jx.M
+	_, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
+		for _, record := range pool {
+			if posta.ContentItemKey(record) != key {
+				continue
+			}
+			if jx.Str(record, "video") == "" {
+				record["video_unavailable"], record["video_via"], record["video_page"], record["video_error"] = false, "tgu", page, ""
+			}
+			updated = jx.Copy(record)
+			return pool
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return nil, fail(404, "Записи уже нет в предложке.")
+	}
+	if jx.Str(updated, "video") == "" {
+		c.A.VideoEnqueue(c.R.Context(), u.ID, posta.ContentImageKey(updated), page, "tgu", true)
+	}
+	return u.TranslateDisplay(u.ContentForDisplay(updated, nil, false)), nil
+}
+
 func getItemVideo(c *Ctx) (any, error) {
 	image := c.Q("image")
 	var item jx.M
@@ -238,12 +290,15 @@ func getItemVideo(c *Ctx) (any, error) {
 		// Запись открыта на экране и ждёт ролик: он идёт первым, а не после роликов заранее поставленных соседних записей.
 		// Обычный ролик YouTube заранее не качается — только здесь, когда его ждут на экране.
 		via, page := jx.Str(item, "video_via"), jx.Str(item, "video_page")
+		if via == "tgu" && !c.U.TelegramUserConnected() {
+			return jx.M{"video_unavailable": true, "error": "Подключите личный аккаунт Telegram для скачивания."}, nil
+		}
 		if (via == "ytdlp" || via == "tgu") && page != "" && !jx.Bool(item, "video_unavailable") {
 			c.A.VideoEnqueue(c.R.Context(), c.U.ID, image, page, via, true)
 		}
 		progress = c.A.VideoProgressPublic(c.R.Context(), c.U.ID, image)
 	}
-	return jx.M{"video": video, "video_local": local, "display_video": display, "video_unavailable": jx.Bool(item, "video_unavailable"), "progress": progress}, nil
+	return jx.M{"video": video, "video_local": local, "display_video": display, "video_unavailable": jx.Bool(item, "video_unavailable"), "error": jx.Str(item, "video_error"), "progress": progress}, nil
 }
 
 var warmingPoolItems sync.Map
