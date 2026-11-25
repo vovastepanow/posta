@@ -2372,8 +2372,20 @@ func (u *U) collectorStopReason(started time.Time, analyzed, added int) string {
 		return "Достигнут лимит полных анализов за запуск."
 	case added >= u.TInt("added_per_run"):
 		return "Достигнут лимит новых записей за запуск."
-	case u.PoolTopicCount(u.SearchTopicKey()) >= u.TInt("pool_target"):
-		return fmt.Sprintf("Пул заполнен до %d записей.", u.TInt("pool_target"))
+	}
+	key, target := u.SearchTopicKey(), u.TInt("pool_target")
+	visible, err := u.poolVisibilityFilter(key)
+	if err != nil {
+		return "Не удалось проверить фильтры подборки."
+	}
+	pool := u.Pool()
+	if len(u.visibleFreshPool(pool, key, visible)) >= target {
+		return fmt.Sprintf("Пул заполнен до %d записей.", target)
+	}
+	if _, allowed := poolQuotaInsertion(pool, target, func(record jx.M) bool {
+		return u.poolProfileMatches(jx.Str(record, "topic"), key)
+	}, visible, u.poolItemFresh); !allowed {
+		return "Резерв скрытых записей заполнен. Подбор возобновится после освобождения места."
 	}
 	return ""
 }

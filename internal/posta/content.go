@@ -1265,7 +1265,7 @@ func (a *App) TopicIsRestricted(topic string) bool {
 
 // ContentIsAdult — запись 18+ или «Жесть».
 func (a *App) ContentIsAdult(r jx.M) bool {
-	if jx.Bool(r, "source_sensitive") {
+	if jx.Bool(r, "source_sensitive") || jx.Bool(r, "nsfw") {
 		return true
 	}
 	cat := a.ContentTagCatalog()
