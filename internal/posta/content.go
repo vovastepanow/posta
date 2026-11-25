@@ -962,7 +962,8 @@ func (u *U) PoolArchiveItems(frozen map[string]bool) []jx.M {
 
 func (u *U) ContentPoolNeedsFill(key string) bool {
 	u.PoolStampLegacy()
-	return u.PoolTopicCount(key) < u.TInt("pool_target")
+	_, allowed, err := u.poolRefillState(key, u.TInt("pool_target"))
+	return err == nil && allowed
 }
 
 // ResetProjectData — пустые пул и история пользователя; каталог общий и остаётся.

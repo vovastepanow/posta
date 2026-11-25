@@ -66,6 +66,9 @@ func TestVisiblePoolQuotaPostgres(t *testing.T) {
 	if count := u.PoolTopicCount(u.SearchTopicKey()); count != 1 {
 		t.Fatalf("video-only quota = %d, want 1", count)
 	}
+	if count, allowed, err := u.poolRefillState(u.SearchTopicKey(), 2); err != nil || count != 1 || !allowed {
+		t.Fatalf("video-only refill = %d %t %v", count, allowed, err)
+	}
 	if shown := u.PoolForCurrentTopic(); len(shown) != 1 || !PostItemHasVideo(shown[0]) {
 		t.Fatalf("video-only view = %v", shown)
 	}
