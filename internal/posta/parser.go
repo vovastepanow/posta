@@ -945,18 +945,22 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 			return nil, err
 		}
 		if repeatMatches(item, memory, hashes) {
+			autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_repeat_memory", 1)
 			return nil, nil
 		}
 		if candidateIsKnown(item, known) {
+			autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_known_content", 1)
 			return nil, nil
 		}
 		topicKey := jx.Str(item, "topic")
 		topic := TopicNorm(topicKey)
 		fresh := u.freshPoolItems(pool)
 		if candidateIsKnown(item, recordKnownKeys(pool)) {
+			autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_duplicate", 1)
 			return nil, nil
 		}
 		if sourcePoolCount(fresh, topic, ContentSourceKey(item)) >= sourcePoolLimit(u.TInt("per_source_pool"), target, topicPoolCount(fresh, topic)) {
+			autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_source_limit", 1)
 			return nil, nil
 		}
 		if _, _, _, valid := autopilotSourceParts(ContentSourceKey(item)); valid {
@@ -979,6 +983,7 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 				return nil, err
 			}
 			if !autopilotProbationPoolAllowed(fresh, topicKey, ContentSourceKey(item), probation, target, u.TInt("autopilot_probation_pool_percent")) {
+				autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_probation_limit", 1)
 				return nil, nil
 			}
 		}
@@ -996,6 +1001,7 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 				}
 			}
 			if len(expired) == 0 {
+				autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_full", 1)
 				return nil, nil
 			}
 			sort.SliceStable(expired, func(a, b int) bool {
@@ -1013,6 +1019,7 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 	})
 	if err != nil {
 		u.Log("Не удалось сохранить запись в пул: %v", err)
+		autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_transaction_error", 1)
 		return false
 	}
 	u.MediaReleaseRemoved(u.Ctx, before, after)

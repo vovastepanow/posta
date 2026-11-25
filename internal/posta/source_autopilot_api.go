@@ -117,6 +117,9 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		row["paused"] = d.Paused
 		row["available"], row["target"], row["deficit"], row["capacity_limited"], row["active_sources"] = available, supply.Demand.Target, supply.Demand.Deficit, supply.CapacityLimited, active
 		row["auto_probation"], row["supply_mode"] = autoProbation, supply.Mode
+		if d.Mode == "auto" {
+			row["delivery"] = u.autopilotDeliveryStatus(d.Topic)
+		}
 		var fetchUsed, modelUsed int64
 		if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(sum(used) FILTER (WHERE resource='public_fetch'),0),COALESCE(sum(used) FILTER (WHERE resource='llm_attempt'),0) FROM source_autopilot_budget WHERE scope=$1 AND day=(now() AT TIME ZONE 'UTC')::date`, autopilotAutoScope+":"+key).Scan(&fetchUsed, &modelUsed); err != nil {
 			return nil, err

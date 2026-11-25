@@ -116,7 +116,7 @@ func (a *App) deliverAutopilotDirectTopicContent(ctx context.Context, job *autop
 	return a.deliverAutopilotTopicContentMode(ctx, job, true)
 }
 
-func (a *App) deliverAutopilotTopicContentMode(ctx context.Context, job *autopilotJob, directOnly bool) error {
+func (a *App) deliverAutopilotTopicContentMode(ctx context.Context, job *autopilotJob, directOnly bool) (resultErr error) {
 	if job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind {
 		return nil
 	}
@@ -152,6 +152,13 @@ func (a *App) deliverAutopilotTopicContentMode(ctx context.Context, job *autopil
 	if err != nil {
 		return err
 	}
+	audit := &autopilotDeliveryAudit{owners: map[string]map[string]int{}}
+	ctx = context.WithValue(ctx, autopilotDeliveryAuditKey{}, audit)
+	defer func() {
+		if ctx.Err() == nil {
+			a.saveAutopilotDeliveryAudit(ctx, job, directOnly, audit, resultErr == nil)
+		}
+	}()
 	return autopilotDeliverEachSource(ctx, sources, func(source autopilotDeliverySource) error {
 		return a.deliverAutopilotSourceContent(ctx, job, source.id, source.direct)
 	})
@@ -263,17 +270,23 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 			return err
 		}
 		u := a.User(contextWithAutopilotLease(ctx, job), s.owner, nil)
+		count := func(reason string, n int) { autopilotDeliveryAuditCount(ctx, s.owner, reason, n) }
+		count("sources_considered", 1)
+		count("saved_rows_considered", len(items))
 		if sourceExcludedByOverride(u.sourceOverridesForTopic(s.topic), source) {
+			count("source_excluded", len(items))
 			continue
 		}
 		allowedBlog, blogErr := u.personalBlogSourceAllowed(s.topic, source)
 		if blogErr != nil {
+			count("personal_blog_check_error", len(items))
 			if firstUserErr == nil {
 				firstUserErr = blogErr
 			}
 			continue
 		}
 		if !allowedBlog {
+			count("personal_blog_filter", len(items))
 			continue
 		}
 		available, err := u.AutopilotAvailableSupply(s.topic)
@@ -289,6 +302,7 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 		demand := calculateAutopilotDemand(s.rate, s.horizon, available)
 		remaining := max(0, min(demand.Deficit, u.TInt("pool_target")-available))
 		if remaining == 0 {
+			count("demand_already_satisfied", len(items))
 			continue
 		}
 		filters := u.ContentFilterValues()
@@ -301,9 +315,13 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 				break
 			}
 			post, analysis := item.post, item.analysis
-			if post == nil || analysis == nil || jx.Bool(analysis, "tags_classification_pending") ||
-				(direct && (item.at < time.Now().Add(-autopilotDirectMaxAge).Unix() ||
-					!autopilotDirectPostEligible(u, source, s.topic, post, analysis, time.Now().Unix()))) {
+			if post == nil || analysis == nil || jx.Bool(analysis, "tags_classification_pending") {
+				count("incomplete_saved_result", 1)
+				continue
+			}
+			if direct && (item.at < time.Now().Add(-autopilotDirectMaxAge).Unix() ||
+				!autopilotDirectPostEligible(u, source, s.topic, post, analysis, time.Now().Unix())) {
+				count("direct_revalidation_failed", 1)
 				continue
 			}
 			isVideo := PostItemHasVideo(post)
@@ -311,15 +329,19 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 			if isVideo || isImage {
 				// Only locally retained, fully assessed bytes can reach a pool.
 				if item.at <= 0 || (isVideo && (jx.Str(post, "video") == "" || jx.Bool(post, "video_unavailable") || a.MediaExisting(jx.Str(post, "video_local")) == "")) || (!isVideo && a.MediaExisting(jx.Str(post, "image_local")) == "") {
+					count("media_missing", 1)
 					continue
 				}
 			} else if !u.TBool("text_posts") || !u.TopicsAcceptText([]string{TopicBase(s.topic)}) {
+				count("text_disabled", 1)
 				continue
 			}
 			if jx.Int(post, "posted_at") <= 0 || IsPostOutdated(jx.Int(post, "posted_at"), 0, config.ContentMaxAgeDays) {
+				count("post_outdated", 1)
 				continue
 			}
 			if !autopilotFormatAllowsItem(u, s.topic, post) {
+				count("topic_format_filter", 1)
 				continue
 			}
 			// Preserve the independently verified author evidence for the
@@ -337,6 +359,7 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 			}
 			text := AnalysisText(post)
 			if (!isImage && !isVideo && text == "") || u.contentAdmissionReason(analysis, post, s.topic, text) != "" {
+				count("content_admission_failed", 1)
 				continue
 			}
 			format := ""
@@ -353,9 +376,15 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 			} else {
 				rec["image"] = jx.Str(post, "image_local")
 			}
-			if !u.PoolItemInTopic(rec, s.topic, s.topic, u.AdultAllowed()) || !poolMatchesDisplayFilters(rec, filters, frozen) {
+			if !u.PoolItemInTopic(rec, s.topic, s.topic, u.AdultAllowed()) {
+				count("personal_topic_or_safety_filter", 1)
 				continue
 			}
+			if !poolMatchesDisplayFilters(rec, filters, frozen) {
+				count("display_filter", 1)
+				continue
+			}
+			count("pool_attempted", 1)
 			deliveryCtx := withAutopilotDelivery(u.Ctx, s.owner, source, s.topic, post, analysis)
 			if direct {
 				deliveryCtx = withAutopilotDirectDelivery(u.Ctx, s.owner, source, s.topic, verifiedPost, analysis)
@@ -363,6 +392,9 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 			delivery := a.User(deliveryCtx, s.owner, nil)
 			if delivery.AddItemToPoolSafely(rec) {
 				remaining--
+				count("pool_added", 1)
+			} else {
+				count("pool_not_added", 1)
 			}
 		}
 	}

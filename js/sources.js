@@ -610,6 +610,7 @@ function autopilotDiagnosticReport(data) {
             last_backends_empty: topic.last_backends_empty, last_backends_unavailable: topic.last_backends_unavailable,
             direct_reviewed_total: topic.direct_reviewed_total, direct_accepted_total: topic.direct_accepted_total,
             direct_rejected_total: topic.direct_rejected_total, available: topic.available, target: topic.target,
+            delivery: topic.delivery,
             rejected_24h: topic.rejected_24h,
             queue_ready: topic.queue_ready, queue_delayed: topic.queue_delayed,
             queue_unchecked: topic.queue_unchecked, checked_24h: topic.checked_24h,

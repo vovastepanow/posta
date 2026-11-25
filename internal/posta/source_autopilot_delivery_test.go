@@ -158,6 +158,17 @@ func TestAutopilotDeliversContentPerOwnerPostgres(t *testing.T) {
 		if count != want {
 			t.Fatalf("owner %s received %d posts, want %d", owner, count, want)
 		}
+		var audit jx.M
+		found := a.CacheGet(ctx, autopilotDeliveryAuditCacheKey(owner, key, false), &audit)
+		if i == 2 && found {
+			t.Fatal("paused owner unexpectedly has a delivery attempt")
+		}
+		if i == 0 && (!found || jx.Int(jx.Map(audit, "counters"), "pool_not_added") == 0) {
+			t.Fatalf("repeat delivery not diagnosed: %v", audit)
+		}
+		if i == 1 && (!found || jx.Int(jx.Map(audit, "counters"), "source_excluded") == 0) {
+			t.Fatalf("personal exclusion not diagnosed: %v", audit)
+		}
 		available, supplyErr := a.User(ctx, owner, nil).AutopilotAvailableSupply(topic)
 		if supplyErr != nil || available != want {
 			t.Fatalf("owner %s supply=%d want=%d err=%v", owner, available, want, supplyErr)
