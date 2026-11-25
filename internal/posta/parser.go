@@ -2,6 +2,7 @@ package posta
 
 import (
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -19,6 +20,7 @@ import (
 	"posta/internal/config"
 	"posta/internal/imgx"
 	"posta/internal/jx"
+	"posta/internal/llm"
 )
 
 // Сборщик: посты всех источников темы → очередь кандидатов → быстрая оценка пачками → полный анализ лучших → пул.
@@ -1095,10 +1097,9 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 				}
 				continue
 			}
-			ukey := jx.Str(item, "image")
-			if ukey == "" {
-				ukey = CandidateTextKey(item)
-			}
+			// Distinct videos can share a cover. Short text records can have
+			// no lexical fingerprint but still have a valid record identity.
+			ukey := ContentItemKey(item)
 			if ukey == "" {
 				if format != nil && jx.Str(item, "image") == "" {
 					skipped["format"]++
@@ -1767,21 +1768,45 @@ func (u *U) fetchCandidatePoster(item jx.M) []byte {
 }
 
 type prescreenRow struct {
-	Item   jx.M
-	Poster []byte
-	Pos    int
-	Score  *int
-	Source string
-	Phash  string
+	Item     jx.M
+	Poster   []byte
+	Pos      int
+	Score    *int
+	Source   string
+	Phash    string
+	CacheKey string
+	Private  bool
 }
 
 type prescreenCtx struct {
-	stats          map[string]int
-	cached         map[string]int
-	newCache       map[string]screenedEntry
-	knownHashes    map[string]string
-	screenedHashes map[string]int
-	passedTotal    int
+	stats       map[string]int
+	cached      map[string]int
+	newCache    map[string]screenedEntry
+	knownHashes map[string]string
+	passedTotal int
+}
+
+// Bind a prescreen result to the actual visual evidence and editable prompts.
+// A perceptual hash is useful for duplicate detection, not for classifying a
+// different caption or a modified image as junk.
+func prescreenEvidenceKey(topic, scope, caption, prompts string, poster []byte) string {
+	sum := sha256.Sum256(poster)
+	key := sha256.Sum256(jx.Marshal([]any{"prescreen-input-v1", topic, scope, caption, prompts, hex.EncodeToString(sum[:])}))
+	return hex.EncodeToString(key[:])
+}
+
+func (u *U) prescreenInputKey(item jx.M, topic string, poster []byte) string {
+	caption := trimRunes(PostCaptionForAI(item), 300)
+	values := map[string]string{"caption": caption, "thread": ""}
+	private := u.analysisPrivate(topic, item) || jx.Bool(item, "source_sensitive") || jx.Bool(item, "nsfw")
+	scope := ""
+	if private {
+		scope = u.ID
+	}
+	settings := u.LLM.Settings()
+	route := settings.Roles[llm.RolePrescreen]
+	prompts := string(jx.Marshal([]any{route, settings.FastOnly, u.prompt("prescreen_yesno", values), u.prompt("prescreen_score", values)}))
+	return prescreenEvidenceKey(topic, scope, caption, prompts, poster)
 }
 
 func (u *U) screen(topic, stage string, item jx.M, score int, passed bool, reason, model string) {
@@ -1824,19 +1849,10 @@ func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline
 			}
 			c.knownHashes[hash] = jx.Str(item, "source")
 		}
-		row := prescreenRow{Item: item, Poster: poster, Pos: pos, Source: src, Phash: hash}
-		if s, ok := c.cached[jx.Str(item, "image")]; ok {
+		row := prescreenRow{Item: item, Poster: poster, Pos: pos, Source: src, Phash: hash, CacheKey: u.prescreenInputKey(item, topic, poster), Private: u.analysisPrivate(topic, item)}
+		if s, ok := c.cached[row.CacheKey]; ok {
 			sc := s
-			if u.prescreenIsJunk(&sc, item) {
-				u.rememberRejected(topic, "prescreen", item, "Оценка из кеша", &sc)
-				c.stats["rejected"]++
-			} else {
-				c.passedTotal++
-				row.Score = &sc
-				passed = append(passed, row)
-			}
-		} else if k, ok := PhashFind(hash, c.screenedHashes); hash != "" && ok {
-			sc := c.screenedHashes[k]
+			c.stats["prescreen_cache_hits"]++
 			if u.prescreenIsJunk(&sc, item) {
 				u.rememberRejected(topic, "prescreen", item, "Оценка из кеша", &sc)
 				c.stats["rejected"]++
@@ -1867,7 +1883,8 @@ func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline
 			} else {
 				u.Log("-> %s: мусора %d%%", candidateLogLabel(item), *q.Score)
 			}
-			c.newCache[jx.Str(item, "image")] = screenedEntry{Topic: topic, Source: row.Source, Phash: row.Phash, Score: *q.Score}
+			c.newCache[row.CacheKey] = screenedEntry{Topic: topic, Source: row.Source, Score: *q.Score}
+			c.cached[row.CacheKey] = *q.Score
 			c.stats["prescreened"]++
 			u.screen(topic, "prescreen", item, *q.Score, !junk, "", model)
 			if junk {
@@ -2231,16 +2248,10 @@ func (u *U) RunCollector() bool {
 	}
 	cache := u.screenedCacheLoad(key)
 	scores := map[string]int{}
-	screenedHashes := map[string]int{}
-	rejected := map[string]bool{}
+	// A prescreen verdict is only valid after the actual image bytes and
+	// caption have been checked. Never reject a record by its URL alone.
 	for _, e := range cache {
 		scores[e.URL] = e.Score
-		if e.Phash != "" {
-			screenedHashes[e.Phash] = e.Score
-		}
-		if e.Score >= u.TInt("prescreen_junk") {
-			rejected[e.URL] = true
-		}
 	}
 	h := u.History()
 	format := u.TopicFormatOf(key)
@@ -2282,7 +2293,7 @@ func (u *U) RunCollector() bool {
 		}
 	}
 	u.ParserStage("filter")
-	candidates, skipped := u.buildCandidateQueue(byPlatform, seen, rejected, u.CombinedSourceVerdicts(u.Ctx, key), &format, u.ContentFilterValues(), key)
+	candidates, skipped := u.buildCandidateQueue(byPlatform, seen, nil, u.CombinedSourceVerdicts(u.Ctx, key), &format, u.ContentFilterValues(), key)
 	if hs := u.run.HotStats; hs != nil {
 		var per []string
 		for p, n := range hs["per"].(map[string]int) {
@@ -2319,7 +2330,7 @@ func (u *U) RunCollector() bool {
 		notes += fmt.Sprintf(" Вернул из них в очередь из-за нехватки кандидатов: %d.", n)
 	}
 	u.Log("%s Быстрая оценка по картинке %d px: отсев мусора при уверенности от %d%%, тему не проверяет.", notes, config.PrescreenMaxSide, u.TInt("prescreen_junk"))
-	pc := &prescreenCtx{stats: map[string]int{}, cached: scores, newCache: map[string]screenedEntry{}, knownHashes: u.collectKnownHashes(), screenedHashes: screenedHashes}
+	pc := &prescreenCtx{stats: map[string]int{}, cached: scores, newCache: map[string]screenedEntry{}, knownHashes: u.collectKnownHashes()}
 	analyzed, added, done := 0, 0, 0
 	fastPostAdded := 0
 	firstAddedSeconds := 0.0

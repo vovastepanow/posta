@@ -389,7 +389,7 @@ func (u *U) analysisPrivate(topic string, item jx.M) bool {
 	if u.TopicIsRestricted(topic) {
 		return true
 	}
-	return item != nil && u.ContentIsAdult(item)
+	return item != nil && (u.ContentIsAdult(item) || jx.Bool(item, "source_sensitive") || jx.Bool(item, "nsfw") || strings.HasPrefix(ContentSourceKey(item), "own:"))
 }
 
 // AnalyzeContentWithVision — полный анализ картинки или кадров одного видео. С размышлениями, если просили; не вышло — без них.
@@ -671,7 +671,7 @@ func (u *U) ParallelQuickScores(cands []prescreenRow) []QuickJunk {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			out[i] = u.QuickJunkScore(c.Poster, PostCaptionForAI(c.Item), "", u.analysisPrivate("", c.Item))
+			out[i] = u.QuickJunkScore(c.Poster, PostCaptionForAI(c.Item), "", c.Private || u.analysisPrivate("", c.Item))
 		}(i, c)
 	}
 	wg.Wait()

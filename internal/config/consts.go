@@ -92,7 +92,7 @@ const (
 	TopicQueryMinSources          = 3
 	TopicQueryDiscoveryPerDay     = 10
 	TopicQueryChannelsPerRun      = 12
-	ScreenedCacheVersion          = 5
+	ScreenedCacheVersion          = 6
 	PrescreenBatch                = 10
 	AnalyzeBlock                  = 8 // прошедшие быструю оценку уходят на полный анализ блоком: меньше смен модели
 	PrescreenSourceMissLimit      = 6
