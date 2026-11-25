@@ -1302,7 +1302,7 @@ async function placeNearest(item) {
 /** «Убрать из Предложки» — тот же запрос, что 👎 на вкладке «Предложка» (запись уходит из лайкнутых). */
 async function removeFromPool(item) {
     try {
-        await api('vote', { body: { vote: 'dislike', image: item.item_key || item.image || '' } });
+        await api('proposal_hide', { body: { image: item.item_key || item.image || '' } });
         closePostView();
         setStatus('Пост убран из Предложки.');
         await loadCalendar();

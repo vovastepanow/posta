@@ -358,22 +358,35 @@ func (h History) All() []jx.M {
 	return out
 }
 
-func (a *App) historyLoad(ctx context.Context, q db.Querier, uid string) History {
+func (a *App) historyLoadChecked(ctx context.Context, q db.Querier, uid string) (History, error) {
 	h := EmptyHistory()
-	rows, err := q.Query(ctx, `SELECT collection, data FROM history_items WHERE user_id = $1 ORDER BY collection, position`, uid)
+	rows, err := q.Query(ctx, `SELECT collection, data FROM history_items WHERE user_id = $1 ORDER BY collection, position,id`, uid)
 	if err != nil {
-		return h
+		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var coll string
 		var raw []byte
-		if rows.Scan(&coll, &raw) != nil {
-			continue
+		if err := rows.Scan(&coll, &raw); err != nil {
+			return nil, err
 		}
-		if m := jx.Unmarshal(raw); m != nil {
-			h[coll] = append(h[coll], m)
+		m := jx.Unmarshal(raw)
+		if m == nil {
+			return nil, fmt.Errorf("invalid history record")
 		}
+		if !contains(config.HistoryCollections, coll) {
+			return nil, fmt.Errorf("unknown history collection %q", coll)
+		}
+		h[coll] = append(h[coll], m)
+	}
+	return h, rows.Err()
+}
+
+func (a *App) historyLoad(ctx context.Context, q db.Querier, uid string) History {
+	h, err := a.historyLoadChecked(ctx, q, uid)
+	if err != nil {
+		return EmptyHistory()
 	}
 	return h
 }
@@ -401,7 +414,10 @@ func (a *App) historyUpdate(ctx context.Context, uid string, fn func(h History) 
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "posta:content:"+uid); err != nil {
 			return err
 		}
-		cur := a.historyLoad(ctx, tx, uid)
+		cur, err := a.historyLoadChecked(ctx, tx, uid)
+		if err != nil {
+			return err
+		}
 		before := repeatSnapshot(cur.All())
 		next := fn(cur)
 		if next == nil {
@@ -421,7 +437,7 @@ func (a *App) historyUpdate(ctx context.Context, uid string, fn func(h History) 
 				rows = append(rows, []any{uid, coll, i, ContentImageKey(item), jx.Bool(item, "proposal_hidden"), db.JSON(item)})
 			}
 		}
-		_, err := tx.CopyFrom(ctx, pgx.Identifier{"history_items"}, []string{"user_id", "collection", "position", "image_key", "proposal_hidden", "data"}, pgx.CopyFromRows(rows))
+		_, err = tx.CopyFrom(ctx, pgx.Identifier{"history_items"}, []string{"user_id", "collection", "position", "image_key", "proposal_hidden", "data"}, pgx.CopyFromRows(rows))
 		return err
 	})
 	return result, err
@@ -459,9 +475,36 @@ func (u *U) historyAppendTx(tx pgx.Tx, collection string, record jx.M) error {
 		return err
 	}
 	key := ContentImageKey(record)
+	identity := ContentItemKey(record)
 	if key != "" {
 		if _, err := tx.Exec(u.Ctx, `DELETE FROM history_items WHERE user_id = $1 AND image_key = $2`, u.ID, key); err != nil {
 			return err
+		}
+	} else if identity != "" {
+		rows, err := tx.Query(u.Ctx, `SELECT id,data FROM history_items WHERE user_id=$1 AND image_key=''`, u.ID)
+		if err != nil {
+			return err
+		}
+		var ids []int64
+		for rows.Next() {
+			var id int64
+			var raw []byte
+			if err := rows.Scan(&id, &raw); err != nil {
+				rows.Close()
+				return err
+			}
+			if ContentItemKey(jx.Unmarshal(raw)) == identity {
+				ids = append(ids, id)
+			}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if len(ids) > 0 {
+			if _, err := tx.Exec(u.Ctx, `DELETE FROM history_items WHERE user_id=$1 AND id=ANY($2::bigint[])`, u.ID, ids); err != nil {
+				return err
+			}
 		}
 	}
 	_, err := tx.Exec(u.Ctx, `INSERT INTO history_items (user_id, collection, position, image_key, proposal_hidden, data) VALUES ($1, $2, $3, $4, $5, $6)`,

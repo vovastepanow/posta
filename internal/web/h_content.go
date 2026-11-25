@@ -169,7 +169,9 @@ func init() {
 		if image == "" {
 			return nil, fail(400, "Не указана запись.")
 		}
-		c.U.ProposalHide(image)
+		if err := c.U.ProposalHide(image); err != nil {
+			return nil, err
+		}
 		return ok(nil), nil
 	})
 	post("proposal_refetch", func(c *Ctx) (any, error) {

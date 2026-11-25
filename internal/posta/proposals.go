@@ -31,7 +31,7 @@ func (u *U) ProposalItems(h History) []jx.M {
 	adult := u.AdultAllowed()
 	for _, c := range []string{"liked"} {
 		for _, r := range h[c] {
-			if jx.Bool(r, "proposal_hidden") || u.UARecordHidden(r) || u.proposalMediaLost(r) || ContentImageKey(r) == "" || (!adult && u.ContentIsAdult(r)) {
+			if jx.Bool(r, "proposal_hidden") || u.UARecordHidden(r) || u.proposalMediaLost(r) || ContentItemKey(r) == "" || (!adult && u.ContentIsAdult(r)) {
 				continue
 			}
 			if t := jx.Str(r, "topic"); t != "" && !u.TopicSame(t, topic) {
@@ -60,7 +60,7 @@ func pruneSelectedHistory(h History, topic string, same func(string, string) boo
 			continue
 		}
 		t := jx.Str(r, "topic")
-		if jx.Bool(r, "proposal_hidden") || ContentImageKey(r) == "" || (t != "" && !same(t, topic)) {
+		if jx.Bool(r, "proposal_hidden") || ContentItemKey(r) == "" || (t != "" && !same(t, topic)) {
 			continue
 		}
 		candidates = append(candidates, i)
@@ -75,7 +75,7 @@ func pruneSelectedHistory(h History, topic string, same func(string, string) boo
 	for _, index := range expired {
 		record := h["liked"][index]
 		removed = append(removed, record)
-		hash := sha1.Sum([]byte(ContentImageKey(record)))
+		hash := sha1.Sum([]byte(ContentItemKey(record)))
 		compact := jx.M{"image": "deleted:" + hex.EncodeToString(hash[:]), "proposal_hidden": true, "content_deleted": true}
 		// Оставляем признаки оценки; ни сам пост, ни ссылки на его файлы не сохраняются.
 		for _, key := range []string{"topic", "timestamp", "source", "source_key", "tags", "entity", "format", "description", "relevance", "rating_assigned", "complaint_reason"} {
@@ -130,22 +130,32 @@ func (u *U) UpdateHistoryProposals(change func(r jx.M) jx.M) int {
 	return changed
 }
 
-func (u *U) ProposalHide(image string) {
-	var hidden []jx.M
-	u.UpdateHistoryProposals(func(r jx.M) jx.M {
-		if ContentImageKey(r) != image || jx.Bool(r, "proposal_hidden") {
-			return nil
-		}
-		hidden = append(hidden, r)
-		n := jx.Copy(r)
-		n["proposal_hidden"] = true
-		return n
-	})
-	for _, r := range hidden {
-		for _, url := range MediaItemURLs(r) {
-			u.MediaRemove(u.Ctx, url)
-		}
+func (u *U) ProposalHide(key string) error {
+	if key == "" {
+		return Bad("Не указана запись.")
 	}
+	found := false
+	_, err := u.HistoryUpdate(func(h History) History {
+		for i, r := range h["liked"] {
+			if ContentItemKey(r) != key {
+				continue
+			}
+			found = true
+			if jx.Bool(r, "proposal_hidden") {
+				return nil
+			}
+			h["liked"][i] = jx.Merge(r, jx.M{"proposal_hidden": true})
+			return h
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if !found {
+		return NotFound("Запись не найдена.")
+	}
+	return nil
 }
 
 var proposalTmeRe = regexp.MustCompile(`^https://t\.me/([A-Za-z0-9_]{3,64})/(\d+)$`)
@@ -278,7 +288,7 @@ func (u *U) ProposalRefetch(image string) (jx.M, bool, error) {
 	hist := u.History()
 	for _, c := range config.ProposalCollections {
 		for _, r := range hist[c] {
-			if record == nil && ContentImageKey(r) == image {
+			if record == nil && ContentItemKey(r) == image {
 				record = r
 			}
 		}
@@ -292,7 +302,7 @@ func (u *U) ProposalRefetch(image string) (jx.M, bool, error) {
 	}
 	if gone {
 		u.UpdateHistoryProposals(func(r jx.M) jx.M {
-			if ContentImageKey(r) != image {
+			if ContentItemKey(r) != image {
 				return nil
 			}
 			n := jx.Copy(r)
@@ -309,7 +319,7 @@ func (u *U) ProposalRefetch(image string) (jx.M, bool, error) {
 		return nil, false, &Error{502, "Не удалось скачать файл: источник не отдал его."}
 	}
 	u.UpdateHistoryProposals(func(r jx.M) jx.M {
-		if ContentImageKey(r) != image {
+		if ContentItemKey(r) != image {
 			return nil
 		}
 		return proposalApply(r, m)
@@ -322,7 +332,7 @@ func (u *U) proposalPending() []jx.M {
 	h := u.History()
 	for _, c := range config.ProposalCollections {
 		for _, r := range h[c] {
-			if !jx.Bool(r, "media_cached") && !jx.Bool(r, "proposal_hidden") && !jx.Bool(r, "media_gone") {
+			if PostItemHasMedia(r) && !jx.Bool(r, "media_cached") && !jx.Bool(r, "proposal_hidden") && !jx.Bool(r, "media_gone") {
 				out = append(out, r)
 			}
 		}
@@ -377,7 +387,7 @@ func (u *U) ProposalBackfillMedia(limit int) int {
 	var order []string
 	for _, r := range u.proposalPending() {
 		if len(order) < limit {
-			k := ContentImageKey(r)
+			k := ContentItemKey(r)
 			if _, ok := todo[k]; !ok {
 				todo[k] = r
 				order = append(order, k)
@@ -410,7 +420,7 @@ func (u *U) ProposalBackfillMedia(limit int) int {
 		return 0
 	}
 	return u.UpdateHistoryProposals(func(r jx.M) jx.M {
-		k := ContentImageKey(r)
+		k := ContentItemKey(r)
 		if m, ok := found[k]; ok && !jx.Bool(r, "media_cached") {
 			return proposalApply(r, m)
 		}

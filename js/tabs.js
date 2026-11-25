@@ -146,7 +146,7 @@ function mediaTile(slide, onOpen, extra, item) {
                     refetch.disabled = true;
                     label.textContent = 'Загружаю…';
                     try {
-                        const result = await api('proposal_refetch', { body: { image: item.image } });
+                        const result = await api('proposal_refetch', { body: { image: item.item_key || item.image } });
                         if (result?.gone) { proposals.items = proposals.items.filter(o => o !== item); renderProposals(); }   // источник удалил пост — показывать нечего
                         else await loadProposals();
                     } catch (error) {
@@ -190,7 +190,7 @@ function proposalActions(item) {
     const remove = el('button', { className: 'proposal-action proposal-hide', type: 'button', textContent: '✕ Убрать', title: 'Убрать из предложки (оценка в истории останется)' });
     remove.onclick = async () => {
         remove.disabled = true;
-        try { await api('proposal_hide', { body: { image: item.image } }); proposals.items = proposals.items.filter(o => o !== item); renderProposals(); }
+        try { await api('proposal_hide', { body: { image: item.item_key || item.image } }); proposals.items = proposals.items.filter(o => o !== item); renderProposals(); }
         catch (error) { remove.disabled = false; log(`Не удалось убрать запись: ${error.message}`); }
     };
     return el('div', { className: 'proposal-actions' }, post, remove);
@@ -216,7 +216,7 @@ function proposalCard(item) {
     const slides = item.text_post && !item.image && !item.display_image ? [{ kind: 'text', text: item.text || '', textPost: true }] : recordGallery(item).items;
     const shown = slides.slice(0, 6);
     const refetch = item.source_url ? async () => {
-        const result = await api('proposal_refetch', { body: { image: item.image } });
+        const result = await api('proposal_refetch', { body: { image: item.item_key || item.image } });
         if (result?.gone) { proposals.items = proposals.items.filter(o => o !== item); renderProposals(); } else await loadProposals();
     } : null;
     const open = i => { const g = recordGallery(item, i); openViewerGallery(g.items.map(s => ({ ...s, refetch })), i, g.onPost, g.postCheck); };
@@ -236,7 +236,7 @@ function renderProposals() {
     $('proposals-count').textContent = proposals.items.length ? `${visible.length} из ${proposals.items.length}` : '';
     $('proposals-status').textContent = visible.length ? '' : proposals.items.length ? 'В этом разделе пусто.' : 'Пока пусто: сюда попадают записи, которые вы отметили «Нравится» или «Не знаю» на вкладке «Подбор».';
     // Посчитать записи с пропавшими файлами
-    const brokenCount = visible.filter(i => !i.display_image && !i.display_video).length;
+    const brokenCount = visible.filter(i => !i.text_post && !i.article && !i.video_via && !i.display_image && !i.display_video).length;
     const kept = new Set(visible);
     for (const [item, card] of proposalCards) {
         if (kept.has(item)) continue;

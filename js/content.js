@@ -884,7 +884,7 @@ async function publishToTargets(post, onProgress = null) {
 }
 
 /** Поля записи, по которым сервер считает её ключ (тот же, что у пула и истории). */
-const recordOf = item => ({ image: item.image || '', url: item.url || '', source_url: item.source_url || '', source_key: item.source_key || '',
+const recordOf = item => ({ item_key: item.item_key || '', image: item.image || '', video: item.video || '', video_page: item.video_page || '', video_via: item.video_via || '', url: item.url || '', source_url: item.source_url || '', source_key: item.source_key || '',
     topic: item.topic || '', board: item.board || '', thread_id: item.thread_id || '', post_id: item.post_id || '', text: item.text || '', text_post: !!item.text_post });
 
 /** Единое окно публикации для всех кнопок «Запостить»: редактор поста; ресурсы выбираются в нём (по умолчанию — основной канал). */

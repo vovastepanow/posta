@@ -115,7 +115,7 @@ function card(i, rejection = null) {
     const remove = el('button', { type: 'button', className: 'home-card-action', textContent: '✕', ariaLabel: 'Убрать из отобранных', title: 'Убрать из отобранных (оценка останется в истории)', onclick: async e => {
         e.stopPropagation();
         remove.disabled = true;
-        try { await api('proposal_hide', { body: { image: i.image } }); await loadContent(); } catch (error) { remove.disabled = false; log(`Не удалось убрать пост: ${error.message}`); }
+        try { await api('proposal_hide', { body: { image: i.item_key || i.image } }); await loadContent(); } catch (error) { remove.disabled = false; log(`Не удалось убрать пост: ${error.message}`); }
     } });
     return el('article', { className: 'tile', tabIndex: 0, role: 'button', ariaLabel: `Открыть пост: ${title}`, onclick: e => { if (!e.target.closest('a, img, button')) { e.stopPropagation(); openPreview(i); } }, onkeydown: e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openPreview(i); } } },
         el('div', { className: 'tile-media' }, media,

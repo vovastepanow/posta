@@ -59,7 +59,15 @@ func ContentItemKey(item jx.M) string {
 	if video := jx.Str(item, "video"); video != "" {
 		return "video:" + video
 	}
-	return CandidateTextKey(item)
+	if k := CandidateTextKey(item); k != "" {
+		return k
+	}
+	if jx.Bool(item, "text_post") {
+		if text := strings.TrimSpace(jx.Str(item, "text")); text != "" && text != EmptyPostText {
+			return "short:" + repeatDigest(text)
+		}
+	}
+	return ""
 }
 
 func PoolFindItem(pool []jx.M, key string) jx.M {
@@ -264,6 +272,11 @@ func (a *App) ContentHistoryRecord(item jx.M, complaintReason any) jx.M {
 		"source_url": SourcePostURL(item), "posted_at": item["posted_at"], "engagement": item["engagement"], "complaint_reason": complaintReason,
 		"video": jx.Str(item, "video"), "video_via": jx.Str(item, "video_via"), "video_page": jx.Str(item, "video_page"), "image_local": jx.Str(item, "image_local"), "video_local": jx.Str(item, "video_local"),
 		"phash": jx.Str(item, "phash"), "repeat_file_hashes": item["repeat_file_hashes"], "text_post": item["text_post"], "gallery": ContentGallery(item), "timestamp": now()}
+	for _, k := range []string{"url", "article", "title", "source_sensitive", "nsfw", "safety"} {
+		if v, ok := item[k]; ok {
+			rec[k] = v
+		}
+	}
 	if g := GeoClean(item["geo"]); g != nil {
 		rec["geo"] = g
 	}
@@ -394,6 +407,7 @@ func ContentPassesMediaFilters(item, filters jx.M) bool {
 
 // ContentForDisplay — запись для карточки: display_* — копия из кэша или исходная ссылка, preload — картинки следующих.
 func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M {
+	itemKey := ContentItemKey(item)
 	item = jx.Copy(item)
 	// Video extraction needs the original Markdown attachment before display cleanup.
 	rawText := jx.Str(item, "text")
@@ -466,7 +480,7 @@ func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M
 	if jx.Str(item, "thread_id") != "" && (strings.HasPrefix(qualityKey, "dvach:") || strings.HasPrefix(qualityKey, "4chan:")) {
 		qualityKey = SourceQualityKey(qualityKey) + ":" + jx.Str(item, "thread_id")
 	}
-	for k, v := range (jx.M{"item_key": ContentItemKey(item), "images": []string{main}, "captions": []string{caption}, "source_url": SourcePostURL(item),
+	for k, v := range (jx.M{"item_key": itemKey, "images": []string{main}, "captions": []string{caption}, "source_url": SourcePostURL(item),
 		"found_by": jx.Str(item, "found_by"), "gallery": gallery, "post_check": check, "display_image": shown["display_image"],
 		"display_video": shown["display_video"], "source_quality": u.SourceQualityOf(u.Ctx, qualityKey, jx.Str(item, "topic")), "board_quality": u.BoardQualityOf(u.Ctx, qualityKey, jx.Str(item, "topic")), "tags_info": u.ContentTagsPublic(item["tags"]), "hashtags": u.PostHashtags(item), "preload": preload}) {
 		out[k] = v
@@ -1214,44 +1228,59 @@ func (u *U) ContentMarkPosted(key string) string {
 	if key == "" {
 		return ""
 	}
-	var poolItem jx.M
-	u.PoolUpdate(func(pool []jx.M) []jx.M {
+	var poolItem, record jx.M
+	_, err := u.poolUpdate(func(tx pgx.Tx, pool []jx.M) ([]jx.M, error) {
 		poolItem = PoolFindItem(pool, key)
 		if poolItem == nil {
-			return nil
+			return nil, nil
 		}
-		return PoolWithoutImage(pool, key)
+		record = jx.Merge(u.ContentHistoryRecord(poolItem, nil), jx.M{"proposal_hidden": true, "published_at": now()})
+		if err := u.historyAppendTx(tx, "liked", record); err != nil {
+			return nil, err
+		}
+		return PoolWithoutImage(pool, key), nil
 	})
+	if err != nil {
+		u.Log("Не удалось отметить опубликованный пост: %v", err)
+		return ""
+	}
 	if poolItem != nil {
-		u.HistoryAppend("liked", jx.Merge(u.ContentHistoryRecord(poolItem, nil), jx.M{"proposal_hidden": true, "published_at": now()}))
+		u.historyVoteCommitted("liked", record)
 		return "liked"
 	}
-	h := u.History()
-	for _, c := range config.HistoryCollections {
-		for _, r := range h[c] {
-			if ContentItemKey(r) != key {
-				continue
-			}
-			if c == "liked" {
-				if jx.Bool(r, "published_at") {
-					u.HistoryUpdate(func(h History) History {
-						for i, record := range h["liked"] {
-							if ContentItemKey(record) == key {
-								h["liked"][i] = jx.Merge(record, jx.M{"repeat_action_at": now()})
-							}
-						}
-						return h
-					})
-					return "already"
+	marked := ""
+	_, err = u.HistoryUpdate(func(h History) History {
+		for _, collection := range config.HistoryCollections {
+			for i, r := range h[collection] {
+				if ContentItemKey(r) != key {
+					continue
 				}
-				u.HistoryUpdate(func(h History) History { return ContentMarkInLiked(h, key, now()) })
-				return "liked"
+				at := now()
+				if collection == "liked" {
+					marked = "liked"
+					if jx.Bool(r, "published_at") {
+						marked = "already"
+					}
+					h[collection][i] = jx.Merge(r, jx.M{"proposal_hidden": true, "published_at": at, "repeat_action_at": at})
+				} else {
+					h[collection] = append(h[collection][:i], h[collection][i+1:]...)
+					record = jx.Merge(r, jx.M{"proposal_hidden": true, "published_at": at, "repeat_action_at": at})
+					h["liked"] = append(h["liked"], record)
+					marked = "liked"
+				}
+				return h
 			}
-			u.HistoryAppend("liked", jx.Merge(r, jx.M{"proposal_hidden": true, "published_at": now()}))
-			return "liked"
 		}
+		return nil
+	})
+	if err != nil {
+		u.Log("Не удалось обновить историю публикации: %v", err)
+		return ""
 	}
-	return ""
+	if marked != "" && record != nil {
+		u.historyVoteCommitted("liked", record)
+	}
+	return marked
 }
 
 func ContentMarkInLiked(h History, key string, at int64) History {

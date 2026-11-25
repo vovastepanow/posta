@@ -785,7 +785,10 @@ func publish(c *Ctx) (any, error) {
 	recordKey := ""
 	var sourceMeta jx.M
 	if record != nil {
-		recordKey = posta.ContentItemKey(record)
+		recordKey = jx.Str(record, "item_key")
+		if recordKey == "" {
+			recordKey = posta.ContentItemKey(record)
+		}
 		source := posta.SourceQualityKey(jx.Str(record, "source_key"))
 		if source != "" && len(source) <= 600 {
 			topic := jx.Str(record, "topic")
