@@ -1365,7 +1365,7 @@ func (u *U) ContentMarkPosted(key string) string {
 		if poolItem == nil {
 			return nil, nil
 		}
-		record = jx.Merge(u.ContentHistoryRecord(poolItem, nil), jx.M{"proposal_hidden": true, "published_at": now()})
+		record = jx.Merge(u.ContentHistoryRecord(poolItem, nil), jx.M{"proposal_hidden": true, "published_at": now(), "preference_vote": "publication"})
 		if err := u.historyAppendTx(tx, "liked", record); err != nil {
 			return nil, err
 		}
@@ -1400,6 +1400,15 @@ func (u *U) ContentMarkPosted(key string) string {
 				} else {
 					h[collection] = append(h[collection][:i], h[collection][i+1:]...)
 					record = jx.Merge(r, jx.M{"proposal_hidden": true, "published_at": at, "repeat_action_at": at})
+					if jx.Str(record, "preference_vote") == "" {
+						// Legacy explicit dislikes must not turn into likes just
+						// because the post entered the calendar.
+						if collection == "disliked" {
+							record["preference_vote"] = "dislike"
+						} else {
+							record["preference_vote"] = "publication"
+						}
+					}
 					h["liked"] = append(h["liked"], record)
 					marked = "liked"
 				}

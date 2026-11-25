@@ -69,6 +69,26 @@ func uniquePreferenceTags(item jx.M) []string {
 	return out
 }
 
+// Scheduling or sending a post can create a history "liked" record for
+// repeat protection without any explicit like. Keep those two signals apart.
+// Legacy records remain compatible because their origin cannot be recovered.
+func preferenceVoteSign(item jx.M, collection string) (float64, bool) {
+	switch jx.Str(item, "preference_vote") {
+	case "like":
+		return 1, true
+	case "dislike":
+		return -1, true
+	case "":
+		if collection == "liked" {
+			return 1, true
+		}
+		if collection == "disliked" {
+			return -1, true
+		}
+	}
+	return 0, false
+}
+
 func buildPersonalPoolAffinity(h History, topic, key string, same func(string, string) bool, at int64) personalPoolAffinity {
 	a := personalPoolAffinity{
 		sources: map[string]poolAffinityStat{},
@@ -76,11 +96,11 @@ func buildPersonalPoolAffinity(h History, topic, key string, same func(string, s
 		formats: map[string]poolAffinityStat{},
 	}
 	for _, coll := range []string{"liked", "disliked"} {
-		sign := 1.0
-		if coll == "disliked" {
-			sign = -1
-		}
 		for _, item := range h[coll] {
+			sign, explicit := preferenceVoteSign(item, coll)
+			if !explicit {
+				continue
+			}
 			t, ts := jx.Str(item, "topic"), jx.Int(item, "timestamp")
 			if t == "" || (!same(t, topic) && !same(t, key)) || ts <= 0 || ts > at || at-ts > personalPoolDays*86400 {
 				continue
@@ -125,6 +145,7 @@ func (u *U) loadPersonalPoolAffinity(topic, key string) personalPoolAffinity {
 	// by vote time, not database row id (maintenance may rewrite row ids).
 	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT collection,data FROM history_items
 		WHERE user_id=$1 AND collection IN ('liked','disliked')
+		AND COALESCE(data->>'preference_vote','') IN ('','like','dislike')
 		AND CASE WHEN jsonb_typeof(data->'timestamp')='number' THEN (data->>'timestamp')::numeric ELSE 0 END >= $2
 		ORDER BY CASE WHEN jsonb_typeof(data->'timestamp')='number' THEN (data->>'timestamp')::numeric ELSE 0 END DESC,id DESC LIMIT $3`,
 		u.ID, now()-personalPoolDays*86400, personalPoolVoteLimit)

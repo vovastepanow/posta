@@ -37,3 +37,21 @@ func TestPersonalPoolAffinityBoundedAndTopicLocal(t *testing.T) {
 		t.Fatal("one vote dominated the feed")
 	}
 }
+
+func TestPersonalAffinityIgnoresAutomaticPublication(t *testing.T) {
+	at := int64(2000000000)
+	h := EmptyHistory()
+	for i := 0; i < 20; i++ {
+		h["liked"] = append(h["liked"], jx.M{"topic": "SMM", "timestamp": at-1, "source_key": "rss:automatic", "preference_vote": "publication"})
+	}
+	for i := 0; i < 6; i++ {
+		h["liked"] = append(h["liked"], jx.M{"topic": "SMM", "timestamp": at-1, "source_key": "rss:disliked", "preference_vote": "dislike"})
+	}
+	a := buildPersonalPoolAffinity(h, "SMM", "SMM", strings.EqualFold, at)
+	if a.votes != 6 || a.bonus(jx.M{"source_key": "rss:automatic"}) != 0 || a.bonus(jx.M{"source_key": "rss:disliked"}) >= 0 {
+		t.Fatalf("publication bookkeeping leaked into explicit preference: %+v", a)
+	}
+	if sign, ok := preferenceVoteSign(jx.M{"preference_vote": "like"}, "liked"); !ok || sign != 1 {
+		t.Fatal("explicit like lost")
+	}
+}

@@ -604,6 +604,8 @@ func (u *U) VotePool(key, vote string, reason any) (before, after []jx.M, item, 
 			record = r
 		})
 		if record != nil {
+			// Preserve explicit feedback separately from publication bookkeeping.
+			record["preference_vote"] = vote
 			if err := u.historyAppendTx(tx, collection, record); err != nil {
 				return nil, err
 			}
