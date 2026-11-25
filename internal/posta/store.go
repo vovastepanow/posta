@@ -403,6 +403,12 @@ func (u *U) HistoryUpdate(fn func(h History) History) (History, error) {
 }
 
 func (a *App) historyUpdate(ctx context.Context, uid string, fn func(h History) History) (History, error) {
+	return a.historyUpdateTx(ctx, uid, func(_ pgx.Tx, h History) (History, error) {
+		return fn(h), nil
+	})
+}
+
+func (a *App) historyUpdateTx(ctx context.Context, uid string, fn func(pgx.Tx, History) (History, error)) (History, error) {
 	lock := a.userLock(uid)
 	lock.Lock()
 	defer lock.Unlock()
@@ -414,12 +420,15 @@ func (a *App) historyUpdate(ctx context.Context, uid string, fn func(h History) 
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "posta:content:"+uid); err != nil {
 			return err
 		}
-		cur, err := a.historyLoadChecked(ctx, tx, uid)
+		cur, stored, err := historyLoadForUpdate(ctx, tx, uid)
 		if err != nil {
 			return err
 		}
 		before := repeatSnapshot(cur.All())
-		next := fn(cur)
+		next, err := fn(tx, cur)
+		if err != nil {
+			return err
+		}
 		if next == nil {
 			result = cur
 			return nil
@@ -428,19 +437,81 @@ func (a *App) historyUpdate(ctx context.Context, uid string, fn func(h History) 
 			return err
 		}
 		result = next
-		if _, err := tx.Exec(ctx, `DELETE FROM history_items WHERE user_id = $1`, uid); err != nil {
-			return err
-		}
-		var rows [][]any
-		for _, coll := range config.HistoryCollections {
-			for i, item := range next[coll] {
-				rows = append(rows, []any{uid, coll, i, ContentImageKey(item), jx.Bool(item, "proposal_hidden"), db.JSON(item)})
-			}
-		}
-		_, err = tx.CopyFrom(ctx, pgx.Identifier{"history_items"}, []string{"user_id", "collection", "position", "image_key", "proposal_hidden", "data"}, pgx.CopyFromRows(rows))
-		return err
+		return historyWriteChanges(ctx, tx, uid, stored, next)
 	})
 	return result, err
+}
+
+type storedHistoryKey struct {
+	collection, data, image string
+	hidden                  bool
+}
+
+func historyLoadForUpdate(ctx context.Context, tx pgx.Tx, uid string) (History, map[storedHistoryKey][]storedPoolRow, error) {
+	h := EmptyHistory()
+	stored := map[storedHistoryKey][]storedPoolRow{}
+	rows, err := tx.Query(ctx, `SELECT id, collection, position, image_key, proposal_hidden, data FROM history_items WHERE user_id=$1 ORDER BY collection,position,id FOR UPDATE`, uid)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r storedPoolRow
+		var key storedHistoryKey
+		var raw []byte
+		if err := rows.Scan(&r.id, &key.collection, &r.position, &key.image, &key.hidden, &raw); err != nil {
+			return nil, nil, err
+		}
+		item := jx.Unmarshal(raw)
+		if item == nil || !contains(config.HistoryCollections, key.collection) {
+			return nil, nil, fmt.Errorf("invalid history record in collection %q", key.collection)
+		}
+		key.data = string(jx.Marshal(item))
+		stored[key] = append(stored[key], r)
+		h[key.collection] = append(h[key.collection], item)
+	}
+	return h, stored, rows.Err()
+}
+
+func historyWriteChanges(ctx context.Context, tx pgx.Tx, uid string, stored map[storedHistoryKey][]storedPoolRow, next History) error {
+	var movedIDs, removedIDs []int64
+	var positions []int32
+	var inserted [][]any
+	for _, coll := range config.HistoryCollections {
+		for i, item := range next[coll] {
+			key := storedHistoryKey{collection: coll, data: string(jx.Marshal(item)), image: ContentImageKey(item), hidden: jx.Bool(item, "proposal_hidden")}
+			if available := stored[key]; len(available) > 0 {
+				r := available[0]
+				stored[key] = available[1:]
+				if r.position != int32(i) {
+					movedIDs = append(movedIDs, r.id)
+					positions = append(positions, int32(i))
+				}
+				continue
+			}
+			inserted = append(inserted, []any{uid, coll, i, key.image, key.hidden, db.JSON(item)})
+		}
+	}
+	for _, remaining := range stored {
+		for _, r := range remaining {
+			removedIDs = append(removedIDs, r.id)
+		}
+	}
+	if len(removedIDs) > 0 {
+		if _, err := tx.Exec(ctx, `DELETE FROM history_items WHERE user_id=$1 AND id=ANY($2::bigint[])`, uid, removedIDs); err != nil {
+			return err
+		}
+	}
+	if len(movedIDs) > 0 {
+		if _, err := tx.Exec(ctx, `UPDATE history_items AS h SET position=m.position FROM unnest($2::bigint[],$3::integer[]) AS m(id,position) WHERE h.user_id=$1 AND h.id=m.id`, uid, movedIDs, positions); err != nil {
+			return err
+		}
+	}
+	if len(inserted) > 0 {
+		_, err := tx.CopyFrom(ctx, pgx.Identifier{"history_items"}, []string{"user_id", "collection", "position", "image_key", "proposal_hidden", "data"}, pgx.CopyFromRows(inserted))
+		return err
+	}
+	return nil
 }
 
 // HistoryAppend — одна запись в историю (голос). Картинка уже есть в истории — остаётся только последняя оценка.

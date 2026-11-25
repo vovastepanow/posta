@@ -1346,23 +1346,26 @@ func (u *U) ContentUnmarkPosted(key string) bool {
 	if key == "" {
 		return false
 	}
-	var stillUsed bool
-	if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT EXISTS(SELECT 1 FROM outbox WHERE user_id=$1 AND data->>'record'=$2) OR EXISTS(SELECT 1 FROM published WHERE user_id=$1 AND data->>'record'=$2 AND data->>'status'='ok')`, u.ID, key).Scan(&stillUsed); err != nil || stillUsed {
-		return false
-	}
 	done := false
-	_, err := u.HistoryUpdate(func(h History) History {
+	_, err := u.historyUpdateTx(u.Ctx, u.ID, func(tx pgx.Tx, h History) (History, error) {
 		canonical := historyCanonicalKey(h, key)
 		if canonical == "" {
-			return nil
+			return nil, nil
 		}
-		if canonical != key {
-			var used bool
-			if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT EXISTS(SELECT 1 FROM outbox WHERE user_id=$1 AND data->>'record'=$2) OR EXISTS(SELECT 1 FROM published WHERE user_id=$1 AND data->>'record'=$2 AND data->>'status'='ok')`, u.ID, canonical).Scan(&used); err != nil || used {
-				return nil
-			}
+		// The queue and publisher use this same owner lock. A concurrent
+		// finalization or schedule cannot slip between the check and restore.
+		var locked int
+		if err := tx.QueryRow(u.Ctx, `SELECT 1 FROM users WHERE id=$1 FOR NO KEY UPDATE`, u.ID).Scan(&locked); err != nil {
+			return nil, err
 		}
-		changed := false
+		var used bool
+		if err := tx.QueryRow(u.Ctx, `SELECT EXISTS(SELECT 1 FROM outbox WHERE user_id=$1 AND data->>'record' IN ($2,$3))
+			OR EXISTS(SELECT 1 FROM published WHERE user_id=$1 AND data->>'record' IN ($2,$3) AND data->>'status'='ok')`, u.ID, key, canonical).Scan(&used); err != nil {
+			return nil, err
+		}
+		if used {
+			return nil, nil
+		}
 		for i, r := range h["liked"] {
 			if ContentItemKey(r) != canonical || !jx.Bool(r, "published_at") {
 				continue
@@ -1371,13 +1374,12 @@ func (u *U) ContentUnmarkPosted(key string) bool {
 			delete(r, "published_at")
 			r["proposal_hidden"] = false
 			h["liked"][i] = r
-			changed = true
+			done = true
 		}
-		done = changed
-		if changed {
-			return h
+		if done {
+			return h, nil
 		}
-		return nil
+		return nil, nil
 	})
 	return err == nil && done
 }
