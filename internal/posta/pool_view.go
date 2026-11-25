@@ -120,6 +120,21 @@ func poolMatchesDisplayFilters(i, f jx.M, frozen map[string]bool) bool {
 		!frozen[strings.ToLower(jx.Str(i, "source"))] && ContentPassesMediaFilters(i, f)
 }
 
+// The collector should not spend inference calls on records that the current
+// display filters already rule out. The model still verifies ambiguous ads.
+func (a *App) collectorDisplayReason(item, filters jx.M, frozen map[string]bool, adult bool) string {
+	if PostIsAdvertisement(item) {
+		return "advertising"
+	}
+	if !adult && a.ContentIsAdult(item) {
+		return "adult"
+	}
+	if !poolMatchesDisplayFilters(item, filters, frozen) {
+		return "filter"
+	}
+	return ""
+}
+
 // PoolStaleForCurrentTopic provides a fallback while the collector finds replacements.
 func (u *U) PoolStaleForCurrentTopic() []jx.M {
 	topic, key, f := u.CurrentTopic(), u.SearchTopicKey(), u.ContentFilterValues()

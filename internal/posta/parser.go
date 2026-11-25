@@ -1082,6 +1082,11 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	var order, deferred []string
 	uaHits, uaNames, uaAll := map[string]int{}, map[string]string{}, map[string]bool{}
 	maxAge := u.TInt("content_max_age")
+	adult := u.AdultAllowed()
+	frozen := map[string]bool{}
+	if jx.Bool(filters, "active_sources_only") {
+		frozen = u.FrozenSourceLabels()
+	}
 	platOrder := candidatePlatformOrder(byPlatform)
 	for _, p := range platOrder {
 		for _, item := range ExpandPostImages(byPlatform[p]) {
@@ -1093,9 +1098,10 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 				skipped[reason]++
 				continue
 			}
-			if !ContentPassesMediaFilters(item, filters) {
-				u.rememberRejected(topic, "filter", item, "Не прошёл фильтры медиа", nil)
-				skipped["filter"]++
+			if reason := u.collectorDisplayReason(item, filters, frozen, adult); reason != "" {
+				notes := map[string]string{"filter": "Не прошёл фильтры выдачи", "advertising": "Явная рекламная маркировка", "adult": "18+ и чувствительный контент выключены"}
+				u.rememberRejected(topic, "filter", item, notes[reason], nil)
+				skipped[reason]++
 				continue
 			}
 			if ua := u.UAItemBlocked(item); ua != "" {

@@ -3,6 +3,8 @@ package posta
 import (
 	"testing"
 
+	"posta/internal/config"
+
 	"posta/internal/jx"
 )
 
@@ -165,6 +167,32 @@ func TestPoolViewRequiresExactAnalyzedSearchProfile(t *testing.T) {
 	} {
 		if got := u.poolItemMatchesTopic(jx.M{"topic": tc.record}, "SMM и блогинг", tc.key); got != tc.want {
 			t.Errorf("record=%q key=%q: got=%t want=%t", tc.record, tc.key, got, tc.want)
+		}
+	}
+}
+
+func TestCollectorUsesDisplayFiltersBeforeInference(t *testing.T) {
+	u := taxonomyTestUser()
+	photo := jx.M{"image": "photo", "posted_at": now(), "source": "Frozen"}
+	old := jx.Merge(photo, jx.M{"posted_at": now() - int64(config.ContentFreshMaxAgeDays+1)*86400})
+	video := jx.Merge(photo, jx.M{"video_via": "ytdlp", "video_page": "https://www.youtube.com/watch?v=abcdefghijk"})
+	for _, tc := range []struct {
+		item, filters jx.M
+		frozen        map[string]bool
+		adult         bool
+		want          string
+	}{
+		{photo, jx.M{"video_only": true}, nil, false, "filter"},
+		{video, jx.M{"video_only": true}, nil, false, ""},
+		{old, jx.M{"fresh_only": true}, nil, false, "filter"},
+		{photo, nil, map[string]bool{"frozen": true}, false, "filter"},
+		{jx.Merge(photo, jx.M{"nsfw": true}), nil, nil, false, "adult"},
+		{jx.Merge(photo, jx.M{"nsfw": true}), nil, nil, true, ""},
+		{jx.Merge(photo, jx.M{"text": "Пост #реклама"}), nil, nil, false, "advertising"},
+		{jx.Merge(photo, jx.M{"text": "Разбор рекламной интеграции"}), nil, nil, false, ""},
+	} {
+		if got := u.collectorDisplayReason(tc.item, tc.filters, tc.frozen, tc.adult); got != tc.want {
+			t.Errorf("item=%v filters=%v: got=%q want=%q", tc.item, tc.filters, got, tc.want)
 		}
 	}
 }
