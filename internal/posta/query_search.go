@@ -694,6 +694,28 @@ func queryScoreCacheKey(kind, owner, prompt, settings, title, body string) strin
 	return "query_" + kind + ":v3:" + repeatDigest(string(jx.Marshal([]string{owner, prompt, settings, title, body})))
 }
 
+// The final collector reorders candidates by source and freshness. Carry
+// an optional text-match hint through that stage without treating it as a
+// final verdict, especially for video and images with incomplete captions.
+func queryRerankHint(item jx.M, query string) float64 {
+	if query == "" || jx.Str(item, "_query_rank_for") != TopicNorm(query) || !validModelPercent(item["_query_rank_score"]) {
+		return 50
+	}
+	score, _ := modelNumber(item["_query_rank_score"])
+	return score
+}
+
+func withQueryRerankHint(item jx.M, query string, score int) jx.M {
+	copy := jx.Copy(item)
+	copy["_query_rank_for"] = TopicNorm(query)
+	copy["_query_rank_score"] = score
+	return copy
+}
+
+func queryRerankMultiplier(item jx.M, query string) float64 {
+	return 0.75 + queryRerankHint(item, query)/200
+}
+
 // Sensitive or owner-provided material stays in the candidate list, but
 // the optional cloud reranker must not receive its text.
 func queryRerankProtected(item jx.M) bool {
@@ -788,7 +810,7 @@ func (u *U) queryRerank(query, topic string, plan QueryPlan, ranked map[string][
 	sort.SliceStable(order, func(a, b int) bool { return scores[order[a]] > scores[order[b]] })
 	out := map[string][]jx.M{}
 	for _, i := range order {
-		out[refs[i].plat] = append(out[refs[i].plat], refs[i].item)
+		out[refs[i].plat] = append(out[refs[i].plat], withQueryRerankHint(refs[i].item, query, scores[i]))
 	}
 	for _, r := range refs[n:] {
 		out[r.plat] = append(out[r.plat], r.item)

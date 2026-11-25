@@ -1198,6 +1198,10 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 		if ca != cb {
 			return !ca
 		}
+		// The optional text match is a bounded priority adjustment. Neither
+		// a weak caption nor absence of a score rejects the candidate.
+		ra *= queryRerankMultiplier(a, query)
+		rb *= queryRerankMultiplier(b, query)
 		if ra != rb {
 			return ra > rb
 		}
@@ -1451,7 +1455,7 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 			kw = config.HotKeywordBoost
 		}
 		// Ограничиваем влияние вирусности: популярность не заменяет попадание в тему.
-		score[i] = math.Min(3, math.Max(0.25, heat[i])) * mult * kw * boost[i]
+		score[i] = math.Min(3, math.Max(0.25, heat[i])) * mult * kw * boost[i] * queryRerankMultiplier(it, query)
 	}
 	bySrc := map[string][]int{}
 	var srcOrder []string
@@ -2079,6 +2083,8 @@ func analysisRecord(a, item jx.M, topic, defFormat string) jx.M {
 		format = defFormat
 	}
 	rec := jx.Copy(item)
+	delete(rec, "_query_rank_for")
+	delete(rec, "_query_rank_score")
 	for k, v := range (jx.M{"description": desc, "why_relevant": why, "relevance": a["relevance"], "rating": nil, "format": format, "tags": orList(jx.List(a, "tags")),
 		"tags_classification_pending": jx.Bool(a, "tags_classification_pending"), "tags_classification_reason": jx.Str(a, "tags_classification_reason"),
 		"quote": jx.Bool(a, "quote"), "entity": jx.Str(a, "entity"), "evidence": jx.Str(a, "evidence"), "source_hashtags": PostSourceHashtags(item), "topic": topic, "analysis_model": jx.Str(a, "model"),

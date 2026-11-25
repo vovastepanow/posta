@@ -202,3 +202,23 @@ func TestQueryRerankProtectedContentIsNotSentToOptionalCloudModel(t *testing.T) 
 		t.Fatal("ordinary public result lost optional reranking")
 	}
 }
+
+func TestQueryRerankHintIsBoundedAndNotPersisted(t *testing.T) {
+	item := jx.M{"text": "SMM case"}
+	high := withQueryRerankHint(item, "SMM", 100)
+	low := withQueryRerankHint(item, "SMM", 0)
+	if queryRerankMultiplier(high, "smm") != 1.25 || queryRerankMultiplier(low, "smm") != 0.75 || queryRerankMultiplier(item, "smm") != 1 {
+		t.Fatal("query hint must be bounded and neutral without evidence")
+	}
+	if queryRerankMultiplier(high, "other") != 1 || queryRerankMultiplier(high, "") != 1 || item["_query_rank_score"] != nil {
+		t.Fatal("query hint leaked to a different request or mutated input")
+	}
+	high["_query_rank_score"] = 101
+	if queryRerankMultiplier(high, "smm") != 1 {
+		t.Fatal("invalid score influenced ranking")
+	}
+	record := analysisRecord(jx.M{}, low, "SMM", "text")
+	if record["_query_rank_for"] != nil || record["_query_rank_score"] != nil {
+		t.Fatal("transient search score was persisted in the record")
+	}
+}
