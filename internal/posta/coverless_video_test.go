@@ -28,6 +28,9 @@ func TestCoverlessVideoIdentity(t *testing.T) {
 		t.Fatal("download matched another video")
 	}
 	item["image"], other["image"] = "same-cover", "same-cover"
+	if ContentItemKey(item) != key || ContentItemKey(item) == ContentItemKey(other) {
+		t.Fatal("shared cover changed video identity or merged different videos")
+	}
 	job.Key = "same-cover"
 	if !videoJobMatchesPoolItem(item, job) || videoJobMatchesPoolItem(other, job) {
 		t.Fatal("shared cover caused incorrect video attachment")
@@ -63,5 +66,43 @@ func TestLostCoverlessVideoKeepsTextPostPostgres(t *testing.T) {
 	stored := u.Pool()
 	if len(shown) != 1 || len(stored) != 1 || ContentItemKey(stored[0]) != ContentItemKey(text) || ContentItemKey(shown[0]) != ContentItemKey(text) {
 		t.Fatalf("missing video removed unrelated text: shown=%v stored=%v", shown, stored)
+	}
+}
+
+func TestVotesKeepDifferentVideosWithSameCoverPostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_TEST_PG")
+	if dsn == "" {
+		t.Skip("POSTA_TEST_PG not set")
+	}
+	ctx := context.Background()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	uid := randHex(16)
+	u := (&App{DB: d, Mem: NewMemCache(100)}).User(ctx, uid, nil)
+	defer d.Pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, uid)
+	cover := "https://example.org/cover.jpg"
+	first := jx.M{"image": cover, "video": "https://example.org/1.mp4", "url": "https://example.org/posts/1", "pooled_at": now()}
+	second := jx.M{"image": cover, "video": "https://example.org/2.mp4", "url": "https://example.org/posts/2", "pooled_at": now()}
+	if _, err := u.PoolUpdate(func([]jx.M) []jx.M { return []jx.M{first, second} }); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, _, err := u.VotePool(ContentItemKey(first), "like", nil); err != nil {
+		t.Fatal(err)
+	}
+	if pool := u.Pool(); len(pool) != 1 || ContentItemKey(pool[0]) != ContentItemKey(second) {
+		t.Fatal("rating one video removed another with the same cover")
+	}
+	if _, _, _, _, err := u.VotePool(ContentItemKey(second), "like", nil); err != nil {
+		t.Fatal(err)
+	}
+	h := u.History()
+	if len(h["liked"]) != 2 || historyCanonicalKey(h, cover) != "" {
+		t.Fatal("history merged videos or guessed ambiguous old key")
 	}
 }

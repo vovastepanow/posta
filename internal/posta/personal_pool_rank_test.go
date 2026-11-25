@@ -9,7 +9,7 @@ import (
 
 func TestPersonalPoolAffinityBoundedAndTopicLocal(t *testing.T) {
 	at := int64(2_000_000_000)
-	same := func(a,b string) bool { return strings.EqualFold(a,b) }
+	same := func(a, b string) bool { return strings.EqualFold(a, b) }
 	record := func(source, topic string, ts int64) jx.M {
 		return jx.M{"source_key": source, "topic": topic, "timestamp": ts, "tags": []string{"tag"}, "format": "photo"}
 	}
@@ -25,11 +25,11 @@ func TestPersonalPoolAffinityBoundedAndTopicLocal(t *testing.T) {
 	if a.votes != 12 || a.bonus(good) <= 0 || a.bonus(bad) >= 0 || a.bonus(good) > personalPoolMaxBonus {
 		t.Fatalf("unexpected affinity: %+v", a)
 	}
-	if got := poolOrderWithPreference([]jx.M{bad,good}, a.bonus); jx.Str(got[0],"source_key") != "rss:good" {
+	if got := poolOrderWithPreference([]jx.M{bad, good}, a.bonus); jx.Str(got[0], "source_key") != "rss:good" {
 		t.Fatal("preference did not influence nearby items")
 	}
 	good["postponed_at"] = at
-	if got := poolOrderWithPreference([]jx.M{good,bad}, a.bonus); jx.Str(got[0],"source_key") != "rss:bad" {
+	if got := poolOrderWithPreference([]jx.M{good, bad}, a.bonus); jx.Str(got[0], "source_key") != "rss:bad" {
 		t.Fatal("preference overrode postponement")
 	}
 	neutral := buildPersonalPoolAffinity(History{"liked": []jx.M{record("rss:good", "SMM", at-10)}}, "SMM", "SMM", same, at)

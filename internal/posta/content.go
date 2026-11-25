@@ -43,24 +43,38 @@ func ContentImageKey(item jx.M) string {
 	return ""
 }
 
-// ContentItemKey — ключ для оценок: картинка, а у поста без картинки — ключ поста или текста.
+// ContentItemKey addresses a record, not just its poster. Keep photo keys
+// compatible with older clients, but distinguish videos sharing a thumbnail.
 func ContentItemKey(item jx.M) string {
-	if k := ContentImageKey(item); k != "" || item == nil {
-		return k
+	if item == nil {
+		return ""
 	}
-	if k := CandidatePostKey(item); k != "" {
-		return k
+	if PostItemHasVideo(item) || jx.Str(item, "video_via") != "" || jx.Bool(item, "video_unavailable") {
+		// Use the stable post or page identity even after the worker replaces
+		// the remote video with a local cache path.
+		if key := CandidatePostKey(item); key != "" {
+			return key
+		}
+		if page := jx.Str(item, "video_page"); page != "" {
+			return "video:" + page
+		}
+		if video := jx.Str(item, "video"); video != "" {
+			return "video:" + video
+		}
+		for _, f := range ContentGallery(item) {
+			if video := jx.Str(f, "video"); video != "" {
+				return "video:" + video
+			}
+		}
 	}
-	// For a coverless video, prefer its stable page over the media URL:
-	// the latter can change to a local cache path when the download completes.
-	if page := jx.Str(item, "video_page"); page != "" && jx.Str(item, "video_via") != "" {
-		return "video:" + page
+	if key := ContentImageKey(item); key != "" {
+		return key
 	}
-	if video := jx.Str(item, "video"); video != "" {
-		return "video:" + video
+	if key := CandidatePostKey(item); key != "" {
+		return key
 	}
-	if k := CandidateTextKey(item); k != "" {
-		return k
+	if key := CandidateTextKey(item); key != "" {
+		return key
 	}
 	if jx.Bool(item, "text_post") {
 		if text := strings.TrimSpace(jx.Str(item, "text")); text != "" && text != EmptyPostText {
@@ -68,6 +82,23 @@ func ContentItemKey(item jx.M) string {
 		}
 	}
 	return ""
+}
+
+// Old queue entries stored a thumbnail instead of the record key. Only
+// resolve a legacy alias if it is unambiguous in the user's history.
+func historyCanonicalKey(h History, key string) string {
+	resolved := ""
+	for _, item := range h.All() {
+		canonical := ContentItemKey(item)
+		if canonical == "" || (canonical != key && ContentImageKey(item) != key) {
+			continue
+		}
+		if resolved != "" && resolved != canonical {
+			return ""
+		}
+		resolved = canonical
+	}
+	return resolved
 }
 
 func PoolFindItem(pool []jx.M, key string) jx.M {
@@ -1258,9 +1289,13 @@ func (u *U) ContentMarkPosted(key string) string {
 	}
 	marked := ""
 	_, err = u.HistoryUpdate(func(h History) History {
+		canonical := historyCanonicalKey(h, key)
+		if canonical == "" {
+			return nil
+		}
 		for _, collection := range config.HistoryCollections {
 			for i, r := range h[collection] {
-				if ContentItemKey(r) != key {
+				if ContentItemKey(r) != canonical {
 					continue
 				}
 				at := now()
@@ -1317,9 +1352,19 @@ func (u *U) ContentUnmarkPosted(key string) bool {
 	}
 	done := false
 	_, err := u.HistoryUpdate(func(h History) History {
+		canonical := historyCanonicalKey(h, key)
+		if canonical == "" {
+			return nil
+		}
+		if canonical != key {
+			var used bool
+			if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT EXISTS(SELECT 1 FROM outbox WHERE user_id=$1 AND data->>'record'=$2) OR EXISTS(SELECT 1 FROM published WHERE user_id=$1 AND data->>'record'=$2 AND data->>'status'='ok')`, u.ID, canonical).Scan(&used); err != nil || used {
+				return nil
+			}
+		}
 		changed := false
 		for i, r := range h["liked"] {
-			if ContentItemKey(r) != key || !jx.Bool(r, "published_at") {
+			if ContentItemKey(r) != canonical || !jx.Bool(r, "published_at") {
 				continue
 			}
 			r = jx.Copy(r)

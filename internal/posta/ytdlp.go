@@ -673,7 +673,9 @@ func (a *App) tguDownload(ctx context.Context, j VideoJob, dir string) (string, 
 // Match both the stable item key and the page. Two videos can share a
 // cover, and a stale download must never be attached to a different video.
 func videoJobMatchesPoolItem(item jx.M, j VideoJob) bool {
-	return j.Key != "" && ContentItemKey(item) == j.Key &&
+	// Pending jobs created before the key change still carry a poster.
+	// The exact provider and page prevent them from attaching to its neighbor.
+	return j.Key != "" && (ContentItemKey(item) == j.Key || ContentImageKey(item) == j.Key) &&
 		jx.Str(item, "video_via") == jobVia(j) && jx.Str(item, "video_page") == j.Page
 }
 

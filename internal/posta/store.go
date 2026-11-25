@@ -476,12 +476,10 @@ func (u *U) historyAppendTx(tx pgx.Tx, collection string, record jx.M) error {
 	}
 	key := ContentImageKey(record)
 	identity := ContentItemKey(record)
-	if key != "" {
-		if _, err := tx.Exec(u.Ctx, `DELETE FROM history_items WHERE user_id = $1 AND image_key = $2`, u.ID, key); err != nil {
-			return err
-		}
-	} else if identity != "" {
-		rows, err := tx.Query(u.Ctx, `SELECT id,data FROM history_items WHERE user_id=$1 AND image_key=''`, u.ID)
+	if identity != "" {
+		// For videos and text, the stable record key may differ from the
+		// indexed thumbnail. For photos, narrow the candidate set first.
+		rows, err := tx.Query(u.Ctx, `SELECT id,data FROM history_items WHERE user_id=$1 AND (image_key=$2 OR $3)`, u.ID, key, key == "" || identity != key)
 		if err != nil {
 			return err
 		}

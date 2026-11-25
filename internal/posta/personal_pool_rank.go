@@ -10,19 +10,19 @@ import (
 // admitted content, not an admission rule or a global source verdict.
 // Recent explicit likes/dislikes are the only signals; no inference calls.
 const (
-	personalPoolDays = 30
-	personalPoolMinVotes = 5
+	personalPoolDays      = 30
+	personalPoolMinVotes  = 5
 	personalPoolVoteLimit = 300
-	personalPoolMaxBonus = 6 * 3600
+	personalPoolMaxBonus  = 6 * 3600
 )
 
 type poolAffinityStat struct {
 	signed, weight float64
-	count int
+	count          int
 }
 
 type personalPoolAffinity struct {
-	votes int
+	votes                  int
 	sources, tags, formats map[string]poolAffinityStat
 }
 
@@ -72,7 +72,7 @@ func uniquePreferenceTags(item jx.M) []string {
 func buildPersonalPoolAffinity(h History, topic, key string, same func(string, string) bool, at int64) personalPoolAffinity {
 	a := personalPoolAffinity{
 		sources: map[string]poolAffinityStat{},
-		tags: map[string]poolAffinityStat{},
+		tags:    map[string]poolAffinityStat{},
 		formats: map[string]poolAffinityStat{},
 	}
 	for _, coll := range []string{"liked", "disliked"} {
