@@ -3,9 +3,11 @@ package posta
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
+	"posta/internal/config"
 	"posta/internal/db"
 	"posta/internal/jx"
 )
@@ -75,5 +77,66 @@ func TestOutboxEditAndClaimPostgres(t *testing.T) {
 	}
 	if _, _, err := a.outboxClaimDue(ctx, ready, at+3600); err == nil {
 		t.Fatal("claimed post was claimed a second time")
+	}
+}
+
+func TestOutboxFinalizeAtomicPostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_TEST_PG")
+	if dsn == "" {
+		t.Skip("POSTA_TEST_PG not set; requires disposable database")
+	}
+	ctx := context.Background()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{DB: d, Mem: NewMemCache(100), Cfg: config.Server{DataDir: t.TempDir()}}
+	uid, id := randHex(16), randHex(6)
+	u := a.User(ctx, uid, nil)
+	defer d.Pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, uid)
+	at := now()
+	post := jx.M{"id": id, "status": "sending", "publish_at": at - 1, "sending_at": at, "attempts": 1, "text": "test"}
+	if _, err := u.OutboxUpdate(func([]jx.M) []jx.M { return []jx.M{post} }); err != nil {
+		t.Fatal(err)
+	}
+	dir, err := a.OutboxMediaDir(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(dir, "test.jpg")
+	if err := os.WriteFile(file, []byte("media"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	constraint := "test_published_" + uid
+	if _, err := d.Pool.Exec(ctx, `ALTER TABLE published ADD CONSTRAINT `+constraint+` CHECK (user_id <> '`+uid+`')`); err != nil {
+		t.Fatal(err)
+	}
+	defer d.Pool.Exec(ctx, `ALTER TABLE published DROP CONSTRAINT IF EXISTS `+constraint)
+	channel := &Channel{ID: "synthetic-channel", Platform: "telegram"}
+	sent := &SentResult{URL: "https://example.org/sent"}
+	if err := a.outboxFinishSent(ctx, id, uid, post, channel, sent); err == nil {
+		t.Fatal("expected publish history failure")
+	}
+	if len(u.Outbox()) != 1 || len(u.Published(0)) != 0 || !fileExists(file) {
+		t.Fatal("history failure lost the queue record or its files")
+	}
+	if _, err := d.Pool.Exec(ctx, `ALTER TABLE published DROP CONSTRAINT `+constraint); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.outboxFinishSent(ctx, id, uid, post, channel, sent); err != nil {
+		t.Fatal(err)
+	}
+	if len(u.Outbox()) != 0 || len(u.Published(0)) != 1 || fileExists(file) {
+		t.Fatal("successful finalization did not commit and clean up")
+	}
+	if err := a.outboxFinishSent(ctx, id, uid, post, channel, sent); err == nil || len(u.Published(0)) != 1 {
+		t.Fatal("stale finalization duplicated published history")
 	}
 }

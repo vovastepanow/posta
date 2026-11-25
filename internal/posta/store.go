@@ -726,7 +726,7 @@ func (u *U) OutboxUpdate(fn func(list []jx.M) []jx.M) ([]jx.M, error) {
 			return err
 		}
 		var locked int
-		if err := tx.QueryRow(u.Ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, u.ID).Scan(&locked); err != nil {
+		if err := tx.QueryRow(u.Ctx, `SELECT 1 FROM users WHERE id = $1 FOR NO KEY UPDATE`, u.ID).Scan(&locked); err != nil {
 			return err
 		}
 		rows, err := tx.Query(u.Ctx, `SELECT data FROM outbox WHERE user_id = $1 ORDER BY publish_at, id FOR UPDATE`, u.ID)
@@ -808,21 +808,25 @@ func (u *U) Published(limit int) []jx.M {
 
 // PublishedAdd — запись в журнал; храним последние TelegramPublishedLogLimit.
 func (u *U) PublishedAdd(entry jx.M) error {
-	at := jx.Int(entry, "at")
-	if at == 0 {
-		at = now()
-	}
 	return u.DB.Tx(u.Ctx, func(tx pgx.Tx) error {
 		if err := ensureUser(u.Ctx, tx, u.ID); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(u.Ctx, `INSERT INTO published (user_id, at, data) VALUES ($1, $2, $3)`, u.ID, at, db.JSON(entry)); err != nil {
-			return err
-		}
-		_, err := tx.Exec(u.Ctx, `DELETE FROM published WHERE user_id = $1 AND id NOT IN (SELECT id FROM published WHERE user_id = $1 ORDER BY id DESC LIMIT $2)`,
-			u.ID, config.TelegramPublishedLogLimit)
-		return err
+		return u.publishedAddTx(tx, entry)
 	})
+}
+
+func (u *U) publishedAddTx(tx pgx.Tx, entry jx.M) error {
+	at := jx.Int(entry, "at")
+	if at == 0 {
+		at = now()
+	}
+	if _, err := tx.Exec(u.Ctx, `INSERT INTO published (user_id, at, data) VALUES ($1, $2, $3)`, u.ID, at, db.JSON(entry)); err != nil {
+		return err
+	}
+	_, err := tx.Exec(u.Ctx, `DELETE FROM published WHERE user_id = $1 AND id NOT IN (SELECT id FROM published WHERE user_id = $1 ORDER BY id DESC LIMIT $2)`,
+		u.ID, config.TelegramPublishedLogLimit)
+	return err
 }
 
 // ---- Мелочи ----

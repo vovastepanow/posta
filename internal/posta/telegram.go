@@ -914,8 +914,15 @@ func PreparedMaps(p []Prepared) []jx.M {
 }
 
 func (u *U) TelegramLogPublished(entry jx.M) {
-	u.PublishedAdd(entry)
-	u.CH.Publish(ch.PublishEvent{TS: time.Now(), UserID: u.ID, ChannelID: jx.Str(entry, "channel"), Platform: "telegram", OK: jx.Str(entry, "status") == "ok",
+	if err := u.PublishedAdd(entry); err != nil {
+		fmt.Printf("публикатор: не удалось сохранить журнал публикации: %v\n", err)
+		return
+	}
+	u.publishedEvent(entry, "telegram")
+}
+
+func (u *U) publishedEvent(entry jx.M, platform string) {
+	u.CH.Publish(ch.PublishEvent{TS: time.Now(), UserID: u.ID, ChannelID: jx.Str(entry, "channel"), Platform: platform, OK: jx.Str(entry, "status") == "ok",
 		Error: jx.Str(entry, "error"), PostRef: jx.Str(entry, "url"), MediaCount: int(jx.Int(entry, "media")), Scheduled: jx.Int(entry, "scheduled_for") > 0})
 }
 
@@ -1323,11 +1330,6 @@ func (u *U) OutboxDuplicatePost(postID string, publishAt int64) (jx.M, error) {
 	return cp, nil
 }
 
-func (a *App) outboxRowSave(ctx context.Context, postID string, post jx.M, status string) {
-	post["status"] = status
-	a.DB.Pool.Exec(ctx, `UPDATE outbox SET status = $1, publish_at = $2, data = $3 WHERE id = $4`, status, jx.Int(post, "publish_at"), jx.Marshal(post), postID)
-}
-
 func outboxErrorIsFatal(e string) bool {
 	t := strings.ToLower(e)
 	for _, p := range outboxFatal {
@@ -1341,6 +1343,10 @@ func outboxErrorIsFatal(e string) bool {
 func (a *App) outboxRetryOrFail(ctx context.Context, postID, uid string, post jx.M, errText string, force bool) bool {
 	attempts := max(1, int(jx.Int(post, "attempts")))
 	failed := force || outboxErrorIsFatal(errText) || attempts >= outboxMaxAttempts
+	// Compare the original claim when saving a retry or terminal failure.
+	// A stale recovery pass must not overwrite a newer claim or a sent post.
+	sendingAt, originalAttempts := jx.Str(post, "sending_at"), jx.Str(post, "attempts")
+	post = jx.Copy(post)
 	post["error"] = errText
 	delete(post, "sending_at")
 	status := "queued"
@@ -1349,24 +1355,30 @@ func (a *App) outboxRetryOrFail(ctx context.Context, postID, uid string, post jx
 	} else {
 		post["next_try_at"] = now() + outboxRetryDelays[attempts-1]
 	}
-	a.outboxRowSave(ctx, postID, post, status)
+	post["status"] = status
+	tag, err := a.DB.Pool.Exec(ctx, `UPDATE outbox SET status=$1, publish_at=$2, data=$3 WHERE id=$4 AND user_id=$5 AND status='sending'
+		AND COALESCE(data->>'sending_at','')=$6 AND COALESCE(data->>'attempts','')=$7`,
+		status, jx.Int(post, "publish_at"), jx.Marshal(post), postID, uid, sendingAt, originalAttempts)
+	if err != nil {
+		fmt.Printf("публикатор: не удалось сохранить состояние очереди %s: %v\n", postID, err)
+		return false
+	}
+	if tag.RowsAffected() != 1 {
+		return false
+	}
 	if failed {
 		a.outboxNotifyFailed(ctx, uid, post)
 	}
 	return failed
 }
 
-func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.M, c *Channel, sent *SentResult) {
+func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.M, c *Channel, sent *SentResult) error {
 	shown := jx.Maps(post, "media")
 	if sent != nil && sent.MediaKept != nil {
 		shown = PreparedMaps(sent.MediaKept)
 	}
 	u := a.User(ctx, uid, nil)
 	identity := jx.Map(post, "repeat_identity")
-	if err := rememberRepeatKeys(ctx, a.DB.Pool, uid, jx.Strs(identity, "keys"), jx.Strs(identity, "hashes"), now()); err != nil {
-		u.Log("Не удалось запомнить опубликованный пост: %v", err)
-	}
-	a.DB.Pool.Exec(ctx, `DELETE FROM outbox WHERE id = $1`, postID)
 	url := ""
 	var skipped []string
 	if sent != nil {
@@ -1374,10 +1386,38 @@ func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.
 	}
 	entry := jx.Merge(TelegramPostSummary(jx.Str(post, "text"), len(shown)), jx.M{"at": now(), "scheduled_for": jx.Int(post, "publish_at"), "url": url, "status": "ok",
 		"error": "", "channel": c.ID, "channel_title": c.ChatTitle, "media_src": MediaSourcesOf(shown), "skipped": orStrs(skipped), "thumb_id": jx.Str(post, "thumb_id"), "source_key": jx.Str(post, "source_key"), "topic": jx.Str(post, "topic")})
-	u.TelegramLogPublished(entry)
+	// The remote API has already accepted the post. Never discard its
+	// queue record or files until the local history commit succeeds.
+	if err := a.DB.Tx(ctx, func(tx pgx.Tx) error {
+		var locked int
+		if err := tx.QueryRow(ctx, `SELECT 1 FROM users WHERE id=$1 FOR NO KEY UPDATE`, uid).Scan(&locked); err != nil {
+			return err
+		}
+		tag, err := tx.Exec(ctx, `DELETE FROM outbox WHERE id=$1 AND user_id=$2 AND status='sending'
+			AND COALESCE(data->>'sending_at','')=$3 AND COALESCE(data->>'attempts','')=$4`,
+			postID, uid, jx.Str(post, "sending_at"), jx.Str(post, "attempts"))
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() != 1 {
+			return errSkip
+		}
+		if err := rememberRepeatKeys(ctx, tx, uid, jx.Strs(identity, "keys"), jx.Strs(identity, "hashes"), now()); err != nil {
+			return err
+		}
+		return u.publishedAddTx(tx, entry)
+	}); err != nil {
+		return err
+	}
+	platform := c.Platform
+	if platform == "" {
+		platform = "telegram"
+	}
+	u.publishedEvent(entry, platform)
 	if d, err := a.OutboxMediaDir(postID); err == nil {
 		os.RemoveAll(d)
 	}
+	return nil
 }
 
 func orStrs(l []string) []string {
@@ -1664,8 +1704,9 @@ func (a *App) OutboxProcessDue(ctx context.Context) map[string]int {
 			if jx.Int(s.post, "sending_at") > t-outboxSendingTimeout {
 				continue
 			}
-			a.outboxRetryOrFail(ctx, s.id, s.uid, s.post, "Отправка прервалась: проверьте канал — пост мог выйти. Если его нет — нажмите «Повторить».", true)
-			res["failed"]++
+			if a.outboxRetryOrFail(ctx, s.id, s.uid, s.post, "Отправка прервалась: проверьте канал — пост мог выйти. Если его нет — нажмите «Повторить».", true) {
+				res["failed"]++
+			}
 		}
 	}
 	ids, err := a.outboxDueIDs(ctx, t)
@@ -1699,7 +1740,12 @@ func (a *App) OutboxProcessDue(ctx context.Context) map[string]int {
 			}
 			continue
 		}
-		a.outboxFinishSent(ctx, id, uid, post, c, sent)
+		if err := a.outboxFinishSent(ctx, id, uid, post, c, sent); err != nil {
+			// Do not automatically resend a post already accepted by the
+			// remote platform. The stale-sending path will ask for review.
+			fmt.Printf("публикатор: пост %s отправлен, но запись результата не завершена: %v\n", id, err)
+			continue
+		}
 		if rec := jx.Str(post, "record"); rec != "" {
 			a.User(ctx, uid, nil).ContentMarkPosted(rec)
 		}
