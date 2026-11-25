@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
+	"github.com/jackc/pgx/v5"
+
 	"posta/internal/config"
 	"posta/internal/jx"
 )
@@ -46,7 +48,7 @@ func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, pr
 		}
 		indices[key] = append(indices[key], i)
 	}
-	cached := u.readCollectorTextCache(unique)
+	cached := u.readAnalysisCache(unique)
 	var missingKeys, missingTexts []string
 	for _, key := range unique {
 		if a := cached[key]; a != nil {
@@ -80,19 +82,19 @@ func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, pr
 			for _, pos := range indices[key] {
 				out[pos] = jx.Clone(a)
 			}
-			// Do not publish newly identified sensitive results in a shared
-			// cache, or preserve incomplete classification indefinitely.
-			if (!private && u.ContentIsAdult(a)) || jx.Bool(a, "tags_classification_pending") {
+			// Relevance remains valid even if optional classification is
+			// pending. Retry only the classifier when the post reaches admission.
+			if !private && (u.ContentIsAdult(a) || len(u.contentSafetyTags(a["tags"])) > 0) {
 				continue
 			}
 			fresh[key] = a
 		}
 	}
-	u.writeCollectorTextCache(fresh)
+	u.writeAnalysisCache(fresh)
 	return out
 }
 
-func (u *U) readCollectorTextCache(keys []string) map[string]jx.M {
+func (u *U) readAnalysisCache(keys []string) map[string]jx.M {
 	out := map[string]jx.M{}
 	if len(keys) == 0 || u.DB == nil {
 		return out
@@ -107,7 +109,7 @@ func (u *U) readCollectorTextCache(keys []string) map[string]jx.M {
 		var raw []byte
 		if rows.Scan(&key, &raw) == nil {
 			a := jx.Unmarshal(raw)
-			if validModelContentVerdict(a) && !jx.Bool(a, "tags_classification_pending") {
+			if validModelContentVerdict(a) {
 				out[key] = a
 			}
 		}
@@ -115,13 +117,18 @@ func (u *U) readCollectorTextCache(keys []string) map[string]jx.M {
 	return out
 }
 
-func (u *U) writeCollectorTextCache(entries map[string]jx.M) {
+func (u *U) writeAnalysisCache(entries map[string]jx.M) {
 	if len(entries) == 0 || u.DB == nil {
 		return
 	}
+	batch := &pgx.Batch{}
+	at := now()
 	for key, a := range entries {
-		u.DB.Pool.Exec(u.Ctx, `INSERT INTO analysis_cache(key,analysis,at) VALUES($1,$2,$3) ON CONFLICT(key) DO UPDATE SET analysis=EXCLUDED.analysis,at=EXCLUDED.at`, key, jx.Marshal(a), now())
+		batch.Queue(`INSERT INTO analysis_cache(key,analysis,at) VALUES($1,$2,$3) ON CONFLICT(key) DO UPDATE SET analysis=EXCLUDED.analysis,at=EXCLUDED.at`, key, jx.Marshal(a), at)
 	}
-	u.DB.Pool.Exec(u.Ctx, `DELETE FROM analysis_cache WHERE at<$1`, now()-config.AnalysisCacheDays*config.DaySeconds)
-	u.DB.Pool.Exec(u.Ctx, `DELETE FROM analysis_cache WHERE key IN (SELECT key FROM analysis_cache ORDER BY at DESC,key OFFSET $1)`, config.AnalysisCacheLimit)
+	batch.Queue(`DELETE FROM analysis_cache WHERE at<$1`, at-config.AnalysisCacheDays*config.DaySeconds)
+	batch.Queue(`DELETE FROM analysis_cache WHERE key IN (SELECT key FROM analysis_cache ORDER BY at DESC,key OFFSET $1)`, config.AnalysisCacheLimit)
+	if err := u.DB.Pool.SendBatch(u.Ctx, batch).Close(); err != nil {
+		u.Log("Не удалось сохранить кэш анализа: %v", err)
+	}
 }

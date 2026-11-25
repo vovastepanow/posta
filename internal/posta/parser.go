@@ -1721,26 +1721,22 @@ func (u *U) analysisCacheKey(item jx.M, topic string, h History) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (u *U) analysisCacheGet(item jx.M, topic string, h History) jx.M {
-	var raw []byte
-	err := u.DB.Pool.QueryRow(u.ctxOrBg(), `SELECT analysis FROM analysis_cache WHERE key = $1 AND at > $2`, u.analysisCacheKey(item, topic, h),
-		now()-config.AnalysisCacheDays*config.DaySeconds).Scan(&raw)
-	if err != nil {
-		return nil
+// A cached poster-only assessment must never replace a storyboard verdict.
+// Hash the actual frames plus the exact rendered prompt and configured route.
+func visionEvidenceKey(base, prompt, settings string, frames [][]byte) string {
+	hashes := make([]string, len(frames))
+	for i, frame := range frames {
+		sum := sha256.Sum256(frame)
+		hashes[i] = hex.EncodeToString(sum[:])
 	}
-	a := jx.Unmarshal(raw)
-	if _, ok := a["advertising"].(bool); !ok {
-		return nil
-	}
-	return a
+	sum := sha256.Sum256(jx.Marshal([]any{"vision-evidence-v1", base, prompt, settings, hashes}))
+	return hex.EncodeToString(sum[:])
 }
 
-func (u *U) analysisCachePut(item jx.M, topic string, h History, an jx.M) {
-	ctx := u.ctxOrBg()
-	u.DB.Pool.Exec(ctx, `INSERT INTO analysis_cache (key, analysis, at) VALUES ($1, $2, $3) ON CONFLICT (key) DO UPDATE SET analysis = EXCLUDED.analysis, at = EXCLUDED.at`,
-		u.analysisCacheKey(item, topic, h), jx.Marshal(an), now())
-	u.DB.Pool.Exec(ctx, `DELETE FROM analysis_cache WHERE at < $1`, now()-config.AnalysisCacheDays*config.DaySeconds)
-	u.DB.Pool.Exec(ctx, `DELETE FROM analysis_cache WHERE key IN (SELECT key FROM analysis_cache ORDER BY at DESC OFFSET $1)`, config.AnalysisCacheLimit)
+func (u *U) collectorVisionKey(item jx.M, topic string, h History, frames [][]byte, video *Storyboard, caption, context string) string {
+	s := u.LLM.Settings()
+	settings := string(jx.Marshal([]any{s.Roles, s.FastOnly, s.ThinkInParser, u.contentAnalysisSchemaForTopic(TopicQueryOf(topic), topic)}))
+	return visionEvidenceKey(u.analysisCacheKey(item, topic, h), u.editableVisionPrompt(topic, strings.TrimSpace(caption), h, video, context), settings, frames)
 }
 
 // ---- Оценка ----
@@ -2059,6 +2055,15 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 		return false
 	}
 	a := res[0]
+	// A valid relevance verdict is reusable even when the optional tag
+	// classifier failed. Retry only tags, and persist successful completion.
+	if jx.Bool(a, "tags_classification_pending") && !PostItemHasVideo(item) {
+		private := u.analysisPrivate(topic, item)
+		u.applyContentClassification(a, "", text, private)
+		if !jx.Bool(a, "tags_classification_pending") && (private || len(u.contentSafetyTags(a["tags"])) == 0) {
+			u.writeAnalysisCache(map[string]jx.M{u.collectorTextKey(text, topic, h, private, true): a})
+		}
+	}
 	if PostItemHasVideo(item) {
 		u.applyVideoClassification(a, item, "", PostCaptionForAI(item), u.analysisPrivate(topic, item))
 	}
@@ -2107,21 +2112,35 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 	if context == "" {
 		caption = PostCaptionForAI(item)
 	}
-	a := u.analysisCacheGet(item, topic, h)
+	var sb *Storyboard
+	if storyboard {
+		sb = video
+	}
+	cacheKey := u.collectorVisionKey(item, topic, h, frames, sb, caption, context)
+	private := u.analysisPrivate(topic, item)
+	a := u.readAnalysisCache([]string{cacheKey})[cacheKey]
 	if a != nil {
-		u.Log("-> Анализ взят из кэша: эту запись по этой теме уже оценивали.")
-	} else {
-		var sb *Storyboard
-		if storyboard {
-			sb = video
+		u.Log("-> Анализ взят из кэша: совпадают содержание, кадры и настройки модели.")
+		if !isVideo && jx.Bool(a, "tags_classification_pending") {
+			tagCaption := PostCaptionForAI(item)
+			if tagCaption == "" {
+				tagCaption = caption
+			}
+			u.applyContentClassification(a, jx.Str(a, "description"), tagCaption, private)
+			if !jx.Bool(a, "tags_classification_pending") && (private || len(u.contentSafetyTags(a["tags"])) == 0) {
+				u.writeAnalysisCache(map[string]jx.M{cacheKey: a})
+			}
 		}
+	} else {
 		var err error
 		a, caption, err = u.analyzeCandidateVision(frames, item, h, topic, sb)
 		if err != nil {
 			u.Log("-> ИИ не вернул корректную оценку: %s", err)
 			return false
 		}
-		u.analysisCachePut(item, topic, h, a)
+		if private || (!u.ContentIsAdult(a) && len(u.contentSafetyTags(a["tags"])) == 0) {
+			u.writeAnalysisCache(map[string]jx.M{cacheKey: a})
+		}
 	}
 	if isVideo {
 		localVideo := ""
@@ -2325,7 +2344,8 @@ func (u *U) RunCollector() bool {
 		line += fmt.Sprintf(". Срез очереди на источник: %d, срез шортлиста: %d", jx.Int(hs, "per_source_cut"), jx.Int(hs, "shortlist_cut"))
 		u.Log("%s, из доверенных тредов %d; имиджборд без признаков темы — в хвост: %d.", line, jx.Int(hs, "trusted"), jx.Int(hs, "imageboard_tail"))
 	}
-	candidates = u.hotTextJudge(candidates, key)
+	// Evaluate captions only for the block about to be processed. A large
+	// shortlist must not hold back the first usable result.
 	collected := 0
 	for _, posts := range byPlatform {
 		collected += len(posts)
@@ -2351,6 +2371,7 @@ func (u *U) RunCollector() bool {
 		f["fast_search_found"] = fastPostFound
 		f["fast_search_added"] = fastPostAdded
 		f["fast_search_seconds"] = fastSearchSeconds
+		f["prescreen_cache_hits"] = pc.stats["prescreen_cache_hits"]
 		if added > 0 {
 			f["first_added_seconds"] = firstAddedSeconds
 		}
@@ -2384,6 +2405,12 @@ outer:
 		}
 		if u.SearchTopicKey() != key {
 			stop, restart = "Вторая тема изменилась — собираю заново.", true
+			break
+		}
+		originalCount := len(batch)
+		batch = u.hotTextJudge(batch, key)
+		done += originalCount - len(batch)
+		if stop = u.collectorStopReason(started, analyzed, added); stop != "" {
 			break
 		}
 		var texts, media []jx.M
