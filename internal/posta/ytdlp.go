@@ -918,25 +918,31 @@ func (a *App) VideoPreviewKeepNames() map[string]bool {
 	out := map[string]bool{}
 	rows, err := a.DB.Pool.Query(a.ctxOrBg(), `SELECT value FROM kv WHERE key LIKE 'video_preview:%'`)
 	if err != nil {
-		return out
+		return nil
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var raw []byte
 		if rows.Scan(&raw) != nil {
-			continue
+			return nil
 		}
 		var st struct {
 			Status string `json:"status"`
 			Local  string `json:"local"`
 			At     int64  `json:"at"`
 		}
-		if json.Unmarshal(raw, &st) != nil || st.Status != "done" || now()-st.At >= config.DaySeconds {
+		if json.Unmarshal(raw, &st) != nil {
+			return nil
+		}
+		if st.Status != "done" || now()-st.At >= config.DaySeconds {
 			continue
 		}
 		if p := a.MediaPath(st.Local); p != "" {
 			out[filepath.Base(p)] = true
 		}
+	}
+	if rows.Err() != nil {
+		return nil
 	}
 	return out
 }

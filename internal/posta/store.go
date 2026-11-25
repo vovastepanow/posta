@@ -433,12 +433,27 @@ func (u *U) VotePool(key, vote string, reason any) (before, after []jx.M, item, 
 
 // AllUsersPoolItems — записи пулов и историй всех пользователей: их медиа нельзя удалять при уборке кэша.
 func (a *App) AllUsersPoolItems(ctx context.Context) []jx.M {
-	var out []jx.M
-	for _, sql := range []string{`SELECT data FROM pool_items`, `SELECT data FROM history_items`} {
-		if rows, err := a.DB.Pool.Query(ctx, sql); err == nil {
-			list, _ := decodeRows(rows)
-			out = append(out, list...)
+	// A nil result means the snapshot could not be read, not an empty database.
+	// One statement also gives a consistent snapshot while a vote moves a post.
+	rows, err := a.DB.Pool.Query(ctx, `SELECT data FROM pool_items UNION ALL SELECT data FROM history_items`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	out := []jx.M{}
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil
 		}
+		item := jx.Unmarshal(raw)
+		if item == nil {
+			return nil
+		}
+		out = append(out, item)
+	}
+	if rows.Err() != nil {
+		return nil
 	}
 	return out
 }

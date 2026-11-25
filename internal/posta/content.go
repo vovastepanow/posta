@@ -696,19 +696,27 @@ func MediaItemURLs(item jx.M) []string {
 
 // MediaRemove — удалить файл, если он не показывается ни одному пользователю.
 func (a *App) MediaRemove(ctx context.Context, url string) {
-	var used bool
-	a.DB.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pool_items WHERE data::text LIKE $1) OR EXISTS (SELECT 1 FROM history_items WHERE data::text LIKE $1)`,
-		"%"+strings.ReplaceAll(url, "%", `\%`)+"%").Scan(&used)
-	if used {
+	p := a.MediaPath(url)
+	if p == "" {
 		return
 	}
-	if p := a.MediaPath(url); p != "" {
-		os.Remove(p)
+	if _, protected := mediaProtect.Load(filepath.Base(p)); protected {
+		return
 	}
+	var used bool
+	err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pool_items WHERE strpos(data::text, $1) > 0) OR EXISTS (SELECT 1 FROM history_items WHERE strpos(data::text, $1) > 0)`, url).Scan(&used)
+	if err != nil || used {
+		return
+	}
+	os.Remove(p)
 }
 
 // MediaCleanup — удалить файлы, на которые не ссылается ни одна запись; свежие щадит. Массовое удаление блокируется.
 func (u *U) MediaCleanup(pool []jx.M, includeFresh, force bool) int {
+	if pool == nil {
+		u.Log("Кэш медиа: очистка отменена — не удалось прочитать записи из базы.")
+		return 0
+	}
 	keep := map[string]bool{}
 	for _, it := range pool {
 		for _, url := range MediaItemURLs(it) {
@@ -717,7 +725,12 @@ func (u *U) MediaCleanup(pool []jx.M, includeFresh, force bool) int {
 			}
 		}
 	}
-	for name := range u.VideoPreviewKeepNames() {
+	previews := u.VideoPreviewKeepNames()
+	if previews == nil {
+		u.Log("Кэш медиа: очистка отменена — не удалось прочитать список видео.")
+		return 0
+	}
+	for name := range previews {
 		keep[name] = true
 	}
 	entries, _ := os.ReadDir(u.Cfg.MediaDir)
