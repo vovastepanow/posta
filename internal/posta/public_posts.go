@@ -13,6 +13,9 @@ import (
 
 // storePublicPosts persists only posts fetched from public, eligible sources.
 // Source identity scopes post IDs, which are not necessarily globally unique.
+// Explicitly partial refreshes keep at most one previous, unflagged snapshot
+// for recovery. The current observation stays separate: do not combine media
+// across edits or silently classify an old snapshot as the new publication.
 func (a *App) storePublicPosts(ctx context.Context, platform, sourceKey string, posts []jx.M) {
 	var classifyPosts []jx.M
 	for _, post := range posts {
@@ -24,7 +27,20 @@ func (a *App) storePublicPosts(ctx context.Context, platform, sourceKey string, 
 			continue
 		}
 		_, err := a.DB.Pool.Exec(ctx, `INSERT INTO public_posts(source_key,post_key,platform,data,first_seen,last_seen)
-   VALUES($1,$2,$3,$4,$5,$5) ON CONFLICT(source_key,post_key) DO UPDATE SET data=EXCLUDED.data,last_seen=EXCLUDED.last_seen`,
+   VALUES($1,$2,$3,$4,$5,$5) ON CONFLICT(source_key,post_key) DO UPDATE SET
+   data=CASE
+     WHEN (EXCLUDED.data @> '{"text_incomplete":true}' OR EXCLUDED.data @> '{"media_incomplete":true}' OR EXCLUDED.data @> '{"video_unavailable":true}')
+       AND NOT (EXCLUDED.data @> '{"source_sensitive":true}' OR EXCLUDED.data @> '{"nsfw":true}')
+       AND NOT (public_posts.data @> '{"source_sensitive":true}' OR public_posts.data @> '{"nsfw":true}')
+     THEN CASE
+       WHEN public_posts.data ? 'previous_complete_snapshot'
+         THEN EXCLUDED.data || jsonb_build_object('previous_complete_snapshot',public_posts.data->'previous_complete_snapshot')
+       WHEN NOT (public_posts.data @> '{"text_incomplete":true}' OR public_posts.data @> '{"media_incomplete":true}' OR public_posts.data @> '{"video_unavailable":true}')
+         THEN EXCLUDED.data || jsonb_build_object('previous_complete_snapshot',public_posts.data)
+       ELSE EXCLUDED.data
+     END
+     ELSE EXCLUDED.data
+   END,last_seen=EXCLUDED.last_seen`,
 			sourceKey, key, platform, jx.Marshal(post), now())
 		if err != nil {
 			if ctx.Err() == nil {

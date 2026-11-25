@@ -56,3 +56,9 @@ Limits in third-party proposals are not specifications until checked against the
 Never restrict intake to publishing destinations. Keep the existing social, feed, news, forum, video, imageboard and federated sources. Expand incrementally to useful public sources (e.g. PeerTube, podcast RSS, public newsletters and blogs, TenChat, public WordPress sites, public GitHub release feeds, public discussion communities) with explicit provenance and permissions. A candidate is not a verified adapter. No private content or circumvention of access controls. No shared cache for private/account-scoped content.
 
 WordPress REST API reference: https://developer.wordpress.org/rest-api/reference/posts/ ; https://developer.wordpress.org/rest-api/using-the-rest-api/authentication/ ; https://developer.wordpress.org/rest-api/reference/users/ .
+
+## Current reliability work
+
+- Publication success requires a remote identifier. Transport failures, ambiguous receipts and server failures stop automatic retry when identified as uncertain; existing failed-state UI asks the user to reconcile before manual retry. A full provider-specific reconciliation protocol is not implemented yet.
+- Ordinary RSS polling reuses same-origin alternate discovery and bounded size retry. Invalid/truncated XML and partial HTTP responses cannot count as a successful empty feed.
+- Explicitly partial public refreshes keep one previous unflagged snapshot in the JSON record without merging attachments across edits. The latest incomplete observation is not sent through global public topic classification. This is not a full media repair queue or proof of completeness of the previous observation.
