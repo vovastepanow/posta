@@ -1829,7 +1829,9 @@ func (u *U) prescreenInputKey(item jx.M, topic string, poster []byte) string {
 	values := map[string]string{"caption": caption, "thread": ""}
 	private := u.analysisPrivate(topic, item) || jx.Bool(item, "source_sensitive") || jx.Bool(item, "nsfw")
 	scope := ""
-	if private || !u.collectorPublicEvidence(item, topic) {
+	if private {
+		scope = "private:" + u.ID
+	} else if !u.collectorPublicEvidence(item, topic) {
 		scope = "owner:" + u.ID
 	}
 	settings := u.LLM.Settings()
@@ -2182,10 +2184,20 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 	rec["image_local"] = u.MediaStoreImage(jx.Str(item, "image"), poster)
 	rec["phash"] = ImagePhash(poster)
 	if isVideo {
+		direct, page := jx.Str(item, "video"), jx.Str(item, "video_page")
 		if video != nil && video.File != "" {
-			rec["video_local"] = u.CacheDownloadedVideo(jx.Str(item, "video"), video.File)
-		} else {
-			rec["video_local"] = u.MediaStoreVideo(jx.Str(item, "video"), "", false, nil)
+			mediaKey := direct
+			if mediaKey == "" {
+				mediaKey = page
+			}
+			rec["video_local"] = u.CacheDownloadedVideo(mediaKey, video.File)
+			if direct == "" && jx.Str(rec, "video_local") != "" {
+				// The video was already downloaded through yt-dlp for
+				// analysis. Do not enqueue the same download again.
+				rec["video"] = rec["video_local"]
+			}
+		} else if direct != "" {
+			rec["video_local"] = u.MediaStoreVideo(direct, "", false, nil)
 		}
 		if jx.Str(rec, "video_local") != "" {
 			u.Log("-> Видео сохранено в кэш сайта.")

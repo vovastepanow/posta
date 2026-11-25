@@ -9,6 +9,7 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"math/bits"
 	"net"
 	"net/url"
@@ -684,6 +685,9 @@ func cropJoyreactorBadge(data []byte, format string) []byte {
 
 // MediaStoreVideo — видео в кэш: из файла или скачать. Перекодированное — всегда .mp4.
 func (u *U) MediaStoreVideo(url, file string, forceMP4 bool, headers map[string]string) string {
+	if strings.TrimSpace(url) == "" {
+		return ""
+	}
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(urlPath(url)), "."))
 	if forceMP4 || (ext != "mp4" && ext != "webm") {
 		ext = "mp4"
@@ -697,16 +701,52 @@ func (u *U) MediaStoreVideo(url, file string, forceMP4 bool, headers map[string]
 		defer os.Remove(tmp)
 		file = tmp
 	}
-	data, err := os.ReadFile(file)
-	if err != nil || len(data) == 0 {
+	// Preserve the actual container even when the source URL is a page.
+	switch sniffMime(file) {
+	case "video/webm":
+		ext = "webm"
+	case "video/mp4":
+		ext = "mp4"
+	}
+	return u.mediaCopyVideo(MediaCacheName(url, ext), file)
+}
+
+// Stream large videos into a temporary file in the destination filesystem;
+// a failed or interrupted copy never replaces the existing playable cache.
+func (a *App) mediaCopyVideo(name, file string) string {
+	in, err := os.Open(file)
+	if err != nil {
 		return ""
 	}
-	p, _ := u.MediaWrite(MediaCacheName(url, ext), data)
-	return p
+	defer in.Close()
+	st, err := in.Stat()
+	if err != nil || !st.Mode().IsRegular() || st.Size() <= 0 || st.Size() > config.TelegramUploadMaxBytes {
+		return ""
+	}
+	if err := os.MkdirAll(a.Cfg.MediaDir, 0o775); err != nil {
+		return ""
+	}
+	tmp, err := os.CreateTemp(a.Cfg.MediaDir, ".tmp-")
+	if err != nil {
+		return ""
+	}
+	defer os.Remove(tmp.Name())
+	n, copyErr := io.Copy(tmp, io.LimitReader(in, config.TelegramUploadMaxBytes+1))
+	closeErr := tmp.Close()
+	if copyErr != nil || closeErr != nil || n != st.Size() || n > config.TelegramUploadMaxBytes {
+		return ""
+	}
+	if os.Chmod(tmp.Name(), 0o644) != nil || os.Rename(tmp.Name(), filepath.Join(a.Cfg.MediaDir, name)) != nil {
+		return ""
+	}
+	return a.Cfg.MediaURL + "/" + name
 }
 
 // CacheDownloadedVideo — скачанный ролик → браузерный вариант → кэш.
 func (u *U) CacheDownloadedVideo(url, downloaded string) string {
+	if strings.TrimSpace(url) == "" || !fileExists(downloaded) {
+		return ""
+	}
 	playable := u.BrowserPlayableVideo(downloaded)
 	local := u.MediaStoreVideo(url, playable, playable != downloaded, nil)
 	if playable != downloaded {
@@ -958,20 +998,25 @@ func (u *U) GalleryCacheFiles(gallery []jx.M, mainImage string) []jx.M {
 		if mainImage == "" {
 			isMain = i == 0
 		}
-		if isMain || jx.Str(f, "image_local") != "" || jx.Str(f, "video_local") != "" {
+		if isMain || done >= galleryCacheMaxFiles {
 			continue
 		}
-		if done >= galleryCacheMaxFiles {
+		image, video := jx.Str(f, "image"), jx.Str(f, "video")
+		needImage := image != "" && u.MediaExisting(jx.Str(f, "image_local")) == ""
+		needVideo := video != "" && u.MediaExisting(jx.Str(f, "video_local")) == ""
+		if !needImage && !needVideo {
 			continue
 		}
 		done++
-		if b := u.HTTPGet(jx.Str(f, "image"), 20*time.Second); b != nil && len(b) <= config.MaxImageBytes {
-			gallery[i]["phash"] = ImagePhash(b)
-			gallery[i]["image_local"] = u.MediaStoreImage(jx.Str(f, "image"), galleryPrepareImage(b))
+		if needImage {
+			if b := u.HTTPGet(image, 20*time.Second); b != nil && len(b) <= config.MaxImageBytes {
+				gallery[i]["phash"] = ImagePhash(b)
+				gallery[i]["image_local"] = u.MediaStoreImage(image, galleryPrepareImage(b))
+			}
 		}
-		if v := jx.Str(f, "video"); v != "" {
-			if file := u.DownloadVideoTemp(v, config.VideoMaxBytes, nil); file != "" {
-				gallery[i]["video_local"] = u.CacheDownloadedVideo(v, file)
+		if needVideo {
+			if file := u.DownloadVideoTemp(video, config.VideoMaxBytes, nil); file != "" {
+				gallery[i]["video_local"] = u.CacheDownloadedVideo(video, file)
 				os.Remove(file)
 			}
 		}
@@ -979,38 +1024,62 @@ func (u *U) GalleryCacheFiles(gallery []jx.M, mainImage string) []jx.M {
 	return gallery
 }
 
-// CachePoolGalleries — догружает кэш галерей у записей пула (по нескольку за запуск).
+// CachePoolGalleries — догружает недостающие файлы, а не только полностью
+// некэшированные альбомы. Compare the original gallery before applying the
+// result so a concurrent edit or download cannot be overwritten.
 func (u *U) CachePoolGalleries(limit int) int {
-	todo := map[string][]jx.M{}
+	type galleryUpdate struct {
+		before string
+		after  []jx.M
+	}
+	todo := map[string]galleryUpdate{}
 	for _, it := range u.Pool() {
 		g := jx.Maps(it, "gallery")
 		if len(g) < 2 || len(todo) >= limit {
 			continue
 		}
-		cached := false
-		for _, f := range g[1:] {
-			if jx.Str(f, "image_local") != "" || jx.Str(f, "video_local") != "" {
-				cached = true
-			}
-		}
-		if cached {
+		key := ContentItemKey(it)
+		if key == "" {
 			continue
 		}
-		todo[ContentImageKey(it)] = u.GalleryCacheFiles(g, ContentImageKey(it))
+		missing := false
+		for _, f := range g[1:] {
+			if (jx.Str(f, "image") != "" && u.MediaExisting(jx.Str(f, "image_local")) == "") ||
+				(jx.Str(f, "video") != "" && u.MediaExisting(jx.Str(f, "video_local")) == "") {
+				missing = true
+				break
+			}
+		}
+		if !missing {
+			continue
+		}
+		before := string(jx.Marshal(g))
+		after := u.GalleryCacheFiles(g, ContentImageKey(it))
+		if before != string(jx.Marshal(after)) {
+			todo[key] = galleryUpdate{before, after}
+		}
 	}
 	if len(todo) == 0 {
 		return 0
 	}
-	u.PoolUpdate(func(pool []jx.M) []jx.M {
+	changed := 0
+	if _, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
 		for _, it := range pool {
-			if g, ok := todo[ContentImageKey(it)]; ok {
-				it["gallery"] = g
+			if update, ok := todo[ContentItemKey(it)]; ok && string(jx.Marshal(jx.Maps(it, "gallery"))) == update.before {
+				it["gallery"] = update.after
+				changed++
 			}
 		}
+		if changed == 0 {
+			return nil
+		}
 		return pool
-	})
-	u.Log("Кэш галерей: обработано записей: %d.", len(todo))
-	return len(todo)
+	}); err != nil {
+		u.Log("Не удалось сохранить кэш галерей: %v", err)
+		return 0
+	}
+	u.Log("Кэш галерей: обработано записей: %d.", changed)
+	return changed
 }
 
 // ---- Живость тредов Двача у записей пула ----

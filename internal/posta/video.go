@@ -318,8 +318,10 @@ func (u *U) VideoPageAnalysisInput(page string, poster []byte) (*Storyboard, fun
 	board := u.VideoStoryboard(file)
 	if board == nil {
 		u.Log("-> Кадры не извлечены — оцениваю обложку.")
+		fallback.File = file
 		return fallback, cleanup
 	}
+	board.File = file
 	u.Log("-> Раскадровка: %d кадров из видео длиной %s.", len(board.Frames), FormatVideoTime(board.Duration))
 	return board, cleanup
 }

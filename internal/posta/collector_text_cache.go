@@ -22,7 +22,9 @@ func textVerdictKey(scope, mode, prompt, text, settings string) string {
 
 func (u *U) collectorTextKey(text, topic string, h History, private, full, ownerOnly bool) string {
 	scope := ""
-	if private || ownerOnly || u.complaintPrompt(topic, h) != "" {
+	if private {
+		scope = "private:" + u.ID
+	} else if ownerOnly || u.complaintPrompt(topic, h) != "" {
 		scope = "owner:" + u.ID
 	}
 	mode := "caption"
