@@ -16,7 +16,7 @@ import (
 // when the rendered prompt, model configuration and exact full text agree.
 // Personal feedback/private evidence receives an owner-scoped key.
 func textVerdictKey(scope, mode, prompt, text, settings string) string {
-	sum := sha256.Sum256(jx.Marshal([]any{"collector-text-v1", config.AnalysisPromptVersion, scope, mode, prompt, text, settings}))
+	sum := sha256.Sum256(jx.Marshal([]any{"collector-text-v2", config.AnalysisPromptVersion, scope, mode, prompt, text, settings}))
 	return hex.EncodeToString(sum[:])
 }
 
@@ -38,6 +38,24 @@ func (u *U) collectorTextKey(text, topic string, h History, private, full, owner
 	return textVerdictKey(scope, mode, u.editableTextPrompt(topic, []string{text}, h), text, settings)
 }
 
+// A model can return a fluent but invented quotation, or copy evidence from
+// another row of a batch. Check it against the actual submitted text before
+// using the result as a positive OR negative decision. Punctuation and case
+// differences are harmless; translated or invented evidence is not a quote.
+func collectorTextEvidenceValid(a jx.M, text string) bool {
+	if !validModelContentVerdict(a) {
+		return false
+	}
+	normalize := func(s string) string {
+		return collapseSpaces(ctkPunctRe.ReplaceAllString(strings.ReplaceAll(strings.ToLower(s), "ё", "е"), " "))
+	}
+	evidence := normalize(jx.Str(a, "evidence"))
+	if evidence == "" {
+		return jx.Int(a, "relevance") <= config.QualityNoEvidenceCap
+	}
+	return strings.Contains(normalize(textAnalysisRecord(text)), evidence)
+}
+
 func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, private, full, ownerOnly bool) []Analysis {
 	out := make([]Analysis, len(texts))
 	if len(texts) == 0 {
@@ -55,7 +73,7 @@ func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, pr
 	cached := u.readAnalysisCache(unique)
 	var missingKeys, missingTexts []string
 	for _, key := range unique {
-		if a := cached[key]; a != nil {
+		if a := cached[key]; collectorTextEvidenceValid(a, texts[indices[key][0]]) {
 			for _, i := range indices[key] {
 				out[i] = jx.Clone(a)
 			}
@@ -85,7 +103,24 @@ func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, pr
 			continue
 		}
 		for i, a := range res {
-			if i >= end-off || !validModelContentVerdict(a) {
+			if i >= end-off {
+				break
+			}
+			text := missingTexts[off+i]
+			if !collectorTextEvidenceValid(a, text) && a != nil && end-off > 1 && u.Alive() {
+				// A conflicting batch quotation gets one independent retry.
+				if u.run != nil {
+					u.run.TextBatchCalls++
+				}
+				single, err := u.analyzeTextBatch([]string{text}, topic, h, private, full)
+				if err == nil && len(single) == 1 {
+					a = single[0]
+				}
+			}
+			if !collectorTextEvidenceValid(a, text) {
+				if a != nil {
+					u.Log("-> Цитата модели не подтверждается исходным текстом: оценка не сохранена, запись отложена.")
+				}
 				continue
 			}
 			key := missingKeys[off+i]
