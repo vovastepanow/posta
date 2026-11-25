@@ -202,6 +202,7 @@ let lastParserRuntimeLogAt = 0;
 let itemRequest = 0;
 let poolRequest = 0;
 let lastPoolRefresh = 0;
+let lastPoolSnapshot = '';
 
 function markPoolSelection() {
     const key = state.item?.item_key || state.item?.image;
@@ -220,6 +221,12 @@ async function refreshContentPool() {
         $('content-pool-count').textContent = String(items.length);
         $('content-pool-status').textContent = items.length ? '' : 'Нет постов, подходящих текущим фильтрам.';
         $('content-pool-status').hidden = items.length > 0;
+        const snapshot = JSON.stringify(items);
+        if (snapshot === lastPoolSnapshot) {
+            markPoolSelection();
+            return;
+        }
+        lastPoolSnapshot = snapshot;
         const cards = items.map(item => {
             const card = el('button', { type: 'button', className: 'content-pool-card', onclick: () => loadCurrentItem(item.item_key) });
             card.dataset.key = item.item_key;
@@ -237,6 +244,9 @@ async function refreshContentPool() {
         if (request !== poolRequest) return;
         $('content-pool-status').hidden = false;
         $('content-pool-status').textContent = `Не удалось загрузить пул: ${error.message}`;
+        $('content-pool-grid').replaceChildren();
+        $('content-pool-count').textContent = '';
+        lastPoolSnapshot = '';
     }
 }
 

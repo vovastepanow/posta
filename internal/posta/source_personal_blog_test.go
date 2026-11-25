@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"posta/internal/db"
+	"posta/internal/jx"
 )
 
 func TestPersonalBlogTypeIndependentFromTopic(t *testing.T) {
@@ -88,6 +89,35 @@ func TestPersonalBlogPreferencePersistsByTopicPostgres(t *testing.T) {
 	if u.personalBlogMode("SMM и блогинг") != personalBlogAny ||
 		u.personalBlogMode("Единоборства") != personalBlogExclude {
 		t.Fatal("removing one topic's restriction changed another topic")
+	}
+	// Existing saved items use exactly the same filter as new admissions.
+	key := autopilotTopicKey("Единоборства")
+	for _, source := range []string{"rss:https://personal-blog-filter.example/yes", "rss:https://personal-blog-filter.example/no"} {
+		if _, err := d.Pool.Exec(ctx, `INSERT INTO source_autopilot_sources(scope,topic_key,source_id,state,policy_version,first_seen_at,evidence)
+			VALUES('public',$1,$2,'probation',$3,1,jsonb_build_object('personal_blog',$4::text))`,
+			key, source, TopicProfileVersion, source[len(source)-2:]); err != nil {
+			t.Fatal(err)
+		}
+		defer d.Pool.Exec(ctx, `DELETE FROM source_autopilot_sources WHERE scope='public' AND topic_key=$1 AND source_id=$2`, key, source)
+	}
+	if _, err := d.Pool.Exec(ctx, `UPDATE source_autopilot_sources SET evidence='{"personal_blog":"yes"}' WHERE scope='public' AND topic_key=$1 AND source_id='rss:https://personal-blog-filter.example/yes'`, key); err != nil {
+		t.Fatal(err)
+	}
+	filter, err := u.poolPersonalBlogFilter("Единоборства")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filter(jx.M{"source_key": "rss:https://personal-blog-filter.example/yes"}) ||
+		!filter(jx.M{"source_key": "rss:https://personal-blog-filter.example/no"}) ||
+		filter(jx.M{"source_key": "unknown"}) {
+		t.Fatal("saved pool personal-blog exclusion not enforced")
+	}
+	if err := u.SavePersonalBlogMode("Единоборства", personalBlogAny); err != nil {
+		t.Fatal(err)
+	}
+	filter, err = u.poolPersonalBlogFilter("Единоборства")
+	if err != nil || !filter(jx.M{"source_key": "rss:https://personal-blog-filter.example/yes"}) {
+		t.Fatal("re-enabling blogs should show retained posts")
 	}
 	if err := u.SavePersonalBlogMode("SMM и блогинг", "invalid"); err == nil {
 		t.Fatal("invalid filter mode was accepted")
