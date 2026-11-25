@@ -236,6 +236,9 @@ func TestAutopilotYieldMixedSourceLifecyclePostgres(t *testing.T) {
 		if len(posts) < 10 {
 			t.Errorf("expected at least ten parsed posts, got %d", len(posts))
 		}
+		if preliminary == 1 {
+			return nil
+		}
 		return &sourceEvaluation{Score: 30}
 	}
 	assessCalls := 0
@@ -273,6 +276,30 @@ func TestAutopilotYieldMixedSourceLifecyclePostgres(t *testing.T) {
 		if err := a.autopilotReviewShadowCandidatesWith(work, job, 1, 85, fetch, evaluate, assess, policy); err != nil {
 			return err
 		}
+		verifyState("candidate")
+		if assessCalls != 0 {
+			t.Fatal("invalid model response admitted a source")
+		}
+		if _, err := d.Pool.Exec(work, `UPDATE source_autopilot_sources SET next_check_at=0 WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, key, source); err != nil {
+			return err
+		}
+		if err := a.autopilotReviewShadowCandidatesWith(work, job, 1, 85, fetch, evaluate, assess, policy); err != nil {
+			return err
+		}
+		verifyState("cooldown")
+		if assessCalls != 0 {
+			t.Fatal("low preliminary score admitted an unverified source")
+		}
+		// A separately admitted post can recover a mixed publisher without
+		// treating every readable feed as a successful prescreen.
+		if _, err := d.Pool.Exec(work, `UPDATE source_autopilot_sources SET state='candidate',resume_state='',next_check_at=0,
+			evidence=evidence || jsonb_build_object('preliminary_post_probe',jsonb_build_object('has_eligible',true,'policy_version',$4::integer))
+			WHERE scope=$1 AND topic_key=$2 AND source_id=$3`, job.Scope, key, source, TopicProfileVersion); err != nil {
+			return err
+		}
+		if err := a.autopilotReviewShadowCandidatesWith(work, job, 1, 85, fetch, evaluate, assess, policy); err != nil {
+			return err
+		}
 		verifyState("probation")
 		// Reproduce a second successful collection window without sleeping.
 		// Adjust the old pass to the previous day, leaving the source due now.
@@ -292,10 +319,9 @@ func TestAutopilotYieldMixedSourceLifecyclePostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	verifyState("active")
-	if preliminary != 1 || assessCalls != 2 {
-		t.Fatalf("preliminary calls=%d assessments=%d; want 1 and 2", preliminary, assessCalls)
+	if preliminary != 3 || assessCalls != 2 {
+		t.Fatalf("preliminary calls=%d assessments=%d; want 3 and 2", preliminary, assessCalls)
 	}
-
 }
 
 // The recorded positive probe enters the limited pilot without the global switch.
