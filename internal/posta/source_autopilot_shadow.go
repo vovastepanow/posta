@@ -1686,11 +1686,7 @@ func (a *App) autopilotReviewShadowCandidates(ctx context.Context, job *autopilo
 		return err
 	}
 	if job.Scope == autopilotAutoScope {
-		if a.TBool("autopilot_yield_policy") {
-			if err := a.autopilotScheduleYieldRecheck(ctx, job); err != nil {
-				return err
-			}
-		} else if err := a.autopilotSchedulePreliminaryProbe(ctx, job, false); err != nil {
+		if err := a.autopilotSchedulePreliminaryProbe(ctx, job, false); err != nil {
 			return err
 		}
 		if err := a.autopilotRecoverLegacyYouTube(ctx, job); err != nil {
@@ -1879,20 +1875,21 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			row_number() OVER (PARTITION BY lane ORDER BY fresh_recheck DESC NULLS LAST,probe_priority DESC,reaudit DESC,checked_at,first_seen_at,search_rank,source_id) AS lane_rank
 		FROM due
 	)
-	SELECT source_id,state,resume_state,reaudit,pilot,probe_positive,legacy_active FROM ranked
+	SELECT source_id,state,resume_state,reaudit,pilot,probe_positive,legacy_active,lane FROM ranked
 	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit,
 		TopicProfileVersion, time.Now().Add(-autopilotDirectMaxAge).Unix())
 	if err != nil {
 		return err
 	}
 	type sourceRow struct {
-		id, state, resume                           string
+		id, state, resume                          string
 		reaudit, pilot, probePositive, legacyActive bool
+		lane                                       int
 	}
 	var ids []sourceRow
 	for rows.Next() {
 		var row sourceRow
-		if err := rows.Scan(&row.id, &row.state, &row.resume, &row.reaudit, &row.pilot, &row.probePositive, &row.legacyActive); err != nil {
+		if err := rows.Scan(&row.id, &row.state, &row.resume, &row.reaudit, &row.pilot, &row.probePositive, &row.legacyActive, &row.lane); err != nil {
 			rows.Close()
 			return err
 		}
@@ -1916,6 +1913,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			policy.YieldEnabled = true
 		}
 		newTrial := state == "candidate"
+		// A current admitted post (direct search or independent probe) can
+		// override an unreliable source-level score, but readability cannot.
+		verifiedAdmission := row.probePositive || row.lane == 1
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -2188,7 +2188,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				return err
 			}
 			if evaluation == nil {
-				if !policy.YieldEnabled {
+				if !policy.YieldEnabled || !verifiedAdmission {
 					reason = "assessment_unavailable"
 				}
 				cause := autopilotReadAssessmentCause(ctx)
@@ -2227,9 +2227,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				// is not a confirmed retrieval error.
 				evidence["preliminary_off_topic_confirmed"] = reject &&
 					evaluation.Quality["topic_relevant"] != nil && evaluation.Quality["topic_off_topic"] != nil
-				if policy.YieldEnabled {
-					// A source-level score is metadata, not a delivery verdict.
-					// The bounded trial will assess actual publications below.
+				if policy.YieldEnabled && (pass || verifiedAdmission) {
+					// Admit only a positive prescreen or an independently
+					// admitted publication, never mere readability.
 				} else if state != "candidate" {
 					if reject {
 						// Revisit confirmed publishers conservatively: demote
@@ -2286,11 +2286,11 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 							evidence["preliminary_post_probe"] = probe
 						}
 					}
-					if pilotAllowed && jx.Bool(jx.Map(evidence, "preliminary_post_probe"), "has_eligible") {
+					if (pilotAllowed || policy.YieldEnabled) && jx.Bool(jx.Map(evidence, "preliminary_post_probe"), "has_eligible") {
 						// Preserve the old outcome, but allow normal bounded
 						// probation. The probe itself never delivers posts.
 						evidence["strict_preliminary_outcome"] = decisionReason
-						pilot, policy.YieldEnabled = true, true
+						pilot, policy.YieldEnabled = pilotAllowed, true
 					} else {
 						if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
 							decision, decisionReason, jx.Marshal(evidence), at,
@@ -2311,7 +2311,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				evidence["yield_pilot"] = true
 				evidence["source_decision_policy"] = "yield_pilot"
 			}
-			if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "probation", "yield_readable_trial", jx.Marshal(evidence), at, at.Add(autopilotSourceReviewInterval(job, "probation"))); err != nil {
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "probation", "yield_verified_trial", jx.Marshal(evidence), at, at.Add(autopilotSourceReviewInterval(job, "probation"))); err != nil {
 				if errors.Is(err, errAutopilotProbationLimit) {
 					if saveErr := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, "preliminary_pass_waiting_trial", jx.Marshal(evidence), at, at.Add(30*time.Minute)); saveErr != nil &&
 						!errors.Is(saveErr, errAutopilotSourceChanged) {

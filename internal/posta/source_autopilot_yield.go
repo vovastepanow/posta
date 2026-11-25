@@ -64,13 +64,13 @@ func autopilotLiveTrialConfirmed(y sourceYieldEvidence, p sourcePolicy) bool {
 		y.UsefulUnique <= y.Evidence.Eligible
 }
 
-// Even the legacy thematic policy must not promote an archive. Existing
-// legacy approvals without proof return to a real trial, not rejection.
+// New approvals need live evidence. Existing approvals are not revoked
+// merely because the policy changed; observed deterioration is separate.
 func autopilotGuardLiveTrial(state, next, reason string, legacyActive bool, y sourceYieldEvidence, p sourcePolicy) (string, string) {
 	if !p.RequireLiveTrial || next != "active" || autopilotLiveTrialConfirmed(y, p) {
 		return next, reason
 	}
-	if state == "probation" || (state == "active" && legacyActive) {
+	if state == "probation" {
 		return "probation", "yield_confirmation_required"
 	}
 	return next, reason
