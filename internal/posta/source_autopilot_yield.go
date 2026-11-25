@@ -56,6 +56,26 @@ func autopilotYieldEvidenceWindow(ctx context.Context, q db.Querier, scope, key,
 // complete current sample and enough real post evaluations. Unknown input
 // never becomes a negative label. A positive trial needs a newly published
 // eligible item, not just repeated reads of its archive.
+func autopilotLiveTrialConfirmed(y sourceYieldEvidence, p sourcePolicy) bool {
+	return p.MinPasses >= 2 && p.MinFreshUnique > 0 && p.YieldMinLive > 0 &&
+		y.TrialStartedAt > 0 && y.TrialPasses >= p.MinPasses &&
+		y.UsefulUnique >= p.MinFreshUnique && y.LiveUnique >= p.YieldMinLive &&
+		y.LiveUnique <= y.UsefulUnique && y.TrialPasses <= y.Evidence.SuccessfulPasses &&
+		y.UsefulUnique <= y.Evidence.Eligible
+}
+
+// Even the legacy thematic policy must not promote an archive. Existing
+// legacy approvals without proof return to a real trial, not rejection.
+func autopilotGuardLiveTrial(state, next, reason string, legacyActive bool, y sourceYieldEvidence, p sourcePolicy) (string, string) {
+	if !p.RequireLiveTrial || next != "active" || autopilotLiveTrialConfirmed(y, p) {
+		return next, reason
+	}
+	if state == "probation" || (state == "active" && legacyActive) {
+		return "probation", "yield_confirmation_required"
+	}
+	return next, reason
+}
+
 func decideSourceYieldState(state string, y sourceYieldEvidence, p sourcePolicy) (string, string) {
 	e := y.Evidence
 	if e.TechnicalFailure {
@@ -78,7 +98,7 @@ func decideSourceYieldState(state string, y sourceYieldEvidence, p sourcePolicy)
 	negativeConfirmed := y.CompleteSample && e.Evaluated >= p.MinEvaluated && e.SuccessfulPasses >= p.MinPasses
 	switch state {
 	case "probation":
-		if !excess && y.TrialStartedAt > 0 && y.TrialPasses >= p.MinPasses && y.UsefulUnique >= p.MinFreshUnique && y.LiveUnique >= p.YieldMinLive {
+		if !excess && autopilotLiveTrialConfirmed(y, p) {
 			return "active", "yield_confirmed"
 		}
 		if negativeConfirmed && excess {

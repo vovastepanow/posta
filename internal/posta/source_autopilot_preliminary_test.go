@@ -43,6 +43,7 @@ func TestAutopilotSourceTopicVerdicts(t *testing.T) {
 		pass, reject           bool
 	}{
 		{"fully relevant", `{"verdicts":["relevant","relevant","relevant"]}`, 3, 100, 3, true, false},
+		{"valid label casing and whitespace", `{"verdicts":[" Relevant ","RELEVANT","relevant"]}`, 3, 100, 3, true, false},
 		{"mixed useful source", `{"verdicts":["relevant","relevant","relevant","adjacent","off_topic"]}`, 5, 70, 5, true, false},
 		{"clearly unrelated", `{"verdicts":["off_topic","off_topic","off_topic","off_topic","relevant"]}`, 5, 20, 5, false, true},
 		{"adjacent is not off-topic", `{"verdicts":["adjacent","adjacent","adjacent","adjacent","adjacent"]}`, 5, 50, 5, false, false},

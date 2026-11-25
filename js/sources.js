@@ -36,6 +36,7 @@ const autopilotSourceReasonLabels = {
     yield_readable_trial: 'Испытание по полезной отдаче',
     yield_confirmed: 'Полезная отдача подтверждена новыми публикациями',
     yield_observing: 'Ожидаем новые полезные публикации',
+    yield_confirmation_required: 'Нужно подтвердить отдачу новыми публикациями на испытании',
     yield_retain: 'Полезный источник продолжает наблюдаться',
     yield_declined: 'Полезная отдача снизилась',
     yield_no_useful_posts: 'Не найдено полезных постов в оценённой выборке',

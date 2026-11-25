@@ -17,6 +17,7 @@ type sourcePolicy struct {
 	PromoteRate, DemoteRate                 float64
 	MaxAdvertisingRate, MaxDuplicateRate    float64
 	YieldEnabled, YieldPilotEnabled         bool
+	RequireLiveTrial                        bool
 	YieldMinLive                            int
 }
 
@@ -24,7 +25,7 @@ func (a *App) autopilotSourcePolicy() sourcePolicy {
 	return sourcePolicy{MinEvaluated: a.TInt("autopilot_min_evaluations"), MinPasses: a.TInt("autopilot_min_passes"), MinFreshUnique: a.TInt("autopilot_min_unique"),
 		PromoteRate: float64(a.TInt("autopilot_promote_percent")) / 100, DemoteRate: float64(a.TInt("autopilot_demote_percent")) / 100,
 		MaxAdvertisingRate: float64(a.TInt("autopilot_max_ads_percent")) / 100, MaxDuplicateRate: float64(a.TInt("autopilot_max_duplicates_percent")) / 100,
-		YieldEnabled: a.TBool("autopilot_yield_policy"), YieldPilotEnabled: a.TBool("autopilot_yield_pilot"), YieldMinLive: a.TInt("autopilot_yield_min_live")}
+		YieldEnabled: a.TBool("autopilot_yield_policy"), YieldPilotEnabled: a.TBool("autopilot_yield_pilot"), YieldMinLive: a.TInt("autopilot_yield_min_live"), RequireLiveTrial: true}
 }
 
 // Professional sources must produce posts that survive the full admission

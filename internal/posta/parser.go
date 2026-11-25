@@ -959,7 +959,7 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 		if sourcePoolCount(fresh, topic, ContentSourceKey(item)) >= sourcePoolLimit(u.TInt("per_source_pool"), target, topicPoolCount(fresh, topic)) {
 			return nil, nil
 		}
-		if strings.HasPrefix(ContentSourceKey(item), "rss:") {
+		if _, _, _, valid := autopilotSourceParts(ContentSourceKey(item)); valid {
 			rows, err := tx.Query(u.Ctx, `SELECT source_id FROM source_autopilot_sources WHERE scope='public' AND topic_key=$1 AND state='probation'`, autopilotTopicKey(topicKey))
 			if err != nil {
 				return nil, err

@@ -108,3 +108,23 @@ func TestAutopilotYieldEvidencePostgres(t *testing.T) {
 		t.Fatalf("yield=%+v err=%v", y, err)
 	}
 }
+
+// The production strict fallback cannot use a pre-trial archive to approve
+// a publisher, and old unconfirmed approvals must resume trial.
+func TestAutopilotLiveTrialGuard(t *testing.T) {
+	p := sourcePolicy{RequireLiveTrial: true, MinPasses: 2, MinFreshUnique: 3, YieldMinLive: 1}
+	y := sourceYieldEvidence{Evidence: sourceEvidence{Eligible: 3, SuccessfulPasses: 4}, UsefulUnique: 3, TrialPasses: 2, TrialStartedAt: 100}
+	for _, state := range []string{"probation", "active"} {
+		if got, reason := autopilotGuardLiveTrial(state, "active", "observed_useful", true, y, p); got != "probation" || reason != "yield_confirmation_required" {
+			t.Fatalf("%s promoted archive: %s %s", state, got, reason)
+		}
+	}
+	y.LiveUnique = 1
+	if got, _ := autopilotGuardLiveTrial("probation", "active", "observed_useful", false, y, p); got != "active" {
+		t.Fatalf("confirmed trial not approved: %s", got)
+	}
+	y.TrialPasses = 1
+	if got, _ := autopilotGuardLiveTrial("probation", "active", "observed_useful", false, y, p); got != "probation" {
+		t.Fatalf("pre-trial passes counted: %s", got)
+	}
+}
