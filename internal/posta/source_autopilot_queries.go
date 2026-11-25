@@ -87,6 +87,9 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	// exploration turns. Skipping this lookup every fourth turn made it
 	// fall back to cold-start rotation, repeatedly missing the same
 	// alternatives when the number of queries was divisible by four.
+	// Source admission may reward useful curation, but query learning must
+	// not reward copied material as independent discoveries. Explicit
+	// off-topic evidence remains a search signal, not a source verdict.
 	if a.DB != nil {
 		rows, err := a.DB.Pool.Query(ctx, `WITH latest AS (
 			SELECT DISTINCT ON (source_id,post_hash) source_id,post_hash,content_hash,published_at,eligible
@@ -96,19 +99,18 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 			ORDER BY source_id,post_hash,policy_version DESC
 		), recent AS (SELECT * FROM latest WHERE published_at >= $3)
 		SELECT q.query,
-			count(DISTINCT e.content_hash) FILTER (WHERE s.state IN ('probation','active') AND e.eligible AND e.content_hash<>'' AND ($4 OR NOT EXISTS
-				(SELECT 1 FROM recent other WHERE other.content_hash=e.content_hash AND other.source_id<>e.source_id))) AS useful,
-			count(DISTINCT s.source_id) FILTER (WHERE s.state IN ('probation','active') AND e.eligible AND e.content_hash<>'' AND ($4 OR NOT EXISTS
-				(SELECT 1 FROM recent other WHERE other.content_hash=e.content_hash AND other.source_id<>e.source_id))) AS useful_sources,
+			count(DISTINCT e.content_hash) FILTER (WHERE s.state IN ('probation','active') AND e.eligible AND e.content_hash<>'' AND NOT EXISTS
+				(SELECT 1 FROM recent other WHERE other.content_hash=e.content_hash AND other.source_id<>e.source_id)) AS useful,
+			count(DISTINCT s.source_id) FILTER (WHERE s.state IN ('probation','active') AND e.eligible AND e.content_hash<>'' AND NOT EXISTS
+				(SELECT 1 FROM recent other WHERE other.content_hash=e.content_hash AND other.source_id<>e.source_id)) AS useful_sources,
 			count(DISTINCT s.source_id) FILTER (WHERE s.state='rejected' AND
-				(s.reason IN ('observed_ad_or_duplicates','yield_ad_or_self_repeats','yield_no_useful_posts') OR
-				(NOT $4 AND (s.reason IN ('observed_irrelevant','observed_low_yield') OR
-				(s.reason='preliminary_topic_mismatch' AND s.evidence @> '{"preliminary_off_topic_confirmed":true}'::jsonb))))) AS observed_bad
+				(s.reason IN ('observed_ad_or_duplicates','yield_ad_or_self_repeats','yield_no_useful_posts','observed_irrelevant','observed_low_yield') OR
+				(s.reason='preliminary_topic_mismatch' AND s.evidence @> '{"preliminary_off_topic_confirmed":true}'::jsonb))) AS observed_bad
 			FROM source_autopilot_query_sources q
 			JOIN source_autopilot_sources s ON s.scope=q.scope AND s.topic_key=q.topic_key AND s.source_id=q.source_id
 			LEFT JOIN recent e ON e.source_id=q.source_id
 			WHERE q.scope=$1 AND q.topic_key=$2 GROUP BY q.query`,
-			job.Scope, job.TopicKey, time.Now().Add(-30*24*time.Hour).Unix(), a.TBool("autopilot_yield_policy"))
+			job.Scope, job.TopicKey, time.Now().Add(-30*24*time.Hour).Unix())
 		if err != nil {
 			return "", err
 		}

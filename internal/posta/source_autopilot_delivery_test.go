@@ -71,6 +71,10 @@ func TestAutopilotDeliversContentPerOwnerPostgres(t *testing.T) {
 	})
 	owners := []string{"autopilot-delivery-a", "autopilot-delivery-b", "autopilot-delivery-c"}
 	for _, owner := range owners {
+		if _, err = d.Pool.Exec(ctx, `DELETE FROM cache WHERE key=$1`, autopilotDeliveryAuditCacheKey(owner, key, false)); err != nil {
+			t.Fatal(err)
+		}
+		defer d.Pool.Exec(context.Background(), `DELETE FROM cache WHERE key=$1`, autopilotDeliveryAuditCacheKey(owner, key, false))
 		if _, err = d.Pool.Exec(ctx, `INSERT INTO users(id,created_at) VALUES($1,0) ON CONFLICT DO NOTHING`, owner); err != nil {
 			t.Fatal(err)
 		}
