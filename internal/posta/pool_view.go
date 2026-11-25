@@ -131,5 +131,8 @@ func (u *U) selectPersonalPoolItems(pool []jx.M, topic, key string, matches func
 		return shown
 	}
 	affinity := u.loadPersonalPoolAffinity(topic, key)
-	return poolOrderWithPreference(shown, affinity.bonus)
+	professional := u.professionalValueTopic(topic) && !u.TopicIsHumor(topic)
+	return poolOrderWithPreference(shown, func(item jx.M) int64 {
+		return poolEditorialBonus(item, professional) + affinity.bonus(item)
+	})
 }

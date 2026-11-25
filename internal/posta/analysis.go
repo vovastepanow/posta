@@ -214,22 +214,8 @@ func (u *U) professionalValueTopic(topic string) bool {
 // Fail open for legacy or incomplete model responses. Only clearly generic
 // professional posts with all three independently low scores are filtered.
 func professionalAnalysisLowValue(a jx.M) bool {
-	for _, key := range []string{"interest", "practical_value", "specificity"} {
-		value, exists := a[key]
-		if !exists {
-			return false
-		}
-		switch value.(type) {
-		case int, int64, float64, float32:
-		default:
-			return false
-		}
-		score := jx.Int(a, key)
-		if score < 0 || score >= 35 {
-			return false
-		}
-	}
-	return true
+	scores, ok := professionalValueScores(a)
+	return ok && scores[0] < 35 && scores[1] < 35 && scores[2] < 35
 }
 
 const textOnlyEvidenceRule = "Передан только текст записи. Изображения, видео и страницы по ссылкам не переданы: URL и Markdown-вложение не раскрывают их содержимое. Не утверждай, что видишь фото, кадры, состав, шаги или действия, которых нет в тексте. Оценивай подтверждённое содержание полученного текста, а не предполагаемое содержание вложений. format всегда text.\n"
