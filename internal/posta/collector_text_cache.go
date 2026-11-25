@@ -64,6 +64,9 @@ func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, pr
 		missingKeys = append(missingKeys, key)
 		missingTexts = append(missingTexts, texts[indices[key][0]])
 	}
+	if u.run != nil {
+		u.run.TextCacheHits += len(unique) - len(missingKeys)
+	}
 	if len(missingKeys) < len(unique) {
 		u.Log("-> Текстовый анализ из кэша: %d из %d уникальных записей.", len(unique)-len(missingKeys), len(unique))
 	}
@@ -73,6 +76,9 @@ func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, pr
 	fresh := map[string]jx.M{}
 	for off := 0; off < len(missingKeys); off += 6 {
 		end := min(len(missingKeys), off+6)
+		if u.run != nil {
+			u.run.TextBatchCalls++
+		}
 		res, err := u.analyzeTextBatch(missingTexts[off:end], topic, h, private, full)
 		if err != nil {
 			u.Log("-> Не удалось оценить текст: %v", err)

@@ -990,15 +990,29 @@ func galleryPrepareImage(data []byte) []byte {
 	return data
 }
 
+// galleryMainIndex skips exactly one already handled media entry. Several
+// different videos may share the same cover image.
+func galleryMainIndex(gallery []jx.M, mainImage string) int {
+	if mainImage == "" && len(gallery) > 0 {
+		return 0
+	}
+	for i, f := range gallery {
+		if jx.Str(f, "image") == mainImage {
+			return i
+		}
+	}
+	return -1
+}
+
 // GalleryCacheFiles — кэширует файлы галереи, кроме главного.
 func (u *U) GalleryCacheFiles(gallery []jx.M, mainImage string) []jx.M {
 	done := 0
+	main := galleryMainIndex(gallery, mainImage)
 	for i, f := range gallery {
-		isMain := jx.Str(f, "image") == mainImage
-		if mainImage == "" {
-			isMain = i == 0
+		if !u.Alive() || done >= galleryCacheMaxFiles {
+			break
 		}
-		if isMain || done >= galleryCacheMaxFiles {
+		if i == main {
 			continue
 		}
 		image, video := jx.Str(f, "image"), jx.Str(f, "video")
@@ -1033,9 +1047,13 @@ func (u *U) CachePoolGalleries(limit int) int {
 		after  []jx.M
 	}
 	todo := map[string]galleryUpdate{}
+	attempted := 0
 	for _, it := range u.Pool() {
+		if !u.Alive() || attempted >= limit {
+			break
+		}
 		g := jx.Maps(it, "gallery")
-		if len(g) < 2 || len(todo) >= limit {
+		if len(g) < 2 {
 			continue
 		}
 		key := ContentItemKey(it)
@@ -1043,7 +1061,11 @@ func (u *U) CachePoolGalleries(limit int) int {
 			continue
 		}
 		missing := false
-		for _, f := range g[1:] {
+		main := galleryMainIndex(g, ContentImageKey(it))
+		for i, f := range g {
+			if i == main {
+				continue
+			}
 			if (jx.Str(f, "image") != "" && u.MediaExisting(jx.Str(f, "image_local")) == "") ||
 				(jx.Str(f, "video") != "" && u.MediaExisting(jx.Str(f, "video_local")) == "") {
 				missing = true
@@ -1053,6 +1075,7 @@ func (u *U) CachePoolGalleries(limit int) int {
 		if !missing {
 			continue
 		}
+		attempted++
 		before := string(jx.Marshal(g))
 		after := u.GalleryCacheFiles(g, ContentImageKey(it))
 		if before != string(jx.Marshal(after)) {

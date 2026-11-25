@@ -2134,6 +2134,9 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 	private := u.analysisPrivate(topic, item)
 	a := u.readAnalysisCache([]string{cacheKey})[cacheKey]
 	if a != nil {
+		if u.run != nil {
+			u.run.VisionCacheHits++
+		}
 		u.Log("-> Анализ взят из кэша: совпадают содержание, кадры и настройки модели.")
 		if !isVideo && jx.Bool(a, "tags_classification_pending") {
 			tagCaption := PostCaptionForAI(item)
@@ -2147,6 +2150,9 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 		}
 	} else {
 		var err error
+		if u.run != nil {
+			u.run.VisionCalls++
+		}
 		a, caption, err = u.analyzeCandidateVision(frames, item, h, topic, sb)
 		if err != nil {
 			u.Log("-> ИИ не вернул корректную оценку: %s", err)
@@ -2308,7 +2314,6 @@ func (u *U) RunCollector() bool {
 	for _, e := range cache {
 		scores[e.URL] = e.Score
 	}
-	h := u.History()
 	format := u.TopicFormatOf(key)
 	var byPlatform map[string][]jx.M
 	if fastTopicSearch && u.PoolTopicCount(key) == 0 {
@@ -2396,6 +2401,10 @@ func (u *U) RunCollector() bool {
 		f["fast_search_added"] = fastPostAdded
 		f["fast_search_seconds"] = fastSearchSeconds
 		f["prescreen_cache_hits"] = pc.stats["prescreen_cache_hits"]
+		f["text_cache_hits"] = u.run.TextCacheHits
+		f["text_batch_calls"] = u.run.TextBatchCalls
+		f["vision_cache_hits"] = u.run.VisionCacheHits
+		f["vision_calls"] = u.run.VisionCalls
 		if added > 0 {
 			f["first_added_seconds"] = firstAddedSeconds
 		}
@@ -2507,10 +2516,10 @@ outer:
 		pc.stats["rejected"], pc.stats["duplicates"])
 	total := time.Since(started)
 	u.Log("Время прохода: сбор %.1f мин, анализ %.1f мин.", max(0, (total-tAnalyze).Minutes()), tAnalyze.Minutes())
+	u.Log("Кэш: быстрый отсев %d, текст %d, визуальный анализ %d; запуски анализа: текстовые пачки %d, визуальные %d.", pc.stats["prescreen_cache_hits"], u.run.TextCacheHits, u.run.VisionCacheHits, u.run.TextBatchCalls, u.run.VisionCalls)
 	if fastTopicSearch {
 		u.Log("Быстрый поиск: найдено %d кандидатов, после полного отбора добавлено %d.", fastPostFound, fastPostAdded)
 	}
 	u.Log("")
-	_ = h
 	return restart
 }

@@ -33,6 +33,10 @@ type Run struct {
 	TextAnalysesLeft     int
 	TextAnalysesDeferred int
 	PublicCacheScopes    map[string]bool
+	TextCacheHits        int
+	TextBatchCalls       int
+	VisionCacheHits      int
+	VisionCalls          int
 	SourceMisses         map[string]int
 	HotStats             jx.M
 	FourchanAPI          int
