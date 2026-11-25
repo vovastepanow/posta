@@ -149,7 +149,7 @@ func radarDispatch(c *Ctx, op string, in jx.M, isPost bool) (any, error) {
 func networkConnect(c *Ctx) (any, error) {
 	platform := c.Str("platform")
 	n := c.A.Networks()[platform]
-	if platform == "telegram" || n == nil || n.Connect == nil {
+	if platform == "telegram" || n == nil || n.Connect == nil || !n.PublishingConnectionAvailable() {
 		return nil, fail(422, "Эту соцсеть пока нельзя подключить из Posta.")
 	}
 	if n.OAuth != nil {
@@ -189,8 +189,8 @@ func networkBack(c *Ctx, params url.Values) (any, error) {
 func networkOAuthStart(c *Ctx) (any, error) {
 	platform := c.Q("platform")
 	n := c.A.Networks()[platform]
-	if n == nil || n.OAuth == nil {
-		return nil, fail(422, "Эта соцсеть подключается не входом.")
+	if n == nil || n.OAuth == nil || !n.PublishingConnectionAvailable() {
+		return nil, fail(422, "Эта соцсеть пока не подключается через OAuth.")
 	}
 	if n.Status == "needs_keys" {
 		return nil, fail(422, n.Title+": не настроено на сервере (нужны ключи приложения).")
@@ -216,7 +216,7 @@ func networkOAuthCallback(c *Ctx) (any, error) {
 	}
 	platform := jx.Str(data, "platform")
 	n := c.A.Networks()[platform]
-	if n == nil || n.OAuth == nil || q.Get("error") != "" || q.Get("code") == "" {
+	if n == nil || n.OAuth == nil || !n.PublishingConnectionAvailable() || q.Get("error") != "" || q.Get("code") == "" {
 		title := platform
 		if n != nil {
 			title = n.Title

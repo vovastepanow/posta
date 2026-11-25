@@ -24,7 +24,7 @@ function renderNetworks() {
         el('b', { textContent: `${networks[c.platform]?.title ?? c.platform} «${c.title || c.ref}»` }),
         el('button', { type: 'button', className: 'secondary-button', textContent: 'Отключить', onclick: () => removeChannel(c.id) })));
     for (const [key, network] of Object.entries(networks)) {
-        if (key === 'telegram') continue;
+        if (key === 'telegram' || !network.connect_available) continue;
         const open = ['ready', 'beta'].includes(network.status);
         const button = !open ? null : network.oauth
             ? el('a', { className: 'secondary-button', href: apiUrl('network_oauth_start', { platform: key }), textContent: `Войти в ${network.title}` })

@@ -40,3 +40,30 @@ func TestTelegramPhotoFirstAlbumWithPlayableVideo(t *testing.T) {
 		t.Fatalf("media lost or reordered: %v", gallery)
 	}
 }
+
+
+func TestPublishingConnectionAvailability(t *testing.T) {
+	a := &App{}
+	catalog := a.Networks()
+	for _, key := range []string{"telegram", "vk", "max"} {
+		if !catalog[key].PublishingConnectionAvailable() {
+			t.Errorf("expected connectable: %s", key)
+		}
+	}
+	for _, key := range []string{"discord", "mastodon", "bluesky", "reddit", "tumblr", "linkedin", "viber", "dzen", "instagram", "facebook", "threads", "tiktok", "rutube", "youtube", "pinterest", "x", "ok"} {
+		if catalog[key].PublishingConnectionAvailable() {
+			t.Errorf("unexpected new connection: %s", key)
+		}
+	}
+	if catalog["discord"].Publish == nil || catalog["mastodon"].Publish == nil {
+		t.Fatal("existing publishing adapters must remain intact")
+	}
+	if a.NetworksPublic()["discord"] == nil {
+		t.Fatal("existing resource metadata must remain available")
+	}
+	vk := *catalog["vk"]
+	vk.Status = "needs_keys"
+	if vk.PublishingConnectionAvailable() {
+		t.Fatal("unconfigured adapter exposed")
+	}
+}
