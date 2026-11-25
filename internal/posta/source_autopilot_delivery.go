@@ -120,21 +120,31 @@ func (a *App) deliverAutopilotTopicContentMode(ctx context.Context, job *autopil
 	if job.Scope != autopilotAutoScope || job.Kind != autopilotAutoKind {
 		return nil
 	}
-	query := `SELECT source_id,direct FROM (
-		SELECT DISTINCT r.source_id,false AS direct FROM source_autopilot_content_results r
-		JOIN source_autopilot_sources s ON s.scope=r.scope AND s.topic_key=r.topic_key AND s.source_id=r.source_id
-		WHERE r.scope=$1 AND r.topic_key=$2 AND s.state IN ('probation','active')
-		UNION ALL
-		SELECT DISTINCT source_id,true AS direct FROM source_autopilot_direct_results
-		WHERE scope=$1 AND topic_key=$2 AND published_at >= $3 AND assessed_at >= $3
-	) ready ORDER BY direct DESC,source_id`
-	if directOnly {
-		query = `SELECT DISTINCT source_id,true AS direct FROM source_autopilot_direct_results
-			WHERE scope=$1 AND topic_key=$2 AND published_at >= $3 AND assessed_at >= $3
-			ORDER BY source_id`
+	// Ignore historical generations and expired results before walking sources.
+	// This is only a scheduling optimisation; individual delivery still
+	// revalidates each result and each owner's admission in the transaction.
+	now := time.Now()
+	args := []any{job.Scope, job.TopicKey, now.Add(-autopilotDirectMaxAge).Unix(), TopicProfileVersion}
+	query := `SELECT source_id,true AS direct FROM source_autopilot_direct_results
+		WHERE scope=$1 AND topic_key=$2 AND published_at >= $3 AND assessed_at >= $3 AND policy_version=$4
+		GROUP BY source_id ORDER BY max(published_at) DESC,source_id`
+	if !directOnly {
+		args = append(args, now.Add(-time.Duration(config.ContentMaxAgeDays)*24*time.Hour).Unix())
+		query = `SELECT source_id,direct FROM (
+			SELECT r.source_id,false AS direct,CASE WHEN s.state='active' THEN 1 ELSE 2 END AS priority,max(r.published_at) AS newest
+			FROM source_autopilot_content_results r
+			JOIN source_autopilot_sources s ON s.scope=r.scope AND s.topic_key=r.topic_key AND s.source_id=r.source_id
+			WHERE r.scope=$1 AND r.topic_key=$2 AND s.state IN ('probation','active')
+			AND r.published_at >= $5 AND r.policy_version=$4
+			AND r.assessed_at >= COALESCE((s.evidence->>'full_recheck_at')::bigint,0)
+			GROUP BY r.source_id,s.state
+			UNION ALL
+			SELECT source_id,true AS direct,0 AS priority,max(published_at) AS newest FROM source_autopilot_direct_results
+			WHERE scope=$1 AND topic_key=$2 AND published_at >= $3 AND assessed_at >= $3 AND policy_version=$4
+			GROUP BY source_id
+		) ready ORDER BY priority,newest DESC,source_id`
 	}
-	rows, err := a.DB.Pool.Query(ctx, query,
-		job.Scope, job.TopicKey, time.Now().Add(-autopilotDirectMaxAge).Unix())
+	rows, err := a.DB.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -241,6 +251,9 @@ func (a *App) deliverAutopilotSourceContent(ctx context.Context, job *autopilotJ
 	rows.Close()
 	if err != nil {
 		return err
+	}
+	if len(items) == 0 {
+		return nil
 	}
 	rows, err = a.DB.Pool.Query(ctx, `SELECT user_id,topic,posts_per_day,horizon_days FROM source_autopilot_demands WHERE topic_key=$1 AND mode='auto' AND NOT paused AND posts_per_day>0 ORDER BY user_id`, job.TopicKey)
 	if err != nil {

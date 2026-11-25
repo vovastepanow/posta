@@ -249,10 +249,6 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 			}
 			continue
 		}
-		if len(items) >= 6 {
-			entry["outcome"] = "text_deferred_batch_limit"
-			continue
-		}
 		text := AnalysisText(post)
 		if text == "" {
 			entry["outcome"] = "missing_text"
@@ -291,6 +287,10 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 			if err := recordAutopilotPostEvidence(ctx, a.DB, job, source, e); err != nil {
 				return err
 			}
+			continue
+		}
+		if len(items) >= 6 {
+			entry["outcome"] = "text_deferred_batch_limit"
 			continue
 		}
 		entry["outcome"] = "text_model_pending"
