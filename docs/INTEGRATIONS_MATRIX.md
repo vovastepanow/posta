@@ -4,7 +4,9 @@ Baseline: 46921ea83903. This is a static code audit, not live API certification.
 
 ## Publishing
 
-Separate the supported product scope from executable adapter and account-specific readiness. The priority scope is Telegram, VK, OK, MAX, Instagram, Facebook, YouTube, TikTok, Rutube, Threads, X and Pinterest. The new-connection catalog exposes only priority adapters with actual connection and publish handlers and ready/beta status. Beta remains owner-only. Telegram has its own connection flow. Existing resources, queued deliveries and non-priority adapters are retained.
+The product scope is the union of SmmBox, SMMplanner, Postmypost and Onlypult: 25 distinct destinations (counting Instagram and YouTube once each). Webhook is a separate generic delivery capability, not a social platform. Every implemented ready/beta adapter is eligible for connection; missing keys or an absent adapter are not a working integration. Beta remains owner-only. Existing resources and queued deliveries are retained.
+
+Source evidence (checked 2026-11-26): https://smmbox.com/tarif.php ; https://smmplanner.com/ ; https://postmypost.io/ru/publications ; https://help.postmypost.ru/ru/docs/api/postmypost-rest-api ; https://ru.onlypult.com/ru/pages/platforms . Competitor claims are scope evidence, not evidence that Posta has working APIs.
 
 | Platform | Existing implementation / gap |
 |---|---|
@@ -17,7 +19,9 @@ Separate the supported product scope from executable adapter and account-specifi
 | X | OAuth, text publishing; app keys and API access required |
 | Instagram, Facebook, Threads | Placeholder, not an executable publisher |
 | TikTok, Rutube | No executable publisher in current registry |
-| Discord, Mastodon, Bluesky, Reddit, Tumblr, LinkedIn | Retain existing code and resources; defer new connections |
+| Discord, Mastodon, Bluesky, Reddit, Tumblr, LinkedIn | Keep all existing adapters eligible subject to readiness/keys; verify real formats and permissions |
+| WordPress | New owner-only text adapter for self-hosted sites; application password and publish_posts capability; no media yet |
+| TenChat, Medium, Bitrix24, Google Business Profile | In scope, not connected or implemented yet |
 | Dzen, Viber | No executable direct publisher |
 
 Limits in third-party proposals are not specifications until checked against the actual API, permission level and account type.
@@ -45,3 +49,9 @@ Limits in third-party proposals are not specifications until checked against the
 - Publish variants are immutable derivatives. Unsupported transformations must be explicit; ambiguous send outcomes require reconciliation, not blind retry or a claim that absent recent results proves non-delivery.
 - Separate deterministic recorded fixtures, live read-only smoke tests, and explicitly authorized test-account publishing. No production publishing during CI.
 - First end-to-end pair: Telegram and VK, then RSS/article as an independent intake path. Start with existing fixtures and add independently verified real posts; avoid claiming live success based on synthetic tests.
+
+## Acquisition scope
+
+Never restrict intake to publishing destinations. Keep the existing social, feed, news, forum, video, imageboard and federated sources. Expand incrementally to useful public sources (e.g. PeerTube, podcast RSS, public newsletters and blogs, TenChat, public WordPress sites, public GitHub release feeds, public discussion communities) with explicit provenance and permissions. A candidate is not a verified adapter. No private content or circumvention of access controls. No shared cache for private/account-scoped content.
+
+WordPress REST API reference: https://developer.wordpress.org/rest-api/reference/posts/ ; https://developer.wordpress.org/rest-api/using-the-rest-api/authentication/ ; https://developer.wordpress.org/rest-api/reference/users/ .

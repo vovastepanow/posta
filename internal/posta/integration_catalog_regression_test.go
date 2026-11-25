@@ -14,7 +14,7 @@ func TestPublishingCatalogCompetitorScope(t *testing.T) {
 			t.Errorf("unexpected publishing destination: %s", platform)
 		}
 	}
-	for _, platform := range []string{"telegram", "vk", "ok", "max", "youtube", "rutube", "tiktok", "dzen", "instagram", "facebook", "threads", "x", "pinterest", "tumblr", "linkedin", "viber", "reddit", "discord", "bluesky", "mastodon"} {
+	for _, platform := range []string{"telegram", "vk", "ok", "max", "youtube", "rutube", "tiktok", "dzen", "instagram", "facebook", "threads", "x", "pinterest", "tumblr", "linkedin", "viber", "reddit", "discord", "bluesky", "mastodon", "tenchat", "medium", "bitrix", "wordpress", "google_business"} {
 		if catalog[platform] == nil || !contains(networkOrder, platform) {
 			t.Errorf("missing publishing destination: %s", platform)
 		}
@@ -41,16 +41,15 @@ func TestTelegramPhotoFirstAlbumWithPlayableVideo(t *testing.T) {
 	}
 }
 
-
 func TestPublishingConnectionAvailability(t *testing.T) {
 	a := &App{}
 	catalog := a.Networks()
-	for _, key := range []string{"telegram", "vk", "max"} {
+	for _, key := range []string{"telegram", "vk", "max", "discord", "mastodon", "bluesky", "wordpress"} {
 		if !catalog[key].PublishingConnectionAvailable() {
 			t.Errorf("expected connectable: %s", key)
 		}
 	}
-	for _, key := range []string{"discord", "mastodon", "bluesky", "reddit", "tumblr", "linkedin", "viber", "dzen", "instagram", "facebook", "threads", "tiktok", "rutube", "youtube", "pinterest", "x", "ok"} {
+	for _, key := range []string{"reddit", "tumblr", "linkedin", "viber", "dzen", "instagram", "facebook", "threads", "tiktok", "rutube", "youtube", "pinterest", "x", "ok", "tenchat", "medium", "bitrix", "google_business"} {
 		if catalog[key].PublishingConnectionAvailable() {
 			t.Errorf("unexpected new connection: %s", key)
 		}

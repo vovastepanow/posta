@@ -85,7 +85,7 @@ type Network struct {
 }
 
 var networkOrder = []string{"telegram", "vk", "max", "bluesky", "mastodon", "discord", "dzen", "ok", "youtube", "pinterest", "tumblr", "linkedin",
-	"threads", "instagram", "facebook", "x", "reddit", "tiktok", "rutube", "viber"}
+	"threads", "instagram", "facebook", "x", "reddit", "tiktok", "rutube", "viber", "tenchat", "medium", "bitrix", "wordpress", "google_business"}
 
 // Networks — реестр соцсетей; ключи приложений берутся из posta.env.
 func (a *App) Networks() map[string]*Network {
@@ -131,10 +131,14 @@ func (a *App) Networks() map[string]*Network {
 		"reddit": {Title: "Reddit", Prefix: "reddit", Status: "needs_keys", Note: "Приложение Reddit; постим только в свой профиль, текстом.", TextLimit: [2]int{40000, 40000},
 			Docs: "partly", AppKeys: []string{"REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"}, OAuth: redditOAuth, Publish: redditPublish},
 		"tiktok":   na("TikTok", "Публикация доступна только после аудита приложения TikTok: без проверки видно «только мне»."),
-		"rutube":   na("Rutube", "Открытого API публикации нет."),
-
-		"viber":    na("Viber", "Открытого API публикации нет."),
-
+		"rutube":          na("Rutube", "Нужен подтверждённый способ загрузки через партнёрский API."),
+		"viber":           na("Viber", "Требуется поддерживаемый API и подходящий тип аккаунта."),
+		"tenchat":         na("TenChat", "Требуется доступ к партнёрской интеграции."),
+		"medium":          na("Medium", "Требуется подтверждённый доступ к API публикации."),
+		"bitrix":          na("Битрикс24", "Адаптер публикации в ленту ещё не реализован."),
+		"google_business": na("Google Business Profile", "Требуется одобрение API и OAuth."),
+		"wordpress": {Title: "WordPress", Prefix: "wp", Status: "beta", Note: "Самостоятельный сайт WordPress: REST API и пароль приложения; пока только текст.", TextLimit: [2]int{100000, 100000},
+			Docs: "ok", Fields: []NetField{{"site", "HTTPS-адрес сайта WordPress", false}, {"username", "Имя пользователя", false}, {"password", "Пароль приложения WordPress", true}}, Connect: wordpressConnect, Publish: wordpressPublish},
 	}
 	r["telegram"].Publish = telegramNetworkPublish
 	for k, n := range r {
@@ -251,14 +255,8 @@ func (n *Network) PublishingConnectionAvailable() bool {
 	if n == nil || n.Publish == nil || (n.Status != "ready" && n.Status != "beta") {
 		return false
 	}
-	switch n.Key {
-	case "telegram":
-		return true // Telegram has a separate connection flow.
-	case "vk", "ok", "max", "instagram", "facebook", "youtube", "tiktok", "rutube", "threads", "x", "pinterest":
-		return n.Connect != nil || n.OAuth != nil
-	default:
-		return false
-	}
+	// The catalog is the competitor union, not a separate priority allowlist.
+	return n.Key == "telegram" || n.Connect != nil || n.OAuth != nil
 }
 
 // NetworksPublic — реестр для интерфейса.
@@ -301,6 +299,9 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 		return nil, err
 	}
 	kept, skipped := networkFitMedia(n, media)
+	if len(skipped) > 0 {
+		return nil, fmt.Errorf("%s: публикация остановлена, чтобы не потерять вложения: %s: %w", n.Title, strings.Join(skipped, "; "), ErrNetworkRejected)
+	}
 	if len(kept) == 0 && strings.TrimSpace(text) == "" {
 		return nil, fmt.Errorf("%s: в посте нет подходящих файлов и текста: %w", n.Title, ErrNetworkRejected)
 	}
