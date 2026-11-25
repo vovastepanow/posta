@@ -299,7 +299,7 @@ ORDER BY p.last_seen DESC LIMIT 100`, now()-7*86400, now()-3600)
 
 // Classify only globally public records and never send restricted content to the text model.
 func (u *U) classifyPublicPost(item, analysis jx.M, topic string, h History) {
-	if u.App.ctx == nil || u.analysisPrivate(topic, item) || u.ContentIsAdult(analysis) || len(u.contentSafetyTags(analysis["tags"])) > 0 || len(u.TopicComplaints(topic, h)) != 0 {
+	if u.App.ctx == nil || u.analysisPrivate(topic, item) || u.ContentIsAdult(analysis) || len(u.contentSafetyTags(analysis["tags"])) > 0 || len(u.TopicComplaints(topic, h)) != 0 || !u.collectorPublicEvidence(item, topic) {
 		return
 	}
 	source := ContentSourceKey(item)

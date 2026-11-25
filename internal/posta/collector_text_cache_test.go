@@ -72,9 +72,9 @@ func TestCollectorTextCacheReusesPublicVerdictsPostgres(t *testing.T) {
 	topic := "Бизнес"
 	text := "Пример расчёта налогов " + randHex(16)
 	h := EmptyHistory()
-	key := u.collectorTextKey(text, topic, h, false, false)
+	key := u.collectorTextKey(text, topic, h, false, false, false)
 	defer d.Pool.Exec(ctx, `DELETE FROM analysis_cache WHERE key=$1`, key)
-	result := u.cachedCollectorTextBatch([]string{text, text}, topic, h, false, false)
+	result := u.cachedCollectorTextBatch([]string{text, text}, topic, h, false, false, false)
 	if len(result) != 2 || result[0] == nil || result[1] == nil || calls.Load() != 1 {
 		t.Fatalf("identical texts not deduplicated: calls=%d results=%v", calls.Load(), result)
 	}
@@ -83,15 +83,33 @@ func TestCollectorTextCacheReusesPublicVerdictsPostgres(t *testing.T) {
 		t.Fatal("result maps share mutable state")
 	}
 	u.ID = randHex(16)
-	if got := u.cachedCollectorTextBatch([]string{text}, topic, h, false, false); got[0] == nil || jx.Int(got[0], "relevance") != 90 || calls.Load() != 1 {
+	if got := u.cachedCollectorTextBatch([]string{text}, topic, h, false, false, false); got[0] == nil || jx.Int(got[0], "relevance") != 90 || calls.Load() != 1 {
 		t.Fatalf("same public text was analyzed again: calls=%d result=%v", calls.Load(), got)
 	}
-	privateKey := u.collectorTextKey(text, topic, h, true, false)
+	privateKey := u.collectorTextKey(text, topic, h, true, false, false)
 	u.ID = randHex(16)
-	if privateKey == u.collectorTextKey(text, topic, h, true, false) || privateKey == key {
+	if privateKey == u.collectorTextKey(text, topic, h, true, false, false) || privateKey == key {
 		t.Fatal("private verdict is not owner scoped")
 	}
 	if got := u.readAnalysisCache([]string{privateKey}); got[privateKey] != nil {
 		t.Fatal("private read reused public cache")
+	}
+}
+
+func TestPublicEvidenceRequiresSamePostAndContent(t *testing.T) {
+	item := jx.M{"source_key": "rss:https://example.org/feed", "url": "https://example.org/1", "text": "Public article", "text_post": true}
+	if !publicEvidenceMatches(item, jx.Merge(item, jx.M{"views": 500})) {
+		t.Fatal("engagement refresh invalidated identical evidence")
+	}
+	for _, stored := range []jx.M{
+		jx.Merge(item, jx.M{"text": "Edited article"}),
+		jx.Merge(item, jx.M{"url": "https://example.org/2"}),
+		jx.Merge(item, jx.M{"source_key": "own:private"}),
+		jx.Merge(item, jx.M{"source_sensitive": true}),
+		jx.Merge(item, jx.M{"video": "https://example.org/1.mp4"}),
+	} {
+		if publicEvidenceMatches(item, stored) {
+			t.Fatal("non-identical or sensitive catalog entry authorized shared cache")
+		}
 	}
 }

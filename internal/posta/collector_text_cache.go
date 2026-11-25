@@ -3,6 +3,8 @@ package posta
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"sort"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -18,9 +20,9 @@ func textVerdictKey(scope, mode, prompt, text, settings string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (u *U) collectorTextKey(text, topic string, h History, private, full bool) string {
+func (u *U) collectorTextKey(text, topic string, h History, private, full, ownerOnly bool) string {
 	scope := ""
-	if private || u.complaintPrompt(topic, h) != "" {
+	if private || ownerOnly || u.complaintPrompt(topic, h) != "" {
 		scope = "owner:" + u.ID
 	}
 	mode := "caption"
@@ -34,7 +36,7 @@ func (u *U) collectorTextKey(text, topic string, h History, private, full bool) 
 	return textVerdictKey(scope, mode, u.editableTextPrompt(topic, []string{text}, h), text, settings)
 }
 
-func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, private, full bool) []Analysis {
+func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, private, full, ownerOnly bool) []Analysis {
 	out := make([]Analysis, len(texts))
 	if len(texts) == 0 {
 		return out
@@ -42,7 +44,7 @@ func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, pr
 	indices := map[string][]int{}
 	var unique []string
 	for i, text := range texts {
-		key := u.collectorTextKey(text, topic, h, private, full)
+		key := u.collectorTextKey(text, topic, h, private, full, ownerOnly)
 		if len(indices[key]) == 0 {
 			unique = append(unique, key)
 		}
@@ -84,7 +86,7 @@ func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, pr
 			}
 			// Relevance remains valid even if optional classification is
 			// pending. Retry only the classifier when the post reaches admission.
-			if !private && (u.ContentIsAdult(a) || len(u.contentSafetyTags(a["tags"])) > 0) {
+			if !private && !ownerOnly && (u.ContentIsAdult(a) || len(u.contentSafetyTags(a["tags"])) > 0) {
 				continue
 			}
 			fresh[key] = a
@@ -123,12 +125,78 @@ func (u *U) writeAnalysisCache(entries map[string]jx.M) {
 	}
 	batch := &pgx.Batch{}
 	at := now()
-	for key, a := range entries {
-		batch.Queue(`INSERT INTO analysis_cache(key,analysis,at) VALUES($1,$2,$3) ON CONFLICT(key) DO UPDATE SET analysis=EXCLUDED.analysis,at=EXCLUDED.at`, key, jx.Marshal(a), at)
+	keys := make([]string, 0, len(entries))
+	for key := range entries {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		batch.Queue(`INSERT INTO analysis_cache(key,analysis,at) VALUES($1,$2,$3) ON CONFLICT(key) DO UPDATE SET analysis=EXCLUDED.analysis,at=EXCLUDED.at`, key, jx.Marshal(entries[key]), at)
 	}
 	batch.Queue(`DELETE FROM analysis_cache WHERE at<$1`, at-config.AnalysisCacheDays*config.DaySeconds)
 	batch.Queue(`DELETE FROM analysis_cache WHERE key IN (SELECT key FROM analysis_cache ORDER BY at DESC,key OFFSET $1)`, config.AnalysisCacheLimit)
 	if err := u.DB.Pool.SendBatch(u.Ctx, batch).Close(); err != nil {
 		u.Log("Не удалось сохранить кэш анализа: %v", err)
 	}
+}
+
+// The global catalog is the only positive evidence that a post was collected
+// publicly. Private integrations and unverified search hits remain owner scoped.
+// Compare the normalized model inputs, ignoring poll counters and timestamps.
+func publicEvidenceMatches(item, stored jx.M) bool {
+	if item == nil || stored == nil || ContentSourceKey(item) != ContentSourceKey(stored) ||
+		jx.Bool(stored, "source_sensitive") || jx.Bool(stored, "nsfw") || len(jx.ToStrs(stored["safety"])) != 0 {
+		return false
+	}
+	key := CandidatePostKey(item)
+	if key == "" || key != CandidatePostKey(stored) {
+		return false
+	}
+	if AnalysisText(item) != AnalysisText(stored) || PostCaptionForAI(item) != PostCaptionForAI(stored) ||
+		AnalysisContextBlock(item) != AnalysisContextBlock(stored) {
+		return false
+	}
+	if ContentImageKey(item) != ContentImageKey(stored) || jx.Str(item, "video") != jx.Str(stored, "video") ||
+		jx.Str(item, "video_page") != jx.Str(stored, "video_page") || jx.Str(item, "video_via") != jx.Str(stored, "video_via") {
+		return false
+	}
+	return string(jx.Marshal(ContentGallery(item))) == string(jx.Marshal(ContentGallery(stored)))
+}
+
+func (u *U) collectorPublicEvidence(item jx.M, topic string) bool {
+	if u.DB == nil || u.analysisPrivate(topic, item) || len(jx.ToStrs(item["safety"])) != 0 {
+		return false
+	}
+	source, post := ContentSourceKey(item), CandidatePostKey(item)
+	if post == "" || strings.HasPrefix(source, "own:") || strings.HasPrefix(source, "source:") {
+		return false
+	}
+	fingerprint := source + "|" + AnalysisCacheKey(item, topic)
+	if u.run != nil && u.run.PublicCacheScopes != nil {
+		if ok, found := u.run.PublicCacheScopes[fingerprint]; found {
+			return ok
+		}
+	}
+	var raw []byte
+	ok := false
+	if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT data FROM public_posts WHERE source_key=$1 AND post_key=$2`, source, post).Scan(&raw); err == nil {
+		stored := jx.Unmarshal(raw)
+		if publicEvidenceMatches(item, stored) {
+			ok = true
+		} else {
+			for _, normalized := range ExpandPostImages([]jx.M{stored}) {
+				if publicEvidenceMatches(item, normalized) {
+					ok = true
+					break
+				}
+			}
+		}
+	}
+	if u.run != nil {
+		if u.run.PublicCacheScopes == nil {
+			u.run.PublicCacheScopes = map[string]bool{}
+		}
+		u.run.PublicCacheScopes[fingerprint] = ok
+	}
+	return ok
 }

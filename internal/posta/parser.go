@@ -1516,28 +1516,35 @@ func (u *U) hotTextJudge(items []jx.M, topic string) []jx.M {
 	}
 	// Keep actual text posts and media captions in different batches. Only
 	// the former produce a complete verdict that can be reused at admission.
-	var textRows, captionRows []int
+	type textGroup struct {
+		indices         []int
+		full, ownerOnly bool
+	}
+	groups := []textGroup{{full: true}, {full: true, ownerOnly: true}, {}, {ownerOnly: true}}
 	for i, item := range items {
 		if u.analysisPrivate(topic, item) {
 			continue // private records are analyzed individually when reached
 		}
-		if PostItemHasMedia(item) {
-			if runeLen(PostCaptionForAI(item)) >= config.HotTextMinChars {
-				captionRows = append(captionRows, i)
-			}
-		} else if runeLen(AnalysisText(item)) >= config.HotTextMinChars {
-			textRows = append(textRows, i)
+		hasMedia := PostItemHasMedia(item)
+		text := AnalysisText(item)
+		if hasMedia {
+			text = PostCaptionForAI(item)
 		}
+		if runeLen(text) < config.HotTextMinChars {
+			continue
+		}
+		group := 0
+		if hasMedia {
+			group += 2
+		}
+		if !u.collectorPublicEvidence(item, topic) {
+			group++
+		}
+		groups[group].indices = append(groups[group].indices, i)
 	}
 	drop, late := map[int]bool{}, map[int]bool{}
-	if len(textRows)+len(captionRows) == 0 {
-		return items
-	}
 	h := u.History()
-	for _, group := range []struct {
-		indices []int
-		full    bool
-	}{{textRows, true}, {captionRows, false}} {
+	for _, group := range groups {
 		// Token budget in AnalyzeTextBatch covers at most six records.
 		batchSize := min(config.HotTextBatch, 6)
 		for off := 0; off < len(group.indices) && u.Alive(); off += batchSize {
@@ -1550,7 +1557,7 @@ func (u *U) hotTextJudge(items []jx.M, topic string) []jx.M {
 					texts = append(texts, PostCaptionForAI(items[i]))
 				}
 			}
-			res := u.cachedCollectorTextBatch(texts, topic, h, false, group.full)
+			res := u.cachedCollectorTextBatch(texts, topic, h, false, group.full, group.ownerOnly)
 			for k, r := range res {
 				if r == nil || jx.Int(r, "relevance") >= config.HotTextRejectScore {
 					continue
@@ -1736,7 +1743,11 @@ func visionEvidenceKey(base, prompt, settings string, frames [][]byte) string {
 func (u *U) collectorVisionKey(item jx.M, topic string, h History, frames [][]byte, video *Storyboard, caption, context string) string {
 	s := u.LLM.Settings()
 	settings := string(jx.Marshal([]any{s.Roles, s.FastOnly, s.ThinkInParser, u.contentAnalysisSchemaForTopic(TopicQueryOf(topic), topic)}))
-	return visionEvidenceKey(u.analysisCacheKey(item, topic, h), u.editableVisionPrompt(topic, strings.TrimSpace(caption), h, video, context), settings, frames)
+	base := u.analysisCacheKey(item, topic, h)
+	if !u.collectorPublicEvidence(item, topic) {
+		base += "|owner:" + u.ID
+	}
+	return visionEvidenceKey(base, u.editableVisionPrompt(topic, strings.TrimSpace(caption), h, video, context), settings, frames)
 }
 
 // ---- Оценка ----
@@ -1818,8 +1829,8 @@ func (u *U) prescreenInputKey(item jx.M, topic string, poster []byte) string {
 	values := map[string]string{"caption": caption, "thread": ""}
 	private := u.analysisPrivate(topic, item) || jx.Bool(item, "source_sensitive") || jx.Bool(item, "nsfw")
 	scope := ""
-	if private {
-		scope = u.ID
+	if private || !u.collectorPublicEvidence(item, topic) {
+		scope = "owner:" + u.ID
 	}
 	settings := u.LLM.Settings()
 	route := settings.Roles[llm.RolePrescreen]
@@ -2049,7 +2060,8 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 	}
 	u.Log("Полный анализ текстовой записи %s (без картинки)", candidateLogLabel(item))
 	h := u.History()
-	res := u.cachedCollectorTextBatch([]string{text}, topic, h, u.analysisPrivate(topic, item), true)
+	ownerOnly := !u.collectorPublicEvidence(item, topic)
+	res := u.cachedCollectorTextBatch([]string{text}, topic, h, u.analysisPrivate(topic, item), true, ownerOnly)
 	if len(res) == 0 || res[0] == nil {
 		u.Log("-> ИИ не ответил по этой записи, пропускаю.")
 		return false
@@ -2060,8 +2072,8 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 	if jx.Bool(a, "tags_classification_pending") && !PostItemHasVideo(item) {
 		private := u.analysisPrivate(topic, item)
 		u.applyContentClassification(a, "", text, private)
-		if !jx.Bool(a, "tags_classification_pending") && (private || len(u.contentSafetyTags(a["tags"])) == 0) {
-			u.writeAnalysisCache(map[string]jx.M{u.collectorTextKey(text, topic, h, private, true): a})
+		if !jx.Bool(a, "tags_classification_pending") && (private || ownerOnly || len(u.contentSafetyTags(a["tags"])) == 0) {
+			u.writeAnalysisCache(map[string]jx.M{u.collectorTextKey(text, topic, h, private, true, ownerOnly): a})
 		}
 	}
 	if PostItemHasVideo(item) {
