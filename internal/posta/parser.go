@@ -1514,31 +1514,53 @@ func (u *U) hotTextJudge(items []jx.M, topic string) []jx.M {
 	if judge != "text" && judge != "both" {
 		return items
 	}
-	var idx []int
-	var texts []string
-	for i, it := range items {
-		if t := strings.TrimSpace(jx.Str(it, "text")); runeLen(t) >= config.HotTextMinChars {
-			idx, texts = append(idx, i), append(texts, t)
+	// Keep actual text posts and media captions in different batches. Only
+	// the former produce a complete verdict that can be reused at admission.
+	var textRows, captionRows []int
+	for i, item := range items {
+		if u.analysisPrivate(topic, item) {
+			continue // private records are analyzed individually when reached
+		}
+		if PostItemHasMedia(item) {
+			if runeLen(PostCaptionForAI(item)) >= config.HotTextMinChars {
+				captionRows = append(captionRows, i)
+			}
+		} else if runeLen(AnalysisText(item)) >= config.HotTextMinChars {
+			textRows = append(textRows, i)
 		}
 	}
 	drop, late := map[int]bool{}, map[int]bool{}
-	var h History
-	if len(texts) > 0 {
-		h = u.History()
+	if len(textRows)+len(captionRows) == 0 {
+		return items
 	}
-	for off := 0; off < len(texts) && u.Alive(); off += config.HotTextBatch {
-		res, err := u.AnalyzeTextBatch(texts[off:min(len(texts), off+config.HotTextBatch)], topic, h)
-		if err != nil {
-			continue
-		}
-		for k, r := range res {
-			if r == nil || jx.Int(r, "relevance") >= config.HotTextRejectScore {
-				continue
+	h := u.History()
+	for _, group := range []struct {
+		indices []int
+		full    bool
+	}{{textRows, true}, {captionRows, false}} {
+		// Token budget in AnalyzeTextBatch covers at most six records.
+		batchSize := min(config.HotTextBatch, 6)
+		for off := 0; off < len(group.indices) && u.Alive(); off += batchSize {
+			var texts []string
+			ids := group.indices[off:min(len(group.indices), off+batchSize)]
+			for _, i := range ids {
+				if group.full {
+					texts = append(texts, AnalysisText(items[i]))
+				} else {
+					texts = append(texts, PostCaptionForAI(items[i]))
+				}
 			}
-			if captionVerdictCanReject(items[idx[off+k]], judge) {
-				drop[idx[off+k]] = true
-			} else {
-				late[idx[off+k]] = true
+			res := u.cachedCollectorTextBatch(texts, topic, h, false, group.full)
+			for k, r := range res {
+				if r == nil || jx.Int(r, "relevance") >= config.HotTextRejectScore {
+					continue
+				}
+				i := ids[k]
+				if captionVerdictCanReject(items[i], judge) {
+					drop[i] = true
+				} else {
+					late[i] = true
+				}
 			}
 		}
 	}
@@ -2031,22 +2053,12 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 	}
 	u.Log("Полный анализ текстовой записи %s (без картинки)", candidateLogLabel(item))
 	h := u.History()
-	a := u.analysisCacheGet(item, topic, h)
-	if a != nil {
-		u.Log("-> Анализ взят из кэша: эту запись по этой теме уже оценивали.")
-	} else {
-		res, err := u.AnalyzeTextBatch([]string{text}, topic, h)
-		if err != nil {
-			u.Log("-> ИИ не вернул оценку текста: %s", err)
-			return false
-		}
-		if len(res) == 0 || res[0] == nil {
-			u.Log("-> ИИ не ответил по этой записи, пропускаю.")
-			return false
-		}
-		a = res[0]
-		u.analysisCachePut(item, topic, h, a)
+	res := u.cachedCollectorTextBatch([]string{text}, topic, h, u.analysisPrivate(topic, item), true)
+	if len(res) == 0 || res[0] == nil {
+		u.Log("-> ИИ не ответил по этой записи, пропускаю.")
+		return false
 	}
+	a := res[0]
 	if PostItemHasVideo(item) {
 		u.applyVideoClassification(a, item, "", PostCaptionForAI(item), u.analysisPrivate(topic, item))
 	}

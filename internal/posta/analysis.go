@@ -767,10 +767,16 @@ func (u *U) TextBatchPrompt(topic string, texts []string, h History) string {
 
 // AnalyzeTextBatch — пачка текстовых записей одним вызовом; по порядку входа, nil — модель не ответила по записи.
 func (u *U) AnalyzeTextBatch(texts []string, topic string, h History) ([]Analysis, error) {
+	return u.analyzeTextBatch(texts, topic, h, u.TopicIsRestricted(topic), true)
+}
+
+// Caption triage needs relevance, not a second full taxonomy classification.
+// Private batches never contain another owner's public or private records.
+func (u *U) analyzeTextBatch(texts []string, topic string, h History, private, classify bool) ([]Analysis, error) {
 	query := TopicQueryOf(topic)
 	humor := u.TopicIsHumor(topic)
 	r, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleText, Prompt: u.editableTextPrompt(topic, texts, h), Schema: professionalTextBatchSchema(query, humor, u.professionalValueTopic(topic)),
-		MaxTokens: config.AnalysisMaxTokens * max(1, min(len(texts), 6)), Temperature: 0.1, UserID: u.ID, Topic: topic, Private: u.TopicIsRestricted(topic)})
+		MaxTokens: config.AnalysisMaxTokens * max(1, min(len(texts), 6)), Temperature: 0.1, UserID: u.ID, Topic: topic, Private: private})
 	if err != nil {
 		return nil, err
 	}
@@ -781,10 +787,12 @@ func (u *U) AnalyzeTextBatch(texts []string, topic string, h History) ([]Analysi
 		if row != nil && (query == "" || validModelPercent(row["query_match"])) {
 			out[i] = u.finishTextAnalysis(row, topic, r.Model)
 			// Verify against this record only, after batch alignment.
-			u.applyContentClassification(out[i], "", texts[i], u.TopicIsRestricted(topic))
+			if classify {
+				u.applyContentClassification(out[i], "", texts[i], private)
+			}
 		} else if len(texts) > 1 {
 			// An incomplete or conflicting batch must not silently lose a post.
-			single, retryErr := u.AnalyzeTextBatch([]string{texts[i]}, topic, h)
+			single, retryErr := u.analyzeTextBatch([]string{texts[i]}, topic, h, private, classify)
 			if retryErr == nil && len(single) == 1 {
 				out[i] = single[0]
 			}
