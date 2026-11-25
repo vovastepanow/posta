@@ -39,6 +39,13 @@ type threadsPost struct {
 	ThumbnailURL string `json:"thumbnail_url"`
 	Permalink    string `json:"permalink"`
 	Timestamp    string `json:"timestamp"`
+	Children     struct {
+		Data []struct {
+			MediaType    string `json:"media_type"`
+			MediaURL     string `json:"media_url"`
+			ThumbnailURL string `json:"thumbnail_url"`
+		} `json:"data"`
+	} `json:"children"`
 }
 
 func threadsParse(data []byte) ([]threadsPost, error) {
@@ -69,11 +76,15 @@ func (u *U) threadsRead(path string, params url.Values) ([]byte, error) {
 }
 
 const threadsFields = "id,username,text,media_type,media_url,thumbnail_url,permalink,timestamp"
+const threadsProfileFields = threadsFields + ",children{media_type,media_url,thumbnail_url}"
 
 func threadsProfilePosts(data []byte, username string, count int, withText bool) ([]jx.M, error) {
 	posts, err := threadsParse(data)
 	if err != nil {
 		return nil, err
+	}
+	if count <= 0 {
+		return nil, nil
 	}
 	var out []jx.M
 	for _, p := range posts {
@@ -95,10 +106,32 @@ func threadsProfilePosts(data []byte, username string, count int, withText bool)
 		case "VIDEO":
 			image, video = p.ThumbnailURL, p.MediaURL
 		}
-		if image == "" && video == "" && (!withText || runeLen(strings.TrimSpace(p.Text)) < 120) {
+		var media []jx.M
+		if p.MediaType == "CAROUSEL_ALBUM" {
+			for _, child := range p.Children.Data {
+				if !strings.HasPrefix(child.MediaURL, "https://") {
+					continue
+				}
+				switch child.MediaType {
+				case "IMAGE":
+					media = append(media, jx.M{"image": child.MediaURL})
+				case "VIDEO":
+					media = append(media, jx.M{"image": child.ThumbnailURL, "video": child.MediaURL})
+				}
+			}
+		}
+		if image == "" && video == "" && len(media) == 0 && (!withText || runeLen(strings.TrimSpace(p.Text)) < 120) {
 			continue
 		}
-		out = append(out, searchPost("Threads", "threads:"+strings.ToLower(username), "https://www.threads.net/@"+strings.ToLower(username), trimRunes(p.Text, 80), p.Text, image, video, p.Permalink, at))
+		post := searchPost("Threads", "threads:"+strings.ToLower(username), "https://www.threads.net/@"+strings.ToLower(username), trimRunes(p.Text, 80), p.Text, image, video, p.Permalink, at)
+		if len(media) > 0 {
+			setPostMedia(post, media)
+			post["text_post"] = false
+		}
+		if p.MediaType == "CAROUSEL_ALBUM" && (len(media) == 0 || len(media) != len(p.Children.Data)) {
+			post["media_incomplete"] = true
+		}
+		out = append(out, post)
 		if len(out) >= count {
 			break
 		}

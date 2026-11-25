@@ -492,10 +492,6 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 			text = strings.TrimSpace(title + "\n" + desc)
 		}
 		text = strings.TrimSpace(text)
-		textOnly := img == "" && withText && runeLen(text) >= minText
-		if img == "" && !keepNoImage && !textOnly {
-			continue
-		}
 		video := ""
 		for _, f := range files {
 			if f.Type == "video/mp4" {
@@ -503,6 +499,10 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 					break
 				}
 			}
+		}
+		textOnly := img == "" && video == "" && withText && runeLen(text) >= minText
+		if img == "" && video == "" && !keepNoImage && !textOnly {
+			continue
 		}
 		short := videoID != "" && (shortsFeed || strings.Contains(link, "/shorts/"))
 		if videoID != "" && !short {
@@ -630,7 +630,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 		return posts, err
 	}
 	if username := threadsProfileName(feedURL); username != "" {
-		body, err := u.threadsRead("profile_posts", url.Values{"username": {username}, "fields": {threadsFields}})
+		body, err := u.threadsRead("profile_posts", url.Values{"username": {username}, "fields": {threadsProfileFields}})
 		if err != nil {
 			return nil, err
 		}

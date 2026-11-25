@@ -743,8 +743,8 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 			}
 		}
 		unavailable := !hasVideo && videoPlayerRe.MatchString(b.Content)
-		textOnly := len(images) == 0 && !hasVideo && withText && runeLen(text) >= minText && text != ""
-		if len(images) == 0 && !hasVideo && !textOnly {
+		textOnly := len(images) == 0 && !hasVideo && !unavailable && withText && runeLen(text) >= minText && text != ""
+		if len(images) == 0 && !hasVideo && !unavailable && !textOnly {
 			continue
 		}
 		t := TelegramPostTime(b.Content)

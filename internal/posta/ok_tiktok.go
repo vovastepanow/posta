@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	xhtml "golang.org/x/net/html"
+
 	"posta/internal/jx"
 )
 
@@ -185,7 +187,9 @@ func okCardCounts(card string) jx.M {
 	return out
 }
 
-// OKParseFeed — посты из мобильной страницы группы, свежие первыми; без картинки не берутся.
+// OKParseFeed — посты из мобильной страницы группы, свежие первыми.
+// Preserve text-only records and the entire visible caption. A teaser is
+// explicitly marked incomplete rather than being presented as a full article.
 func OKParseFeed(page, id string, count int, name string) []jx.M {
 	src := name
 	if src == "" {
@@ -199,13 +203,16 @@ func OKParseFeed(page, id string, count int, name string) []jx.M {
 			continue
 		}
 		images := okCardImages(card)
-		if len(images) == 0 {
-			continue
-		}
 		text := ""
 		if m := okTextRe.FindStringSubmatch(card); m != nil {
-			text = CleanHTMLText(m[1])
+			if doc, err := xhtml.Parse(strings.NewReader(m[1])); err == nil {
+				text = telegramPlainText(doc)
+			}
 		}
+		if len(images) == 0 && text == "" {
+			continue
+		}
+		textOnly := len(images) == 0
 		if text == "" {
 			text = EmptyPostText
 		}
@@ -213,8 +220,12 @@ func OKParseFeed(page, id string, count int, name string) []jx.M {
 		if m := okDateRe.FindStringSubmatch(card); m != nil {
 			date = OKParseDate(m[1], time.Now())
 		}
-		p := jx.M{"image": images[0], "images": images, "gallery": []any{}, "video": "", "video_unavailable": false, "engagement": nil,
-			"text": trimRunes(text, 1000), "source": src, "post_id": t[1], "posted_at": date, "url": "https://ok.ru/group/" + id + "/topic/" + t[1]}
+		image := ""
+		if len(images) > 0 {
+			image = images[0]
+		}
+		p := jx.M{"image": image, "images": images, "gallery": []any{}, "video": "", "video_unavailable": false, "engagement": nil,
+			"text": text, "text_post": textOnly, "text_incomplete": strings.Contains(card, "topic-more"), "source": src, "post_id": t[1], "posted_at": date, "url": "https://ok.ru/group/" + id + "/topic/" + t[1]}
 		for k, v := range okCardCounts(card) {
 			p[k] = v
 		}
