@@ -913,7 +913,12 @@ func publish(c *Ctx) (any, error) {
 		if err != nil {
 			return nil, fail(422, err.Error())
 		}
-		response = jx.M{"scheduled": true, "id": w.TelegramRecordNativePost(text, prepared, at, ids, ch.ID, sourceMeta), "publish_at": at, "native": true}
+		id, trackingErr := w.TelegramRecordNativePost(text, prepared, at, ids, ch.ID, recordKey, sourceMeta)
+		response = jx.M{"scheduled": true, "id": id, "publish_at": at, "native": true}
+		if trackingErr != nil {
+			w.Log("Telegram принял отложенную публикацию, но локальная запись не сохранена: %v", trackingErr)
+			response["warning"] = "Telegram принял пост, но Posta не смогла сохранить его в календаре. Проверьте «Отложенные» в Telegram; повторно отправлять пост не нужно."
+		}
 	default:
 		post := jx.M{"text": text, "media": posta.PreparedMaps(prepared)}
 		if poll != nil {
@@ -942,7 +947,7 @@ func publish(c *Ctx) (any, error) {
 		}
 		w.TelegramLogPublished(jx.Merge(posta.TelegramPostSummary(text, len(shown)), jx.M{"at": now(), "scheduled_for": 0, "url": sent.URL, "status": "ok", "error": "",
 			"media_src": posta.MediaSourcesOf(posta.PreparedMaps(shown)), "channel": ch.ID, "channel_title": ch.ChatTitle, "kind": kind, "duration": dur,
-			"thumb_id": w.PostThumbMake(posta.PreparedMaps(shown)), "skipped": orStrs(skipped), "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic")}))
+			"thumb_id": w.PostThumbMake(posta.PreparedMaps(shown)), "skipped": orStrs(skipped), "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic"), "record": recordKey}))
 		response = jx.M{"scheduled": false, "url": sent.URL, "messages": len(sent.MessageIDs), "skipped": orStrs(skipped)}
 	}
 	w.BillingPostUsed()
@@ -1229,10 +1234,17 @@ func telegramCancelOne(c *Ctx, id string) error {
 		}
 		return nil
 	case "telegram":
-		if ch := u.Channel(jx.Str(q, "channel")); ch != nil {
+		ch := u.Channel(jx.Str(q, "channel"))
+		if ch == nil {
+			return fail(409, "Канал недоступен. Подключите его или отмените пост в Telegram.")
+		}
+		{
 			var ids []int
 			for _, v := range jx.List(q, "tg_ids") {
 				ids = append(ids, int(jx.ToInt(v)))
+			}
+			if len(ids) == 0 {
+				return fail(409, "Нет идентификаторов отложенного поста. Проверьте его в Telegram.")
 			}
 			if err := u.TelegramUserCancel(ch, ids); err != nil {
 				return fail(502, "Не удалось убрать пост из отложенных в Telegram: "+err.Error()+" Удалите его в канале вручную («Отложенные»).")

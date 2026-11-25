@@ -872,6 +872,7 @@ async function publishToTargets(post, onProgress = null) {
     for (const target of post.targets) {
         try {
             const result = await publishToTelegram({ ...post, target }, onProgress);
+            if (result?.warning) log(result.warning);
             if (result?.marked === 'liked' || (result?.marked === 'already' && !marked)) marked = result.marked;
         } catch (e) {
             failed.push(`${targetName(target)}: ${e.message}`);

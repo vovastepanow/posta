@@ -927,66 +927,79 @@ func (u *U) publishedEvent(entry jx.M, platform string) {
 }
 
 // TelegramRecordNativePost — пост в «Отложенных» канала (через аккаунт): запись в очереди со статусом telegram.
-func (u *U) TelegramRecordNativePost(text string, prepared []Prepared, publishAt int64, ids []int, channelID string, sourceMeta jx.M) string {
+func (u *U) TelegramRecordNativePost(text string, prepared []Prepared, publishAt int64, ids []int, channelID string, record string, sourceMeta jx.M) (string, error) {
 	id := randHex(6)
 	var media []jx.M
 	for _, f := range prepared {
-		media = append(media, jx.M{"kind": f.Kind, "name": f.Name})
+		media = append(media, jx.M{"kind": f.Kind, "name": f.Name, "src": f.Src, "duration": f.Duration})
 	}
 	thumb := u.PostThumbMake(PreparedMaps(prepared))
-	u.OutboxUpdate(func(q []jx.M) []jx.M {
-		return append(q, jx.M{"id": id, "created_at": now(), "publish_at": publishAt, "text": text, "media": media, "status": "telegram", "tg_ids": ids,
-			"attempts": 0, "error": "", "channel": channelID, "thumb_id": thumb, "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic")})
-	})
-	return id
+	post := jx.M{"id": id, "created_at": now(), "publish_at": publishAt, "text": text, "media": media, "status": "telegram", "tg_ids": ids,
+		"attempts": 0, "error": "", "channel": channelID, "thumb_id": thumb, "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic")}
+	if record != "" {
+		post["record"] = record
+		post["repeat_identity"] = u.repeatQueueIdentity(record)
+	}
+	if _, err := u.OutboxUpdate(func(q []jx.M) []jx.M { return append(q, post) }); err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
-// TelegramSettleNativePosts — отложенные посты, время которых прошло, — в журнал отправленных.
+// TelegramSettleNativePosts moves elapsed Telegram-native records to the
+// journal in one transaction. They remain explicitly unconfirmed until a
+// separate channel history check establishes the remote result.
 func (u *U) TelegramSettleNativePosts() {
-	var settled []jx.M
-	u.OutboxUpdate(func(q []jx.M) []jx.M {
-		var kept []jx.M
-		for _, e := range q {
-			if jx.Str(e, "status") == "telegram" && jx.Int(e, "publish_at")+120 < now() {
-				settled = append(settled, e)
-			} else {
-				kept = append(kept, e)
+	var entries []jx.M
+	err := u.DB.Tx(u.Ctx, func(tx pgx.Tx) error {
+		var locked int
+		if err := tx.QueryRow(u.Ctx, `SELECT 1 FROM users WHERE id=$1 FOR NO KEY UPDATE`, u.ID).Scan(&locked); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
 			}
+			return err
 		}
-		if len(settled) == 0 {
-			return nil
+		rows, err := tx.Query(u.Ctx, `SELECT data FROM outbox WHERE user_id=$1 AND status='telegram' AND publish_at<$2 ORDER BY publish_at,id FOR UPDATE`, u.ID, now()-120)
+		if err != nil {
+			return err
 		}
-		return orEmptyList(kept)
+		settled, err := decodeRows(rows)
+		if err != nil {
+			return err
+		}
+		for _, e := range settled {
+			media := jx.Maps(e, "media")
+			kind := ""
+			if len(media) > 0 {
+				kind = jx.Str(media[0], "kind")
+			}
+			entry := jx.Merge(TelegramPostSummary(jx.Str(e, "text"), len(media)),
+				jx.M{"channel": jx.Str(e, "channel"), "channel_title": jx.Str(e, "channel_title"),
+					"at": jx.Int(e, "publish_at"), "scheduled_for": jx.Int(e, "publish_at"), "url": "", "status": "ok", "error": "", "media_src": MediaSourcesOf(media),
+					"thumb_id": jx.Str(e, "thumb_id"), "kind": kind, "source_key": jx.Str(e, "source_key"), "topic": jx.Str(e, "topic"),
+					"record": jx.Str(e, "record"), "outbox_id": jx.Str(e, "id"), "source_unconfirmed": true})
+			if err := u.publishedAddTx(tx, entry); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(u.Ctx, `DELETE FROM outbox WHERE user_id=$1 AND id=$2 AND status='telegram'`, u.ID, jx.Str(e, "id")); err != nil {
+				return err
+			}
+			entries = append(entries, entry)
+		}
+		return nil
 	})
-	for _, e := range settled {
-		media := jx.Maps(e, "media")
-		kind := ""
-		if len(media) > 0 {
-			kind = jx.Str(media[0], "kind")
-		}
-		entry := jx.Merge(jx.Merge(TelegramPostSummary(jx.Str(e, "text"), len(media)), u.TelegramChannelFields(jx.Str(e, "channel"))),
-			jx.M{"at": jx.Int(e, "publish_at"), "scheduled_for": jx.Int(e, "publish_at"), "url": "", "status": "ok", "error": "", "media_src": MediaSourcesOf(media),
-				"thumb_id": jx.Str(e, "thumb_id"), "kind": kind, "source_key": jx.Str(e, "source_key"), "topic": jx.Str(e, "topic"), "source_unconfirmed": true})
-		u.TelegramLogPublished(entry)
+	if err != nil {
+		u.Log("Не удалось обновить журнал отложенных публикаций: %v", err)
+		return
+	}
+	for _, e := range entries {
+		u.publishedEvent(e, "telegram")
 	}
 }
 
 func (u *U) TelegramUnqueuePost(postID string) bool {
-	found := false
-	u.OutboxUpdate(func(q []jx.M) []jx.M {
-		var kept []jx.M
-		for _, e := range q {
-			if jx.Str(e, "id") != postID {
-				kept = append(kept, e)
-			}
-		}
-		found = len(kept) != len(q)
-		if !found {
-			return nil
-		}
-		return orEmptyList(kept)
-	})
-	return found
+	n, err := execCount(u, `DELETE FROM outbox WHERE user_id=$1 AND id=$2 AND status='telegram'`, u.ID, postID)
+	return err == nil && n == 1
 }
 
 // ---- Расписание канала: слоты по дням недели в часовом поясе пользователя ----
@@ -1270,11 +1283,47 @@ func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publis
 		return nil, Bad("Не удалось сохранить файлы поста.")
 	}
 	post["thumb_id"] = u.PostThumbMake(media)
-	if _, err := u.OutboxUpdate(func(q []jx.M) []jx.M { return append(q, post) }); err != nil {
+	busy := false
+	if _, err := u.OutboxUpdate(func(q []jx.M) []jx.M {
+		for _, existing := range q {
+			if jx.Str(existing, "channel") != c.ID || jx.Str(existing, "status") == "failed" {
+				continue
+			}
+			if slotAt != nil && outboxSlotOccupied(existing, *slotAt, publishAt) {
+				busy = true
+				return nil
+			}
+			if record != "" && jx.Str(existing, "record") == record && jx.Int(existing, "publish_at") == publishAt {
+				busy = true
+				return nil
+			}
+		}
+		return append(q, post)
+	}); err != nil {
 		os.RemoveAll(dir)
 		return nil, err
 	}
+	if busy {
+		os.RemoveAll(dir)
+		return nil, Bad("Этот слот уже занят или запись уже запланирована. Обновите календарь.")
+	}
 	return jx.M{"scheduled": true, "id": id, "publish_at": publishAt, "native": false, "channel_title": c.ChatTitle}, nil
+}
+
+// outboxSlotOccupied checks both the displayed slot and actual send time,
+// which can differ slightly because of scheduled jitter.
+func outboxSlotOccupied(existing jx.M, slotAt, publishAt int64) bool {
+	for _, at := range []int64{jx.Int(existing, "slot_at"), jx.Int(existing, "publish_at")} {
+		if at <= 0 {
+			continue
+		}
+		for _, target := range []int64{slotAt, publishAt} {
+			if at >= target-schedBusySeconds && at <= target+schedBusySeconds {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (u *U) OutboxRemovePost(postID string) bool {
@@ -1385,7 +1434,7 @@ func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.
 		url, skipped = sent.URL, sent.Skipped
 	}
 	entry := jx.Merge(TelegramPostSummary(jx.Str(post, "text"), len(shown)), jx.M{"at": now(), "scheduled_for": jx.Int(post, "publish_at"), "url": url, "status": "ok",
-		"error": "", "channel": c.ID, "channel_title": c.ChatTitle, "media_src": MediaSourcesOf(shown), "skipped": orStrs(skipped), "thumb_id": jx.Str(post, "thumb_id"), "source_key": jx.Str(post, "source_key"), "topic": jx.Str(post, "topic")})
+		"error": "", "channel": c.ID, "channel_title": c.ChatTitle, "media_src": MediaSourcesOf(shown), "skipped": orStrs(skipped), "thumb_id": jx.Str(post, "thumb_id"), "source_key": jx.Str(post, "source_key"), "topic": jx.Str(post, "topic"), "record": jx.Str(post, "record"), "outbox_id": postID})
 	// The remote API has already accepted the post. Never discard its
 	// queue record or files until the local history commit succeeds.
 	if err := a.DB.Tx(ctx, func(tx pgx.Tx) error {

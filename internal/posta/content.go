@@ -1303,8 +1303,12 @@ func (u *U) ContentUnmarkPosted(key string) bool {
 	if key == "" {
 		return false
 	}
+	var stillUsed bool
+	if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT EXISTS(SELECT 1 FROM outbox WHERE user_id=$1 AND data->>'record'=$2) OR EXISTS(SELECT 1 FROM published WHERE user_id=$1 AND data->>'record'=$2 AND data->>'status'='ok')`, u.ID, key).Scan(&stillUsed); err != nil || stillUsed {
+		return false
+	}
 	done := false
-	u.HistoryUpdate(func(h History) History {
+	_, err := u.HistoryUpdate(func(h History) History {
 		changed := false
 		for i, r := range h["liked"] {
 			if ContentItemKey(r) != key || !jx.Bool(r, "published_at") {
@@ -1322,7 +1326,7 @@ func (u *U) ContentUnmarkPosted(key string) bool {
 		}
 		return nil
 	})
-	return done
+	return err == nil && done
 }
 
 // historyAppendTx — для слияния профилей: запись в истории в рамках транзакции.
