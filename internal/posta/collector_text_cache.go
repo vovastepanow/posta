@@ -6,7 +6,6 @@ import (
 
 	"posta/internal/config"
 	"posta/internal/jx"
-	"posta/internal/llm"
 )
 
 // The content-only text verdict can be shared across posts and users only
