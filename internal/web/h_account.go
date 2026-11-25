@@ -1150,7 +1150,7 @@ func calendar(c *Ctx) (any, error) {
 		p := jx.Merge(jx.Merge(posta.TelegramPostSummary(jx.Str(e, "text"), len(media)), u.TelegramChannelFields(jx.Str(e, "channel"))), jx.M{"id": e["id"],
 			"status": e["status"], "error": jx.Str(e, "error"), "full_text": trimRunes(strings.TrimSpace(jx.Str(e, "text")), 600), "article": e["article"],
 			"group": jx.Str(e, "group"), "kind": kind, "duration": dur, "poll": jx.Has(e, "poll") && e["poll"] != nil, "at": jx.Int(e, "publish_at"), "forecast": forecast,
-			"image_key": src, "duplicate": c.A.CalendarDuplicateOf(jx.M{"image": src, "text": jx.Str(e, "text")}, jx.Str(e, "channel"), published, hashes)})
+			"item_key": jx.Str(e, "record"), "image_key": src, "duplicate": c.A.CalendarDuplicateOf(jx.M{"image": src, "text": jx.Str(e, "text")}, jx.Str(e, "channel"), published, hashes)})
 		posts = append(posts, jx.Merge(p, thumbFields(e)))
 	}
 	sent := u.Published(200)

@@ -504,21 +504,25 @@ func (a *App) CalendarPlanPick(slots []FillSlot, candidates, history []jx.M, lim
 			if c == nil {
 				continue
 			}
-			image := jx.Str(c, "image")
-			if image == "" {
-				image = jx.Str(c, "display_image")
+			key := jx.Str(c, "item_key")
+			if key == "" {
+				key = ContentItemKey(c)
 			}
-			if image == "" || used[image] {
+			if key == "" || used[key] {
 				continue
 			}
-			video := jx.Str(c, "format") == "video"
+			if _, err := a.calendarRecordMedia(c); err != nil {
+				continue
+			}
+			image := ContentImageKey(c)
+			video := PostItemHasVideo(c)
 			if video && videoRun[cid] >= fillMaxVideoRun {
 				continue
 			}
 			if a.CalendarDuplicateOf(c, cid, history, hashes) != nil {
 				continue
 			}
-			used[image] = true
+			used[key] = true
 			if video {
 				videoRun[cid]++
 			} else {
@@ -528,7 +532,7 @@ func (a *App) CalendarPlanPick(slots []FillSlot, candidates, history []jx.M, lim
 			if display == "" {
 				display = image
 			}
-			plan = append(plan, jx.M{"slot_at": slot.At, "channel": cid, "channel_title": slot.Channel.ChatTitle, "image": image, "display": display,
+			plan = append(plan, jx.M{"slot_at": slot.At, "channel": cid, "channel_title": slot.Channel.ChatTitle, "item_key": key, "image": image, "display": display,
 				"text": PostCaptionClean(jx.Str(c, "text")), "relevance": jx.Int(c, "relevance"), "format": jx.Str(c, "format"), "best": slot.Best})
 			cands[i] = nil
 			break
@@ -572,14 +576,17 @@ func (u *U) CalendarFillPlan(channels []*Channel, from, to int64, includeRest bo
 	return u.CalendarPlanPick(slots, pool, history, FillMaxPosts)
 }
 
-func calendarFillRecord(image string, pool []jx.M, h History) jx.M {
+func calendarFillRecord(key string, pool []jx.M, h History) jx.M {
+	if key == "" {
+		return nil
+	}
 	lists := [][]jx.M{pool}
 	for _, c := range config.ProposalCollections {
 		lists = append(lists, h[c])
 	}
 	for _, l := range lists {
 		for _, r := range l {
-			if ContentImageKey(r) == image {
+			if ContentItemKey(r) == key && !jx.Bool(r, "proposal_hidden") && !jx.Bool(r, "content_deleted") {
 				return r
 			}
 		}
@@ -621,26 +628,55 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 	if err != nil {
 		return "", err
 	}
-	image := jx.Str(item, "image")
-	record := calendarFillRecord(image, pool, history)
-	var tags []string
-	if record != nil {
-		tags = u.ChannelHashtags(c, u.PostHashtags(record))
+	key := jx.Str(item, "item_key")
+	if key == "" {
+		key = jx.Str(item, "image") // legacy clients
 	}
-	text := TextWithHashtags(strings.TrimSpace(jx.Str(item, "text")), tags, config.TelegramCaptionLimit)
+	record := calendarFillRecord(key, pool, history)
+	if record == nil {
+		return "", NotFound("Запись больше не доступна для планирования.")
+	}
+	if u.UARecordHidden(record) || (!u.AdultAllowed() && u.ContentIsAdult(record)) {
+		return "", Bad("Публикация этого материала недоступна.")
+	}
+	items, err := u.calendarRecordMedia(record)
+	if err != nil {
+		return "", err
+	}
 	if d := u.BillingPostDenied(true); d != "" {
 		return "", Bad("%s", d)
 	}
-	if d := u.PublishMediaDenied([]jx.M{{"src": image}}); d != "" {
-		return "", Bad("%s", d)
+	limit := config.TelegramTextLimit
+	if len(items) > 0 {
+		limit = config.TelegramCaptionLimit
 	}
-	if err := TelegramCheckText(text, 1); err != nil {
-		return "", err
+	platform := c.Platform
+	if platform == "" {
+		platform = "telegram"
 	}
-	src := image
-	if record != nil {
-		if local := u.MediaExisting(jx.Str(record, "image_local")); local != "" {
-			src = local
+	if platform != "telegram" {
+		n, _ := u.NetworkFor(platform)
+		if n == nil {
+			return "", Bad("Неизвестная площадка.")
+		}
+		limit = NetworkTextLimit(n, len(items) > 0)
+	}
+	text := TextWithHashtags(strings.TrimSpace(jx.Str(item, "text")), u.ChannelHashtags(c, u.PostHashtags(record)), limit)
+	if platform == "telegram" {
+		if err := TelegramCheckText(text, len(items)); err != nil {
+			return "", err
+		}
+	} else {
+		var kinds []string
+		for _, m := range items {
+			kinds = append(kinds, m.Kind)
+		}
+		_, skipped, err := u.NetworkPreflight(platform, text, kinds)
+		if err != nil {
+			return "", err
+		}
+		if len(skipped) > 0 {
+			return "", Bad("Не все файлы поддерживаются площадкой: откройте пост в редакторе.")
 		}
 	}
 	work, err := TelegramWorkDir()
@@ -648,15 +684,50 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 		return "", err
 	}
 	defer os.RemoveAll(work)
-	prepared, err := u.TelegramPrepareMedia([]MediaItem{{Src: src, Name: "фото"}}, nil, work, "bot", nil)
+	prepared, err := u.TelegramPrepareMedia(items, nil, work, "bot", nil)
 	if err != nil {
 		return "", err
 	}
-	r, err := u.OutboxQueuePost(c, text, prepared, at, &at, work, nil, nil, group, "", nil)
+	r, err := u.OutboxQueuePost(c, text, prepared, at, &at, work, nil, PublishArticleInput(record["article"]), group, key, jx.M{"source_key": ContentSourceKey(record), "topic": jx.Str(record, "topic")})
 	if err != nil {
 		return "", err
 	}
+	u.ContentMarkPosted(key)
 	u.BillingPostUsed()
 	u.KickPublisher()
 	return jx.Str(r, "id"), nil
+}
+
+// calendarRecordMedia uses the real media, not the video thumbnail. Incomplete
+// downloads are refused so a scheduled video cannot silently turn into a photo.
+func (a *App) calendarRecordMedia(record jx.M) ([]MediaItem, error) {
+	if jx.Str(record, "video_via") != "" && jx.Str(record, "video") == "" && a.MediaExisting(jx.Str(record, "video_local")) == "" {
+		return nil, Bad("Видео ещё не загружено. Откройте пост и дождитесь загрузки.")
+	}
+	files := ContentGallery(record)
+	if len(files) == 0 {
+		files = []jx.M{record}
+	}
+	var items []MediaItem
+	for _, f := range files {
+		video := jx.Str(f, "video")
+		if local := a.MediaExisting(jx.Str(f, "video_local")); local != "" {
+			video = local
+		}
+		if video != "" {
+			items = append(items, MediaItem{Kind: "video", Src: video, Name: "видео"})
+			continue
+		}
+		image := ContentImageKey(f)
+		if local := a.MediaExisting(jx.Str(f, "image_local")); local != "" {
+			image = local
+		}
+		if image != "" {
+			items = append(items, MediaItem{Kind: "image", Src: image, Name: "фото"})
+		}
+	}
+	if len(items) == 0 && !PostItemHasText(record) {
+		return nil, Bad("В записи нет доступного текста или медиа.")
+	}
+	return items, nil
 }

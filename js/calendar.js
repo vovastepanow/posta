@@ -1229,9 +1229,9 @@ function flushUnschedule() {
 
 /** Пост в очереди или в «Отложенных» с той же картинкой, что у записи Предложки (для пометки «в расписании»). */
 function queuedPostFor(item) {
-    const key = item.image || '';
+    const key = item.item_key || item.image || '';
     if (!key) return null;
-    return state.posts.find(p => p.image_key === key && ['queued', 'telegram'].includes(p.status)) || null;
+    return state.posts.find(p => (p.item_key || p.image_key) === key && ['queued', 'telegram'].includes(p.status)) || null;
 }
 
 const poolContext = () => ({
@@ -1258,7 +1258,7 @@ async function commitPoolItem(item, at) {
     }
     setStatus('Ставлю пост из Предложки в очередь…');
     try {
-        const result = await api('calendar_fill_apply', { body: { items: [{ slot_at: Math.floor(at / 1000), channels: targets, image, text: cleanCaption(item.text) }] } });
+        const result = await api('calendar_fill_apply', { body: { items: [{ slot_at: Math.floor(at / 1000), channels: targets, item_key: item.item_key || item.image, image, text: cleanCaption(item.text) }] } });
         const posted = result.posted ?? [];
         const failed = (result.errors ?? []).map(e => `${laneOf(e.channel).title}: ${e.error}`);
         if (posted.length) {

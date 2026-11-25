@@ -33,7 +33,7 @@ export async function planPanel(ctx) {
         apply.disabled = true;
         note.textContent = 'Ставлю в очередь…';
         try {
-            const items = rows.map(r => ({ slot_at: r.slot_at, channel: r.channel, image: r.image, text: cleanCaption(r.text) }));
+            const items = rows.map(r => ({ slot_at: r.slot_at, channel: r.channel, item_key: r.item_key, image: r.image, text: cleanCaption(r.text) }));
             const result = await api('calendar_fill_apply', { body: { items } });
             const errors = (result.errors || []).map(e => `${when(e.slot_at)}: ${e.error}`);
             note.textContent = `Поставлено ${result.posted.length} ${result.posted.length === 1 ? 'пост' : 'постов'}${errors.length ? '. Не вышло: ' + errors.join('; ') : ''}`;
@@ -47,10 +47,10 @@ export async function planPanel(ctx) {
 
 /** Заменить пост строки следующим подходящим из Предложки, которого нет в плане. */
 function replaceRow(row, rows, pool) {
-    const used = new Set(rows.map(r => r.image));
-    const next = pool.find(item => item.image && !used.has(item.image));
+    const used = new Set(rows.map(r => r.item_key || r.image));
+    const next = pool.find(item => (item.item_key || item.image) && !used.has(item.item_key || item.image) && !(item.video_via && !item.video && !item.display_video));
     if (!next) return false;
-    Object.assign(row, { image: next.image, display: next.display_image || next.image, text: next.text, article: next.article });
+    Object.assign(row, { item_key: next.item_key || next.image, image: next.image || '', display: next.display_image || next.image || '', text: next.text, article: next.article });
     return true;
 }
 
@@ -60,7 +60,7 @@ function planRow(row, { replace, remove }, best = []) {
         el('button', { type: 'button', className: 'account-secondary', textContent: 'Заменить', onclick: replace }),
         el('button', { type: 'button', className: 'account-secondary', textContent: 'Убрать', 'aria-label': `Убрать пост ${planWhen(row.slot_at)}`, onclick: remove }));
     return el('li', { className: 'cal-plan-row' },
-        el('img', { className: 'cal-plan-thumb', src: row.display, alt: '', loading: 'lazy' }),
+        row.display ? el('img', { className: 'cal-plan-thumb', src: row.display, alt: '', loading: 'lazy' }) : el('span', { className: 'cal-plan-thumb', textContent: 'Текст' }),
         el('span', { className: 'cal-plan-when', textContent: planWhen(row.slot_at) + (row.best && best.includes(new Date(row.slot_at * 1000).getHours()) ? ' · лучшее время' : '') }),
         el('span', { className: 'cal-plan-chan', textContent: row.channel_title || '' }),
         el('span', { className: 'cal-plan-text', textContent: shortText(row.article?.title || cleanCaption(row.text), 90) }),   // у статьи — заголовок, по границе слова
@@ -100,7 +100,7 @@ function poolItemNode(item, ctx, visible = []) {
         el('span', { className: 'cal-plan-text', textContent: cleanCaption(item.text).slice(0, 90) }),
         el('span', { className: 'cal-pool-meta', textContent: `по теме ${item.relevance ?? '—'} · ${item.source || ''}` }),
         ...(queued ? [el('span', { className: 'cal-pool-sched', textContent: `в расписании · ${planShort(queued.at)}` })] : []));
-    node.dataset.image = item.image || '';   // по картинке находим элемент после снятия с расписания
+    node.dataset.image = item.item_key || item.image || '';   // по картинке находим элемент после снятия с расписания
     if (ctx.startDrag && !ctx.pickSlot) node.addEventListener('pointerdown', event => ctx.startDrag(event, item, node));   // телефон — без переноса
     return node;
 }
