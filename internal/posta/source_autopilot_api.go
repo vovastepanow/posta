@@ -499,26 +499,86 @@ func autopilotPublicSourceReviewEvidence(raw []byte) jx.M {
 	return out
 }
 
-// Prefer verified publisher titles, then names already in the local
-// registry/catalog. API URLs and generic hosts are not human source names.
-func autopilotDisplayName(platform, id string, names ...string) string {
-	host := hostOf(id)
-	for _, candidate := range names {
-		name := strings.TrimSpace(strings.TrimPrefix(candidate, SourceNamePrefixes[platform]))
-		if name == "" || name == id || name == host || strings.Contains(name, "api.vc.ru") ||
-			strings.Contains(name, "api.dtf.ru") || strings.HasPrefix(name, "rss:https://") {
-			continue
+// RSS is a transport, not the name of the platform on which the source lives.
+func autopilotSourcePlatformLabel(platform, id string) string {
+	if platform != PlatformRSS {
+		return platform
+	}
+	host := strings.TrimPrefix(strings.ToLower(hostOf(id)), "www.")
+	if site, _ := osnovaTimelineSource(id); site != "" {
+		return site
+	}
+	if u, err := url.Parse(id); err == nil {
+		if strings.HasPrefix(u.Path, "/@") && strings.HasSuffix(u.Path, ".rss") {
+			return "Mastodon"
 		}
-		return trimRunes(CleanHTMLText(name), 180)
+		if strings.HasPrefix(u.Path, "/feeds/c/") || strings.HasPrefix(u.Path, "/feeds/u/") {
+			return "Lemmy"
+		}
+	}
+	label := RSSPlatformLabel(id)
+	if label == "YouTube Shorts" {
+		return "YouTube"
+	}
+	if label == "Сайт · "+host && host != "" {
+		return host
+	}
+	return label
+}
+
+// Reject platform-only placeholders even when they were persisted as titles
+// by older reviews. A verified publisher title always beats a handle.
+func autopilotRealSourceName(platform, id, candidate string) string {
+	name := strings.TrimSpace(CleanHTMLText(strings.TrimSpace(strings.TrimPrefix(candidate, SourceNamePrefixes[platform]))))
+	normalized := strings.ToLower(name)
+	label := strings.ToLower(autopilotSourcePlatformLabel(platform, id))
+	if name == "" || name == id || normalized == strings.ToLower(hostOf(id)) ||
+		normalized == strings.TrimPrefix(strings.ToLower(hostOf(id)), "www.") ||
+		normalized == label || normalized == strings.ToLower(platform) ||
+		normalized == "youtube shorts" || normalized == "vc.ru / dtf" ||
+		normalized == "сообщество" || normalized == "раздел / категория" ||
+		strings.Contains(normalized, "api.vc.ru") || strings.Contains(normalized, "api.dtf.ru") ||
+		strings.HasPrefix(normalized, "rss:") || strings.HasPrefix(normalized, "http://") ||
+		strings.HasPrefix(normalized, "https://") {
+		return ""
+	}
+	return trimRunes(name, 180)
+}
+
+// Derive a source-specific identifier without making any additional requests.
+// Use the public page where available and never invent a publisher title.
+func autopilotDisplayName(platform, id string, names ...string) string {
+	for _, candidate := range names {
+		if name := autopilotRealSourceName(platform, id, candidate); name != "" {
+			return name
+		}
 	}
 	if platform == PlatformRSS {
-		if site, subsite := osnovaTimelineSource(id); site != "" {
-			return "Раздел " + site + " · #" + strconv.FormatInt(subsite, 10)
+		if _, subsite := osnovaTimelineSource(id); subsite != 0 {
+			return "Раздел #" + strconv.FormatInt(subsite, 10)
 		}
-		if community := pikabuCommunityURL(id); community != "" {
-			return "Сообщество Пикабу · " + strings.TrimPrefix(community, "https://pikabu.ru/community/")
+		if cid, _, ok := YouTubeFeedChannel(id); ok {
+			return cid
 		}
-		return host
+		if page, err := url.Parse(RSSWebURL(id)); err == nil && page.Hostname() != "" {
+			path := strings.Trim(page.Path, "/")
+			if path != "" {
+				return trimRunes(path, 180)
+			}
+			host := page.Hostname()
+			for _, domain := range []string{".tumblr.com", ".substack.com", ".livejournal.com"} {
+				if strings.HasSuffix(host, domain) {
+					return strings.TrimSuffix(host, domain)
+				}
+			}
+		}
+		if feed, err := url.Parse(id); err == nil {
+			path := strings.Trim(feed.Path, "/")
+			if path != "" && path != "rss" && path != "feed" && path != "rss.xml" && path != "feed.xml" && path != "atom.xml" && path != "index.xml" {
+				return trimRunes(path, 180)
+			}
+		}
+		return "Название не определено"
 	}
 	if platform == PlatformTelegram || platform == PlatformTikTok {
 		return "@" + id
@@ -663,7 +723,7 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 		}
 		items = append(items, jx.M{"source_id": source, "state": currentState, "reason": reason,
 			"first_seen_at": discovered, "checked_at": checked, "next_check_at": next, "personal_blog": personalBlogKind(blogKind), "url": publicURL,
-			"name": name, "source_kind": kind, "review_evidence": review})
+			"name": name, "platform_label": autopilotSourcePlatformLabel(platform, id), "source_kind": kind, "review_evidence": review})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

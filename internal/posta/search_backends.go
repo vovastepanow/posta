@@ -264,8 +264,9 @@ func MastodonParse(data []byte) ([]jx.M, error) {
 		Sensitive bool   `json:"sensitive"`
 		Reblog    any    `json:"reblog"`
 		Account   struct {
-			ID  string `json:"id"`
-			URL string `json:"url"`
+			ID          string `json:"id"`
+			URL         string `json:"url"`
+			DisplayName string `json:"display_name"`
 		} `json:"account"`
 		Media []struct {
 			Type       string `json:"type"`
@@ -303,6 +304,7 @@ func MastodonParse(data []byte) ([]jx.M, error) {
 			continue
 		}
 		post := searchPost(PlatformMastodon, "mastodon:"+s.Account.ID, s.Account.URL, trimRunes(text, 80), text, "", "", s.URL, at.Unix())
+		post["publisher_name"] = trimRunes(CleanHTMLText(s.Account.DisplayName), 180)
 		post["source_sensitive"] = s.Sensitive
 		setPostMedia(post, media)
 		if len(media) > 0 {

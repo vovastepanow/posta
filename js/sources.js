@@ -67,7 +67,8 @@ function autopilotSourceIdentity(raw) {
         }
     } catch { /* Unrecognized source IDs stay visible as text. */ }
     const domains = [
-        [/^(?:api\.)?(?:vc\.ru|dtf\.ru)$/, 'vc.ru / DTF', '', 'VC', '#3268c7'],
+        [/^(?:api\.)?vc\.ru$/, 'vc.ru', '', 'VC', '#3268c7'],
+        [/^(?:api\.)?dtf\.ru$/, 'DTF', '', 'DTF', '#3268c7'],
         [/^(?:.+\.)?pikabu\.ru$/, 'Пикабу', '', 'П', '#8dc33b'],
         [/^(?:.+\.)?ok\.ru$/, 'Одноклассники', 'odnoklassniki', 'OK', '#f58220'],
         [/^(?:.+\.)?vk\.com$/, 'ВКонтакте', 'vk', 'VK', '#0077ff'],
@@ -90,7 +91,7 @@ function autopilotSourceIdentity(raw) {
         const id = new URL(url).searchParams.get('subsitesids') || new URL(url).searchParams.get('subsitesIds');
         display = 'Раздел ' + host.slice(4) + (id ? ' · #' + id : '');
         url = 'https://' + host.slice(4) + '/';
-        platform.label = 'Раздел ' + host.slice(4);
+        platform.label = host.slice(4);
     }
     return { url, display: display || source, platform };
 }
@@ -110,8 +111,8 @@ function autopilotSourceCard(item) {
     }
     const { platform, url } = identity;
     const sourceKind = String(item.source_kind || '');
-    if (sourceKind === 'category') platform.label = 'Раздел / категория';
-    else if (sourceKind === 'community') platform.label = 'Сообщество';
+    // The top line is always the platform, never the type of resource.
+    if (item.platform_label) platform.label = String(item.platform_label);
     // Use the publisher's real name, not an API host, RSS endpoint or
     // technical channel identifier. The server already provides catalog
     // and previously verified public-source titles without extra fetches.

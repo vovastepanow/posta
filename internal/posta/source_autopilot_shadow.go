@@ -1358,9 +1358,20 @@ func autopilotSourceReviewInfo(platform, id, feed string, result FetchResultURL,
 			if jx.Str(publisher, "publisher_kind") == "category" {
 				info["source_kind"] = "category"
 			}
-		} else if title == hostOf(feed) && len(posts) > 0 {
-			if name := strings.TrimSpace(jx.Str(posts[0], "source")); name != "" {
-				title = trimRunes(name, 180)
+		} else if autopilotRealSourceName(platform, feed, title) == "" && len(posts) > 0 {
+			// The Mastodon parser supplies the public account name, not
+			// the generic platform label in the post's "source" field.
+			if _, ok := autopilotMastodonFeed(feed); ok {
+				for _, post := range posts {
+					if jx.Str(post, "source_author_url")+".rss" == feed {
+						if name := autopilotRealSourceName(platform, feed, jx.Str(post, "publisher_name")); name != "" {
+							title = name
+							break
+						}
+					}
+				}
+			} else if name := autopilotRealSourceName(platform, feed, jx.Str(posts[0], "source")); name != "" {
+				title = name
 			}
 		}
 	} else if platform == PlatformTelegram {
@@ -1386,9 +1397,12 @@ func autopilotSourceReviewInfo(platform, id, feed string, result FetchResultURL,
 // their next normal public check, without extra bulk HTTP requests.
 func autopilotSourceDisplayEvidence(info jx.M, platform, feed string) jx.M {
 	out := jx.M{}
-	title := strings.TrimSpace(jx.Str(info, "title"))
-	if title != "" && title != feed && title != hostOf(feed) && !(platform != PlatformRSS && title == jx.Str(info, "id")) {
-		out["source_title"] = trimRunes(title, 180)
+	id := jx.Str(info, "id")
+	if platform == PlatformRSS {
+		id = feed
+	}
+	if title := autopilotRealSourceName(platform, id, jx.Str(info, "title")); title != "" {
+		out["source_title"] = title
 	}
 	if page := jx.Str(info, "source_page"); page != "" {
 		out["source_page"] = page
