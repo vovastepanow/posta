@@ -54,9 +54,12 @@ const itemSlides = item => recordSlides(item);
 /** Слайды записи как галерея просмотрщика. */
 export function recordGallery(item, index = 0) {
     const sourceUrl = safeSourcePostUrl(item);
-    return { index, onPost: item ? () => postItemToTelegram(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) : null, postCheck: item?.post_check || null,
-        items: itemSlides(item).filter(s => !s.textPost).map((s, i) => ({ kind: s.video ? 'video' : 'image', src: s.video || s.image, fallback: s.video ? s.fallbackVideo : s.fallbackImage, poster: s.image, sourceUrl, alt: 'Запись',
-            ...(i === 0 ? videoFields(item, sourceUrl) : {}) })) };
+    const items = itemSlides(item).filter(s => !s.textPost).map((s, i) => ({ kind: s.video ? 'video' : 'image', src: s.video || s.image, fallback: s.video ? s.fallbackVideo : s.fallbackImage, poster: s.image, sourceUrl, alt: 'Запись',
+        ...(i === 0 ? videoFields(item, sourceUrl) : {}) }));
+    if (!items.length && (item?.video_via || item?.video_unavailable)) {
+        items.push({ kind: 'video', src: '', poster: '', sourceUrl, alt: 'Видео', ...videoFields(item, sourceUrl) });
+    }
+    return { index, onPost: item ? () => postItemToTelegram(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) : null, postCheck: item?.post_check || null, items };
 }
 
 // Старые функции больше не используются, но оставляем для совместимости

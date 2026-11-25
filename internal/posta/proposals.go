@@ -24,6 +24,20 @@ func (a *App) proposalMediaLost(r jx.M) bool {
 	return jx.Bool(r, "media_gone") && a.MediaExisting(jx.Str(r, "image_local")) == "" && a.MediaExisting(jx.Str(r, "video_local")) == ""
 }
 
+// SavedProposalRecord is used by owner-scoped video polling and retries.
+func (u *U) SavedProposalRecord(key string) jx.M {
+	if key == "" {
+		return nil
+	}
+	for _, item := range u.History()["liked"] {
+		if ContentItemKey(item) == key && !jx.Bool(item, "proposal_hidden") && !jx.Bool(item, "content_deleted") &&
+			!u.UARecordHidden(item) && (u.AdultAllowed() || !u.ContentIsAdult(item)) {
+			return item
+		}
+	}
+	return nil
+}
+
 // ProposalItems — записи «Предложки» текущей темы для показа, новые первыми.
 func (u *U) ProposalItems(h History) []jx.M {
 	items := []jx.M{}
@@ -293,8 +307,34 @@ func (u *U) ProposalRefetch(image string) (jx.M, bool, error) {
 			}
 		}
 	}
-	if record == nil {
+	if record == nil || jx.Bool(record, "proposal_hidden") || jx.Bool(record, "content_deleted") {
 		return nil, false, NotFound("Запись не найдена.")
+	}
+	if via, page := jx.Str(record, "video_via"), jx.Str(record, "video_page"); (via == "ytdlp" || via == "tgu") && page != "" && VideoPageVia(page) == via {
+		if via == "tgu" && !u.TelegramUserConnected() {
+			return nil, false, &Error{409, "Подключите личный аккаунт Telegram для скачивания видео."}
+		}
+		if u.MediaExisting(jx.Str(record, "video_local")) != "" {
+			return u.ContentForDisplay(record, nil, false), false, nil
+		}
+		var updated jx.M
+		if _, err := u.HistoryUpdate(func(h History) History {
+			for i, item := range h["liked"] {
+				if ContentItemKey(item) == image && !jx.Bool(item, "proposal_hidden") && !jx.Bool(item, "content_deleted") {
+					updated = jx.Merge(item, jx.M{"video": "", "video_local": "", "video_unavailable": false, "video_error": "", "media_gone": false})
+					h["liked"][i] = updated
+					return h
+				}
+			}
+			return nil
+		}); err != nil {
+			return nil, false, err
+		}
+		if updated == nil {
+			return nil, false, NotFound("Запись не найдена.")
+		}
+		u.VideoEnqueue(u.Ctx, u.ID, ContentItemKey(updated), page, via, true)
+		return u.ContentForDisplay(updated, nil, false), false, nil
 	}
 	m, gone := u.proposalFetchMedia(record)
 	if m == nil && !gone {
@@ -332,6 +372,11 @@ func (u *U) proposalPending() []jx.M {
 	h := u.History()
 	for _, c := range config.ProposalCollections {
 		for _, r := range h[c] {
+			// Pending worker-managed videos are handled by the video queue,
+			// not by repeated attempts to fetch a poster from the source.
+			if jx.Str(r, "video_via") != "" && jx.Str(r, "video") == "" {
+				continue
+			}
 			if PostItemHasMedia(r) && !jx.Bool(r, "media_cached") && !jx.Bool(r, "proposal_hidden") && !jx.Bool(r, "media_gone") {
 				out = append(out, r)
 			}
@@ -365,7 +410,7 @@ func (u *U) ProposalBackfillAsync() bool {
 		w := u.User(ctx, uid, nil)
 		w.ProposalPruneDeadThreads(false)
 		for i := 0; i < 50 && ctx.Err() == nil; i++ {
-			if w.ProposalBackfillMedia(6) == 0 && len(w.proposalPending()) == 0 {
+			if w.ProposalBackfillMedia(6) == 0 {
 				break
 			}
 		}

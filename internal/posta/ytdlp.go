@@ -642,7 +642,18 @@ func (a *App) runVideoJob(ctx context.Context, j VideoJob) {
 		a.videoJobFailed(ctx, u, j, err.Error(), errors.Is(err, ErrVideoTooLong))
 		return
 	}
-	a.videoAttach(ctx, j, local)
+	if err := a.videoAttach(ctx, j, local); err != nil {
+		u.Log("-> Не удалось сохранить готовый ролик в записи: %v", err)
+		a.videoQueueUpdate(ctx, func(jobs []VideoJob) []VideoJob {
+			for i := range jobs {
+				if jobs[i].UID == j.UID && jobs[i].Key == j.Key {
+					jobs[i].NextAt = now() + 60
+				}
+			}
+			return jobs
+		})
+		return
+	}
 	a.videoDropJob(ctx, j)
 	u.Log("-> Ролик %s готов с попытки %d: %s.", label, tries, strings.Join(times, ", "))
 }
@@ -666,20 +677,61 @@ func videoJobMatchesPoolItem(item jx.M, j VideoJob) bool {
 		jx.Str(item, "video_via") == jobVia(j) && jx.Str(item, "video_page") == j.Page
 }
 
-func (a *App) videoAttach(ctx context.Context, j VideoJob, local string) {
-	if videoIsPreviewKey(j.Key) {
-		a.videoPreviewSave(ctx, j.Page, jx.M{"status": "done", "local": local, "error": "", "at": now()})
-		return
-	}
-	u := a.User(ctx, j.UID, nil)
-	u.PoolUpdate(func(pool []jx.M) []jx.M {
-		for _, it := range pool {
-			if videoJobMatchesPoolItem(it, j) {
-				it["video"], it["video_local"] = local, local
-				it["video_unavailable"], it["video_error"] = false, ""
+// videoUpdateRecords follows a record across an atomic vote. If the item is
+// still in the pool, a later vote copies the new state into history. Otherwise
+// the job can finish against the liked record instead of losing its result.
+func (u *U) videoUpdateRecords(j VideoJob, change func(jx.M) jx.M) error {
+	found := false
+	if _, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
+		changed := false
+		for i, item := range pool {
+			if videoJobMatchesPoolItem(item, j) {
+				found = true
+				if next := change(item); next != nil {
+					pool[i] = next
+					changed = true
+				}
 			}
 		}
+		if !changed {
+			return nil
+		}
 		return pool
+	}); err != nil {
+		return err
+	}
+	if found {
+		return nil
+	}
+	_, err := u.HistoryUpdate(func(h History) History {
+		changed := false
+		for _, collection := range config.ProposalCollections {
+			for i, item := range h[collection] {
+				if jx.Bool(item, "proposal_hidden") || jx.Bool(item, "content_deleted") || !videoJobMatchesPoolItem(item, j) {
+					continue
+				}
+				if next := change(item); next != nil {
+					h[collection][i] = next
+					changed = true
+				}
+			}
+		}
+		if !changed {
+			return nil
+		}
+		return h
+	})
+	return err
+}
+
+func (a *App) videoAttach(ctx context.Context, j VideoJob, local string) error {
+	if videoIsPreviewKey(j.Key) {
+		a.videoPreviewSave(ctx, j.Page, jx.M{"status": "done", "local": local, "error": "", "at": now()})
+		return nil
+	}
+	u := a.User(ctx, j.UID, nil)
+	return u.videoUpdateRecords(j, func(item jx.M) jx.M {
+		return jx.Merge(item, jx.M{"video": local, "video_local": local, "video_unavailable": false, "video_error": "", "media_gone": false})
 	})
 }
 
@@ -725,15 +777,24 @@ func (a *App) videoJobFailed(ctx context.Context, u *U, j VideoJob, reason strin
 		})
 		return
 	}
-	u.PoolUpdate(func(pool []jx.M) []jx.M {
-		for _, it := range pool {
-			if videoJobMatchesPoolItem(it, j) {
-				it["video_unavailable"] = true
-				it["video_error"] = trimRunes(reason, 300)
-			}
+	if err := u.videoUpdateRecords(j, func(item jx.M) jx.M {
+		// A duplicate or older task cannot mark an already playable file unavailable.
+		if jx.Str(item, "video") != "" && !jx.Bool(item, "video_unavailable") {
+			return nil
 		}
-		return pool
-	})
+		return jx.Merge(item, jx.M{"video_unavailable": true, "video_error": trimRunes(reason, 300)})
+	}); err != nil {
+		u.Log("-> Не удалось сохранить ошибку скачивания: %v", err)
+		a.videoQueueUpdate(ctx, func(jobs []VideoJob) []VideoJob {
+			for i := range jobs {
+				if jobs[i].UID == j.UID && jobs[i].Key == j.Key {
+					jobs[i].NextAt = now()+60
+				}
+			}
+			return jobs
+		})
+		return
+	}
 	a.videoDropJob(ctx, j)
 }
 

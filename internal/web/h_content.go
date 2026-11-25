@@ -325,8 +325,12 @@ func getItemVideo(c *Ctx) (any, error) {
 	}
 	item := posta.PoolFindItem(c.U.Pool(), key)
 	if item == nil {
-		return nil, fail(404, "Записи уже нет в подборке.")
+		item = c.U.SavedProposalRecord(key)
 	}
+	if item == nil {
+		return nil, fail(404, "Записи уже нет в подборке или предложке.")
+	}
+	key = posta.ContentItemKey(item)
 	video, local := jx.Str(item, "video"), jx.Str(item, "video_local")
 	display := ""
 	if video != "" {

@@ -111,21 +111,32 @@ const videoObserver = new IntersectionObserver(entries => {
 /** Ролик ещё качается: по готовности подпись уходит, запись получает ролик — окно просмотра покажет его. */
 function watchProposalVideo(tile, item) {
     const bar = videoProgress(tile);   // полная полоса со стадией: вместо пометки «Видео загружается…»
-    watchVideo(itemCheck(item.image), {
+    watchVideo(itemCheck(item.item_key || item.image), {
         onProgress: p => bar.update(p),
-        onReady: r => { bar.stop(); item.video = r.video_local || r.video; item.display_video = r.video; tile.querySelector('.proposal-pending')?.remove(); },
-        onFail: () => { bar.stop(); tile.querySelector('.proposal-pending')?.replaceWith(el('span', { className: 'proposal-pending', textContent: 'Видео не скачалось' })); }
+        onReady: r => { bar.stop(); item.video = r.video_local || r.video; item.display_video = r.video; tile.querySelector('.proposal-pending')?.remove(); if (tile.isConnected) loadProposals({ quiet: true }); },
+        onFail: error => { bar.stop(); tile.classList.remove('is-loading'); const label = tile.querySelector('.proposal-pending'); if (label) { label.textContent = error || 'Видео не скачалось'; label.title = 'Нажмите на видео, чтобы повторить загрузку'; } }
     });
 }
 
 function mediaTile(slide, onOpen, extra, item) {
     if (slide.kind === 'text') return el('div', { className: 'proposal-tile is-text' }, textPostBlock(slide.text));   // текст без картинки
-    const tile = el('button', { className: 'proposal-tile is-loading', type: 'button', title: 'Открыть', onclick: e => { e.stopPropagation(); onOpen(); } });   // глобальный обработчик просмотрщика не должен открыть картинку без галереи
+    const tile = el('button', { className: 'proposal-tile is-loading', type: 'button', title: 'Открыть', onclick: async e => {
+        e.stopPropagation();
+        if (item?.video_via && !item.video && (item.video_unavailable || tile.querySelector('.proposal-pending')?.title)) {
+            try {
+                await api('proposal_refetch', { body: { image: item.item_key || item.image } });
+                await loadProposals({ quiet: true });
+            } catch (error) { log(error.message); }
+            return;
+        }
+        onOpen();
+    } });   // глобальный обработчик просмотрщика не должен открыть картинку без галереи
     const settled = () => tile.classList.remove('is-loading');
     // Ролик TikTok/Shorts ещё качается в фоне: до этого показываем обложку с пометкой
     if (['ytdlp', 'tgu'].includes(item?.video_via) && !item.video) {
         tile.append(el('span', { className: 'proposal-pending', textContent: 'Видео загружается…' }));
-        if (item.image) watchProposalVideo(tile, item);
+        if (item.video_unavailable) { tile.querySelector('.proposal-pending').textContent = 'Видео не скачалось · повторить'; settled(); }
+        else if (item.item_key || item.image) watchProposalVideo(tile, item);
     }
     // У ролика картинка — только постер. Без постера браузер скачал бы весь видеофайл как изображение.
     const poster = slide.kind === 'video' ? (slide.poster || '') : (slide.poster || slide.src || '');
@@ -161,7 +172,7 @@ function mediaTile(slide, onOpen, extra, item) {
         };
         tile.append(image);
     }
-    if (slide.kind === 'video') {
+    if (slide.kind === 'video' && slide.src) {
         if (!poster) settled();
         const video = el('video', { poster: slide.poster || '', muted: true, loop: true, playsInline: true, preload: 'metadata' });
         Object.assign(video.dataset, { src: slide.src, fallback: slide.fallback || '' });
@@ -213,7 +224,7 @@ function proposalArticleCard(item) {
 
 function proposalCard(item) {
     if (cardKind(item) === 'article') return proposalArticleCard(item);
-    const slides = item.text_post && !item.image && !item.display_image ? [{ kind: 'text', text: item.text || '', textPost: true }] : recordGallery(item).items;
+    const slides = item.text_post && !item.image && !item.display_image && !item.video && !item.video_via && !item.video_unavailable ? [{ kind: 'text', text: item.text || '', textPost: true }] : recordGallery(item).items;
     const shown = slides.slice(0, 6);
     const refetch = item.source_url ? async () => {
         const result = await api('proposal_refetch', { body: { image: item.item_key || item.image } });

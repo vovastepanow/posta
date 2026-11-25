@@ -97,7 +97,7 @@ export function fromRecord(item) {
     const stats = { views: e.source === 'telegram' && Number.isFinite(e.views) ? e.views : null, comments: e.source === 'osnova' ? e.comments ?? 0 : null,
         reactions: reactions.length ? reactions : null };
     return {
-        key: `record:${item?.id ?? url ?? ''}`,
+        key: `record:${item?.item_key || item?.id || url || ''}`,
         source: { name: item?.article?.site || hostOf(url || item?.url), url: url, badge: '' },
         date: Number(item?.posted_at) > 0 ? Number(item.posted_at) : null,
         url,
