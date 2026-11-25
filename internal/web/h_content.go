@@ -28,7 +28,6 @@ func randUID() string {
 func init() {
 	get("get_item_video", getItemVideo)
 	post("retry_item_video", retryItemVideo)
-	post("repair_item_ai_text", repairItemAIText)
 	get("get_current_item", getCurrentItem)
 	get("content_pool", contentPool)
 	post("content_personal_blogs", func(c *Ctx) (any, error) {
@@ -314,49 +313,7 @@ func currentItemDisplay(c *Ctx, item jx.M, upcoming []jx.M) jx.M {
 			item["video_error"] = "Не удалось запустить автоматическое скачивание."
 		}
 	}
-	out := u.TranslateDisplay(u.ContentForDisplay(item, upcoming, true))
-	out["ai_text_needs_repair"] = posta.AITextNeedsRepair(item)
-	return out
-}
-
-var poolAITextRepairs sync.Map
-
-func repairItemAIText(c *Ctx) (any, error) {
-	u := c.U
-	key := c.Str("item_key")
-	if key == "" {
-		return nil, fail(400, "Не указана запись.")
-	}
-	item := posta.PoolFindItem(u.PoolForCurrentTopic(), key)
-	if item == nil {
-		return nil, fail(404, "Запись больше не доступна в предложке.")
-	}
-	if !posta.AITextNeedsRepair(item) {
-		return jx.M{"description": item["description"], "why_relevant": item["why_relevant"], "ai_text_repaired": true}, nil
-	}
-	if _, busy := poolAITextRepairs.LoadOrStore(u.ID, true); busy {
-		return nil, fail(429, "Уже восстанавливается описание другой записи.")
-	}
-	defer poolAITextRepairs.Delete(u.ID)
-	fields, err := u.RepairPoolAIText(item)
-	if err != nil {
-		return nil, err
-	}
-	_, err = u.PoolUpdate(func(pool []jx.M) []jx.M {
-		for _, record := range pool {
-			if posta.ContentItemKey(record) == key && jx.Str(record, "topic") == jx.Str(item, "topic") && posta.AITextNeedsRepair(record) {
-				for k, v := range fields {
-					record[k] = v
-				}
-				return pool
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return fields, nil
+	return u.TranslateDisplay(u.ContentForDisplay(item, upcoming, true))
 }
 
 func getItemVideo(c *Ctx) (any, error) {

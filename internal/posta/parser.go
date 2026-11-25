@@ -1699,7 +1699,7 @@ func (u *U) analysisCacheGet(item jx.M, topic string, h History) jx.M {
 		return nil
 	}
 	a := jx.Unmarshal(raw)
-	if _, ok := a["advertising"].(bool); !ok || AITextNeedsRepair(a) {
+	if _, ok := a["advertising"].(bool); !ok {
 		return nil
 	}
 	return a
