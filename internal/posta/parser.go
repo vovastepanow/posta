@@ -1957,7 +1957,7 @@ func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline
 			c.newCache[row.CacheKey] = screenedEntry{Topic: topic, Source: row.Source, Score: *q.Score}
 			c.cached[row.CacheKey] = *q.Score
 			c.stats["prescreened"]++
-				reason := ""
+			reason := ""
 			if junk {
 				reason = "быстрая оценка: мусор"
 			}
