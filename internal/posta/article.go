@@ -517,7 +517,6 @@ func articleApplyData(post jx.M, data *articleData) jx.M {
 		if t == "" {
 			nt = strings.TrimSpace(desc)
 		}
-		nt = trimRunes(nt, 1000)
 		if nt == "" {
 			nt = EmptyPostText
 		}

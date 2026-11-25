@@ -214,7 +214,11 @@ func (a *App) collectPublicTopic(ctx context.Context, topic string, lastDone int
 				if page == "" {
 					return false
 				}
-				posts = TelegramPostsFromHTML(page, jx.M{"id": id, "name": name}, config.TelegramPostsPerChannel, true, 120)
+				// A public landing/login page is not a successful empty poll.
+				if !strings.Contains(page, `data-post="`) && !strings.Contains(page, "tgme_channel_info") {
+					return false
+				}
+				posts = TelegramPostsFromHTML(page, jx.M{"id": id, "name": name}, config.TelegramPostsPerChannel, true, 0)
 			case PlatformRSS:
 				var err error
 				posts, err = a.User(ctx, "", nil).RSSFetchPosts(id, config.RSSPostsPerFeed, name, true, true)

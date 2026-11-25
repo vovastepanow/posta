@@ -161,8 +161,11 @@ func rssLoad(data []byte) *xnode {
 	for {
 		off := d.InputOffset()
 		tok, err := d.Token()
-		if err != nil {
+		if err == io.EOF {
 			break
+		}
+		if err != nil {
+			return nil // A truncated or invalid document is not an empty feed.
 		}
 		top := stack[len(stack)-1]
 		switch t := tok.(type) {
@@ -193,7 +196,7 @@ func rssLoad(data []byte) *xnode {
 			top.T += string(t)
 		}
 	}
-	if len(root.K) == 0 {
+	if len(root.K) != 1 || len(stack) != 1 {
 		return nil
 	}
 	return root.K[0]
@@ -235,7 +238,7 @@ func (n *xnode) html() string {
 	if n == nil {
 		return ""
 	}
-	if strings.TrimSpace(n.T) != "" || len(n.K) == 0 {
+	if len(n.K) == 0 {
 		return n.T
 	}
 	return n.Raw
@@ -568,6 +571,9 @@ func hostOf(raw string) string {
 
 // RSSFetchPosts — свежие посты ленты по адресу (YouTube без ленты — через yt-dlp).
 func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, withText bool) ([]jx.M, error) {
+	if count <= 0 {
+		return nil, nil
+	}
 	if _, ok := autopilotMastodonFeed(feedURL); ok {
 		if count <= 0 {
 			return nil, nil
@@ -742,8 +748,10 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 		}
 		return posts, nil
 	}
-	r := u.RSSGet(feedURL, rssMaxBytes, 15*time.Second, HTTPUA)
-	if !r.OK {
+	// Reuse the existing validated same-origin alternate-feed resolver and
+	// bounded size retry. No special API source is routed through this path.
+	r := autopilotReadRSS(feedURL, u.RSSGet)
+	if !r.OK || r.Status == 206 || !rssIsFeed(rssLoad(r.Bytes)) {
 		if cid, tab, ok := YouTubeFeedChannel(feedURL); ok {
 			u.Log("YouTube: лента недоступна (%d), список роликов взят через yt-dlp", r.Status)
 			posts, err := u.YouTubeChannelPosts(cid, tab, count)
@@ -751,6 +759,9 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 				posts = posts[:count]
 			}
 			return posts, err
+		}
+		if r.OK {
+			return nil, Bad("Лента: неполный ответ или неподдерживаемая XML-разметка (HTTP %d).", r.Status)
 		}
 		return nil, Bad("Лента не загрузилась: %s", fetchFailure(r.FetchResult))
 	}

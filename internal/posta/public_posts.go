@@ -55,7 +55,7 @@ func (a *App) storePublicPosts(ctx context.Context, platform, sourceKey string, 
 }
 
 func publicClassificationInput(post jx.M) (caption, image string, ok bool) {
-	if jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") {
+	if jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || jx.Bool(post, "text_incomplete") || jx.Bool(post, "media_incomplete") || jx.Bool(post, "video_unavailable") {
 		return "", "", false
 	}
 	caption = strings.TrimSpace(PostCaptionForAI(post))
