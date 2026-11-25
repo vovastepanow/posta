@@ -1618,8 +1618,13 @@ func SourcePassRates(verdicts map[string][2]int) map[string]float64 {
 	return out
 }
 
+// A cover or first album image is not enough to reject the entire post.
+func collectorPrescreenComplete(item jx.M) bool {
+	return !PostItemHasVideo(item) && jx.Str(item, "video_via") == "" && len(ContentGallery(item)) < 2
+}
+
 func (u *U) prescreenIsJunk(score *int, item jx.M) bool {
-	return score != nil && *score >= u.prescreenThreshold(item)
+	return collectorPrescreenComplete(item) && score != nil && *score >= u.prescreenThreshold(item)
 }
 
 func (a *App) prescreenThreshold(item jx.M) int {
@@ -1770,7 +1775,7 @@ func (u *U) collectorVisionKey(item jx.M, topic string, h History, frames [][]by
 	if !u.collectorPublicEvidence(item, topic) {
 		base += "|owner:" + u.ID
 	}
-	return visionEvidenceKey(base, u.editableVisionPrompt(topic, strings.TrimSpace(caption), h, video, context), settings, frames)
+	return visionEvidenceKey(base, u.editableVisionPrompt(topic, strings.TrimSpace(caption), h, video, context, visualEvidenceDescription(item, len(frames), video)), settings, frames)
 }
 
 // ---- Оценка ----
@@ -1903,7 +1908,15 @@ func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline
 			}
 			c.knownHashes[hash] = jx.Str(item, "source")
 		}
-		row := prescreenRow{Item: item, Poster: poster, Pos: pos, Source: src, Phash: hash, CacheKey: u.prescreenInputKey(item, topic, poster), Private: u.analysisPrivate(topic, item)}
+		row := prescreenRow{Item: item, Poster: poster, Pos: pos, Source: src, Phash: hash, Private: u.analysisPrivate(topic, item)}
+		if !collectorPrescreenComplete(item) {
+			// No extra AI call for evidence that cannot justify a rejection.
+			c.stats["prescreen_bypassed_media"]++
+			c.passedTotal++
+			passed = append(passed, row)
+			continue
+		}
+		row.CacheKey = u.prescreenInputKey(item, topic, poster)
 		if s, ok := c.cached[row.CacheKey]; ok {
 			sc := s
 			c.stats["prescreen_cache_hits"]++
@@ -2140,8 +2153,11 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 		defer cleanup()
 	}
 	frames := [][]byte{poster}
+	var galleryBytes map[string][]byte
 	if video != nil {
 		frames = video.Frames
+	} else if !isVideo {
+		frames, galleryBytes = galleryVisionFrames(item, poster, u.discoveryImageBytes)
 	}
 	storyboard := video != nil && len(frames) > 1
 	context := AnalysisContextBlock(item)
@@ -2209,6 +2225,7 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 	u.Log("-> Принято: %s.%s", verdict, tagNote)
 	u.PostSearchSuggest(item, topic)
 	rec := analysisRecord(a, item, topic, "")
+	rec["analysis_evidence"] = visualEvidenceKind(item, len(frames), sb)
 	u.GeoFill(rec)
 	rec["image_local"] = u.MediaStoreImage(jx.Str(item, "image"), poster)
 	rec["phash"] = ImagePhash(poster)
@@ -2235,6 +2252,13 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 		}
 	}
 	if g := jx.Maps(rec, "gallery"); len(g) > 0 {
+		for i, f := range g {
+			image := jx.Str(f, "image")
+			if b := galleryBytes[image]; len(b) > 0 {
+				g[i]["image_local"] = u.MediaStoreImage(image, galleryPrepareImage(b))
+				g[i]["phash"] = ImagePhash(b)
+			}
+		}
 		rec["gallery"] = u.GalleryCacheFiles(g, jx.Str(item, "image"))
 	}
 	if jx.Str(rec, "image_local") == "" {
@@ -2424,6 +2448,7 @@ func (u *U) RunCollector() bool {
 		f["fast_search_added"] = fastPostAdded
 		f["fast_search_seconds"] = fastSearchSeconds
 		f["prescreen_cache_hits"] = pc.stats["prescreen_cache_hits"]
+		f["prescreen_bypassed_media"] = pc.stats["prescreen_bypassed_media"]
 		f["text_cache_hits"] = u.run.TextCacheHits
 		f["text_batch_calls"] = u.run.TextBatchCalls
 		f["vision_cache_hits"] = u.run.VisionCacheHits
