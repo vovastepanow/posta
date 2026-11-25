@@ -156,3 +156,38 @@ func personalBlogLabelFromReview(raw string) string {
 	return personalBlogKind(raw)
 }
 
+
+// Source preferences are stored under the primary topic, while the collector
+// uses a combined topic/query key. Apply them after merging all search paths,
+// so direct search cannot bypass the same choices as the catalog.
+func collectorPolicyTopic(topic string) string {
+	if parts := TopicParts(topic); len(parts) > 0 {
+		return parts[0]
+	}
+	return TopicBase(topic)
+}
+
+func collectorSourcePolicyReason(item jx.M, overrides jx.M, blogAllowed func(jx.M) bool) string {
+	if sourceExcludedByOverride(overrides, ContentSourceKey(item)) {
+		return "source_excluded"
+	}
+	if !blogAllowed(item) {
+		return "personal_blog"
+	}
+	return ""
+}
+
+func (u *U) collectorSourcePolicy(topic string) (func(jx.M) string, error) {
+	primary := collectorPolicyTopic(topic)
+	overrides := u.sourceOverridesForTopic(primary)
+	if TopicNorm(primary) != TopicNorm(topic) {
+		overrides = jx.Merge(overrides, u.sourceOverridesForTopic(topic))
+	}
+	blogs, err := u.poolPersonalBlogFilter(primary)
+	if err != nil {
+		return nil, err
+	}
+	return func(item jx.M) string {
+		return collectorSourcePolicyReason(item, overrides, blogs)
+	}, nil
+}

@@ -1073,6 +1073,10 @@ type queueSkip map[string]int
 // buildCandidateQueue — без виденных, устаревших, отсеянных раньше; лучшие источники первыми, горячие — в шортлист. До 500.
 func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, rejected map[string]bool, rates map[string][2]int, format *TopicFormat, filters jx.M, topic string) ([]jx.M, queueSkip) {
 	skipped := queueSkip{}
+	sourcePolicy, policyErr := u.collectorSourcePolicy(topic)
+	if policyErr != nil {
+		u.Log("Не удалось применить фильтр источников: %v", policyErr)
+	}
 	busy := u.sourceBusy(topic)
 	unique := map[string]jx.M{}
 	var order, deferred []string
@@ -1081,6 +1085,14 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	platOrder := candidatePlatformOrder(byPlatform)
 	for _, p := range platOrder {
 		for _, item := range ExpandPostImages(byPlatform[p]) {
+			if policyErr != nil {
+				skipped["source_policy_unavailable"]++
+				continue
+			}
+			if reason := sourcePolicy(item); reason != "" {
+				skipped[reason]++
+				continue
+			}
 			if !ContentPassesMediaFilters(item, filters) {
 				u.rememberRejected(topic, "filter", item, "Не прошёл фильтры медиа", nil)
 				skipped["filter"]++

@@ -112,6 +112,30 @@ func TestPersonalBlogPreferencePersistsByTopicPostgres(t *testing.T) {
 		filter(jx.M{"source_key": "unknown"}) {
 		t.Fatal("saved pool personal-blog exclusion not enforced")
 	}
+	// Direct search uses a combined topic/query key; the user's primary
+	// source restrictions must still apply after catalog and search merge.
+	if err := u.SaveSettings(jx.M{"topic": "Единоборства"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := u.SourceOverrideSet("rss:https://personal-blog-filter.example/no", false); err != nil {
+		t.Fatal(err)
+	}
+	policy, err := u.collectorSourcePolicy("Единоборства + Спорт ? ММА")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if policy(jx.M{"source_key": "rss:https://personal-blog-filter.example/no"}) != "source_excluded" ||
+		policy(jx.M{"source_key": "rss:https://personal-blog-filter.example/yes"}) != "personal_blog" ||
+		policy(jx.M{"source_key": "unknown"}) != "personal_blog" {
+		t.Fatal("combined search bypassed primary topic source restrictions")
+	}
+	if err := u.SourceOverrideSet("rss:https://personal-blog-filter.example/no", true); err != nil {
+		t.Fatal(err)
+	}
+	policy, err = u.collectorSourcePolicy("Единоборства ? ММА")
+	if err != nil || policy(jx.M{"source_key": "rss:https://personal-blog-filter.example/no"}) != "" {
+		t.Fatalf("re-enabled allowed source must reach search: %v", err)
+	}
 	if err := u.SavePersonalBlogMode("Единоборства", personalBlogAny); err != nil {
 		t.Fatal(err)
 	}
@@ -121,5 +145,22 @@ func TestPersonalBlogPreferencePersistsByTopicPostgres(t *testing.T) {
 	}
 	if err := u.SavePersonalBlogMode("SMM и блогинг", "invalid"); err == nil {
 		t.Fatal("invalid filter mode was accepted")
+	}
+}
+
+func TestCollectorSourcePolicyAppliesAcrossAllCandidatePaths(t *testing.T) {
+	if got := collectorPolicyTopic("SMM и блогинг + Бизнес ? Telegram"); got != "SMM и блогинг" {
+		t.Fatalf("wrong source policy topic: %q", got)
+	}
+	overrides := jx.M{"rss:muted": "off", "rss:enabled": "on"}
+	allowed := func(item jx.M) bool { return jx.Str(item, "source_key") != "rss:unknown" }
+	for _, tc := range []struct{ source, reason string }{
+		{"rss:muted", "source_excluded"},
+		{"rss:unknown", "personal_blog"},
+		{"rss:enabled", ""},
+	} {
+		if got := collectorSourcePolicyReason(jx.M{"source_key": tc.source}, overrides, allowed); got != tc.reason {
+			t.Fatalf("source=%s reason=%q want=%q", tc.source, got, tc.reason)
+		}
 	}
 }
