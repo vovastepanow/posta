@@ -90,14 +90,41 @@ if ! git merge-base --is-ancestor "$current" "$target"; then
     exit 0
 fi
 
-# Migrations must still be reviewed manually before advancing.
+# Only append-only migration files may deploy automatically. The service
+# itself creates a PostgreSQL backup before applying pending migrations.
 if [ -n "$deployed" ] && git cat-file -e "$deployed^{commit}" 2>/dev/null; then
     baseline="$deployed"
 else
     baseline="$current"
 fi
-if git diff --name-only "$baseline" "$target" | grep -q '^internal/db/migrations/'; then
-    fail "Database migration changed; deploy manually after backup."
+migration_release=0
+migration_changes="$(git diff --no-renames --name-status "$baseline" "$target" -- internal/db/migrations/)"
+if [ -n "$migration_changes" ]; then
+    if printf '%s\n' "$migration_changes" | grep -qv '^A[[:space:]]'; then
+        fail "Existing database migration modified or deleted; manual review required."
+    fi
+    migration_release=1
+    log "New migrations detected; service will back up PostgreSQL before applying."
+fi
+
+# If a previous migration deployment is still unconfirmed, do not overwrite
+# its pre-migration executable or restart it again on every cron invocation.
+migration_pending="${HOME}/.posta-auto-update-migration-pending"
+health_url="${POSTA_UPDATE_HEALTH_URL:-http://127.0.0.1:8090/}"
+migration_healthy() {
+    local code
+    /usr/bin/systemctl is-active --quiet posta || return 1
+    code="$(curl --silent --output /dev/null --max-time 3 --write-out '%{http_code}' "$health_url")" || return 1
+    [[ "$code" =~ ^(2|3)[0-9][0-9]$ || "$code" = 401 || "$code" = 403 ]]
+}
+if [ "$migration_release" = 1 ] && [ "$current" = "$target" ] && [ "$(cat "$migration_pending" 2>/dev/null || true)" = "$target" ]; then
+    if migration_healthy; then
+        printf '%s\n' "$target" > "$deployed_file"
+        rm -f "$migration_pending"
+        log "Deployed ${target:0:8}; service healthy after migrations."
+        exit 0
+    fi
+    fail "Migration deployment not yet healthy; previous executable and database backup preserved. Inspect service journal."
 fi
 
 # The /tmp tmpfs on this host can fill up; both Go and cgo/GCC must use disk.
@@ -112,9 +139,29 @@ git merge --ff-only --quiet "$target"
 [ "$(git rev-parse HEAD)" = "$target" ] || fail "Working copy changed during pull."
 go build -p 2 -o bin/posta.new ./cmd/posta
 
-# Preserve last executable before swapping, then restore if restart fails.
-cp -p bin/posta bin/posta.previous
+# Preserve last executable; only non-migration releases may auto-roll back.
+if [ ! -f "$migration_pending" ]; then
+    cp -p bin/posta bin/posta.previous
+fi
 mv -f bin/posta.new bin/posta
+if [ "$migration_release" = 1 ]; then
+    printf '%s\n' "$target" > "$migration_pending"
+    if ! sudo -n /usr/bin/systemctl restart posta; then
+        fail "Migration release restart failed; not rolling back across an unknown database schema."
+    fi
+    # Type=simple systemd services become active before database setup ends.
+    # Wait for the HTTP listener, not merely a running process.
+    for ((attempt=0; attempt<120; attempt++)); do
+        if migration_healthy; then
+            printf '%s\n' "$target" > "$deployed_file"
+            rm -f "$migration_pending"
+            log "Deployed ${target:0:8}; service healthy after migrations."
+            exit 0
+        fi
+        sleep 5
+    done
+    fail "Migration release did not become healthy; database backup and previous executable preserved."
+fi
 if ! sudo -n /usr/bin/systemctl restart posta ||
    ! /usr/bin/systemctl is-active --quiet posta; then
     log "Service restart/health failed; restoring previous executable."

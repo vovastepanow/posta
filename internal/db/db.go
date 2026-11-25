@@ -51,8 +51,23 @@ func Open(ctx context.Context, dsn string) (*DB, error) {
 
 func (d *DB) Close() { d.Pool.Close() }
 
-// Migrate применяет новые файлы migrations/NNNN_*.sql по порядку, каждый — в своей транзакции.
-func (d *DB) Migrate(ctx context.Context) (applied []string, err error) {
+// Migrate applies all outstanding SQL files in a single transaction. Existing
+// migrations already require transactional PostgreSQL statements.
+func (d *DB) Migrate(ctx context.Context) ([]string, error) {
+	return d.migrate(ctx, nil)
+}
+
+// MigrateWithBackup requires a verified backup before changing an existing
+// schema. The callback runs only when migrations are pending, under the same
+// advisory lock that serializes migration batches.
+func (d *DB) MigrateWithBackup(ctx context.Context, backup func([]string) error) ([]string, error) {
+	if backup == nil {
+		return nil, errors.New("migration backup callback is required")
+	}
+	return d.migrate(ctx, backup)
+}
+
+func (d *DB) migrate(ctx context.Context, backup func([]string) error) (applied []string, err error) {
 	if _, err = d.Pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
 		return nil, err
 	}
@@ -61,27 +76,46 @@ func (d *DB) Migrate(ctx context.Context) (applied []string, err error) {
 		return nil, err
 	}
 	sort.Strings(names)
-	for _, path := range names {
-		name := strings.TrimPrefix(path, "migrations/")
-		var exists bool
-		if err = d.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE name = $1)`, name).Scan(&exists); err != nil {
-			return applied, err
+	err = d.Tx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('posta-schema-migrations',0))`); err != nil {
+			return err
 		}
-		if exists {
-			continue
+		var pending []string
+		for _, path := range names {
+			name := strings.TrimPrefix(path, "migrations/")
+			var exists bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE name = $1)`, name).Scan(&exists); err != nil {
+				return err
+			}
+			if !exists {
+				pending = append(pending, name)
+			}
 		}
-		body, _ := migrations.ReadFile(path)
-		err = d.Tx(ctx, func(tx pgx.Tx) error {
+		if len(pending) == 0 {
+			return nil
+		}
+		if backup != nil {
+			if err := backup(pending); err != nil {
+				return fmt.Errorf("pre-migration backup: %w", err)
+			}
+		}
+		for _, name := range pending {
+			body, err := migrations.ReadFile("migrations/" + name)
+			if err != nil {
+				return err
+			}
 			if _, err := tx.Exec(ctx, string(body)); err != nil {
 				return fmt.Errorf("миграция %s: %w", name, err)
 			}
-			_, err := tx.Exec(ctx, `INSERT INTO schema_migrations (name) VALUES ($1)`, name)
-			return err
-		})
-		if err != nil {
-			return applied, err
+			if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (name) VALUES ($1)`, name); err != nil {
+				return err
+			}
 		}
-		applied = append(applied, name)
+		applied = pending
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return applied, nil
 }

@@ -143,7 +143,13 @@ func serve(ctx context.Context, cfg config.Server) error {
 	if err != nil {
 		return err
 	}
-	applied, err := d.Migrate(ctx)
+	applied, err := d.MigrateWithBackup(ctx, func(pending []string) error {
+		path, err := db.BackupBeforeMigration(ctx, cfg.PostgresDSN, cfg.DataDir, pending)
+		if err == nil {
+			log.Printf("Postgres: резервная копия перед миграцией: %s", path)
+		}
+		return err
+	})
 	d.Close()
 	if err != nil {
 		return err
