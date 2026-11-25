@@ -47,3 +47,25 @@ func collectorCountSnapshot(counts map[string]int) jx.M {
 	}
 	return out
 }
+
+// The ordinary collector's source ranking is based on actual admission
+// decisions, not on relevance alone. Partial media and user-specific
+// filters are not evidence that a source is poor.
+func collectorSourceVerdict(a jx.M, reason, evidence string) (passed, known bool) {
+	if !validModelContentVerdict(a) {
+		return false, false
+	}
+	switch evidence {
+	case "text", "image", "album", "storyboard":
+	default:
+		return false, false
+	}
+	switch collectorAdmissionCode(reason) {
+	case "accepted":
+		return true, true
+	case "advertising_or_unknown_ad", "spam", "topic_requirements", "relevance", "low_editorial_value", "format":
+		return false, true
+	default:
+		return false, false
+	}
+}

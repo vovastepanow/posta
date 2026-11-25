@@ -2028,7 +2028,7 @@ func (u *U) contentAdmissionReason(a jx.M, item jx.M, topic, text string) string
 	return ""
 }
 
-func (u *U) admit(a jx.M, item jx.M, topic, verdict, stage, text string) bool {
+func (u *U) admit(a jx.M, item jx.M, topic, verdict, stage, text, evidence string, h History) bool {
 	reason := u.admissionReason(a, item, topic, text)
 	if u.run != nil {
 		incrementCollectorCount(&u.run.AdmissionOutcomes, collectorAdmissionCode(reason))
@@ -2038,10 +2038,11 @@ func (u *U) admit(a jx.M, item jx.M, topic, verdict, stage, text string) bool {
 			u.Log("Не удалось сохранить наблюдение автопилота: %v", err)
 		}
 	}
-	if reason != "спам" {
-		threshold := u.LLM.ThresholdForModel(jx.Str(a, "model"), u.TInt("relevance_threshold"))
-		passed := int(jx.Int(a, "relevance")) >= threshold
-		u.SourceVerdictRecord(topic, ContentSourceKey(item), passed)
+	if passed, known := collectorSourceVerdict(a, reason, evidence); known {
+		// A user's filter or complaint is not a global source-quality signal.
+		if u.DB != nil && !u.analysisPrivate(topic, item) && len(u.TopicComplaints(topic, h)) == 0 {
+			u.SourceVerdictRecord(topic, ContentSourceKey(item), passed)
+		}
 		u.sourceMissNote(ContentSourceKey(item), passed)
 	}
 	if reason != "" {
@@ -2133,7 +2134,11 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 	}
 	verdict := fmt.Sprintf("соответствие теме %d%%", jx.Int(a, "relevance"))
 	u.classifyPublicPost(item, a, topic, h)
-	if !u.admit(a, item, topic, verdict, "text", text) {
+	evidence := "text"
+	if PostItemHasMedia(item) {
+		evidence = "caption_only"
+	}
+	if !u.admit(a, item, topic, verdict, "text", text, evidence, h) {
 		return false
 	}
 	u.Log("-> Принято: %s.", verdict)
@@ -2230,7 +2235,7 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 	}
 	verdict := fmt.Sprintf("соответствие теме %d%%", jx.Int(a, "relevance"))
 	u.classifyPublicPost(item, a, topic, h)
-	if !u.admit(a, item, topic, verdict, "analysis", caption) {
+	if !u.admit(a, item, topic, verdict, "analysis", caption, visualEvidenceKind(item, len(frames), sb), h) {
 		return false
 	}
 	tags := u.ContentTagsPublic(a["tags"])
