@@ -501,13 +501,29 @@ func queryLex(item jx.M, plan QueryPlan) float64 {
 
 // queryDedupKey — один и тот же пост или картинка на разных площадках.
 func queryDedupKey(it jx.M) string {
-	if img := jx.Str(it, "image"); img != "" {
+	if PostItemHasVideo(it) {
+		// A thumbnail is not the identity of a video.
+		if page := jx.Str(it, "video_page"); page != "" {
+			return "video:" + page
+		}
+		if video := jx.Str(it, "video"); video != "" {
+			return "video:" + video
+		}
+		return CandidatePostKey(it)
+	}
+	if img := ContentImageKey(it); img != "" {
 		return "img:" + img
 	}
 	if t := CandidateTextKey(it); t != "" {
 		return "txt:" + t
 	}
-	return "url:" + jx.Str(it, "url")
+	if k := CandidatePostKey(it); k != "" {
+		return k
+	}
+	if t := strings.TrimSpace(AnalysisText(it)); t != "" {
+		return "short:" + repeatDigest(t)
+	}
+	return ""
 }
 
 // rankQuerySearch — отбор до моделей: без рекламы, украинского и старого; по словам запроса; дубли — оставляем раньше опубликованный;
@@ -544,6 +560,9 @@ func rankQuerySearch(by map[string][]jx.M, plan QueryPlan, maxAge int, skip func
 	earliest := map[string]int{}
 	for i, c := range all {
 		k := queryDedupKey(c.item)
+		if k == "" {
+			continue
+		}
 		if j, ok := earliest[k]; !ok || jx.Int(c.item, "posted_at") < jx.Int(all[j].item, "posted_at") {
 			earliest[k] = i
 		}
@@ -551,7 +570,8 @@ func rankQuerySearch(by map[string][]jx.M, plan QueryPlan, maxAge int, skip func
 	var kept []cand
 	var keptItems []jx.M
 	for i, c := range all {
-		if earliest[queryDedupKey(c.item)] == i {
+		k := queryDedupKey(c.item)
+		if k == "" || earliest[k] == i {
 			kept = append(kept, c)
 			keptItems = append(keptItems, c.item)
 		}
@@ -648,6 +668,20 @@ func (u *U) catalogCachedPosts(topic string) map[string][]jx.M {
 	return out
 }
 
+// Reject a malformed batch rather than silently interpreting null or strings as zero.
+func validQueryScores(scores []any, expected int) bool {
+	if len(scores) != expected {
+		return false
+	}
+	for _, raw := range scores {
+		v, ok := raw.(float64)
+		if !ok || !(v >= 0 && v <= 100) {
+			return false
+		}
+	}
+	return true
+}
+
 // queryRerankN — сколько лучших по словам запроса отдаём модели на оценку «про ли это».
 const queryRerankN = 60
 
@@ -679,7 +713,10 @@ func (u *U) queryRerank(query string, plan QueryPlan, ranked map[string][]jx.M) 
 	})
 	n := min(len(refs), queryRerankN)
 	key := func(it jx.M) string {
-		return "query_match:" + sha1Short(strings.ToLower(strings.TrimSpace(query))+"|"+queryDedupKey(it), 20)
+		return "query_match:v2:" + repeatDigest(string(jx.Marshal([]string{
+			strings.ToLower(strings.TrimSpace(query)), trimRunes(jx.Str(it, "title"), 120),
+			AnalysisSnip(jx.Str(it, "text"), 300),
+		})))
 	}
 	scores := make([]int, n)
 	var todo []int
@@ -706,7 +743,7 @@ func (u *U) queryRerank(query string, plan QueryPlan, ranked map[string][]jx.M) 
 		if err == nil {
 			got = jx.List(llm.DecodeJSON(r.Text), "scores")
 		}
-		if len(got) != len(todo) {
+		if !validQueryScores(got, len(todo)) {
 			u.Log("Поиск «%s»: оценка по тексту не получена — порядок по словам.", query)
 			return ranked
 		}

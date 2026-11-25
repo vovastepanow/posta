@@ -1668,11 +1668,18 @@ func AnalysisCacheKey(item jx.M, topic string) string {
 	if contains(config.SubtopicCacheTopics, t) {
 		suffix += "|subtopic2"
 	}
-	k := ContentImageKey(item)
-	if k == "" {
-		k = CandidateTextKey(item)
+	// The same poster may belong to distinct videos, and short text posts
+	// have no CandidateTextKey. Bind the verdict to the actual model input.
+	var media []any
+	for _, f := range append([]jx.M{item}, jx.Maps(item, "gallery")...) {
+		media = append(media, []any{ContentImageKey(f), jx.Strs(f, "images"), jx.Str(f, "video"), jx.Str(f, "video_page"), jx.Str(f, "video_via")})
 	}
-	h := sha1.Sum([]byte(fmt.Sprintf("%d|%s|%s%s|v4tax", config.AnalysisPromptVersion, k, t, suffix)))
+	caption := AnalysisText(item)
+	if ImageboardItem(item) {
+		caption = ""
+	}
+	h := sha1.Sum(jx.Marshal([]any{config.AnalysisPromptVersion, "v5content", t, suffix,
+		CandidatePostKey(item), media, caption, PostCaptionForAI(item), AnalysisContextBlock(item)}))
 	return hex.EncodeToString(h[:])
 }
 
@@ -1684,7 +1691,7 @@ func (u *U) analysisCacheKey(item jx.M, topic string, h History) string {
 		h = EmptyHistory()
 	}
 	complaints := TopicComplaintTexts(u.TopicComplaints(topic, h), TopicComplaintExamples)
-	if len(complaints) == 0 {
+	if len(complaints) == 0 && !u.analysisPrivate(topic, item) {
 		return base
 	}
 	sum := sha1.Sum([]byte(base + "|" + u.ID + "|" + string(jx.Marshal(complaints))))
