@@ -28,6 +28,17 @@ func randUID() string {
 func init() {
 	get("get_item_video", getItemVideo)
 	get("get_current_item", getCurrentItem)
+	get("content_pool", contentPool)
+	post("content_personal_blogs", func(c *Ctx) (any, error) {
+		mode := "exclude"
+		if jx.Bool(c.In, "include") {
+			mode = "any"
+		}
+		if err := c.U.SavePersonalBlogMode(c.U.CurrentTopic(), mode); err != nil {
+			return nil, err
+		}
+		return ok(jx.M{"personal_blog_mode": mode}), nil
+	})
 	get("parser_status", parserStatus)
 	get("studio_live", studioLive)
 	get("studio_city", studioCity)
@@ -261,6 +272,35 @@ func warmUpcomingItems(c *Ctx, items []jx.M) {
 	}
 }
 
+// Return compact previews for every visible unrated record, without
+// translating, downloading or preflighting the whole pool.
+func contentPool(c *Ctx) (any, error) {
+	u := c.U
+	items := []jx.M{}
+	if u.TopicSaveDenied(u.CurrentTopic()) != "" {
+		return jx.M{"items": items}, nil
+	}
+	for _, item := range u.PoolWithoutLostVideo(u.PoolForCurrentTopic()) {
+		key := posta.ContentItemKey(item)
+		if key == "" {
+			continue
+		}
+		text := []rune(posta.CleanPostDisplayText(jx.Str(item, "text"), item))
+		if len(text) > 420 {
+			text = append(text[:420], '…')
+		}
+		image := u.MediaExisting(jx.Str(item, "image_local"))
+		if image == "" {
+			image = posta.ContentImageKey(item)
+		}
+		items = append(items, jx.M{"item_key": key, "text": string(text), "image": image,
+			"text_post": jx.Bool(item, "text_post"), "article": jx.Map(item, "article") != nil,
+			"video": posta.PostItemHasVideo(item), "source": jx.Str(item, "source"),
+			"relevance": item["relevance"], "posted_at": item["posted_at"]})
+	}
+	return jx.M{"items": items}, nil
+}
+
 func getCurrentItem(c *Ctx) (any, error) {
 	u := c.U
 	if err := u.PruneOldPool(); err != nil {
@@ -271,7 +311,14 @@ func getCurrentItem(c *Ctx) (any, error) {
 	if u.TopicSaveDenied(topic) != "" {
 		return jx.M{"status": "empty", "message": "Тема «" + topic + "» недоступна: выберите другую тему."}, nil
 	}
-	if pool := u.PoolWithoutLostVideo(u.PoolForCurrentTopic()); len(pool) > 0 {
+	pool := u.PoolWithoutLostVideo(u.PoolForCurrentTopic())
+	if key := c.Q("item_key"); key != "" {
+		if item := posta.PoolFindItem(pool, key); item != nil {
+			return u.TranslateDisplay(u.ContentForDisplay(item, nil, true)), nil
+		}
+		return nil, fail(404, "Запись больше не доступна в предложке.")
+	}
+	if len(pool) > 0 {
 		// Continue replenishing when every visible record is older than an
 		// hour, but never hide saved pool records just because newer posts
 		// arrived. The collector and the display have different age rules.
@@ -390,7 +437,7 @@ func settings(c *Ctx) (any, error) {
 	}
 	return jx.M{"topic": topic, "topic2": u.CurrentTopic2(), "query": u.CurrentQuery(), "topic_info": info, "filters": u.ContentFilterValues(),
 		"adult_allowed": u.AdultAllowed(), "adult_available": c.A.TBool("adult_available"),
-		"background_content_enabled": u.BackgroundContentEnabled()}, nil
+		"background_content_enabled": u.BackgroundContentEnabled(), "personal_blog_mode": u.PersonalBlogMode(topic)}, nil
 }
 
 func topicRecord(c *Ctx) (any, error) {

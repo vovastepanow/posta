@@ -81,6 +81,10 @@ func (u *U) AutopilotAvailableSupply(topic string) (int, error) {
 		frozen = u.FrozenSourceLabels()
 	}
 	adult := u.AdultAllowed()
+	blogs, err := u.poolPersonalBlogFilter(topic)
+	if err != nil {
+		return 0, err
+	}
 	overrides := u.sourceOverridesForTopic(topic)
 	key := autopilotTopicKey(topic)
 	matches := func(item jx.M) bool {
@@ -98,6 +102,9 @@ func (u *U) AutopilotAvailableSupply(topic string) (int, error) {
 		}
 		if _, queued := item["publish_at"]; queued {
 			return true
+		}
+		if !blogs(item) {
+			return false
 		}
 		posted := jx.Int(item, "posted_at")
 		return posted > 0 && posted <= now()+300 && !IsPostOutdated(posted, 0, config.ContentMaxAgeDays) && !poolUnavailableVideo(item) && u.poolItemFresh(item) &&

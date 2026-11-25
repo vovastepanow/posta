@@ -199,10 +199,53 @@ function renderCard(item, archiveInfo = null) {
 let lastParserRuntimeLogAt = 0;
 
 /** Первая запись пула; пока парсер ищет — повтор каждые 3 с. */
-export async function loadCurrentItem() {
+let itemRequest = 0;
+let poolRequest = 0;
+let lastPoolRefresh = 0;
+
+function markPoolSelection() {
+    const key = state.item?.item_key || state.item?.image;
+    for (const card of $('content-pool-grid').children) {
+        card.setAttribute('aria-current', String(card.dataset.key === key));
+    }
+}
+
+async function refreshContentPool() {
+    const request = ++poolRequest;
+    lastPoolRefresh = Date.now();
+    try {
+        const data = await api('content_pool');
+        if (request !== poolRequest) return;
+        const items = data.items || [];
+        $('content-pool-count').textContent = String(items.length);
+        $('content-pool-status').textContent = items.length ? '' : 'Нет постов, подходящих текущим фильтрам.';
+        $('content-pool-status').hidden = items.length > 0;
+        const cards = items.map(item => {
+            const card = el('button', { type: 'button', className: 'content-pool-card', onclick: () => loadCurrentItem(item.item_key) });
+            card.dataset.key = item.item_key;
+            const img = !item.text_post && /^(https?:\/\/|\/?(?:media|media_cache)\/)/i.test(item.image || '') ? el('img', { src: item.image, alt: '', loading: 'lazy', decoding: 'async', referrerPolicy: 'no-referrer', onerror: e => { e.currentTarget.parentElement.hidden = true; } }) : null;
+            if (img) card.append(el('span', { className: 'content-pool-thumb' }, img, item.video ? el('span', { className: 'video-mark', textContent: '▶' }) : null));
+            const meta = [item.source, item.video ? 'Видео' : item.article ? 'Статья' : item.text_post ? 'Текст' : '', item.relevance != null ? `По теме: ${item.relevance}%` : '', formatPostedAt(item.posted_at)].filter(Boolean).join(' · ');
+            card.append(el('span', { className: 'content-pool-card-body' },
+                el('span', { className: 'content-pool-card-text', textContent: item.text || (item.video ? 'Видео' : 'Пост без подписи') }),
+                el('span', { className: 'content-pool-card-meta', textContent: meta })));
+            return card;
+        });
+        $('content-pool-grid').replaceChildren(...cards);
+        markPoolSelection();
+    } catch (error) {
+        if (request !== poolRequest) return;
+        $('content-pool-status').hidden = false;
+        $('content-pool-status').textContent = `Не удалось загрузить пул: ${error.message}`;
+    }
+}
+
+export async function loadCurrentItem(itemKey = '') {
+    const request = ++itemRequest;
     clearTimeout(state.poll);
     try {
-        const data = await api('get_current_item');
+        const data = await api('get_current_item', { params: itemKey ? { item_key: itemKey } : {} });
+        if (request !== itemRequest) return;
         if (data.status === 'loading') {
             state.item = null;
             showArea('searching');
@@ -226,9 +269,14 @@ export async function loadCurrentItem() {
         }
         // Архивный пост (парсер медленный) или обычный
         renderCard(data, data.archive ? data : null);
+        if (itemKey) $('item-post').scrollIntoView({ block: 'start', behavior: 'smooth' });
     } catch (error) {
+        if (request !== itemRequest) return;
         log(`Ошибка загрузки записи: ${error.message}`);
+        if (itemKey && error.status === 404) return loadCurrentItem();
         showArea('error', `Не удалось загрузить запись: ${error.message}`);
+    } finally {
+        if (request === itemRequest) refreshContentPool();
     }
 }
 
@@ -324,6 +372,7 @@ export async function refreshTopicLabel() {
         for (const [key, id] of Object.entries(FILTERS)) $(id).checked = ['active_sources_only', 'auto_translate'].includes(key) ? data.filters?.[key] !== false : Boolean(data.filters?.[key]);
         syncMediaFilters();
         $('filter-adult').checked = Boolean(data.adult_allowed);
+        $('filter-personal-blogs').checked = data.personal_blog_mode !== 'exclude';
 
         // Тема в заголовке: одна кнопка в стиле вкладки и выпадающий список всех тем
         try {
@@ -491,6 +540,21 @@ async function saveFilters() {
         await loadCurrentItem();
     } catch (error) { setMessage('item-error', `Фильтры не сохранены: ${error.message}`); }
     finally { boxes.forEach(b => { b.disabled = false; }); syncMediaFilters(); }
+}
+
+async function savePersonalBlogs() {
+    const box = $('filter-personal-blogs');
+    const include = box.checked;
+    box.disabled = true;
+    try {
+        const data = await api('content_personal_blogs', { body: { include } });
+        box.checked = data.personal_blog_mode !== 'exclude';
+        watchParser();
+        await loadCurrentItem();
+    } catch (error) {
+        box.checked = !include;
+        setMessage('item-error', `Фильтр личных блогов не сохранён: ${error.message}`);
+    } finally { box.disabled = false; }
 }
 
 /** Галочка «Показывать чувствительный и 18+ контент»: включение — после подтверждения возраста; темы и пул пересобираются. */
@@ -873,10 +937,14 @@ export function initializeContentTab({ onAddItem }) {
     $('topic-force-new').addEventListener('click', e => submitTopic(e.currentTarget.dataset.typed || $('topic-input').value.trim(), true));
     Object.entries(FILTERS).forEach(([key, id]) => $(id).addEventListener('change', key === 'auto_translate' ? onTranslateToggle : key === 'media_no_text' ? onMediaNoTextToggle : saveFilters));
     $('filter-adult').addEventListener('change', saveAdult);
+    $('filter-personal-blogs').addEventListener('change', savePersonalBlogs);
     initializeSecondTopic();
     initializeQueryField();
     onParserStateChange(running => { if (!running && !state.item) loadCurrentItem(); });
-    onParserStatus(renderSearchProgress);
+    onParserStatus(data => {
+        renderSearchProgress(data);
+        if ($('content-tab').classList.contains('active') && Date.now() - lastPoolRefresh > 15000) refreshContentPool();
+    });
     if (DEBUG_MODE) { hide('item-search-button'); hide('item-add-button'); }
     refreshTopicLabel();
 }

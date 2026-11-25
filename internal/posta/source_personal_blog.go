@@ -44,6 +44,27 @@ func personalBlogAllowed(mode, kind string) bool {
 	}
 }
 
+// PersonalBlogMode exposes the same per-topic preference to the content tab.
+func (u *U) PersonalBlogMode(topic string) string {
+	return u.personalBlogMode(topic)
+}
+
+// poolPersonalBlogFilter applies the same classification used by collection
+// and delivery, including the existing fail-closed handling of unknowns.
+func (u *U) poolPersonalBlogFilter(topic string) (func(jx.M) bool, error) {
+	mode := u.personalBlogMode(topic)
+	if mode == personalBlogAny {
+		return func(jx.M) bool { return true }, nil
+	}
+	kinds, err := u.personalBlogSourceKinds(topic)
+	if err != nil {
+		return nil, err
+	}
+	return func(item jx.M) bool {
+		return jx.Bool(item, "own") || personalBlogAllowed(mode, kinds[ContentSourceKey(item)])
+	}, nil
+}
+
 func (u *U) personalBlogMode(topic string) string {
 	mode := jx.Str(jx.Map(u.Settings(), "personal_blog_modes"), autopilotTopicKey(topic))
 	if !validPersonalBlogMode(mode) {

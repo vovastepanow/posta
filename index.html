@@ -153,6 +153,7 @@
       <label class="check-chip" title="Показывать посты, в которых есть хотя бы одно видео"><input id="filter-video" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Только с видео</span></label>
       <label class="check-chip" title="Не показывать посты без картинки и видео"><input id="filter-media" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Только с медиа</span></label>
       <label class="check-chip" title="Только картинки и видео без подписи: хэштеги и эмодзи не считаются текстом"><input id="filter-media-no-text" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Только медиа</span></label>
+      <label class="check-chip" title="Включать личные блоги; без галочки показываются только подтверждённые неличные источники"><input id="filter-personal-blogs" type="checkbox" checked><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Личные блоги</span></label>
       <label class="check-chip" title="Тексты постов на других языках показывать по-русски"><input id="filter-translate" type="checkbox" checked><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Автоперевод на русский</span></label>
       <label class="check-chip" title="Откройте темы и источники 18+ и «Жесть»: по умолчанию они скрыты. Отвечаете за такой контент и его публикацию вы"><input id="filter-adult" type="checkbox"><span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span>Показывать чувствительный и 18+ контент</span></label>
     </div>
@@ -230,6 +231,11 @@
       <button id="item-add-button" class="secondary-button" type="button">Добавить вручную</button>
     </div>
   </div>
+  <section id="content-pool-section" class="content-pool-section" aria-label="Пул предложки">
+    <div class="section-head"><div><h2>Пул предложки <span id="content-pool-count"></span></h2><p>Все посты текущей темы с учётом фильтров</p></div></div>
+    <p id="content-pool-status" class="account-muted" role="status">Загрузка…</p>
+    <div id="content-pool-grid" class="content-pool-grid"></div>
+  </section>
 </div>
 
 <!-- ИСТОЧНИКИ -->

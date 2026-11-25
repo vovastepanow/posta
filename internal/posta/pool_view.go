@@ -63,8 +63,12 @@ func (u *U) PoolForCurrentTopic() []jx.M {
 	}
 	pool := u.Pool()
 	adult := u.AdultAllowed()
+	blogs, err := u.poolPersonalBlogFilter(topic)
+	if err != nil {
+		return nil
+	}
 	return selectPoolItems(pool, func(i jx.M) bool {
-		return u.PoolItemInTopic(i, topic, key, adult) && poolMatchesDisplayFilters(i, f, frozen)
+		return blogs(i) && u.PoolItemInTopic(i, topic, key, adult) && poolMatchesDisplayFilters(i, f, frozen)
 	})
 }
 
@@ -98,8 +102,12 @@ func (u *U) PoolStaleForCurrentTopic() []jx.M {
 		frozen = u.FrozenSourceLabels()
 	}
 	adult := u.AdultAllowed()
+	blogs, err := u.poolPersonalBlogFilter(topic)
+	if err != nil {
+		return nil
+	}
 	return selectPoolItems(u.Pool(), func(item jx.M) bool {
-		return !u.poolItemFresh(item) && u.PoolItemInTopic(item, topic, key, adult) && poolMatchesDisplayFilters(item, f, frozen)
+		return blogs(item) && !u.poolItemFresh(item) && u.PoolItemInTopic(item, topic, key, adult) && poolMatchesDisplayFilters(item, f, frozen)
 	})
 }
 

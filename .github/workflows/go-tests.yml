@@ -54,7 +54,7 @@ jobs:
       - name: Unit-test independent source audit helper (Python stdlib)
         run: python3 -m unittest discover -s research/source_audit/tests -v
       - name: Check autopilot interface JavaScript
-        run: node --check js/sources.js
+        run: node --check js/sources.js && node --check js/content.js
       - name: Unit tests
         run: go test ./...
 

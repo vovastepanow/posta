@@ -2227,7 +2227,7 @@ body.pv-open { overflow: hidden; }
 #content-tab .filter-row { display: grid; gap: 8px; margin-top: 0; padding-top: 12px; border-top: 1px dashed var(--line-strong); }
 #content-tab .filter-row::before { content: "Фильтры"; color: var(--muted); font-size: 12px; font-weight: 600; }
 #content-tab .filter-row .check-chip { display: flex; width: 100%; box-sizing: border-box; min-height: 38px; border-width: var(--ring); border-radius: var(--radius); font-weight: 600; }
-#content-tab .filter-row .check-chip:has(input:checked) { box-shadow: 0 2px 2px 18px rgba(5, 6, 14, .45); }
+#content-tab .filter-row .check-chip:has(input:checked) { box-shadow: none; }
 @media (min-width: 1240px) {
     #content-tab > .topic-form { top: 20px; }
 }
@@ -2593,3 +2593,23 @@ dialog::backdrop {
 @keyframes tg-auth-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
 @media (max-width: 560px) { .telegram-auth-modal { padding: 10px; align-items: end; } .telegram-auth-panel { max-height: 92vh; padding: 25px 18px 20px; border-radius: 22px 22px 12px 12px; } }
 @media (prefers-reduced-motion: reduce) { .telegram-auth-panel { animation: none; } }
+
+/* Complete, lightweight previews of the current unrated pool. */
+#content-tab > .content-pool-section { min-width: 0; width: 100%; box-sizing: border-box; margin-top: 24px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.content-pool-section h2 { margin: 0; font-size: 19px; }
+#content-pool-count { color: var(--muted); font-size: 13px; font-weight: 500; }
+.content-pool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 12px; }
+.content-pool-card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; padding: 0; text-align: left; border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); background: var(--bg); cursor: pointer; }
+.content-pool-card:hover, .content-pool-card:focus-visible { border-color: var(--accent); }
+.content-pool-card[aria-current="true"] { border-color: var(--accent); }
+.content-pool-thumb { display: block; position: relative; width: 100%; aspect-ratio: 16 / 10; background: var(--surface-2); overflow: hidden; }
+.content-pool-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.content-pool-card-body { display: flex; flex-direction: column; gap: 7px; padding: 12px; width: 100%; box-sizing: border-box; }
+.content-pool-card-text { overflow-wrap: anywhere; white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; }
+.content-pool-card-meta { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+@media (min-width: 1240px) {
+    #content-tab > .content-pool-section { grid-column: 2 / -1; grid-row: auto; }
+}
+@media (min-width: 1500px) {
+    #content-tab > .content-pool-section { grid-column: 2 / 5; }
+}
