@@ -8,11 +8,19 @@ const STATUS_BADGE = { queued: { text: 'в очереди', tone: 'accent' }, se
 export function recordSlides(item) {
     if (!item) return [];
     const text = plainText(item.text);
-    if (!item.image && !item.display_image && item.text_post) return [{ image: '', fallbackImage: '', video: '', fallbackVideo: '', text: item.text || '', textPost: true }];
-    if (item.gallery?.length > 1) return item.gallery.map(f => ({ image: f.display_image || f.image, fallbackImage: f.image, video: f.video ? f.display_video || f.video : '', fallbackVideo: f.video || '', text }));
+    if (item.gallery?.length > 1 || (item.gallery?.length === 1 && !item.image && !item.display_image && !item.video && !item.display_video)) {
+        return item.gallery.map(f => ({ image: f.display_image || f.image || '', fallbackImage: f.image || '', video: f.display_video || f.video || '', fallbackVideo: f.video || '', text })).filter(s => s.image || s.video);
+    }
     if (item.video || item.display_video) return [{ image: item.display_image || item.image || '', fallbackImage: item.image || '', video: item.display_video || item.video, fallbackVideo: item.video || '', text }];
-    const images = item.images?.length ? item.images : [item.image].filter(Boolean);
-    return images.map((image, i) => ({ image: i === 0 ? item.display_image || image : image, fallbackImage: image, text: plainText(item.captions?.[i] || item.text) }));
+    if (!item.image && !item.display_image && item.text_post && !item.video_via) return [{ image: '', fallbackImage: '', video: '', fallbackVideo: '', text: item.text || '', textPost: true }];
+    const images = item.images?.length ? item.images : [item.image || item.display_image].filter(Boolean);
+    return images.map((image, i) => ({ image: i === 0 ? item.display_image || image : image, fallbackImage: image, text: plainText(item.captions?.[i] || item.text) })).filter(s => s.image);
+}
+
+// A missing poster does not mean that a video or a text record is empty.
+export function hasRecordContent(item) {
+    return Boolean(item && (item.article || plainText(item.text) || recordSlides(item).length ||
+        (item.video_page && (item.video_via || item.video_unavailable))));
 }
 
 /** Медиа одного файла в формате просмотрщика; неизвестные поля не переносятся. */
@@ -79,9 +87,9 @@ export function fromRecord(item) {
     });
     // Ролик ещё не скачан (или недоступен): у записи только постер, но плитка должна быть видео — иначе постер откроется как картинка
     const waiting = Boolean(item.video_via) && !item.video && !item.video_unavailable;
-    if ((waiting || item.video_unavailable) && items.length && !items.some(m => m.kind === 'video')) {
+    if ((waiting || item.video_unavailable) && !items.some(m => m.kind === 'video')) {
         const [cover] = items;
-        items[0] = media('video', { poster: cover.src, fallback: cover.fallback, pending: waiting, unavailable: Boolean(item.video_unavailable),
+        items[0] = media('video', { poster: cover?.src || '', fallback: cover?.fallback || '', pending: waiting, unavailable: Boolean(item.video_unavailable),
             page: item.video_page || url || '', error: item.video_error || '' });
     }
     const e = item?.engagement || {};

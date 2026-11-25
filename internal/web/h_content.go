@@ -253,7 +253,7 @@ func telegramPoolVideoPage(item jx.M) string {
 	if posta.VideoPageVia(page) != "tgu" {
 		page = posta.SourcePostURL(item)
 	}
-	if posta.VideoPageVia(page) != "tgu" || posta.ContentImageKey(item) == "" {
+	if posta.VideoPageVia(page) != "tgu" || posta.ContentItemKey(item) == "" {
 		return ""
 	}
 	return page
@@ -296,7 +296,7 @@ func startTelegramPoolVideo(c *Ctx, item jx.M, automatic bool) (jx.M, error) {
 		return nil, fail(404, "Записи уже нет в предложке.")
 	}
 	if enqueue {
-		c.A.VideoEnqueue(c.R.Context(), u.ID, posta.ContentImageKey(updated), jx.Str(updated, "video_page"), "tgu", true)
+		c.A.VideoEnqueue(c.R.Context(), u.ID, posta.ContentItemKey(updated), jx.Str(updated, "video_page"), "tgu", true)
 	}
 	return updated, nil
 }
@@ -317,14 +317,11 @@ func currentItemDisplay(c *Ctx, item jx.M, upcoming []jx.M) jx.M {
 }
 
 func getItemVideo(c *Ctx) (any, error) {
-	image := c.Q("image")
-	var item jx.M
-	for _, i := range c.U.Pool() {
-		if posta.ContentImageKey(i) == image {
-			item = i
-			break
-		}
+	key := c.Q("image") // legacy parameter name; the value is an item key.
+	if key == "" {
+		return nil, fail(400, "Не указана запись.")
 	}
+	item := posta.PoolFindItem(c.U.Pool(), key)
 	if item == nil {
 		return nil, fail(404, "Записи уже нет в подборке.")
 	}
@@ -344,9 +341,9 @@ func getItemVideo(c *Ctx) (any, error) {
 			return jx.M{"video_unavailable": true, "error": "Подключите личный аккаунт Telegram для скачивания."}, nil
 		}
 		if (via == "ytdlp" || via == "tgu") && page != "" && !jx.Bool(item, "video_unavailable") {
-			c.A.VideoEnqueue(c.R.Context(), c.U.ID, image, page, via, true)
+			c.A.VideoEnqueue(c.R.Context(), c.U.ID, key, page, via, true)
 		}
-		progress = c.A.VideoProgressPublic(c.R.Context(), c.U.ID, image)
+		progress = c.A.VideoProgressPublic(c.R.Context(), c.U.ID, key)
 	}
 	return jx.M{"video": video, "video_local": local, "display_video": display, "video_unavailable": jx.Bool(item, "video_unavailable"), "error": jx.Str(item, "video_error"), "progress": progress}, nil
 }

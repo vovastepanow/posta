@@ -55,6 +55,8 @@ jobs:
         run: python3 -m unittest discover -s research/source_audit/tests -v
       - name: Check autopilot interface JavaScript
         run: node --check js/sources.js && node --check js/content.js && node --check js/post-view.js && node --check js/video-pending.js && node --check js/post-adapters.js
+      - name: Verify post adapters
+        run: node --experimental-default-type=module tools/test-post-adapters.mjs
       - name: Unit tests
         run: go test ./...
 
@@ -95,7 +97,7 @@ jobs:
       - name: Verify atomic pool votes and repeat memory with PostgreSQL
         env:
           POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
-        run: go test ./internal/posta -run '^(TestVotePoolAtomicPostgres|TestRepeatMemoryPostgres|TestOutboxEditAndClaimPostgres)$' -count=1 -timeout=5m
+        run: go test ./internal/posta -run '^(TestVotePoolAtomicPostgres|TestRepeatMemoryPostgres|TestOutboxEditAndClaimPostgres|TestLostCoverlessVideoKeepsTextPostPostgres)$' -count=1 -timeout=5m
       - name: Verify historic OK rejections with PostgreSQL
         run: go test ./internal/posta -run '^TestAutopilotReconsiderHistoricOKRejectsOnlyOncePostgres$' -count=1 -timeout=3m
       - name: Verify model failure recovery and text-only feeds

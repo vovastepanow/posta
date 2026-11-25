@@ -358,6 +358,9 @@ func (a *App) videoQueueUpdate(ctx context.Context, fn func([]VideoJob) []VideoJ
 
 // VideoEnqueue — запись пула в очередь на ролик (одна задача на запись). front — первым (ролик ждут).
 func (a *App) VideoEnqueue(ctx context.Context, uid, key, page, via string, front bool) {
+	if key == "" || page == "" {
+		return
+	}
 	via = jobVia(VideoJob{Via: via, Page: page})
 	a.videoQueueUpdate(ctx, func(jobs []VideoJob) []VideoJob {
 		for i, j := range jobs {
@@ -564,6 +567,10 @@ func (a *App) videoJobRelease(j VideoJob) {
 }
 
 func (a *App) runVideoJob(ctx context.Context, j VideoJob) {
+	if j.Key == "" {
+		a.videoDropJob(ctx, j)
+		return
+	}
 	u := a.User(ctx, j.UID, a.ParserLogger(j.UID))
 	if videoIsPreviewKey(j.Key) {
 		a.videoPreviewSave(ctx, j.Page, jx.M{"status": "running", "error": ""})
@@ -652,6 +659,13 @@ func (a *App) tguDownload(ctx context.Context, j VideoJob, dir string) (string, 
 }
 
 // videoAttach — ролик готов: запись пула получает video и video_local; превью — только состояние.
+// Match both the stable item key and the page. Two videos can share a
+// cover, and a stale download must never be attached to a different video.
+func videoJobMatchesPoolItem(item jx.M, j VideoJob) bool {
+	return j.Key != "" && ContentItemKey(item) == j.Key &&
+		jx.Str(item, "video_via") == jobVia(j) && jx.Str(item, "video_page") == j.Page
+}
+
 func (a *App) videoAttach(ctx context.Context, j VideoJob, local string) {
 	if videoIsPreviewKey(j.Key) {
 		a.videoPreviewSave(ctx, j.Page, jx.M{"status": "done", "local": local, "error": "", "at": now()})
@@ -660,7 +674,7 @@ func (a *App) videoAttach(ctx context.Context, j VideoJob, local string) {
 	u := a.User(ctx, j.UID, nil)
 	u.PoolUpdate(func(pool []jx.M) []jx.M {
 		for _, it := range pool {
-			if ContentImageKey(it) == j.Key && jx.Str(it, "video_via") == jobVia(j) {
+			if videoJobMatchesPoolItem(it, j) {
 				it["video"], it["video_local"] = local, local
 				it["video_unavailable"], it["video_error"] = false, ""
 			}
@@ -713,7 +727,7 @@ func (a *App) videoJobFailed(ctx context.Context, u *U, j VideoJob, reason strin
 	}
 	u.PoolUpdate(func(pool []jx.M) []jx.M {
 		for _, it := range pool {
-			if ContentImageKey(it) == j.Key {
+			if videoJobMatchesPoolItem(it, j) {
 				it["video_unavailable"] = true
 				it["video_error"] = trimRunes(reason, 300)
 			}
@@ -935,7 +949,7 @@ func (a *App) PoolItemsEnqueueVideos(ctx context.Context, items []jx.M, uid stri
 		if (via != "ytdlp" && via != "tgu") || jx.Str(it, "video") != "" || page == "" || YtdlpIsWatchURL(page) {
 			continue
 		}
-		a.VideoEnqueue(ctx, uid, ContentImageKey(it), page, via, false)
+		a.VideoEnqueue(ctx, uid, ContentItemKey(it), page, via, false)
 	}
 }
 

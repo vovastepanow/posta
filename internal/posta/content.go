@@ -51,10 +51,21 @@ func ContentItemKey(item jx.M) string {
 	if k := CandidatePostKey(item); k != "" {
 		return k
 	}
+	// For a coverless video, prefer its stable page over the media URL:
+	// the latter can change to a local cache path when the download completes.
+	if page := jx.Str(item, "video_page"); page != "" && jx.Str(item, "video_via") != "" {
+		return "video:" + page
+	}
+	if video := jx.Str(item, "video"); video != "" {
+		return "video:" + video
+	}
 	return CandidateTextKey(item)
 }
 
 func PoolFindItem(pool []jx.M, key string) jx.M {
+	if key == "" {
+		return nil
+	}
 	for _, it := range pool {
 		if ContentItemKey(it) == key {
 			return it
@@ -110,37 +121,44 @@ func hasUnavailablePoolVideo(pool []jx.M) bool {
 	return false
 }
 
-// PoolWithoutLostVideo убирает записи, у которых пропал кэш видео (ссылки Telegram с истёкшим токеном не играют).
+// poolVideoCacheLost checks the actual record, not its cover URL. A missing
+// cover is shared by text posts and coverless videos and is not an identity.
+func (a *App) poolVideoCacheLost(it jx.M) bool {
+	for _, f := range append([]jx.M{it}, jx.Maps(it, "gallery")...) {
+		if jx.Str(f, "video") != "" && jx.Str(f, "video_local") != "" && a.MediaExisting(jx.Str(f, "video_local")) == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// PoolWithoutLostVideo removes only records whose cached video is missing.
+// Recheck under the content lock in case the worker repaired a file meanwhile.
 func (u *U) PoolWithoutLostVideo(pool []jx.M) []jx.M {
-	lost := func(it jx.M) bool {
-		for _, f := range append([]jx.M{it}, jx.Maps(it, "gallery")...) {
-			if jx.Str(f, "video") != "" && jx.Str(f, "video_local") != "" && u.MediaExisting(jx.Str(f, "video_local")) == "" {
-				return true
-			}
-		}
-		return false
-	}
-	bad := map[string]bool{}
+	hasLost := false
 	for _, it := range pool {
-		if lost(it) {
-			bad[ContentImageKey(it)] = true
+		if u.poolVideoCacheLost(it) {
+			hasLost = true
+			break
 		}
 	}
-	if len(bad) > 0 {
+	if hasLost {
 		u.PoolUpdate(func(all []jx.M) []jx.M {
-			out := []jx.M{}
+			out := make([]jx.M, 0, len(all))
 			for _, it := range all {
-				if !bad[ContentImageKey(it)] {
+				if !u.poolVideoCacheLost(it) {
 					out = append(out, it)
 				}
+			}
+			if len(out) == len(all) {
+				return nil
 			}
 			return out
 		})
 	}
 	out := []jx.M{}
 	for _, it := range pool {
-		hidden := poolUnavailableVideo(it)
-		if !bad[ContentImageKey(it)] && !hidden {
+		if !u.poolVideoCacheLost(it) && !poolUnavailableVideo(it) {
 			out = append(out, it)
 		}
 	}

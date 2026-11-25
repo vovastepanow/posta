@@ -7,7 +7,7 @@ import { formatWhen, openPostEditor } from './editor.js';
 import { openAccountSection } from './account.js';
 import { itemCheck, videoProgress, watchVideo } from './video-pending.js';
 import { articleBrief, articleCaption, cardKind, clampText } from './card.js';
-import { fromRecord, recordSlides } from './post-adapters.js';
+import { fromRecord, recordSlides, hasRecordContent } from './post-adapters.js';
 import { renderPostSheet } from './post-view.js';
 
 const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], channels: [], networkChannels: [], networks: {}, nativeAccount: false };
@@ -134,14 +134,14 @@ function watchItemVideo(item) {
     let bar = null;
     const tile = () => document.querySelector('#item-post .is-video-pending');
     const stop = () => { bar?.stop(); bar = null; };
-    state.videoWait = watchVideo(itemCheck(item.image), {
+    state.videoWait = watchVideo(itemCheck(item.item_key || item.image), {
         onProgress: p => {
             if (bar && !bar.host?.isConnected) stop();
             const host = tile();
             if (!bar && host) bar = Object.assign(videoProgress(host), { host });
             bar?.update(p);
         },
-        onReady: r => { stop(); if (state.item?.image === item.image) { const next = { ...state.item, video: r.video_local || r.video, video_local: r.video_local || '', display_video: r.video, video_unavailable: false }; if (document.querySelector('#item-post .pv-youtube')) Object.assign(state.item, next); else renderCard(next); } },
+        onReady: r => { stop(); if ((state.item?.item_key || state.item?.image) === (item.item_key || item.image)) { const next = { ...state.item, video: r.video_local || r.video, video_local: r.video_local || '', display_video: r.video, video_unavailable: false }; if (document.querySelector('#item-post .pv-youtube')) Object.assign(state.item, next); else renderCard(next); } },
         onFail: message => {
             stop();
             if ((state.item?.item_key || state.item?.image) !== (item.item_key || item.image)) return;
@@ -283,7 +283,7 @@ export async function loadCurrentItem(itemKey = '') {
         }
         lastParserRuntimeLogAt = 0;
         // Без картинки запись всё же показываем, если это статья (текст и заголовок) или текстовый пост
-        if (data.status === 'empty' || (!data.image && !data.article && !data.text_post)) {
+        if (data.status === 'empty' || !hasRecordContent(data)) {
             Object.assign(state, { item: null, slides: [] });
             showArea('empty', data.message);
             log(data.message || 'Пул контента пуст.');
