@@ -2526,7 +2526,7 @@ func (u *U) RunCollector() bool {
 	}
 	notes := fmt.Sprintf("📌 Тема: «%s». Собрано постов: %d. Кандидатов к проверке: %d.", topic, collected, len(candidates))
 	for _, s := range []struct{ k, t string }{{"rejected_before", " Уже отсеяны в прошлых запусках: %d."}, {"outdated", " Устаревших: %d."},
-		{"ukraine", " Украинский контент отсеян: %d."}, {"format", " Отсеяно форматом темы: %d."}, {"filter", " Отсеяно фильтрами «Только с медиа» / «Только медиа»: %d."},
+		{"ukraine", " Украинский контент отсеян: %d."}, {"format", " Отсеяно форматом темы: %d."}, {"filter", " Отсеяно фильтрами выдачи: %d."}, {"source_excluded", " Исключённые источники: %d."}, {"personal_blog", " Фильтр личных блогов: %d."}, {"advertising", " Явная реклама: %d."}, {"adult", " Ограничение 18+: %d."},
 		{"source_busy", " Источники в ленте или на отдыхе: %d."}, {"seen", " Уже видели: %d."}, {"duplicate", " Дубли: %d."}, {"no_key", " Без текста и картинки: %d."}} {
 		if skipped[s.k] > 0 {
 			notes += fmt.Sprintf(s.t, skipped[s.k])
@@ -2643,7 +2643,7 @@ outer:
 				if fastPostKeys[CandidatePostKey(c.Item)] {
 					fastPostAdded++
 				}
-				if src := ContentSourceKey(c.Item); sourcePoolCount(u.freshPoolItems(u.Pool()), key, src) >= sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), u.PoolTopicCount(key)) {
+				if src := ContentSourceKey(c.Item); u.sourceVisibleQuotaReached(key, src) {
 					takenSrc[src] = true
 				}
 			}

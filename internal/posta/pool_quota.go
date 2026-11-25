@@ -53,3 +53,18 @@ func (u *U) poolRefillState(key string, target int) (available int, allowed bool
 	}, visible, u.poolItemFresh)
 	return available, allowed, nil
 }
+
+func (u *U) sourceVisibleQuotaReached(key, source string) bool {
+	visible, err := u.poolVisibilityFilter(key)
+	if err != nil {
+		return false
+	}
+	pool := u.visibleFreshPool(u.Pool(), key, visible)
+	n := 0
+	for _, item := range pool {
+		if ContentSourceKey(item) == source {
+			n++
+		}
+	}
+	return n >= sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), len(pool))
+}
