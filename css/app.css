@@ -2617,3 +2617,6 @@ dialog::backdrop {
 /* Keep the review panels above the full-width suggestion pool. */
 #content-tab > .topic-form,
 #content-tab #item-card-wrapper > .controls { position: static; top: auto; bottom: auto; }
+
+/* AI explanation is full text, not a clipped card preview. */
+#item-ai .item-ai-note, #item-ai .desc-text { max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }

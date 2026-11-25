@@ -37,7 +37,7 @@ const (
 	MainModelSlowTimeouts   = 3     // столько таймаутов основной подряд — анализ на быструю модель
 	MainModelSlowHours      = 6
 	AnalysisMaxTokens       = 450
-	AnalysisDescriptionMax  = 120 // описание — одна фраза до стольких символов
+	AnalysisDescriptionMax  = 240 // целевой размер описания в промпте, без обрезания при сохранении
 	AnalysisEvidenceMax     = 80  // цитата или примета — она же объяснение «почему подходит»
 	ComplaintExampleChars   = 140
 	AnalysisImageMaxSide    = 768

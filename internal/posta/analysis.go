@@ -254,7 +254,7 @@ func (u *U) ContentAnalysisPrompt(topic, caption string, h History, video *Story
 	b.WriteString(contentSafetyPrompt)
 	b.WriteString("tags: пустой массив; тематические метки определяет отдельный классификатор.\n")
 	b.WriteString("quote (boolean): true, если запись в основном представляет собой цитату или афоризм; смысл цитаты определяй отдельными tags.\n")
-	b.WriteString(fmt.Sprintf("description: одна фраза по-русски, до %d символов: что изображено или происходит и о чём надписи. Только то, что видно.\n", config.AnalysisDescriptionMax))
+	b.WriteString(fmt.Sprintf("description: законченное описание по-русски, желательно до %d символов: что изображено или происходит и о чём надписи. Только то, что видно. Не обрывай предложение.\n", config.AnalysisDescriptionMax))
 	b.WriteString("format: форма поста, одно из: " + contentFormatsLine() + ". Для одной картинки не выбирай video.\n")
 	b.WriteString(ContentEntityRule())
 	b.WriteString(ContentPlaceRule())
@@ -448,6 +448,12 @@ func (u *U) AnalyzeContentWithVision(images [][]byte, caption string, h History,
 	return nil, lastErr
 }
 
+// Keep complete model descriptions; the suggested prompt length is not a
+// storage limit and must never cut a sentence in the middle of a word.
+func analysisDescription(result jx.M) string {
+	return strings.TrimSpace(llm.StripCJK(jx.Str(result, "description")))
+}
+
 // Evidence remains a short verbatim excerpt for matching/quality gates.
 // The visible "why" is a separate model explanation, not an 80-rune quote.
 func analysisExplanation(result jx.M, fallbackEvidence string) string {
@@ -492,7 +498,7 @@ func (u *U) finishAnalysis(a jx.M, topic, query string, isVideo bool, firstImage
 	if humor && jx.Str(a, "meme_kind") == "" && !isVideo && !u.hasSpecificTopic(topic) && !u.JokePresent(firstImage, private) {
 		rel = min(rel, config.JokeNoCap)
 	}
-	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(a, "description")), config.AnalysisDescriptionMax), "why_relevant": analysisExplanation(a, evidence), "format": format,
+	return jx.M{"description": analysisDescription(a), "why_relevant": analysisExplanation(a, evidence), "format": format,
 		"tags": u.contentAnalysisTags(topic, a["tags"], a["safety"]), "quote": a["quote"] == true, "entity": ContentEntityClean(a["entity"]), "geo": GeoFromAnalysis(a), "evidence": evidence, "joke": trimRunes(llm.StripCJK(jx.Str(a, "joke")), config.AnalysisEvidenceMax), "meme_kind": jx.Str(a, "meme_kind"), "relevance": rel, "model_relevance": a["relevance"], "topic_match": a["topic_match"], "rating": nil,
 		"ukraine": a["ukraine"] == true, "advertising": a["advertising"], "subtopic": nil, "subtopic_p": nil, "model": model, "interest": a["interest"], "practical_value": a["practical_value"], "specificity": a["specificity"]}
 }
@@ -742,7 +748,7 @@ func (u *U) TextBatchPrompt(topic string, texts []string, h History) string {
 		b.WriteString(humorVerdictRule)
 	}
 	b.WriteString(contentSafetyPrompt)
-	b.WriteString(fmt.Sprintf("description: одна фраза по-русски, до %d символов, о чём текст. Только то, что написано.\n", config.AnalysisDescriptionMax))
+	b.WriteString(fmt.Sprintf("description: законченное описание по-русски, желательно до %d символов, о чём текст. Только то, что написано. Не обрывай предложение.\n", config.AnalysisDescriptionMax))
 	b.WriteString("format: text.\n")
 	b.WriteString(ContentEntityRule())
 	b.WriteString(ContentPlaceRule())
@@ -864,7 +870,7 @@ func (u *U) finishTextAnalysis(it jx.M, topic, model string) Analysis {
 	}
 	format := "text" // The text-only path cannot establish the form of unseen media.
 
-	return jx.M{"description": trimRunes(llm.StripCJK(jx.Str(it, "description")), config.AnalysisDescriptionMax), "why_relevant": analysisExplanation(it, evidence), "format": format,
+	return jx.M{"description": analysisDescription(it), "why_relevant": analysisExplanation(it, evidence), "format": format,
 		"tags": u.contentAnalysisTags(topic, it["tags"], it["safety"]), "quote": it["quote"] == true, "entity": ContentEntityClean(it["entity"]), "geo": GeoFromAnalysis(it), "evidence": evidence, "joke": joke, "meme_kind": jx.Str(it, "meme_kind"),
 		"ukraine": it["ukraine"] == true, "advertising": it["advertising"], "relevance": rel, "model_relevance": it["relevance"], "topic_match": it["topic_match"], "rating": nil, "model": model, "interest": it["interest"], "practical_value": it["practical_value"], "specificity": it["specificity"]}
 }

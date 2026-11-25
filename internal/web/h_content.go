@@ -230,26 +230,61 @@ func retryItemVideo(c *Ctx) (any, error) {
 	if !u.TelegramUserConnected() {
 		return nil, fail(409, "Подключите личный аккаунт Telegram.")
 	}
-	page := jx.Str(item, "video_page")
-	if posta.VideoPageVia(page) != "tgu" {
-		page = posta.SourcePostURL(item)
-	}
-	if posta.VideoPageVia(page) != "tgu" || (!jx.Bool(item, "video_unavailable") && jx.Str(item, "video_via") != "tgu") {
+	page := telegramPoolVideoPage(item)
+	if page == "" {
 		return nil, fail(400, "Запись не содержит скачиваемого видео Telegram.")
 	}
 	if jx.Str(item, "video") != "" {
 		return u.TranslateDisplay(u.ContentForDisplay(item, nil, true)), nil
 	}
+	updated, err := startTelegramPoolVideo(c, item, false)
+	if err != nil {
+		return nil, err
+	}
+	return u.TranslateDisplay(u.ContentForDisplay(updated, nil, false)), nil
+}
+
+// A Telegram post URL alone does not prove that the record contains video.
+func telegramPoolVideoPage(item jx.M) string {
+	if !jx.Bool(item, "video_unavailable") && jx.Str(item, "video_via") != "tgu" {
+		return ""
+	}
+	page := jx.Str(item, "video_page")
+	if posta.VideoPageVia(page) != "tgu" {
+		page = posta.SourcePostURL(item)
+	}
+	if posta.VideoPageVia(page) != "tgu" || posta.ContentImageKey(item) == "" {
+		return ""
+	}
+	return page
+}
+
+// Try legacy poster-only records automatically once, but do not silently
+// restart a failed download on every render. The explicit retry remains.
+func telegramPoolVideoAutoEligible(item jx.M, connected bool) bool {
+	return connected && jx.Str(item, "video") == "" && jx.Bool(item, "video_unavailable") &&
+		jx.Str(item, "video_error") == "" && !jx.Bool(item, "video_auto_started") && telegramPoolVideoPage(item) != ""
+}
+
+func startTelegramPoolVideo(c *Ctx, item jx.M, automatic bool) (jx.M, error) {
+	u := c.U
+	key := posta.ContentItemKey(item)
 	var updated jx.M
+	var enqueue bool
 	_, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
 		for _, record := range pool {
 			if posta.ContentItemKey(record) != key {
 				continue
 			}
-			if jx.Str(record, "video") == "" {
-				record["video_unavailable"], record["video_via"], record["video_page"], record["video_error"] = false, "tgu", page, ""
+			page := telegramPoolVideoPage(record)
+			if page == "" || jx.Str(record, "video") != "" || (automatic && !telegramPoolVideoAutoEligible(record, true)) {
+				updated = jx.Copy(record)
+				return nil
 			}
+			record["video_unavailable"], record["video_via"], record["video_page"], record["video_error"] = false, "tgu", page, ""
+			record["video_auto_started"] = true
 			updated = jx.Copy(record)
+			enqueue = true
 			return pool
 		}
 		return nil
@@ -260,10 +295,25 @@ func retryItemVideo(c *Ctx) (any, error) {
 	if updated == nil {
 		return nil, fail(404, "Записи уже нет в предложке.")
 	}
-	if jx.Str(updated, "video") == "" {
-		c.A.VideoEnqueue(c.R.Context(), u.ID, posta.ContentImageKey(updated), page, "tgu", true)
+	if enqueue {
+		c.A.VideoEnqueue(c.R.Context(), u.ID, posta.ContentImageKey(updated), jx.Str(updated, "video_page"), "tgu", true)
 	}
-	return u.TranslateDisplay(u.ContentForDisplay(updated, nil, false)), nil
+	return updated, nil
+}
+
+// Used for every route into the main review card, including explicit pool
+// selection and stale fallback. Merely listing thumbnails never starts jobs.
+func currentItemDisplay(c *Ctx, item jx.M, upcoming []jx.M) jx.M {
+	u := c.U
+	if telegramPoolVideoAutoEligible(item, u.TelegramUserConnected()) {
+		if updated, err := startTelegramPoolVideo(c, item, true); err == nil {
+			item = updated
+		} else {
+			item = jx.Copy(item)
+			item["video_error"] = "Не удалось запустить автоматическое скачивание."
+		}
+	}
+	return u.TranslateDisplay(u.ContentForDisplay(item, upcoming, true))
 }
 
 func getItemVideo(c *Ctx) (any, error) {
@@ -369,7 +419,7 @@ func getCurrentItem(c *Ctx) (any, error) {
 	pool := u.PoolWithoutLostVideo(u.PoolForCurrentTopic())
 	if key := c.Q("item_key"); key != "" {
 		if item := posta.PoolFindItem(pool, key); item != nil {
-			return u.TranslateDisplay(u.ContentForDisplay(item, nil, true)), nil
+			return currentItemDisplay(c, item, nil), nil
 		}
 		return nil, fail(404, "Запись больше не доступна в предложке.")
 	}
@@ -388,13 +438,13 @@ func getCurrentItem(c *Ctx) (any, error) {
 			u.StartParser(false)
 		}
 		warmUpcomingItems(c, pool[1:min(4, len(pool))])
-		return u.TranslateDisplay(u.ContentForDisplay(pool[0], pool[1:min(4, len(pool))], true)), nil
+		return currentItemDisplay(c, pool[0], pool[1:min(4, len(pool))]), nil
 	}
 	started := u.StartParser(false)
 	rt := c.A.ParserRuntimeSeconds(u.ID)
 	if archive := u.PoolWithoutLostVideo(u.PoolStaleForCurrentTopic()); len(archive) > 0 {
 		warmUpcomingItems(c, archive[1:min(4, len(archive))])
-		r := u.TranslateDisplay(u.ContentForDisplay(archive[0], archive[1:min(4, len(archive))], true))
+		r := currentItemDisplay(c, archive[0], archive[1:min(4, len(archive))])
 		return r, nil
 	}
 	if started != "started" && started != "running" {

@@ -92,3 +92,10 @@ func TestAnalysisTagsDescribeContentAndPreserveSafety(t *testing.T) {
 		t.Fatalf("mandatory safety label lost: %v", got)
 	}
 }
+
+func TestAnalysisDescriptionPreservesCompleteSentence(t *testing.T) {
+	description := "Текстовый пост с анализом контент-стратегии застройщика в социальных сетях: частота публикаций, охваты, форматы видео и статичные изображения, а также результаты за три месяца."
+	if got := analysisDescription(jx.M{"description": " " + description + " "}); got != description {
+		t.Fatalf("description truncated: %q", got)
+	}
+}
