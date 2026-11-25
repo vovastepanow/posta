@@ -78,24 +78,41 @@ func (u *U) FrozenSourceLabels() map[string]bool {
 	return labels
 }
 
-// PoolForCurrentTopic — весь сохранённый пул текущей темы (в пределах
-// срока хранения), кроме явно скрытого фильтрами. Часовая свежесть
-// используется для пополнения, но не должна скрывать записи Предложки.
-func (u *U) PoolForCurrentTopic() []jx.M {
-	topic, key, f := u.CurrentTopic(), u.SearchTopicKey(), u.ContentFilterValues()
+// One snapshot of the current user's filters serves both display and
+// replenishment. Hidden records remain stored, but do not fill the quota.
+func (u *U) poolVisibilityFilter(key string) (func(jx.M) bool, error) {
+	topic, f := collectorPolicyTopic(key), u.ContentFilterValues()
 	frozen := map[string]bool{}
 	if jx.Bool(f, "active_sources_only") {
 		frozen = u.FrozenSourceLabels()
 	}
-	pool := u.Pool()
 	adult := u.AdultAllowed()
-	blogs, err := u.poolPersonalBlogFilter(topic)
+	policy, err := u.collectorSourcePolicy(key)
+	if err != nil {
+		return nil, err
+	}
+	return func(i jx.M) bool {
+		return u.poolItemMatchesTopic(i, topic, key) && policy(i) == "" &&
+			!poolUnavailableVideo(i) && !u.UARecordHidden(i) &&
+			u.collectorDisplayReason(i, f, frozen, adult) == ""
+	}, nil
+}
+
+func (u *U) visibleFreshPool(pool []jx.M, key string, visible func(jx.M) bool) []jx.M {
+	return matchingPoolItems(pool, func(i jx.M) bool {
+		return u.poolProfileMatches(jx.Str(i, "topic"), key) && u.poolItemFresh(i) && visible(i)
+	})
+}
+
+// PoolForCurrentTopic includes older visible records while fresh ones are
+// collected. Changing filters does not delete any saved records.
+func (u *U) PoolForCurrentTopic() []jx.M {
+	topic, key := u.CurrentTopic(), u.SearchTopicKey()
+	visible, err := u.poolVisibilityFilter(key)
 	if err != nil {
 		return nil
 	}
-	return u.selectPersonalPoolItems(pool, topic, key, func(i jx.M) bool {
-		return blogs(i) && u.PoolItemInTopic(i, topic, key, adult) && poolMatchesDisplayFilters(i, f, frozen)
-	})
+	return u.selectPersonalPoolItems(u.Pool(), topic, key, visible)
 }
 
 // ApplyVote — новый пул после голоса или nil (записи уже нет). save — до удаления записи.
@@ -137,18 +154,13 @@ func (a *App) collectorDisplayReason(item, filters jx.M, frozen map[string]bool,
 
 // PoolStaleForCurrentTopic provides a fallback while the collector finds replacements.
 func (u *U) PoolStaleForCurrentTopic() []jx.M {
-	topic, key, f := u.CurrentTopic(), u.SearchTopicKey(), u.ContentFilterValues()
-	frozen := map[string]bool{}
-	if jx.Bool(f, "active_sources_only") {
-		frozen = u.FrozenSourceLabels()
-	}
-	adult := u.AdultAllowed()
-	blogs, err := u.poolPersonalBlogFilter(topic)
+	topic, key := u.CurrentTopic(), u.SearchTopicKey()
+	visible, err := u.poolVisibilityFilter(key)
 	if err != nil {
 		return nil
 	}
 	return u.selectPersonalPoolItems(u.Pool(), topic, key, func(item jx.M) bool {
-		return blogs(item) && !u.poolItemFresh(item) && u.PoolItemInTopic(item, topic, key, adult) && poolMatchesDisplayFilters(item, f, frozen)
+		return !u.poolItemFresh(item) && visible(item)
 	})
 }
 

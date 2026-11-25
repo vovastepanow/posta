@@ -914,9 +914,25 @@ func (u *U) prunePoolAlreadyRated() int {
 	return len(before) - len(after)
 }
 
-// AddItemToPoolSafely — запись в пул. Полный пул темы: вытесняется самая старая просроченная запись; нет просроченных — не добавляем.
+// AddItemToPoolSafely keeps visible and storage quotas separate for the
+// ordinary collector. The source autopilot retains its existing quota policy.
 func (u *U) AddItemToPoolSafely(item jx.M) bool {
 	added := false
+	topicKey := jx.Str(item, "topic")
+	_, autopilotDelivery := u.Ctx.Value(autopilotDeliveryContextKey{}).(autopilotDeliveryGuard)
+	var visible func(jx.M) bool
+	if !autopilotDelivery {
+		var err error
+		visible, err = u.poolVisibilityFilter(topicKey)
+		if err != nil {
+			u.Log("Не удалось проверить фильтры перед сохранением: %v", err)
+			return false
+		}
+		if !visible(item) {
+			u.Log("-> Запись не сохранена: текущие фильтры её скрывают.")
+			return false
+		}
+	}
 	u.prepareRepeatFiles(item)
 	if !jx.Has(item, "pooled_at") {
 		item["pooled_at"] = now()
@@ -954,14 +970,25 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 			autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_known_content", 1)
 			return nil, nil
 		}
-		topicKey := jx.Str(item, "topic")
 		topic := TopicNorm(topicKey)
 		fresh := u.freshPoolItems(pool)
+		if visible != nil {
+			fresh = u.visibleFreshPool(pool, topicKey, visible)
+		}
 		if candidateIsKnown(item, recordKnownKeys(pool)) {
 			autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_duplicate", 1)
 			return nil, nil
 		}
-		if sourcePoolCount(fresh, topic, ContentSourceKey(item)) >= sourcePoolLimit(u.TInt("per_source_pool"), target, topicPoolCount(fresh, topic)) {
+		sourceCount, freshCount := sourcePoolCount(fresh, topic, ContentSourceKey(item)), topicPoolCount(fresh, topic)
+		if visible != nil {
+			sourceCount, freshCount = 0, len(fresh)
+			for _, record := range fresh {
+				if ContentSourceKey(record) == ContentSourceKey(item) {
+					sourceCount++
+				}
+			}
+		}
+		if sourceCount >= sourcePoolLimit(u.TInt("per_source_pool"), target, freshCount) {
 			autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_source_limit", 1)
 			return nil, nil
 		}
@@ -989,27 +1016,40 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 				return nil, nil
 			}
 		}
-		var same []int
-		for i, it := range pool {
-			if TopicNorm(jx.Str(it, "topic")) == topic {
-				same = append(same, i)
-			}
-		}
-		if len(same) >= target {
-			var expired []int
-			for _, i := range same {
-				if !u.poolItemFresh(pool[i]) {
-					expired = append(expired, i)
-				}
-			}
-			if len(expired) == 0 {
-				autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_full", 1)
+		if visible != nil {
+			remove, allowed := poolQuotaInsertion(pool, target, func(record jx.M) bool {
+				return u.poolProfileMatches(jx.Str(record, "topic"), topicKey)
+			}, visible, u.poolItemFresh)
+			if !allowed {
+				u.Log("-> Пул достиг лимита видимых записей или хранилища.")
 				return nil, nil
 			}
-			sort.SliceStable(expired, func(a, b int) bool {
-				return jx.Int(pool[expired[a]], "pooled_at") < jx.Int(pool[expired[b]], "pooled_at")
-			})
-			pool = append(pool[:expired[0]], pool[expired[0]+1:]...)
+			if remove >= 0 {
+				pool = append(pool[:remove], pool[remove+1:]...)
+			}
+		} else {
+			var same []int
+			for i, it := range pool {
+				if TopicNorm(jx.Str(it, "topic")) == topic {
+					same = append(same, i)
+				}
+			}
+			if len(same) >= target {
+				var expired []int
+				for _, i := range same {
+					if !u.poolItemFresh(pool[i]) {
+						expired = append(expired, i)
+					}
+				}
+				if len(expired) == 0 {
+					autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_full", 1)
+					return nil, nil
+				}
+				sort.SliceStable(expired, func(a, b int) bool {
+					return jx.Int(pool[expired[a]], "pooled_at") < jx.Int(pool[expired[b]], "pooled_at")
+				})
+				pool = append(pool[:expired[0]], pool[expired[0]+1:]...)
+			}
 		}
 		if guard, ok := u.Ctx.Value(autopilotDeliveryContextKey{}).(autopilotDeliveryGuard); ok {
 			if err := recordAutopilotAdmission(u.Ctx, tx, u.ID, guard.topic, guard.post, true, now()); err != nil {

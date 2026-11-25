@@ -49,14 +49,15 @@ func sourcePoolLimit(perSource, target, current int) int {
 func (u *U) sourceBusy(topic string) map[string]bool {
 	busy := map[string]bool{}
 	counts := map[string]int{}
-	t := TopicNorm(topic)
-	pool := u.freshPoolItems(u.Pool())
-	for _, it := range pool {
-		if TopicNorm(jx.Str(it, "topic")) == t {
-			counts[ContentSourceKey(it)]++
-		}
+	visible, err := u.poolVisibilityFilter(topic)
+	var pool []jx.M
+	if err == nil {
+		pool = u.visibleFreshPool(u.Pool(), topic, visible)
 	}
-	perSource := sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), topicPoolCount(pool, topic))
+	for _, it := range pool {
+		counts[ContentSourceKey(it)]++
+	}
+	perSource := sourcePoolLimit(u.TInt("per_source_pool"), u.TInt("pool_target"), len(pool))
 	for src, n := range counts {
 		if n >= perSource {
 			busy[src] = true

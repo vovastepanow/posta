@@ -936,16 +936,14 @@ func (u *U) PoolStampLegacy() {
 	})
 }
 
-// PoolTopicCount — свежие записи пула по теме.
+// PoolTopicCount counts fresh records available under the current filters,
+// not hidden records that happen to occupy storage.
 func (u *U) PoolTopicCount(key string) int {
-	n := 0
-	norm := TopicNorm(key)
-	for _, it := range u.Pool() {
-		if u.poolItemFresh(it) && TopicNorm(jx.Str(it, "topic")) == norm {
-			n++
-		}
+	visible, err := u.poolVisibilityFilter(key)
+	if err != nil {
+		return 0
 	}
-	return n
+	return len(u.visibleFreshPool(u.Pool(), key, visible))
 }
 
 // PoolArchiveItems — старые записи с кэшированным медиа: показываются, пока сборщик медленный.
