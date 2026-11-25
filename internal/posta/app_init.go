@@ -60,6 +60,11 @@ func New(ctx context.Context, cfg config.Server) (*App, error) {
 	if err := a.MigrateSourceRegistry(ctx); err != nil {
 		log.Printf("Реестр источников: перенос не выполнен, повторится при следующем запуске: %v", err)
 	}
+	if repaired, err := repairAutopilotYieldAdmission(ctx, d.Pool, "", time.Now()); err != nil {
+		log.Printf("Автопилот: восстановление статусов не выполнено: %v", err)
+	} else if repaired > 0 {
+		log.Printf("Автопилот: восстановлено статусов источников: %d", repaired)
+	}
 	return a, nil
 }
 
