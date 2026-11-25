@@ -59,6 +59,11 @@ func TestCollectorTextCacheReusesPublicVerdictsPostgres(t *testing.T) {
 	}
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/chat/completions" {
+			// Model metadata lookup is not an inference.
+			json.NewEncoder(w).Encode(jx.M{"data": []any{}})
+			return
+		}
 		calls.Add(1)
 		answer := `{"items":[{"index":0,"relevance":90,"advertising":false,"topic_match":true,"evidence":"Пример расчёта налогов","description":"Расчёт налогов","safety":[]}]}`
 		json.NewEncoder(w).Encode(jx.M{"choices": []jx.M{{"message": jx.M{"content": answer}}}})
@@ -72,9 +77,22 @@ func TestCollectorTextCacheReusesPublicVerdictsPostgres(t *testing.T) {
 	topic := "Бизнес"
 	text := "Пример расчёта налогов " + randHex(16)
 	h := EmptyHistory()
-	key := u.collectorTextKey(text, topic, h, false, false, false)
+	source := "rss:https://example.org/" + randHex(8)
+	item := jx.M{"source_key": source, "url": "https://example.org/" + randHex(8), "text": text, "text_post": true}
+	if u.collectorPublicEvidence(item, topic) {
+		t.Fatal("unverified source was treated as public")
+	}
+	post := CandidatePostKey(item)
+	if _, err := d.Pool.Exec(ctx, `INSERT INTO public_posts(source_key,post_key,platform,data,first_seen,last_seen) VALUES($1,$2,$3,$4,$5,$5)`, source, post, PlatformRSS, jx.Marshal(item), now()); err != nil {
+		t.Fatal(err)
+	}
+	defer d.Pool.Exec(ctx, `DELETE FROM public_posts WHERE source_key=$1 AND post_key=$2`, source, post)
+	if !u.collectorPublicEvidence(item, topic) || u.collectorPublicEvidence(jx.Merge(item, jx.M{"text": "edited"}), topic) {
+		t.Fatal("public provenance was not checked against catalog evidence")
+	}
+	key := u.collectorTextKey(text, topic, h, false, false, !u.collectorPublicEvidence(item, topic))
 	defer d.Pool.Exec(ctx, `DELETE FROM analysis_cache WHERE key=$1`, key)
-	result := u.cachedCollectorTextBatch([]string{text, text}, topic, h, false, false, false)
+	result := u.cachedCollectorTextBatch([]string{text, text}, topic, h, false, false, !u.collectorPublicEvidence(item, topic))
 	if len(result) != 2 || result[0] == nil || result[1] == nil || calls.Load() != 1 {
 		t.Fatalf("identical texts not deduplicated: calls=%d results=%v", calls.Load(), result)
 	}
@@ -83,11 +101,15 @@ func TestCollectorTextCacheReusesPublicVerdictsPostgres(t *testing.T) {
 		t.Fatal("result maps share mutable state")
 	}
 	u.ID = randHex(16)
-	if got := u.cachedCollectorTextBatch([]string{text}, topic, h, false, false, false); got[0] == nil || jx.Int(got[0], "relevance") != 90 || calls.Load() != 1 {
+	if got := u.cachedCollectorTextBatch([]string{text}, topic, h, false, false, !u.collectorPublicEvidence(item, topic)); got[0] == nil || jx.Int(got[0], "relevance") != 90 || calls.Load() != 1 {
 		t.Fatalf("same public text was analyzed again: calls=%d result=%v", calls.Load(), got)
 	}
+	ownerKey := u.collectorTextKey(text, topic, h, false, false, true)
 	privateKey := u.collectorTextKey(text, topic, h, true, false, false)
 	u.ID = randHex(16)
+	if ownerKey == u.collectorTextKey(text, topic, h, false, false, true) || ownerKey == key {
+		t.Fatal("unverified source verdict is not owner scoped")
+	}
 	if privateKey == u.collectorTextKey(text, topic, h, true, false, false) || privateKey == key {
 		t.Fatal("private verdict is not owner scoped")
 	}
