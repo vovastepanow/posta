@@ -37,6 +37,12 @@ type Run struct {
 	TextBatchCalls       int
 	VisionCacheHits      int
 	VisionCalls          int
+	AdmissionOutcomes    map[string]int
+	VisualEvidenceKinds  map[string]int
+	UnknownAnalyses      int
+	TextEvidenceFailures int
+	TextPrefilterDropped int
+	TextPrefilterLate    int
 	SourceMisses         map[string]int
 	HotStats             jx.M
 	FourchanAPI          int

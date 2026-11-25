@@ -1604,6 +1604,10 @@ func (u *U) hotTextJudge(items []jx.M, topic string) []jx.M {
 			kept = append(kept, it)
 		}
 	}
+	if u.run != nil {
+		u.run.TextPrefilterDropped += len(drop)
+		u.run.TextPrefilterLate += len(late)
+	}
 	u.Log("Проверка подписей моделью: отброшено %d, в конец шортлиста %d.", len(drop), len(late))
 	return append(kept, tail...)
 }
@@ -1848,7 +1852,7 @@ type prescreenCtx struct {
 // different caption or a modified image as junk.
 func prescreenEvidenceKey(topic, scope, caption, prompts string, poster []byte) string {
 	sum := sha256.Sum256(poster)
-	key := sha256.Sum256(jx.Marshal([]any{"prescreen-input-v1", topic, scope, caption, prompts, hex.EncodeToString(sum[:])}))
+	key := sha256.Sum256(jx.Marshal([]any{"prescreen-input-v2", topic, scope, caption, prompts, hex.EncodeToString(sum[:])}))
 	return hex.EncodeToString(key[:])
 }
 
@@ -1953,7 +1957,11 @@ func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline
 			c.newCache[row.CacheKey] = screenedEntry{Topic: topic, Source: row.Source, Score: *q.Score}
 			c.cached[row.CacheKey] = *q.Score
 			c.stats["prescreened"]++
-			u.screen(topic, "prescreen", item, *q.Score, !junk, "", model)
+				reason := ""
+			if junk {
+				reason = "быстрая оценка: мусор"
+			}
+			u.screen(topic, "prescreen", item, *q.Score, !junk, reason, model)
 			if junk {
 				c.stats["rejected"]++
 			} else {
@@ -2022,6 +2030,9 @@ func (u *U) contentAdmissionReason(a jx.M, item jx.M, topic, text string) string
 
 func (u *U) admit(a jx.M, item jx.M, topic, verdict, stage, text string) bool {
 	reason := u.admissionReason(a, item, topic, text)
+	if u.run != nil {
+		incrementCollectorCount(&u.run.AdmissionOutcomes, collectorAdmissionCode(reason))
+	}
 	if u.DB != nil && reason != "тема поиска сменилась" {
 		if err := recordAutopilotAdmission(u.Ctx, u.DB.Pool, u.ID, topic, item, reason == "", now()); err != nil {
 			u.Log("Не удалось сохранить наблюдение автопилота: %v", err)
@@ -2101,7 +2112,10 @@ func (u *U) analyzeTextCandidate(item jx.M, topic string) bool {
 	ownerOnly := !u.collectorPublicEvidence(item, topic)
 	res := u.cachedCollectorTextBatch([]string{text}, topic, h, u.analysisPrivate(topic, item), true, ownerOnly)
 	if len(res) == 0 || res[0] == nil {
-		u.Log("-> ИИ не ответил по этой записи, пропускаю.")
+		if u.run != nil {
+			u.run.UnknownAnalyses++
+		}
+		u.Log("-> ИИ не вернул подтверждённую оценку текста, откладываю.")
 		return false
 	}
 	a := res[0]
@@ -2194,6 +2208,9 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 		}
 		a, caption, err = u.analyzeCandidateVision(frames, item, h, topic, sb)
 		if err != nil {
+			if u.run != nil {
+				u.run.UnknownAnalyses++
+			}
 			u.Log("-> ИИ не вернул корректную оценку: %s", err)
 			return false
 		}
@@ -2207,6 +2224,9 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 			localVideo = video.File
 		}
 		u.applyVideoClassification(a, item, localVideo, PostCaptionForAI(item), u.analysisPrivate(topic, item))
+	}
+	if u.run != nil {
+		incrementCollectorCount(&u.run.VisualEvidenceKinds, visualEvidenceKind(item, len(frames), sb))
 	}
 	verdict := fmt.Sprintf("соответствие теме %d%%", jx.Int(a, "relevance"))
 	u.classifyPublicPost(item, a, topic, h)
@@ -2453,6 +2473,12 @@ func (u *U) RunCollector() bool {
 		f["text_batch_calls"] = u.run.TextBatchCalls
 		f["vision_cache_hits"] = u.run.VisionCacheHits
 		f["vision_calls"] = u.run.VisionCalls
+		f["admission_outcomes"] = collectorCountSnapshot(u.run.AdmissionOutcomes)
+		f["visual_evidence"] = collectorCountSnapshot(u.run.VisualEvidenceKinds)
+		f["analysis_unknown"] = u.run.UnknownAnalyses
+		f["text_evidence_failures"] = u.run.TextEvidenceFailures
+		f["text_prefilter_rejected"] = u.run.TextPrefilterDropped
+		f["text_prefilter_deferred"] = u.run.TextPrefilterLate
 		if added > 0 {
 			f["first_added_seconds"] = firstAddedSeconds
 		}
@@ -2565,6 +2591,8 @@ outer:
 	total := time.Since(started)
 	u.Log("Время прохода: сбор %.1f мин, анализ %.1f мин.", max(0, (total-tAnalyze).Minutes()), tAnalyze.Minutes())
 	u.Log("Кэш: быстрый отсев %d, текст %d, визуальный анализ %d; запуски анализа: текстовые пачки %d, визуальные %d.", pc.stats["prescreen_cache_hits"], u.run.TextCacheHits, u.run.VisionCacheHits, u.run.TextBatchCalls, u.run.VisionCalls)
+	u.Log("Отбор: %s; без достоверной оценки %d; до полного анализа отброшено текстов %d.", string(jx.Marshal(u.run.AdmissionOutcomes)), u.run.UnknownAnalyses, u.run.TextPrefilterDropped)
+	u.Log("Визуальные данные: %s; неподтверждённых цитат текста %d.", string(jx.Marshal(u.run.VisualEvidenceKinds)), u.run.TextEvidenceFailures)
 	if fastTopicSearch {
 		u.Log("Быстрый поиск: найдено %d кандидатов, после полного отбора добавлено %d.", fastPostFound, fastPostAdded)
 	}

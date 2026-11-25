@@ -119,6 +119,9 @@ func (u *U) cachedCollectorTextBatch(texts []string, topic string, h History, pr
 			}
 			if !collectorTextEvidenceValid(a, text) {
 				if a != nil {
+					if u.run != nil {
+						u.run.TextEvidenceFailures++
+					}
 					u.Log("-> Цитата модели не подтверждается исходным текстом: оценка не сохранена, запись отложена.")
 				}
 				continue

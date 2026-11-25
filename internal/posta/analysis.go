@@ -569,17 +569,21 @@ func quickJunkPrompt(caption, thread string) string {
 }
 
 var (
-	quickNumRe = regexp.MustCompile(`(?:^|[^\d.])(100|[1-9]?\d)(?:[^\d]|$)`)
+	quickNumRe = regexp.MustCompile(`(?i)^\s*(?:(?:score|оценка)\s*[:=]\s*)?([0-9]{1,3})\s*%?\s*[.!]?\s*$`)
 	yesRe      = regexp.MustCompile(`^[\W_]*(да|yes|подходит)`)
 	noRe       = regexp.MustCompile(`^[\W_]*(нет|no\b|не подходит)`)
 )
 
 func parseQuickScore(text string) *int {
-	if a := llm.DecodeJSON(text); a != nil && a["score"] != nil {
-		v := llm.ClampScore(jx.Float(a, "score"))
+	if a := llm.DecodeJSON(text); a != nil {
+		if !validModelPercent(a["score"]) {
+			return nil
+		}
+		n, _ := modelNumber(a["score"])
+		v := llm.ClampScore(n)
 		return &v
 	}
-	if m := quickNumRe.FindStringSubmatch(text); m != nil {
+	if m := quickNumRe.FindStringSubmatch(text); m != nil && validModelPercent(m[1]) {
 		v := llm.ClampScore(jx.ToFloat(m[1]))
 		return &v
 	}
