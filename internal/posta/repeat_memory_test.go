@@ -125,7 +125,11 @@ func TestRepeatMemoryPostgres(t *testing.T) {
 		t.Fatalf("maintenance extended expiry: %d, expected %d (%v)", unchanged, expiry-100, err)
 	}
 	// A fresh App represents a restart: no in-process repeat cache is required.
-	restarted := (&App{DB: d, Mem: NewMemCache(100)}).User(ctx, uid, nil)
+	restartedApp := &App{DB: d, Mem: NewMemCache(100)}
+	if err := restartedApp.LoadCatalog(ctx); err != nil {
+		t.Fatal(err)
+	}
+	restarted := restartedApp.User(ctx, uid, nil)
 	if !candidateIsKnown(item, restarted.collectKnown()) {
 		t.Fatal("memory lost across restart")
 	}
