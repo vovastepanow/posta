@@ -231,7 +231,7 @@ func (u *U) poolUpdate(fn func(pgx.Tx, []jx.M) ([]jx.M, error)) ([]jx.M, error) 
 		if _, err := tx.Exec(u.Ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "posta:content:"+u.ID); err != nil {
 			return err
 		}
-		cur, err := u.poolLoadChecked(u.Ctx, tx, u.ID)
+		cur, stored, err := u.poolLoadForUpdate(tx)
 		if err != nil {
 			return err
 		}
@@ -248,17 +248,93 @@ func (u *U) poolUpdate(fn func(pgx.Tx, []jx.M) ([]jx.M, error)) ([]jx.M, error) 
 			return err
 		}
 		result = next
-		if _, err := tx.Exec(u.Ctx, `DELETE FROM pool_items WHERE user_id = $1`, u.ID); err != nil {
-			return err
-		}
-		rows := make([][]any, 0, len(next))
-		for i, item := range next {
-			rows = append(rows, []any{u.ID, i, ContentImageKey(item), jx.Str(item, "topic"), db.JSON(item)})
-		}
-		_, err = tx.CopyFrom(u.Ctx, pgx.Identifier{"pool_items"}, []string{"user_id", "position", "image_key", "topic", "data"}, pgx.CopyFromRows(rows))
-		return err
+		return u.poolWriteChanges(tx, stored, next)
 	})
 	return result, err
+}
+
+// Keep unchanged database rows stable across votes, maintenance, and
+// collector admissions. Lock rows before invoking the callback so a concurrent
+// classification update cannot be lost between the snapshot and the write.
+type storedPoolKey struct {
+	data, image, topic string
+}
+
+type storedPoolRow struct {
+	id       int64
+	position int32
+}
+
+func poolRowKey(item jx.M) storedPoolKey {
+	return storedPoolKey{data: string(jx.Marshal(item)), image: ContentImageKey(item), topic: jx.Str(item, "topic")}
+}
+
+func (u *U) poolLoadForUpdate(tx pgx.Tx) ([]jx.M, map[storedPoolKey][]storedPoolRow, error) {
+	rows, err := tx.Query(u.Ctx, `SELECT id, position, image_key, topic, data FROM pool_items WHERE user_id=$1 ORDER BY position,id FOR UPDATE`, u.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	stored := map[storedPoolKey][]storedPoolRow{}
+	var cur []jx.M
+	for rows.Next() {
+		var r storedPoolRow
+		var key storedPoolKey
+		var raw []byte
+		if err := rows.Scan(&r.id, &r.position, &key.image, &key.topic, &raw); err != nil {
+			return nil, nil, err
+		}
+		item := jx.Unmarshal(raw)
+		if item == nil {
+			item = jx.M{}
+		}
+		key.data = string(jx.Marshal(item))
+		stored[key] = append(stored[key], r)
+		cur = append(cur, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return cur, stored, nil
+}
+
+func (u *U) poolWriteChanges(tx pgx.Tx, stored map[storedPoolKey][]storedPoolRow, next []jx.M) error {
+	var movedIDs, removedIDs []int64
+	var positions []int32
+	var inserted [][]any
+	for i, item := range next {
+		key := poolRowKey(item)
+		if available := stored[key]; len(available) > 0 {
+			r := available[0]
+			stored[key] = available[1:]
+			if r.position != int32(i) {
+				movedIDs = append(movedIDs, r.id)
+				positions = append(positions, int32(i))
+			}
+			continue
+		}
+		inserted = append(inserted, []any{u.ID, i, key.image, key.topic, db.JSON(item)})
+	}
+	for _, remaining := range stored {
+		for _, r := range remaining {
+			removedIDs = append(removedIDs, r.id)
+		}
+	}
+	if len(removedIDs) > 0 {
+		if _, err := tx.Exec(u.Ctx, `DELETE FROM pool_items WHERE user_id=$1 AND id=ANY($2::bigint[])`, u.ID, removedIDs); err != nil {
+			return err
+		}
+	}
+	if len(movedIDs) > 0 {
+		if _, err := tx.Exec(u.Ctx, `UPDATE pool_items AS p SET position=m.position FROM unnest($2::bigint[],$3::integer[]) AS m(id,position) WHERE p.user_id=$1 AND p.id=m.id`, u.ID, movedIDs, positions); err != nil {
+			return err
+		}
+	}
+	if len(inserted) > 0 {
+		_, err := tx.CopyFrom(u.Ctx, pgx.Identifier{"pool_items"}, []string{"user_id", "position", "image_key", "topic", "data"}, pgx.CopyFromRows(inserted))
+		return err
+	}
+	return nil
 }
 
 // ---- История оценок ----
