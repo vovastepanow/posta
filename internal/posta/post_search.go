@@ -573,22 +573,11 @@ func (u *U) tgPostSearchAllowed() bool {
 	return allowed
 }
 
-var (
-	adBotRe   = regexp.MustCompile(`(?i)@\w+bot\b|t\.me/\+|\?start=|bit\.ly|u\.to/`)
-	adWordsRe = regexp.MustCompile(`(?i)бесплатно|подписыва|переходи|скидк|промокод|казино`)
-)
-
-// PostSearchIsAd — реклама и боты в результатах поиска (без модели).
+// PostSearchIsAd checks only strong advertising evidence. Links, hashtags,
+// bot mentions and marketing vocabulary are not independent ad verdicts.
+// Ambiguous offers still undergo the mandatory contextual model analysis.
 func PostSearchIsAd(p jx.M) bool {
-	user := strings.ToLower(strings.TrimPrefix(jx.Str(p, "source_url"), "https://t.me/"))
-	if user != "" && strings.HasSuffix(user, "bot") {
-		return true
-	}
-	text := jx.Str(p, "text")
-	if adBotRe.MatchString(text) || adWordsRe.MatchString(text) {
-		return true
-	}
-	return len(hashtagAnyRe.FindAllString(text, -1)) > 3
+	return PostIsAdvertisement(p)
 }
 
 // PostSearchTelegram — поиск постов через аккаунт владельца (хэштег или слова); пост берём со страницы канала.
