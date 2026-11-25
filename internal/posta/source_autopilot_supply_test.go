@@ -14,13 +14,13 @@ func TestAutopilotSupplyCountsUniqueQueueAndVideos(t *testing.T) {
 	first := jx.M{"url": "https://example.org/posts/1", "image": "https://example.org/shared.jpg", "video": "https://example.org/1.mp4"}
 	second := jx.M{"url": "https://example.org/posts/2", "image": "https://example.org/shared.jpg", "video": "https://example.org/2.mp4"}
 	queued := jx.M{"repeat_identity": jx.M{"keys": repeatKeys(first)}}
-	count := autopilotSupplyCount([]jx.M{first, second}, []jx.M{queued}, nil, func(jx.M) bool { return true }, func(jx.M) bool { return true })
+	count := autopilotSupplyCount([]jx.M{first, second}, []jx.M{queued}, func(jx.M) bool { return true }, func(jx.M) bool { return true })
 	if count != 2 {
 		t.Fatalf("count=%d, want queued first video and distinct second video", count)
 	}
-	count = autopilotSupplyCount([]jx.M{first, second}, nil, map[string]bool{repeatKeys(first)[0]: true}, func(jx.M) bool { return true }, func(jx.M) bool { return true })
-	if count != 1 {
-		t.Fatalf("remembered post counted again: %d", count)
+	count = autopilotSupplyCount([]jx.M{first, first, second}, nil, func(jx.M) bool { return true }, func(jx.M) bool { return true })
+	if count != 2 {
+		t.Fatalf("duplicate inventory inflated supply: %d", count)
 	}
 }
 
@@ -66,6 +66,13 @@ func TestAutopilotAvailableSupplyPostgres(t *testing.T) {
 	queued := jx.M{"topic": topic, "source_key": "rss:https://example.org/one", "publish_at": at + 3600, "repeat_identity": jx.M{"keys": repeatKeys(first)}}
 	if _, err = d.Pool.Exec(ctx, `INSERT INTO outbox(id,user_id,publish_at,status,data) VALUES('autopilot-supply-post',$1,$2,'queued',$3)`, owner, at+3600, db.JSON(queued)); err != nil {
 		t.Fatal(err)
+	}
+	// Real pool insertion remembers these keys immediately. Even though
+	// subsequent admission must reject them, existing inventory is usable.
+	for _, item := range []jx.M{first, second} {
+		if err := rememberRepeatKeys(ctx, d.Pool, owner, repeatKeys(item), repeatPhashes(item), at); err != nil {
+			t.Fatal(err)
+		}
 	}
 	count, err := u.AutopilotAvailableSupply(topic)
 	if err != nil || count != 2 {

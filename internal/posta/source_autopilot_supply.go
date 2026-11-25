@@ -9,11 +9,11 @@ import (
 
 // autopilotSupplyCount shares one seen set across the publication queue and
 // pool, so the same content cannot satisfy two channels' demand twice.
-func autopilotSupplyCount(pool, queue []jx.M, remembered map[string]bool, matches func(jx.M) bool, queueReady func(jx.M) bool) int {
+// Repeat memory is an admission guard, not an inventory filter: inserting a
+// post into the pool immediately records its repeat keys. Seeding seen with
+// that memory would make every newly delivered post disappear from supply.
+func autopilotSupplyCount(pool, queue []jx.M, matches func(jx.M) bool, queueReady func(jx.M) bool) int {
 	seen := map[string]bool{}
-	for key := range remembered {
-		seen[key] = true
-	}
 	count := 0
 	add := func(keys []string, eligible bool) {
 		if len(keys) == 0 {
@@ -75,24 +75,6 @@ func (u *U) AutopilotAvailableSupply(topic string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	rows, err = u.DB.Pool.Query(u.Ctx, `SELECT fingerprint FROM content_repeat_memory WHERE user_id=$1 AND kind='key' AND expires_at>$2`, u.ID, now())
-	if err != nil {
-		return 0, err
-	}
-	remembered := map[string]bool{}
-	for rows.Next() {
-		var key string
-		if err := rows.Scan(&key); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		remembered[key] = true
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return 0, err
-	}
 	filters := u.ContentFilterValues()
 	frozen := map[string]bool{}
 	if jx.Bool(filters, "active_sources_only") {
@@ -121,5 +103,5 @@ func (u *U) AutopilotAvailableSupply(topic string) (int, error) {
 		return posted > 0 && posted <= now()+300 && !IsPostOutdated(posted, 0, config.ContentMaxAgeDays) && !poolUnavailableVideo(item) && u.poolItemFresh(item) &&
 			u.PoolItemInTopic(item, topic, topic, adult) && poolMatchesDisplayFilters(item, filters, frozen) && !strings.HasPrefix(ContentImageKey(item), "deleted:")
 	}
-	return autopilotSupplyCount(pool, queue, remembered, matches, outboxMediaReady), nil
+	return autopilotSupplyCount(pool, queue, matches, outboxMediaReady), nil
 }

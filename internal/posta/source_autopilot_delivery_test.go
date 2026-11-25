@@ -158,6 +158,10 @@ func TestAutopilotDeliversContentPerOwnerPostgres(t *testing.T) {
 		if count != want {
 			t.Fatalf("owner %s received %d posts, want %d", owner, count, want)
 		}
+		available, supplyErr := a.User(ctx, owner, nil).AutopilotAvailableSupply(topic)
+		if supplyErr != nil || available != want {
+			t.Fatalf("owner %s supply=%d want=%d err=%v", owner, available, want, supplyErr)
+		}
 		if err = d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_admissions WHERE user_id=$1 AND topic_key=$2 AND accepted`, owner, key).Scan(&count); err != nil || count != want {
 			t.Fatalf("owner %s admission count=%d want=%d err=%v", owner, count, want, err)
 		}
