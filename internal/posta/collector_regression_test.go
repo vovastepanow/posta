@@ -144,3 +144,27 @@ func TestSourcePollPrioritizesTopicVerdictsAndExplores(t *testing.T) {
 		t.Fatalf("expected new source ahead of poor history and fresh source excluded, got %v", got)
 	}
 }
+
+func TestPoolViewRequiresExactAnalyzedSearchProfile(t *testing.T) {
+	u := taxonomyTestUser()
+	for _, tc := range []struct {
+		record, key string
+		want        bool
+	}{
+		{"SMM и блогинг", "SMM и блогинг", true},
+		{"smm", "SMM и блогинг", true},
+		{"SMM и блогинг", "SMM и блогинг ? Telegram", false},
+		{"", "SMM и блогинг ? Telegram", false},
+		{"SMM и блогинг ? VK", "SMM и блогинг ? Telegram", false},
+		{"smm ? telegram", "SMM и блогинг ? Telegram", true},
+		{"SMM и блогинг", "SMM и блогинг + Бизнес", false},
+		{"SMM и блогинг + Бизнес", "SMM и блогинг + Бизнес", true},
+		{"SMM и блогинг + Бизнес ? VK", "SMM и блогинг + Бизнес ? Telegram", false},
+		{"SMM и блогинг ? Telegram", "SMM и блогинг", false},
+		{"", "SMM и блогинг", true},
+	} {
+		if got := u.poolItemMatchesTopic(jx.M{"topic": tc.record}, "SMM и блогинг", tc.key); got != tc.want {
+			t.Errorf("record=%q key=%q: got=%t want=%t", tc.record, tc.key, got, tc.want)
+		}
+	}
+}

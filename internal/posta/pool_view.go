@@ -9,9 +9,35 @@ import (
 
 // Выдача подборки: записи текущей темы и фильтров, по порядку показа.
 
+// A base-topic verdict is not evidence for a narrower query or the
+// conjunction of two topics. Compare the actual analyzed profile, allowing
+// aliases only for the topic components, not for an unrelated query.
+func (u *U) poolProfileMatches(record, key string) bool {
+	if !strings.EqualFold(NormalizeQuery(TopicQueryOf(record)), NormalizeQuery(TopicQueryOf(key))) {
+		return false
+	}
+	want, have := TopicParts(key), TopicParts(record)
+	if len(want) == 0 || len(have) != len(want) {
+		return false
+	}
+	for i, part := range want {
+		if !u.TopicSame(have[i], part) {
+			return false
+		}
+	}
+	return true
+}
+
 func (u *U) poolItemMatchesTopic(i jx.M, topic, key string) bool {
+	if key == "" {
+		key = topic
+	}
 	t := jx.Str(i, "topic")
-	return t == "" || u.TopicSame(t, topic) || u.TopicSame(t, key)
+	if t == "" {
+		// Unstamped legacy records cannot satisfy a specific search.
+		return TopicQueryOf(key) == "" && len(TopicParts(key)) == 1
+	}
+	return u.poolProfileMatches(t, key)
 }
 
 // PoolItemInTopic — запись можно показать: подходит теме, не скрыта фильтром Украины и не 18+ без флага.
