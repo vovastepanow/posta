@@ -65,15 +65,23 @@ func (a *App) settingsRaw(ctx context.Context, uid string) jx.M {
 	return DefaultSettings()
 }
 
-// Settings — настройки с нормализацией (бывший load_settings).
-func (u *U) Settings() jx.M {
+func (u *U) settingsDefaults() jx.M {
 	base := DefaultSettings()
 	// значения по умолчанию для всех пользователей задаются в админке
 	if t := u.TStr("default_topic"); t != "" {
 		base["topic"] = t
 	}
 	base["fresh_only"], base["auto_translate"] = u.TBool("default_fresh_only"), u.TBool("default_auto_translate")
-	s := jx.Merge(base, u.settingsRaw(u.Ctx, u.ID))
+	return base
+}
+
+// Settings — настройки с нормализацией (бывший load_settings).
+func (u *U) Settings() jx.M {
+	return normalizedSettings(u.settingsDefaults(), u.settingsRaw(u.Ctx, u.ID))
+}
+
+func normalizedSettings(base, raw jx.M) jx.M {
+	s := jx.Merge(base, raw)
 	s["topic"] = NormalizeTopic(jx.Str(s, "topic"))
 	if s["topic"] == "" {
 		s["topic"] = base["topic"]
@@ -89,13 +97,23 @@ func (u *U) Settings() jx.M {
 	return s
 }
 
-// SaveSettings — изменения поверх текущих.
+// SaveSettings merges the patch under the same row lock used by other
+// settings writers; independent concurrent changes cannot overwrite each other.
 func (u *U) SaveSettings(changes jx.M) error {
-	s := jx.Merge(u.Settings(), changes)
+	base := u.settingsDefaults()
 	return u.DB.Tx(u.Ctx, func(tx pgx.Tx) error {
 		if err := ensureUser(u.Ctx, tx, u.ID); err != nil {
 			return err
 		}
+		var raw []byte
+		if err := tx.QueryRow(u.Ctx, `SELECT settings FROM users WHERE id=$1 FOR UPDATE`, u.ID).Scan(&raw); err != nil {
+			return err
+		}
+		current := jx.Unmarshal(raw)
+		if current == nil {
+			current = DefaultSettings()
+		}
+		s := jx.Merge(normalizedSettings(base, current), changes)
 		_, err := tx.Exec(u.Ctx, `UPDATE users SET settings = $1 WHERE id = $2`, db.JSON(s), u.ID)
 		return err
 	})
