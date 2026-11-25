@@ -1886,7 +1886,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		return err
 	}
 	type sourceRow struct {
-		id, state, resume                          string
+		id, state, resume                           string
 		reaudit, pilot, probePositive, legacyActive bool
 	}
 	var ids []sourceRow
