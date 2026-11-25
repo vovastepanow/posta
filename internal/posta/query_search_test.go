@@ -169,3 +169,36 @@ func TestOsnovaSearchPost(t *testing.T) {
 		t.Fatalf("real API article did not match publisher: %q", source)
 	}
 }
+
+func TestQueryScoreCacheDependsOnExactEvidenceAndRoute(t *testing.T) {
+	base := queryScoreCacheKey("match", "owner", "prompt", "model", "title", "body")
+	for _, key := range []string{
+		queryScoreCacheKey("match", "other", "prompt", "model", "title", "body"),
+		queryScoreCacheKey("match", "owner", "changed prompt", "model", "title", "body"),
+		queryScoreCacheKey("match", "owner", "prompt", "other model", "title", "body"),
+		queryScoreCacheKey("match", "owner", "prompt", "model", "changed title", "body"),
+		queryScoreCacheKey("match", "owner", "prompt", "model", "title", "changed body"),
+		queryScoreCacheKey("plan", "owner", "prompt", "model", "title", "body"),
+	} {
+		if key == base {
+			t.Fatal("query cache reused a different context or evidence")
+		}
+	}
+}
+
+func TestQueryRerankProtectedContentIsNotSentToOptionalCloudModel(t *testing.T) {
+	for _, item := range []jx.M{
+		{"source_key": "own:123", "text": "private text"},
+		{"source_key": "source:123", "text": "owner source"},
+		{"source_key": "rss:public", "source_sensitive": true},
+		{"nsfw": true},
+		{"safety": []string{"adult"}},
+	} {
+		if !queryRerankProtected(item) {
+			t.Errorf("protected input classified as public: %v", item)
+		}
+	}
+	if queryRerankProtected(jx.M{"source_key": "rss:public", "text": "ordinary news"}) {
+		t.Fatal("ordinary public result lost optional reranking")
+	}
+}

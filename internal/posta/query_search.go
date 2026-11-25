@@ -36,10 +36,13 @@ type QueryPlan struct {
 
 // QuerySearchPlan — формулировки запроса. Кэш на 7 дней; без модели — сам запрос.
 func (u *U) QuerySearchPlan(query, topic string) QueryPlan {
-	key := "query_plan:v2:" + sha1Short(query+"|"+topic, 20)
+	prompt := u.prompt("query_plan", map[string]string{"query": query, "topic": topic})
+	settings := u.LLM.Settings()
+	private := u.TopicIsRestricted(topic)
+	key := queryScoreCacheKey("plan", u.ID, prompt, string(jx.Marshal([]any{settings.Roles[llm.RoleSmart], settings.FastOnly, private})), "", "")
 	var cached QueryPlan
 	if u.CacheGet(u.Ctx, key, &cached) && len(cached.RU) > 0 {
-		return cached
+		return queryPlanIncludeOriginal(query, cached)
 	}
 	plan, ok := u.querySearchPlanModel(query, topic)
 	if !ok {
@@ -57,7 +60,7 @@ func (u *U) querySearchPlanModel(query, topic string) (QueryPlan, bool) {
 	schema := jx.M{"type": "object", "properties": jx.M{"ru": list, "en": list, "hashtags": list, "must": list},
 		"required": []string{"ru", "en", "hashtags", "must"}}
 	prompt := u.prompt("query_plan", map[string]string{"query": query, "topic": topic})
-	resp, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Schema: schema, MaxTokens: 300, Temperature: 0, UserID: u.ID, Quiet: true})
+	resp, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Schema: schema, MaxTokens: 300, Temperature: 0, UserID: u.ID, Quiet: true, Private: u.TopicIsRestricted(topic)})
 	if err != nil {
 		return QueryPlan{}, false
 	}
@@ -158,7 +161,7 @@ func (u *U) QuerySearchCollect(key string) map[string][]jx.M {
 		counts["каталог"] += len(posts)
 	}
 	ranked := rankQuerySearch(got, plan, u.TInt("content_max_age"), func(it jx.M) bool { return u.UAItemBlocked(it) != "" })
-	ranked = u.queryRerank(query, plan, ranked)
+	ranked = u.queryRerank(query, topic, plan, ranked)
 	n := 0
 	for _, posts := range ranked {
 		n += len(posts)
@@ -685,20 +688,41 @@ func validQueryScores(scores []any, expected int) bool {
 // queryRerankN — сколько лучших по словам запроса отдаём модели на оценку «про ли это».
 const queryRerankN = 60
 
-// queryRerank — текстовый реранк: модель оценивает верхние queryRerankN записей (query_match 0–100), кэш на 7 дней по (запрос, ссылка).
+// Cache entries depend on the rendered prompt, exact evidence, owner and
+// model route. Old scores cannot survive prompt edits or model changes.
+func queryScoreCacheKey(kind, owner, prompt, settings, title, body string) string {
+	return "query_" + kind + ":v3:" + repeatDigest(string(jx.Marshal([]string{owner, prompt, settings, title, body})))
+}
+
+// Sensitive or owner-provided material stays in the candidate list, but
+// the optional cloud reranker must not receive its text.
+func queryRerankProtected(item jx.M) bool {
+	source := ContentSourceKey(item)
+	return strings.HasPrefix(source, "own:") || strings.HasPrefix(source, "source:") ||
+		jx.Bool(item, "source_sensitive") || jx.Bool(item, "nsfw") || len(jx.ToStrs(item["safety"])) > 0
+}
+
+// queryRerank — текстовый реранк верхних queryRerankN записей (query_match 0–100).
 // Без ответа модели список не меняется: отбор по словам уже сделан.
-func (u *U) queryRerank(query string, plan QueryPlan, ranked map[string][]jx.M) map[string][]jx.M {
+func (u *U) queryRerank(query, topic string, plan QueryPlan, ranked map[string][]jx.M) map[string][]jx.M {
+	if u.TopicIsRestricted(topic) {
+		return ranked
+	}
 	type ref struct {
 		plat string
 		item jx.M
 		lex  float64
 	}
 	var refs []ref
-	boards := map[string][]jx.M{}
+	protected := map[string][]jx.M{}
 	for _, p := range sortedKeys(ranked) {
 		for _, it := range ranked[p] {
 			if ImageboardItem(it) {
-				boards[p] = append(boards[p], ImageboardMediaOnly(it))
+				protected[p] = append(protected[p], ImageboardMediaOnly(it))
+				continue
+			}
+			if queryRerankProtected(it) || u.analysisPrivate(topic, it) {
+				protected[p] = append(protected[p], it)
 				continue
 			}
 			refs = append(refs, ref{p, it, queryLex(it, plan)})
@@ -712,17 +736,21 @@ func (u *U) queryRerank(query string, plan QueryPlan, ranked map[string][]jx.M) 
 		return jx.Int(refs[a].item, "posted_at") > jx.Int(refs[b].item, "posted_at")
 	})
 	n := min(len(refs), queryRerankN)
+	if n == 0 {
+		return ranked
+	}
+	promptTemplate := u.prompt("query_score", map[string]string{"query": query, "records": ""})
+	settings := u.LLM.Settings()
+	route := string(jx.Marshal([]any{settings.Roles[llm.RoleText], settings.FastOnly}))
 	key := func(it jx.M) string {
-		return "query_match:v2:" + repeatDigest(string(jx.Marshal([]string{
-			strings.ToLower(strings.TrimSpace(query)), trimRunes(jx.Str(it, "title"), 120),
-			AnalysisSnip(jx.Str(it, "text"), 300),
-		})))
+		return queryScoreCacheKey("match", u.ID, promptTemplate, route,
+			trimRunes(jx.Str(it, "title"), 120), AnalysisSnip(jx.Str(it, "text"), 300))
 	}
 	scores := make([]int, n)
 	var todo []int
 	for i := 0; i < n; i++ {
 		var v int
-		if u.CacheGet(u.Ctx, key(refs[i].item), &v) {
+		if u.CacheGet(u.Ctx, key(refs[i].item), &v) && v >= 0 && v <= 100 {
 			scores[i] = v
 		} else {
 			todo = append(todo, i)
@@ -758,12 +786,15 @@ func (u *U) queryRerank(query string, plan QueryPlan, ranked map[string][]jx.M) 
 		order[i] = i
 	}
 	sort.SliceStable(order, func(a, b int) bool { return scores[order[a]] > scores[order[b]] })
-	out := boards
+	out := map[string][]jx.M{}
 	for _, i := range order {
 		out[refs[i].plat] = append(out[refs[i].plat], refs[i].item)
 	}
 	for _, r := range refs[n:] {
 		out[r.plat] = append(out[r.plat], r.item)
+	}
+	for p, items := range protected {
+		out[p] = append(out[p], items...)
 	}
 	return out
 }
