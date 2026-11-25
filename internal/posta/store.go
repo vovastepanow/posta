@@ -716,33 +716,51 @@ func (u *U) Outbox() []jx.M {
 	return list
 }
 
-// OutboxUpdate — заменить очередь пользователя целиком (fn → nil — не менять).
+// OutboxUpdate serializes edits and updates only changed rows. Lock existing
+// rows before reading them so a publisher claim cannot be overwritten by an
+// unrelated calendar edit or by appending a new post.
 func (u *U) OutboxUpdate(fn func(list []jx.M) []jx.M) ([]jx.M, error) {
 	var result []jx.M
 	err := u.DB.Tx(u.Ctx, func(tx pgx.Tx) error {
 		if err := ensureUser(u.Ctx, tx, u.ID); err != nil {
 			return err
 		}
-		tx.Exec(u.Ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, u.ID)
-		rows, err := tx.Query(u.Ctx, `SELECT data FROM outbox WHERE user_id = $1 ORDER BY publish_at`, u.ID)
+		var locked int
+		if err := tx.QueryRow(u.Ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, u.ID).Scan(&locked); err != nil {
+			return err
+		}
+		rows, err := tx.Query(u.Ctx, `SELECT data FROM outbox WHERE user_id = $1 ORDER BY publish_at, id FOR UPDATE`, u.ID)
 		if err != nil {
 			return err
 		}
-		cur, _ := decodeRows(rows)
+		cur, err := decodeRows(rows)
+		if err != nil {
+			return err
+		}
+		original := make(map[string]string, len(cur))
+		for _, item := range cur {
+			original[jx.Str(item, "id")] = string(jx.Marshal(item))
+		}
 		next := fn(cur)
 		if next == nil {
 			result = cur
 			return nil
 		}
 		result = next
-		if _, err := tx.Exec(u.Ctx, `DELETE FROM outbox WHERE user_id = $1`, u.ID); err != nil {
-			return err
-		}
+		seen := make(map[string]bool, len(next))
 		for _, item := range next {
 			id := jx.Str(item, "id")
 			if id == "" {
 				id = randHex(8)
 				item["id"] = id
+			}
+			if seen[id] {
+				return fmt.Errorf("duplicate outbox id %s", id)
+			}
+			seen[id] = true
+			prior, existed := original[id]
+			if existed && prior == string(jx.Marshal(item)) {
+				continue
 			}
 			at := jx.Int(item, "publish_at")
 			if at == 0 {
@@ -752,8 +770,20 @@ func (u *U) OutboxUpdate(fn func(list []jx.M) []jx.M) ([]jx.M, error) {
 			if status == "" {
 				status = "pending"
 			}
-			if _, err := tx.Exec(u.Ctx, `INSERT INTO outbox (id, user_id, publish_at, status, data) VALUES ($1, $2, $3, $4, $5)`, id, u.ID, at, status, db.JSON(item)); err != nil {
+			if existed {
+				_, err = tx.Exec(u.Ctx, `UPDATE outbox SET publish_at=$1, status=$2, data=$3 WHERE id=$4 AND user_id=$5`, at, status, db.JSON(item), id, u.ID)
+			} else {
+				_, err = tx.Exec(u.Ctx, `INSERT INTO outbox (id, user_id, publish_at, status, data) VALUES ($1, $2, $3, $4, $5)`, id, u.ID, at, status, db.JSON(item))
+			}
+			if err != nil {
 				return err
+			}
+		}
+		for id := range original {
+			if !seen[id] {
+				if _, err := tx.Exec(u.Ctx, `DELETE FROM outbox WHERE id=$1 AND user_id=$2`, id, u.ID); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

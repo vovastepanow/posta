@@ -1605,6 +1605,42 @@ func (a *App) RunPublisher(ctx context.Context) {
 	}
 }
 
+// outboxDueIDs excludes posts in retry backoff before applying the batch
+// limit. Otherwise 60 old retries can starve newly due posts.
+func (a *App) outboxDueIDs(ctx context.Context, at int64) ([]string, error) {
+	rows, err := a.DB.Pool.Query(ctx, `SELECT id FROM outbox WHERE status='queued' AND publish_at <= $1
+		AND CASE WHEN jsonb_typeof(data->'next_try_at')='number' THEN (data->>'next_try_at')::numeric ELSE 0 END <= $1
+		ORDER BY publish_at, id LIMIT 60`, at)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
+}
+
+// outboxClaimDue rechecks the actual schedule after acquiring the row
+// lock. A post can be rescheduled after the due IDs have been listed.
+func (a *App) outboxClaimDue(ctx context.Context, id string, at int64) (uid string, post jx.M, err error) {
+	err = a.DB.Tx(ctx, func(tx pgx.Tx) error {
+		var status string
+		var publishAt int64
+		var raw []byte
+		if err := tx.QueryRow(ctx, `SELECT user_id, status, publish_at, data FROM outbox WHERE id=$1 FOR UPDATE`, id).Scan(&uid, &status, &publishAt, &raw); err != nil {
+			return err
+		}
+		if status != "queued" || publishAt > at {
+			return errSkip
+		}
+		post = jx.Unmarshal(raw)
+		if post == nil || jx.Int(post, "next_try_at") > at {
+			return errSkip
+		}
+		post["status"], post["attempts"], post["sending_at"] = "sending", jx.Int(post, "attempts")+1, at
+		_, err := tx.Exec(ctx, `UPDATE outbox SET status='sending', data=$1 WHERE id=$2`, jx.Marshal(post), id)
+		return err
+	})
+	return uid, post, err
+}
+
 // OutboxProcessDue — отправить созревшие посты. Возвращает sent и failed.
 func (a *App) OutboxProcessDue(ctx context.Context) map[string]int {
 	res := map[string]int{"sent": 0, "failed": 0}
@@ -1632,37 +1668,15 @@ func (a *App) OutboxProcessDue(ctx context.Context) map[string]int {
 			res["failed"]++
 		}
 	}
-	rows, err = a.DB.Pool.Query(ctx, `SELECT id FROM outbox WHERE status = 'queued' AND publish_at <= $1 ORDER BY publish_at LIMIT 60`, t)
+	ids, err := a.outboxDueIDs(ctx, t)
 	if err != nil {
 		return res
 	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		rows.Scan(&id)
-		ids = append(ids, id)
-	}
-	rows.Close()
 	for _, id := range ids {
 		if ctx.Err() != nil {
 			break
 		}
-		var uid string
-		var post jx.M
-		err := a.DB.Tx(ctx, func(tx pgx.Tx) error {
-			var status string
-			var raw []byte
-			if err := tx.QueryRow(ctx, `SELECT user_id, status, data FROM outbox WHERE id = $1 FOR UPDATE`, id).Scan(&uid, &status, &raw); err != nil || status != "queued" {
-				return errSkip
-			}
-			post = jx.Unmarshal(raw)
-			if jx.Int(post, "next_try_at") > t {
-				return errSkip
-			}
-			post["status"], post["attempts"], post["sending_at"] = "sending", jx.Int(post, "attempts")+1, t
-			_, err := tx.Exec(ctx, `UPDATE outbox SET status = 'sending', data = $1 WHERE id = $2`, jx.Marshal(post), id)
-			return err
-		})
+		uid, post, err := a.outboxClaimDue(ctx, id, now())
 		if err != nil {
 			continue
 		}

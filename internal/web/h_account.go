@@ -969,7 +969,7 @@ func telegramRetry(c *Ctx) (any, error) {
 		return nil, fail(400, "Некорректный номер поста.")
 	}
 	found := false
-	c.U.OutboxUpdate(func(q []jx.M) []jx.M {
+	_, err := c.U.OutboxUpdate(func(q []jx.M) []jx.M {
 		for _, e := range q {
 			if jx.Str(e, "id") == id && jx.Str(e, "status") == "failed" {
 				found = true
@@ -979,6 +979,9 @@ func telegramRetry(c *Ctx) (any, error) {
 		}
 		return q
 	})
+	if err != nil {
+		return nil, err
+	}
 	if !found {
 		return nil, fail(404, "Этого поста нет среди неудачных.")
 	}
@@ -1045,7 +1048,16 @@ func telegramReschedule(c *Ctx) (any, error) {
 	if d := u.BillingPostDenied(true); d != "" {
 		return nil, fail(429, d)
 	}
-	u.OutboxUpdate(func(q []jx.M) []jx.M {
+	moved := 0
+	_, err := u.OutboxUpdate(func(q []jx.M) []jx.M {
+		for _, e := range q {
+			if _, has := plan[jx.Str(e, "id")]; has && jx.Str(e, "status") == "queued" {
+				moved++
+			}
+		}
+		if moved != len(plan) {
+			return nil
+		}
 		for _, e := range q {
 			if m, has := plan[jx.Str(e, "id")]; has && jx.Str(e, "status") == "queued" {
 				e["publish_at"], e["slot"] = m.at, m.slot != nil
@@ -1058,7 +1070,13 @@ func telegramReschedule(c *Ctx) (any, error) {
 		}
 		return q
 	})
-	return ok(jx.M{"publish_at": plan[id].at, "slot": plan[id].slot != nil, "moved": len(plan)}), nil
+	if err != nil {
+		return nil, err
+	}
+	if moved != len(plan) {
+		return nil, fail(409, "Очередь изменилась: обновите календарь и повторите перенос.")
+	}
+	return ok(jx.M{"publish_at": plan[id].at, "slot": plan[id].slot != nil, "moved": moved}), nil
 }
 
 func telegramQueue(c *Ctx) (any, error) {

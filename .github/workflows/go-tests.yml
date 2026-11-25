@@ -95,7 +95,7 @@ jobs:
       - name: Verify atomic pool votes and repeat memory with PostgreSQL
         env:
           POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
-        run: go test ./internal/posta -run '^(TestVotePoolAtomicPostgres|TestRepeatMemoryPostgres)$' -count=1 -timeout=5m
+        run: go test ./internal/posta -run '^(TestVotePoolAtomicPostgres|TestRepeatMemoryPostgres|TestOutboxEditAndClaimPostgres)$' -count=1 -timeout=5m
       - name: Verify historic OK rejections with PostgreSQL
         run: go test ./internal/posta -run '^TestAutopilotReconsiderHistoricOKRejectsOnlyOncePostgres$' -count=1 -timeout=3m
       - name: Verify model failure recovery and text-only feeds
