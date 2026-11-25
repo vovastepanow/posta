@@ -667,6 +667,9 @@ func telegramPostTextFields(content string) (text, markup, forwardedFrom, forwar
 
 // TelegramPostMedia — медиа сообщения по плиткам альбома.
 func TelegramPostMedia(content string, maxN int) []jx.M {
+	if maxN <= 0 {
+		return nil
+	}
 	locs := tgMediaSplitRe.FindAllStringIndex(content, -1)
 	var media []jx.M
 	for i, l := range locs {
@@ -688,7 +691,7 @@ func TelegramPostMedia(content string, maxN int) []jx.M {
 		} else if m := bgImageRe.FindStringSubmatch(part); m != nil {
 			img = htmlAttr(m[1])
 		}
-		if img != "" {
+		if img != "" || video != "" {
 			media = append(media, jx.M{"image": img, "video": video})
 		}
 		if len(media) >= maxN {
@@ -730,9 +733,18 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 		if len(media) > 0 {
 			video = jx.Str(media[0], "video")
 		}
-		unavailable := video == "" && videoPlayerRe.MatchString(b.Content)
-		textOnly := len(images) == 0 && withText && runeLen(text) >= minText && text != ""
-		if len(images) == 0 && !textOnly {
+		// A photo-first album can contain playable video in later tiles.
+		// A directly playable video also need not expose a poster.
+		hasVideo := false
+		for _, m := range media {
+			if jx.Str(m, "video") != "" {
+				hasVideo = true
+				break
+			}
+		}
+		unavailable := !hasVideo && videoPlayerRe.MatchString(b.Content)
+		textOnly := len(images) == 0 && !hasVideo && withText && runeLen(text) >= minText && text != ""
+		if len(images) == 0 && !hasVideo && !textOnly {
 			continue
 		}
 		t := TelegramPostTime(b.Content)

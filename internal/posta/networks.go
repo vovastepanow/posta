@@ -85,7 +85,7 @@ type Network struct {
 }
 
 var networkOrder = []string{"telegram", "vk", "max", "bluesky", "mastodon", "discord", "dzen", "ok", "youtube", "pinterest", "tumblr", "linkedin",
-	"threads", "instagram", "facebook", "x", "reddit", "tiktok", "rutube", "vk_clips", "whatsapp", "viber", "likee", "yappy"}
+	"threads", "instagram", "facebook", "x", "reddit", "tiktok", "rutube", "viber"}
 
 // Networks — реестр соцсетей; ключи приложений берутся из posta.env.
 func (a *App) Networks() map[string]*Network {
@@ -132,11 +132,9 @@ func (a *App) Networks() map[string]*Network {
 			Docs: "partly", AppKeys: []string{"REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"}, OAuth: redditOAuth, Publish: redditPublish},
 		"tiktok":   na("TikTok", "Публикация доступна только после аудита приложения TikTok: без проверки видно «только мне»."),
 		"rutube":   na("Rutube", "Открытого API публикации нет."),
-		"vk_clips": na("ВК Клипы", "Отдельной ленты с открытым API публикации нет."),
-		"whatsapp": na("WhatsApp-каналы", "Открытого API публикации в каналы нет."),
+
 		"viber":    na("Viber", "Открытого API публикации нет."),
-		"likee":    na("Likee", "Открытого API публикации нет."),
-		"yappy":    na("Яппи", "Открытого API публикации нет."),
+
 	}
 	r["telegram"].Publish = telegramNetworkPublish
 	for k, n := range r {
