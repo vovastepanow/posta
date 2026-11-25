@@ -1159,18 +1159,9 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	queueGoal := min(500, max(config.PrescreenBatch, 2*max(1, min(u.TInt("added_per_run"), u.TInt("pool_target")-u.PoolTopicCount(topic)))))
 	returned := 0
 	if len(order) < queueGoal && len(deferred) > 0 {
-		fallback := make([]jx.M, 0, len(deferred))
-		for _, k := range deferred {
-			fallback = append(fallback, unique[k])
-		}
-		for _, it := range InterleaveBySource(fallback)[:min(len(fallback), queueGoal-len(order))] {
-			key := jx.Str(it, "image")
-			if key == "" {
-				key = CandidateTextKey(it)
-			}
-			order = append(order, key)
-			returned++
-		}
+		fallback := collectorDeferredKeys(unique, deferred, queueGoal-len(order))
+		order = append(order, fallback...)
+		returned = len(fallback)
 		skipped["source_busy_returned"] = returned
 	}
 	skipped["source_busy"] = len(deferred) - returned
@@ -1214,6 +1205,32 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	})
 	short := u.hotShortlist(all, rates, topic)
 	return short[:min(len(short), 500)], skipped
+}
+
+// Restore exactly the identities used when building the unique map. Image
+// URLs and long text fingerprints are not the keys of videos/short posts.
+func collectorDeferredKeys(unique map[string]jx.M, deferred []string, limit int) []string {
+	if limit <= 0 {
+		return nil
+	}
+	fallback := make([]jx.M, 0, len(deferred))
+	for _, key := range deferred {
+		if it := unique[key]; it != nil {
+			fallback = append(fallback, it)
+		}
+	}
+	var keys []string
+	for _, it := range InterleaveBySource(fallback) {
+		key := ContentItemKey(it)
+		if key == "" || unique[key] == nil {
+			continue
+		}
+		keys = append(keys, key)
+		if len(keys) >= limit {
+			break
+		}
+	}
+	return keys
 }
 
 // InterleaveBySource — по одному с каждого источника по очереди.
@@ -1389,16 +1406,18 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 		keywords, exclude = p.Keywords, hotWords(p.Exclude)
 	}
 	shortN := u.TInt("hot_shortlist")
-	var first, rest []jx.M
+	var first, rest, softTail []jx.M
 	var boost []float64
-	excluded := 0
 	for _, it := range all {
 		text := jx.Str(it, "text")
 		if ImageboardItem(it) {
 			text = ""
 		}
-		if len(exclude) > 0 && hotHasWord(text, exclude) {
-			excluded++
+		// Profile exclusions are model-generated prose, not user bans.
+		// A single word can appear in a comparison, negation or quotation;
+		// postpone to full analysis instead of discarding the publication.
+		if collectorExcludeHint(text, exclude) {
+			softTail = append(softTail, it)
 			continue
 		}
 		named := query != "" && QueryTextHit(text, query)
@@ -1480,7 +1499,7 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 		}
 	}
 	if u.run != nil {
-		hs := jx.M{"total": len(all), "short": len(picked) + len(first), "per": per, "excluded": excluded, "trusted": trusted, "imageboard_tail": tail, "top": nil,
+		hs := jx.M{"total": len(all), "short": len(picked) + len(first), "per": per, "excluded": 0, "keyword_demoted": len(softTail), "trusted": trusted, "imageboard_tail": tail, "top": nil,
 			"per_source_cut": perSourceCut, "shortlist_cut": len(pool) - len(picked)}
 		if top >= 0 {
 			hs["top"] = jx.M{"source": jx.Str(rest[top], "source"), "times": math.Round(heat[top]*10) / 10}
@@ -1500,7 +1519,11 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 			tailItems = append(tailItems, it)
 		}
 	}
-	return append(append(first, InterleaveBySource(hot)...), InterleaveBySource(tailItems)...)
+	return append(append(append(first, InterleaveBySource(hot)...), InterleaveBySource(tailItems)...), InterleaveBySource(softTail)...)
+}
+
+func collectorExcludeHint(text string, exclude []string) bool {
+	return len(exclude) > 0 && hotHasWord(text, exclude)
 }
 
 // A caption is incomplete evidence when the post also contains media.
@@ -2367,8 +2390,8 @@ func (u *U) RunCollector() bool {
 		if top := jx.Map(hs, "top"); top != nil {
 			line += fmt.Sprintf("; самый горячий — %s ×%v к обычному", jx.Str(top, "source"), top["times"])
 		}
-		if x := jx.Int(hs, "excluded"); x > 0 {
-			line += fmt.Sprintf(". Отброшено по словам «не подходит»: %d", x)
+		if x := jx.Int(hs, "keyword_demoted"); x > 0 {
+			line += fmt.Sprintf(". Отложено в хвост по словам «не подходит» (не отброшено): %d", x)
 		}
 		line += fmt.Sprintf(". Срез очереди на источник: %d, срез шортлиста: %d", jx.Int(hs, "per_source_cut"), jx.Int(hs, "shortlist_cut"))
 		u.Log("%s, из доверенных тредов %d; имиджборд без признаков темы — в хвост: %d.", line, jx.Int(hs, "trusted"), jx.Int(hs, "imageboard_tail"))
