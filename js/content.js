@@ -152,6 +152,44 @@ function watchItemVideo(item) {
     });
 }
 
+const aiRepairAttempts = new Set();
+
+function repairCardAIText(item) {
+    const key = item.item_key || item.image;
+    const status = $('item-ai-repair');
+    status.replaceChildren();
+    status.hidden = true;
+    if (!key || !item.ai_text_needs_repair || item.ai_text_repaired) return;
+    const attemptKey = JSON.stringify([item.topic, key]);
+    const start = async () => {
+        aiRepairAttempts.add(attemptKey);
+        status.hidden = false;
+        status.textContent = 'Восстанавливаю полное описание ИИ…';
+        try {
+            const fields = await api('repair_item_ai_text', { body: { item_key: key } });
+            if ((state.item?.item_key || state.item?.image) !== key || state.item?.topic !== item.topic) return;
+            Object.assign(state.item, fields, { ai_text_needs_repair: false });
+            $('item-why-text').textContent = fields.why_relevant;
+            $('item-desc').replaceChildren(el('strong', { textContent: 'Описание ИИ:' }), ` ${fields.description}`);
+            status.hidden = true;
+        } catch (error) {
+            if ((state.item?.item_key || state.item?.image) !== key || state.item?.topic !== item.topic) return;
+            status.replaceChildren(el('span', { textContent: `Старый анализ неполный. ${error.message} ` }), el('button', { type: 'button', className: 'topic-link', textContent: 'Повторить', onclick: start }));
+        }
+    };
+    // Do not launch a separate media download while the main video job is running.
+    if (item.video_via && !item.video) {
+        status.hidden = false;
+        status.textContent = 'Старое описание будет восстановлено после загрузки видео.';
+        return;
+    }
+    if (!aiRepairAttempts.has(attemptKey)) start();
+    else {
+        status.hidden = false;
+        status.append(el('button', { type: 'button', className: 'topic-link', textContent: 'Восстановить неполный анализ', onclick: start }));
+    }
+}
+
 function renderCard(item, archiveInfo = null) {
     Object.assign(state, { item, index: 0, showOriginal: false });
     watchItemVideo(item);
@@ -204,6 +242,7 @@ function renderCard(item, archiveInfo = null) {
     }
 
     showArea('card');
+    repairCardAIText(item);
     const source = item.source || 'источник не указан';
     log(`Показана запись: ${url ? `[${source}](${url})` : source}, по теме ${relevance}%${rating === null ? '' : `, прогноз ${rating}%`}.`);
 }
