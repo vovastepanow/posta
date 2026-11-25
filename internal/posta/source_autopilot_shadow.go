@@ -199,8 +199,14 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 					WHERE j.scope=$1 AND j.kind=$2 AND j.enabled AND j.demand_active
 					AND j.lease_until <= extract(epoch FROM clock_timestamp())::bigint
 					AND j.last_error=$4 AND j.next_run_at>$3
-					-- A raised topic model cap can also release a previously
-					-- exhausted job. Recheck all actual ledger limits below.
+					-- Resume only with evidence of reaching an older cap.
+					-- A generic budget error alone must not erase a backoff.
+					AND (COALESCE((SELECT used FROM source_autopilot_budget
+						WHERE scope=(CASE WHEN j.scope='public:shadow' THEN 'public' ELSE j.scope END)||':'||j.topic_key
+						AND resource='public_fetch' AND day=(now() AT TIME ZONE 'UTC')::date),0) >= 1000
+					OR COALESCE((SELECT used FROM source_autopilot_budget
+						WHERE scope=(CASE WHEN j.scope='public:shadow' THEN 'public' ELSE j.scope END)||':'||j.topic_key
+						AND resource='llm_attempt' AND day=(now() AT TIME ZONE 'UTC')::date),0) >= 500)
 					AND COALESCE((SELECT used FROM source_autopilot_budget
 						WHERE scope=(CASE WHEN j.scope='public:shadow' THEN 'public' ELSE j.scope END)||':'||j.topic_key
 						AND resource='public_fetch' AND day=(now() AT TIME ZONE 'UTC')::date),0) < $5

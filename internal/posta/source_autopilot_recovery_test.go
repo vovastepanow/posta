@@ -117,6 +117,35 @@ func TestAutopilotRecoversStaleFailuresWithoutBypassingQuotaPostgres(t *testing.
 		WHERE scope=$1 AND resource='public_fetch'`, autopilotAutoScope+":"+key)
 	change(true, "source autopilot budget exhausted")
 	check(true)
+
+	// Isolate the old model cap from the old fetch cap. A job with 500
+	// attempts may resume under the new default of 2000, but a genuinely
+	// exhausted current cap or an unrelated backoff must remain protected.
+	budgetScope := autopilotAutoScope + ":" + key
+	if _, err := d.Pool.Exec(ctx, `DELETE FROM source_autopilot_budget
+		WHERE scope=$1 AND resource='public_fetch'`, budgetScope); err != nil {
+		t.Fatal(err)
+	}
+	defer d.Pool.Exec(context.Background(), `DELETE FROM source_autopilot_budget
+		WHERE scope=$1 AND resource='llm_attempt'`, budgetScope)
+	setModelUsed := func(used int) {
+		t.Helper()
+		if _, err := d.Pool.Exec(ctx, `INSERT INTO source_autopilot_budget(scope,resource,day,used)
+			VALUES($1,'llm_attempt',(now() AT TIME ZONE 'UTC')::date,$2)
+			ON CONFLICT(scope,resource,day) DO UPDATE SET used=EXCLUDED.used`, budgetScope, used); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setModelUsed(499)
+	change(true, "source autopilot budget exhausted")
+	check(false)
+	setModelUsed(500)
+	change(true, "source autopilot budget exhausted")
+	check(true)
+	setModelUsed(a.TInt("autopilot_model_topic_daily"))
+	change(true, "source autopilot budget exhausted")
+	check(false)
+
 	change(false, "classifier_unavailable")
 	check(false)
 	change(true, "")
