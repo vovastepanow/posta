@@ -180,18 +180,26 @@ func (a *App) TelegramBotRequest(ctx context.Context, token, method string, fiel
 	req.Header.Set("User-Agent", HTTPUA)
 	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
-		return nil, Bad("Telegram недоступен: %s", err)
+		// net/http errors contain the request URL including the bot token.
+		if strings.HasPrefix(method, "send") {
+			return nil, uncertainPublish("Связь с Telegram прервалась.")
+		}
+		return nil, Bad("Telegram недоступен.")
 	}
 	defer resp.Body.Close()
 	if onUpload != nil {
 		onUpload(100)
 	}
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	var data struct {
 		OK     bool            `json:"ok"`
 		Result json.RawMessage `json:"result"`
 	}
-	if json.Unmarshal(raw, &data) != nil || !data.OK {
+	decodeErr := json.Unmarshal(raw, &data)
+	if strings.HasPrefix(method, "send") && (readErr != nil || decodeErr != nil || resp.StatusCode >= 500 || resp.StatusCode == 408 || (data.OK && len(data.Result) == 0)) {
+		return nil, uncertainPublish("Telegram не подтвердил результат отправки.")
+	}
+	if readErr != nil || decodeErr != nil || !data.OK {
 		return nil, Bad("%s", telegramErrorText(jx.Unmarshal(raw), resp.StatusCode))
 	}
 	return data.Result, nil
@@ -758,7 +766,8 @@ func TelegramCheckText(text string, mediaCount int) error {
 }
 
 type SentResult struct {
-	MessageIDs []int
+	MessageIDs  []int
+	ExternalIDs []string
 	URL        string
 	Skipped    []string
 	MediaKept  []Prepared
@@ -837,9 +846,14 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 	var msgs []struct {
 		MessageID int `json:"message_id"`
 	}
-	json.Unmarshal(raw, &msgs)
+	if json.Unmarshal(raw, &msgs) != nil || len(msgs) != max(1, len(prepared)) {
+		return nil, uncertainPublish("Telegram не подтвердил все сообщения.")
+	}
 	r := &SentResult{MediaKept: prepared}
 	for _, m := range msgs {
+		if m.MessageID <= 0 {
+			return nil, uncertainPublish("Telegram не вернул корректный ID сообщения.")
+		}
 		r.MessageIDs = append(r.MessageIDs, m.MessageID)
 	}
 	if len(r.MessageIDs) > 0 {
@@ -887,7 +901,9 @@ func (a *App) TelegramPublishPoll(ctx context.Context, c *Channel, poll jx.M) (*
 	var m struct {
 		MessageID int `json:"message_id"`
 	}
-	json.Unmarshal(raw, &m)
+	if json.Unmarshal(raw, &m) != nil || m.MessageID <= 0 {
+		return nil, uncertainPublish("Telegram не вернул ID опроса.")
+	}
 	return &SentResult{MessageIDs: []int{m.MessageID}, URL: TelegramMessageURL(c, m.MessageID)}, nil
 }
 
@@ -1173,6 +1189,14 @@ var outboxFatal = []string{"was kicked", "chat not found", "forbidden", "not eno
 // ErrNetworkRejected — отказ соцсети: повтор не исправит.
 var ErrNetworkRejected = errors.New("соцсеть отклонила пост")
 
+// ErrPublishUncertain means the remote side may already have published the
+// post. Automatic retry is unsafe until the result is reconciled.
+var ErrPublishUncertain = errors.New("результат публикации неизвестен")
+
+func uncertainPublish(message string) error {
+	return fmt.Errorf("%s Проверьте целевой канал перед повтором: %w", message, ErrPublishUncertain)
+}
+
 var postIDRe = regexp.MustCompile(`^[a-f0-9]{12}$`)
 
 func (a *App) OutboxMediaDir(postID string) (string, error) {
@@ -1433,8 +1457,15 @@ func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.
 	if sent != nil {
 		url, skipped = sent.URL, sent.Skipped
 	}
+	var externalIDs []string
+	if sent != nil {
+		externalIDs = append(externalIDs, sent.ExternalIDs...)
+		for _, id := range sent.MessageIDs {
+			externalIDs = append(externalIDs, strconv.Itoa(id))
+		}
+	}
 	entry := jx.Merge(TelegramPostSummary(jx.Str(post, "text"), len(shown)), jx.M{"at": now(), "scheduled_for": jx.Int(post, "publish_at"), "url": url, "status": "ok",
-		"error": "", "channel": c.ID, "channel_title": c.ChatTitle, "media_src": MediaSourcesOf(shown), "skipped": orStrs(skipped), "thumb_id": jx.Str(post, "thumb_id"), "source_key": jx.Str(post, "source_key"), "topic": jx.Str(post, "topic"), "record": jx.Str(post, "record"), "outbox_id": postID})
+		"error": "", "channel": c.ID, "channel_title": c.ChatTitle, "media_src": MediaSourcesOf(shown), "skipped": orStrs(skipped), "thumb_id": jx.Str(post, "thumb_id"), "source_key": jx.Str(post, "source_key"), "topic": jx.Str(post, "topic"), "record": jx.Str(post, "record"), "outbox_id": postID, "external_ids": orStrs(externalIDs)})
 	// The remote API has already accepted the post. Never discard its
 	// queue record or files until the local history commit succeeds.
 	if err := a.DB.Tx(ctx, func(tx pgx.Tx) error {
@@ -1784,7 +1815,7 @@ func (a *App) OutboxProcessDue(ctx context.Context) map[string]int {
 			return a.OutboxSendPost(ctx, uid, post, c)
 		}()
 		if err != nil {
-			if a.outboxRetryOrFail(ctx, id, uid, post, err.Error(), errors.Is(err, ErrNetworkRejected)) {
+			if a.outboxRetryOrFail(ctx, id, uid, post, err.Error(), errors.Is(err, ErrNetworkRejected) || errors.Is(err, ErrPublishUncertain)) {
 				res["failed"]++
 			}
 			continue
