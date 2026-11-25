@@ -44,12 +44,12 @@ func TestTelegramPhotoFirstAlbumWithPlayableVideo(t *testing.T) {
 func TestPublishingConnectionAvailability(t *testing.T) {
 	a := &App{}
 	catalog := a.Networks()
-	for _, key := range []string{"telegram", "vk", "max", "discord", "mastodon", "bluesky", "wordpress"} {
+	for _, key := range []string{"telegram", "vk", "max"} {
 		if !catalog[key].PublishingConnectionAvailable() {
 			t.Errorf("expected connectable: %s", key)
 		}
 	}
-	for _, key := range []string{"reddit", "tumblr", "linkedin", "viber", "dzen", "instagram", "facebook", "threads", "tiktok", "rutube", "youtube", "pinterest", "x", "ok", "tenchat", "medium", "bitrix", "google_business"} {
+	for _, key := range []string{"discord", "mastodon", "bluesky", "wordpress", "reddit", "tumblr", "linkedin", "viber", "dzen", "instagram", "facebook", "threads", "tiktok", "rutube", "youtube", "pinterest", "x", "ok", "tenchat", "medium", "bitrix", "google_business"} {
 		if catalog[key].PublishingConnectionAvailable() {
 			t.Errorf("unexpected new connection: %s", key)
 		}
@@ -64,5 +64,21 @@ func TestPublishingConnectionAvailability(t *testing.T) {
 	vk.Status = "needs_keys"
 	if vk.PublishingConnectionAvailable() {
 		t.Fatal("unconfigured adapter exposed")
+	}
+}
+
+func TestPublishingScopeMatchesSmmBox(t *testing.T) {
+	want := []string{"telegram", "vk", "ok", "max", "instagram", "facebook", "youtube", "tiktok", "rutube", "threads", "x", "pinterest", "tumblr", "dzen"}
+	a := &App{}
+	catalog := a.Networks()
+	for _, key := range want {
+		if catalog[key] == nil || !publishingInScope(key) {
+			t.Errorf("missing SmmBox platform: %s", key)
+		}
+	}
+	for key := range catalog {
+		if publishingInScope(key) != contains(want, key) {
+			t.Errorf("unexpected scope: %s", key)
+		}
 	}
 }

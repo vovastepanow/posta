@@ -4,9 +4,9 @@ Baseline: 46921ea83903. This is a static code audit, not live API certification.
 
 ## Publishing
 
-The product scope is the union of SmmBox, SMMplanner, Postmypost and Onlypult: 25 distinct destinations (counting Instagram and YouTube once each). Webhook is a separate generic delivery capability, not a social platform. Every implemented ready/beta adapter is eligible for connection; missing keys or an absent adapter are not a working integration. Beta remains owner-only. Existing resources and queued deliveries are retained.
+The product scope is exactly SmmBox's 14 destinations: Telegram, VK, OK, MAX, Instagram, Facebook, YouTube, TikTok, Rutube, Threads, X, Pinterest, Tumblr and Dzen. New connections require both inclusion in scope and an implemented ready/beta adapter. Existing resources and queued deliveries are retained; out-of-scope adapters remain dormant for new connections. Beta remains owner-only.
 
-Source evidence (checked 2026-11-26): https://smmbox.com/tarif.php ; https://smmplanner.com/ ; https://postmypost.io/ru/publications ; https://help.postmypost.ru/ru/docs/api/postmypost-rest-api ; https://ru.onlypult.com/ru/pages/platforms . Competitor claims are scope evidence, not evidence that Posta has working APIs.
+Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https://smmbox.com/ . Competitor claims are scope evidence, not evidence that Posta has working APIs.
 
 | Platform | Existing implementation / gap |
 |---|---|
@@ -19,9 +19,10 @@ Source evidence (checked 2026-11-26): https://smmbox.com/tarif.php ; https://smm
 | X | OAuth, text publishing; app keys and API access required |
 | Instagram, Facebook, Threads | Placeholder, not an executable publisher |
 | TikTok, Rutube | No executable publisher in current registry |
-| Discord, Mastodon, Bluesky, Reddit, Tumblr, LinkedIn | Keep all existing adapters eligible subject to readiness/keys; verify real formats and permissions |
-| WordPress | New owner-only text adapter for self-hosted sites; application password and publish_posts capability; no media yet |
-| TenChat, Medium, Bitrix24, Google Business Profile | In scope, not connected or implemented yet |
+| Tumblr | In scope; existing text adapter requires app keys |
+| Discord, Mastodon, Bluesky, Reddit, LinkedIn | Existing adapters preserved, new connections disabled |
+| WordPress | Out of scope; existing text adapter preserved |
+| TenChat, Medium, Bitrix24, Google Business Profile | Out of scope |
 | Dzen, Viber | No executable direct publisher |
 
 Limits in third-party proposals are not specifications until checked against the actual API, permission level and account type.

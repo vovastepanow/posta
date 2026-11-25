@@ -249,14 +249,23 @@ func networkFitMedia(n *Network, media []Prepared) ([]Prepared, []string) {
 	return kept, skipped
 }
 
+// publishingInScope is the SmmBox product scope, independent of adapter readiness.
+func publishingInScope(key string) bool {
+	switch key {
+	case "telegram", "vk", "ok", "max", "instagram", "facebook", "youtube", "tiktok", "rutube", "threads", "x", "pinterest", "tumblr", "dzen":
+		return true
+	default:
+		return false
+	}
+}
+
 // PublishingConnectionAvailable controls new connections, not existing deliveries.
 // Keep inactive adapters in Networks for existing resources and future integration work.
 func (n *Network) PublishingConnectionAvailable() bool {
 	if n == nil || n.Publish == nil || (n.Status != "ready" && n.Status != "beta") {
 		return false
 	}
-	// The catalog is the competitor union, not a separate priority allowlist.
-	return n.Key == "telegram" || n.Connect != nil || n.OAuth != nil
+	return publishingInScope(n.Key) && (n.Key == "telegram" || n.Connect != nil || n.OAuth != nil)
 }
 
 // NetworksPublic — реестр для интерфейса.
@@ -265,7 +274,7 @@ func (a *App) NetworksPublic() jx.M {
 	for k, n := range a.Networks() {
 		out[k] = jx.M{"title": n.Title, "prefix": n.Prefix, "status": n.Status, "note": n.Note, "text_limit": n.TextLimit, "media_max": n.MediaMax,
 			"kinds": orStrs(n.Kinds), "poll": n.Poll, "fields": n.Fields, "docs": n.Docs, "oauth": n.OAuth != nil,
-			"connect_available": n.PublishingConnectionAvailable()}
+			"connect_available": n.PublishingConnectionAvailable(), "publishing_in_scope": publishingInScope(k)}
 	}
 	return out
 }
