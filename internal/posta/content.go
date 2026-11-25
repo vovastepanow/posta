@@ -176,9 +176,16 @@ func (u *U) PoolWithoutLostVideo(pool []jx.M) []jx.M {
 // PoolOrder — порядок показа: по свежести поста, подряд не больше одного поста источника (если в окне есть другой).
 // Темы не смешиваются; отложенные («✋») — после остальных. card_score порядок не решает.
 func PoolOrder(pool []jx.M) []jx.M {
+	return poolOrderWithPreference(pool, nil)
+}
+
+// Personal preferences adjust freshness by only a small bounded interval;
+// the existing topic groups, postponement and source diversity still apply.
+func poolOrderWithPreference(pool []jx.M, bonus func(jx.M) int64) []jx.M {
 	type entry struct {
-		item jx.M
-		seq  int
+		item  jx.M
+		seq   int
+		score int64
 	}
 	var order []string
 	groups := map[string][]entry{}
@@ -187,13 +194,14 @@ func PoolOrder(pool []jx.M) []jx.M {
 		if _, ok := groups[t]; !ok {
 			order = append(order, t)
 		}
-		groups[t] = append(groups[t], entry{it, i})
-	}
-	fresh := func(it jx.M) int64 {
-		if jx.Has(it, "posted_at") {
-			return jx.Int(it, "posted_at")
+		fresh := jx.Int(it, "posted_at")
+		if fresh <= 0 {
+			fresh = jx.Int(it, "pooled_at")
 		}
-		return jx.Int(it, "pooled_at")
+		if bonus != nil && !jx.Bool(it, "postponed_at") {
+			fresh += bonus(it)
+		}
+		groups[t] = append(groups[t], entry{item: it, seq: i, score: fresh})
 	}
 	out := make([]jx.M, 0, len(pool))
 	for _, t := range order {
@@ -203,7 +211,7 @@ func PoolOrder(pool []jx.M) []jx.M {
 			if pa != pb {
 				return pa < pb
 			}
-			fa, fb := fresh(g[a].item), fresh(g[b].item)
+			fa, fb := g[a].score, g[b].score
 			if fa != fb {
 				return fa > fb
 			}

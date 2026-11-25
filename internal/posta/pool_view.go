@@ -67,7 +67,7 @@ func (u *U) PoolForCurrentTopic() []jx.M {
 	if err != nil {
 		return nil
 	}
-	return selectPoolItems(pool, func(i jx.M) bool {
+	return u.selectPersonalPoolItems(pool, topic, key, func(i jx.M) bool {
 		return blogs(i) && u.PoolItemInTopic(i, topic, key, adult) && poolMatchesDisplayFilters(i, f, frozen)
 	})
 }
@@ -106,17 +106,30 @@ func (u *U) PoolStaleForCurrentTopic() []jx.M {
 	if err != nil {
 		return nil
 	}
-	return selectPoolItems(u.Pool(), func(item jx.M) bool {
+	return u.selectPersonalPoolItems(u.Pool(), topic, key, func(item jx.M) bool {
 		return blogs(item) && !u.poolItemFresh(item) && u.PoolItemInTopic(item, topic, key, adult) && poolMatchesDisplayFilters(item, f, frozen)
 	})
 }
 
-func selectPoolItems(pool []jx.M, matches func(jx.M) bool) []jx.M {
+func matchingPoolItems(pool []jx.M, matches func(jx.M) bool) []jx.M {
 	var shown []jx.M
 	for _, item := range pool {
 		if matches(item) {
 			shown = append(shown, item)
 		}
 	}
-	return PoolOrder(shown)
+	return shown
+}
+
+func selectPoolItems(pool []jx.M, matches func(jx.M) bool) []jx.M {
+	return PoolOrder(matchingPoolItems(pool, matches))
+}
+
+func (u *U) selectPersonalPoolItems(pool []jx.M, topic, key string, matches func(jx.M) bool) []jx.M {
+	shown := matchingPoolItems(pool, matches)
+	if len(shown) < 2 {
+		return shown
+	}
+	affinity := u.loadPersonalPoolAffinity(topic, key)
+	return poolOrderWithPreference(shown, affinity.bonus)
 }
