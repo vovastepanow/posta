@@ -363,27 +363,72 @@ func (u *U) HistoryAppend(collection string, record jx.M) error {
 		if _, err := tx.Exec(u.Ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "posta:content:"+u.ID); err != nil {
 			return err
 		}
-		record["repeat_action_at"] = now()
-		if err := rememberRepeat(u.Ctx, tx, u.ID, record, now()); err != nil {
-			return err
-		}
-		var pos int
-		tx.QueryRow(u.Ctx, `SELECT COALESCE(MAX(position), -1) + 1 FROM history_items WHERE user_id = $1 AND collection = $2`, u.ID, collection).Scan(&pos)
-		key := ContentImageKey(record)
-		if key != "" {
-			if _, err := tx.Exec(u.Ctx, `DELETE FROM history_items WHERE user_id = $1 AND image_key = $2`, u.ID, key); err != nil {
-				return err
-			}
-		}
-		_, err := tx.Exec(u.Ctx, `INSERT INTO history_items (user_id, collection, position, image_key, proposal_hidden, data) VALUES ($1, $2, $3, $4, $5, $6)`,
-			u.ID, collection, pos, key, jx.Bool(record, "proposal_hidden"), db.JSON(record))
-		return err
+		return u.historyAppendTx(tx, collection, record)
 	})
-	// Лайк, «не знаю» (пол-лайка), дизлайк и жалоба «ошибка подбора» сдвигают индекс качества источника
-	if err == nil && (collection == "liked" || collection == "disliked" || collection == "undecided" || (collection == "complaints" && jx.Str(record, "complaint_reason") == "match_error")) {
-		u.SourceQualityUpdate(u.Ctx, record)
+	if err == nil {
+		u.historyVoteCommitted(collection, record)
 	}
 	return err
+}
+
+// historyAppendTx requires the caller to hold the per-user content lock.
+// Pool transitions and history writes can therefore share one transaction.
+func (u *U) historyAppendTx(tx pgx.Tx, collection string, record jx.M) error {
+	record["repeat_action_at"] = now()
+	if err := rememberRepeat(u.Ctx, tx, u.ID, record, now()); err != nil {
+		return err
+	}
+	var pos int
+	if err := tx.QueryRow(u.Ctx, `SELECT COALESCE(MAX(position), -1) + 1 FROM history_items WHERE user_id = $1 AND collection = $2`, u.ID, collection).Scan(&pos); err != nil {
+		return err
+	}
+	key := ContentImageKey(record)
+	if key != "" {
+		if _, err := tx.Exec(u.Ctx, `DELETE FROM history_items WHERE user_id = $1 AND image_key = $2`, u.ID, key); err != nil {
+			return err
+		}
+	}
+	_, err := tx.Exec(u.Ctx, `INSERT INTO history_items (user_id, collection, position, image_key, proposal_hidden, data) VALUES ($1, $2, $3, $4, $5, $6)`,
+		u.ID, collection, pos, key, jx.Bool(record, "proposal_hidden"), db.JSON(record))
+	return err
+}
+
+func (u *U) historyVoteCommitted(collection string, record jx.M) {
+	if collection == "liked" || collection == "disliked" || collection == "undecided" || (collection == "complaints" && jx.Str(record, "complaint_reason") == "match_error") {
+		u.SourceQualityUpdate(u.Ctx, record)
+	}
+}
+
+// VotePool atomically moves a rated item from the pool into history.
+// A nil item means that another request already removed the item.
+func (u *U) VotePool(key, vote string, reason any) (before, after []jx.M, item, record jx.M, err error) {
+	collection, known := config.ContentVoteCollections[vote]
+	if key == "" || (!known && vote != "postpone") {
+		return nil, nil, nil, nil, fmt.Errorf("invalid pool vote")
+	}
+	after, err = u.poolUpdate(func(tx pgx.Tx, pool []jx.M) ([]jx.M, error) {
+		before = append([]jx.M(nil), pool...)
+		item = PoolFindItem(pool, key)
+		if item == nil {
+			return nil, nil
+		}
+		next := u.ApplyVote(pool, key, vote, reason, func(r jx.M, _ string) {
+			record = r
+		})
+		if record != nil {
+			if err := u.historyAppendTx(tx, collection, record); err != nil {
+				return nil, err
+			}
+		}
+		return next, nil
+	})
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if record != nil {
+		u.historyVoteCommitted(collection, record)
+	}
+	return before, after, item, record, nil
 }
 
 // AllUsersPoolItems — записи пулов и историй всех пользователей: их медиа нельзя удалять при уборке кэша.

@@ -740,34 +740,25 @@ func vote(c *Ctx) (any, error) {
 	if v == "wrong" && contains(config.ComplaintReasons, c.Str("reason")) {
 		reason = c.Str("reason")
 	}
-	var before []jx.M
-	var saved []struct {
-		r jx.M
-		c string
-	}
-	after, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
-		before = append([]jx.M(nil), pool...)
-		return c.A.ApplyVote(pool, image, v, reason, func(r jx.M, coll string) {
-			saved = append(saved, struct {
-				r jx.M
-				c string
-			}{r, coll})
-		})
-	})
+	before, after, item, record, err := u.VotePool(image, v, reason)
 	if err != nil {
 		return nil, err
 	}
-	for _, s := range saved {
-		u.HistoryAppend(s.c, s.r)
-		c.A.CH.Vote(posta.VoteEvent(u.ID, u.CurrentTopic(), v, reason, s.r))
+	if item == nil {
+		return nil, fail(404, "Запись больше не доступна в предложке.")
+	}
+	if record != nil {
+		c.A.CH.Vote(posta.VoteEvent(u.ID, jx.Str(record, "topic"), v, reason, record))
 	}
 	if coll == "liked" {
+		// The rating has committed. Maintenance failure must not tell the
+		// client the vote was lost or cause the user to retry it.
 		if err := u.PruneSelectedPosts(); err != nil {
-			return nil, err
+			u.Log("Не удалось очистить старые сохранённые посты: %v", err)
 		}
 	}
-	if it := posta.PoolFindItem(before, image); it != nil && v != "postpone" {
-		u.MarkSourceRest(u.SearchTopicKey(), it)
+	if v != "postpone" {
+		u.MarkSourceRest(u.SearchTopicKey(), item)
 	}
 	if !contains(config.ProposalCollections, coll) {
 		c.A.MediaReleaseRemoved(c.R.Context(), before, after)
