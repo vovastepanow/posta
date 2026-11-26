@@ -316,6 +316,22 @@ func (n *Network) PublishingConnectionAvailable() bool {
 	return publishingInScope(n.Key) && (n.Key == "telegram" || n.Connect != nil || n.OAuth != nil)
 }
 
+// PublishingConnectionAllowed is the connection capability for a particular user.
+func (n *Network) PublishingConnectionAllowed(owner bool) bool {
+	return n.PublishingConnectionAvailable() && (n.Status != "beta" || owner)
+}
+
+// NetworksPublicFor — реестр с учётом прав пользователя.
+func (a *App) NetworksPublicFor(owner bool) jx.M {
+	out := a.NetworksPublic()
+	for k,n := range a.Networks() {
+		if entry,ok:=out[k].(jx.M);ok {
+			entry["connect_available"]=n.PublishingConnectionAllowed(owner)
+		}
+	}
+	return out
+}
+
 // NetworksPublic — реестр для интерфейса.
 func (a *App) NetworksPublic() jx.M {
 	out := jx.M{}

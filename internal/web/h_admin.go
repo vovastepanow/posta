@@ -87,7 +87,7 @@ func init() {
 	})
 
 	get("networks_list", func(c *Ctx) (any, error) {
-		return ok(jx.M{"networks": c.A.NetworksPublic(), "channels": c.U.NetworksChannelsPublic()}), nil
+		return ok(jx.M{"networks": c.A.NetworksPublicFor(c.A.IsOwner(c.R.Context(), c.U.ID)), "channels": c.U.NetworksChannelsPublic()}), nil
 	})
 	post("network_connect", networkConnect)
 	post("network_remove", func(c *Ctx) (any, error) {
