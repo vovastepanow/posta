@@ -45,3 +45,52 @@ export function plainStyledText(text){
     return String(text||'').replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,(_,label,url)=>label===url?url:label+' ('+url+')')
         .replace(/\*\*([^*\n]+)\*\*|__([^_\n]+)__|\+\+([^+\n]+)\+\+|~~([^~\n]+)~~|\x60([^\x60\n]+)\x60/g,(_, ...groups)=>groups.slice(0,5).find(v=>v!==undefined)||'');
 }
+
+
+// The article reader returns ordered blocks, not just the RSS lead.
+export function articleEditorContent(article, fallbackTitle=''){
+    const parts=[],media=[];
+    let styled=false,bodyFound=false;
+    const urlOf=value=>{
+        try{const u=new URL(String(value||''));return ['https:','http:'].includes(u.protocol)&&!u.username&&!u.password&&u.href.length<=2048?u.href.replace(/\(/g,'%28').replace(/\)/g,'%29'):'';}catch{return '';}
+    };
+    const links=(text,refs=[])=>{
+        let rest=String(text||''),out='';
+        for(const ref of refs||[]){
+            if(!Array.isArray(ref))continue;
+            const [label,raw]=ref,href=urlOf(raw);
+            const at=label?rest.indexOf(label):-1;
+            if(at<0||!href)continue;
+            const name=String(label).replace(/\[/g,'［').replace(/\]/g,'］').replace(/\s*\n\s*/g,' ');
+            out+=rest.slice(0,at)+(name===href?href:'['+name+']('+href+')');
+            rest=rest.slice(at+label.length);styled=true;
+        }
+        return out+rest;
+    };
+    const heading=text=>{const value=String(text||'').trim();if(value){styled=true;parts.push('**'+value.replace(/\n+/g,' ')+'**');}};
+    heading(article?.title||fallbackTitle);
+    for(const block of article?.blocks||[]){
+        switch(block.type){
+        case 'h': if(block.text){heading(block.text);bodyFound=true;}break;
+        case 'p':case 'quote':
+            if(block.text){parts.push(links(block.text,block.links));bodyFound=true;}break;
+        case 'list':{
+            const items=(block.items||[]).filter(i=>i.text).map(i=>'• '+links(i.text,i.links));
+            if(items.length){parts.push(items.join('\n'));bodyFound=true;}break;
+        }
+        case 'image':{
+            const src=urlOf(block.src);if(src&&!media.some(m=>m.src===src))media.push({kind:'image',src,thumb:src,name:'Изображение статьи'});
+            if(block.caption)parts.push(String(block.caption));break;
+        }
+        case 'video':{
+            const href=urlOf(block.url);if(href)parts.push(links(block.title||'Видео из статьи',[[block.title||'Видео из статьи',href]]));break;
+        }
+        case 'embed':{
+            const value=[block.title,block.description].filter(Boolean).join('\n');if(value)parts.push(value);break;
+        }
+        }
+    }
+    const cover=urlOf(article?.cover?.src);
+    if(cover&&!media.some(m=>m.src===cover))media.unshift({kind:'image',src:cover,thumb:cover,name:'Обложка статьи'});
+    return {text:parts.join('\n\n'),styled,media,bodyFound};
+}

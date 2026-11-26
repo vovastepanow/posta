@@ -1,6 +1,6 @@
 // card.js — общие части карточек записи: вид записи (медиа, текст, статья), обрезка текста, карточка статьи.
 // Все места показа (главная карточка, предложка, календарь, редактор) берут вид и тексты отсюда.
-import { el, safeSourcePostUrl } from './core.js';
+import { el } from './core.js';
 import { openViewerGallery } from './viewer.js';
 
 /** Вид записи: статья (есть article), текстовый пост без картинки или медиа. */
@@ -35,17 +35,6 @@ export function clampText(text, lines = 6, className = 'clamp-text') {
 export function articleSite(item) {
     if (item.article?.site) return item.article.site;
     try { return new URL(item.url || '').hostname.replace(/^www\./, ''); } catch { return ''; }
-}
-
-/** Подпись для публикации (то же, что news_caption() на сервере): заголовок, до трёх предложений выжимки, источник со ссылкой. */
-export function articleCaption(item) {
-    const a = item.article || {};
-    const url = safeSourcePostUrl(item) || '';
-    const lines = String(item.text || '').split('\n').map(l => l.trim()).filter(Boolean);
-    const title = a.title || lines[0] || '';
-    const lead = a.lead ?? lines.slice(1).join(' ');
-    const excerpt = String(lead).split(/(?<=[.!?])\s+/u).slice(0, 3).join(' ');
-    return [title && `**${title}**`, excerpt, `Источник: ${articleSite(item)}${url ? ` — ${url}` : ''}`].filter(Boolean).join('\n');
 }
 
 /** Значок сайта: первая буква в кружке; цвет — один из четырёх тонов темы, выбран по имени сайта. */
@@ -83,8 +72,7 @@ export function articleCard(item, onRead) {
             articleMeta(item),
             el('h2', { className: 'article-title', textContent: title }),
             a.lead ? el('p', { className: 'article-lead', textContent: a.lead }) : null,
-            el('button', { type: 'button', className: 'article-read', textContent: 'Читать статью', onclick: onRead }),
-            el('p', { className: 'article-hint', textContent: 'В пост пойдёт: заголовок, выжимка и ссылка на источник.' })));
+            el('button', { type: 'button', className: 'article-read', textContent: 'Читать статью', onclick: onRead })));
 }
 
 /** Краткий признак статьи для очереди: заголовок, анонс, сайт, рубрика, автор, минуты — без блоков и HTML. */

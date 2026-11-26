@@ -21,7 +21,9 @@ try{
     await page.goto('http://127.0.0.1:'+server.address().port);
     await page.evaluate(async()=>{
         const {openPostEditor}=await import('/js/editor.js');
-        const {sourceEditorText}=await import('/js/source-format.js');
+        const {sourceEditorText,articleEditorContent}=await import('/js/source-format.js');
+        const full=articleEditorContent({title:'Полная статья',lead:'Короткий анонс',blocks:[{type:'p',text:'Первый абзац'},{type:'h',text:'Раздел'},{type:'list',items:[{text:'Ссылка',links:[['Ссылка','https://example.com/a']]}]},{type:'image',src:'https://example.com/image.jpg',caption:'Подпись'},{type:'p',text:'Последний абзац'}]});
+        if(!full.bodyFound||!full.text.endsWith('Последний абзац')||!full.text.includes('[Ссылка](https://example.com/a)')||full.text.includes('Короткий анонс')||full.media.length!==1)throw Error('Full article import failed');
         const {draftPayload}=await import('/js/editor-variants.js');
         const imported=sourceEditorText({text:'Bold\nRead',text_html:'<b>Bold</b><br><a href="https://example.com/a">Read</a>'},'Bold\nRead');
         if(imported.text!=='**Bold**\n[Read](https://example.com/a)'||!imported.styled)throw Error('Rich source import failed');

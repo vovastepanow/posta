@@ -7,10 +7,10 @@ import { formatWhen, openPostEditor } from './editor.js';
 import { draftHasContent, payloadAllowsSourceLink } from './editor-variants.js';
 import { openAccountSection } from './account.js';
 import { itemCheck, videoProgress, watchVideo } from './video-pending.js';
-import { articleBrief, articleCaption, cardKind, clampText } from './card.js';
+import { articleBrief, cardKind, clampText } from './card.js';
 import { fromRecord, recordSlides, recordMediaIncomplete, hasRecordContent } from './post-adapters.js';
 import { renderPostSheet } from './post-view.js';
-import { sourceEditorText } from './source-format.js';
+import { sourceEditorText, articleEditorContent } from './source-format.js';
 
 const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], channels: [], networkChannels: [], networks: {}, nativeAccount: false };
 const TOPIC_CONFIRM = 'Сменить тему поиска? Неоценённые записи по старой теме будут убраны из пула, и поиск начнётся заново. История оценок сохранится.';
@@ -687,6 +687,28 @@ function itemMedia(item) {
         name: (s.video || s.fallbackImage || s.image || '').split('/').pop().split('?')[0] || `медиа ${i + 1}` }));
 }
 
+// Import the same complete blocks as the article reader, never substitute a teaser.
+async function editorContent(item,shown){
+    const originalMedia=itemMedia(item);
+    if(cardKind(item)!=='article')return {...sourceEditorText(item,shown),media:originalMedia};
+    const url=safeSourcePostUrl(item);
+    if(!url)throw new Error('Не удалось определить адрес полной статьи.');
+    let imported;
+    try{
+        const data=await api('article_read',{params:{url}});
+        imported=articleEditorContent(data.article,item.article?.title);
+        if(!imported.bodyFound)throw new Error('Текст статьи не найден.');
+    }catch(error){
+        const body=String(item.article_text||'').trim();
+        if(!body)throw new Error('Не удалось загрузить полную статью: '+error.message);
+        imported=articleEditorContent({title:item.article?.title,blocks:[{type:'p',text:body}]});
+        log('Статья перенесена из сохранённого текста; дополнительные ссылки и изображения могли быть недоступны.');
+    }
+    const media=[...originalMedia];
+    for(const m of imported.media)if(!media.some(existing=>existing.src===m.src||existing.thumb===m.src))media.push(m);
+    return {...imported,media};
+}
+
 let futureDraftOps = Promise.resolve();
 let futureDraftProfile;
 async function futureDraftKey() {
@@ -746,12 +768,12 @@ async function appendFutureDraft(item) {
         if (recordMediaIncomplete(item)) throw new Error('Сначала восстановите все вложения и текст записи.');
         const key = await futureDraftKey();
         const draft = await readFutureDraft(key) || { media: [], text: '', tags: [] };
-        const incoming = itemMedia(item);
+        const shown = item === state.item && state.shownText !== undefined ? state.shownText : item.text;
+        const imported=await editorContent(item,shown);
+        const incoming = imported.media;
         const sources = new Set(draft.media.map(m => m.originalSrc || m.src));
         const fresh = incoming.filter(m => m.src && !sources.has(m.src));
         if (draft.media.length + fresh.length > 10) throw new Error('В пост помещается не больше 10 медиа.');
-        const shown = item === state.item && state.shownText !== undefined ? state.shownText : item.text;
-        const imported=cardKind(item)==='article'?{text:articleCaption(item),styled:false}:sourceEditorText(item,shown);
         const text=imported.text;
         if (!fresh.length && (!text || NO_TEXT.includes(text))) throw new Error('Нет нового текста или доступных медиа для добавления.');
         // Сохраняем доступные файлы приложения в браузере: исходная запись может позже исчезнуть из пула.
@@ -911,19 +933,18 @@ export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', 
     }
     // В редакторе — тот текст, который видно сейчас (перевод или оригинал после «Показать оригинал»)
     const shownNow = item === state.item && state.shownText !== undefined ? state.shownText : item.text;
-    // Статья: подпись как при публикации новости — заголовок, выжимка и источник (card.js)
-    const imported = cardKind(item) === 'article' ? {text:articleCaption(item),styled:false} : sourceEditorText(item,shownNow);
+    // Import the entire source, including article blocks and links.
+    const imported = await editorContent(item,shownNow);
     const original = imported.text;
-    // Новость с сайта: по умолчанию в тексте — заголовок, анонс и ссылка на источник
+    // Do not insert attribution or excerpts into the editor automatically.
     const sourceUrl = newsSourceUrl(item);
-    const withSource = original && !NO_TEXT.includes(original) ? original : '';
-    const sourceText = sourceUrl && withSource && !withSource.includes(sourceUrl) ? `${withSource}\n\nИсточник: ${sourceUrl}` : withSource;
+    const sourceText = original && !NO_TEXT.includes(original) ? original : '';
     // Цель канала: первый канал — tg:main (как в telegramTargets), остальные — tg:<id>
     const target = channel ? (state.channels[0]?.id === channel ? 'tg:main' : allTargets().find(t => t.value.endsWith(':' + channel))?.value) : allTargets()[0].value;
     openPostEditor({
-        key: item.image || item.display_image || '', picked: [target || allTargets()[0].value], targets: allTargets(), schedule: scheduleOptions(),
+        key: cardKind(item)==='article'?'article:'+safeSourcePostUrl(item):item.image || item.display_image || '', picked: [target || allTargets()[0].value], targets: allTargets(), schedule: scheduleOptions(),
         scheduledTs, scheduledAt: scheduledTs ? formatWhen(new Date(scheduledTs * 1000)) : '', description: item.description || '', original: sourceText, extras:{styled_text:imported.styled},
-        media: itemMedia(item), hashtags: item.hashtags || [],
+        media: imported.media, hashtags: item.hashtags || [],
         ai: captionTools(), newsUrl: sourceUrl || '',
         onSubmit: async (post, onProgress) => {
             // Ссылку на источник новости не стираем молча: без неё — вопрос, по умолчанию «Да»
