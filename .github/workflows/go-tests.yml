@@ -107,6 +107,13 @@ jobs:
         env:
           POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
         run: go test ./internal/posta -run '^(TestVotePoolAtomicPostgres|TestRepeatMemoryPostgres|TestOutboxEditAndClaimPostgres|TestLostCoverlessVideoKeepsTextPostPostgres|TestOutboxFinalizeAtomicPostgres|TestMediaRemoveKeepsFilesOnDatabaseFailurePostgres|TestPoolUpdatePreservesUnchangedRowsPostgres|TestTextProposalAndMarkPostedPostgres|TestNativeSettleAndSlotConflictPostgres|TestVideoJobFollowsLikedRecordPostgres|TestVotesKeepDifferentVideosWithSameCoverPostgres|TestHistoryDeltaAndCancelGuardPostgres|TestCollectorTextCacheReusesPublicVerdictsPostgres|TestVisiblePoolQuotaPostgres|TestSettingsConcurrentIndependentChangesPostgres|TestNetworkOAuthStateSingleUsePostgres|TestPublicPostPartialRefreshPostgres)$' -count=1 -timeout=5m
+      - name: Verify queued editor edits and video cover persistence
+        env:
+          POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
+        run: |
+          ffmpeg -version
+          ffprobe -version
+          go test ./internal/web -run '^(TestOutboxEditPostgres|TestOutboxVideoCoverEditPostgres)$' -count=1 -timeout=5m
       - name: Verify historic OK rejections with PostgreSQL
         run: go test ./internal/posta -run '^TestAutopilotReconsiderHistoricOKRejectsOnlyOncePostgres$' -count=1 -timeout=3m
       - name: Verify model failure recovery and text-only feeds
