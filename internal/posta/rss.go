@@ -477,8 +477,10 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 		}
 		if len(images) == 0 {
 			for _, h := range body {
-				for _, m := range imgSrcRe.FindAllStringSubmatch(h, -1) {
-					addImage(m[1])
+				for _, f := range rssHTMLAttachments(h) {
+					if rssIsImage(f) {
+						addImage(f.URL)
+					}
 				}
 				if len(images) > 0 {
 					break

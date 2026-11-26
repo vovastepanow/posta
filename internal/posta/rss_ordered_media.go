@@ -30,11 +30,15 @@ func rssOrderedMedia(files []rssFile, base string, fallbackImages []string) ([]j
 		if f.Medium == "thumbnail" {
 			continue
 		}
+		typ := strings.ToLower(strings.TrimSpace(strings.Split(f.Type, ";")[0]))
 		raw := rssHTTPS(f.URL, base)
-		if raw == "" || seen[raw] {
+		if raw == "" {
+			if f.Medium == "video" || strings.HasPrefix(typ, "video/") {
+				incomplete = true
+			}
 			continue
 		}
-		typ := strings.ToLower(strings.TrimSpace(strings.Split(f.Type, ";")[0]))
+		if seen[raw] { continue }
 		u, _ := url.Parse(raw)
 		ext := strings.ToLower(path.Ext(u.Path))
 		isVideo := strings.HasPrefix(typ, "video/") || f.Medium == "video" || (typ == "" && (ext == ".mp4" || ext == ".webm" || ext == ".mov"))

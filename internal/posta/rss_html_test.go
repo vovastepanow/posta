@@ -22,3 +22,12 @@ func TestRSSExplicitEnclosureIsNotDuplicatedByHTML(t *testing.T){
 	p,err:=RSSParse(raw,1,"","https://example.org/feed",false,false,0)
 	if err!=nil||len(p)!=1||jx.Str(p[0],"video")!="https://example.org/clip.mp4"||len(jx.Maps(p[0],"gallery"))!=0{t.Fatal(p,err)}
 }
+
+func TestRSSDoesNotPromoteTrackingPixel(t *testing.T) {
+	data := []byte(`<rss version="2.0"><channel><title>Feed</title><item><title>Text post</title><guid>pixel</guid><description><![CDATA[<p>Real text</p><img width="1" height="1" src="https://example.org/pixel.gif"><script>var template = '<img src="https://example.org/fake.jpg">';</script>]]></description></item></channel></rss>`)
+	posts, err := RSSParse(data, 5, "Feed", "https://example.org/rss", false, true, 1)
+	if err != nil || len(posts) != 1 { t.Fatalf("posts=%v err=%v",posts,err) }
+	if jx.Str(posts[0],"image") != "" || PostItemHasMedia(posts[0]) || !jx.Bool(posts[0],"text_post") {
+		t.Fatalf("tracking pixel was promoted: %v",posts[0])
+	}
+}
