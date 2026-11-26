@@ -107,6 +107,12 @@ jobs:
         env:
           POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
         run: go test ./internal/posta -run '^(TestVotePoolAtomicPostgres|TestRepeatMemoryPostgres|TestOutboxEditAndClaimPostgres|TestLostCoverlessVideoKeepsTextPostPostgres|TestOutboxFinalizeAtomicPostgres|TestMediaRemoveKeepsFilesOnDatabaseFailurePostgres|TestPoolUpdatePreservesUnchangedRowsPostgres|TestTextProposalAndMarkPostedPostgres|TestNativeSettleAndSlotConflictPostgres|TestVideoJobFollowsLikedRecordPostgres|TestVotesKeepDifferentVideosWithSameCoverPostgres|TestHistoryDeltaAndCancelGuardPostgres|TestCollectorTextCacheReusesPublicVerdictsPostgres|TestVisiblePoolQuotaPostgres|TestSettingsConcurrentIndependentChangesPostgres|TestNetworkOAuthStateSingleUsePostgres|TestPublicPostPartialRefreshPostgres)$' -count=1 -timeout=5m
+      - name: Install FFmpeg for queued video tests
+        run: |
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
       - name: Verify queued editor edits and video cover persistence
         env:
           POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
