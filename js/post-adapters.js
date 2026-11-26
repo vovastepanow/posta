@@ -23,6 +23,15 @@ export function hasRecordContent(item) {
         (item.video_page && (item.video_via || item.video_unavailable))));
 }
 
+/** A video cover is never a replacement for a missing video file. */
+export function recordMediaIncomplete(item) {
+    if (!item) return true;
+    if (item.media_incomplete || item.text_incomplete || item.video_unavailable) return true;
+    if (item.video_via && !item.video && !item.display_video) return true;
+    const slides = recordSlides(item);
+    return Number(item.expected_video_count || 0) > slides.filter(s => s.video).length;
+}
+
 /** Медиа одного файла в формате просмотрщика; неизвестные поля не переносятся. */
 function media(kind, fields = {}) {
     return { kind, src: '', poster: '', width: 0, height: 0, duration: 0, fallback: '', page: '', pending: false, unavailable: false, ...fields };
@@ -106,6 +115,8 @@ export function fromRecord(item) {
         text: plainText(item?.text),
         textHtml: typeof item?.text_html === 'string' ? item.text_html : '',
         media: items,
+        mediaIncomplete: recordMediaIncomplete(item),
+        textIncomplete: Boolean(item?.text_incomplete),
         article: articleOf(item),
         poll: null,
         stats,

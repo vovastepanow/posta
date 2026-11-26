@@ -312,7 +312,7 @@ func (a *App) ContentHistoryRecord(item jx.M, complaintReason any) jx.M {
 		"source_url": SourcePostURL(item), "posted_at": item["posted_at"], "engagement": item["engagement"], "complaint_reason": complaintReason,
 		"video": jx.Str(item, "video"), "video_via": jx.Str(item, "video_via"), "video_page": jx.Str(item, "video_page"), "image_local": jx.Str(item, "image_local"), "video_local": jx.Str(item, "video_local"),
 		"phash": jx.Str(item, "phash"), "repeat_file_hashes": item["repeat_file_hashes"], "text_post": item["text_post"], "gallery": ContentGallery(item), "timestamp": now()}
-	for _, k := range []string{"url", "article", "title", "source_sensitive", "nsfw", "safety", "interest", "practical_value", "specificity", "evidence", "analysis_model", "analysis_evidence"} {
+	for _, k := range []string{"url", "article", "title", "source_sensitive", "nsfw", "safety", "interest", "practical_value", "specificity", "evidence", "analysis_model", "analysis_evidence", "media_incomplete", "text_incomplete", "video_unavailable", "video_error", "expected_video_count", "source_attachments", "attachment_inventory_incomplete", "attachment_recovered", "fetched_via"} {
 		if v, ok := item[k]; ok {
 			rec[k] = v
 		}
@@ -493,15 +493,19 @@ func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M
 	}
 	own := jx.M{"image": main, "video": jx.Str(item, "video"), "image_local": jx.Str(item, "image_local"), "video_local": jx.Str(item, "video_local")}
 	gallery := []jx.M{}
-	hasMain := false
-	for _, f := range ContentGallery(item) {
-		if jx.Str(f, "image") == main {
-			f = jx.Merge(f, jx.M{"image_local": own["image_local"], "video_local": own["video_local"]})
-			hasMain = true
+	files := ContentGallery(item)
+	mainIndex := galleryRecordMainIndex(files, item)
+	for i, f := range files {
+		if i == mainIndex {
+			for _, field := range []string{"image_local", "video_local"} {
+				if u.MediaExisting(jx.Str(own, field)) != "" {
+					f[field] = own[field]
+				}
+			}
 		}
 		gallery = append(gallery, display(f))
 	}
-	if len(gallery) > 0 && !hasMain {
+	if len(gallery) > 0 && mainIndex < 0 {
 		gallery = append([]jx.M{display(own)}, gallery...)
 	}
 	shown := display(own)
@@ -510,7 +514,7 @@ func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M
 		caption = jx.ToStr(caps[0])
 	}
 	check := jx.M{"status": "ok", "problems": []any{}, "warnings": []any{}, "bad": []any{}}
-	if jx.Str(item, "video") != "" || len(gallery) > 0 {
+	if PostItemHasVideo(item) || jx.Bool(item, "media_incomplete") || jx.Bool(item, "text_incomplete") || jx.Bool(item, "video_unavailable") || len(gallery) > 0 {
 		check = u.TelegramPreflightItem(item, remoteCheck)
 	}
 	preload := []string{}
@@ -1005,6 +1009,18 @@ func galleryMainIndex(gallery []jx.M, mainImage string) int {
 	}
 	for i, f := range gallery {
 		if jx.Str(f, "image") == mainImage {
+			return i
+		}
+	}
+	return -1
+}
+
+// Match the actual attachment, not only its poster. A photo and several
+// distinct videos can share a poster URL.
+func galleryRecordMainIndex(gallery []jx.M, record jx.M) int {
+	image, video := ContentImageKey(record), jx.Str(record, "video")
+	for i, f := range gallery {
+		if jx.Str(f, "image") == image && jx.Str(f, "video") == video {
 			return i
 		}
 	}

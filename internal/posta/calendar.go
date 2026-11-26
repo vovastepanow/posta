@@ -701,7 +701,7 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 // calendarRecordMedia uses the real media, not the video thumbnail. Incomplete
 // downloads are refused so a scheduled video cannot silently turn into a photo.
 func (a *App) calendarRecordMedia(record jx.M) ([]MediaItem, error) {
-	if jx.Bool(record, "media_incomplete") || jx.Bool(record, "text_incomplete") {
+	if jx.Bool(record, "media_incomplete") || jx.Bool(record, "text_incomplete") || jx.Bool(record, "video_unavailable") {
 		return nil, Bad("Запись ещё не получена полностью. Обновите её перед публикацией.")
 	}
 	if jx.Str(record, "video_via") != "" && jx.Str(record, "video") == "" && a.MediaExisting(jx.Str(record, "video_local")) == "" {
@@ -712,12 +712,17 @@ func (a *App) calendarRecordMedia(record jx.M) ([]MediaItem, error) {
 		files = []jx.M{record}
 	}
 	var items []MediaItem
+	videoCount := 0
 	for _, f := range files {
 		video := jx.Str(f, "video")
 		if local := a.MediaExisting(jx.Str(f, "video_local")); local != "" {
 			video = local
 		}
 		if video != "" {
+			if !strings.HasPrefix(video, "https://") && a.MediaExisting(video) == "" {
+				return nil, Bad("Видео отсутствует в кэше. Восстановите файл перед публикацией.")
+			}
+			videoCount++
 			items = append(items, MediaItem{Kind: "video", Src: video, Name: "видео"})
 			continue
 		}
@@ -726,8 +731,14 @@ func (a *App) calendarRecordMedia(record jx.M) ([]MediaItem, error) {
 			image = local
 		}
 		if image != "" {
+			if !strings.HasPrefix(image, "https://") && a.MediaExisting(image) == "" {
+				return nil, Bad("Фото отсутствует в кэше. Восстановите файл перед публикацией.")
+			}
 			items = append(items, MediaItem{Kind: "image", Src: image, Name: "фото"})
 		}
+	}
+	if jx.Int(record, "expected_video_count") > int64(videoCount) {
+		return nil, Bad("Не все видео доступны. Восстановите альбом перед публикацией.")
 	}
 	if len(items) == 0 && !PostItemHasText(record) {
 		return nil, Bad("В записи нет доступного текста или медиа.")

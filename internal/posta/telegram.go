@@ -667,18 +667,21 @@ func (a *App) telegramRemoteSize(u string) *int64 {
 
 // TelegramPreflightItem — можно ли запостить видео записи: status ok | partial | blocked, problems, warnings, bad.
 func (u *U) TelegramPreflightItem(item jx.M, remote bool) jx.M {
+	if jx.Bool(item, "media_incomplete") || jx.Bool(item, "text_incomplete") || jx.Bool(item, "video_unavailable") {
+		return jx.M{"status": "blocked", "problems": []string{"Запись получена не полностью; восстановите её перед публикацией"}, "warnings": []string{}, "bad": []int{}}
+	}
 	via := jx.Str(item, "video_via")
 	if (via == "ytdlp" || via == "tgu") && jx.Str(item, "video") == "" && !jx.Bool(item, "video_unavailable") {
 		return jx.M{"status": "blocked", "problems": []string{"Видео ещё загружается, попробуйте через минуту"}, "warnings": []string{}, "bad": []int{0}}
 	}
 	gallery := jx.Maps(item, "gallery")
-	main := ContentImageKey(item)
+	mainIndex := galleryRecordMainIndex(gallery, item)
 	type f struct{ video, local string }
 	var files []f
 	if len(gallery) > 1 {
-		for _, g := range gallery {
+		for i, g := range gallery {
 			local := jx.Str(g, "video_local")
-			if jx.Str(g, "image") == main {
+			if i == mainIndex && u.MediaExisting(jx.Str(item, "video_local")) != "" {
 				local = jx.Str(item, "video_local")
 			}
 			files = append(files, f{jx.Str(g, "video"), local})
@@ -1277,6 +1280,14 @@ func PublishArticleInput(raw any) jx.M {
 
 // OutboxQueuePost — пост в нашу очередь: файлы переносятся в папку поста.
 func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publishAt int64, slotAt *int64, work string, poll, article jx.M, group, record string, sourceMeta jx.M) (jx.M, error) {
+	if c.Platform != "" && c.Platform != "telegram" {
+		if poll != nil {
+			return nil, Bad("Опрос доступен только для Telegram.")
+		}
+		if err := u.NetworkPreparedPreflight(c.Platform, text, prepared); err != nil {
+			return nil, err
+		}
+	}
 	id := randHex(6)
 	media, err := u.outboxMediaMove(work, id, PreparedMaps(prepared))
 	if err != nil {

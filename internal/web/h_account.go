@@ -807,7 +807,6 @@ func publish(c *Ctx) (any, error) {
 		return nil, fail(422, "В опросе не бывает медиа: уберите файлы.")
 	}
 	platform := ch.Platform
-	var preSkipped []string
 	if platform != "telegram" {
 		n, _ := c.A.NetworkFor(platform)
 		title := platform
@@ -817,13 +816,8 @@ func publish(c *Ctx) (any, error) {
 		if mode == "native" || poll != nil {
 			return nil, fail(422, title+": отложка средствами соцсети и опросы пока только в Telegram.")
 		}
-		_, skipped, err := c.A.NetworkPreflight(platform, text, kinds)
-		if err != nil {
+		if err := c.A.NetworkDeliveryPreflight(platform, text, kinds); err != nil {
 			return nil, fail(422, err.Error())
-		}
-		preSkipped = skipped
-		if len(skipped) > 0 && !jx.Truthy(fields["confirm_skip"]) {
-			return Resp{409, jx.M{"status": "error", "confirm_skip": true, "skipped": skipped, "message": "Не все файлы уйдут в " + title + ": " + strings.Join(skipped, "; ") + ". Опубликовать без них?"}}, nil
 		}
 	}
 	if mode == "now" {
@@ -904,9 +898,6 @@ func publish(c *Ctx) (any, error) {
 			return nil, fail(422, err.Error())
 		}
 		response = r
-		if platform != "telegram" {
-			response["skipped"] = preSkipped
-		}
 		w.KickPublisher()
 	case "native":
 		ids, err := w.TelegramUserSchedule(ch, text, prepared, at, progress)
@@ -942,9 +933,6 @@ func publish(c *Ctx) (any, error) {
 			kind, dur = shown[0].Kind, shown[0].Duration
 		}
 		skipped := sent.Skipped
-		if skipped == nil {
-			skipped = preSkipped
-		}
 		w.TelegramLogPublished(jx.Merge(posta.TelegramPostSummary(text, len(shown)), jx.M{"at": now(), "scheduled_for": 0, "url": sent.URL, "status": "ok", "error": "",
 			"media_src": posta.MediaSourcesOf(posta.PreparedMaps(shown)), "channel": ch.ID, "channel_title": ch.ChatTitle, "kind": kind, "duration": dur,
 			"thumb_id": w.PostThumbMake(posta.PreparedMaps(shown)), "skipped": orStrs(skipped), "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic"), "record": recordKey}))

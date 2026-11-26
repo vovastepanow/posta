@@ -7,7 +7,7 @@ import { formatWhen, openPostEditor } from './editor.js';
 import { openAccountSection } from './account.js';
 import { itemCheck, videoProgress, watchVideo } from './video-pending.js';
 import { articleBrief, articleCaption, cardKind, clampText } from './card.js';
-import { fromRecord, recordSlides, hasRecordContent } from './post-adapters.js';
+import { fromRecord, recordSlides, recordMediaIncomplete, hasRecordContent } from './post-adapters.js';
 import { renderPostSheet } from './post-view.js';
 
 const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], channels: [], networkChannels: [], networks: {}, nativeAccount: false };
@@ -675,10 +675,9 @@ const defaultText = item => {
     return original && !NO_TEXT.includes(original) ? original : '';
 };
 
-/** Медиа записи для поста: файлы, которые Telegram точно не примет (post_check), пропускаются. */
+/** Never silently discard attachments before the user selects a target. */
 function itemMedia(item) {
-    const bad = new Set(item.post_check?.bad || []);
-    return itemSlides(item).filter((s, i) => !bad.has(i) && !s.textPost && (s.video || s.image)).map((s, i) => ({ kind: s.video ? 'video' : 'image', src: s.video || s.image, thumb: s.image,
+    return itemSlides(item).filter(s => !s.textPost && (s.video || s.image)).map((s, i) => ({ kind: s.video ? 'video' : 'image', src: s.video || s.image, thumb: s.image,
         name: (s.video || s.fallbackImage || s.image || '').split('/').pop().split('?')[0] || `медиа ${i + 1}` }));
 }
 
@@ -738,6 +737,7 @@ export function addToFutureDraft(item) {
 }
 async function appendFutureDraft(item) {
     try {
+        if (recordMediaIncomplete(item)) throw new Error('Сначала восстановите все вложения и текст записи.');
         const key = await futureDraftKey();
         const draft = await readFutureDraft(key) || { media: [], text: '', tags: [] };
         const incoming = itemMedia(item);
@@ -847,15 +847,7 @@ async function publishToTelegram(post, onProgress = null) {
         : api('telegram_publish', { body: form });
     let result;
     try {
-        try {
-            result = await send();
-        } catch (error) {
-            // Соцсеть не примет часть файлов: сервер спрашивает, публиковать ли без них
-            if (!error.data?.confirm_skip || !(await ask(error.message, { ok: 'Опубликовать без них' }))) throw error;
-            form.set('confirm_skip', '1');
-            uploading = false;
-            result = await send();
-        }
+        result = await send();
     } finally {
         done = true;
         clearInterval(poll);
@@ -898,6 +890,7 @@ const newsSourceUrl = item => (String(item.source_key || '').startsWith('rss:') 
 /** Редактор поста. Необязательно: scheduledTs и channel (id канала) — время и канал уже выбраны (календарь, слот); onDone — после постановки/публикации. */
 export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', onDone = null } = {}) {
     logPostCheck(item.post_check);
+    if (recordMediaIncomplete(item)) throw new Error('Сначала восстановите все вложения и текст записи.');
     await refreshTelegramTarget();
     if (!allTargets().length) {
         log('Подключите ресурс в «Личном кабинете» → «Соцсети».');
@@ -916,7 +909,7 @@ export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', 
     openPostEditor({
         key: item.image || item.display_image || '', picked: [target || allTargets()[0].value], targets: allTargets(), schedule: scheduleOptions(),
         scheduledTs, scheduledAt: scheduledTs ? formatWhen(new Date(scheduledTs * 1000)) : '', description: item.description || '', original: sourceText,
-        media: itemMedia(item), hashtags: item.hashtags || [],   // файлы, которые Telegram точно не примет, в редактор не попадают
+        media: itemMedia(item), hashtags: item.hashtags || [],
         ai: captionTools(), newsUrl: sourceUrl || '',
         onSubmit: async (post, onProgress) => {
             // Ссылку на источник новости не стираем молча: без неё — вопрос, по умолчанию «Да»

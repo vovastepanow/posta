@@ -172,10 +172,11 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		if poll != nil {
 			return nil, fail(422, "Опрос доступен только для Telegram.")
 		}
-		if _, skipped, err := c.A.NetworkPreflight(ch.Platform, text, kinds); err != nil {
+		if err := c.A.NetworkDeliveryPreflight(ch.Platform, text, kinds); err != nil {
 			return nil, err
-		} else if len(skipped) > 0 {
-			return nil, fail(422, strings.Join(skipped, "; "))
+		}
+		if err := c.A.NetworkPreparedPreflight(ch.Platform, text, prepared); err != nil {
+			return nil, err
 		}
 	}
 	dir, err := c.A.OutboxMediaDir(id)

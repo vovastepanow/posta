@@ -221,6 +221,15 @@ func (a *App) NetworkPreflight(platform, text string, kinds []string) (int, []st
 			kept++
 		}
 	}
+	if (platform == "youtube" || platform == "pinterest") && kept == 0 {
+		return 0, nil, Bad("%s: необходим поддерживаемый медиафайл.", n.Title)
+	}
+	if platform == "youtube" || platform == "pinterest" {
+		title, _ := titleAndBody(text)
+		if runeLen(title) > 100 {
+			return 0, nil, Bad("%s: первая строка (заголовок) длиннее 100 символов.", n.Title)
+		}
+	}
 	if kept == 0 && strings.TrimSpace(text) == "" {
 		return 0, nil, Bad("%s: в посте нет ни подходящих файлов, ни текста.", n.Title)
 	}
@@ -231,11 +240,14 @@ func networkFitMedia(n *Network, media []Prepared) ([]Prepared, []string) {
 	var kept []Prepared
 	skipped := []string{}
 	for _, f := range media {
+		st, err := os.Stat(f.Path)
 		var size int64
-		if st, err := os.Stat(f.Path); err == nil {
+		if err == nil {
 			size = st.Size()
 		}
 		switch {
+		case err != nil || !st.Mode().IsRegular() || size <= 0:
+			skipped = append(skipped, kindName(f.Kind)+": файл отсутствует или пуст")
 		case !contains(n.Kinds, f.Kind):
 			skipped = append(skipped, kindName(f.Kind)+": "+n.Title+" такой вид не принимает")
 		case n.MaxBytes[f.Kind] > 0 && size > n.MaxBytes[f.Kind]:
@@ -247,6 +259,37 @@ func networkFitMedia(n *Network, media []Prepared) ([]Prepared, []string) {
 		}
 	}
 	return kept, skipped
+}
+
+// NetworkDeliveryPreflight rejects an incompatible target variant instead of
+// silently deleting attachments. The user may explicitly edit the variant.
+func (a *App) NetworkDeliveryPreflight(platform, text string, kinds []string) error {
+	_, skipped, err := a.NetworkPreflight(platform, text, kinds)
+	if err != nil {
+		return err
+	}
+	if len(skipped) > 0 {
+		return Bad("Не все вложения поддерживаются: %s. Измените состав поста для этой площадки.", strings.Join(skipped, "; "))
+	}
+	return nil
+}
+
+func (a *App) NetworkPreparedPreflight(platform, text string, media []Prepared) error {
+	if _, err := a.NetworkFor(platform); err != nil {
+		return err
+	}
+	var kinds []string
+	for _, file := range media {
+		kinds = append(kinds, file.Kind)
+	}
+	if err := a.NetworkDeliveryPreflight(platform, text, kinds); err != nil {
+		return err
+	}
+	_, skipped := networkFitMedia(a.Networks()[platform], media)
+	if len(skipped) > 0 {
+		return Bad("Не все вложения можно отправить: %s.", strings.Join(skipped, "; "))
+	}
+	return nil
 }
 
 // publishingInScope is the SmmBox product scope, independent of adapter readiness.
@@ -303,6 +346,9 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 			return a.TelegramPublishPoll(ctx, c, poll)
 		}
 		return a.TelegramPublishPrepared(ctx, c, text, media, nil)
+	}
+	if err := a.NetworkPreparedPreflight(c.Platform, text, media); err != nil {
+		return nil, fmt.Errorf("%s: %w", err, ErrNetworkRejected)
 	}
 	if err := a.networkRefreshChannel(ctx, n, c); err != nil {
 		return nil, err
