@@ -1409,21 +1409,20 @@ func PublishArticleInput(raw any) jx.M {
 // OutboxQueuePost — пост в нашу очередь: файлы переносятся в папку поста.
 func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publishAt int64, slotAt *int64, work string, poll, article jx.M, group, record string, sourceMeta jx.M, extra ...jx.M) (jx.M, error) {
 	if poll != nil {
-		if len(prepared) != 0 {
-			return nil, Bad("Опрос не может содержать вложения.")
-		}
 		checked, err := u.ChannelPollCheck(c, poll)
 		if err != nil {
 			return nil, err
 		}
-		poll, text = checked, jx.Str(checked, "question")
+		poll=checked
+		text,err=PollContentText(c.Platform,text,len(prepared),poll)
+		if err!=nil{return nil,err}
 	}
 	var rawExtra jx.M
 	if len(extra)>0{rawExtra=extra[0]}
 	extras,err:=PublishExtrasCheck(c.Platform,text,PreparedKinds(prepared),poll,rawExtra)
 	if err!=nil{return nil,err}
 	if c.Platform != "" && c.Platform != "telegram" && !PostExtrasStandalone(extras) {
-		if err := u.NetworkPreparedPreflight(c.Platform, text, prepared); err != nil {
+		if err := u.NetworkPreparedPreflight(c.Platform, PollPreflightText(text,poll), prepared); err != nil {
 			return nil, err
 		}
 	}

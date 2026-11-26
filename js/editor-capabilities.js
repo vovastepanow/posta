@@ -19,7 +19,7 @@ export function commonPollLimits(targets) {
     if (!caps.length || !caps.every(c => c?.poll && c?.pollLimits)) return null;
     const limits = caps.map(c => c.pollLimits);
     return {question_max:Math.min(...limits.map(l=>l.question_max)),options_max:Math.min(...limits.map(l=>l.options_max)),
-        option_max:Math.min(...limits.map(l=>l.option_max)),multiple:limits.every(l=>l.multiple), duration:limits.some(l=>l.duration),quiz:limits.every(l=>l.quiz),close:limits.every(l=>l.close),public:limits.every(l=>l.public)};
+        option_max:Math.min(...limits.map(l=>l.option_max)),multiple:limits.every(l=>l.multiple), duration:limits.some(l=>l.duration),quiz:limits.every(l=>l.quiz),close:limits.every(l=>l.close),public:limits.every(l=>l.public),with_content:limits.every(l=>l.with_content),media_max:Math.min(...limits.map(l=>l.media_max||0))};
 }
 export function validateTarget(target, media, text, poll) {
     const c = targetCapabilities(target);
@@ -41,6 +41,11 @@ export function validateTarget(target, media, text, poll) {
         }
         const duration = Number(poll.duration_minutes || 1440);
         if (l.duration && (!Number.isInteger(duration) || duration < 5 || duration > 10080)) return 'Длительность: от 5 минут до 7 дней.';
+        if(poll.with_content){
+            if(!l.with_content)return 'Опрос с дополнительным текстом или медиа не поддерживается.';
+            if(media.length>l.media_max)return 'Опрос: допустимо файлов '+l.media_max+'.';
+            return validateTarget(target,media,text.trim()?text:poll.question,null);
+        }
         return '';
     }
     const kinds = media.map(mediaKind);

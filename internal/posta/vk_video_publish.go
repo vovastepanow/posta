@@ -49,25 +49,14 @@ func vkPublishWith(ctx context.Context,c *Channel,p NetPost,call vkMethodFunc,re
 	if id,err:=strconv.ParseInt(group,10,64);err!=nil||id<=0||token==""{return nil,Bad("ВКонтакте: сообщество не подключено.")}
 	extra,err:=PublishExtrasCheck("vk",p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
 	mediaToken:=token
+	var poll jx.M
+	pt:=""
 	if p.Poll!=nil {
-		if len(p.Media)!=0{return nil,Bad("ВКонтакте: опрос с другими вложениями пока не поддерживается.")}
-		poll,err:=NetworkPollCheck("vk",p.Poll);if err!=nil{return nil,err}
-		pt:=""
+		poll,err=NetworkPollCheck("vk",p.Poll);if err!=nil{return nil,err}
+		p.Text,err=PollContentText("vk",p.Text,len(p.Media),poll);if err!=nil{return nil,err}
 		if jx.Bool(c.Meta,"poll_user_token"){pt=token}else if userToken!=nil{pt=userToken()}
 		if pt==""{return nil,Bad("ВКонтакте: для опроса нужен пользовательский токен с доступом к polls.create.")}
-		multiple:="0";if jx.Bool(poll,"multiple"){multiple="1"}
-		params:=url.Values{"owner_id":{"-"+group},"question":{jx.Str(poll,"question")},"add_answers":{string(jx.Marshal(jx.Strs(poll,"options")))},"is_multiple":{multiple},"is_anonymous":{"1"}}
-		if jx.Bool(poll,"public"){params.Set("is_anonymous","0")}
-		if close:=jx.Int(poll,"close_minutes");close>0{params.Set("end_date",strconv.FormatInt(now()+60*close,10))}
-		res,err:=call(ctx,"polls.create",params,pt)
-		if err!=nil{return nil,err}
-		m:=jx.ToMap(res);id,owner:=jx.Int(m,"id"),jx.Int(m,"owner_id")
-		if id<=0||strconv.FormatInt(owner,10)!="-"+group{return nil,uncertainPublish("ВКонтакте не подтвердил опрос выбранного сообщества.")}
-		res,err=call(ctx,"wall.post",url.Values{"owner_id":{"-"+group},"from_group":{"1"},"message":{""},"attachments":{fmt.Sprintf("poll%d_%d",owner,id)}},token)
-		if err!=nil{return nil,uncertainPublish("Опрос VK создан, но публикация на стене не подтверждена. Проверьте сообщество перед повтором.")}
-		postID:=jx.Int(jx.ToMap(res),"post_id")
-		if postID<=0{return nil,uncertainPublish("ВКонтакте не вернул ID публикации опроса.")}
-		return &NetSent{URL:fmt.Sprintf("https://vk.com/wall-%s_%d",group,postID),MessageIDs:[]string{strconv.FormatInt(postID,10)}},nil
+		if !jx.Bool(poll,"with_content"){p.Text=""}
 	}
 	var att []string
 	videoUploaded:=false
@@ -96,6 +85,17 @@ func vkPublishWith(ctx context.Context,c *Channel,p NetPost,call vkMethodFunc,re
 		if err!=nil{return fail(err)}
 		if f.Kind=="video"||f.Kind=="document"||f.Kind=="animation"{videoUploaded=true}
 		att=append(att,id)
+	}
+	if poll!=nil{
+		multiple:="0";if jx.Bool(poll,"multiple"){multiple="1"}
+		params:=url.Values{"owner_id":{"-"+group},"question":{jx.Str(poll,"question")},"add_answers":{string(jx.Marshal(jx.Strs(poll,"options")))},"is_multiple":{multiple},"is_anonymous":{"1"}}
+		if jx.Bool(poll,"public"){params.Set("is_anonymous","0")}
+		if close:=jx.Int(poll,"close_minutes");close>0{params.Set("end_date",strconv.FormatInt(now()+60*close,10))}
+		res,err:=call(ctx,"polls.create",params,pt)
+		if err!=nil{return fail(err)}
+		m:=jx.ToMap(res);id,owner:=jx.Int(m,"id"),jx.Int(m,"owner_id")
+		if id<=0||strconv.FormatInt(owner,10)!="-"+group{return nil,uncertainPublish("ВКонтакте не подтвердил опрос выбранного сообщества.")}
+		att=append(att,fmt.Sprintf("poll%d_%d",owner,id));videoUploaded=true
 	}
 	params:=url.Values{"owner_id":{"-"+group},"from_group":{"1"},"message":{p.Text}}
 	if link:=jx.Str(extra,"link_attachment");link!=""{att=append(att,link)}

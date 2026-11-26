@@ -75,8 +75,9 @@ func okPublishWith(ctx context.Context,c *Channel,p NetPost,call okMethodFunc,re
 	if len(p.Media)>10||runeLen(p.Text)>4000{return nil,Bad("Одноклассники: превышен лимит текста или вложений.")}
 	var media []jx.M
 	if p.Poll!=nil{
-		if len(p.Media)!=0{return nil,Bad("Одноклассники: опрос и медиа в одной публикации пока не поддерживаются.")}
 		poll,err:=NetworkPollCheck("ok",p.Poll);if err!=nil{return nil,err}
+		p.Text,err=PollContentText("ok",p.Text,len(p.Media),poll);if err!=nil{return nil,err}
+		if jx.Bool(poll,"with_content")&&strings.TrimSpace(p.Text)!=""{media=append(media,jx.M{"type":"text","text":p.Text})}
 		answers:=[]jx.M{}
 		for _,answer:=range jx.Strs(poll,"options"){answers=append(answers,jx.M{"text":answer})}
 		flags:=[]string{}

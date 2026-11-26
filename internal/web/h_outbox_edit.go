@@ -89,14 +89,8 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		if poll == nil {
 			return nil, fail(400, "Некорректный опрос.")
 		}
-		if len(raw) != 0 {
-			return nil, fail(422, "Опрос не может содержать медиа.")
-		}
-	}
+ 	}
 	text := posta.PostCaptionClean(c.R.FormValue("text"))
-	if poll != nil {
-		text = jx.Str(poll, "question")
-	}
 	ch := c.U.Channel(jx.Str(post, "channel"))
 	if ch == nil {
 		return nil, fail(409, "Канал больше не подключён.")
@@ -105,7 +99,8 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		if poll, err = c.U.ChannelPollCheck(ch, poll); err != nil {
 			return nil, err
 		}
-		text = jx.Str(poll, "question")
+		text,err=posta.PollContentText(ch.Platform,text,len(raw),poll)
+		if err!=nil{return nil,fail(422,err.Error())}
 	}
 	var rawExtras jx.M
 	if value:=c.R.FormValue("extras");value!=""{rawExtras=jx.Unmarshal([]byte(value));if rawExtras==nil{return nil,fail(400,"Некорректные дополнения поста.")}}
@@ -185,10 +180,10 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		for _, m := range raw {
 			kinds = append(kinds, jx.Str(m, "kind"))
 		}
-		if err := c.A.NetworkDeliveryPreflight(ch.Platform, text, kinds); err != nil {
+		if err := c.A.NetworkDeliveryPreflight(ch.Platform, posta.PollPreflightText(text,poll), kinds); err != nil {
 			return nil, err
 		}
-		if err := c.A.NetworkPreparedPreflight(ch.Platform, text, prepared); err != nil {
+		if err := c.A.NetworkPreparedPreflight(ch.Platform, posta.PollPreflightText(text,poll), prepared); err != nil {
 			return nil, err
 		}
 	}

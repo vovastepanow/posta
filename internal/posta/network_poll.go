@@ -13,9 +13,9 @@ func networkPollLimits(platform string) jx.M {
 	case "telegram":
 		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true,"quiz":true,"close":true}
 	case "vk":
-		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true,"close":true,"public":true}
+		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true,"close":true,"public":true,"with_content":true,"media_max":9}
 	case "ok":
-		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true,"public":true}
+		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true,"public":true,"with_content":true,"media_max":10}
 	case "x":
 		return jx.M{"question_max": 280, "options_max": 4, "option_max": 25, "duration": true}
 	case "threads":
@@ -65,6 +65,10 @@ func NetworkPollCheck(platform string, poll jx.M) (jx.M, error) {
 		return nil, Bad("Несколько ответов в одном голосе не поддерживаются.")
 	}
 	out := jx.M{"question": question, "options": opts, "multiple": multiple}
+	if jx.Bool(poll,"with_content"){
+		if !jx.Bool(limits,"with_content"){return nil,Bad("Эта площадка не поддерживает опрос с дополнительным текстом или медиа.")}
+		out["with_content"]=true
+	}
 	if jx.Bool(poll,"public") {
 		if !jx.Bool(limits,"public"){return nil,Bad("Публичное голосование не поддерживается этой площадкой.")}
 		out["public"]=true
@@ -116,4 +120,21 @@ func (u *U) ChannelEditorCapabilities(c *Channel) jx.M {
 	m := jx.ToMap(u.App.NetworksPublic()[platform])
 	if m != nil { m["poll"] = u.ChannelPollAvailable(c) }
 	return m
+}
+
+ // PollContentText preserves the legacy standalone poll representation while
+// permitting explicit compound posts on adapters that actually deliver them.
+func PollContentText(platform,text string,count int,poll jx.M)(string,error){
+	if poll==nil{return text,nil}
+	if !jx.Bool(poll,"with_content"){
+		if count>0{return "",Bad("Отдельный опрос не может содержать медиа.")}
+		return jx.Str(poll,"question"),nil
+	}
+	limits:=networkPollLimits(platform)
+	if !jx.Bool(limits,"with_content")||count>int(jx.Int(limits,"media_max")){return "",Bad("Опрос с медиа: превышен лимит вложений или площадка не поддерживается.")}
+	return text,nil
+}
+func PollPreflightText(text string,poll jx.M)string{
+	if strings.TrimSpace(text)==""&&poll!=nil{return jx.Str(poll,"question")}
+	return text
 }

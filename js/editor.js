@@ -85,7 +85,7 @@ const selectedTargets = () => session.options.picked.map(v => session.options.ta
 const currentCapabilities = () => commonCapabilities(selectedTargets());
 const hasExtras = () => EXTRA_KEYS.some(k=>extraActive(session.extras,k));
 const botOnlyMedia = () => session.media.some(m => ['audio','document','voice'].includes(mediaKind(m)));
-const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440,quiz:!!p.quiz,correct_answer:p.correct_answer||'',explanation:p.explanation||'',close_minutes:p.close_minutes||0,public:!!p.public} : null;
+const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440,quiz:!!p.quiz,correct_answer:p.correct_answer||'',explanation:p.explanation||'',close_minutes:p.close_minutes||0,public:!!p.public,with_content:!!p.with_content} : null;
 const fileKind = f => /\.(pdf|txt|csv|zip|docx|xlsx|pptx)$/i.test(f.name) || f.type==='application/pdf' ? 'document' : /\.(ogg|opus)$/i.test(f.name) ? 'voice' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
 const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null,signed:!!e?.signed,close_comments:!!e?.close_comments,mark_as_ads:!!e?.mark_as_ads,copyright:e?.copyright||'',link_attachment:e?.link_attachment||'',vk_geo:e?.vk_geo||'',alt_text:e?.alt_text||'',topic_tag:e?.topic_tag||'',yt_privacy:e?.yt_privacy||'',yt_audience:e?.yt_audience||'',yt_tags:e?.yt_tags||'',yt_category:e?.yt_category||'',yt_license:e?.yt_license||''});
 const EXTRA_LABELS = {silent:'Без звукового уведомления',protect:'Запретить пересылку и сохранение',spoiler:'Скрыть медиа под спойлером',signed:'Подписать запись именем автора VK',close_comments:'Закрыть комментарии VK',mark_as_ads:'Отметить запись VK как рекламу'};
@@ -114,7 +114,7 @@ function buildUi() {
         progress: el('div', { className: 'pe-progress-wrap', hidden: true }, el('span', { className: 'pe-progress-label' }),
             el('div', { className: 'pe-progress-bar' }, el('div', { className: 'pe-progress-fill' })), el('span', { className: 'pe-progress-text' })),
         question: el('input', { type: 'text', className: 'pe-input', maxLength: 300, placeholder: 'Вопрос опроса' }),
-        pollOptions: el('div', { className: 'pe-poll-options' }), attachments: el('div', { className: 'pe-attachments' }), multiple: el('input', {type:'checkbox'}), duration: el('select',{className:'pe-input'}, ...[[5,'5 минут'],[60,'1 час'],[360,'6 часов'],[1440,'1 сутки'],[4320,'3 суток'],[10080,'7 суток']].map(([value,label])=>el('option',{value:String(value),textContent:label}))), addOption: button('pe-btn pe-btn-ghost', 'Добавить вариант', addPollOption), quiz:el('input',{type:'checkbox'}), publicPoll:el('input',{type:'checkbox'}), closePoll:el('select',{className:'pe-input'},...[[0,'Без ограничения'],[5,'5 минут'],[60,'1 час'],[360,'6 часов'],[1440,'1 сутки'],[4320,'3 суток'],[10080,'7 суток']].map(([value,textContent])=>el('option',{value:String(value),textContent}))), correct:el('select',{className:'pe-input',ariaLabel:'Правильный ответ'}), explanation:el('textarea',{className:'pe-input',rows:3,maxLength:200,placeholder:'Пояснение после ответа'}),
+        pollOptions: el('div', { className: 'pe-poll-options' }), attachments: el('div', { className: 'pe-attachments' }), multiple: el('input', {type:'checkbox'}), duration: el('select',{className:'pe-input'}, ...[[5,'5 минут'],[60,'1 час'],[360,'6 часов'],[1440,'1 сутки'],[4320,'3 суток'],[10080,'7 суток']].map(([value,label])=>el('option',{value:String(value),textContent:label}))), addOption: button('pe-btn pe-btn-ghost', 'Добавить вариант', addPollOption), quiz:el('input',{type:'checkbox'}), publicPoll:el('input',{type:'checkbox'}), withContent:el('input',{type:'checkbox'}), closePoll:el('select',{className:'pe-input'},...[[0,'Без ограничения'],[5,'5 минут'],[60,'1 час'],[360,'6 часов'],[1440,'1 сутки'],[4320,'3 суток'],[10080,'7 суток']].map(([value,textContent])=>el('option',{value:String(value),textContent}))), correct:el('select',{className:'pe-input',ariaLabel:'Правильный ответ'}), explanation:el('textarea',{className:'pe-input',rows:3,maxLength:200,placeholder:'Пояснение после ответа'}),
         cancel: button('pe-btn', 'Отмена', closeEditor), submit: el('button', { type: 'submit', className: 'pe-btn pe-btn-primary', textContent: 'Запостить' })
     };
     const reset = button('pe-btn pe-btn-ghost', 'Сбросить правки', () => {
@@ -136,7 +136,7 @@ function buildUi() {
         el('div', { className: 'pe-chip-row' }, button('pe-chip-btn', 'Сохранить стиль', saveStyle), u.learnButton), u.styleNote);
     u.textSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Текст' }), u.counter), u.text,
         el('div', { className: 'pe-chip-row' }, u.original, u.description, u.aiButton, u.excerptButton, button('pe-chip-btn', 'Очистить', () => setText(''))), u.aiNote, u.tags, u.styleBox);
-    u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), el('p',{className:'pe-poll-help',textContent:'Опрос публикуется вместо текста и медиа. При выключении опроса ваши вложения и текст вернутся.'}), u.question, u.pollOptions, u.addOption, el('label', {className:'pe-poll-setting'}, u.multiple, el('span', {textContent:'Разрешить несколько вариантов ответа'})), el('label',{className:'pe-poll-duration',hidden:true},el('span',{textContent:'Длительность опроса в X'}),u.duration),
+    u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), el('p',{className:'pe-poll-help',textContent:'Отдельный опрос или опрос с текстом и медиа для VK и OK.'}),el('label',{className:'pe-poll-setting'},u.withContent,el('span',{textContent:'Добавить текст и медиа к опросу'})), u.question, u.pollOptions, u.addOption, el('label', {className:'pe-poll-setting'}, u.multiple, el('span', {textContent:'Разрешить несколько вариантов ответа'})), el('label',{className:'pe-poll-duration',hidden:true},el('span',{textContent:'Длительность опроса в X'}),u.duration),
         el('label',{className:'pe-poll-setting'},u.publicPoll,el('span',{textContent:'Публичное голосование'})),
         el('label',{className:'pe-poll-duration'},el('span',{textContent:'Закрыть голосование через'}),u.closePoll),
         el('label',{className:'pe-poll-setting'},u.quiz,el('span',{textContent:'Викторина'})),
@@ -153,6 +153,7 @@ function buildUi() {
     u.overlay.addEventListener('mousedown', e => { if (e.target === u.overlay) closeEditor(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && session) { e.preventDefault(); closeEditor(); } });
     u.text.addEventListener('input', () => session && render());
+    u.withContent.onchange=()=>{if(session?.poll){session.poll.with_content=u.withContent.checked;render();}};
     u.quiz.onchange=()=>{if(session?.poll){session.poll.quiz=u.quiz.checked;renderPoll();render();}};
     u.publicPoll.onchange=()=>{if(session?.poll){session.poll.public=u.publicPoll.checked;render();}};
     u.closePoll.onchange=()=>{if(session?.poll){session.poll.close_minutes=Number(u.closePoll.value);render();}};
@@ -335,7 +336,8 @@ function render() {
     const pollLimits = commonPollLimits(selectedTargets());
     const caps = currentCapabilities();
     if (options.mode === 'native' && (botOnlyMedia() || (!poll && hasExtras()))) { options.mode = 'queue'; renderWhen(); }
-    const allowed = caps.kinds.filter(kind => !attachmentError(selectedTargets(), media, {kind}));
+    const maxMedia=poll?.with_content?Math.min(caps.mediaMax,pollLimits?.media_max||0):caps.mediaMax;
+    const allowed = caps.kinds.filter(kind => media.length<maxMedia && !attachmentError(selectedTargets(), media, {kind}));
     const accept = allowed.map(k => fileAccept[k]).filter(Boolean);
     ui.file.accept = accept.join(',');
     const mediaChanged = session.renderedMedia?.length !== media.length || media.some((m,i) => m !== session.renderedMedia?.[i]) || session.renderedAllowed !== accept.join(',');
@@ -366,10 +368,11 @@ function render() {
         el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
         session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');
     }
-    ui.count.textContent = `${media.length} / ${caps.mediaMax}`;
-    ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll)||standalone;
+    ui.count.textContent = `${media.length} / ${maxMedia}`;
+    ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll&&!poll.with_content)||standalone;
     ui.extraSection.hidden = Boolean(poll);
     if (poll) {
+        ui.withContent.disabled=!poll.with_content&&!pollLimits?.with_content;
         ui.addOption.disabled = !pollLimits || poll.options.length >= pollLimits.options_max;
         ui.multiple.disabled = !poll.multiple && (!pollLimits?.multiple||poll.quiz);
         ui.duration.closest('label').hidden = !pollLimits?.duration;
@@ -383,6 +386,7 @@ function render() {
             if(session.correctKey!==key){ui.correct.replaceChildren(el('option',{value:'',textContent:'Выберите ответ'}),...choices.map(o=>el('option',{value:o,textContent:o})));session.correctKey=key;}
             ui.correct.value=poll.correct_answer||'';
         }
+        if(poll.with_content){const limit=Math.min(...options.picked.map(v=>textLimit(v,media.length)));ui.counter.textContent=`${[...ui.text.value].length} / ${limit}`;}
         return renderPollState(poll, blocked);
     }
     const text = ui.text.value;
@@ -565,6 +569,7 @@ function renderPoll() {
     if (!poll) return;
     ui.question.value = poll.question;
     ui.multiple.checked = Boolean(poll.multiple);
+    ui.withContent.checked=!!poll.with_content;
     ui.quiz.checked=!!poll.quiz;
     ui.publicPoll.checked=!!poll.public;
     ui.closePoll.value=String(poll.close_minutes||0);
@@ -688,7 +693,7 @@ async function submit(e) {
     try {
         const { poll } = session;
         const post = { targets: [...options.picked], mode: options.mode, scheduledAt: options.scheduledAt, scheduledTs: options.mode === 'now' ? 0 : options.scheduledTs || 0,
-            media: poll || standaloneExtra(session.extras) ? [] : media.map(({ kind, src, name, file, existing }) => ({ kind, src, name, file, existing })), text: poll || standaloneExtra(session.extras) ? '' : ui.text.value.trim(),
+            media: (poll&&!poll.with_content)||(!poll&&standaloneExtra(session.extras)) ? [] : media.map(({ kind, src, name, file, existing }) => ({ kind, src, name, file, existing })), text: (poll&&!poll.with_content)||(!poll&&standaloneExtra(session.extras)) ? '' : ui.text.value.trim(),
             poll: poll ? {...clonePoll(poll), question:poll.question.trim(),options:poll.options.map(v=>v.trim()).filter(Boolean)} : null,
             hashtags: poll || standaloneExtra(session.extras) || ui.tags.hidden ? [] : [...session.tags], extras:poll ? null : cloneExtras(session.extras) };
         await options.onSubmit(post, onProgress);

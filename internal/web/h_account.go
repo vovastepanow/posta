@@ -795,10 +795,11 @@ func publish(c *Ctx) (any, error) {
 	if poll != nil && mode == "native" {
 		return nil, fail(422, "Опросы ставятся в очередь Posta или публикуются сразу: через «Отложенные» Telegram опросы пока не ставятся.")
 	}
-	if poll != nil && len(items) > 0 {
-		return nil, fail(422, "В опросе не бывает медиа: уберите файлы.")
-	}
 	platform := ch.Platform
+	if poll!=nil{
+		poll,err=u.ChannelPollCheck(ch,poll);if err!=nil{return nil,fail(422,err.Error())}
+		text,err=posta.PollContentText(platform,text,len(items),poll);if err!=nil{return nil,fail(422,err.Error())}
+	}
 	var rawExtras jx.M
 	switch e:=fields["extras"].(type){
 	case string:if e!=""{rawExtras=jx.Unmarshal([]byte(e));if rawExtras==nil{return nil,fail(400,"Некорректные дополнения поста.")}}
@@ -816,14 +817,7 @@ func publish(c *Ctx) (any, error) {
 		if mode == "native" {
 			return nil, fail(422, title+": отложка средствами соцсети пока только в Telegram.")
 		}
-		if poll != nil {
-			checked, err := u.ChannelPollCheck(ch, poll)
-			if err != nil {
-				return nil, fail(422, err.Error())
-			}
-			poll, text = checked, jx.Str(checked, "question")
-		}
-		if !posta.PostExtrasStandalone(extras){if err := c.A.NetworkDeliveryPreflight(platform, text, kinds); err != nil {
+		if !posta.PostExtrasStandalone(extras){if err := c.A.NetworkDeliveryPreflight(platform, posta.PollPreflightText(text,poll), kinds); err != nil {
 			return nil, fail(422, err.Error())
 		}}
 	}
@@ -868,12 +862,7 @@ func publish(c *Ctx) (any, error) {
 	}
 	defer os.RemoveAll(work)
 	var response jx.M
-	if poll != nil {
-		if poll, err = u.ChannelPollCheck(ch, poll); err != nil {
-			return nil, err
-		}
-		text = jx.Str(poll, "question")
-	} else {
+	if poll == nil || jx.Bool(poll,"with_content") {
 		limit := config.TelegramTextLimit
 		if len(items) > 0 {
 			limit = config.TelegramCaptionLimit
@@ -940,7 +929,7 @@ func publish(c *Ctx) (any, error) {
 			kind, dur = shown[0].Kind, shown[0].Duration
 		}
 		skipped := sent.Skipped
-		w.TelegramLogPublished(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(text,extras), len(shown)), jx.M{"at": now(), "scheduled_for": 0, "url": sent.URL, "status": "ok", "error": "",
+		w.TelegramLogPublished(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(posta.PollPreflightText(text,poll),extras), len(shown)), jx.M{"at": now(), "scheduled_for": 0, "url": sent.URL, "status": "ok", "error": "",
 			"media_src": posta.MediaSourcesOf(posta.PreparedMaps(shown)), "channel": ch.ID, "channel_title": ch.ChatTitle, "kind": kind, "duration": dur,
 			"thumb_id": w.PostThumbMake(posta.PreparedMaps(shown)), "skipped": orStrs(skipped), "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic"), "record": recordKey}))
 		response = jx.M{"scheduled": false, "url": sent.URL, "messages": len(sent.MessageIDs), "skipped": orStrs(skipped)}
@@ -1088,7 +1077,7 @@ func telegramQueue(c *Ctx) (any, error) {
 	u.TelegramSettleNativePosts()
 	scheduled := []jx.M{}
 	for _, e := range u.Outbox() {
-		scheduled = append(scheduled, jx.Merge(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(jx.Str(e,"text"),jx.Map(e,"extras")), len(jx.List(e, "media"))), u.TelegramChannelFields(jx.Str(e, "channel"))),
+		scheduled = append(scheduled, jx.Merge(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(posta.PollPreflightText(jx.Str(e,"text"),jx.Map(e,"poll")),jx.Map(e,"extras")), len(jx.List(e, "media"))), u.TelegramChannelFields(jx.Str(e, "channel"))),
 			jx.M{"id": e["id"], "publish_at": jx.Int(e, "publish_at"), "status": e["status"], "attempts": jx.Int(e, "attempts"), "error": jx.Str(e, "error")}))
 	}
 	sort.SliceStable(scheduled, func(i, j int) bool { return jx.Int(scheduled[i], "publish_at") < jx.Int(scheduled[j], "publish_at") })

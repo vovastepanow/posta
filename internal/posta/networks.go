@@ -373,14 +373,12 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 	text := jx.Str(post, "text")
 	var poll jx.M
 	if raw := jx.Map(post, "poll"); raw != nil {
-		if len(media) != 0 {
-			return nil, fmt.Errorf("Опрос не может содержать вложения: %w", ErrNetworkRejected)
-		}
 		poll, err = NetworkPollCheck(c.Platform, raw)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", err, ErrNetworkRejected)
 		}
-		text = jx.Str(poll, "question")
+		text,err=PollContentText(c.Platform,text,len(media),poll)
+		if err!=nil{return nil,fmt.Errorf("%s: %w",err,ErrNetworkRejected)}
 	}
 	extras, err := PublishExtrasCheck(c.Platform,text,PreparedKinds(media),poll,jx.Map(post,"extras"))
 	if err!=nil{return nil,fmt.Errorf("%s: %w",err,ErrNetworkRejected)}
@@ -390,7 +388,7 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 		}
 		return a.TelegramPublishPrepared(ctx, c, text, media, nil, extras)
 	}
-	if !PostExtrasStandalone(extras){if err := a.NetworkPreparedPreflight(c.Platform, text, media); err != nil {
+	if !PostExtrasStandalone(extras){if err := a.NetworkPreparedPreflight(c.Platform, PollPreflightText(text,poll), media); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrNetworkRejected)
 	}}
 	if err := a.networkRefreshChannel(ctx, n, c); err != nil {
@@ -400,7 +398,7 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 	if len(skipped) > 0 {
 		return nil, fmt.Errorf("%s: публикация остановлена, чтобы не потерять вложения: %s: %w", n.Title, strings.Join(skipped, "; "), ErrNetworkRejected)
 	}
-	if len(kept) == 0 && strings.TrimSpace(text) == "" && !PostExtrasStandalone(extras) {
+	if len(kept) == 0 && strings.TrimSpace(text) == "" && poll==nil && !PostExtrasStandalone(extras) {
 		return nil, fmt.Errorf("%s: в посте нет подходящих файлов и текста: %w", n.Title, ErrNetworkRejected)
 	}
 	sent, err := n.Publish(a, ctx, c, NetPost{Text: text, Media: kept, Poll: poll, Extras:extras})
