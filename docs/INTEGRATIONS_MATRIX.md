@@ -1,6 +1,6 @@
 # Integration matrix and refactoring scope
 
-Baseline: 46921ea83903. Updated publishing implementation: 72a6dccb0443. This is a static code audit plus deterministic/CI tests, not live API certification.
+Baseline: 46921ea83903. Updated publishing implementation: 83b51dd4c630. This is a static code audit plus deterministic/CI tests, not live API certification.
 
 ## Publishing
 
@@ -17,7 +17,7 @@ Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https:
 | YouTube | OAuth, resumable video upload in 8 MiB chunks, server-confirmed range recovery and validated video receipt; app keys/audit required |
 | Pinterest | OAuth, single photo or video pin, generated video cover, media processing status; app keys and live account test required; first selected board retained |
 | X | OAuth text/photos, single GIF or chunked video; media.write scope and API access required, live account test pending |
-| Facebook | Owner beta, explicit Page token and ID, text/photo feed publishing; app permissions and real account test required |
+| Facebook | Owner beta, explicit Page token and ID, text/photo feed publishing or one native MP4 video; app permissions and real account test required |
 | Instagram | Professional account OAuth (Instagram Login), JPEG, Reels and ordered carousels; HTTPS media pull and app approval required; live account check pending |
 | Threads | OAuth, text, JPEG/photo, video and ordered carousels; HTTPS media pull and app approval required; live account check pending |
 | TikTok, Rutube | No executable publisher in current registry |
@@ -25,7 +25,7 @@ Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https:
 | Discord, Mastodon, Bluesky, Reddit, LinkedIn | Existing adapters preserved, new connections disabled |
 | WordPress | Out of scope; existing text adapter preserved |
 | TenChat, Medium, Bitrix24, Google Business Profile | Out of scope |
-| Dzen, Viber | No executable direct publisher |
+| Dzen, Viber | No executable direct publisher; Dzen Telegram synchronization is external to Posta |
 
 Limits in third-party proposals are not specifications until checked against the actual API, permission level and account type.
 
@@ -94,3 +94,7 @@ Remaining product-scope blockers: TikTok app approval and mandatory user-facing 
 - Separate live feed smoke tests only read fixed public feed URLs and report format/counts. They do not publish, write production records, invoke AI, or certify every provider.
 
 VK video upload: https://github.com/VKCOM/vk-api-schema/blob/master/video/methods.json and https://github.com/VKCOM/vk-php-sdk#53-uploading-video-files . video.save wallpost=0, followed by multipart video_file upload; confirm video ID and attach to wall post. A successful upload is not proof that remote video transcoding has finished. Partial video publication or an ambiguous upload stops automatic replay. No VK Clips/Stories side effect or undocumented token acquisition.
+
+Facebook video publishing: https://developers.facebook.com/docs/graph-api/reference/page/videos/ . A page access token and documented content permissions are required. One MP4 (local limit 200 MB) uses the graph-video host with multipart source and description. Mixed photo/video or multiple video posts are rejected before upload. A returned video ID confirms API acceptance, not completed transcoding or public visibility. Live test pending.
+
+The connection catalog exposes the 14-product scope (Telegram separately); unsupported destinations and missing keys are visible as unavailable, and beta connection buttons are only exposed to the owner. Existing resources remain visible.
