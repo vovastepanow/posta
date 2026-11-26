@@ -2,6 +2,7 @@ package posta
 
 import(
  "context"
+ "encoding/base64"
  "io"
  "os"
  "path/filepath"
@@ -41,4 +42,26 @@ func TestPinterestVideoWaitsForProcessing(t *testing.T){
 }
 func TestPinterestUploadDestination(t *testing.T){
  for _,raw:=range []string{"https://unrelated.s3.amazonaws.com/","https://pinterest-media-upload.s3.amazonaws.com.evil.test/","https://pinterest-media-upload.s3.amazonaws.com@evil.test/"}{if pinterestUploadURL(raw){t.Fatal(raw)}}
+}
+
+func TestPinterestUsesSelectedCover(t *testing.T){
+ p:=filepath.Join(t.TempDir(),"clip.mp4")
+ if err:=os.WriteFile(p,make([]byte,32),0600);err!=nil{t.Fatal(err)}
+ cover:=makeCoverFixture(t);b,err:=os.ReadFile(cover);if err!=nil{t.Fatal(err)}
+ pins:=0
+ req:=func(_ context.Context,method,loc string,h map[string]string,body io.Reader)(*netResp,error){
+  switch{
+  case loc=="https://api.pinterest.com/v5/media":
+   return &netResp{Status:201,Data:jx.M{"media_id":"123","upload_url":"https://pinterest-media-upload.s3-accelerate.amazonaws.com/","upload_parameters":jx.M{"key":"test","policy":"signed"}}},nil
+  case strings.Contains(loc,"amazonaws.com"):return &netResp{Status:204},nil
+  case loc=="https://api.pinterest.com/v5/media/123":return &netResp{Status:200,Data:jx.M{"status":"succeeded"}},nil
+  case loc=="https://api.pinterest.com/v5/pins":
+   pins++;raw,_:=io.ReadAll(body);m:=jx.Map(jx.Unmarshal(raw),"media_source")
+   if jx.Str(m,"cover_image_data")!=base64.StdEncoding.EncodeToString(b){t.Fatal("selected cover lost")}
+   return &netResp{Status:201,Data:jx.M{"id":"456"}},nil
+  default:t.Fatal(loc);return nil,nil
+  }
+ }
+ result,err:=pinterestPublishWith(context.Background(),&Channel{Meta:jx.M{"board_id":"789"}},NetPost{Media:[]Prepared{{Kind:"video",Path:p,CoverPath:cover}}},req,func(context.Context,string)[]byte{t.Fatal("selected cover replaced by generated frame");return nil},func(context.Context,time.Duration)error{return nil})
+ if err!=nil||result==nil||pins!=1{t.Fatal(result,err,pins)}
 }

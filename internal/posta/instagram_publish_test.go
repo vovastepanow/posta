@@ -74,3 +74,27 @@ func TestInstagramStoryAndReelCover(t *testing.T){
   if tc.wantErr{if err==nil||calls!=0{t.Fatalf("expected preflight failure, calls=%d err=%v",calls,err)}}else if err!=nil||calls!=3{t.Fatalf("calls=%d err=%v",calls,err)}
  })}
 }
+
+func TestInstagramCustomCoverLease(t *testing.T){
+ cover:=makeCoverFixture(t)
+ spec:=metaContainerSpec{name:"Instagram",base:"https://graph.instagram.com/v24.0",create:"media",publish:"media_publish",status:"status_code",caption:"caption",textLimit:2200}
+ c:=&Channel{Ref:"12345",Secrets:map[string]string{"access_token":"token"}}
+ leases,revoked,calls:=0,0,0
+ p:=NetPost{Text:"caption",Media:[]Prepared{{Kind:"video",Path:"clip",CoverPath:cover}}}
+ lease:=func(m Prepared)(string,func(),error){
+  leases++
+  if m.Kind=="video"&&m.Path=="clip"{return "https://example.org/clip.mp4",func(){revoked++},nil}
+  if m.Kind=="photo"&&m.Path==cover{return "https://example.org/cover.jpg",func(){revoked++},nil}
+  t.Fatal("unexpected lease",m);return "",nil,nil
+ }
+ req:=func(_ context.Context,method,endpoint string,_ map[string]string,body io.Reader)(*netResp,error){
+  calls++
+  if method=="GET"{return &netResp{Status:200,Data:jx.M{"status_code":"FINISHED"}},nil}
+  if strings.HasSuffix(endpoint,"/media_publish"){return &netResp{Status:200,Data:jx.M{"id":"20001"}},nil}
+  b,_:=io.ReadAll(body);q,_:=url.ParseQuery(string(b))
+  if q.Get("cover_url")!="https://example.org/cover.jpg"||q.Get("video_url")!="https://example.org/clip.mp4"||q.Get("media_type")!="REELS"{t.Fatal(q)}
+  return &netResp{Status:200,Data:jx.M{"id":"10001"}},nil
+ }
+ result,err:=metaContainerPublish(context.Background(),c,p,spec,req,lease,func(context.Context)error{return nil})
+ if err!=nil||result==nil||calls!=3||leases!=2||revoked!=2{t.Fatal(result,err,calls,leases,revoked)}
+}
