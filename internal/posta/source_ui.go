@@ -365,7 +365,7 @@ func (u *U) sourcePreviewMedia(p jx.M) []jx.M {
 					video = https(jx.Str(a, "video_local"))
 				}
 				target := jx.Str(a, "video_page")
-				if target == "" {
+				if target == "" && (len(attachments) == 1 || video != "") {
 					target = page
 				}
 				out = append(out, item("video", video, poster, target, jx.Bool(a, "video_pending"), video == "" && VideoPageVia(target) == ""))

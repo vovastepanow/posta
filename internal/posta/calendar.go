@@ -701,6 +701,9 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 // calendarRecordMedia uses the real media, not the video thumbnail. Incomplete
 // downloads are refused so a scheduled video cannot silently turn into a photo.
 func (a *App) calendarRecordMedia(record jx.M) ([]MediaItem, error) {
+	if jx.Bool(record, "media_incomplete") || jx.Bool(record, "text_incomplete") {
+		return nil, Bad("Запись ещё не получена полностью. Обновите её перед публикацией.")
+	}
 	if jx.Str(record, "video_via") != "" && jx.Str(record, "video") == "" && a.MediaExisting(jx.Str(record, "video_local")) == "" {
 		return nil, Bad("Видео ещё не загружено. Откройте пост и дождитесь загрузки.")
 	}

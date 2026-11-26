@@ -1149,6 +1149,10 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	platOrder := candidatePlatformOrder(byPlatform)
 	for _, p := range platOrder {
 		for _, item := range ExpandPostImages(byPlatform[p]) {
+			if jx.Bool(item, "media_incomplete") || jx.Bool(item, "text_incomplete") {
+				skipped["incomplete_source_post"]++
+				continue
+			}
 			if policyErr != nil {
 				skipped["source_policy_unavailable"]++
 				continue

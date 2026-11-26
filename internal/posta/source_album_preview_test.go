@@ -37,6 +37,11 @@ func TestTelegramInventoryRejectsForeignTileLink(t *testing.T) {
 	if len(p) != 1 || len(videoPreviewTargets(p)) != 0 {
 		t.Fatalf("foreign album video was accepted: %v", p)
 	}
+	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
+	media := u.sourcePreviewMedia(p[0])
+	if len(media) != 2 || jx.Str(media[0], "page") != "" || !jx.Bool(media[0], "unavailable") {
+		t.Fatalf("unknown tile must not fall back to album ID: %v", media)
+	}
 }
 
 func TestSourcePreviewDoesNotTruncateText(t *testing.T) {
