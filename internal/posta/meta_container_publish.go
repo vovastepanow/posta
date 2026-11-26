@@ -6,6 +6,8 @@ import (
  "net/http"
  "net/url"
  "strings"
+ "strconv"
+ "math"
  "time"
 
  "posta/internal/jx"
@@ -29,6 +31,8 @@ func metaContainerPublish(ctx context.Context,c *Channel,p NetPost,s metaContain
  if len(p.Media)==0&&(!s.textOnly||strings.TrimSpace(p.Text)==""){return nil,Bad("%s: требуется медиа или допустимый текст.",s.name)}
  platform:="instagram";if s.textOnly{platform="threads"}
  extra,err:=PublishExtrasCheck(platform,p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
+ if jx.Bool(extra,"ig_story")&&jx.Str(c.Meta,"account_type")!="BUSINESS"{return nil,Bad("Stories доступны бизнес-аккаунтам Instagram. Переподключите ресурс, чтобы проверить тип аккаунта.")}
+ if v:=jx.Str(extra,"ig_cover_seconds");v!=""{seconds,_:=strconv.ParseFloat(v,64);if p.Media[0].Duration>0&&seconds>=float64(p.Media[0].Duration){return nil,Bad("Кадр обложки должен находиться внутри видео.")}}
  // A single deadline bounds processing of the entire carousel, rather than
  // allowing each child to extend the delivery indefinitely.
  ctx,cancel:=context.WithTimeout(ctx,4*time.Minute);defer cancel()
@@ -94,6 +98,8 @@ func metaContainerPublish(ctx context.Context,c *Channel,p NetPost,s metaContain
    form.Set("media_type","CAROUSEL");form.Set("children",strings.Join(ids,","))
   }
  }
+ if jx.Bool(extra,"ig_story"){form.Set("media_type","STORIES");form.Del(s.caption)}
+ if v:=jx.Str(extra,"ig_cover_seconds");v!=""{seconds,_:=strconv.ParseFloat(v,64);form.Set("thumb_offset",strconv.FormatInt(int64(math.Round(seconds*1000)),10))}
  for _,key:=range []string{"alt_text","topic_tag","link_attachment"}{if v:=jx.Str(extra,key);v!=""{form.Set(key,v)}}
  if jx.Bool(extra,"spoiler"){form.Set("is_spoiler_media","true")}
  id,err:=create(form);if err!=nil{return nil,err}

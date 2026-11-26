@@ -40,7 +40,7 @@ var instagramOAuth=&OAuthFlow{
   data,err:=metaPublishExpect(r,err,"Instagram: профиль");if err!=nil{return nil,err}
   id,name:=jx.Str(data,"user_id"),jx.Str(data,"username")
   if !metaDigits.MatchString(id)||name==""||jx.Str(data,"account_type")=="PERSONAL"{return nil,Bad("Instagram: требуется профессиональный профиль.")}
-  return &NetResource{Ref:id,Title:"@"+name,Secrets:secrets,Meta:jx.M{}},nil
+  return &NetResource{Ref:id,Title:"@"+name,Secrets:secrets,Meta:jx.M{"account_type":jx.Str(data,"account_type")}},nil
  },
  Refresh:func(a *App,ctx context.Context,secrets map[string]string)(map[string]string,error){
   q:=url.Values{"grant_type":{"ig_refresh_token"},"access_token":{secrets["access_token"]}}

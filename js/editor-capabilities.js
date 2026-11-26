@@ -78,13 +78,15 @@ export function attachmentError(targets, media, item) {
     return '';
 }
 
-export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag','yt_privacy','yt_audience','yt_tags','yt_category','yt_license','styled_text','max_sticker','first_comment','paid_partnership','made_with_ai','x_reply_settings'];
+export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag','yt_privacy','yt_audience','yt_tags','yt_category','yt_license','styled_text','max_sticker','first_comment','paid_partnership','made_with_ai','x_reply_settings','ig_story','ig_cover_seconds'];
 export const standaloneExtra = e=>Boolean(e?.location||e?.contact||e?.max_sticker);
 export function extraActive(extra,key) {
     return key==='buttons' ? !!extra?.buttons?.length : key==='preview' ? !!extra?.preview && extra.preview!=='default' : Boolean(extra?.[key]);
 }
 export function extraAvailability(targets,media,text,poll,key) {
     if (poll || !targets.length || !targets.every(t=>targetCapabilities(t)?.extras?.includes(key))) return 'Недоступно для выбранных площадок или опроса.';
+    if(key==='ig_story'&&(media.length!==1||!['photo','video'].includes(mediaKind(media[0]))))return 'Stories: одно фото или видео.';
+    if(key==='ig_cover_seconds'&&(media.length!==1||mediaKind(media[0])!=='video'))return 'Кадр обложки доступен для одного Reels.';
     if(key==='styled_text'&&!text.trim())return 'Форматирование требует текста.';
     if (key==='buttons' && targets.some(t=>targetCapabilities(t)?.platform==='telegram') && media.length>1) return 'Telegram не поддерживает кнопки в альбомах.';
     if (key==='spoiler' && (!media.length || media.some(m=>!['photo','animation','video'].includes(mediaKind(m))))) return 'Спойлер доступен только для фото, GIF и видео.';
@@ -100,10 +102,13 @@ export function extraError(targets,media,text,poll,extra) {
         if([extra.location,extra.contact,extra.max_sticker].filter(Boolean).length>1)return 'Выберите одну карточку или стикер.';
         if(media.length||text.trim()||extraActive(extra,'buttons')||extraActive(extra,'spoiler')||extraActive(extra,'preview')||extraActive(extra,'styled_text')||extraActive(extra,'first_comment'))return 'Карточка публикуется отдельно от текста, медиа и кнопок.';
     }
+    if(extra?.ig_story&&text.trim())return 'Stories не поддерживают подпись: удалите её в этой версии.';
+    if(extra?.ig_story&&(extra.alt_text||extra.ig_cover_seconds))return 'Stories несовместимы с альтернативным текстом и обложкой Reels.';
     if(extra?.first_comment?.trim()&&extra.close_comments)return 'Первый комментарий несовместим с закрытыми комментариями.';
     for(const key of EXTRA_KEYS) if(extraActive(extra,key)) {
         const error=extraAvailability(targets,media,text,poll,key);
         if(error)return error;
+        if(key==='ig_cover_seconds'&&(!extra[key].trim()||!Number.isFinite(Number(extra[key]))||Number(extra[key])<0||Number(extra[key])>=86400))return 'Кадр обложки: секунды от 0 до 86399.';
         if(key==='alt_text'){const limit=targets.some(t=>targetCapabilities(t)?.platform==='pinterest')?500:1000;if([...extra[key].trim()].length>limit)return 'Альтернативный текст: до '+limit+' символов.';}
         if(key==='yt_category'&&!/^[1-9][0-9]{0,2}$/.test(extra[key].trim()))return 'Категория YouTube: числовой ID.';
         if(key==='yt_tags'&&([...extra[key]].length>500||/[<>\r\n]/.test(extra[key])))return 'Теги YouTube: до 500 символов.';

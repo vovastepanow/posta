@@ -25,7 +25,7 @@ func postExtraKinds(platform string) []string {
 	case "threads":
 		return []string{"alt_text","topic_tag","link_attachment","spoiler"}
 	case "instagram":
-		return []string{"alt_text"}
+		return []string{"alt_text","ig_story","ig_cover_seconds"}
 	case "pinterest":
 		return []string{"alt_text","link_attachment"}
 	case "youtube":
@@ -53,9 +53,9 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 			if jx.ToMap(value)==nil{return nil,Bad("Некорректная карточка публикации.")}
 		case "buttons":
 			if len(jx.ToList(value))==0{continue}
-		case "silent","protect","spoiler","signed","close_comments","mark_as_ads","styled_text","paid_partnership","made_with_ai":
+		case "silent","protect","spoiler","signed","close_comments","mark_as_ads","styled_text","paid_partnership","made_with_ai","ig_story":
 			v,ok:=value.(bool);if !ok{return nil,Bad("Некорректный параметр публикации: %s.",key)};if !v{continue}
-		case "alt_text","topic_tag","link_attachment","copyright","vk_geo","yt_privacy","yt_audience","yt_tags","yt_category","yt_license","max_sticker","first_comment","x_reply_settings":
+		case "alt_text","topic_tag","link_attachment","copyright","vk_geo","yt_privacy","yt_audience","yt_tags","yt_category","yt_license","max_sticker","first_comment","x_reply_settings","ig_cover_seconds":
 			v,ok:=value.(string);if !ok{return nil,Bad("Некорректное значение дополнения %s.",key)};if strings.TrimSpace(v)==""{continue}
 		case "preview":
 			v,ok:=value.(string);if !ok{return nil,Bad("Некорректная настройка предпросмотра.")};if v==""||v=="default"{continue}
@@ -97,6 +97,11 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 		case "max_sticker":
 			v:=strings.TrimSpace(jx.ToStr(value));if !regexp.MustCompile("^[A-Za-z0-9_-]{1,128}$").MatchString(v){return nil,Bad("Укажите код стикера MAX.")}
 			out[key]=v
+		case "ig_story":
+			if len(kinds)!=1||!contains([]string{"photo","image","video"},kinds[0])||strings.TrimSpace(text)!=""{return nil,Bad("Stories: одно фото или видео, без подписи.")};out[key]=true
+		case "ig_cover_seconds":
+			if len(kinds)!=1||kinds[0]!="video"{return nil,Bad("Кадр обложки доступен для одного Reels.")}
+			v:=strings.TrimSpace(jx.ToStr(value));n,err:=strconv.ParseFloat(v,64);if err!=nil||math.IsNaN(n)||math.IsInf(n,0)||n<0||n>=86400{return nil,Bad("Кадр обложки: укажите секунды от 0 до 86399.")};out[key]=strconv.FormatFloat(n,'f',3,64)
 		case "alt_text":
 			if len(kinds)!=1||!contains([]string{"photo","image"},kinds[0]){return nil,Bad("Альтернативный текст доступен для одной фотографии.")}
 			v:=strings.TrimSpace(jx.ToStr(value));limit:=1000;if platform=="pinterest"{limit=500};if runeLen(v)>limit{return nil,Bad("Альтернативный текст: до %d символов.",limit)};out[key]=v
@@ -137,6 +142,7 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 		default:out[key]=true
 		}
 	}
+	if jx.Bool(out,"ig_story")&&(jx.Str(out,"alt_text")!=""||jx.Str(out,"ig_cover_seconds")!=""){return nil,Bad("Настройки обычной публикации и обложки Reels несовместимы со Stories.")}
 	if jx.Str(out,"first_comment")!=""&&jx.Bool(out,"close_comments"){return nil,Bad("Первый комментарий несовместим с закрытыми комментариями.")}
 	if PostExtrasStandalone(out){
 		n:=0;for _,key:=range []string{"location","contact","max_sticker"}{if jx.Has(out,key){n++}}
@@ -166,6 +172,7 @@ func PostExtrasSummary(text string,extra jx.M)string{
 	if jx.Map(extra,"location")!=nil{return "Геолокация"}
 	if jx.Map(extra,"contact")!=nil{return "Карточка контакта"}
 	if jx.Str(extra,"max_sticker")!=""{return "Стикер MAX"}
+	if jx.Bool(extra,"ig_story"){return "Instagram Stories"}
 	return text
 }
 

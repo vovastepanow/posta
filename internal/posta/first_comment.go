@@ -12,6 +12,7 @@ func firstCommentWarning(platform string)string{
 func ChannelExtraKinds(c *Channel)[]string{
  if c==nil{return []string{}}
  list:=postExtraKinds(c.Platform)
+ if c.Platform=="instagram"&&jx.Str(c.Meta,"account_type")!="BUSINESS"{out:=[]string{};for _,v:=range list{if v!="ig_story"{out=append(out,v)}};return out}
  if c.Platform!="max"{return list}
  typ:=jx.Str(c.Meta,"chat_type")
  if typ==""||typ=="channel"{return list}

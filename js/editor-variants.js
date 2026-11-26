@@ -12,7 +12,7 @@ export function draftPayload(d) {
     const poll=d.poll, separate=Boolean(poll&&!poll.with_content)||(!poll&&standaloneExtra(d.extras));
     const media=separate?[]:(d.media||[]).map(({kind,src,name,file,existing})=>({kind,src,name,file,existing}));
     const text=separate?'':String(d.text||'').trim();
-    const tags=poll||separate||media.some(m=>['sticker','video_note'].includes(mediaKind(m)))?[]:[...(d.tags||[])];
+    const tags=poll||separate||d.extras?.ig_story||media.some(m=>['sticker','video_note'].includes(mediaKind(m)))?[]:[...(d.tags||[])];
     return {text,media,hashtags:tags,poll:poll?{...poll,question:poll.question.trim(),options:poll.options.map(v=>v.trim()).filter(Boolean)}:null,extras:poll?null:structuredClone(d.extras||{})};
 }
 export function draftProblem(target,d) {
