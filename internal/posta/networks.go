@@ -43,6 +43,7 @@ type OAuthFlow struct {
 	Identify  func(a *App, ctx context.Context, secrets map[string]string) (*NetResource, error)
 	Refresh   func(a *App, ctx context.Context, secrets map[string]string) (map[string]string, error)
 	PKCE      bool
+	RefreshWithAccessToken bool
 }
 
 // NetResource — подключённый ресурс: ref, название, секреты, meta.
@@ -123,7 +124,7 @@ func (a *App) Networks() map[string]*Network {
 			AppKeys: []string{"TUMBLR_CLIENT_ID", "TUMBLR_CLIENT_SECRET"}, OAuth: tumblrOAuth, Publish: tumblrPublish},
 		"linkedin": {Title: "LinkedIn (профиль)", Prefix: "li", Status: "needs_keys", Note: "Приложение LinkedIn с продуктом «Share on LinkedIn»; токен на 60 дней, без обновления.",
 			TextLimit: [2]int{3000, 3000}, Docs: "partly", AppKeys: []string{"LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"}, OAuth: linkedinOAuth, Publish: linkedinPublish},
-		"threads":   keys("Threads", "threads", "Приложение Meta; картинка по публичной ссылке."),
+		"threads": {Title:"Threads",Prefix:"threads",Status:"needs_keys",Note:"OAuth приложения Threads; текст, фото, видео и карусели. Для медиа необходим доступный HTTPS-адрес Posta.",TextLimit:[2]int{500,500},MediaMax:10,Kinds:[]string{"photo","video"},MaxBytes:map[string]int64{"photo":8_000_000,"video":200_000_000},Docs:"partly",AppKeys:[]string{"THREADS_CLIENT_ID","THREADS_CLIENT_SECRET"},OAuth:threadsOAuth,Publish:threadsPublish},
 		"instagram": keys("Instagram", "ig", "Meta (Instagram, Facebook) признана экстремистской и запрещена в РФ. Приложение Meta, профессиональный аккаунт."),
 		"facebook": {Title:"Facebook (страница)",Prefix:"fb",Status:"beta",Note:"Meta признана экстремистской и запрещена в РФ. Нужен токен управляемой страницы с pages_manage_posts; пока текст и фото.",TextLimit:[2]int{63206,63206},MediaMax:10,Kinds:[]string{"photo"},MaxBytes:map[string]int64{"photo":10_000_000},Docs:"partly",Fields:[]NetField{{"page_id","ID страницы Facebook",false},{"access_token","Page access token",true}},Connect:facebookConnect,Publish:facebookPublish},
 		"x": {Title: "X (Twitter)", Prefix: "x", Status: "needs_keys", Note: "Платный доступ к API: бесплатного тарифа нет, посты с URL дороже.", TextLimit: [2]int{280, 280},
@@ -501,6 +502,7 @@ func networkExpect(r *netResp, err error, statuses []int, what string) (jx.M, er
 	if err != nil {
 		return nil, err
 	}
+	if r == nil { return nil, fmt.Errorf("%s: пустой ответ API",what) }
 	if contains(statuses, r.Status) {
 		return orEmpty(r.Data), nil
 	}
@@ -617,11 +619,13 @@ func expiresAt(t jx.M) string {
 
 // networkRefreshChannel — токен, который скоро истечёт, обновляется до отправки и сохраняется в ресурс.
 func (a *App) networkRefreshChannel(ctx context.Context, n *Network, c *Channel) error {
-	if n.OAuth == nil || n.OAuth.Refresh == nil || c.Secrets["refresh_token"] == "" {
+	if n.OAuth == nil || n.OAuth.Refresh == nil || (!n.OAuth.RefreshWithAccessToken && c.Secrets["refresh_token"] == "") {
 		return nil
 	}
 	exp, _ := strconv.ParseInt(c.Secrets["expires_at"], 10, 64)
-	if exp > now()+networkRefreshMargin {
+	margin:=int64(networkRefreshMargin)
+	if n.OAuth.RefreshWithAccessToken { margin=7*24*60*60; if exp<=now(){return fmt.Errorf("Срок действия токена истёк; подключите аккаунт заново: %w",ErrNetworkRejected)} }
+	if exp > now()+margin {
 		return nil
 	}
 	fresh, err := n.OAuth.Refresh(a, ctx, c.Secrets)

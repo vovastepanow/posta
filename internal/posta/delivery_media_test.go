@@ -4,7 +4,6 @@ import (
  "bytes"
  "image"
  "image/jpeg"
- "net/http"
  "net/http/httptest"
  "net/url"
  "os"

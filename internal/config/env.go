@@ -86,7 +86,7 @@ func LoadServer() Server {
 			s.LocalNoAuthOwner = strings.TrimSpace(string(b))
 		}
 	}
-	for _, name := range []string{"REDDIT", "TUMBLR", "LINKEDIN", "PINTEREST", "YOUTUBE", "X"} {
+	for _, name := range []string{"REDDIT", "TUMBLR", "LINKEDIN", "PINTEREST", "YOUTUBE", "X", "THREADS"} {
 		for _, part := range []string{"_CLIENT_ID", "_CLIENT_SECRET"} {
 			if v := env(name+part, ""); v != "" {
 				s.NetworkKeys[name+part] = v
