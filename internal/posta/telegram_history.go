@@ -18,6 +18,31 @@ import (
 // collection. Throttle Telegram RPCs after FloodWait, not just one channel.
 var telegramHistoryPause sync.Map
 
+// Calls for one account are serialized by tguCall. Never shorten a wait
+// reported by Telegram, including when a download and history share a session.
+func telegramMediaPause(uid string, seconds int, at time.Time) {
+	if seconds <= 0 {
+		return
+	}
+	until := at.Add(time.Duration(seconds) * time.Second)
+	if old, ok := telegramHistoryPause.Load(uid); ok && old.(time.Time).After(until) {
+		return
+	}
+	telegramHistoryPause.Store(uid, until)
+}
+
+func telegramMediaWait(uid string, at time.Time) int {
+	until, ok := telegramHistoryPause.Load(uid)
+	if !ok {
+		return 0
+	}
+	d := until.(time.Time).Sub(at)
+	if d <= 0 {
+		return 0
+	}
+	return int((d + time.Second - 1) / time.Second)
+}
+
 func (u *U) telegramUserHistoryPosts(channel, name string, count int) ([]jx.M, error) {
 	channel = strings.ToLower(strings.TrimLeft(strings.TrimSpace(channel), "@"))
 	if u.ID == "" || count <= 0 || !IsValidTelegramChannel(channel) || !u.TelegramUserConnected() {
@@ -25,16 +50,16 @@ func (u *U) telegramUserHistoryPosts(channel, name string, count int) ([]jx.M, e
 	}
 	var result tgclient.PublicHistory
 	err := u.tguCall(30*time.Second, func(ctx context.Context, acc *tgclient.Account) error {
-		if until, ok := telegramHistoryPause.Load(u.ID); ok && time.Now().Before(until.(time.Time)) {
+		if telegramMediaWait(u.ID, time.Now()) > 0 {
 			return Bad("Telegram ограничил запросы истории; повтор будет позже.")
 		}
 		var err error
 		result, err = tgclient.ReadPublicChannelHistory(ctx, acc, channel, min(count+10, 100))
 		var flood *tgclient.FloodError
 		if errors.As(err, &flood) {
-			telegramHistoryPause.Store(u.ID, time.Now().Add(time.Duration(flood.Seconds)*time.Second))
+			telegramMediaPause(u.ID, flood.Seconds, time.Now())
 		} else if result.FloodWait > 0 {
-			telegramHistoryPause.Store(u.ID, time.Now().Add(time.Duration(result.FloodWait)*time.Second))
+			telegramMediaPause(u.ID, result.FloodWait, time.Now())
 		}
 		return err
 	})

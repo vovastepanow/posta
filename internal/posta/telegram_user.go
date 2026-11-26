@@ -241,11 +241,23 @@ func (a *App) TelegramUserDownloadVideo(ctx context.Context, uid, channel string
 	}
 	u := a.User(ctx, uid, nil)
 	var path string
+	var flood *tgclient.FloodError
 	err := u.tguCall(config.TGUVideoTimeout*time.Second, func(ctx context.Context, acc *tgclient.Account) error {
+		if seconds := telegramMediaWait(uid, time.Now()); seconds > 0 {
+			flood = &tgclient.FloodError{Seconds: seconds}
+			return flood
+		}
 		var err error
 		path, _, err = tgclient.DownloadVideo(ctx, acc, strings.TrimPrefix(channel, "@"), postID, dir, config.TGUVideoMaxBytes)
+		if errors.As(err, &flood) {
+			telegramMediaPause(uid, flood.Seconds, time.Now())
+		}
 		return err
 	})
+	// tguCall translates errors for the UI; preserve the typed wait for the worker.
+	if flood != nil {
+		return "", flood
+	}
 	if err != nil {
 		return "", err
 	}

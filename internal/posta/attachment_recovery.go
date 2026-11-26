@@ -46,7 +46,7 @@ func (r *attachmentRecovery) resolveVideo(page string) string {
 		if !r.telegramAvailable() {
 			return ""
 		}
-		if until, ok := telegramHistoryPause.Load(r.u.ID); ok && time.Now().Before(until.(time.Time)) {
+		if telegramMediaWait(r.u.ID, time.Now()) > 0 {
 			return ""
 		}
 	}

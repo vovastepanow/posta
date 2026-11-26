@@ -23,6 +23,7 @@ import (
 
 	"posta/internal/config"
 	"posta/internal/jx"
+	"posta/internal/tgclient"
 )
 
 // yt-dlp (tools/bin/yt-dlp — самодостаточная сборка, Python в системе не нужен): списки и скачивание роликов TikTok, YouTube и X.
@@ -639,6 +640,18 @@ func (a *App) runVideoJob(ctx context.Context, j VideoJob) {
 	}()
 	if err != nil {
 		u.Log("-> Ролик %s — попытка %d не удалась: %s.", label, tries, strings.Join(times, ", "))
+		var flood *tgclient.FloodError
+		if jobVia(j) == "tgu" && errors.As(err, &flood) {
+			next := now() + int64(max(1, flood.Seconds)) + 1
+			a.videoQueueUpdate(ctx, func(jobs []VideoJob) []VideoJob {
+				return deferTelegramJobs(jobs, j.UID, next)
+			})
+			if videoIsPreviewKey(j.Key) {
+				a.videoPreviewSave(ctx, j.Page, jx.M{"status": "queued", "error": flood.Error(), "at": now()})
+			}
+			u.Log("-> Telegram: скачивание отложено до окончания ограничения (%d с).", flood.Seconds)
+			return
+		}
 		a.videoJobFailed(ctx, u, j, err.Error(), errors.Is(err, ErrVideoTooLong))
 		return
 	}
@@ -750,6 +763,16 @@ func (a *App) videoDropJob(ctx context.Context, j VideoJob) {
 		}
 		return out
 	})
+}
+
+// FloodWait applies to the account, not a video. Keep retry counters intact.
+func deferTelegramJobs(jobs []VideoJob, uid string, next int64) []VideoJob {
+	for i := range jobs {
+		if jobs[i].UID == uid && jobVia(jobs[i]) == "tgu" && jobs[i].NextAt < next {
+			jobs[i].NextAt = next
+		}
+	}
+	return jobs
 }
 
 // videoJobFailed — повтор через минуту, потом ещё; после трёх — запись помечается недоступным видео.
