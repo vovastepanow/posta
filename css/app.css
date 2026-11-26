@@ -2653,3 +2653,5 @@ dialog::backdrop {
 
 .pe-extra-cards { display:grid; gap:8px; border-top:1px solid var(--line); padding-top:10px; }
 .pe-card-field { display:grid; grid-template-columns:minmax(100px,1fr) minmax(0,2fr); gap:8px; align-items:center; font-size:13px; }
+
+.pe-format-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:2px 0 4px}.pe-format-switch{display:flex;align-items:center;gap:6px;font-size:12px;margin-right:5px}.pe-format-action{min-width:30px}.pe-format-action:nth-of-type(1){font-weight:700}.pe-format-action:nth-of-type(2){font-style:italic}.pe-format-action:nth-of-type(3){text-decoration:underline}.pe-format-action:nth-of-type(4){text-decoration:line-through}.pe-format-preview{margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px;overflow-wrap:anywhere}.pe-preview-label{opacity:.65;font-size:11px}.pe-preview-copy{white-space:pre-wrap;margin-top:6px;line-height:1.45}.pe-preview-link{color:#478cf1;text-decoration:underline}

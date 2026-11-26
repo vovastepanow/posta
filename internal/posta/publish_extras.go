@@ -13,9 +13,9 @@ import (
 func postExtraKinds(platform string) []string {
 	switch platform {
 	case "", "telegram":
-		return []string{"buttons","silent","protect","spoiler","preview","location","contact"}
+		return []string{"buttons","silent","protect","spoiler","preview","location","contact","styled_text"}
 	case "max":
-		return []string{"buttons","preview","location","contact"}
+		return []string{"buttons","preview","location","contact","styled_text"}
 	case "vk":
 		return []string{"signed","close_comments","mark_as_ads","copyright","link_attachment","vk_geo"}
 	case "threads":
@@ -49,7 +49,7 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 			if jx.ToMap(value)==nil{return nil,Bad("Некорректная карточка публикации.")}
 		case "buttons":
 			if len(jx.ToList(value))==0{continue}
-		case "silent","protect","spoiler","signed","close_comments","mark_as_ads":
+		case "silent","protect","spoiler","signed","close_comments","mark_as_ads","styled_text":
 			v,ok:=value.(bool);if !ok{return nil,Bad("Некорректный параметр публикации: %s.",key)};if !v{continue}
 		case "alt_text","topic_tag","link_attachment","copyright","vk_geo","yt_privacy","yt_audience","yt_tags","yt_category","yt_license":
 			v,ok:=value.(string);if !ok{return nil,Bad("Некорректное значение дополнения %s.",key)};if strings.TrimSpace(v)==""{continue}
@@ -113,6 +113,9 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 			if len(kinds)==0{return nil,Bad("Спойлер применяется к фото, GIF или видео.")}
 			for _,k:=range kinds{if !contains([]string{"image","photo","animation","video"},k){return nil,Bad("Спойлер не поддерживается для этого типа вложения.")}}
 			out[key]=true
+		case "styled_text":
+			if strings.TrimSpace(text)==""{return nil,Bad("Форматирование требует текста.")}
+			out[key]=true
 		case "preview":
 			if len(kinds)!=0||strings.TrimSpace(text)==""{return nil,Bad("Управление превью ссылки доступно для текстового поста.")}
 			out[key]=value
@@ -121,7 +124,7 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 	}
 	if PostExtrasStandalone(out){
 		if jx.Map(out,"location")!=nil&&jx.Map(out,"contact")!=nil{return nil,Bad("Выберите одну карточку: геолокацию или контакт.")}
-		if len(kinds)>0||strings.TrimSpace(text)!=""||len(jx.Maps(out,"buttons"))>0||jx.Bool(out,"spoiler")||jx.Str(out,"preview")!=""{return nil,Bad("Карточка геолокации или контакта публикуется отдельно от текста и медиа.")}
+		if len(kinds)>0||strings.TrimSpace(text)!=""||len(jx.Maps(out,"buttons"))>0||jx.Bool(out,"spoiler")||jx.Bool(out,"styled_text")||jx.Str(out,"preview")!=""{return nil,Bad("Карточка геолокации или контакта публикуется отдельно от текста и медиа.")}
 	}
 	if len(out)==0{return nil,nil}
 	return out,nil

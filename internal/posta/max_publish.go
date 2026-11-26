@@ -89,7 +89,7 @@ func maxPublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequ
 		attachments=append(attachments,jx.M{"type":"inline_keyboard","payload":jx.M{"buttons":rows}})
 	}
 	payload:=jx.M{}
-	if strings.TrimSpace(p.Text)!=""{payload["text"]=p.Text}
+	if strings.TrimSpace(p.Text)!=""{payload["text"]=p.Text;if jx.Bool(extras,"styled_text"){payload["text"]=publishStyledHTML(p.Text);payload["format"]="html"}}
 	if len(attachments)>0{payload["attachments"]=attachments}
 	headers:=map[string]string{"Authorization":c.Secrets["token"],"Content-Type":ctJSON}
 	for attempt:=0;;attempt++{

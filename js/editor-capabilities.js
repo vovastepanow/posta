@@ -1,5 +1,5 @@
 // UI preflight mirrors implemented delivery capabilities; the server is authoritative.
-const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview','location','contact'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,quiz:true,close:true}};
+const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview','location','contact','styled_text'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,quiz:true,close:true}};
 const REQUIRED = new Set(['youtube','pinterest','instagram']);
 export const mediaKind = m => m.kind === 'image' ? (/^image\/gif$/i.test(m.file?.type || '') || /\.gif(?:[?#]|$)/i.test(m.src || '') || /\.gif$/i.test(m.name || '') ? 'animation' : 'photo') : m.kind;
 export function targetCapabilities(target) {
@@ -77,13 +77,14 @@ export function attachmentError(targets, media, item) {
     return '';
 }
 
-export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag','yt_privacy','yt_audience','yt_tags','yt_category','yt_license'];
+export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag','yt_privacy','yt_audience','yt_tags','yt_category','yt_license','styled_text'];
 export const standaloneExtra = e=>Boolean(e?.location||e?.contact);
 export function extraActive(extra,key) {
     return key==='buttons' ? !!extra?.buttons?.length : key==='preview' ? !!extra?.preview && extra.preview!=='default' : Boolean(extra?.[key]);
 }
 export function extraAvailability(targets,media,text,poll,key) {
     if (poll || !targets.length || !targets.every(t=>targetCapabilities(t)?.extras?.includes(key))) return 'Недоступно для выбранных площадок или опроса.';
+    if(key==='styled_text'&&!text.trim())return 'Форматирование требует текста.';
     if (key==='buttons' && targets.some(t=>targetCapabilities(t)?.platform==='telegram') && media.length>1) return 'Telegram не поддерживает кнопки в альбомах.';
     if (key==='spoiler' && (!media.length || media.some(m=>!['photo','animation','video'].includes(mediaKind(m))))) return 'Спойлер доступен только для фото, GIF и видео.';
     if(key==='alt_text'&&(media.length!==1||mediaKind(media[0])!=='photo'))return 'Альтернативный текст доступен для одной фотографии.';
@@ -96,7 +97,7 @@ export function extraAvailability(targets,media,text,poll,key) {
 export function extraError(targets,media,text,poll,extra) {
     if (standaloneExtra(extra)) {
         if(extra.location&&extra.contact)return 'Выберите одну карточку.';
-        if(media.length||text.trim()||extraActive(extra,'buttons')||extraActive(extra,'spoiler')||extraActive(extra,'preview'))return 'Карточка публикуется отдельно от текста, медиа и кнопок.';
+        if(media.length||text.trim()||extraActive(extra,'buttons')||extraActive(extra,'spoiler')||extraActive(extra,'preview')||extraActive(extra,'styled_text'))return 'Карточка публикуется отдельно от текста, медиа и кнопок.';
     }
     for(const key of EXTRA_KEYS) if(extraActive(extra,key)) {
         const error=extraAvailability(targets,media,text,poll,key);

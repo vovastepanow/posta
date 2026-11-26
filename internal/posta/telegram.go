@@ -914,6 +914,8 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 			}
 		}
 	}
+	styled:=jx.Bool(extras,"styled_text")
+	if styled{text=publishStyledHTML(text)}
 	chat := strconv.FormatInt(c.ChatID, 10)
 	onUpload := func(p float64) {
 		if p < 100 {
@@ -929,6 +931,7 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 		method,fields:=telegramStandaloneFields(extras)
 		if method==""{
 			method="sendMessage";fields=map[string]string{"text":text,"disable_web_page_preview":"true"}
+			if styled{fields["parse_mode"]="HTML"}
 			if jx.Str(extras,"preview")=="on"{fields["disable_web_page_preview"]="false"}
 		}
 		fields["chat_id"]=chat
@@ -943,6 +946,7 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 		if jx.Bool(extras,"spoiler"){fields["has_spoiler"]="true"}
 		if text != "" {
 			fields["caption"] = text
+			if styled{fields["parse_mode"]="HTML"}
 		}
 		if (f.Kind == "audio" || f.Kind=="voice") && f.Duration > 0 {
 			fields["duration"] = strconv.Itoa(f.Duration)
@@ -966,6 +970,7 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 			if jx.Bool(extras,"spoiler"){m["has_spoiler"]=true}
 			if i == 0 && text != "" {
 				m["caption"] = text
+				if styled{m["parse_mode"]="HTML"}
 			}
 			media = append(media, m)
 			files[fmt.Sprintf("file%d", i)] = f.Path

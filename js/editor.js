@@ -87,7 +87,7 @@ const hasExtras = () => EXTRA_KEYS.some(k=>extraActive(session.extras,k));
 const botOnlyMedia = () => session.media.some(m => ['audio','document','voice'].includes(mediaKind(m)));
 const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440,quiz:!!p.quiz,correct_answer:p.correct_answer||'',explanation:p.explanation||'',close_minutes:p.close_minutes||0,public:!!p.public,with_content:!!p.with_content} : null;
 const fileKind = f => /\.(pdf|txt|csv|zip|docx|xlsx|pptx)$/i.test(f.name) || f.type==='application/pdf' ? 'document' : /\.(ogg|opus)$/i.test(f.name) ? 'voice' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
-const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null,signed:!!e?.signed,close_comments:!!e?.close_comments,mark_as_ads:!!e?.mark_as_ads,copyright:e?.copyright||'',link_attachment:e?.link_attachment||'',vk_geo:e?.vk_geo||'',alt_text:e?.alt_text||'',topic_tag:e?.topic_tag||'',yt_privacy:e?.yt_privacy||'',yt_audience:e?.yt_audience||'',yt_tags:e?.yt_tags||'',yt_category:e?.yt_category||'',yt_license:e?.yt_license||''});
+const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null,signed:!!e?.signed,close_comments:!!e?.close_comments,mark_as_ads:!!e?.mark_as_ads,copyright:e?.copyright||'',link_attachment:e?.link_attachment||'',vk_geo:e?.vk_geo||'',alt_text:e?.alt_text||'',topic_tag:e?.topic_tag||'',yt_privacy:e?.yt_privacy||'',yt_audience:e?.yt_audience||'',yt_tags:e?.yt_tags||'',yt_category:e?.yt_category||'',yt_license:e?.yt_license||'',styled_text:!!e?.styled_text});
 const EXTRA_LABELS = {silent:'Без звукового уведомления',protect:'Запретить пересылку и сохранение',spoiler:'Скрыть медиа под спойлером',signed:'Подписать запись именем автора VK',close_comments:'Закрыть комментарии VK',mark_as_ads:'Отметить запись VK как рекламу'};
 const EXTRA_TEXT_LABELS={copyright:'Источник VK (URL)',link_attachment:'Вложение-ссылка',vk_geo:'Координаты VK (широта, долгота)',alt_text:'Описание фото для доступности',topic_tag:'Тема Threads',yt_tags:'Теги YouTube через запятую',yt_category:'ID категории YouTube'};
 const EXTRA_SELECTS={yt_privacy:['Видимость YouTube',[['','Настройка канала'],['private','Закрытый доступ'],['unlisted','По ссылке'],['public','Публичный']]],yt_audience:['Аудитория YouTube',[['','По умолчанию'],['kids','Для детей'],['not_kids','Не для детей']]],yt_license:['Лицензия YouTube',[['','По умолчанию'],['youtube','Стандартная'],['creativeCommon','Creative Commons']]]};
@@ -134,7 +134,13 @@ function buildUi() {
     u.learnButton = button('pe-chip-btn', 'Изучить по постам', learnStyle, { title: 'ИИ прочитает последние посты канала и опишет манеру письма (один раз, пара минут)' });
     u.styleBox = el('details', { className: 'pe-style' }, el('summary', { textContent: 'Стиль канала' }), u.styleText,
         el('div', { className: 'pe-chip-row' }, button('pe-chip-btn', 'Сохранить стиль', saveStyle), u.learnButton), u.styleNote);
-    u.textSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Текст' }), u.counter), u.text,
+    u.formatPreview=el('div',{className:'pe-format-preview',hidden:true});
+    u.formatToggle=el('input',{type:'checkbox',onchange:()=>{session.extras.styled_text=u.formatToggle.checked;render();}});
+    u.formatBar=el('div',{className:'pe-format-bar'},
+        el('label',{className:'pe-format-switch'},u.formatToggle,el('span',{textContent:'Форматирование'})),
+        ...[['B','**','Жирный'],['I','__','Курсив'],['U','++','Подчёркивание'],['S','~~','Зачёркивание'],['‹/›',String.fromCharCode(96),'Моноширинный']].map(([label,marker,help])=>button('pe-chip-btn pe-format-action',label,()=>wrapSelection(marker),{title:help,ariaLabel:help})),
+        button('pe-chip-btn pe-format-action','Ссылка',insertTextLink,{title:'Ссылка с названием'}));
+    u.textSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Текст' }), u.counter), u.formatBar,u.text,u.formatPreview,
         el('div', { className: 'pe-chip-row' }, u.original, u.description, u.aiButton, u.excerptButton, button('pe-chip-btn', 'Очистить', () => setText(''))), u.aiNote, u.tags, u.styleBox);
     u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), el('p',{className:'pe-poll-help',textContent:'Отдельный опрос или опрос с текстом и медиа для VK и OK.'}),el('label',{className:'pe-poll-setting'},u.withContent,el('span',{textContent:'Добавить текст и медиа к опросу'})), u.question, u.pollOptions, u.addOption, el('label', {className:'pe-poll-setting'}, u.multiple, el('span', {textContent:'Разрешить несколько вариантов ответа'})), el('label',{className:'pe-poll-duration',hidden:true},el('span',{textContent:'Длительность опроса в X'}),u.duration),
         el('label',{className:'pe-poll-setting'},u.publicPoll,el('span',{textContent:'Публичное голосование'})),
@@ -359,6 +365,7 @@ function render() {
     const extrasError = poll ? '' : extraError(selectedTargets(), standalone?[]:media, standalone?'':ui.text.value, null, session.extras);
     if(extrasError) ui.checks.append(el('div',{className:'pe-check is-error'},el('strong',{textContent:'Дополнения'}),el('span',{textContent:extrasError})));
     updateExtraAvailability();
+    renderFormatting();
     const blocked = problems.some(p => p.error) || !problems.length || Boolean(extrasError);
     const snapshot = { media: media.map(m => ({ ...m })), text: ui.text.value, tags: [...session.tags], poll: clonePoll(poll), extras:cloneExtras(session.extras) };
     drafts.set(options.key, snapshot);
@@ -742,4 +749,47 @@ export function openPostEditor(options) {
     renderStyle();
     if (session.poll) ui.question.focus();
     else { ui.text.focus(); ui.text.setSelectionRange(ui.text.value.length, ui.text.value.length); }
+}
+
+
+// Preserve the textarea's selection and undo stack using setRangeText.
+function wrapSelection(marker){
+    if(!session)return;
+    const t=ui.text,a=t.selectionStart,b=t.selectionEnd,selected=t.value.slice(a,b);
+    t.setRangeText(marker+selected+marker,a,b,'end');
+    t.setSelectionRange(a+marker.length,a+marker.length+selected.length);
+    session.extras.styled_text=true;t.focus();render();
+}
+function insertTextLink(){
+    const t=ui.text,a=t.selectionStart,b=t.selectionEnd,label=t.value.slice(a,b)||'Ссылка';
+    t.setRangeText('['+label+'](https://example.com)',a,b,'end');
+    t.setSelectionRange(a+label.length+3,a+label.length+22);
+    session.extras.styled_text=true;t.focus();render();
+}
+const FORMAT_TOKEN=/\*\*[^*\n]+\*\*|__[^_\n]+__|\+\+[^+\n]+\+\+|~~[^~\n]+~~|\x60[^\x60\n]+\x60|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)/g;
+function renderFormatting(){
+    const supported=selectedTargets().length&&selectedTargets().every(t=>t?.capabilities?.extras?.includes('styled_text')||(!t?.capabilities&&t?.value?.startsWith('tg:')&&!t.unconnected));
+    const active=!!session.extras.styled_text;
+    ui.formatToggle.checked=active;
+    ui.formatToggle.disabled=!active&&(!supported||!!session.poll);
+    for(const b of ui.formatBar.querySelectorAll('button'))b.disabled=!supported||!!session.poll;
+    ui.formatBar.title=supported?'Жирный, курсив, подчёркивание, зачёркивание, код, ссылки':'Форматирование доступно для Telegram и MAX';
+    ui.formatPreview.hidden=!active;
+    if(!active)return;
+    const value=ui.text.value;
+    if(ui.formatPreview.dataset.source===value)return;
+    ui.formatPreview.dataset.source=value;
+    const nodes=[];let pos=0;
+    for(const m of value.matchAll(FORMAT_TOKEN)){
+        nodes.push(document.createTextNode(value.slice(pos,m.index)));const token=m[0];
+        const tags={'**':'b','__':'i','++':'u','~~':'s'};
+        if(token.startsWith('[')){
+            const at=token.indexOf(']('),url=token.slice(at+2,-1);
+            try{const u=new URL(url);if(!u.hostname||u.username||u.password||!['http:','https:'].includes(u.protocol)||url.length>2048)throw Error();nodes.push(el('span',{className:'pe-preview-link',textContent:token.slice(1,at)}));}catch{nodes.push(document.createTextNode(token));}
+        }else if(token.charCodeAt(0)===96)nodes.push(el('code',{textContent:token.slice(1,-1)}));
+        else nodes.push(el(tags[token.slice(0,2)],{textContent:token.slice(2,-2)}));
+        pos=m.index+token.length;
+    }
+    nodes.push(document.createTextNode(value.slice(pos)));
+    ui.formatPreview.replaceChildren(el('small',{className:'pe-preview-label',textContent:'Предпросмотр форматирования'}),el('div',{className:'pe-preview-copy'},...nodes));
 }
