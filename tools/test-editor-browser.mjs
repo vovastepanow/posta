@@ -21,6 +21,12 @@ try{
     await page.goto('http://127.0.0.1:'+server.address().port);
     await page.evaluate(async()=>{
         const {openPostEditor}=await import('/js/editor.js');
+        const {sourceEditorText}=await import('/js/source-format.js');
+        const {draftPayload}=await import('/js/editor-variants.js');
+        const imported=sourceEditorText({text:'Bold\nRead',text_html:'<b>Bold</b><br><a href="https://example.com/a">Read</a>'},'Bold\nRead');
+        if(imported.text!=='**Bold**\n[Read](https://example.com/a)'||!imported.styled)throw Error('Rich source import failed');
+        const fallback=draftPayload({text:imported.text,extras:{styled_text:true}},{value:'vk:2',capabilities:{extras:[]}});
+        if(fallback.text!=='Bold\nRead (https://example.com/a)'||fallback.extras.styled_text)throw Error('Plain source fallback failed');
         const tg={value:'tg:main',label:'Telegram'};
         const vk={value:'vk:2',label:'VK',capabilities:{platform:'vk',kinds:['photo','video','document'],mediaMax:10,textLimit:[16384,16384],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,with_content:true,media_max:9},extras:['first_comment','close_comments']}};
         window.result=null;

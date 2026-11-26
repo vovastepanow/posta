@@ -2772,3 +2772,7 @@ dialog::backdrop {
   .pe-window .pe-variant-tab{flex:1 1 30%}
   .pe-window .pe-variant-label{width:100%}
 }
+
+/* Keep editing by keyboard/wheel available for long text without visible scrollbars. */
+.pe-window,.pe-window *{scrollbar-width:none}
+.pe-window::-webkit-scrollbar,.pe-window *::-webkit-scrollbar{display:none;width:0;height:0}

@@ -117,7 +117,7 @@ function buildUi() {
         file: el('input', { type: 'file', accept: 'image/*,video/*', multiple: true, hidden: true }), url: el('input', { type: 'url', className: 'pe-input', placeholder: 'Ссылка на медиа: https://…' }),
         note: el('p', { className: 'pe-note' }), text: el('textarea', { className: 'pe-text', rows: 8, placeholder: 'Текст поста…', spellcheck: true }),
         counter: el('span', { className: 'pe-counter' }), summary: el('span', { className: 'pe-summary' }), extras: el('div',{className:'pe-extras-fields'}), buttons: el('div',{className:'pe-button-rows'}), cards:el('div',{className:'pe-extra-cards'}), checks: el('div', { className: 'pe-checks', role: 'status', hidden: true }), pollToggle:button('pe-btn pe-attachment pe-chip-poll','+ Опрос',togglePoll), warning: el('p', { className: 'pe-warning', role: 'alert', hidden: true }),
-        original: button('pe-chip-btn', 'Текст оригинала', () => setText(session.options.original)),
+        original: button('pe-chip-btn', 'Текст оригинала', () => {session.extras.styled_text=!!session.options.extras?.styled_text;setText(session.options.original);}),
         description: button('pe-chip-btn', 'Описание ИИ', () => setText(session.options.description)),
         aiButton: button('pe-chip-btn pe-chip-ai', '✨ Подпись от ИИ', aiCaption, { title: 'ИИ напишет подпись в стиле канала; если в поле уже есть ваш текст — улучшит его' }),
         excerptButton: button('pe-chip-btn pe-chip-ai', '✂ Сделать выжимку', makeExcerpt, { title: 'Выжимка 2–3 предложения из статьи, своими словами; ссылка на источник добавится' }),
@@ -838,7 +838,7 @@ async function submit(e) {
     onProgress({ stage: 'Готовлю пост…', percent: null });
     ui.progress.hidden = false;
     try {
-        const payloads=Object.fromEntries(options.picked.map(v=>[v,draftPayload(draftFor(session.base,session.variants,v))]));
+        const payloads=Object.fromEntries(options.picked.map(v=>[v,draftPayload(draftFor(session.base,session.variants,v),options.targets.find(t=>t.value===v))]));
         const first=payloads[options.picked[0]];
         const post = { ...first, targets:[...options.picked],mode:options.mode,scheduledAt:options.scheduledAt,scheduledTs:options.mode==='now'?0:options.scheduledTs||0,payloads };
         await options.onSubmit(post, onProgress);
@@ -917,7 +917,7 @@ function renderFormatting(){
     ui.formatToggle.checked=active;
     ui.formatToggle.disabled=!active&&(!supported||!!session.poll);
     for(const b of ui.formatBar.querySelectorAll('button'))b.disabled=!supported||!!session.poll;
-    ui.formatBar.title=supported?'Жирный, курсив, подчёркивание, зачёркивание, код, ссылки':'Форматирование доступно для Telegram и MAX';
+    ui.formatBar.title=supported?'Жирный, курсив, подчёркивание, зачёркивание, код, ссылки':'Для площадок без форматирования текст и адреса ссылок будут сохранены в обычном виде';
     ui.formatPreview.hidden=!active;
     if(!active)return;
     const value=ui.text.value;
@@ -929,7 +929,7 @@ function renderFormatting(){
         const tags={'**':'b','__':'i','++':'u','~~':'s'};
         if(token.startsWith('[')){
             const at=token.indexOf(']('),url=token.slice(at+2,-1);
-            try{const u=new URL(url);if(!u.hostname||u.username||u.password||!['http:','https:'].includes(u.protocol)||url.length>2048)throw Error();nodes.push(el('span',{className:'pe-preview-link',textContent:token.slice(1,at)}));}catch{nodes.push(document.createTextNode(token));}
+            try{const u=new URL(url);if(!u.hostname||u.username||u.password||!['http:','https:'].includes(u.protocol)||url.length>2048)throw Error();nodes.push(el('a',{className:'pe-preview-link',textContent:token.slice(1,at),href:u.href,target:'_blank',rel:'noopener noreferrer'}));}catch{nodes.push(document.createTextNode(token));}
         }else if(token.charCodeAt(0)===96)nodes.push(el('code',{textContent:token.slice(1,-1)}));
         else nodes.push(el(tags[token.slice(0,2)],{textContent:token.slice(2,-2)}));
         pos=m.index+token.length;

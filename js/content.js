@@ -10,6 +10,7 @@ import { itemCheck, videoProgress, watchVideo } from './video-pending.js';
 import { articleBrief, articleCaption, cardKind, clampText } from './card.js';
 import { fromRecord, recordSlides, recordMediaIncomplete, hasRecordContent } from './post-adapters.js';
 import { renderPostSheet } from './post-view.js';
+import { sourceEditorText } from './source-format.js';
 
 const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], channels: [], networkChannels: [], networks: {}, nativeAccount: false };
 const TOPIC_CONFIRM = 'Сменить тему поиска? Неоценённые записи по старой теме будут убраны из пула, и поиск начнётся заново. История оценок сохранится.';
@@ -750,7 +751,8 @@ async function appendFutureDraft(item) {
         const fresh = incoming.filter(m => m.src && !sources.has(m.src));
         if (draft.media.length + fresh.length > 10) throw new Error('В пост помещается не больше 10 медиа.');
         const shown = item === state.item && state.shownText !== undefined ? state.shownText : item.text;
-        const text = cardKind(item) === 'article' ? articleCaption(item) : String(shown || '').trim();
+        const imported=cardKind(item)==='article'?{text:articleCaption(item),styled:false}:sourceEditorText(item,shown);
+        const text=imported.text;
         if (!fresh.length && (!text || NO_TEXT.includes(text))) throw new Error('Нет нового текста или доступных медиа для добавления.');
         // Сохраняем доступные файлы приложения в браузере: исходная запись может позже исчезнуть из пула.
         for (const media of fresh) {
@@ -769,7 +771,10 @@ async function appendFutureDraft(item) {
         draft.items ||= [];
         draft.items.push(futureItemKey(item));
         draft.media.push(...fresh);
-        if (text && !NO_TEXT.includes(text)) draft.text = [draft.text, text].filter(Boolean).join('\n\n');
+        if (text && !NO_TEXT.includes(text)) {
+            draft.text = [draft.text, text].filter(Boolean).join('\n\n');
+            if(imported.styled)draft.extras={...draft.extras,styled_text:true};
+        }
         await saveFutureDraft(key, draft);
         refreshFutureDraftButtons();
         log('Добавлено в будущий пост. Открыть редактор можно кнопкой ✏️.');
@@ -907,7 +912,8 @@ export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', 
     // В редакторе — тот текст, который видно сейчас (перевод или оригинал после «Показать оригинал»)
     const shownNow = item === state.item && state.shownText !== undefined ? state.shownText : item.text;
     // Статья: подпись как при публикации новости — заголовок, выжимка и источник (card.js)
-    const original = cardKind(item) === 'article' ? articleCaption(item) : String(shownNow || '').trim();
+    const imported = cardKind(item) === 'article' ? {text:articleCaption(item),styled:false} : sourceEditorText(item,shownNow);
+    const original = imported.text;
     // Новость с сайта: по умолчанию в тексте — заголовок, анонс и ссылка на источник
     const sourceUrl = newsSourceUrl(item);
     const withSource = original && !NO_TEXT.includes(original) ? original : '';
@@ -916,7 +922,7 @@ export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', 
     const target = channel ? (state.channels[0]?.id === channel ? 'tg:main' : allTargets().find(t => t.value.endsWith(':' + channel))?.value) : allTargets()[0].value;
     openPostEditor({
         key: item.image || item.display_image || '', picked: [target || allTargets()[0].value], targets: allTargets(), schedule: scheduleOptions(),
-        scheduledTs, scheduledAt: scheduledTs ? formatWhen(new Date(scheduledTs * 1000)) : '', description: item.description || '', original: sourceText,
+        scheduledTs, scheduledAt: scheduledTs ? formatWhen(new Date(scheduledTs * 1000)) : '', description: item.description || '', original: sourceText, extras:{styled_text:imported.styled},
         media: itemMedia(item), hashtags: item.hashtags || [],
         ai: captionTools(), newsUrl: sourceUrl || '',
         onSubmit: async (post, onProgress) => {
