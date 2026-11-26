@@ -1425,9 +1425,7 @@ async function openQueuePost(post) {
                     const form = new FormData();
                     const files = [];
                     const media = edited.media.map(m => {
-                        if (m.file) return { kind: m.kind, name: m.name, upload: files.push(m.file) - 1 };
-                        if (m.existing !== undefined) return { kind: m.kind, name: m.name, existing: m.existing };
-                        return { kind: m.kind, name: m.name, src: m.src };
+                        const item=m.file?{kind:m.kind,name:m.name,upload:files.push(m.file)-1}:m.existing!==undefined?{kind:m.kind,name:m.name,existing:m.existing}:{kind:m.kind,name:m.name,src:m.src};if(m.cover?.file)item.cover_upload=files.push(m.cover.file)-1;else if(m.cover?.existing)item.cover_existing=true;return item;
                     });
                     form.append('id', data.id); form.append('revision', data.revision);
                     form.append('text', edited.text || ''); form.append('media', JSON.stringify(media));

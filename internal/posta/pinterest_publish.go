@@ -27,6 +27,7 @@ func pinterestUploadURL(raw string)bool{
 func pinterestPublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequestFunc,cover func(context.Context,string)[]byte,wait func(context.Context,time.Duration)error)(*NetSent,error){
  if len(p.Media)!=1{return nil,Bad("Pinterest: нужен один файл изображения или видео.")}
  extra,err:=PublishExtrasCheck("pinterest",p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
+ if err:=CheckVideoCovers("pinterest",p.Media,extra);err!=nil{return nil,err}
  board:=jx.Str(c.Meta,"board_id")
  if !pinterestIDPattern.MatchString(board){return nil,Bad("Pinterest: не определена доска.")}
  f:=p.Media[0]
@@ -43,7 +44,8 @@ func pinterestPublishWith(ctx context.Context,c *Channel,p NetPost,request netwo
   media=jx.M{"source_type":"image_base64","content_type":ct,"data":base64.StdEncoding.EncodeToString(b)}
  case "video":
   if info.Size()>200_000_000{return nil,Bad("Pinterest: видео больше 200 МБ.")}
-  preview:=cover(ctx,f.Path)
+  var preview []byte
+  if f.CoverPath!=""{preview,err=os.ReadFile(f.CoverPath);if err!=nil{return nil,Bad("Не удалось прочитать пользовательскую обложку.")}}else{preview=cover(ctx,f.Path)}
   if len(preview)==0||len(preview)>8_000_000||http.DetectContentType(preview)!="image/jpeg"{return nil,Bad("Pinterest: не удалось подготовить обложку видео.")}
   r,err:=request(ctx,http.MethodPost,"https://api.pinterest.com/v5/media",withCT(auth,ctJSON),jsonBody(jx.M{"media_type":"video"}))
   d,err:=networkExpect(r,err,[]int{200,201},"Pinterest: регистрация видео")

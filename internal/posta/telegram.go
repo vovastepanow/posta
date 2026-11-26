@@ -409,6 +409,7 @@ type Prepared struct {
 	Width    int    `json:"width"`
 	Height   int    `json:"height"`
 	Duration int    `json:"duration"`
+ CoverPath string `json:"cover_path,omitempty"`
 }
 
 func TelegramWorkDir() (string, error) {
@@ -553,6 +554,7 @@ func (a *App) telegramPrepareVideo(path, dir string, index int, route string, pr
 type MediaItem struct {
 	Kind, Src, Name string
 	Upload          string
+ CoverUpload string
 }
 
 func sniffMime(path string) string {
@@ -573,7 +575,8 @@ func (a *App) TelegramPrepareMedia(items []MediaItem, uploads map[string]string,
 
 // DeliveryPrepareMedia keeps the original file whenever the selected API
 // supports it. Telegram-only limits and album transformations stay in its route.
-func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads map[string]string, dir, route string, progress progressFn) ([]Prepared, error) {
+func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads map[string]string, dir, route string, progress progressFn, extra ...jx.M) ([]Prepared, error) {
+ var extras jx.M;if len(extra)>0{extras=extra[0]}
 	if platform==""{platform="telegram"}
 	telegram:=platform=="telegram"
 	var network *Network
@@ -692,7 +695,8 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 				return Prepared{Kind: "animation", Path: path}, nil
 			case strings.HasPrefix(mime, "image/"):
 				if !telegram {
-					if platform=="instagram" || platform=="threads" || platform=="x" {return metaPreparePhoto(platform,path,dir,i)}
+					if platform=="instagram"&&jx.Bool(extras,"ig_story"){return metaPreparePhoto("instagram_story",path,dir,i)}
+ if platform=="instagram" || platform=="threads" || platform=="x" {return metaPreparePhoto(platform,path,dir,i)}
 					if p,ok:=networkOriginalPhoto(network,path,mime,info.Size());ok{return p,nil}
 				}
 				return telegramPreparePhoto(path, dir, i)
@@ -705,6 +709,7 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 			return nil, Bad("«%s»: %s", name, err.Error())
 		}
 		p.Name, p.Src = name, it.Src
+ if it.CoverUpload!=""{if route=="account"||!SupportsVideoCover(platform)||p.Kind!="video"{return nil,Bad("Обложка не поддерживается для этого вложения или способа публикации.")};if uploads[it.CoverUpload]==""{return nil,Bad("Файл обложки отсутствует.")};p.CoverPath,err=prepareVideoCover(uploads[it.CoverUpload],dir,i);if err!=nil{return nil,err}}
 		out = append(out, p)
 	}
 	if telegram {
@@ -728,6 +733,7 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 			out[i] = Prepared{Kind: "video", Path: dst, Name: f.Name, Src: f.Src, Width: info.Width, Height: info.Height, Duration: info.Duration}
 		}
 	}
+ if err:=CheckVideoCovers(platform,out,extras);err!=nil{return nil,err}
 	return out, nil
 }
 
@@ -915,6 +921,7 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 	if len(extra)>0{rawExtra=extra[0]}
 	extras,extraErr:=PublishExtrasCheck("telegram",text,PreparedKinds(prepared),nil,rawExtra)
 	if extraErr!=nil{return nil,extraErr}
+ if err:=CheckVideoCovers("telegram",prepared,extras);err!=nil{return nil,err}
 	if !PostExtrasStandalone(extras){if err:=TelegramMediaTextCheck(text,PreparedKinds(prepared));err!=nil{return nil,err}}
 	if progress == nil {
 		progress = noProgress
@@ -969,7 +976,8 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 			fields["supports_streaming"] = "true"
 			fields["width"], fields["height"], fields["duration"] = strconv.Itoa(f.Width), strconv.Itoa(f.Height), strconv.Itoa(f.Duration)
 		}
-		raw, err = a.TelegramBotRequest(ctx, c.Token, method, fields, map[string]string{f.Kind: f.Path}, 10*time.Minute, onUpload)
+		files:=map[string]string{f.Kind:f.Path};if f.CoverPath!=""{fields["cover"]="attach://video_cover";files["video_cover"]=f.CoverPath}
+ raw, err = a.TelegramBotRequest(ctx, c.Token, method, fields, files, 10*time.Minute, onUpload)
 		raw = json.RawMessage("[" + string(raw) + "]")
 	default:
 		var media []jx.M
@@ -988,6 +996,7 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 			}
 			media = append(media, m)
 			files[fmt.Sprintf("file%d", i)] = f.Path
+ if f.CoverPath!=""{key:=fmt.Sprintf("cover%d",i);m["cover"]="attach://"+key;files[key]=f.CoverPath}
 		}
 		fields:=map[string]string{"chat_id":chat,"media":string(jx.Marshal(media))}
 		telegramExtraFields(fields,extras)
@@ -1074,7 +1083,7 @@ func MediaSourcesOf(media []jx.M) []string {
 func PreparedMaps(p []Prepared) []jx.M {
 	out := []jx.M{}
 	for _, f := range p {
-		out = append(out, jx.M{"kind": f.Kind, "name": f.Name, "src": f.Src, "path": f.Path, "width": f.Width, "height": f.Height, "duration": f.Duration})
+		m:=jx.M{"kind": f.Kind, "name": f.Name, "src": f.Src, "path": f.Path, "width": f.Width, "height": f.Height, "duration": f.Duration};if f.CoverPath!=""{m["cover_path"]=f.CoverPath};out=append(out,m)
 	}
 	return out
 }
@@ -1399,6 +1408,7 @@ func (a *App) outboxMediaMove(from, postID string, media []jx.M) ([]jx.M, error)
 		}
 		g := jx.Copy(f)
 		g["path"] = dest
+ if cover:=jx.Str(f,"cover_path");cover!=""{cd:=filepath.Join(to,fmt.Sprintf("cover-%d.jpg",i));if err:=copyFile(cover,cd);err!=nil{os.RemoveAll(to);return nil,Bad("Не удалось сохранить обложку видео.")};g["cover_path"]=cd}
 		out = append(out, g)
 	}
 	if from != "" && strings.HasPrefix(from, os.TempDir()) {
@@ -1441,6 +1451,7 @@ func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publis
 	if len(extra)>0{rawExtra=extra[0]}
 	extras,err:=PublishExtrasForChannel(c,text,PreparedKinds(prepared),poll,rawExtra)
 	if err!=nil{return nil,err}
+ if err:=CheckVideoCovers(c.Platform,prepared,extras);err!=nil{return nil,err}
 	if c.Platform != "" && c.Platform != "telegram" && !PostExtrasStandalone(extras) {
 		if err := u.NetworkPreparedPreflight(c.Platform, PollPreflightText(text,poll), prepared); err != nil {
 			return nil, err
@@ -1680,7 +1691,7 @@ func orStrs(l []string) []string {
 
 func outboxMediaReady(post jx.M) bool {
 	for _, f := range jx.Maps(post, "media") {
-		if !fileExists(jx.Str(f, "path")) {
+		if !fileExists(jx.Str(f, "path")) || (jx.Str(f,"cover_path")!=""&&!fileExists(jx.Str(f,"cover_path"))) {
 			return false
 		}
 	}
@@ -1708,6 +1719,7 @@ func (a *App) PostThumbMake(media []jx.M) string {
 		return ""
 	}
 	src := jx.Str(f, "path")
+ cover:=jx.Str(f,"cover_path");if cover!=""&&fileExists(cover){src=cover}
 	if src == "" || !fileExists(src) {
 		return ""
 	}
@@ -1715,7 +1727,7 @@ func (a *App) PostThumbMake(media []jx.M) string {
 	id := randHex(6)
 	out := a.ThumbFile(id)
 	vf := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease", thumbSide, thumbSide)
-	if jx.Str(f, "kind") == "video" || jx.Str(f,"kind")=="video_note" {
+	if src!=cover&&(jx.Str(f, "kind") == "video" || jx.Str(f,"kind")=="video_note") {
 		if a.FFmpegRun([]string{"-ss", "1", "-i", src, "-frames:v", "1", "-vf", vf, "-q:v", "4", "-f", "image2"}, out, time.Minute) ||
 			a.FFmpegRun([]string{"-i", src, "-frames:v", "1", "-vf", vf, "-q:v", "4", "-f", "image2"}, out, time.Minute) {
 			return id
@@ -1796,6 +1808,8 @@ func (a *App) OutboxRepair(ctx context.Context, apply bool, onlyUID string) []st
 			var lines []string
 			ok := true
 			for k, f := range jx.Maps(post, "media") {
+ if cover:=jx.Str(f,"cover_path");cover!=""&&!fileExists(cover){ok=false;lines=append(lines,fmt.Sprintf("файл %d: пользовательская обложка отсутствует, добавьте её заново",k+1))}
+ if fileExists(jx.Str(f,"path")){continue}
 				name := filepath.Base(jx.Str(f, "path"))
 				if name == "" || fileExists(filepath.Join(dir, name)) {
 					continue

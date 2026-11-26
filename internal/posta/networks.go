@@ -360,7 +360,7 @@ func preparedFromPost(post jx.M) []Prepared {
 	var out []Prepared
 	for _, f := range jx.Maps(post, "media") {
 		out = append(out, Prepared{Kind: jx.Str(f, "kind"), Path: jx.Str(f, "path"), Name: jx.Str(f, "name"), Src: jx.Str(f, "src"),
-			Width: int(jx.Int(f, "width")), Height: int(jx.Int(f, "height")), Duration: int(jx.Int(f, "duration"))})
+			Width: int(jx.Int(f, "width")), Height: int(jx.Int(f, "height")), Duration: int(jx.Int(f, "duration")),CoverPath:jx.Str(f,"cover_path")})
 	}
 	return out
 }
@@ -384,6 +384,7 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 	}
 	extras, err := PublishExtrasForChannel(c,text,PreparedKinds(media),poll,jx.Map(post,"extras"))
 	if err!=nil{return nil,fmt.Errorf("%s: %w",err,ErrNetworkRejected)}
+ if err:=CheckVideoCovers(c.Platform,media,extras);err!=nil{return nil,fmt.Errorf("%s: %w",err,ErrNetworkRejected)}
 	if c.Platform == "telegram" {
 		if poll != nil {
 			return a.TelegramPublishPoll(ctx, c, poll)

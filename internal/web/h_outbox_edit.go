@@ -52,7 +52,7 @@ func getOutboxEdit(c *Ctx) (any, error) {
 		if kind == "photo" {
 			kind = "image"
 		}
-		media = append(media, jx.M{"kind": kind, "src": src, "name": jx.Str(m, "name"), "existing": i})
+		item:=jx.M{"kind": kind, "src": src, "name": jx.Str(m, "name"), "existing": i};if jx.Str(m,"cover_path")!=""{item["cover"]=jx.M{"src":src+"&cover=1","name":"Обложка.jpg","existing":true}};media=append(media,item)
 	}
 	ch := c.U.Channel(jx.Str(p, "channel"))
 	if ch == nil {
@@ -123,6 +123,7 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 	}
 	defer os.RemoveAll(work)
 	uploads := map[string]string{}
+ if len(c.R.MultipartForm.File["files[]"])>2*config.TelegramMaxMedia{return nil,fail(400,"Слишком много файлов.")}
 	for i, fh := range c.R.MultipartForm.File["files[]"] {
 		if fh.Size > config.PublishUploadMaxBytes {
 			return nil, fail(400, "Файл слишком большой.")
@@ -169,9 +170,10 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 				return nil, fail(400, "Загруженный файл не найден.")
 			}
 		}
+ if jx.Bool(m,"cover_existing"){if !jx.Has(m,"existing"){return nil,fail(400,"Некорректная существующая обложка.")};i:=int(jx.Int(m,"existing"));cover:=jx.Str(existing[i],"cover_path");if cover==""{return nil,fail(400,"Обложка отсутствует.")};key:="cover-existing-"+strconv.Itoa(i);uploads[key]=cover;item.CoverUpload=key}else if jx.Has(m,"cover_upload"){item.CoverUpload=jx.ToStr(m["cover_upload"]);if uploads[item.CoverUpload]==""{return nil,fail(400,"Обложка не загружена.")}}
 		items = append(items, item)
 	}
-	prepared, err := c.A.DeliveryPrepareMedia(ch.Platform,items, uploads, work, "bot", nil)
+	prepared, err := c.A.DeliveryPrepareMedia(ch.Platform,items, uploads, work, "bot", nil,checkedExtras)
 	if err != nil {
 		return nil, fail(422, err.Error())
 	}
@@ -226,6 +228,7 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 			return nil, fail(500, "Не удалось сохранить медиа.")
 		}
 		m["path"] = dst
+  if cover:=jx.Str(m,"cover_path");cover!=""{b,err:=os.ReadFile(cover);if err!=nil||len(b)>2_000_000{return nil,fail(400,"Не удалось прочитать обложку.")};cd:=filepath.Join(stage,fmt.Sprintf("cover-%d.jpg",i));if err=os.WriteFile(cd,b,0600);err!=nil{return nil,err};m["cover_path"]=cd}
 	}
 	err = c.A.DB.Tx(c.R.Context(), func(tx pgx.Tx) error {
 		var data []byte

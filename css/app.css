@@ -2662,3 +2662,5 @@ dialog::backdrop {
 
 /* Keep per-resource editing compact without hiding individual selections. */
 .pe-variant-bar{display:flex;flex:none;flex-wrap:nowrap;overflow-x:auto;max-width:100%;min-width:0;gap:6px;align-items:center;padding:5px 0;scrollbar-width:thin}.pe-variant-bar>*{flex-shrink:0}.pe-variant-tab{white-space:nowrap}.pe-check:has(button){grid-template-columns:minmax(0,1fr) auto;align-items:center}.pe-check:has(button)>span{grid-column:1/-1}.pe-check:has(button)>button{grid-column:2;grid-row:1}.pe-body>.pe-section{align-self:start}.pe-extra-preview{flex-wrap:wrap}.pe-extra-text input,.pe-extra-text textarea,.pe-extra-text select{min-width:0;max-width:100%}
+
+.pe-cover-tools{position:absolute;bottom:4px;left:4px;right:4px;display:flex;gap:3px;z-index:2}.pe-cover-tools .pe-btn{background:rgba(0,0,0,.75);color:white;padding:3px 6px;font-size:10px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pe-cover-pick{flex:1}.pe-cover-remove{flex:none}

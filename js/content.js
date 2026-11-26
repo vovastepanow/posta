@@ -787,7 +787,7 @@ export async function openFutureDraft() {
         const saved = await readFutureDraft(key);
         if (!saved || (!draftHasContent(saved)&&!Object.values(saved.variants||{}).some(draftHasContent))) return void log('Черновик пока пуст. Добавьте пост кнопкой +🚀.');
         await refreshTelegramTarget();
-        const restoreMedia=d=>{d.media=(d.media||[]).map(m=>{if(!m.file)return m;const src=URL.createObjectURL(m.file);return {...m,src,thumb:m.kind==='image'?src:''};});};
+        const restoreMedia=d=>{d.media=(d.media||[]).map(m=>{const next={...m};if(m.file){next.src=URL.createObjectURL(m.file);next.thumb=m.kind==='image'?next.src:'';}if(m.cover?.file)next.cover={...m.cover,src:URL.createObjectURL(m.cover.file)};return next;});};
         restoreMedia(saved);Object.values(saved.variants||{}).forEach(restoreMedia);
         const picked=(saved.picked||[]).filter(v=>allTargets().some(t=>t.value===v));
         openPostEditor({ key: 'future-draft', savedDraft: saved, picked:picked.length?picked:allTargets().length ? [allTargets()[0].value] : ['tg:main'], targets: allTargets().length ? allTargets() : [{ value: 'tg:main', label: 'Ресурс не подключён', hashtags: 'off', unconnected: true }], schedule: scheduleOptions(),
@@ -836,7 +836,7 @@ async function publishToTelegram(post, onProgress = null) {
     if (post.hashtags?.length) form.append('hashtags', JSON.stringify(post.hashtags));   // сервер оставит те, что разрешены каналу
     if (post.record) form.append('record', JSON.stringify(post.record));   // поля записи: сервер отметит её лайком после публикации
     const files = [];
-    form.append('media', JSON.stringify(post.media.map(m => (m.file ? { kind: m.kind, name: m.name, upload: files.push(m.file) - 1 } : { kind: m.kind, src: m.src, name: m.name }))));
+    form.append('media', JSON.stringify(post.media.map(m => {const item=m.file?{kind:m.kind,name:m.name,upload:files.push(m.file)-1}:{kind:m.kind,src:m.src,name:m.name};if(m.cover?.file)item.cover_upload=files.push(m.cover.file)-1;return item;})));
     files.forEach(f => form.append('files[]', f, f.name));
     // Сервер пишет этап и процент в файл по этому id, а мы опрашиваем его, пока идёт отправка
     const id = crypto.randomUUID().replaceAll('-', '');

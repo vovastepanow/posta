@@ -13,7 +13,7 @@ import (
 func postExtraKinds(platform string) []string {
 	switch platform {
 	case "", "telegram":
-		return []string{"buttons","silent","protect","spoiler","preview","location","contact","styled_text"}
+		return []string{"buttons","silent","protect","spoiler","preview","location","contact","styled_text","video_cover"}
 	case "max":
 		return []string{"buttons","preview","location","contact","styled_text","max_sticker","first_comment"}
 	case "vk":
@@ -25,11 +25,11 @@ func postExtraKinds(platform string) []string {
 	case "threads":
 		return []string{"alt_text","topic_tag","link_attachment","spoiler"}
 	case "instagram":
-		return []string{"alt_text","ig_story","ig_cover_seconds"}
+		return []string{"alt_text","ig_story","ig_cover_seconds","video_cover"}
 	case "pinterest":
-		return []string{"alt_text","link_attachment"}
+		return []string{"alt_text","link_attachment","video_cover"}
 	case "youtube":
-		return []string{"yt_privacy","yt_audience","yt_tags","yt_category","yt_license"}
+		return []string{"yt_privacy","yt_audience","yt_tags","yt_category","yt_license","video_cover"}
 	}
 	return []string{}
 }

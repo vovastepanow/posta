@@ -353,12 +353,19 @@ function mediaCard(item, i, total) {
     const preview = ['audio','voice'].includes(item.kind) ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:item.kind==='voice'?'Голосовое':'Аудио'}), el('span',{textContent:item.name || 'Аудиофайл'}), el('audio',{src:item.src, controls:true, preload:'none'})) :
         item.kind === 'sticker' && /\.tgs$/i.test(item.name || '') ? el('div',{className:'pe-file-preview'},el('strong',{textContent:'TGS'}),el('span',{textContent:item.name || 'Анимированный стикер'})) :
         item.kind === 'document' ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:(item.name?.split('.').pop() || 'Файл').toUpperCase()}), el('span',{textContent:item.name || 'Документ'})) :
-        (['video','video_note'].includes(item.kind)||(item.kind==='sticker'&&/\.webm$/i.test(item.name||''))) ? el('video', { src: item.src, poster: item.thumb || '', muted: true, preload: 'metadata', playsInline: true }) : el('img', { src: item.thumb || item.src, alt: '', draggable: false });
+        (['video','video_note'].includes(item.kind)||(item.kind==='sticker'&&/\.webm$/i.test(item.name||''))) ? el('video', { src: item.src, poster: item.cover?.src || item.thumb || '', muted: true, preload: 'metadata', playsInline: true }) : el('img', { src: item.thumb || item.src, alt: '', draggable: false });
     const card = el('div', { className: 'pe-card'+(item.kind==='video_note'?' pe-video-note':''), draggable: true }, preview, el('span', { className: 'pe-order', textContent: String(i + 1) }),
         item.kind === 'video' ? el('span', { className: 'video-mark', innerHTML: VIDEO_ICON }) : null,
         el('div', { className: 'pe-card-tools' }, button('pe-tool', '‹', () => move(i, i - 1), { ariaLabel: 'Сдвинуть влево', disabled: i === 0 }),
             button('pe-tool pe-tool-danger', '✕', () => { session.media.splice(i, 1); render(); }, { ariaLabel: 'Убрать из поста' }),
             button('pe-tool', '›', () => move(i, i + 1), { ariaLabel: 'Сдвинуть вправо', disabled: i === total - 1 })));
+    if(item.kind==='video'){
+        const supported=selectedTargets().length&&selectedTargets().every(t=>targetCapabilities(t)?.extras?.includes('video_cover'))&&!session.extras.ig_story;
+        if(supported||item.cover){
+            const coverInput=el('input',{type:'file',accept:'image/jpeg,image/png,image/webp',hidden:true,onchange:()=>{const file=coverInput.files?.[0];if(!file)return;if(file.size>10_000_000||!['image/jpeg','image/png','image/webp'].includes(file.type)){ui.note.textContent='Обложка: JPEG/PNG/WEBP до 10 МБ.';return;}session.media[i]={...item,cover:{file,src:URL.createObjectURL(file),name:file.name}};render();}});
+            card.append(coverInput,el('div',{className:'pe-cover-tools'},button('pe-btn pe-cover-pick',item.cover?'Заменить обложку':'Обложка',()=>coverInput.click(),{disabled:!supported}),item.cover?button('pe-btn pe-cover-remove','✕',()=>{const copy={...item};delete copy.cover;session.media[i]=copy;render();},{ariaLabel:'Удалить обложку'}):null));
+        }
+    }
     card.addEventListener('dragstart', e => { session.dragFrom = i; card.classList.add('is-dragging'); e.dataTransfer.effectAllowed = 'move'; });
     card.addEventListener('dragend', () => { session.dragFrom = null; card.classList.remove('is-dragging'); });
     card.addEventListener('dragover', e => { if (session.dragFrom !== null) { e.preventDefault(); card.classList.add('is-over'); } });
@@ -379,7 +386,7 @@ function render() {
     const allowed = caps.kinds.filter(kind => media.length<maxMedia && !attachmentError(selectedTargets(), media, {kind}));
     const accept = allowed.map(k => fileAccept[k]).filter(Boolean);
     ui.file.accept = accept.join(',');
-    const mediaChanged = session.renderedMedia?.length !== media.length || media.some((m,i) => m !== session.renderedMedia?.[i]) || session.renderedAllowed !== accept.join(',');
+    const mediaChanged = session.renderedMedia?.length !== media.length || media.some((m,i) => m !== session.renderedMedia?.[i]) || session.renderedAllowed !== accept.join(',') || session.renderedCoverAllowed!==JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story]);
     if (mediaChanged) ui.attachments.replaceChildren(...Object.entries(KIND_LABELS).map(([kind,label]) => {
         const enabled = allowed.includes(kind) && media.length < caps.mediaMax;
         return button('pe-btn pe-attachment', '+ ' + label, () => { ui.file.dataset.kind=kind;ui.file.accept = fileAccept[kind]; ui.file.click(); }, {disabled:!enabled,title:enabled ? 'Добавить: ' + label : 'Недоступно для выбранных ресурсов или состава поста'});
@@ -405,7 +412,7 @@ function render() {
     if (mediaChanged) { ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
         media.length ? '' : el('div', { className: 'pe-empty', textContent: 'Перетащите файлы сюда или выберите тип вложения выше' }),
         el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { delete ui.file.dataset.kind;ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
-        session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');
+        session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');session.renderedCoverAllowed=JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story]);
     }
     ui.count.textContent = `${media.length} / ${maxMedia}`;
     ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll&&!poll.with_content)||standalone;

@@ -1,5 +1,5 @@
 // UI preflight mirrors implemented delivery capabilities; the server is authoritative.
-const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice','sticker','video_note'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000,sticker:524288,video_note:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview','location','contact','styled_text'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,quiz:true,close:true}};
+const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice','sticker','video_note'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000,sticker:524288,video_note:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview','location','contact','styled_text','video_cover'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,quiz:true,close:true}};
 const REQUIRED = new Set(['youtube','pinterest','instagram']);
 export const mediaKind = m => m.kind === 'image' ? (/^image\/gif$/i.test(m.file?.type || '') || /\.gif(?:[?#]|$)/i.test(m.src || '') || /\.gif$/i.test(m.name || '') ? 'animation' : 'photo') : m.kind;
 export function targetCapabilities(target) {
@@ -48,6 +48,7 @@ export function validateTarget(target, media, text, poll) {
         }
         return '';
     }
+    if(media.some(m=>m.cover)&&(!c.extras?.includes('video_cover')||media.some(m=>m.cover&&mediaKind(m)!=='video')||(c.platform!=='telegram'&&media.length!==1)))return 'Обложки не поддерживаются для этого состава медиа или ресурса.';
     const kinds = media.map(mediaKind);
     // Telegram converts GIFs in albums to video; other adapters validate the original format.
     const effective = c.platform === 'telegram' && kinds.length > 1 ? kinds.map(k => k === 'animation' ? 'video' : k) : kinds;
@@ -103,6 +104,7 @@ export function extraError(targets,media,text,poll,extra) {
         if([extra.location,extra.contact,extra.max_sticker].filter(Boolean).length>1)return 'Выберите одну карточку или стикер.';
         if(media.length||text.trim()||extraActive(extra,'buttons')||extraActive(extra,'spoiler')||extraActive(extra,'preview')||extraActive(extra,'styled_text')||extraActive(extra,'first_comment'))return 'Карточка публикуется отдельно от текста, медиа и кнопок.';
     }
+    if(media.some(m=>m.cover)&&(poll||extra?.ig_story||extra?.ig_cover_seconds))return 'Пользовательская обложка несовместима с опросом, Stories или выбором кадра Reels.';
     if(extra?.ig_story&&text.trim())return 'Stories не поддерживают подпись: удалите её в этой версии.';
     if(extra?.ig_story&&(extra.alt_text||extra.ig_cover_seconds))return 'Stories несовместимы с альтернативным текстом и обложкой Reels.';
     if(extra?.first_comment?.trim()&&extra.close_comments)return 'Первый комментарий несовместим с закрытыми комментариями.';

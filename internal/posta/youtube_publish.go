@@ -36,6 +36,7 @@ func youtubeAcknowledged(r *netResp,total int64)(int64,bool){
 func youtubePublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequestFunc,wait func(context.Context,time.Duration)error)(*NetSent,error){
  if len(p.Media)!=1||p.Media[0].Kind!="video"{return nil,Bad("YouTube: требуется ровно одно видео.")}
  extra,err:=PublishExtrasCheck("youtube",p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
+ if err:=CheckVideoCovers("youtube",p.Media,extra);err!=nil{return nil,err}
  f,err:=os.Open(p.Media[0].Path)
  if err!=nil{return nil,Bad("Файл видео не найден.")};defer f.Close()
  info,err:=f.Stat()
@@ -92,7 +93,9 @@ func youtubePublishWith(ctx context.Context,c *Channel,p NetPost,request network
   if r.Status==200||r.Status==201{
    id:=jx.Str(r.Data,"id")
    if !youtubeIDPattern.MatchString(id){return nil,uncertainPublish("YouTube не вернул достоверный ID видео.")}
-   return &NetSent{URL:"https://www.youtube.com/watch?v="+id,MessageIDs:[]string{id}},nil
+   sent:=&NetSent{URL:"https://www.youtube.com/watch?v="+id,MessageIDs:[]string{id}}
+   if p.Media[0].CoverPath!=""&&!youtubeSetCover(ctx,id,p.Media[0].CoverPath,auth,request,wait){sent.Warning="YouTube: видео опубликовано, но установка обложки не подтверждена. Проверьте YouTube Studio; не публикуйте видео повторно."}
+   return sent,nil
   }
   if r.Status!=308{return nil,uncertainPublish(fmt.Sprintf("YouTube: загрузка прервана (HTTP %d); проверьте канал перед повтором.",r.Status))}
   next,ok:=youtubeAcknowledged(r,total)
@@ -102,4 +105,12 @@ func youtubePublishWith(ctx context.Context,c *Channel,p NetPost,request network
   probe=false
  }
  return nil,uncertainPublish("YouTube: не удалось завершить загрузку в пределах лимита попыток.")
+}
+
+// YouTube Shorts require completed processing before setting a custom thumbnail.
+func youtubeSetCover(ctx context.Context,id,path string,auth map[string]string,request networkRequestFunc,wait func(context.Context,time.Duration)error)bool{
+ ready:=false
+ for i:=0;i<24;i++{r,err:=request(ctx,http.MethodGet,"https://www.googleapis.com/youtube/v3/videos?"+url.Values{"part":{"processingDetails"},"id":{id}}.Encode(),auth,nil);if err!=nil||r==nil||r.Status!=200{return false};items:=jx.Maps(r.Data,"items");if len(items)!=1||jx.Str(items[0],"id")!=id{return false};switch jx.Str(jx.Map(items[0],"processingDetails"),"processingStatus"){case "succeeded":ready=true;case "processing":default:return false};if ready{break};if wait(ctx,5*time.Second)!=nil{return false}}
+ if !ready{return false};b,err:=os.ReadFile(path);if err!=nil||len(b)==0||len(b)>2_000_000{return false}
+ r,err:=request(ctx,http.MethodPost,"https://www.googleapis.com/upload/youtube/v3/thumbnails/set?"+url.Values{"videoId":{id},"uploadType":{"media"}}.Encode(),withCT(auth,"image/jpeg"),bytes.NewReader(b));return err==nil&&r!=nil&&r.Status==200&&len(jx.Maps(r.Data,"items"))>0
 }

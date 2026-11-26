@@ -327,7 +327,7 @@ func init() {
 				break
 			}
 			dir, _ := c.A.OutboxMediaDir(id)
-			path := filepath.Clean(jx.Str(media[index], "path"))
+			key:="path";if c.Q("cover")=="1"{key="cover_path"};rawPath:=jx.Str(media[index],key);if rawPath==""{break};path:=filepath.Clean(rawPath)
 			rel, err := filepath.Rel(dir, path)
 			if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
 				break
@@ -703,7 +703,7 @@ func publish(c *Ctx) (any, error) {
 		uploads = map[string]string{}
 		files:=c.R.MultipartForm.File["files[]"]
 		if len(files)==0{files=c.R.MultipartForm.File["files"]}
-		if len(files)>config.TelegramMaxMedia{return nil,fail(400,"Слишком много файлов.")}
+		if len(files)>2*config.TelegramMaxMedia{return nil,fail(400,"Слишком много файлов.")}
 		for i,fh:=range files {
 			if fh.Size<=0||fh.Size>config.PublishUploadMaxBytes{return nil,fail(400,"Файл пуст или превышает локальный предел загрузки.")}
 			f,err:=fh.Open();if err!=nil{return nil,fail(400,"Не удалось прочитать загруженный файл.")}
@@ -742,7 +742,7 @@ func publish(c *Ctx) (any, error) {
 		if v, has := it["upload"]; has && v != nil {
 			up = jx.ToStr(v)
 		}
-		items = append(items, posta.MediaItem{Kind: jx.Str(it, "kind"), Src: jx.Str(it, "src"), Name: jx.Str(it, "name"), Upload: up})
+		items = append(items, posta.MediaItem{Kind: jx.Str(it, "kind"), Src: jx.Str(it, "src"), Name: jx.Str(it, "name"), Upload: up, CoverUpload:jx.ToStr(it["cover_upload"])})
 		kinds = append(kinds, jx.Str(it, "kind"))
 	}
 	at := jx.Int(fields, "scheduled_ts")
@@ -883,7 +883,7 @@ func publish(c *Ctx) (any, error) {
 	if mode == "native" {
 		route = "account"
 	}
-	prepared, err := w.DeliveryPrepareMedia(platform,items, uploads, work, route, progress)
+	prepared, err := w.DeliveryPrepareMedia(platform,items, uploads, work, route, progress,extras)
 	if err != nil {
 		return nil, fail(422, err.Error())
 	}
