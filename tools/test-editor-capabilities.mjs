@@ -49,3 +49,5 @@ assert.notEqual(validateTarget(xp,[],'',{question:'Q',options:['A','B'],quiz:tru
 assert.equal(extraError([tg],[],'',null,{location:{latitude:'0',longitude:'0'}}),'');
 assert.notEqual(extraError([tg],[],'',null,{location:{latitude:'',longitude:'0'}}),'');
 assert.notEqual(extraError([tg],[],'',null,{contact:{first_name:'A',phone:'123'}}),'');
+
+assert.equal(extraError([tg],[],'',null,{contact:{first_name:'A',phone:'+3581234567'}}),'');

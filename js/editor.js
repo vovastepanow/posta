@@ -441,7 +441,8 @@ function renderExtraButtons(){
 }
 function updateExtraAvailability(){
     if(!session)return;
-    const availability=key=>extraAvailability(selectedTargets(),session.media,ui.text.value,session.poll,key);
+    const card=standaloneExtra(session.extras);
+    const availability=key=>card&&['buttons','spoiler','preview'].includes(key)?'Недоступно для отдельной карточки.':extraAvailability(selectedTargets(),card?[]:session.media,card?'':ui.text.value,session.poll,key);
     const inputs=[...ui.extras.querySelectorAll('input')];
     Object.keys(EXTRA_LABELS).forEach((key,i)=>{const reason=availability(key);inputs[i].disabled=!!reason&&!session.extras[key];inputs[i].closest('label').title=reason;});
     const preview=ui.extras.querySelector('select');const reason=availability('preview');preview.disabled=!!reason&&!extraActive(session.extras,'preview');preview.closest('label').title=reason;
