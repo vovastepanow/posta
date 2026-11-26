@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"mime"
+	"mime/multipart"
+	"bytes"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -33,8 +36,14 @@ func TestVKVideoUploadAndWallPublication(t *testing.T){
 			}
 		}
 		request:=func(_ context.Context,method,raw string,h map[string]string,b io.Reader)(*netResp,error){
-			data,_:=io.ReadAll(b)
-			if !strings.Contains(string(data),`name="video_file"`)||h["Authorization"]!=""{t.Fatal("bad upload")}
+			mediaType,params,err:=mime.ParseMediaType(h["Content-Type"])
+			if err!=nil||mediaType!="multipart/form-data"||h["Authorization"]!=""||method!="POST"||raw!="https://pu.vk.com/video-upload"{t.Fatalf("bad upload headers: %v %v",mediaType,err)}
+			reader:=multipart.NewReader(b,params["boundary"])
+			part,err:=reader.NextPart()
+			if err!=nil{t.Fatal(err)}
+			data,err:=io.ReadAll(part)
+			if err!=nil||part.FormName()!="video_file"||part.FileName()!="clip.mp4"||!bytes.Equal(data,[]byte{0,0,0,24,'f','t','y','p','m','p','4','2',0,0,0,0,'m','p','4','2','i','s','o','m'}){t.Fatalf("bad multipart video: name=%s filename=%s err=%v",part.FormName(),part.FileName(),err)}
+			if _,err=reader.NextPart();err!=io.EOF{t.Fatalf("unexpected extra part: %v",err)}
 			if fail{return &netResp{Status:200,Data:jx.M{"video_id":999,"size":24}},nil}
 			return &netResp{Status:200,Data:jx.M{"video_id":123,"size":24}},nil
 		}
