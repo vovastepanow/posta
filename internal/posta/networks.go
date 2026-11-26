@@ -108,7 +108,7 @@ func (a *App) Networks() map[string]*Network {
 			MaxBytes: map[string]int64{"photo": 10_000_000, "animation": 10_000_000, "video": 10_000_000}, Docs: "ok",
 			Fields: []NetField{{"webhook", "Адрес вебхука канала", true}}, Connect: discordConnect, Publish: discordPublish},
 		"dzen": {Title: "Дзен", Status: "manual", Note: "Публичного API публикации нет. Посты Telegram-канала выходят в Дзене сами: Дзен-студия → настройки канала → код для Telegram → бот @zen_sync_bot админом в канал → /sync."},
-		"ok": {Title: "Одноклассники (группа)", Prefix: "ok", Status: "needs_keys", Note: "Ключ приложения OK и токен с GROUP_CONTENT; фотографии требуют PHOTO_CONTENT.", TextLimit: [2]int{4000, 4000}, MediaMax: 10, Kinds: []string{"photo"}, MaxBytes: map[string]int64{"photo":20_000_000},
+		"ok": {Title: "Одноклассники (группа)", Prefix: "ok", Status: "needs_keys", Note: "Ключ приложения OK; GROUP_CONTENT, PHOTO_CONTENT для фото, VIDEO_CONTENT и VALUABLE_ACCESS для видео.", TextLimit: [2]int{4000, 4000}, MediaMax: 10, Kinds: []string{"photo","video"}, MaxBytes: map[string]int64{"photo":20_000_000,"video":200_000_000},
 			Docs: "partly", AppKeys: []string{"OK_APP_KEY"}, Connect: okConnect, Publish: okPublish,
 			Fields: []NetField{{"access_token", "Постоянный токен приложения", true}, {"session_secret_key", "Секретный ключ сессии", true}, {"gid", "id группы", false}}},
 		"youtube": {Title: "YouTube Shorts", Prefix: "yt", Status: "needs_keys", Note: "Проект Google и экран согласия; без аудита ролики приватные. Только видео.",
@@ -1154,6 +1154,7 @@ func okPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent,err
 
 // OK returns an ID as a JSON scalar, but also uses HTTP 200 for API errors.
 func okPublishedID(r *netResp) (string, error) {
+	if r==nil{return "",uncertainPublish("Одноклассники не вернули ответ.")}
 	if r.Status >= 500 || r.Status == 408 {
 		return "", uncertainPublish(fmt.Sprintf("Одноклассники: HTTP %d.", r.Status))
 	}
