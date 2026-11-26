@@ -33,7 +33,7 @@ func autopilotRSSAlternate(r FetchResultURL) string {
 	for _, tag := range linkTagRe.FindAllString(string(r.Bytes), -1) {
 		rel := strings.Fields(strings.ToLower(attrOf(tag, "rel")))
 		typ := strings.ToLower(strings.TrimSpace(strings.Split(attrOf(tag, "type"), ";")[0]))
-		if !contains(rel, "alternate") || (typ != "application/rss+xml" && typ != "application/atom+xml") {
+		if !contains(rel, "alternate") || (typ != "application/rss+xml" && typ != "application/atom+xml" && typ != "application/feed+json") {
 			continue
 		}
 		raw := RSSAbsoluteURL(r.URL, attrOf(tag, "href"))

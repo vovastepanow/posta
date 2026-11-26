@@ -146,6 +146,9 @@ func rssUTF8(data []byte) ([]byte, bool) {
 
 // rssLoad — дерево XML или nil (не XML).
 func rssLoad(data []byte) *xnode {
+	if trimmed:=bytes.TrimSpace(bytes.TrimPrefix(data,[]byte{0xef,0xbb,0xbf}));len(trimmed)>0&&trimmed[0]=='{' {
+		return jsonFeedTree(trimmed)
+	}
 	data, ok := rssUTF8(data)
 	if !ok {
 		return nil
@@ -392,7 +395,7 @@ var videoIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withText bool, minText int) ([]jx.M, error) {
 	doc := rssLoad(data)
 	if !rssIsFeed(doc) {
-		return nil, Bad("Это не RSS и не Atom.")
+		return nil, Bad("Это не RSS, Atom или JSON Feed.")
 	}
 	src := name
 	if src == "" {
@@ -523,6 +526,10 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 			"posted_at": rssItemTime(item), "url": link, "video_unavailable": false, "engagement": nil, "text_post": textOnly}
 		if len(media)>0 && videoID=="" { setPostMedia(p,media) }
 		if incomplete { p["media_incomplete"] = true }
+		if item.A["json_feed"]=="true" {
+			p["feed_format"]="json_feed"
+			if author:=item.kid("author").text();author!="" {p["author_name"]=author}
+		}
 		feed, _ := url.Parse(feedURL)
 		if kind == "RSS" && video == "" && !incomplete && feed != nil && !strings.HasPrefix(feed.Path, "/feeds/c/") && !strings.HasPrefix(feed.Path, "/@") {
 			p["article_source"] = true
@@ -819,7 +826,7 @@ func rssDiscover(raw string, fetch func(string, int64, time.Duration, string) Fe
 		return r.URL, nil
 	}
 	altRe := regexp.MustCompile(`(?i)\balternate\b`)
-	typeRe := regexp.MustCompile(`(?i)^application/(rss|atom)\+xml`)
+	typeRe := regexp.MustCompile(`(?i)^application/((rss|atom)\+xml|feed\+json)(\s*;|$)`)
 	for _, tag := range linkTagRe.FindAllString(string(r.Bytes), -1) {
 		if !altRe.MatchString(attrOf(tag, "rel")) || !typeRe.MatchString(strings.TrimSpace(attrOf(tag, "type"))) {
 			continue
