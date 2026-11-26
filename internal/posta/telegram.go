@@ -402,7 +402,7 @@ func (a *App) telegramVideoLimitLearn(size int64, accepted bool, route string) {
 
 // Prepared — файл поста, готовый к отправке.
 type Prepared struct {
-	Kind     string `json:"kind"` // photo | video | animation
+	Kind     string `json:"kind"` // photo | video | animation | audio | document
 	Path     string `json:"path"`
 	Name     string `json:"name"`
 	Src      string `json:"src"`
@@ -620,6 +620,41 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 			// still checks its own upload limit after video preparation.
 			if info.Size()>maxBytes && !(telegram&&cached){return Prepared{},Bad("Файл превышает локальный предел загрузки %d МиБ.",maxBytes>>20)}
 			mime := sniffMime(path)
+			if it.Kind == "audio" || it.Kind == "document" {
+				if !telegram || route == "account" {
+					return Prepared{}, Bad("Аудио и документы пока доступны только через бота Telegram или очередь Posta.")
+				}
+				if info.Size() > 50_000_000 {
+					return Prepared{}, Bad("Файл превышает лимит 50 МБ.")
+				}
+				if it.Kind == "document" {
+					if mime != "application/pdf" {
+						return Prepared{}, Bad("Пока поддерживаются документы PDF.")
+					}
+					dst := filepath.Join(dir, fmt.Sprintf("document-%d.pdf", i))
+					if err := copyFile(path, dst); err != nil {
+						return Prepared{}, err
+					}
+					return Prepared{Kind: "document", Path: dst}, nil
+				}
+				// Probe the actual container and audio stream, not the supplied extension or MIME.
+				probe := a.TelegramVideoInfo(path)
+				ext := ""
+				switch {
+				case strings.Contains(probe.Container, "mp3") && probe.Audio == "mp3":
+					ext = ".mp3"
+				case strings.Contains(probe.Container, "m4a") && probe.Audio == "aac" && probe.Video == "":
+					ext = ".m4a"
+				}
+				if ext == "" {
+					return Prepared{}, Bad("Выберите распознаваемое аудио MP3 или M4A (требуется ffprobe).")
+				}
+				dst := filepath.Join(dir, fmt.Sprintf("audio-%d%s", i, ext))
+				if err := copyFile(path, dst); err != nil {
+					return Prepared{}, err
+				}
+				return Prepared{Kind: "audio", Path: dst, Duration: probe.Duration}, nil
+			}
 			switch {
 			case mime == "image/gif":
 				return Prepared{Kind: "animation", Path: path}, nil
@@ -639,6 +674,11 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 		}
 		p.Name, p.Src = name, it.Src
 		out = append(out, p)
+	}
+	if telegram {
+		if err := telegramAttachmentCheck(out); err != nil {
+			return nil, err
+		}
 	}
 	if telegram && len(out) > 1 {
 		for i, f := range out {
@@ -808,12 +848,34 @@ type SentResult struct {
 	MediaKept  []Prepared
 }
 
+// telegramAttachmentCheck rejects unsupported album combinations without dropping files.
+// Audio/document albums must consist entirely of the same kind.
+func telegramAttachmentCheck(prepared []Prepared) error {
+	for _, f := range prepared {
+		switch f.Kind {
+		case "photo", "video", "animation":
+		case "audio", "document":
+			for _, other := range prepared {
+				if other.Kind != f.Kind {
+					return Bad("Аудио и документы Telegram нельзя смешивать с другими видами вложений в одном альбоме.")
+				}
+			}
+		default:
+			return Bad("Неизвестный вид вложения Telegram.")
+		}
+	}
+	return nil
+}
+
 // TelegramPublishPrepared — отправка поста ботом.
 func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text string, prepared []Prepared, progress progressFn) (*SentResult, error) {
 	if c.Token == "" || c.ChatID == 0 {
 		return nil, Bad("Telegram не подключён: подключите бота и канал в «Личном кабинете».")
 	}
 	if err := TelegramCheckText(text, len(prepared)); err != nil {
+		return nil, err
+	}
+	if err := telegramAttachmentCheck(prepared); err != nil {
 		return nil, err
 	}
 	if progress == nil {
@@ -843,10 +905,13 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 		raw = json.RawMessage("[" + string(raw) + "]")
 	case 1:
 		f := prepared[0]
-		method := map[string]string{"photo": "sendPhoto", "animation": "sendAnimation", "video": "sendVideo"}[f.Kind]
+		method := map[string]string{"photo": "sendPhoto", "animation": "sendAnimation", "video": "sendVideo", "audio": "sendAudio", "document": "sendDocument"}[f.Kind]
 		fields := map[string]string{"chat_id": chat}
 		if text != "" {
 			fields["caption"] = text
+		}
+		if f.Kind == "audio" && f.Duration > 0 {
+			fields["duration"] = strconv.Itoa(f.Duration)
 		}
 		if f.Kind == "video" {
 			fields["supports_streaming"] = "true"
@@ -861,6 +926,8 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 			m := jx.M{"type": "photo", "media": fmt.Sprintf("attach://file%d", i)}
 			if f.Kind == "video" {
 				m["type"], m["supports_streaming"], m["width"], m["height"], m["duration"] = "video", true, f.Width, f.Height, f.Duration
+			} else if f.Kind == "audio" || f.Kind == "document" {
+				m["type"] = f.Kind
 			}
 			if i == 0 && text != "" {
 				m["caption"] = text
@@ -921,15 +988,23 @@ func TelegramPollCheck(poll jx.M) (jx.M, error) {
 			return nil, Bad("Вариант ответа длиннее 100 символов.")
 		}
 	}
-	return jx.M{"question": q, "options": opts}, nil
+	return jx.M{"question": q, "options": opts, "multiple": jx.Bool(poll, "multiple")}, nil
 }
 
 func (a *App) TelegramPublishPoll(ctx context.Context, c *Channel, poll jx.M) (*SentResult, error) {
 	if c.Token == "" || c.ChatID == 0 {
 		return nil, Bad("Telegram не подключён: подключите бота и канал в «Личном кабинете».")
 	}
-	raw, err := a.TelegramBotRequest(ctx, c.Token, "sendPoll", map[string]string{"chat_id": strconv.FormatInt(c.ChatID, 10), "question": jx.Str(poll, "question"),
-		"options": string(jx.Marshal(jx.Strs(poll, "options")))}, nil, 60*time.Second, nil)
+	checked, err := TelegramPollCheck(poll)
+	if err != nil {
+		return nil, err
+	}
+	var options []jx.M
+	for _, text := range jx.Strs(checked, "options") {
+		options = append(options, jx.M{"text": text})
+	}
+	raw, err := a.TelegramBotRequest(ctx, c.Token, "sendPoll", map[string]string{"chat_id": strconv.FormatInt(c.ChatID, 10), "question": jx.Str(checked, "question"),
+		"options": string(jx.Marshal(options)), "allows_multiple_answers": strconv.FormatBool(jx.Bool(checked, "multiple"))}, nil, 60*time.Second, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1576,6 +1651,9 @@ func (a *App) PostThumbMake(media []jx.M) string {
 		return ""
 	}
 	f := media[0]
+	if kind := jx.Str(f, "kind"); kind == "audio" || kind == "document" {
+		return ""
+	}
 	src := jx.Str(f, "path")
 	if src == "" || !fileExists(src) {
 		return ""

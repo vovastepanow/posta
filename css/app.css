@@ -1405,6 +1405,13 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .pe-add:disabled, .pe-chip:disabled { opacity: .45; cursor: not-allowed; }
 .pe-section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .pe-section-head h3 { margin: 0; color: var(--muted); font-size: 12px; }
+.pe-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
+.pe-attachment { padding: 7px 11px; font-size: 12px; }
+.pe-attachment:disabled { opacity: .4; cursor: not-allowed; }
+.pe-file-preview { display: grid; gap: 8px; align-content: center; padding: 12px; height: 100%; box-sizing: border-box; background: var(--surface-2); overflow: hidden; }
+.pe-file-preview span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.pe-file-preview audio { width: 100%; height: 32px; }
+.pe-poll-setting { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .pe-count, .pe-counter, .pe-summary { color: var(--faint); font: 12px var(--mono); }
 .pe-counter.is-over, .pe-note, .pe-warning { color: var(--danger); }
 .pe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }

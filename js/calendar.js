@@ -1413,10 +1413,12 @@ async function openQueuePost(post) {
             const { openPostEditor, formatWhen } = await import('./editor.js');
             const lane = laneOf(post.channel);
             closePanel();
+            const network = data.capabilities;
+            const target = data.platform === 'telegram' ? 'tg:main' : `${data.platform}:${data.channel}`;
             openPostEditor({
                 key: `outbox:${post.id}`, editing: true, mode: 'queue', scheduledTs: data.publish_at,
                 scheduledAt: formatWhen(new Date(data.publish_at * 1000)),
-                targets: [{ value: 'tg:main', label: lane.title, hashtags: 'off' }], picked: ['tg:main'],
+                targets: [{ value: target, label: lane.title, hashtags: 'off', textLimit: network?.text_limit, capabilities: network ? { platform: data.platform, kinds: network.kinds, mediaMax: network.media_max, textLimit: network.text_limit, poll: network.poll, maxBytes: network.max_bytes } : null }], picked: [target],
                 original: data.text || '', description: '', media: data.media || [], poll: data.poll || null,
                 onSubmit: async edited => {
                     const form = new FormData();

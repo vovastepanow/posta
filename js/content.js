@@ -617,7 +617,8 @@ function logPostCheck(check) {
 /** Цель поста канала: первый канал — tg:main (канал по умолчанию), остальные — tg:<id>. */
 function channelTarget(channel, index) {
     const name = channel.title || (channel.username ? '@' + channel.username : channel.id);
-    return { value: index === 0 ? 'tg:main' : `tg:${channel.id}`, label: `Канал «${name}»` + (index === 0 && state.channels.length > 1 ? ' (по умолчанию)' : ''), hashtags: channel.hashtags || 'off' };
+    const network = state.networks.telegram;
+    return { value: index === 0 ? 'tg:main' : `tg:${channel.id}`, capabilities: network ? {platform:'telegram',kinds:network.kinds,mediaMax:network.media_max,textLimit:network.text_limit,poll:network.poll,maxBytes:network.max_bytes} : null, label: `Канал «${name}»` + (index === 0 && state.channels.length > 1 ? ' (по умолчанию)' : ''), hashtags: channel.hashtags || 'off' };
 }
 const telegramTargets = () => state.channels.map(channelTarget);
 const networkTargets = () => state.networkChannels.map(c => ({ value: `${c.platform}:${c.id}`, label: `${state.networks[c.platform]?.title || c.platform} «${c.title || c.ref}»`, hashtags: c.hashtags || 'off', textLimit: state.networks[c.platform]?.text_limit, capabilities: state.networks[c.platform] ? {

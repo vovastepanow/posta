@@ -15,3 +15,7 @@ assert.equal(validateTarget(x,[],'😀'.repeat(280),null),'');
 assert.notEqual(validateTarget(x,[],'😀'.repeat(281),null),'');
 assert.notEqual(validateTarget({value:'unknown:1'},[],'text',null),'');
 console.log('editor capability tests passed');
+
+assert.equal(validateTarget(tg,[{kind:'audio'}],'caption',null),'');
+assert.notEqual(validateTarget(tg,[{kind:'document'},{kind:'image'}],'caption',null),'');
+assert.equal(validateTarget(tg,[{kind:'document'},{kind:'document'}],'caption',null),'');

@@ -74,7 +74,6 @@ export function pickDateTime({ value = null } = {}) {
 // ---- Редактор поста ----
 
 const TEXT_LIMITS = { tg: [1024, 4096], vk: [16384, 16384] };   // [подпись к медиа, пост без медиа]
-const MAX_MEDIA = 10;
 const POLL_MAX_OPTIONS = 10;   // как в Telegram: от двух до десяти вариантов
 const drafts = new Map();   // черновики правок по записи, пока страница открыта
 let ui = null;
@@ -84,6 +83,11 @@ document.addEventListener('click', () => { if (ui?.targetMenu) ui.targetMenu.hid
 const textLimit = (target, mediaCount) => (session.options.targets.find(t => t.value === target)?.textLimit || TEXT_LIMITS[String(target).split(':')[0]] || TEXT_LIMITS.tg)[mediaCount ? 0 : 1];
 const selectedTargets = () => session.options.picked.map(v => session.options.targets.find(t => t.value === v));
 const currentCapabilities = () => commonCapabilities(selectedTargets());
+const botOnlyMedia = () => session.media.some(m => ['audio','document'].includes(mediaKind(m)));
+const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple)} : null;
+const fileKind = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name) ? 'document' : /^audio\//.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
+const KIND_LABELS = {photo:'Фото', animation:'GIF', video:'Видео', audio:'Аудио', document:'PDF'};
+const fileAccept = {photo:'image/jpeg,image/png,image/webp,image/bmp,image/heic,image/avif', animation:'image/gif', video:'video/*', audio:'.mp3,.m4a,audio/mpeg,audio/mp4', document:'.pdf,application/pdf'};
 const chip = (label, value) => el('span', { className: 'pe-chip' }, el('span', { className: 'pe-chip-label', textContent: label }), el('strong', { textContent: value }));
 
 function buildUi() {
@@ -105,27 +109,27 @@ function buildUi() {
         progress: el('div', { className: 'pe-progress-wrap', hidden: true }, el('span', { className: 'pe-progress-label' }),
             el('div', { className: 'pe-progress-bar' }, el('div', { className: 'pe-progress-fill' })), el('span', { className: 'pe-progress-text' })),
         question: el('input', { type: 'text', className: 'pe-input', maxLength: 300, placeholder: 'Вопрос опроса' }),
-        pollOptions: el('div', { className: 'pe-poll-options' }), addOption: button('pe-btn pe-btn-ghost', 'Добавить вариант', addPollOption),
+        pollOptions: el('div', { className: 'pe-poll-options' }), attachments: el('div', { className: 'pe-attachments' }), multiple: el('input', {type:'checkbox'}), addOption: button('pe-btn pe-btn-ghost', 'Добавить вариант', addPollOption),
         cancel: button('pe-btn', 'Отмена', closeEditor), submit: el('button', { type: 'submit', className: 'pe-btn pe-btn-primary', textContent: 'Запостить' })
     };
     const reset = button('pe-btn pe-btn-ghost', 'Сбросить правки', () => {
         drafts.delete(session.options.key);
         session.media = session.options.media.map(m => ({ ...m }));
         session.tags = [...(session.options.hashtags || [])];
-        session.poll = session.options.poll ? { question: session.options.poll.question || '', options: [...session.options.poll.options] } : null;
+        session.poll = clonePoll(session.options.poll);
         u.text.value = session.options.original || '';
         renderPoll(); renderWhen();
         u.note.textContent = '';
         render();
     });
-    u.mediaSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Медиа' }), u.count), u.grid,
+    u.mediaSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Медиа' }), u.count), u.attachments, u.grid,
         el('div', { className: 'pe-url-row' }, u.url, button('pe-btn pe-btn-ghost', 'Добавить по ссылке', addByUrl)), u.note, u.file);
     u.learnButton = button('pe-chip-btn', 'Изучить по постам', learnStyle, { title: 'ИИ прочитает последние посты канала и опишет манеру письма (один раз, пара минут)' });
     u.styleBox = el('details', { className: 'pe-style' }, el('summary', { textContent: 'Стиль канала' }), u.styleText,
         el('div', { className: 'pe-chip-row' }, button('pe-chip-btn', 'Сохранить стиль', saveStyle), u.learnButton), u.styleNote);
     u.textSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Текст' }), u.counter), u.text,
         el('div', { className: 'pe-chip-row' }, u.original, u.description, u.aiButton, u.excerptButton, button('pe-chip-btn', 'Очистить', () => setText(''))), u.aiNote, u.tags, u.styleBox);
-    u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), u.question, u.pollOptions, u.addOption);
+    u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), u.question, u.pollOptions, u.addOption, el('label', {className:'pe-poll-setting'}, u.multiple, el('span', {textContent:'Разрешить несколько вариантов ответа'})));
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
         u.chips,
@@ -137,14 +141,15 @@ function buildUi() {
     u.overlay.addEventListener('mousedown', e => { if (e.target === u.overlay) closeEditor(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && session) { e.preventDefault(); closeEditor(); } });
     u.text.addEventListener('input', () => session && render());
+    u.multiple.addEventListener('change', () => { if (session?.poll) { session.poll.multiple = u.multiple.checked; render(); } });
     u.question.addEventListener('input', () => { if (session?.poll) { session.poll.question = u.question.value; render(); } });
     u.url.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addByUrl(); } });
     u.file.addEventListener('change', () => {
-        const files = [...u.file.files].filter(f => /^(image|video)\//.test(f.type));
+        const files = [...u.file.files].filter(f => fileKind(f));
         u.file.value = '';
         addMedia(files.map(file => {
             const src = URL.createObjectURL(file);
-            const kind = file.type.startsWith('video') ? 'video' : 'image';
+            const kind = fileKind(file);
             return { kind, src, thumb: kind === 'image' ? src : '', name: file.name, file };
         }));
     });
@@ -250,7 +255,7 @@ function addByUrl() {
     try { url = new URL(value); } catch { ui.note.textContent = 'Это не ссылка.'; return; }
     if (!/^https?:$/.test(url.protocol)) { ui.note.textContent = 'Нужна ссылка http или https.'; return; }
     ui.url.value = ui.note.textContent = '';
-    const kind = /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url.href) ? 'video' : 'image';
+    const kind = /\.(mp3|m4a)$/i.test(url.pathname) ? 'audio' : /\.pdf$/i.test(url.pathname) ? 'document' : /\.(mp4|webm|mov|m4v)$/i.test(url.pathname) ? 'video' : 'image';
     addMedia([{ kind, src: url.href, thumb: kind === 'image' ? url.href : '', name: url.pathname.split('/').pop() || url.hostname }]);
 }
 
@@ -259,6 +264,9 @@ function addMedia(items) {
     for (const item of items) {
         if (!caps.kinds.includes(mediaKind(item))) { ui.note.textContent = 'Формат файла не поддерживается всеми выбранными ресурсами.'; continue; }
         if (session.media.length >= caps.mediaMax) { ui.note.textContent = `Для выбранных ресурсов доступно не больше ${caps.mediaMax} файлов.`; break; }
+        if (session.media.some(m => ['audio','document'].includes(mediaKind(m)) || ['audio','document'].includes(mediaKind(item))) && session.media.some(m => mediaKind(m) !== mediaKind(item))) {
+            ui.note.textContent = 'Аудио и PDF нельзя смешивать с другими вложениями.'; continue;
+        }
         session.media.push(item);
     }
     render();
@@ -271,7 +279,9 @@ function move(from, to) {
 }
 
 function mediaCard(item, i, total) {
-    const preview = item.kind === 'video' ? el('video', { src: item.src, poster: item.thumb || '', muted: true, preload: 'metadata', playsInline: true }) : el('img', { src: item.thumb || item.src, alt: '', draggable: false });
+    const preview = item.kind === 'audio' ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:'Аудио'}), el('span',{textContent:item.name || 'Аудиофайл'}), el('audio',{src:item.src, controls:true, preload:'none'})) :
+        item.kind === 'document' ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:'PDF'}), el('span',{textContent:item.name || 'Документ'})) :
+        item.kind === 'video' ? el('video', { src: item.src, poster: item.thumb || '', muted: true, preload: 'metadata', playsInline: true }) : el('img', { src: item.thumb || item.src, alt: '', draggable: false });
     const card = el('div', { className: 'pe-card', draggable: true }, preview, el('span', { className: 'pe-order', textContent: String(i + 1) }),
         item.kind === 'video' ? el('span', { className: 'video-mark', innerHTML: VIDEO_ICON }) : null,
         el('div', { className: 'pe-card-tools' }, button('pe-tool', '‹', () => move(i, i - 1), { ariaLabel: 'Сдвинуть влево', disabled: i === 0 }),
@@ -289,12 +299,15 @@ function mediaCard(item, i, total) {
 function render() {
     const { media, poll, options } = session;
     const caps = currentCapabilities();
-    const accept = [];
-    if (caps.kinds.includes('photo')) accept.push('image/jpeg','image/png','image/webp','image/bmp','image/heic','image/avif');
-    if (caps.kinds.includes('animation')) accept.push('image/gif');
-    if (caps.kinds.includes('video')) accept.push('video/*');
+    if (options.mode === 'native' && botOnlyMedia()) { options.mode = 'queue'; renderWhen(); }
+    const allowed = caps.kinds.filter(k => !media.length || !botOnlyMedia() && !['audio','document'].includes(k) || media.every(m => mediaKind(m) === k));
+    const accept = allowed.map(k => fileAccept[k]).filter(Boolean);
     ui.file.accept = accept.join(',');
-    const canAdd = caps.kinds.length > 0 && media.length < caps.mediaMax;
+    ui.attachments.replaceChildren(...Object.entries(KIND_LABELS).map(([kind,label]) => {
+        const enabled = allowed.includes(kind) && media.length < caps.mediaMax;
+        return button('pe-btn pe-attachment', '+ ' + label, () => { ui.file.accept = fileAccept[kind]; ui.file.click(); }, {disabled:!enabled,title:enabled ? 'Добавить: ' + label : 'Недоступно для выбранных ресурсов или состава поста'});
+    }));
+    const canAdd = allowed.length > 0 && media.length < caps.mediaMax;
     ui.url.disabled = !canAdd;
     ui.mediaSection.querySelector('.pe-url-row button').disabled = !canAdd;
     const pollToggle = ui.chips.querySelector('.pe-chip-poll');
@@ -305,14 +318,14 @@ function render() {
     const problems = selectedTargets().map(t => ({ label: t?.label || 'Ресурс', error: validateTarget(t, media, ui.text.value, poll) }));
     ui.checks.replaceChildren(...problems.map(p => el('div', { className: 'pe-check' + (p.error ? ' is-error' : '') }, el('strong', { textContent: p.label }), el('span', { textContent: p.error || '✓ Формат совместим' }))));
     const blocked = problems.some(p => p.error) || !problems.length;
-    const snapshot = { media: media.map(m => ({ ...m })), text: ui.text.value, tags: [...session.tags], poll: poll ? {question:poll.question, options:[...poll.options]} : null };
+    const snapshot = { media: media.map(m => ({ ...m })), text: ui.text.value, tags: [...session.tags], poll: clonePoll(poll) };
     drafts.set(options.key, snapshot);
     options.onDraftChange?.(snapshot);
     ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
         media.length ? '' : el('div', { className: 'pe-empty', textContent: 'Медиа нет — пост уйдёт только с текстом' }),
-        el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => ui.file.click() }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
+        el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
     ui.count.textContent = `${media.length} / ${caps.mediaMax}`;
-    if (media.length < MAX_MEDIA && ui.note.textContent.startsWith('В пост помещается')) ui.note.textContent = '';
+    if (media.length < caps.mediaMax && ui.note.textContent.startsWith('Для выбранных ресурсов доступно')) ui.note.textContent = '';
     ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll);
     if (poll) return renderPollState(poll, blocked);
     const text = ui.text.value;
@@ -411,7 +424,7 @@ function togglePicked(value, box) {
 function togglePoll() {
     const o = session.options;
     if (!session.poll && !currentCapabilities().poll) return;
-    session.poll = session.poll ? null : { question: '', options: ['', ''] };
+    session.poll = session.poll ? null : { question: '', options: ['', ''], multiple:false };
     if (session.poll && o.mode === 'native') o.mode = 'queue';
     renderPoll();
     renderWhen();
@@ -424,6 +437,7 @@ function renderPoll() {
     ui.pollSection.hidden = !poll;
     if (!poll) return;
     ui.question.value = poll.question;
+    ui.multiple.checked = Boolean(poll.multiple);
     ui.pollOptions.replaceChildren(...poll.options.map((value, i) => {
         const input = el('input', { type: 'text', className: 'pe-input', maxLength: 100, value, placeholder: `Вариант ${i + 1}` });
         input.addEventListener('input', () => { poll.options[i] = input.value; render(); });
@@ -495,7 +509,7 @@ function whenChip(o) {
         { label: 'Сразу', run: () => setWhen(o, { mode: 'now', scheduledTs: 0, scheduledAt: '' }) },
         ...(o.schedule ? [{ label: 'В ближайший слот', run: () => pickSlot(o) }] : []),
         { label: 'Выбрать дату и время…', run: () => pickDate(o) },
-        ...(o.scheduledTs && o.schedule?.native && o.picked.every(v => v.startsWith('tg:')) && o.mode !== 'slot' && !session.poll ? [
+        ...(o.scheduledTs && o.schedule?.native && o.picked.every(v => v.startsWith('tg:')) && o.mode !== 'slot' && !session.poll && !botOnlyMedia() ? [
             { label: o.mode === 'native' ? '✓ Через «Отложенные» Telegram' : 'Через «Отложенные» Telegram', run: () => setWhen(o, { mode: 'native' }) },
             { label: o.mode === 'queue' ? '✓ Через очередь Posta' : 'Через очередь Posta', run: () => setWhen(o, { mode: 'queue' }) },
         ] : []),
@@ -543,7 +557,7 @@ async function submit(e) {
         const { poll } = session;
         const post = { targets: [...options.picked], mode: options.mode, scheduledAt: options.scheduledAt, scheduledTs: options.mode === 'now' ? 0 : options.scheduledTs || 0,
             media: poll ? [] : media.map(({ kind, src, name, file, existing }) => ({ kind, src, name, file, existing })), text: poll ? '' : ui.text.value.trim(),
-            poll: poll ? { question: poll.question.trim(), options: poll.options.map(v => v.trim()).filter(Boolean) } : null,
+            poll: poll ? { question: poll.question.trim(), options: poll.options.map(v => v.trim()).filter(Boolean), multiple: Boolean(poll.multiple) } : null,
             hashtags: poll || ui.tags.hidden ? [] : [...session.tags] };
         await options.onSubmit(post, onProgress);
         drafts.delete(options.key);
@@ -577,7 +591,7 @@ export function openPostEditor(options) {
     options.mode ??= options.scheduledTs ? 'queue' : 'now';
     options.picked = [...options.picked];
     const draft = options.savedDraft || drafts.get(options.key);
-    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: (draft ? draft.poll : options.poll) ? { question: (draft ? draft.poll : options.poll).question || '', options: [...((draft ? draft.poll : options.poll).options || [])] } : null, dragFrom: null, tags: [...(draft?.tags || options.hashtags || [])] };
+    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: clonePoll(draft && Object.hasOwn(draft,'poll') ? draft.poll : options.poll), dragFrom: null, tags: [...(draft?.tags || options.hashtags || [])] };
     if (session.poll && options.mode === 'native') options.mode = 'queue';
     renderPoll();
     renderWhen();

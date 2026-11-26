@@ -48,13 +48,21 @@ func getOutboxEdit(c *Ctx) (any, error) {
 	media := []jx.M{}
 	for i, m := range jx.Maps(p, "media") {
 		src := "index.php?" + url.Values{"action": {"outbox_media"}, "id": {id}, "index": {strconv.Itoa(i)}}.Encode()
-		kind := "image"
-		if jx.Str(m, "kind") == "video" {
-			kind = "video"
+		kind := jx.Str(m, "kind")
+		if kind == "photo" {
+			kind = "image"
 		}
 		media = append(media, jx.M{"kind": kind, "src": src, "name": jx.Str(m, "name"), "existing": i})
 	}
-	return jx.M{"id": id, "revision": outboxRevision(p), "text": jx.Str(p, "text"), "media": media, "poll": p["poll"], "channel": jx.Str(p, "channel"), "publish_at": jx.Int(p, "publish_at")}, nil
+	ch := c.U.Channel(jx.Str(p, "channel"))
+	if ch == nil {
+		return nil, fail(409, "Канал больше не подключён.")
+	}
+	platform := ch.Platform
+	if platform == "" {
+		platform = "telegram"
+	}
+	return jx.M{"id": id, "revision": outboxRevision(p), "text": jx.Str(p, "text"), "media": media, "poll": p["poll"], "channel": jx.Str(p, "channel"), "publish_at": jx.Int(p, "publish_at"), "platform": platform, "capabilities": c.A.NetworksPublic()[platform]}, nil
 }
 
 func saveOutboxEdit(c *Ctx) (any, error) {
