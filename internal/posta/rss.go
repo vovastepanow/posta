@@ -736,7 +736,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 		if !r.OK {
 			return nil, Bad("Rutube: канал не загрузился: %s", r.Error)
 		}
-		posts, err := RutubeParse(r.Bytes)
+		posts, err := autopilotRutubeChannelPosts(r.Bytes,id)
 		if err != nil {
 			return nil, err
 		}

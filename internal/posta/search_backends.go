@@ -67,16 +67,22 @@ func setPostMedia(post jx.M, media []jx.M) {
 func RutubeParse(data []byte) ([]jx.M, error) {
 	var resp struct {
 		Results []struct {
-			ID           string `json:"id"`
-			Title        string `json:"title"`
-			VideoURL     string `json:"video_url"`
-			ThumbnailURL string `json:"thumbnail_url"`
-			CreatedTS    string `json:"created_ts"`
-			Duration     int64  `json:"duration"`
-			IsAdult      bool   `json:"is_adult"`
-			IsHidden     bool   `json:"is_hidden"`
-			IsDeleted    bool   `json:"is_deleted"`
-			Author       struct {
+			ID            string `json:"id"`
+			Title         string `json:"title"`
+			Description   string `json:"description"`
+			VideoURL      string `json:"video_url"`
+			ThumbnailURL  string `json:"thumbnail_url"`
+			CreatedTS     string `json:"created_ts"`
+			PublicationTS string `json:"publication_ts"`
+			Duration      int64  `json:"duration"`
+			IsAdult       bool   `json:"is_adult"`
+			IsHidden      bool   `json:"is_hidden"`
+			IsDeleted     bool   `json:"is_deleted"`
+			IsLocked      bool   `json:"is_locked"`
+			IsPaid        bool   `json:"is_paid"`
+			IsAudio       bool   `json:"is_audio"`
+			IsOnAir       bool   `json:"is_on_air"`
+			Author        struct {
 				ID   int64  `json:"id"`
 				Name string `json:"name"`
 			} `json:"author"`
@@ -85,29 +91,54 @@ func RutubeParse(data []byte) ([]jx.M, error) {
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, err
 	}
+	if resp.Results == nil {
+		return nil, Bad("Rutube: отсутствует список видео в ответе API.")
+	}
 	var out []jx.M
 	for _, r := range resp.Results {
-		if r.IsHidden || r.IsDeleted || r.ID == "" || r.Title == "" {
+		if r.IsHidden || r.IsDeleted || r.IsLocked || r.IsPaid || r.IsAudio || r.IsOnAir || r.ID == "" || r.Title == "" {
 			continue
 		}
-		at, err := time.ParseInLocation("2006-01-02T15:04:05", r.CreatedTS[:min(len(r.CreatedTS), 19)], moscowZone)
-		posted := int64(0)
-		if err == nil {
-			posted = at.Unix()
+		posted := rutubePublishedAt(r.PublicationTS)
+		if posted == 0 {
+			posted = rutubePublishedAt(r.CreatedTS)
 		}
 		channel := ""
 		if r.Author.ID > 0 {
 			channel = fmt.Sprintf("https://rutube.ru/channel/%d/", r.Author.ID)
 		}
-		p := searchPost(PlatformRutube, fmt.Sprintf("rutube:%d", r.Author.ID), channel, r.Title, r.Title, r.ThumbnailURL, "", r.VideoURL, posted)
+		page := r.VideoURL
+		// Reconstruct a canonical public URL only from an actual Rutube ID.
+		if rutubePublicVideoID.MatchString(r.ID) {
+			page = "https://rutube.ru/video/" + strings.ToLower(r.ID) + "/"
+		}
+		text := strings.TrimSpace(r.Title)
+		if description := strings.TrimSpace(r.Description); description != "" && description != text {
+			text += "\n\n" + description
+		}
+		p := searchPost(PlatformRutube, fmt.Sprintf("rutube:%d", r.Author.ID), channel, r.Title, text, rssHTTPS(r.ThumbnailURL, ""), "", page, posted)
+		p["post_id"] = sha1Short("rutube:"+r.ID, 12)
 		p["author_name"] = r.Author.Name
 		p["source_sensitive"] = r.IsAdult
-		if VideoPageVia(r.VideoURL) == "ytdlp" {
-			p["video_via"], p["video_page"], p["duration"] = "ytdlp", r.VideoURL, r.Duration
+		if VideoPageVia(page) == "ytdlp" && strings.HasPrefix(page,"https://rutube.ru/video/") {
+			p["video_via"], p["video_page"], p["duration"] = "ytdlp", page, r.Duration
+			p["text_post"] = false
+		} else {
+			p["video_unavailable"], p["media_incomplete"], p["text_post"] = true,true,false
 		}
 		out = append(out, p)
 	}
 	return out, nil
+}
+
+var rutubePublicVideoID = regexp.MustCompile(`^[a-fA-F0-9]{32}$`)
+
+func rutubePublishedAt(raw string) int64 {
+	for _, layout := range []string{time.RFC3339Nano,"2006-01-02T15:04:05Z0700"} {
+		if t,err:=time.Parse(layout,raw);err==nil{return t.Unix()}
+	}
+	if t,err:=time.ParseInLocation("2006-01-02T15:04:05",raw,moscowZone);err==nil{return t.Unix()}
+	return 0
 }
 
 // NineGAGParse — ответ 9GAG (data.posts[]): фото — image460, анимация и видео — mp4 из image460sv.
