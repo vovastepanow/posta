@@ -63,6 +63,7 @@ export function validateTarget(target, media, text, poll) {
     if (c.platform === 'max' && media.length > 1 && effective.some(k=>['audio','document'].includes(k))) return 'MAX: аудио или документ отправляется отдельным вложением.';
     if (c.platform === 'tumblr' && effective.filter(k => k === 'video').length > 1) return 'Допустимо только одно видео.';
     if (['youtube','pinterest'].includes(c.platform) && [...text.trim().split(/\r?\n/)[0]].length > 100) return 'Первая строка (заголовок) длиннее 100 символов.';
+    if (media.some(m=>mediaKind(m)==='sticker'&&m.file&&((/\.tgs$/i.test(m.name||m.file.name)&&m.file.size>65536)||(/\.webm$/i.test(m.name||m.file.name)&&m.file.size>262144))))return 'Стикер TGS — до 64 КБ, WEBM — до 256 КБ.';
     if (media.some((m,i) => m.file && c.maxBytes?.[effective[i]] > 0 && m.file.size > c.maxBytes[effective[i]])) return 'Размер файла превышает лимит ресурса.';
     if (!media.length && !text.trim()) return 'Добавьте текст или медиа.';
     return '';

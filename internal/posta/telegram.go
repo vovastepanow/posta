@@ -470,6 +470,7 @@ func telegramPreparePhoto(path, dir string, index int) (Prepared, error) {
 type VideoInfo struct {
 	Container, Video, Audio string
 	Duration, Width, Height int
+ DurationSec, FPS float64
 }
 
 var videoInfoCache sync.Map
@@ -494,14 +495,16 @@ func (a *App) TelegramVideoInfo(path string) VideoInfo {
 			CodecName string `json:"codec_name"`
 			Width     int    `json:"width"`
 			Height    int    `json:"height"`
+ FPS string `json:"r_frame_rate"`
 		} `json:"streams"`
 	}
-	json.Unmarshal([]byte(a.ffprobe(path, "-show_entries", "format=format_name,duration:stream=codec_type,codec_name,width,height", "-of", "json")), &d)
+	json.Unmarshal([]byte(a.ffprobe(path, "-show_entries", "format=format_name,duration:stream=codec_type,codec_name,width,height,r_frame_rate", "-of", "json")), &d)
 	dur, _ := strconv.ParseFloat(d.Format.Duration, 64)
-	info := VideoInfo{Container: d.Format.FormatName, Duration: int(dur + 0.5)}
+	info := VideoInfo{Container: d.Format.FormatName, Duration: int(dur + 0.5),DurationSec:dur}
 	for _, s := range d.Streams {
 		if s.CodecType == "video" && info.Video == "" {
 			info.Video, info.Width, info.Height = s.CodecName, s.Width, s.Height
+ info.FPS=stickerFrameRate(s.FPS)
 		}
 		if s.CodecType == "audio" && info.Audio == "" {
 			info.Audio = s.CodecName
@@ -631,13 +634,7 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 			mime := sniffMime(path)
 			if it.Kind=="sticker"||it.Kind=="video_note" {
 				if !telegram||route=="account"{return Prepared{},Bad("Стикер и видеокружок доступны через бота Telegram или очередь Posta.")}
-				if it.Kind=="sticker"{
-					if mime!="image/webp"||info.Size()>512*1024{return Prepared{},Bad("Статический стикер: WEBP до 512 КБ.")}
-					b,err:=os.ReadFile(path);if err!=nil{return Prepared{},err}
-					w,h,ok:=imgx.Size(b);if !ok||w<=0||h<=0||w>512||h>512||(w!=512&&h!=512){return Prepared{},Bad("Стикер должен иметь одну сторону 512 px, другую не более 512 px.")}
-					dst:=filepath.Join(dir,fmt.Sprintf("sticker-%d.webp",i));if err=copyFile(path,dst);err!=nil{return Prepared{},err}
-					return Prepared{Kind:"sticker",Path:dst,Width:w,Height:h},nil
-				}
+				if it.Kind=="sticker"{return a.prepareTelegramSticker(path,dir,i,mime,info.Size())}
 				probe:=a.TelegramVideoInfo(path)
 				if err:=telegramVideoNoteCheck(probe,info.Size());err!=nil{return Prepared{},err}
 				dst:=filepath.Join(dir,fmt.Sprintf("video-note-%d.mp4",i));if err=copyFile(path,dst);err!=nil{return Prepared{},err}
