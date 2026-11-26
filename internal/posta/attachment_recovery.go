@@ -50,7 +50,7 @@ func (r *attachmentRecovery) resolveVideo(page string) string {
 			return ""
 		}
 	}
-	if jx.Str(st, "status") == "queued" || jx.Str(st, "status") == "running" {
+	if (jx.Str(st, "status") == "queued" || jx.Str(st, "status") == "running") && r.u.videoPreviewJobExists(r.u.Ctx, page, "") {
 		return ""
 	}
 	r.left--

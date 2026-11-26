@@ -5,7 +5,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"os"
-	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -546,7 +545,7 @@ func (u *U) ProposalBackfillMedia(limit int) int {
 		k := ContentItemKey(r)
 		if m, ok := found[k]; ok && !jx.Bool(r, "media_cached") {
 			next := proposalApply(r, m)
-			if reflect.DeepEqual(r, next) {
+			if jx.Equal(r, next) {
 				return nil
 			}
 			return next

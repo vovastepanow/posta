@@ -358,12 +358,12 @@ func (a *App) videoQueueUpdate(ctx context.Context, fn func([]VideoJob) []VideoJ
 }
 
 // VideoEnqueue — запись пула в очередь на ролик (одна задача на запись). front — первым (ролик ждут).
-func (a *App) VideoEnqueue(ctx context.Context, uid, key, page, via string, front bool) {
+func (a *App) VideoEnqueue(ctx context.Context, uid, key, page, via string, front bool) bool {
 	if key == "" || page == "" {
-		return
+		return false
 	}
 	via = jobVia(VideoJob{Via: via, Page: page})
-	a.videoQueueUpdate(ctx, func(jobs []VideoJob) []VideoJob {
+	saved := a.videoQueueUpdate(ctx, func(jobs []VideoJob) []VideoJob {
 		for i, j := range jobs {
 			if j.UID == uid && j.Key == key {
 				if front {
@@ -382,7 +382,13 @@ func (a *App) VideoEnqueue(ctx context.Context, uid, key, page, via string, fron
 		}
 		return jobs
 	})
-	a.KickVideoWorker()
+	for _, j := range saved {
+		if j.UID == uid && j.Key == key && j.Page == page {
+			a.KickVideoWorker()
+			return true
+		}
+	}
+	return false
 }
 
 func videoIsPreviewKey(k string) bool { return strings.HasPrefix(k, "preview:") }
@@ -906,14 +912,18 @@ func (a *App) videoPreviewJobsOf(ctx context.Context, uid, via string) int {
 	return n
 }
 
-func (a *App) videoPreviewJobExists(ctx context.Context, u, uid string) bool {
-	key := VideoPreviewKey(u)
-	for _, j := range a.videoQueue(ctx) {
-		if j.UID == uid && j.Key == key {
+func videoPreviewQueued(jobs []VideoJob, page, uid string) bool {
+	key := VideoPreviewKey(page)
+	for _, j := range jobs {
+		if (uid == "" || j.UID == uid) && j.Key == key && j.Page == page {
 			return true
 		}
 	}
 	return false
+}
+
+func (a *App) videoPreviewJobExists(ctx context.Context, u, uid string) bool {
+	return videoPreviewQueued(a.videoQueue(ctx), u, uid)
 }
 
 // VideoFetchEnqueue — ролик адреса в очередь: одна задача на адрес, лимит на пользователя. limited — лимит исчерпан.
@@ -933,7 +943,14 @@ func (a *App) VideoFetchEnqueue(ctx context.Context, u, via, uid string, front b
 		return st, true
 	}
 	a.videoPreviewSave(ctx, u, jx.M{"status": "queued", "local": "", "error": "", "at": now()})
-	a.VideoEnqueue(ctx, uid, VideoPreviewKey(u), u, via, front)
+	if !a.VideoEnqueue(ctx, uid, VideoPreviewKey(u), u, via, front) {
+		if a.videoPreviewJobExists(ctx, u, "") {
+			return a.VideoPreviewStatus(ctx, u), false
+		}
+		// Do not advertise work that was rejected by a full or unavailable queue.
+		a.videoPreviewSave(ctx, u, jx.M{"status": "none", "error": "Очередь загрузок недоступна или заполнена.", "at": now()})
+		return a.VideoPreviewStatus(ctx, u), true
+	}
 	return a.VideoPreviewStatus(ctx, u), false
 }
 
