@@ -1010,8 +1010,14 @@ func (a *App) TelegramPublishPoll(ctx context.Context, c *Channel, poll jx.M) (*
 	for _, text := range jx.Strs(checked, "options") {
 		options = append(options, jx.M{"text": text})
 	}
-	raw, err := a.TelegramBotRequest(ctx, c.Token, "sendPoll", map[string]string{"chat_id": strconv.FormatInt(c.ChatID, 10), "question": jx.Str(checked, "question"),
-		"options": string(jx.Marshal(options)), "allows_multiple_answers": strconv.FormatBool(jx.Bool(checked, "multiple"))}, nil, 60*time.Second, nil)
+	fields:=map[string]string{"chat_id":strconv.FormatInt(c.ChatID,10),"question":jx.Str(checked,"question"),"options":string(jx.Marshal(options)),"allows_multiple_answers":strconv.FormatBool(jx.Bool(checked,"multiple"))}
+	if close:=jx.Int(checked,"close_minutes");close>0{fields["open_period"]=strconv.FormatInt(close*60,10)}
+	if jx.Bool(checked,"quiz"){
+		fields["type"]="quiz"
+		for i,o:=range jx.Strs(checked,"options"){if o==jx.Str(checked,"correct_answer"){fields["correct_option_ids"]=fmt.Sprintf("[%d]",i);break}}
+		if e:=jx.Str(checked,"explanation");e!=""{fields["explanation"]=e}
+	}
+	raw, err := a.TelegramBotRequest(ctx, c.Token, "sendPoll", fields, nil, 60*time.Second, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -1,5 +1,5 @@
 // UI preflight mirrors implemented delivery capabilities; the server is authoritative.
-const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true}};
+const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,quiz:true,close:true}};
 const REQUIRED = new Set(['youtube','pinterest','instagram']);
 export const mediaKind = m => m.kind === 'image' ? (/^image\/gif$/i.test(m.file?.type || '') || /\.gif(?:[?#]|$)/i.test(m.src || '') || /\.gif$/i.test(m.name || '') ? 'animation' : 'photo') : m.kind;
 export function targetCapabilities(target) {
@@ -19,7 +19,7 @@ export function commonPollLimits(targets) {
     if (!caps.length || !caps.every(c => c?.poll && c?.pollLimits)) return null;
     const limits = caps.map(c => c.pollLimits);
     return {question_max:Math.min(...limits.map(l=>l.question_max)),options_max:Math.min(...limits.map(l=>l.options_max)),
-        option_max:Math.min(...limits.map(l=>l.option_max)),multiple:limits.every(l=>l.multiple), duration:limits.some(l=>l.duration)};
+        option_max:Math.min(...limits.map(l=>l.option_max)),multiple:limits.every(l=>l.multiple), duration:limits.some(l=>l.duration),quiz:limits.every(l=>l.quiz),close:limits.every(l=>l.close),public:limits.every(l=>l.public)};
 }
 export function validateTarget(target, media, text, poll) {
     const c = targetCapabilities(target);
@@ -32,6 +32,13 @@ export function validateTarget(target, media, text, poll) {
         if (options.some(o=>[...o].length > l.option_max)) return 'Вариант ответа: не более ' + l.option_max + ' символов.';
         if (new Set(options.map(o=>o.toLowerCase())).size !== options.length) return 'Варианты ответа должны различаться.';
         if (poll.multiple && !l.multiple) return 'Множественный выбор не поддерживается.';
+        if (poll.public && !l.public) return 'Публичное голосование не поддерживается.';
+        if (poll.close_minutes && (!l.close || poll.close_minutes<5 || poll.close_minutes>10080)) return 'Автозавершение не поддерживается или время вне диапазона.';
+        if (poll.quiz) {
+            if(!l.quiz||poll.multiple)return 'Викторина доступна только в Telegram с одним правильным ответом.';
+            if(!options.includes((poll.correct_answer || '').trim()))return 'Выберите правильный ответ викторины.';
+            if([...(poll.explanation||'')].length>200||(poll.explanation||'').split('\n').length>3)return 'Пояснение: до 200 символов и двух переносов.';
+        }
         const duration = Number(poll.duration_minutes || 1440);
         if (l.duration && (!Number.isInteger(duration) || duration < 5 || duration > 10080)) return 'Длительность: от 5 минут до 7 дней.';
         return '';

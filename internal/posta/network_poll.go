@@ -11,9 +11,11 @@ import (
 func networkPollLimits(platform string) jx.M {
 	switch platform {
 	case "telegram":
-		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true}
-	case "ok", "vk":
-		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true}
+		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true,"quiz":true,"close":true}
+	case "vk":
+		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true,"close":true,"public":true}
+	case "ok":
+		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true,"public":true}
 	case "x":
 		return jx.M{"question_max": 280, "options_max": 4, "option_max": 25, "duration": true}
 	}
@@ -61,6 +63,23 @@ func NetworkPollCheck(platform string, poll jx.M) (jx.M, error) {
 		return nil, Bad("Несколько ответов в одном голосе не поддерживаются.")
 	}
 	out := jx.M{"question": question, "options": opts, "multiple": multiple}
+	if jx.Bool(poll,"public") {
+		if !jx.Bool(limits,"public"){return nil,Bad("Публичное голосование не поддерживается этой площадкой.")}
+		out["public"]=true
+	}
+	if close:=jx.Int(poll,"close_minutes");close!=0 {
+		if !jx.Bool(limits,"close")||close<5||close>10080{return nil,Bad("Автозавершение опроса доступно для Telegram и VK от 5 минут до 7 дней.")}
+		out["close_minutes"]=close
+	}
+	if jx.Bool(poll,"quiz") {
+		if !jx.Bool(limits,"quiz")||multiple{return nil,Bad("Викторина с одним правильным ответом доступна только для Telegram.")}
+		correct:=strings.TrimSpace(jx.Str(poll,"correct_answer"))
+		found:=false;for _,o:=range opts{if o==correct{found=true;break}}
+		if !found{return nil,Bad("Выберите правильный ответ викторины.")}
+		explanation:=strings.TrimSpace(jx.Str(poll,"explanation"))
+		if runeLen(explanation)>200||strings.Count(explanation,"\n")>2{return nil,Bad("Пояснение: до 200 символов и двух переносов строки.")}
+		out["quiz"],out["correct_answer"],out["explanation"]=true,correct,explanation
+	}
 	if platform == "x" {
 		duration := jx.Int(poll, "duration_minutes")
 		if duration == 0 {

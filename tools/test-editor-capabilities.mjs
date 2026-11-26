@@ -41,3 +41,7 @@ assert.notEqual(attachmentError([mx],[{kind:'audio'}],{kind:'audio'}),'');
 assert.equal(attachmentError([tg],[],{kind:'voice'}),'');
 assert.notEqual(attachmentError([tg],[{kind:'voice'}],{kind:'photo'}),'');
 assert.equal(attachmentError([tg,mx],[],{kind:'document'}),'');
+
+assert.equal(validateTarget(tg,[],'',{question:'Q',options:['A','B'],quiz:true,correct_answer:'A'}),'');
+assert.notEqual(validateTarget(tg,[],'',{question:'Q',options:['A','B'],quiz:true,correct_answer:'C'}),'');
+assert.notEqual(validateTarget(xp,[],'',{question:'Q',options:['A','B'],quiz:true,correct_answer:'A'}),'');

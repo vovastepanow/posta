@@ -55,7 +55,10 @@ func vkPublishWith(ctx context.Context,c *Channel,p NetPost,call vkMethodFunc,re
 		if jx.Bool(c.Meta,"poll_user_token"){pt=token}else if userToken!=nil{pt=userToken()}
 		if pt==""{return nil,Bad("ВКонтакте: для опроса нужен пользовательский токен с доступом к polls.create.")}
 		multiple:="0";if jx.Bool(poll,"multiple"){multiple="1"}
-		res,err:=call(ctx,"polls.create",url.Values{"owner_id":{"-"+group},"question":{jx.Str(poll,"question")},"add_answers":{string(jx.Marshal(jx.Strs(poll,"options")))},"is_multiple":{multiple},"is_anonymous":{"1"}},pt)
+		params:=url.Values{"owner_id":{"-"+group},"question":{jx.Str(poll,"question")},"add_answers":{string(jx.Marshal(jx.Strs(poll,"options")))},"is_multiple":{multiple},"is_anonymous":{"1"}}
+		if jx.Bool(poll,"public"){params.Set("is_anonymous","0")}
+		if close:=jx.Int(poll,"close_minutes");close>0{params.Set("end_date",strconv.FormatInt(now()+60*close,10))}
+		res,err:=call(ctx,"polls.create",params,pt)
 		if err!=nil{return nil,err}
 		m:=jx.ToMap(res);id,owner:=jx.Int(m,"id"),jx.Int(m,"owner_id")
 		if id<=0||strconv.FormatInt(owner,10)!="-"+group{return nil,uncertainPublish("ВКонтакте не подтвердил опрос выбранного сообщества.")}

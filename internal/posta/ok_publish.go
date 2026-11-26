@@ -79,8 +79,10 @@ func okPublishWith(ctx context.Context,c *Channel,p NetPost,call okMethodFunc,re
 		poll,err:=NetworkPollCheck("ok",p.Poll);if err!=nil{return nil,err}
 		answers:=[]jx.M{}
 		for _,answer:=range jx.Strs(poll,"options"){answers=append(answers,jx.M{"text":answer})}
-		options:="SingleChoice,AnonymousVoting"
-		if jx.Bool(poll,"multiple"){options="AnonymousVoting"}
+		flags:=[]string{}
+		if !jx.Bool(poll,"multiple"){flags=append(flags,"SingleChoice")}
+		if !jx.Bool(poll,"public"){flags=append(flags,"AnonymousVoting")}
+		options:=strings.Join(flags,",")
 		media=append(media,jx.M{"type":"poll","question":jx.Str(poll,"question"),"answers":answers,"options":options})
 	}else if strings.TrimSpace(p.Text)!=""{media=append(media,jx.M{"type":"text","text":p.Text})}
 	var videoIDs []string
