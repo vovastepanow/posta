@@ -1358,11 +1358,12 @@ function postChildren(post) {
         el('div', {}, el('dt', { textContent: 'Лучшее время канала' }), el('dd', { textContent: best.length ? `${pad(best[0])}:00–${pad((best[0] + 2) % 24)}:00` : '—' })),
         el('div', {}, el('dt', { textContent: 'Соседний пост' }), el('dd', { textContent: neighbourText(post) })));
     const children = [resourcesOf(post), tg, rows, groupBlock(post)];
+    if(post.warning)children.push(el('p',{className:'cal-dup-warning',role:'alert',textContent:post.warning}));
     if (post.error) children.push(el('p', { className: 'cal-pop-error', textContent: post.error }));
     if (post.status === 'telegram') children.push(el('p', { className: 'cal-muted', textContent: 'Этот пост находится в отложенных Telegram. Редактируйте его в Telegram; посты в очереди Posta можно редактировать здесь.' }));
     if (post.duplicate) children.push(el('p', { className: 'cal-dup-warning', role: 'alert' }, `Похожий пост уже выходил в этом канале ${whenLabel(post.duplicate.at * 1000)}. `,
         ...(post.duplicate.url?.startsWith('https://') ? [el('a', { href: post.duplicate.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Показать' })] : [])));
-    if (post.status === 'sent' && post.url?.startsWith('https://')) children.push(el('a', { href: post.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть в Telegram ↗' }));
+    if (post.status === 'sent' && post.url?.startsWith('https://')) children.push(el('a', { href: post.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть публикацию ↗' }));
     const actions = postActions(post);
     if (actions.length) children.push(el('div', { className: 'cal-panel-grid' }, ...actions));
     children.push(el('button', { type: 'button', className: 'cal-act', textContent: 'Открыть пост', onclick: () => openQueuePost(post) }));

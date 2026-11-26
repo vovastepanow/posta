@@ -78,7 +78,7 @@ export function attachmentError(targets, media, item) {
     return '';
 }
 
-export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag','yt_privacy','yt_audience','yt_tags','yt_category','yt_license','styled_text','max_sticker'];
+export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag','yt_privacy','yt_audience','yt_tags','yt_category','yt_license','styled_text','max_sticker','first_comment','paid_partnership','made_with_ai','x_reply_settings'];
 export const standaloneExtra = e=>Boolean(e?.location||e?.contact||e?.max_sticker);
 export function extraActive(extra,key) {
     return key==='buttons' ? !!extra?.buttons?.length : key==='preview' ? !!extra?.preview && extra.preview!=='default' : Boolean(extra?.[key]);
@@ -98,8 +98,9 @@ export function extraAvailability(targets,media,text,poll,key) {
 export function extraError(targets,media,text,poll,extra) {
     if (standaloneExtra(extra)) {
         if([extra.location,extra.contact,extra.max_sticker].filter(Boolean).length>1)return 'Выберите одну карточку или стикер.';
-        if(media.length||text.trim()||extraActive(extra,'buttons')||extraActive(extra,'spoiler')||extraActive(extra,'preview')||extraActive(extra,'styled_text'))return 'Карточка публикуется отдельно от текста, медиа и кнопок.';
+        if(media.length||text.trim()||extraActive(extra,'buttons')||extraActive(extra,'spoiler')||extraActive(extra,'preview')||extraActive(extra,'styled_text')||extraActive(extra,'first_comment'))return 'Карточка публикуется отдельно от текста, медиа и кнопок.';
     }
+    if(extra?.first_comment?.trim()&&extra.close_comments)return 'Первый комментарий несовместим с закрытыми комментариями.';
     for(const key of EXTRA_KEYS) if(extraActive(extra,key)) {
         const error=extraAvailability(targets,media,text,poll,key);
         if(error)return error;
@@ -111,6 +112,7 @@ export function extraError(targets,media,text,poll,extra) {
             try{const v=extra[key].trim(),u=new URL(v);if(v.length>2048||!['http:','https:'].includes(u.protocol)||u.username||u.password||/[,\s]/.test(v))throw Error();}catch{return 'Укажите корректную HTTP(S)-ссылку.';}
         }
         if(key==='vk_geo'){const parts=extra[key].split(',');if(parts.length!==2||parts.some(v=>!v.trim()||!Number.isFinite(Number(v)))||Math.abs(Number(parts[0]))>90||Math.abs(Number(parts[1]))>180)return 'Укажите широту и долготу через запятую.';}
+        if(key==='first_comment'&&[...extra[key].trim()].length>(targets.some(t=>targetCapabilities(t)?.platform==='x')?280:4000))return 'Первый комментарий превышает лимит площадки.';
         if(key==='max_sticker'&&!/^[A-Za-z0-9_-]{1,128}$/.test(extra[key].trim()))return 'Укажите код стикера MAX.';
         if(key==='location'){
             const l=extra.location, lat=Number(l.latitude),lon=Number(l.longitude);

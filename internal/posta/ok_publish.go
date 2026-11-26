@@ -73,6 +73,7 @@ func okPublishWith(ctx context.Context,c *Channel,p NetPost,call okMethodFunc,re
 	gid:=jx.Str(c.Meta,"gid");if gid==""{gid=c.Ref}
 	if !okGroupIDPattern.MatchString(gid)||gid!=c.Ref{return nil,Bad("Одноклассники: не определена группа.")}
 	if len(p.Media)>10||runeLen(p.Text)>4000{return nil,Bad("Одноклассники: превышен лимит текста или вложений.")}
+	extra,err:=PublishExtrasCheck("ok",p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
 	var media []jx.M
 	if p.Poll!=nil{
 		poll,err:=NetworkPollCheck("ok",p.Poll);if err!=nil{return nil,err}
@@ -111,7 +112,10 @@ func okPublishWith(ctx context.Context,c *Channel,p NetPost,call okMethodFunc,re
 		raw:=strings.TrimSpace(string(r.Raw))
 		if raw!=""&&raw!="null"&&raw!="{}"{return nil,uncertainPublish("Одноклассники: неожиданный ответ завершения загрузки видео; проверьте видео группы.")}
 	}
-	att:=string(jx.Marshal(jx.M{"media":media}))
+	if link:=jx.Str(extra,"link_attachment");link!=""{media=append(media,jx.M{"type":"link","url":link})}
+	topic:=jx.M{"media":media}
+	if jx.Bool(extra,"close_comments"){topic["disableComments"]="true"}
+	att:=string(jx.Marshal(topic))
 	r,err:=call(ctx,"mediatopic.post",map[string]string{"type":"GROUP_THEME","gid":gid,"attachment":att})
 	if err!=nil{
 		if len(videoIDs)>0{return nil,uncertainPublish("Одноклассники: видео уже могло стать доступным, но тема не подтверждена; проверьте группу перед повтором.")}

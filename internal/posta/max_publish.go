@@ -76,6 +76,7 @@ func maxPublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequ
 	kinds:=PreparedKinds(p.Media)
 	if err:=maxAttachmentKindsCheck(kinds);err!=nil{return nil,err}
 	extras,err:=PublishExtrasCheck("max",p.Text,kinds,p.Poll,p.Extras);if err!=nil{return nil,err}
+	if jx.Str(extras,"first_comment")!=""&&!contains(ChannelExtraKinds(c),"first_comment"){return nil,Bad("Первый комментарий MAX доступен только для канала.")}
 	if strings.TrimSpace(p.Text)==""&&len(p.Media)==0&&!PostExtrasStandalone(extras){return nil,Bad("MAX: нет текста или вложений.")}
 	var attachments []jx.M
 	if card:=maxStandaloneAttachment(extras);card!=nil{attachments=append(attachments,card)}
@@ -109,6 +110,17 @@ func maxPublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequ
 		if id==""{id=jx.Str(m,"id")}
 		sent:=&NetSent{URL:jx.Str(m,"url"),MessageIDs:[]string{id}}
 		if err:=validateNetworkReceipt(sent);err!=nil{return nil,err}
+		if comment:=jx.Str(extras,"first_comment");comment!=""{
+			if typ:=jx.Str(jx.Map(m,"recipient"),"chat_type");typ!=""&&typ!="channel"{sent.Warning=firstCommentWarning("MAX");return sent,nil}
+			if !maxCommentIDPattern.MatchString(id){sent.Warning=firstCommentWarning("MAX");return sent,nil}
+			r,err:=request(ctx,http.MethodPost,maxAPI+"/messages/"+url.PathEscape(id)+"/comments",headers,jsonBody(jx.M{"text":comment}))
+			if err==nil&&r!=nil&&r.Status==200{
+				cm:=jx.Map(r.Data,"message")
+				cid:=jx.Str(jx.Map(cm,"body"),"mid");if cid==""{cid=jx.Str(jx.Map(cm,"message"),"mid")}
+				if maxCommentIDPattern.MatchString(cid){sent.CommentID=cid}
+			}
+			if sent.CommentID==""{sent.Warning=firstCommentWarning("MAX")}
+		}
 		return sent,nil
 	}
 }

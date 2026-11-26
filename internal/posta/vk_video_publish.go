@@ -107,5 +107,10 @@ func vkPublishWith(ctx context.Context,c *Channel,p NetPost,call vkMethodFunc,re
 	if err!=nil{return fail(err)}
 	id:=jx.Int(jx.ToMap(res),"post_id")
 	if id<=0{return nil,uncertainPublish("ВКонтакте не вернул ID публикации.")}
-	return &NetSent{URL:fmt.Sprintf("https://vk.com/wall-%s_%d",group,id),MessageIDs:[]string{strconv.FormatInt(id,10)}},nil
+	sent:=&NetSent{URL:fmt.Sprintf("https://vk.com/wall-%s_%d",group,id),MessageIDs:[]string{strconv.FormatInt(id,10)}}
+	if comment:=jx.Str(extra,"first_comment");comment!=""{
+		res,err:=call(ctx,"wall.createComment",url.Values{"owner_id":{"-"+group},"post_id":{strconv.FormatInt(id,10)},"from_group":{group},"message":{comment},"guid":{randHex(16)}},token)
+		if cid:=jx.Int(jx.ToMap(res),"comment_id");err==nil&&cid>0{sent.CommentID=strconv.FormatInt(cid,10)}else{sent.Warning=firstCommentWarning("ВКонтакте")}
+	}
+	return sent,nil
 }

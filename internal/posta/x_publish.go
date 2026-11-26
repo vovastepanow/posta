@@ -97,11 +97,14 @@ func xPublishWith(ctx context.Context,c *Channel,p NetPost,request networkReques
   var err error;poll,err=NetworkPollCheck("x",p.Poll);if err!=nil{return nil,err}
   p.Text=jx.Str(poll,"question")
  }
+ extras,err:=PublishExtrasCheck("x",p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
  if runeLen(p.Text)>280||len(p.Media)>4||(len(p.Media)==0&&strings.TrimSpace(p.Text)==""){return nil,Bad("X: превышен лимит или пост пуст.")}
  for _,f:=range p.Media{if f.Kind!="photo"&&((f.Kind!="video"&&f.Kind!="animation")||len(p.Media)!=1){return nil,Bad("X: нельзя смешивать видео/GIF с другими файлами.")}}
  ctx,cancel:=context.WithTimeout(ctx,5*time.Minute);defer cancel()
  auth:=bearer(c.Secrets["access_token"])
  body:=jx.M{}
+ for _,key:=range []string{"paid_partnership","made_with_ai"}{if jx.Bool(extras,key){body[key]=true}}
+ if v:=jx.Str(extras,"x_reply_settings");v!=""{body["reply_settings"]=v}
  if strings.TrimSpace(p.Text)!=""{body["text"]=p.Text}
  if poll!=nil{body["poll"]=jx.M{"options":jx.Strs(poll,"options"),"duration_minutes":jx.Int(poll,"duration_minutes")}}
  var ids []string
@@ -111,5 +114,11 @@ func xPublishWith(ctx context.Context,c *Channel,p NetPost,request networkReques
  r,err:=request(ctx,http.MethodPost,"https://api.x.com/2/tweets",withCT(auth,ctJSON),jsonBody(body))
  data,err:=networkExpect(r,err,[]int{201},"X: пост не опубликован");if err!=nil{return nil,err}
  id:=jx.Str(jx.Map(data,"data"),"id");if !metaDigits.MatchString(id){return nil,uncertainPublish("X не вернул ID поста.")}
- return &NetSent{URL:"https://x.com/i/status/"+id,MessageIDs:[]string{id}},nil
+ sent:=&NetSent{URL:"https://x.com/i/status/"+id,MessageIDs:[]string{id}}
+ if comment:=jx.Str(extras,"first_comment");comment!=""{
+  response,err:=request(ctx,http.MethodPost,"https://api.x.com/2/tweets",withCT(auth,ctJSON),jsonBody(jx.M{"text":comment,"reply":jx.M{"in_reply_to_tweet_id":id}}))
+  if err==nil&&response!=nil&&response.Status==201{cid:=jx.Str(jx.Map(response.Data,"data"),"id");if metaDigits.MatchString(cid){sent.CommentID=cid}}
+  if sent.CommentID==""{sent.Warning=firstCommentWarning("X")}
+ }
+ return sent,nil
 }

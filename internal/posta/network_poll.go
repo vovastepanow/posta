@@ -118,7 +118,7 @@ func (u *U) ChannelEditorCapabilities(c *Channel) jx.M {
 	platform := c.Platform
 	if platform == "" { platform = "telegram" }
 	m := jx.ToMap(u.App.NetworksPublic()[platform])
-	if m != nil { m["poll"] = u.ChannelPollAvailable(c) }
+	if m != nil { m["poll"] = u.ChannelPollAvailable(c);m["extras"]=ChannelExtraKinds(c) }
 	return m
 }
 

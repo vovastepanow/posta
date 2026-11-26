@@ -65,6 +65,8 @@ type NetPost struct {
 type NetSent struct {
 	URL        string
 	MessageIDs []string
+	Warning string
+	CommentID string
 }
 
 type Network struct {
@@ -408,7 +410,7 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 	if err := validateNetworkReceipt(sent); err != nil {
 		return nil, err
 	}
-	return &SentResult{URL: sent.URL, ExternalIDs: sent.MessageIDs, Skipped: skipped, MediaKept: orPrepared(kept)}, nil
+	return &SentResult{URL: sent.URL, ExternalIDs: sent.MessageIDs, Skipped: skipped, MediaKept: orPrepared(kept),Warning:sent.Warning,CommentID:sent.CommentID}, nil
 }
 
 // A successful HTTP status is not proof that a post was created.
@@ -844,7 +846,7 @@ func maxConnect(a *App, ctx context.Context, in map[string]string) (*NetResource
 	if title == "" {
 		title = "MAX"
 	}
-	return &NetResource{Ref: chat, Title: title, Secrets: map[string]string{"token": token}, Meta: jx.M{}}, nil
+	return &NetResource{Ref: chat, Title: title, Secrets: map[string]string{"token": token}, Meta: jx.M{"chat_type":jx.Str(d,"type")}}, nil
 }
 
 func maxPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, error) {
@@ -1482,7 +1484,7 @@ func (u *U) NetworksChannelsPublic() []jx.M {
 	out := []jx.M{}
 	for _, c := range u.Channels() {
 		if c.Platform != "telegram" {
-			out = append(out, jx.M{"id": c.ID, "platform": c.Platform, "title": c.ChatTitle, "ref": c.Ref, "screen_name": jx.Str(c.Meta, "screen_name"), "connected_at": c.ConnectedAt, "schedule": ChannelSchedule(c), "style": u.ChannelStylePublic(c), "hashtags": c.Hashtags, "poll_available":u.ChannelPollAvailable(c)})
+			out = append(out, jx.M{"id": c.ID, "platform": c.Platform, "title": c.ChatTitle, "ref": c.Ref, "screen_name": jx.Str(c.Meta, "screen_name"), "connected_at": c.ConnectedAt, "schedule": ChannelSchedule(c), "style": u.ChannelStylePublic(c), "hashtags": c.Hashtags, "poll_available":u.ChannelPollAvailable(c), "editor_extras":ChannelExtraKinds(c)})
 		}
 	}
 	return out

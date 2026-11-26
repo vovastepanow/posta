@@ -881,6 +881,8 @@ type SentResult struct {
 	URL        string
 	Skipped    []string
 	MediaKept  []Prepared
+	Warning string
+	CommentID string
 }
 
 // telegramAttachmentCheck rejects unsupported album combinations without dropping files.
@@ -1623,10 +1625,11 @@ func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.
 	}
 	u := a.User(ctx, uid, nil)
 	identity := jx.Map(post, "repeat_identity")
-	url := ""
+	url,warning,commentID := "","",""
 	var skipped []string
 	if sent != nil {
 		url, skipped = sent.URL, sent.Skipped
+		warning,commentID=sent.Warning,sent.CommentID
 	}
 	var externalIDs []string
 	if sent != nil {
@@ -1636,7 +1639,7 @@ func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.
 		}
 	}
 	entry := jx.Merge(TelegramPostSummary(PostExtrasSummary(jx.Str(post,"text"),jx.Map(post,"extras")), len(shown)), jx.M{"at": now(), "scheduled_for": jx.Int(post, "publish_at"), "url": url, "status": "ok",
-		"error": "", "channel": c.ID, "channel_title": c.ChatTitle, "media_src": MediaSourcesOf(shown), "skipped": orStrs(skipped), "thumb_id": jx.Str(post, "thumb_id"), "source_key": jx.Str(post, "source_key"), "topic": jx.Str(post, "topic"), "record": jx.Str(post, "record"), "outbox_id": postID, "external_ids": orStrs(externalIDs)})
+		"error": "", "warning":warning,"comment_id":commentID, "channel": c.ID, "channel_title": c.ChatTitle, "media_src": MediaSourcesOf(shown), "skipped": orStrs(skipped), "thumb_id": jx.Str(post, "thumb_id"), "source_key": jx.Str(post, "source_key"), "topic": jx.Str(post, "topic"), "record": jx.Str(post, "record"), "outbox_id": postID, "external_ids": orStrs(externalIDs)})
 	// The remote API has already accepted the post. Never discard its
 	// queue record or files until the local history commit succeeds.
 	if err := a.DB.Tx(ctx, func(tx pgx.Tx) error {

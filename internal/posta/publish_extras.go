@@ -15,9 +15,13 @@ func postExtraKinds(platform string) []string {
 	case "", "telegram":
 		return []string{"buttons","silent","protect","spoiler","preview","location","contact","styled_text"}
 	case "max":
-		return []string{"buttons","preview","location","contact","styled_text","max_sticker"}
+		return []string{"buttons","preview","location","contact","styled_text","max_sticker","first_comment"}
 	case "vk":
-		return []string{"signed","close_comments","mark_as_ads","copyright","link_attachment","vk_geo"}
+		return []string{"signed","close_comments","mark_as_ads","copyright","link_attachment","vk_geo","first_comment"}
+	case "ok":
+		return []string{"close_comments","link_attachment"}
+	case "x":
+		return []string{"first_comment","paid_partnership","made_with_ai","x_reply_settings"}
 	case "threads":
 		return []string{"alt_text","topic_tag","link_attachment","spoiler"}
 	case "instagram":
@@ -49,9 +53,9 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 			if jx.ToMap(value)==nil{return nil,Bad("Некорректная карточка публикации.")}
 		case "buttons":
 			if len(jx.ToList(value))==0{continue}
-		case "silent","protect","spoiler","signed","close_comments","mark_as_ads","styled_text":
+		case "silent","protect","spoiler","signed","close_comments","mark_as_ads","styled_text","paid_partnership","made_with_ai":
 			v,ok:=value.(bool);if !ok{return nil,Bad("Некорректный параметр публикации: %s.",key)};if !v{continue}
-		case "alt_text","topic_tag","link_attachment","copyright","vk_geo","yt_privacy","yt_audience","yt_tags","yt_category","yt_license","max_sticker":
+		case "alt_text","topic_tag","link_attachment","copyright","vk_geo","yt_privacy","yt_audience","yt_tags","yt_category","yt_license","max_sticker","first_comment","x_reply_settings":
 			v,ok:=value.(string);if !ok{return nil,Bad("Некорректное значение дополнения %s.",key)};if strings.TrimSpace(v)==""{continue}
 		case "preview":
 			v,ok:=value.(string);if !ok{return nil,Bad("Некорректная настройка предпросмотра.")};if v==""||v=="default"{continue}
@@ -82,6 +86,14 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 				buttons=append(buttons,jx.M{"text":label,"url":link})
 			}
 			out[key]=buttons
+		case "first_comment":
+			v:=strings.TrimSpace(jx.ToStr(value));limit:=4000;if platform=="x"{limit=280}
+			if runeLen(v)>limit{return nil,Bad("Первый комментарий: до %d символов.",limit)}
+			out[key]=v
+		case "x_reply_settings":
+			v:=strings.TrimSpace(jx.ToStr(value))
+			if !contains([]string{"following","mentionedUsers","subscribers","verified"},v){return nil,Bad("X: неизвестное ограничение ответов.")}
+			out[key]=v
 		case "max_sticker":
 			v:=strings.TrimSpace(jx.ToStr(value));if !regexp.MustCompile("^[A-Za-z0-9_-]{1,128}$").MatchString(v){return nil,Bad("Укажите код стикера MAX.")}
 			out[key]=v
@@ -125,10 +137,11 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 		default:out[key]=true
 		}
 	}
+	if jx.Str(out,"first_comment")!=""&&jx.Bool(out,"close_comments"){return nil,Bad("Первый комментарий несовместим с закрытыми комментариями.")}
 	if PostExtrasStandalone(out){
 		n:=0;for _,key:=range []string{"location","contact","max_sticker"}{if jx.Has(out,key){n++}}
 		if n!=1{return nil,Bad("Выберите одну карточку или стикер.")}
-		if len(kinds)>0||strings.TrimSpace(text)!=""||len(jx.Maps(out,"buttons"))>0||jx.Bool(out,"spoiler")||jx.Bool(out,"styled_text")||jx.Str(out,"preview")!=""{return nil,Bad("Карточка геолокации или контакта публикуется отдельно от текста и медиа.")}
+		if len(kinds)>0||strings.TrimSpace(text)!=""||len(jx.Maps(out,"buttons"))>0||jx.Bool(out,"spoiler")||jx.Bool(out,"styled_text")||jx.Str(out,"preview")!=""||jx.Str(out,"first_comment")!=""{return nil,Bad("Карточка геолокации или контакта публикуется отдельно от текста и медиа.")}
 	}
 	if len(out)==0{return nil,nil}
 	return out,nil

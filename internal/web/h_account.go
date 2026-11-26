@@ -929,10 +929,10 @@ func publish(c *Ctx) (any, error) {
 			kind, dur = shown[0].Kind, shown[0].Duration
 		}
 		skipped := sent.Skipped
-		w.TelegramLogPublished(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(posta.PollPreflightText(text,poll),extras), len(shown)), jx.M{"at": now(), "scheduled_for": 0, "url": sent.URL, "status": "ok", "error": "",
+		w.TelegramLogPublished(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(posta.PollPreflightText(text,poll),extras), len(shown)), jx.M{"at": now(), "scheduled_for": 0, "url": sent.URL, "status": "ok", "error": "", "warning":sent.Warning,"comment_id":sent.CommentID,
 			"media_src": posta.MediaSourcesOf(posta.PreparedMaps(shown)), "channel": ch.ID, "channel_title": ch.ChatTitle, "kind": kind, "duration": dur,
 			"thumb_id": w.PostThumbMake(posta.PreparedMaps(shown)), "skipped": orStrs(skipped), "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic"), "record": recordKey}))
-		response = jx.M{"scheduled": false, "url": sent.URL, "messages": len(sent.MessageIDs), "skipped": orStrs(skipped)}
+		response = jx.M{"scheduled": false, "url": sent.URL, "messages": len(sent.MessageIDs)+len(sent.ExternalIDs), "skipped": orStrs(skipped),"warning":sent.Warning,"comment_id":sent.CommentID}
 	}
 	w.BillingPostUsed()
 	if recordKey != "" {
@@ -1154,7 +1154,7 @@ func calendar(c *Ctx) (any, error) {
 			status = "failed"
 		}
 		sentPosts = append(sentPosts, jx.Merge(jx.Merge(posta.TelegramPostSummary(jx.Str(e, "text"), int(jx.Int(e, "media"))), jx.M{"id": "", "at": at, "status": status,
-			"error": jx.Str(e, "error"), "url": jx.Str(e, "url"), "channel": jx.Str(e, "channel"), "channel_title": jx.Str(e, "channel_title"), "full_text": jx.Str(e, "text"),
+			"error": jx.Str(e, "error"), "warning":jx.Str(e,"warning"),"comment_id":jx.Str(e,"comment_id"), "url": jx.Str(e, "url"), "channel": jx.Str(e, "channel"), "channel_title": jx.Str(e, "channel_title"), "full_text": jx.Str(e, "text"),
 			"kind": jx.Str(e, "kind"), "duration": jx.Int(e, "duration"), "poll": false}), thumbFields(e)))
 	}
 	pending := false
