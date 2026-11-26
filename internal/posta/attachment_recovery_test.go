@@ -45,3 +45,16 @@ func TestAttachmentRecoveryDoesNotInventMissingMedia(t *testing.T) {
 		}
 	}
 }
+
+func TestAttachmentRecoverySchedulesAllMissingVideos(t *testing.T) {
+	post := jx.M{"source_attachments": []jx.M{
+		{"kind":"photo","image":"https://example.org/photo.jpg"},
+		{"kind":"video","video_page":"https://t.me/channel/2"},
+		{"kind":"video","video_page":"https://t.me/channel/3"},
+	}}
+	var scheduled []string
+	ready := restoreAttachmentInventory(post,func(s string)string{scheduled=append(scheduled,s);return ""},func(s string)string{return s},func(string)string{return ""})
+	if len(scheduled)!=2 || !jx.Bool(ready,"media_incomplete") || !PostItemHasVideo(ready) {
+		t.Fatalf("missing attachments were not deferred: %v %v",scheduled,ready)
+	}
+}

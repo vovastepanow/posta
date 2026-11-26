@@ -91,7 +91,7 @@ func restoreAttachmentInventory(post jx.M, resolveVideo, existing, poster func(s
 	}
 	var gallery, attachments []jx.M
 	var images []string
-	hasVideo, recovered := false, false
+	hasVideo, recovered, missing := false, false, false
 	for _, original := range inventory {
 		a := jx.Copy(original)
 		image, video := jx.Str(a, "image"), jx.Str(a, "video")
@@ -104,7 +104,7 @@ func restoreAttachmentInventory(post jx.M, resolveVideo, existing, poster func(s
 		switch jx.Str(a, "kind") {
 		case "photo":
 			if image == "" {
-				return post
+				missing = true
 			}
 		case "video":
 			hasVideo = true
@@ -120,16 +120,15 @@ func restoreAttachmentInventory(post jx.M, resolveVideo, existing, poster func(s
 				}
 			}
 			if video == "" {
-				// Continue on later passes, scheduling each missing attachment
-				// independently. Never substitute a still image for a video.
-				return post
+				// Schedule the remaining files too, within the caller's budget.
+				missing = true
 			}
 			if image == "" && videoLocal != "" {
 				imageLocal = poster(videoLocal)
 				image = imageLocal
 			}
 		default:
-			return post
+			missing = true
 		}
 		if image != "" {
 			images = append(images, image)
@@ -138,11 +137,13 @@ func restoreAttachmentInventory(post jx.M, resolveVideo, existing, poster func(s
 		gallery = append(gallery, jx.M{"image": image, "video": video, "image_local": imageLocal, "video_local": videoLocal})
 		attachments = append(attachments, a)
 	}
+	if missing || (hasVideo && len(images) == 0 && (len(gallery) > 1 || !strings.HasPrefix(jx.Str(gallery[0], "video"), "https://"))) {
+		out := jx.Copy(post)
+		out["media_incomplete"], out["text_post"] = true, false
+		return out
+	}
 	if !hasVideo {
 		return post // existing photo-only pipeline
-	}
-	if len(images) == 0 && (len(gallery) > 1 || !strings.HasPrefix(jx.Str(gallery[0], "video"), "https://")) {
-		return post
 	}
 	out := jx.Copy(post)
 	main := gallery[0]

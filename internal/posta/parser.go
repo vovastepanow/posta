@@ -1151,18 +1151,18 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	for _, p := range platOrder {
 		var ready []jx.M
 		for _, raw := range byPlatform[p] {
-			if policyErr == nil && sourcePolicy(raw) == "" &&
+			if len(jx.Maps(raw, "source_attachments")) > 0 && policyErr == nil && sourcePolicy(raw) == "" &&
 				!candidateIsKnown(raw, seen) && !IsPostOutdated(jx.Int(raw, "posted_at"), 0, maxAge) &&
-				u.collectorDisplayReason(raw, filters, frozen, adult) == "" && u.UAItemBlocked(raw) == "" {
+				!PostIsAdvertisement(raw) && (adult || !u.ContentIsAdult(raw)) && u.UAItemBlocked(raw) == "" {
 				raw = recovery.post(raw)
+			}
+			if jx.Bool(raw, "media_incomplete") || jx.Bool(raw, "text_incomplete") || jx.Bool(raw, "video_unavailable") {
+				skipped["incomplete_source_post"]++
+				continue
 			}
 			ready = append(ready, raw)
 		}
 		for _, item := range ExpandPostImages(ready) {
-			if jx.Bool(item, "media_incomplete") || jx.Bool(item, "text_incomplete") {
-				skipped["incomplete_source_post"]++
-				continue
-			}
 			if policyErr != nil {
 				skipped["source_policy_unavailable"]++
 				continue

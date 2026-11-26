@@ -385,6 +385,11 @@ func federatedPostURLTrusted(item jx.M) bool {
 }
 
 func PostItemHasVideo(item jx.M) bool {
+	for _, f := range jx.Maps(item, "source_attachments") {
+		if jx.Str(f, "kind") == "video" {
+			return true
+		}
+	}
 	if strings.TrimSpace(jx.Str(item, "video")) != "" ||
 		(jx.Str(item, "video_via") != "" && jx.Str(item, "video_page") != "" && !jx.Bool(item, "video_unavailable")) {
 		return true
@@ -398,6 +403,9 @@ func PostItemHasVideo(item jx.M) bool {
 }
 
 func PostItemHasMedia(item jx.M) bool {
+	if len(jx.Maps(item, "source_attachments")) > 0 {
+		return true
+	}
 	if strings.TrimSpace(jx.Str(item, "image")) != "" || strings.TrimSpace(jx.Str(item, "video")) != "" || jx.Str(item, "video_via") != "" {
 		return true
 	}
