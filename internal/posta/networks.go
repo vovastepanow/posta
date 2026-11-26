@@ -222,7 +222,7 @@ func (a *App) NetworkPreflight(platform, text string, kinds []string) (int, []st
 			if k=="video"{videos++}
 		}
 	}
-	if (platform == "youtube" || platform == "pinterest") && kept == 0 {
+	if (platform == "youtube" || platform == "pinterest" || platform == "instagram") && kept == 0 {
 		return 0, nil, Bad("%s: необходим поддерживаемый медиафайл.", n.Title)
 	}
 	if platform == "youtube" || platform == "pinterest" {

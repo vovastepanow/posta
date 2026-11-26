@@ -596,11 +596,13 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 		}
 		p, err := func() (Prepared, error) {
 			path := ""
+			cached := false
 			if it.Upload != "" {
 				path = uploads[it.Upload]
 				if path==""{return Prepared{},Bad("Загруженный файл отсутствует.")}
 			} else if c := a.MediaPath(it.Src); c != "" && fileExists(c) {
 				path = c
+				cached = true
 			} else if strings.HasPrefix(strings.ToLower(it.Src), "http://") || strings.HasPrefix(strings.ToLower(it.Src), "https://") {
 				if it.Kind == "video" {
 					progress("Скачиваю видео", nil)
@@ -614,7 +616,9 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 			}
 			info,err:=os.Stat(path)
 			if err!=nil||!info.Mode().IsRegular()||info.Size()<=0{return Prepared{},Bad("Файл отсутствует или пуст.")}
-			if info.Size()>maxBytes{return Prepared{},Bad("Файл превышает локальный предел загрузки %d МиБ.",maxBytes>>20)}
+			// Cached Telegram media predates the input limit; the actual Telegram route
+			// still checks its own upload limit after video preparation.
+			if info.Size()>maxBytes && !(telegram&&cached){return Prepared{},Bad("Файл превышает локальный предел загрузки %d МиБ.",maxBytes>>20)}
 			mime := sniffMime(path)
 			switch {
 			case mime == "image/gif":

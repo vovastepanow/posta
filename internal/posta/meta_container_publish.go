@@ -29,6 +29,14 @@ func metaContainerPublish(ctx context.Context,c *Channel,p NetPost,s metaContain
  for _,f:=range p.Media{
   if f.Kind!="photo"&&f.Kind!="video"{return nil,Bad("%s: неподдерживаемый тип вложения.",s.name)}
   if !s.textOnly&&f.Kind=="photo"&&sniffMime(f.Path)!="image/jpeg"{return nil,Bad("Instagram: требуется JPEG.")}
+  // Instagram crops carousel media to the first item aspect ratio; do not
+  // submit mixed aspect ratios without an explicit user transformation.
+  if !s.textOnly&&len(p.Media)>1 {
+   first:=p.Media[0]
+   if first.Width<=0||first.Height<=0||f.Width<=0||f.Height<=0{return nil,Bad("Instagram: неизвестны размеры вложения карусели.")}
+   a,b:=float64(first.Width)/float64(first.Height),float64(f.Width)/float64(f.Height)
+   if a/b<0.98||a/b>1.02{return nil,Bad("Instagram: вложения карусели должны иметь одинаковые пропорции; обрезка отключена.")}
+  }
   u,revoke,err:=lease(f);if err!=nil{return nil,err};defer revoke();urls=append(urls,u)
  }
  create:=func(form url.Values)(string,error){
