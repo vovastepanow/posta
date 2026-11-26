@@ -52,3 +52,13 @@ export function validateTarget(target, media, text, poll) {
     if (!media.length && !text.trim()) return 'Добавьте текст или медиа.';
     return '';
 }
+
+// Use the same validation for attachment controls as for final submission.
+export function attachmentError(targets, media, item) {
+    if (!targets.length) return 'Выберите ресурс.';
+    for (const target of targets) {
+        const error = validateTarget(target, [...media, item], '', null);
+        if (error) return `${target?.label || target?.value || 'Ресурс'}: ${error}`;
+    }
+    return '';
+}

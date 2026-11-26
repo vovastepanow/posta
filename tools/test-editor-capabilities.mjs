@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { commonCapabilities, commonPollLimits, validateTarget, mediaKind } from '../js/editor-capabilities.js';
+import { commonCapabilities, commonPollLimits, validateTarget, mediaKind, attachmentError } from '../js/editor-capabilities.js';
 const tg={value:'tg:main'}, yt={value:'youtube:1',capabilities:{platform:'youtube',kinds:['video'],mediaMax:1,textLimit:[5000,5000],poll:false}};
 const x={value:'x:1',capabilities:{platform:'x',kinds:['photo','video','animation'],mediaMax:4,textLimit:[280,280],poll:false}};
 assert.deepEqual(commonCapabilities([tg,yt]),{kinds:['video'],mediaMax:1,poll:false});
@@ -27,3 +27,10 @@ assert.equal(validateTarget(xp,[],'',{question:'Vote?',options:['Yes','No'],dura
 assert.notEqual(validateTarget(xp,[],'',{question:'Vote?',options:['Yes','No'],multiple:true}),'');
 assert.notEqual(validateTarget(xp,[],'',{question:'Vote?',options:['Yes','Yes']}),'');
 assert.notEqual(validateTarget(xp,[],'',{question:'Vote?',options:['Yes','x'.repeat(26)]}),'');
+
+assert.equal(attachmentError([x],[{kind:'photo'}],{kind:'photo'}),'');
+assert.notEqual(attachmentError([x],[{kind:'photo'}],{kind:'video'}),'');
+assert.notEqual(attachmentError([tg,yt],[],{kind:'audio'}),'');
+assert.equal(attachmentError([tg],[{kind:'audio'}],{kind:'audio'}),'');
+assert.notEqual(attachmentError([tg],[{kind:'audio'}],{kind:'document'}),'');
+assert.notEqual(attachmentError([yt],[{kind:'video'}],{kind:'video'}),'');

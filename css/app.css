@@ -2637,3 +2637,7 @@ dialog::backdrop {
 
 /* AI explanation is full text, not a clipped card preview. */
 #item-ai .item-ai-note, #item-ai .desc-text { max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
+
+/* Post editor: native drag and drop feedback, stable media cards. */
+.pe-grid.is-file-drop { outline: 2px dashed var(--accent); outline-offset: 5px; border-radius: 10px; }
+.pe-poll-help { margin: 0; color: var(--text-muted, #888); font-size: 13px; line-height: 1.5; }

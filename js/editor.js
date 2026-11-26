@@ -1,6 +1,6 @@
 // editor.js — окно выбора даты и времени и модальный редактор поста (порядок медиа, текст, отправка через onSubmit).
 import { VIDEO_ICON, api, el, pluralRu } from './core.js';
-import { commonCapabilities, commonPollLimits, mediaKind, validateTarget } from './editor-capabilities.js';
+import { commonCapabilities, commonPollLimits, mediaKind, validateTarget, attachmentError } from './editor-capabilities.js';
 
 // ---- Дата и время ----
 
@@ -85,7 +85,7 @@ const selectedTargets = () => session.options.picked.map(v => session.options.ta
 const currentCapabilities = () => commonCapabilities(selectedTargets());
 const botOnlyMedia = () => session.media.some(m => ['audio','document'].includes(mediaKind(m)));
 const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440} : null;
-const fileKind = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name) ? 'document' : /^audio\//.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
+const fileKind = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name) ? 'document' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
 const KIND_LABELS = {photo:'Фото', animation:'GIF', video:'Видео', audio:'Аудио', document:'PDF'};
 const fileAccept = {photo:'image/jpeg,image/png,image/webp,image/bmp,image/heic,image/avif', animation:'image/gif', video:'video/*', audio:'.mp3,.m4a,audio/mpeg,audio/mp4', document:'.pdf,application/pdf'};
 const chip = (label, value) => el('span', { className: 'pe-chip' }, el('span', { className: 'pe-chip-label', textContent: label }), el('strong', { textContent: value }));
@@ -129,7 +129,7 @@ function buildUi() {
         el('div', { className: 'pe-chip-row' }, button('pe-chip-btn', 'Сохранить стиль', saveStyle), u.learnButton), u.styleNote);
     u.textSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Текст' }), u.counter), u.text,
         el('div', { className: 'pe-chip-row' }, u.original, u.description, u.aiButton, u.excerptButton, button('pe-chip-btn', 'Очистить', () => setText(''))), u.aiNote, u.tags, u.styleBox);
-    u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), u.question, u.pollOptions, u.addOption, el('label', {className:'pe-poll-setting'}, u.multiple, el('span', {textContent:'Разрешить несколько вариантов ответа'})), el('label',{className:'pe-poll-duration',hidden:true},el('span',{textContent:'Длительность опроса в X'}),u.duration));
+    u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), el('p',{className:'pe-poll-help',textContent:'Опрос публикуется вместо текста и медиа. При выключении опроса ваши вложения и текст вернутся.'}), u.question, u.pollOptions, u.addOption, el('label', {className:'pe-poll-setting'}, u.multiple, el('span', {textContent:'Разрешить несколько вариантов ответа'})), el('label',{className:'pe-poll-duration',hidden:true},el('span',{textContent:'Длительность опроса в X'}),u.duration));
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
         u.chips,
@@ -146,13 +146,17 @@ function buildUi() {
     u.question.addEventListener('input', () => { if (session?.poll) { session.poll.question = u.question.value; render(); } });
     u.url.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addByUrl(); } });
     u.file.addEventListener('change', () => {
-        const files = [...u.file.files].filter(f => fileKind(f));
+        const files = [...u.file.files];
         u.file.value = '';
-        addMedia(files.map(file => {
-            const src = URL.createObjectURL(file);
-            const kind = fileKind(file);
-            return { kind, src, thumb: kind === 'image' ? src : '', name: file.name, file };
-        }));
+        addFiles(files);
+    });
+    u.grid.addEventListener('dragover', e => {
+        if (session && !session.busy && e.dataTransfer?.types.includes('Files')) { e.preventDefault(); u.grid.classList.add('is-file-drop'); }
+    });
+    u.grid.addEventListener('dragleave', e => { if (!u.grid.contains(e.relatedTarget)) u.grid.classList.remove('is-file-drop'); });
+    u.grid.addEventListener('drop', e => {
+        u.grid.classList.remove('is-file-drop');
+        if (session && !session.busy && e.dataTransfer?.files.length) { e.preventDefault(); addFiles([...e.dataTransfer.files]); }
     });
     u.form.addEventListener('submit', submit);
     document.body.append(u.overlay);
@@ -260,16 +264,28 @@ function addByUrl() {
     addMedia([{ kind, src: url.href, thumb: kind === 'image' ? url.href : '', name: url.pathname.split('/').pop() || url.hostname }]);
 }
 
-function addMedia(items) {
-    const caps = currentCapabilities();
+function addFiles(files) {
+    const items = [], errors = [];
+    for (const file of files) {
+        const kind = fileKind(file);
+        if (!kind) { errors.push(file.name + ': неподдерживаемый формат.'); continue; }
+        const src = URL.createObjectURL(file);
+        items.push({kind, src, thumb:kind === 'image' ? src : '', name:file.name, file});
+    }
+    addMedia(items, errors);
+}
+
+function addMedia(items, errors = []) {
     for (const item of items) {
-        if (!caps.kinds.includes(mediaKind(item))) { ui.note.textContent = 'Формат файла не поддерживается всеми выбранными ресурсами.'; continue; }
-        if (session.media.length >= caps.mediaMax) { ui.note.textContent = `Для выбранных ресурсов доступно не больше ${caps.mediaMax} файлов.`; break; }
-        if (session.media.some(m => ['audio','document'].includes(mediaKind(m)) || ['audio','document'].includes(mediaKind(item))) && session.media.some(m => mediaKind(m) !== mediaKind(item))) {
-            ui.note.textContent = 'Аудио и PDF нельзя смешивать с другими вложениями.'; continue;
+        const error = attachmentError(selectedTargets(), session.media, item);
+        if (error) {
+            errors.push((item.name || 'Файл') + ': ' + error);
+            if (item.file && item.src.startsWith('blob:')) URL.revokeObjectURL(item.src);
+            continue;
         }
         session.media.push(item);
     }
+    ui.note.textContent = errors.join(' ');
     render();
 }
 
@@ -302,10 +318,11 @@ function render() {
     const pollLimits = commonPollLimits(selectedTargets());
     const caps = currentCapabilities();
     if (options.mode === 'native' && botOnlyMedia()) { options.mode = 'queue'; renderWhen(); }
-    const allowed = caps.kinds.filter(k => !media.length || !botOnlyMedia() && !['audio','document'].includes(k) || media.every(m => mediaKind(m) === k));
+    const allowed = caps.kinds.filter(kind => !attachmentError(selectedTargets(), media, {kind}));
     const accept = allowed.map(k => fileAccept[k]).filter(Boolean);
     ui.file.accept = accept.join(',');
-    ui.attachments.replaceChildren(...Object.entries(KIND_LABELS).map(([kind,label]) => {
+    const mediaChanged = session.renderedMedia?.length !== media.length || media.some((m,i) => m !== session.renderedMedia?.[i]) || session.renderedAllowed !== accept.join(',');
+    if (mediaChanged) ui.attachments.replaceChildren(...Object.entries(KIND_LABELS).map(([kind,label]) => {
         const enabled = allowed.includes(kind) && media.length < caps.mediaMax;
         return button('pe-btn pe-attachment', '+ ' + label, () => { ui.file.accept = fileAccept[kind]; ui.file.click(); }, {disabled:!enabled,title:enabled ? 'Добавить: ' + label : 'Недоступно для выбранных ресурсов или состава поста'});
     }));
@@ -323,11 +340,12 @@ function render() {
     const snapshot = { media: media.map(m => ({ ...m })), text: ui.text.value, tags: [...session.tags], poll: clonePoll(poll) };
     drafts.set(options.key, snapshot);
     options.onDraftChange?.(snapshot);
-    ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
-        media.length ? '' : el('div', { className: 'pe-empty', textContent: 'Медиа нет — пост уйдёт только с текстом' }),
+    if (mediaChanged) { ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
+        media.length ? '' : el('div', { className: 'pe-empty', textContent: 'Перетащите файлы сюда или выберите тип вложения выше' }),
         el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
+        session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');
+    }
     ui.count.textContent = `${media.length} / ${caps.mediaMax}`;
-    if (media.length < caps.mediaMax && ui.note.textContent.startsWith('Для выбранных ресурсов доступно')) ui.note.textContent = '';
     ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll);
     if (poll) {
         ui.addOption.disabled = !pollLimits || poll.options.length >= pollLimits.options_max;
@@ -361,6 +379,9 @@ function renderTags() {
     const mode = tagMode(session.options);
     ui.tags.hidden = mode === 'off' || Boolean(session.poll);
     if (ui.tags.hidden) return;
+    const tagKey = JSON.stringify([mode, session.tags]);
+    if (session.renderedTags === tagKey) return;
+    session.renderedTags = tagKey;
     const input = el('input', { type: 'text', className: 'pe-tag-input', placeholder: '+ тег', maxLength: 17, autocomplete: 'off', ariaLabel: 'Добавить хэштег' });
     const hints = el('div', { className: 'pe-tag-hints' });
     const add = tag => {
