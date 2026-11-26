@@ -1215,51 +1215,7 @@ var youtubeOAuth = &OAuthFlow{
 }
 
 func youtubePublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, error) {
-	var video *Prepared
-	for i := range p.Media {
-		if p.Media[i].Kind == "video" {
-			video = &p.Media[i]
-			break
-		}
-	}
-	if video == nil {
-		return nil, Bad("YouTube публикует только видео.")
-	}
-	b, err := os.ReadFile(video.Path)
-	if err != nil {
-		return nil, Bad("Файл видео не найден.")
-	}
-	title, desc := titleAndBody(p.Text)
-	if title == "" {
-		title = "Shorts"
-	}
-	privacy := jx.Str(c.Meta, "privacy")
-	if privacy == "" {
-		privacy = "private"
-	}
-	auth := bearer(c.Secrets["access_token"])
-	meta := jx.M{"snippet": jx.M{"title": trimRunes(title, 100), "description": desc}, "status": jx.M{"privacyStatus": privacy, "selfDeclaredMadeForKids": false}}
-	h := withCT(auth, "application/json; charset=UTF-8")
-	h["X-Upload-Content-Length"], h["X-Upload-Content-Type"] = strconv.Itoa(len(b)), "video/mp4"
-	start, err := networkHTTP(ctx, "POST", "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", h, jsonBody(meta))
-	if _, err := networkExpect(start, err, []int{200}, "Загрузка видео не начата"); err != nil {
-		return nil, err
-	}
-	loc := start.Headers.Get("Location")
-	if loc == "" {
-		return nil, errors.New("YouTube не выдал адрес загрузки.")
-	}
-	r, err := networkHTTP(ctx, "PUT", loc, map[string]string{"Content-Type": "video/mp4"}, bytes.NewReader(b))
-	done, err := networkExpect(r, err, []int{200, 201}, "Видео не загружено")
-	if err != nil {
-		return nil, err
-	}
-	id := jx.Str(done, "id")
-	u := ""
-	if id != "" {
-		u = "https://youtube.com/shorts/" + id
-	}
-	return &NetSent{URL: u, MessageIDs: []string{id}}, nil
+	return youtubePublishWith(ctx,c,p,networkHTTP,waitNetworkContext)
 }
 
 // ---- Pinterest ----
