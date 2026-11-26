@@ -95,14 +95,14 @@ func mixedAlbumVisionFrames(gallery []jx.M, image func(jx.M) []byte, video func(
 
 func mixedAlbumEvidenceDescription(item jx.M) string {
 	gallery := ContentGallery(item)
-	counts := jx.List(item, "_album_frame_counts")
+	counts, _ := item["_album_frame_counts"].([]int)
 	if len(gallery) < 2 || len(counts) != len(gallery) {
 		return ""
 	}
 	var parts []string
 	start := 1
 	for i, file := range gallery {
-		n := int(jx.ToInt(counts[i]))
+		n := counts[i]
 		if n < 1 || n > 2 {
 			return ""
 		}
