@@ -618,12 +618,12 @@ function logPostCheck(check) {
 function channelTarget(channel, index) {
     const name = channel.title || (channel.username ? '@' + channel.username : channel.id);
     const network = state.networks.telegram;
-    return { value: index === 0 ? 'tg:main' : `tg:${channel.id}`, capabilities: network ? {platform:'telegram',kinds:network.kinds,mediaMax:network.media_max,textLimit:network.text_limit,poll:network.poll,pollLimits:network.poll_limits,maxBytes:network.max_bytes} : null, label: `Канал «${name}»` + (index === 0 && state.channels.length > 1 ? ' (по умолчанию)' : ''), hashtags: channel.hashtags || 'off' };
+    return { value: index === 0 ? 'tg:main' : `tg:${channel.id}`, capabilities: network ? {platform:'telegram',kinds:network.kinds,mediaMax:network.media_max,textLimit:network.text_limit,poll:network.poll,pollLimits:network.poll_limits,extras:network.extras,maxBytes:network.max_bytes} : null, label: `Канал «${name}»` + (index === 0 && state.channels.length > 1 ? ' (по умолчанию)' : ''), hashtags: channel.hashtags || 'off' };
 }
 const telegramTargets = () => state.channels.map(channelTarget);
 const networkTargets = () => state.networkChannels.map(c => ({ value: `${c.platform}:${c.id}`, label: `${state.networks[c.platform]?.title || c.platform} «${c.title || c.ref}»`, hashtags: c.hashtags || 'off', textLimit: state.networks[c.platform]?.text_limit, capabilities: state.networks[c.platform] ? {
     platform: c.platform, kinds: state.networks[c.platform].kinds, mediaMax: state.networks[c.platform].media_max,
-    textLimit: state.networks[c.platform].text_limit, poll: c.poll_available ?? state.networks[c.platform].poll, pollLimits: state.networks[c.platform].poll_limits, maxBytes: state.networks[c.platform].max_bytes
+    textLimit: state.networks[c.platform].text_limit, poll: c.poll_available ?? state.networks[c.platform].poll, pollLimits: state.networks[c.platform].poll_limits, extras:state.networks[c.platform].extras, maxBytes: state.networks[c.platform].max_bytes
 } : null }));
 const allTargets = () => [...telegramTargets(), ...networkTargets()];
 
@@ -829,6 +829,7 @@ async function publishToTelegram(post, onProgress = null) {
     form.append('mode', post.mode || (post.scheduledTs ? 'native' : 'now'));
     if (post.scheduledTs) form.append('scheduled_ts', String(post.scheduledTs));
     if (post.poll) form.append('poll', JSON.stringify(post.poll));
+    if (post.extras) form.append('extras',JSON.stringify(post.extras));
     if (post.hashtags?.length) form.append('hashtags', JSON.stringify(post.hashtags));   // сервер оставит те, что разрешены каналу
     if (post.record) form.append('record', JSON.stringify(post.record));   // поля записи: сервер отметит её лайком после публикации
     const files = [];

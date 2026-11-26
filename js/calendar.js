@@ -1418,8 +1418,8 @@ async function openQueuePost(post) {
             openPostEditor({
                 key: `outbox:${post.id}`, editing: true, mode: 'queue', scheduledTs: data.publish_at,
                 scheduledAt: formatWhen(new Date(data.publish_at * 1000)),
-                targets: [{ value: target, label: lane.title, hashtags: 'off', textLimit: network?.text_limit, capabilities: network ? { platform: data.platform, kinds: network.kinds, mediaMax: network.media_max, textLimit: network.text_limit, poll: network.poll, pollLimits: network.poll_limits, maxBytes: network.max_bytes } : null }], picked: [target],
-                original: data.text || '', description: '', media: data.media || [], poll: data.poll || null,
+                targets: [{ value: target, label: lane.title, hashtags: 'off', textLimit: network?.text_limit, capabilities: network ? { platform: data.platform, kinds: network.kinds, mediaMax: network.media_max, textLimit: network.text_limit, poll: network.poll, pollLimits: network.poll_limits, extras:network.extras, maxBytes: network.max_bytes } : null }], picked: [target],
+                original: data.text || '', description: '', media: data.media || [], poll: data.poll || null, extras:data.extras || null,
                 onSubmit: async edited => {
                     const form = new FormData();
                     const files = [];
@@ -1431,6 +1431,7 @@ async function openQueuePost(post) {
                     form.append('id', data.id); form.append('revision', data.revision);
                     form.append('text', edited.text || ''); form.append('media', JSON.stringify(media));
                     if (edited.poll) form.append('poll', JSON.stringify(edited.poll));
+                    if (edited.extras) form.append('extras',JSON.stringify(edited.extras));
                     files.forEach(f => form.append('files[]', f));
                     await api('outbox_edit_save', { body: form });
                     setStatus('Изменения сохранены.');

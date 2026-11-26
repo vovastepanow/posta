@@ -62,7 +62,7 @@ func getOutboxEdit(c *Ctx) (any, error) {
 	if platform == "" {
 		platform = "telegram"
 	}
-	return jx.M{"id": id, "revision": outboxRevision(p), "text": jx.Str(p, "text"), "media": media, "poll": p["poll"], "channel": jx.Str(p, "channel"), "publish_at": jx.Int(p, "publish_at"), "platform": platform, "capabilities": c.U.ChannelEditorCapabilities(ch)}, nil
+	return jx.M{"id": id, "revision": outboxRevision(p), "text": jx.Str(p, "text"), "media": media, "poll": p["poll"], "extras":p["extras"], "channel": jx.Str(p, "channel"), "publish_at": jx.Int(p, "publish_at"), "platform": platform, "capabilities": c.U.ChannelEditorCapabilities(ch)}, nil
 }
 
 func saveOutboxEdit(c *Ctx) (any, error) {
@@ -187,6 +187,10 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 			return nil, err
 		}
 	}
+	var rawExtras jx.M
+	if value:=c.R.FormValue("extras");value!=""{rawExtras=jx.Unmarshal([]byte(value));if rawExtras==nil{return nil,fail(400,"Некорректные дополнения поста.")}}
+	extras,err:=posta.PublishExtrasCheck(ch.Platform,text,posta.PreparedKinds(prepared),poll,rawExtras)
+	if err!=nil{return nil,fail(422,err.Error())}
 	dir, err := c.A.OutboxMediaDir(id)
 	if err != nil {
 		return nil, err
@@ -241,6 +245,7 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		} else {
 			current["poll"] = poll
 		}
+		if extras==nil{delete(current,"extras")}else{current["extras"]=extras}
 		current["thumb_id"] = c.A.PostThumbMake(media)
 		_, err := tx.Exec(c.R.Context(), `UPDATE outbox SET data=$1 WHERE id=$2 AND user_id=$3`, jx.Marshal(current), id, c.U.ID)
 		return err

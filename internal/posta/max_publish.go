@@ -73,20 +73,27 @@ func maxPublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequ
 	if !chatIDRe.MatchString(c.Ref)||c.Secrets["token"]==""{return nil,Bad("MAX: подключите чат и бота.")}
 	if strings.TrimSpace(p.Text)==""&&len(p.Media)==0{return nil,Bad("MAX: нет текста или вложений.")}
 	if runeLen(p.Text)>4000||len(p.Media)>12{return nil,Bad("MAX: превышен лимит текста или вложений.")}
-	kinds:=[]string{};for _,f:=range p.Media{kinds=append(kinds,f.Kind)}
+	kinds:=PreparedKinds(p.Media)
 	if err:=maxAttachmentKindsCheck(kinds);err!=nil{return nil,err}
+	extras,err:=PublishExtrasCheck("max",p.Text,kinds,p.Poll,p.Extras);if err!=nil{return nil,err}
 	var attachments []jx.M
 	for _,f:=range p.Media{
 		attachment,err:=maxUploadAttachment(ctx,c.Secrets["token"],f,request)
 		if err!=nil{return nil,err}
 		attachments=append(attachments,attachment)
 	}
+	if buttons:=jx.Maps(extras,"buttons");len(buttons)>0{
+		rows:=[][]jx.M{};for _,b:=range buttons{rows=append(rows,[]jx.M{{"type":"link","text":jx.Str(b,"text"),"url":jx.Str(b,"url")}})}
+		attachments=append(attachments,jx.M{"type":"inline_keyboard","payload":jx.M{"buttons":rows}})
+	}
 	payload:=jx.M{}
 	if strings.TrimSpace(p.Text)!=""{payload["text"]=p.Text}
 	if len(attachments)>0{payload["attachments"]=attachments}
 	headers:=map[string]string{"Authorization":c.Secrets["token"],"Content-Type":ctJSON}
 	for attempt:=0;;attempt++{
-		r,err:=request(ctx,http.MethodPost,maxAPI+"/messages?chat_id="+url.QueryEscape(c.Ref),headers,jsonBody(payload))
+		endpoint:=maxAPI+"/messages?chat_id="+url.QueryEscape(c.Ref)
+		if preview:=jx.Str(extras,"preview");preview!=""{endpoint+="&disable_link_preview="+map[bool]string{true:"true",false:"false"}[preview=="off"]}
+		r,err:=request(ctx,http.MethodPost,endpoint,headers,jsonBody(payload))
 		// Only the explicit provider rejection is safe to retry.
 		if err==nil&&r!=nil&&r.Status>=400&&r.Status<500&&jx.Str(r.Data,"code")=="attachment.not.ready"{
 			if attempt>=3{return nil,Bad("MAX ещё обрабатывает вложения; пост не отправлен.")}

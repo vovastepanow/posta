@@ -1,5 +1,5 @@
 // UI preflight mirrors implemented delivery capabilities; the server is authoritative.
-const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000}, mediaMax:10, textLimit:[1024,4096], poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true}};
+const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true}};
 const REQUIRED = new Set(['youtube','pinterest','instagram']);
 export const mediaKind = m => m.kind === 'image' ? (/^image\/gif$/i.test(m.file?.type || '') || /\.gif(?:[?#]|$)/i.test(m.src || '') || /\.gif$/i.test(m.name || '') ? 'animation' : 'photo') : m.kind;
 export function targetCapabilities(target) {
@@ -61,6 +61,32 @@ export function attachmentError(targets, media, item) {
     for (const target of targets) {
         const error = validateTarget(target, [...media, item], '', null);
         if (error) return `${target?.label || target?.value || 'Ресурс'}: ${error}`;
+    }
+    return '';
+}
+
+export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview'];
+export function extraActive(extra,key) {
+    return key==='buttons' ? !!extra?.buttons?.length : key==='preview' ? !!extra?.preview && extra.preview!=='default' : Boolean(extra?.[key]);
+}
+export function extraAvailability(targets,media,text,poll,key) {
+    if (poll || !targets.length || !targets.every(t=>targetCapabilities(t)?.extras?.includes(key))) return 'Недоступно для выбранных площадок или опроса.';
+    if (key==='buttons' && targets.some(t=>targetCapabilities(t)?.platform==='telegram') && media.length>1) return 'Telegram не поддерживает кнопки в альбомах.';
+    if (key==='spoiler' && (!media.length || media.some(m=>!['photo','animation','video'].includes(mediaKind(m))))) return 'Спойлер доступен только для фото, GIF и видео.';
+    if (key==='preview' && (media.length || !text.trim())) return 'Предпросмотр ссылки доступен в текстовом посте.';
+    return '';
+}
+export function extraError(targets,media,text,poll,extra) {
+    for(const key of EXTRA_KEYS) if(extraActive(extra,key)) {
+        const error=extraAvailability(targets,media,text,poll,key);
+        if(error)return error;
+        if(key==='buttons'){
+            if(extra.buttons.length>8)return 'Не более 8 кнопок.';
+            for(const b of extra.buttons){
+                try{const u=new URL(b.url.trim());if(!b.text.trim()||[...b.text.trim()].length>64||b.url.length>2048||!['http:','https:'].includes(u.protocol)||u.username||u.password)throw Error();}
+                catch{return 'У каждой кнопки нужны название и корректная HTTP(S)-ссылка.';}
+            }
+        }
     }
     return '';
 }

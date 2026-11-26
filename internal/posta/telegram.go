@@ -885,7 +885,7 @@ func telegramAttachmentCheck(prepared []Prepared) error {
 }
 
 // TelegramPublishPrepared — отправка поста ботом.
-func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text string, prepared []Prepared, progress progressFn) (*SentResult, error) {
+func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text string, prepared []Prepared, progress progressFn, extra ...jx.M) (*SentResult, error) {
 	if c.Token == "" || c.ChatID == 0 {
 		return nil, Bad("Telegram не подключён: подключите бота и канал в «Личном кабинете».")
 	}
@@ -895,6 +895,10 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 	if err := telegramAttachmentCheck(prepared); err != nil {
 		return nil, err
 	}
+	var rawExtra jx.M
+	if len(extra)>0{rawExtra=extra[0]}
+	extras,extraErr:=PublishExtrasCheck("telegram",text,PreparedKinds(prepared),nil,rawExtra)
+	if extraErr!=nil{return nil,extraErr}
 	if progress == nil {
 		progress = noProgress
 	}
@@ -918,12 +922,17 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 	var err error
 	switch len(prepared) {
 	case 0:
-		raw, err = a.TelegramBotRequest(ctx, c.Token, "sendMessage", map[string]string{"chat_id": chat, "text": text, "disable_web_page_preview": "true"}, nil, 60*time.Second, nil)
+		fields:=map[string]string{"chat_id":chat,"text":text,"disable_web_page_preview":"true"}
+		if jx.Str(extras,"preview")=="on"{fields["disable_web_page_preview"]="false"}
+		telegramExtraFields(fields,extras)
+		raw, err = a.TelegramBotRequest(ctx, c.Token, "sendMessage", fields, nil, 60*time.Second, nil)
 		raw = json.RawMessage("[" + string(raw) + "]")
 	case 1:
 		f := prepared[0]
 		method := map[string]string{"photo": "sendPhoto", "animation": "sendAnimation", "video": "sendVideo", "audio": "sendAudio", "document": "sendDocument", "voice":"sendVoice"}[f.Kind]
 		fields := map[string]string{"chat_id": chat}
+		telegramExtraFields(fields,extras)
+		if jx.Bool(extras,"spoiler"){fields["has_spoiler"]="true"}
 		if text != "" {
 			fields["caption"] = text
 		}
@@ -946,13 +955,16 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 			} else if f.Kind == "audio" || f.Kind == "document" {
 				m["type"] = f.Kind
 			}
+			if jx.Bool(extras,"spoiler"){m["has_spoiler"]=true}
 			if i == 0 && text != "" {
 				m["caption"] = text
 			}
 			media = append(media, m)
 			files[fmt.Sprintf("file%d", i)] = f.Path
 		}
-		raw, err = a.TelegramBotRequest(ctx, c.Token, "sendMediaGroup", map[string]string{"chat_id": chat, "media": string(jx.Marshal(media))}, files, 10*time.Minute, onUpload)
+		fields:=map[string]string{"chat_id":chat,"media":string(jx.Marshal(media))}
+		telegramExtraFields(fields,extras)
+		raw, err = a.TelegramBotRequest(ctx, c.Token, "sendMediaGroup", fields, files, 10*time.Minute, onUpload)
 	}
 	if err != nil {
 		if biggest > 0 && err.Error() == "Файл слишком большой для Telegram." {
@@ -1381,7 +1393,7 @@ func PublishArticleInput(raw any) jx.M {
 }
 
 // OutboxQueuePost — пост в нашу очередь: файлы переносятся в папку поста.
-func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publishAt int64, slotAt *int64, work string, poll, article jx.M, group, record string, sourceMeta jx.M) (jx.M, error) {
+func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publishAt int64, slotAt *int64, work string, poll, article jx.M, group, record string, sourceMeta jx.M, extra ...jx.M) (jx.M, error) {
 	if poll != nil {
 		if len(prepared) != 0 {
 			return nil, Bad("Опрос не может содержать вложения.")
@@ -1397,6 +1409,10 @@ func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publis
 			return nil, err
 		}
 	}
+	var rawExtra jx.M
+	if len(extra)>0{rawExtra=extra[0]}
+	extras,err:=PublishExtrasCheck(c.Platform,text,PreparedKinds(prepared),poll,rawExtra)
+	if err!=nil{return nil,err}
 	id := randHex(6)
 	media, err := u.outboxMediaMove(work, id, PreparedMaps(prepared))
 	if err != nil {
@@ -1411,6 +1427,7 @@ func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publis
 	if poll != nil {
 		post["poll"] = poll
 	}
+	if extras!=nil{post["extras"]=extras}
 	if article != nil {
 		post["article"] = article
 	}

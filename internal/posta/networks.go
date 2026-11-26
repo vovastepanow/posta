@@ -59,6 +59,7 @@ type NetPost struct {
 	Text  string
 	Media []Prepared
 	Poll  jx.M
+	Extras jx.M
 }
 
 type NetSent struct {
@@ -345,7 +346,7 @@ func (a *App) NetworksPublic() jx.M {
 	out := jx.M{}
 	for k, n := range a.Networks() {
 		out[k] = jx.M{"title": n.Title, "prefix": n.Prefix, "status": n.Status, "note": n.Note, "text_limit": n.TextLimit, "media_max": n.MediaMax,
-			"kinds": orStrs(n.Kinds), "max_bytes": n.MaxBytes, "poll": n.Poll, "poll_limits": networkPollLimits(k), "fields": n.Fields, "docs": n.Docs, "oauth": n.OAuth != nil,
+			"kinds": orStrs(n.Kinds), "max_bytes": n.MaxBytes, "poll": n.Poll, "poll_limits": networkPollLimits(k), "extras":postExtraKinds(k), "fields": n.Fields, "docs": n.Docs, "oauth": n.OAuth != nil,
 			"connect_available": n.PublishingConnectionAvailable(), "publishing_in_scope": publishingInScope(k)}
 	}
 	return out
@@ -381,11 +382,13 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 		}
 		text = jx.Str(poll, "question")
 	}
+	extras, err := PublishExtrasCheck(c.Platform,text,PreparedKinds(media),poll,jx.Map(post,"extras"))
+	if err!=nil{return nil,fmt.Errorf("%s: %w",err,ErrNetworkRejected)}
 	if c.Platform == "telegram" {
 		if poll != nil {
 			return a.TelegramPublishPoll(ctx, c, poll)
 		}
-		return a.TelegramPublishPrepared(ctx, c, text, media, nil)
+		return a.TelegramPublishPrepared(ctx, c, text, media, nil, extras)
 	}
 	if err := a.NetworkPreparedPreflight(c.Platform, text, media); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrNetworkRejected)
@@ -400,7 +403,7 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 	if len(kept) == 0 && strings.TrimSpace(text) == "" {
 		return nil, fmt.Errorf("%s: в посте нет подходящих файлов и текста: %w", n.Title, ErrNetworkRejected)
 	}
-	sent, err := n.Publish(a, ctx, c, NetPost{Text: text, Media: kept, Poll: poll})
+	sent, err := n.Publish(a, ctx, c, NetPost{Text: text, Media: kept, Poll: poll, Extras:extras})
 	if err != nil {
 		return nil, err
 	}
@@ -437,7 +440,7 @@ func telegramNetworkPublish(a *App, ctx context.Context, c *Channel, p NetPost) 
 	if p.Poll != nil {
 		s, err = a.TelegramPublishPoll(ctx, c, p.Poll)
 	} else {
-		s, err = a.TelegramPublishPrepared(ctx, c, p.Text, p.Media, nil)
+		s, err = a.TelegramPublishPrepared(ctx, c, p.Text, p.Media, nil,p.Extras)
 	}
 	if err != nil {
 		return nil, err

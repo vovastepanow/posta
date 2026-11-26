@@ -2641,3 +2641,12 @@ dialog::backdrop {
 /* Post editor: native drag and drop feedback, stable media cards. */
 .pe-grid.is-file-drop { outline: 2px dashed var(--accent); outline-offset: 5px; border-radius: 10px; }
 .pe-poll-help { margin: 0; color: var(--text-muted, #888); font-size: 13px; line-height: 1.5; }
+
+.pe-extra-section { grid-column:1 / -1; }
+.pe-extras-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr)); gap:10px; }
+.pe-extra-control,.pe-extra-preview { display:flex; align-items:center; gap:8px; font-size:13px; }
+.pe-extra-preview select { min-width:0; flex:1; }
+.pe-extra-control:has(input:disabled),.pe-extra-preview:has(select:disabled) { opacity:.55; }
+.pe-button-rows { display:grid; gap:8px; }
+.pe-button-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto; gap:8px; }
+@media(max-width:540px){.pe-button-row{grid-template-columns:1fr auto}.pe-button-row input:first-child{grid-column:1/-1}}

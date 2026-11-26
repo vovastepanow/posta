@@ -799,6 +799,14 @@ func publish(c *Ctx) (any, error) {
 		return nil, fail(422, "В опросе не бывает медиа: уберите файлы.")
 	}
 	platform := ch.Platform
+	var rawExtras jx.M
+	switch e:=fields["extras"].(type){
+	case string:if e!=""{rawExtras=jx.Unmarshal([]byte(e));if rawExtras==nil{return nil,fail(400,"Некорректные дополнения поста.")}}
+	case map[string]any:rawExtras=e
+	}
+	extras,err:=posta.PublishExtrasCheck(platform,text,kinds,poll,rawExtras)
+	if err!=nil{return nil,fail(422,err.Error())}
+	if mode=="native"&&len(extras)>0{return nil,fail(422,"Эти дополнения доступны через очередь Posta.")}
 	if platform != "telegram" {
 		n, _ := c.A.NetworkFor(platform)
 		title := platform
@@ -892,7 +900,7 @@ func publish(c *Ctx) (any, error) {
 	}
 	switch mode {
 	case "queue", "slot":
-		r, err := w.OutboxQueuePost(ch, text, prepared, at, slotAt, work, poll, posta.PublishArticleInput(fields["article"]), "", recordKey, sourceMeta)
+		r, err := w.OutboxQueuePost(ch, text, prepared, at, slotAt, work, poll, posta.PublishArticleInput(fields["article"]), "", recordKey, sourceMeta,extras)
 		if err != nil {
 			return nil, fail(422, err.Error())
 		}
@@ -910,13 +918,13 @@ func publish(c *Ctx) (any, error) {
 			response["warning"] = "Telegram принял пост, но Posta не смогла сохранить его в календаре. Проверьте «Отложенные» в Telegram; повторно отправлять пост не нужно."
 		}
 	default:
-		post := jx.M{"text": text, "media": posta.PreparedMaps(prepared)}
+		post := jx.M{"text": text, "media": posta.PreparedMaps(prepared),"extras":extras}
 		if poll != nil {
 			post["poll"] = poll
 		}
 		var sent *posta.SentResult
 		if platform == "telegram" && poll == nil {
-			sent, err = w.TelegramPublishPrepared(w.Ctx, ch, text, prepared, progress)
+			sent, err = w.TelegramPublishPrepared(w.Ctx, ch, text, prepared, progress,extras)
 		} else {
 			sent, err = w.OutboxSendPost(w.Ctx, w.ID, post, ch)
 		}
