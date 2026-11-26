@@ -475,6 +475,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	t := now()
 	poll := map[string]jx.M{}
 	sharedCache := map[string]sharedPosts{}
+	telegramFallback := newAttachmentRecovery(u)
 	for _, c := range CatalogKinds {
 		if c.Platform == PlatformVK && !vk {
 			continue
@@ -565,6 +566,9 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 				if _, inPoll := poll[pkey]; inPoll {
 					fetched++
 				}
+			}
+			if useShared && c.Platform == PlatformTelegram && len(posts) == 0 {
+				posts = telegramFallback.telegramSnapshot(strings.TrimLeft(jx.Str(e, "id"), "@"), SourceDisplayName(c.Platform, jx.Str(e, "name")))
 			}
 			if sharedSourceEligible(c.Platform, e) {
 				stored := u.publicSourcePosts(u.Ctx, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@")), t-7*config.DaySeconds, 100)
@@ -1151,7 +1155,7 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	for _, p := range platOrder {
 		var ready []jx.M
 		for _, raw := range byPlatform[p] {
-			if len(jx.Maps(raw, "source_attachments")) > 0 && policyErr == nil && sourcePolicy(raw) == "" &&
+			if (len(jx.Maps(raw, "source_attachments")) > 0 || telegramRepairChannel(raw) != "") && policyErr == nil && sourcePolicy(raw) == "" &&
 				!candidateIsKnown(raw, seen) && !IsPostOutdated(jx.Int(raw, "posted_at"), 0, maxAge) &&
 				!PostIsAdvertisement(raw) && (adult || !u.ContentIsAdult(raw)) && u.UAItemBlocked(raw) == "" {
 				raw = recovery.post(raw)

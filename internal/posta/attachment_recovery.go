@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"posta/internal/config"
 	"posta/internal/jx"
 )
 
@@ -15,11 +16,13 @@ type attachmentRecovery struct {
 	u *U
 	left int
 	states map[string]jx.M
+	historyLeft int
+	history map[string][]jx.M
 	telegramChecked, telegramConnected bool
 }
 
 func newAttachmentRecovery(u *U) *attachmentRecovery {
-	return &attachmentRecovery{u: u, left: 4, states: map[string]jx.M{}}
+	return &attachmentRecovery{u: u, left: 4, states: map[string]jx.M{}, historyLeft: 2, history: map[string][]jx.M{}}
 }
 
 func (r *attachmentRecovery) resolveVideo(page string) string {
@@ -40,11 +43,7 @@ func (r *attachmentRecovery) resolveVideo(page string) string {
 		return ""
 	}
 	if via == "tgu" {
-		if !r.telegramChecked {
-			r.telegramChecked = true
-			r.telegramConnected = r.u.TelegramUserConnected()
-		}
-		if !r.telegramConnected {
+		if !r.telegramAvailable() {
 			return ""
 		}
 		if until, ok := telegramHistoryPause.Load(r.u.ID); ok && time.Now().Before(until.(time.Time)) {
@@ -60,9 +59,38 @@ func (r *attachmentRecovery) resolveVideo(page string) string {
 	return ""
 }
 
+func (r *attachmentRecovery) telegramAvailable() bool {
+	if !r.telegramChecked {
+		r.telegramChecked = true
+		r.telegramConnected = r.u.ID != "" && r.u.TelegramUserConnected()
+	}
+	return r.telegramConnected
+}
+
+func (r *attachmentRecovery) telegramSnapshot(channel, name string) []jx.M {
+	channel = strings.ToLower(channel)
+	if cached, ok := r.history[channel]; ok {
+		return cached
+	}
+	if r.historyLeft <= 0 || !r.telegramAvailable() || !IsValidTelegramChannel(channel) {
+		return nil
+	}
+	r.historyLeft--
+	posts, err := r.u.telegramUserHistoryPosts(channel, name, config.TelegramPostsPerChannel)
+	if err != nil {
+		r.history[channel] = nil
+		return nil
+	}
+	r.history[channel] = posts
+	return posts
+}
+
 func (r *attachmentRecovery) post(post jx.M) jx.M {
 	if r.u.ID == "" || r.u.DB == nil {
 		return post
+	}
+	if channel := telegramRepairChannel(post); channel != "" {
+		post = repairTelegramSnapshot(post, r.telegramSnapshot(channel, jx.Str(post, "source")))
 	}
 	return restoreAttachmentInventory(post, r.resolveVideo, r.u.MediaExisting, func(video string) string {
 		path := r.u.MediaPath(video)
@@ -168,4 +196,79 @@ func restoreAttachmentInventory(post jx.M, resolveVideo, existing, poster func(s
 		out["attachment_recovered"] = true
 	}
 	return out
+}
+
+// Native history is needed only when the web inventory itself is insufficient:
+// missing photo, absent individual video page, or a truncated album.
+func telegramRepairChannel(post jx.M) string {
+	if !jx.Bool(post, "media_incomplete") || jx.Str(post, "fetched_via") == "telegram_mtproto" {
+		return ""
+	}
+	m := tmePostPartsRe.FindStringSubmatch(jx.Str(post, "url"))
+	if m == nil {
+		return ""
+	}
+	inventory := jx.Maps(post, "source_attachments")
+	if len(inventory) == 0 || jx.Bool(post, "attachment_inventory_incomplete") {
+		return m[1]
+	}
+	for _, a := range inventory {
+		switch jx.Str(a, "kind") {
+		case "photo":
+			if jx.Str(a, "image") == "" && jx.Str(a, "image_local") == "" {
+				return m[1]
+			}
+		case "video":
+			if jx.Str(a, "video") == "" && VideoPageVia(jx.Str(a, "video_page")) != "tgu" {
+				return m[1]
+			}
+		}
+	}
+	return ""
+}
+
+// Replace with a single native observation rather than splicing old and new
+// captions or files together. Exact post ID and known ordered member IDs
+// must agree; the native snapshot may contain independently pending videos.
+func repairTelegramSnapshot(web jx.M, native []jx.M) jx.M {
+	key := CandidatePostKey(web)
+	if key == "" {
+		return web
+	}
+	known := jx.Maps(web, "source_attachments")
+	for _, p := range native {
+		if CandidatePostKey(p) != key || jx.Str(p, "fetched_via") != "telegram_mtproto" ||
+			jx.Bool(p, "attachment_inventory_incomplete") || jx.Bool(p, "text_incomplete") {
+			continue
+		}
+		files := jx.Maps(p, "source_attachments")
+		if len(files) == 0 || (len(known) > 0 && len(known) != len(files)) {
+			continue
+		}
+		valid := true
+		for i, f := range files {
+			if len(known) > 0 && (jx.Str(known[i], "kind") != jx.Str(f, "kind") ||
+				(jx.Str(known[i], "url") != "" && jx.Str(known[i], "url") != jx.Str(f, "url"))) {
+				valid = false
+				break
+			}
+			switch jx.Str(f, "kind") {
+			case "photo":
+				valid = jx.Str(f, "image_local") != ""
+			case "video":
+				valid = VideoPageVia(jx.Str(f, "video_page")) == "tgu"
+			default:
+				valid = false
+			}
+			if !valid {
+				break
+			}
+		}
+		if valid {
+			out := jx.Copy(p)
+			out["source_url"] = jx.Str(p, "url")
+			return out
+		}
+	}
+	return web
 }
