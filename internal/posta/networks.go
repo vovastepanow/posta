@@ -382,7 +382,7 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 		text,err=PollContentText(c.Platform,text,len(media),poll)
 		if err!=nil{return nil,fmt.Errorf("%s: %w",err,ErrNetworkRejected)}
 	}
-	extras, err := PublishExtrasCheck(c.Platform,text,PreparedKinds(media),poll,jx.Map(post,"extras"))
+	extras, err := PublishExtrasForChannel(c,text,PreparedKinds(media),poll,jx.Map(post,"extras"))
 	if err!=nil{return nil,fmt.Errorf("%s: %w",err,ErrNetworkRejected)}
 	if c.Platform == "telegram" {
 		if poll != nil {

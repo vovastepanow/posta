@@ -805,7 +805,7 @@ func publish(c *Ctx) (any, error) {
 	case string:if e!=""{rawExtras=jx.Unmarshal([]byte(e));if rawExtras==nil{return nil,fail(400,"Некорректные дополнения поста.")}}
 	case map[string]any:rawExtras=e
 	}
-	extras,err:=posta.PublishExtrasCheck(platform,text,kinds,poll,rawExtras)
+	extras,err:=posta.PublishExtrasForChannel(ch,text,kinds,poll,rawExtras)
 	if err!=nil{return nil,fail(422,err.Error())}
 	if mode=="native"&&len(extras)>0{return nil,fail(422,"Эти дополнения доступны через очередь Posta.")}
 	if platform != "telegram" {
@@ -1136,8 +1136,8 @@ func calendar(c *Ctx) (any, error) {
 				}
 			}
 		}
-		p := jx.Merge(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(jx.Str(e,"text"),jx.Map(e,"extras")), len(media)), u.TelegramChannelFields(jx.Str(e, "channel"))), jx.M{"id": e["id"],
-			"status": e["status"], "error": jx.Str(e, "error"), "full_text": trimRunes(strings.TrimSpace(posta.PostExtrasSummary(jx.Str(e,"text"),jx.Map(e,"extras"))), 600), "article": e["article"],
+		p := jx.Merge(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(posta.PollPreflightText(jx.Str(e,"text"),jx.Map(e,"poll")),jx.Map(e,"extras")), len(media)), u.TelegramChannelFields(jx.Str(e, "channel"))), jx.M{"id": e["id"],
+			"status": e["status"], "error": jx.Str(e, "error"), "full_text": trimRunes(strings.TrimSpace(posta.PostExtrasSummary(posta.PollPreflightText(jx.Str(e,"text"),jx.Map(e,"poll")),jx.Map(e,"extras"))), 600), "article": e["article"],
 			"group": jx.Str(e, "group"), "kind": kind, "duration": dur, "poll": jx.Has(e, "poll") && e["poll"] != nil, "at": jx.Int(e, "publish_at"), "forecast": forecast,
 			"item_key": jx.Str(e, "record"), "image_key": src, "duplicate": c.A.CalendarDuplicateOf(jx.M{"image": src, "text": jx.Str(e, "text")}, jx.Str(e, "channel"), published, hashes)})
 		posts = append(posts, jx.Merge(p, thumbFields(e)))

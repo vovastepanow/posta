@@ -105,7 +105,7 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 	var rawExtras jx.M
 	if value:=c.R.FormValue("extras");value!=""{rawExtras=jx.Unmarshal([]byte(value));if rawExtras==nil{return nil,fail(400,"Некорректные дополнения поста.")}}
 	rawKinds:=[]string{};for _,m:=range raw{rawKinds=append(rawKinds,jx.Str(m,"kind"))}
-	checkedExtras,err:=posta.PublishExtrasCheck(ch.Platform,text,rawKinds,poll,rawExtras)
+	checkedExtras,err:=posta.PublishExtrasForChannel(ch,text,rawKinds,poll,rawExtras)
 	if err!=nil{return nil,fail(422,err.Error())}
 	if poll == nil && !posta.PostExtrasStandalone(checkedExtras) {
 		if len(raw) == 0 && strings.TrimSpace(text) == "" {
@@ -187,7 +187,7 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 			return nil, err
 		}
 	}
-	extras,err:=posta.PublishExtrasCheck(ch.Platform,text,posta.PreparedKinds(prepared),poll,rawExtras)
+	extras,err:=posta.PublishExtrasForChannel(ch,text,posta.PreparedKinds(prepared),poll,rawExtras)
 	if err!=nil{return nil,fail(422,err.Error())}
 	dir, err := c.A.OutboxMediaDir(id)
 	if err != nil {

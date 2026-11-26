@@ -193,3 +193,12 @@ func maxStandaloneAttachment(extra jx.M)jx.M{
 	}
 	return nil
 }
+
+// PublishExtrasForChannel also enforces capabilities of the connected resource.
+func PublishExtrasForChannel(c *Channel,text string,kinds []string,poll,raw jx.M)(jx.M,error){
+ checked,err:=PublishExtrasCheck(c.Platform,text,kinds,poll,raw)
+ if err!=nil{return nil,err}
+ allowed:=ChannelExtraKinds(c)
+ for key:=range checked{found:=false;for _,a:=range allowed{if a==key{found=true;break}};if !found{return nil,Bad("Дополнение %s недоступно для этого ресурса.",key)}}
+ return checked,nil
+}
