@@ -17,7 +17,8 @@ Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https:
 | YouTube | OAuth, video upload; app keys/audit required |
 | Pinterest | OAuth, photo pin; app keys required |
 | X | OAuth, text publishing; app keys and API access required |
-| Instagram, Facebook, Threads | Placeholder, not an executable publisher |
+| Facebook | Owner beta, explicit Page token and ID, text/photo feed publishing; app permissions and real account test required |
+| Instagram, Threads | Placeholder, not an executable publisher |
 | TikTok, Rutube | No executable publisher in current registry |
 | Tumblr | OAuth NPF text/photos/GIF and one uploaded video; asynchronous video processing, live account check pending |
 | Discord, Mastodon, Bluesky, Reddit, LinkedIn | Existing adapters preserved, new connections disabled |
@@ -68,3 +69,5 @@ MAX media API reference (checked 2026-11-26): https://dev.max.ru/docs-api/use-ca
 OK references: https://apiok.ru/dev/examples/photo_upload ; https://apiok.ru/dev/methods/rest/photosV2/photosV2.getUploadUrl ; https://apiok.ru/dev/methods/rest/mediatopic/mediatopic.post ; https://new.apiok.ru/dev/methods/ . Group topic photographs use the uploaded tokens directly without a separate commit. The 10-image / 20 MB limits here are conservative local limits, not certified provider maxima.
 
 Tumblr references: https://github.com/tumblr/docs/blob/master/api.md and https://github.com/tumblr/docs/blob/master/npf-spec.md ; https://help.tumblr.com/knowledge-base/posting-video/ . NPF allows at most one native uploaded video per post. A creation receipt confirms acceptance, not completion of remote video processing. The existing editor limits the album to 10 files; the API supports more image blocks.
+
+Facebook Pages API references: https://developers.facebook.com/docs/graph-api/reference/page/photos/ and https://developers.facebook.com/docs/graph-api/reference/page/feed/ . Connection validates the explicit Page identity; successful identity lookup alone does not establish publishing permission. Existing global read-only tokens are never reused to publish on behalf of an account.

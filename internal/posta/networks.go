@@ -125,7 +125,7 @@ func (a *App) Networks() map[string]*Network {
 			TextLimit: [2]int{3000, 3000}, Docs: "partly", AppKeys: []string{"LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"}, OAuth: linkedinOAuth, Publish: linkedinPublish},
 		"threads":   keys("Threads", "threads", "Приложение Meta; картинка по публичной ссылке."),
 		"instagram": keys("Instagram", "ig", "Meta (Instagram, Facebook) признана экстремистской и запрещена в РФ. Приложение Meta, профессиональный аккаунт."),
-		"facebook":  keys("Facebook (страница)", "fb", "Meta (Instagram, Facebook) признана экстремистской и запрещена в РФ. Приложение Meta."),
+		"facebook": {Title:"Facebook (страница)",Prefix:"fb",Status:"beta",Note:"Meta признана экстремистской и запрещена в РФ. Нужен токен управляемой страницы с pages_manage_posts; пока текст и фото.",TextLimit:[2]int{63206,63206},MediaMax:10,Kinds:[]string{"photo"},MaxBytes:map[string]int64{"photo":10_000_000},Docs:"partly",Fields:[]NetField{{"page_id","ID страницы Facebook",false},{"access_token","Page access token",true}},Connect:facebookConnect,Publish:facebookPublish},
 		"x": {Title: "X (Twitter)", Prefix: "x", Status: "needs_keys", Note: "Платный доступ к API: бесплатного тарифа нет, посты с URL дороже.", TextLimit: [2]int{280, 280},
 			Docs: "partly", AppKeys: []string{"X_CLIENT_ID", "X_CLIENT_SECRET"}, OAuth: xOAuth, Publish: xPublish},
 		"reddit": {Title: "Reddit", Prefix: "reddit", Status: "needs_keys", Note: "Приложение Reddit; постим только в свой профиль, текстом.", TextLimit: [2]int{40000, 40000},
