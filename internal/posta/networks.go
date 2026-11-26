@@ -741,35 +741,41 @@ func vkConnect(a *App, ctx context.Context, in map[string]string) (*NetResource,
 }
 
 func vkPhotoAttachment(ctx context.Context, groupID, path, token string) (string, error) {
-	res, err := vkCall(ctx, "photos.getWallUploadServer", url.Values{"group_id": {groupID}}, token)
-	if err != nil {
-		return "", err
+	return vkPhotoAttachmentWith(ctx, groupID, path, token, vkCall, networkHTTP)
+}
+
+func vkPhotoAttachmentWith(ctx context.Context, groupID, path, token string, call func(context.Context,string,url.Values,string)(any,error), request networkRequestFunc) (string,error) {
+	res,err:=call(ctx,"photos.getWallUploadServer",url.Values{"group_id":{groupID}},token)
+	if err!=nil{return "",err}
+	upload:=jx.Str(jx.ToMap(res),"upload_url")
+	if !vkUploadURL(upload){return "",Bad("ВКонтакте вернул непроверенный адрес загрузки фото.")}
+	body,ct,cleanup,err:=networkMultipartFile(nil,nil,map[string]string{"photo":path})
+	if err!=nil{return "",err};defer cleanup()
+	sent,err:=request(ctx,http.MethodPost,upload,map[string]string{"Content-Type":ct},body)
+	if err!=nil{return "",networkUploadError(err,"ВКонтакте: не удалось загрузить фото")}
+	if sent==nil||sent.Status!=200{return "",Bad("ВКонтакте не принял фотографию.")}
+	f:=orEmpty(sent.Data)
+	if jx.Str(f,"photo")==""||jx.Str(f,"photo")=="[]"||jx.Str(f,"hash")==""||jx.Int(f,"server")<=0{return "",Bad("ВКонтакте не подтвердил загрузку фотографии.")}
+	saved,err:=call(ctx,"photos.saveWallPhoto",url.Values{"group_id":{groupID},"photo":{jx.Str(f,"photo")},"server":{jx.Str(f,"server")},"hash":{jx.Str(f,"hash")}},token)
+	if err!=nil{return "",err}
+	l:=jx.ToMaps(saved)
+	if len(l)!=1||jx.Int(l[0],"id")<=0||strconv.FormatInt(jx.Int(l[0],"owner_id"),10)!="-"+groupID{return "",Bad("ВКонтакте не подтвердил сохранение фото в выбранном сообществе.")}
+	return fmt.Sprintf("photo%d_%d",jx.Int(l[0],"owner_id"),jx.Int(l[0],"id")),nil
+}
+
+func vkUploadURL(raw string) bool {
+	u,err:=url.Parse(raw)
+	if err!=nil||u.Scheme!="https"||u.User!=nil||u.Fragment!=""||(u.Port()!=""&&u.Port()!="443"){return false}
+	host:=strings.ToLower(u.Hostname())
+	for _,domain:=range []string{"vk.com","vk.ru","userapi.com","vkcdn.com","vkuseraudio.net","vkvideo.ru","vk-cdn.net"}{
+		if host==domain||strings.HasSuffix(host,"."+domain){return true}
 	}
-	upload := jx.Str(jx.ToMap(res), "upload_url")
-	if upload == "" {
-		return "", errors.New("ВКонтакте не дал адрес для загрузки фото.")
-	}
-	body, ct, err := multipartBody(nil, map[string]string{"photo": path})
-	if err != nil {
-		return "", err
-	}
-	sent, err := networkHTTP(ctx, "POST", upload, map[string]string{"Content-Type": ct}, body)
-	if err != nil {
-		return "", err
-	}
-	f := orEmpty(sent.Data)
-	saved, err := vkCall(ctx, "photos.saveWallPhoto", url.Values{"group_id": {groupID}, "photo": {jx.Str(f, "photo")}, "server": {jx.Str(f, "server")}, "hash": {jx.Str(f, "hash")}}, token)
-	if err != nil {
-		return "", err
-	}
-	l := jx.ToMaps(saved)
-	if len(l) == 0 {
-		return "", errors.New("Фото не сохранилось на стене.")
-	}
-	return fmt.Sprintf("photo%d_%d", jx.Int(l[0], "owner_id"), jx.Int(l[0], "id")), nil
+	return false
 }
 
 func vkPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, error) {
+	if len(p.Media)>10{return nil,Bad("ВКонтакте: не более 10 вложений.")}
+	for _,f:=range p.Media{if f.Kind!="photo"{return nil,Bad("ВКонтакте: неподдерживаемое вложение.")}}
 	if runeLen(p.Text) > 16384 {
 		return nil, Bad("Текст длиннее 16384 символов: ВКонтакте его не примет.")
 	}
@@ -797,17 +803,15 @@ func vkPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, er
 	}
 	params := url.Values{"owner_id": {"-" + c.Ref}, "from_group": {"1"}, "message": {p.Text}}
 	if len(att) > 0 {
-		params.Set("attachments", strings.Join(att[:min(10, len(att))], ","))
+		params.Set("attachments", strings.Join(att, ","))
 	}
 	res, err := vkCall(ctx, "wall.post", params, token)
 	if err != nil {
 		return nil, err
 	}
 	id := jx.Int(jx.ToMap(res), "post_id")
-	u := ""
-	if id > 0 {
-		u = fmt.Sprintf("https://vk.com/wall-%s_%d", c.Ref, id)
-	}
+	if id<=0{return nil,uncertainPublish("ВКонтакте не вернул ID публикации.")}
+	u := fmt.Sprintf("https://vk.com/wall-%s_%d", c.Ref, id)
 	return &NetSent{URL: u, MessageIDs: []string{strconv.FormatInt(id, 10)}}, nil
 }
 
