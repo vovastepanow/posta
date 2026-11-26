@@ -1,5 +1,6 @@
 // editor.js — окно выбора даты и времени и модальный редактор поста (порядок медиа, текст, отправка через onSubmit).
 import { VIDEO_ICON, api, el, pluralRu } from './core.js';
+import { commonCapabilities, mediaKind, validateTarget } from './editor-capabilities.js';
 
 // ---- Дата и время ----
 
@@ -81,6 +82,8 @@ let session = null;
 document.addEventListener('click', () => { if (ui?.targetMenu) ui.targetMenu.hidden = true; });   // меню «Куда» закрывается кликом в стороне
 
 const textLimit = (target, mediaCount) => (session.options.targets.find(t => t.value === target)?.textLimit || TEXT_LIMITS[String(target).split(':')[0]] || TEXT_LIMITS.tg)[mediaCount ? 0 : 1];
+const selectedTargets = () => session.options.picked.map(v => session.options.targets.find(t => t.value === v));
+const currentCapabilities = () => commonCapabilities(selectedTargets());
 const chip = (label, value) => el('span', { className: 'pe-chip' }, el('span', { className: 'pe-chip-label', textContent: label }), el('strong', { textContent: value }));
 
 function buildUi() {
@@ -89,7 +92,7 @@ function buildUi() {
         close: button('pe-close', '✕', closeEditor, { ariaLabel: 'Закрыть' }), count: el('span', { className: 'pe-count' }), grid: el('div', { className: 'pe-grid' }),
         file: el('input', { type: 'file', accept: 'image/*,video/*', multiple: true, hidden: true }), url: el('input', { type: 'url', className: 'pe-input', placeholder: 'Ссылка на медиа: https://…' }),
         note: el('p', { className: 'pe-note' }), text: el('textarea', { className: 'pe-text', rows: 8, placeholder: 'Текст поста…', spellcheck: true }),
-        counter: el('span', { className: 'pe-counter' }), summary: el('span', { className: 'pe-summary' }), warning: el('p', { className: 'pe-warning', role: 'alert', hidden: true }),
+        counter: el('span', { className: 'pe-counter' }), summary: el('span', { className: 'pe-summary' }), checks: el('div', { className: 'pe-checks', role: 'status' }), warning: el('p', { className: 'pe-warning', role: 'alert', hidden: true }),
         original: button('pe-chip-btn', 'Текст оригинала', () => setText(session.options.original)),
         description: button('pe-chip-btn', 'Описание ИИ', () => setText(session.options.description)),
         aiButton: button('pe-chip-btn pe-chip-ai', '✨ Подпись от ИИ', aiCaption, { title: 'ИИ напишет подпись в стиле канала; если в поле уже есть ваш текст — улучшит его' }),
@@ -109,7 +112,9 @@ function buildUi() {
         drafts.delete(session.options.key);
         session.media = session.options.media.map(m => ({ ...m }));
         session.tags = [...(session.options.hashtags || [])];
+        session.poll = session.options.poll ? { question: session.options.poll.question || '', options: [...session.options.poll.options] } : null;
         u.text.value = session.options.original || '';
+        renderPoll(); renderWhen();
         u.note.textContent = '';
         render();
     });
@@ -124,7 +129,7 @@ function buildUi() {
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
         u.chips,
-        el('div', { className: 'pe-body' }, u.mediaSection, u.textSection, u.pollSection),
+        el('div', { className: 'pe-body' }, u.textSection, u.mediaSection, u.pollSection, el('section', { className: 'pe-section pe-compatibility' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Проверка площадок' })), u.checks)),
         u.warning,
         u.progress,
         el('footer', { className: 'pe-footer' }, u.summary, el('div', { className: 'pe-actions' }, reset, u.cancel, u.submit)));
@@ -250,8 +255,10 @@ function addByUrl() {
 }
 
 function addMedia(items) {
+    const caps = currentCapabilities();
     for (const item of items) {
-        if (session.media.length >= MAX_MEDIA) { ui.note.textContent = `В пост помещается не больше ${MAX_MEDIA} медиа.`; break; }
+        if (!caps.kinds.includes(mediaKind(item))) { ui.note.textContent = 'Формат файла не поддерживается всеми выбранными ресурсами.'; continue; }
+        if (session.media.length >= caps.mediaMax) { ui.note.textContent = `Для выбранных ресурсов доступно не больше ${caps.mediaMax} файлов.`; break; }
         session.media.push(item);
     }
     render();
@@ -281,27 +288,45 @@ function mediaCard(item, i, total) {
 /** Медиа, счётчики и сводка; черновик сохраняется. */
 function render() {
     const { media, poll, options } = session;
+    const caps = currentCapabilities();
+    const accept = [];
+    if (caps.kinds.includes('photo')) accept.push('image/jpeg','image/png','image/webp','image/bmp','image/heic','image/avif');
+    if (caps.kinds.includes('animation')) accept.push('image/gif');
+    if (caps.kinds.includes('video')) accept.push('video/*');
+    ui.file.accept = accept.join(',');
+    const canAdd = caps.kinds.length > 0 && media.length < caps.mediaMax;
+    ui.url.disabled = !canAdd;
+    ui.mediaSection.querySelector('.pe-url-row button').disabled = !canAdd;
+    const pollToggle = ui.chips.querySelector('.pe-chip-poll');
+    if (pollToggle) {
+        pollToggle.disabled = !poll && !caps.poll;
+        pollToggle.title = caps.poll ? 'Опрос вместо текста и медиа' : 'Опрос доступен только при поддержке всеми выбранными ресурсами';
+    }
+    const problems = selectedTargets().map(t => ({ label: t?.label || 'Ресурс', error: validateTarget(t, media, ui.text.value, poll) }));
+    ui.checks.replaceChildren(...problems.map(p => el('div', { className: 'pe-check' + (p.error ? ' is-error' : '') }, el('strong', { textContent: p.label }), el('span', { textContent: p.error || '✓ Формат совместим' }))));
+    const blocked = problems.some(p => p.error) || !problems.length;
+    const snapshot = { media: media.map(m => ({ ...m })), text: ui.text.value, tags: [...session.tags], poll: poll ? {question:poll.question, options:[...poll.options]} : null };
+    drafts.set(options.key, snapshot);
+    options.onDraftChange?.(snapshot);
     ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
         media.length ? '' : el('div', { className: 'pe-empty', textContent: 'Медиа нет — пост уйдёт только с текстом' }),
-        el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', onclick: () => ui.file.click() }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
-    ui.count.textContent = `${media.length} / ${MAX_MEDIA}`;
+        el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => ui.file.click() }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
+    ui.count.textContent = `${media.length} / ${caps.mediaMax}`;
     if (media.length < MAX_MEDIA && ui.note.textContent.startsWith('В пост помещается')) ui.note.textContent = '';
     ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll);
-    if (poll) return renderPollState(poll);
+    if (poll) return renderPollState(poll, blocked);
     const text = ui.text.value;
     const limit = Math.min(...options.picked.map(v => textLimit(v, media.length)));   // лимит — самый строгий из выбранных ресурсов
-    const [empty, over] = [!media.length && !text.trim(), text.length > limit];
-    ui.counter.textContent = `${text.length} / ${limit}`;
+    const length = [...text].length;
+    const [empty, over] = [!media.length && !text.trim(), length > limit];
+    ui.counter.textContent = `${length} / ${limit}`;
     ui.counter.classList.toggle('is-over', over);
-    ui.submit.disabled = empty || over;
-    ui.warning.hidden = !(empty || over);
-    ui.warning.textContent = empty ? 'Добавьте медиа или текст.' : `Текст длиннее лимита: ${text.length} из ${limit}. Сократите его или уберите медиа.`;
+    ui.submit.disabled = empty || over || blocked || session.busy;
+    ui.warning.hidden = !(empty || over || blocked);
+    ui.warning.textContent = empty ? 'Добавьте медиа или текст.' : over ? `Текст длиннее лимита: ${length} из ${limit}.` : 'Исправьте несовместимость в блоке проверки площадок.';
     ui.summary.textContent = `${media.length} медиа · ${text.length} ${pluralRu(text.length, 'символ', 'символа', 'символов')} · ${options.picked.length} ${pluralRu(options.picked.length, 'ресурс', 'ресурса', 'ресурсов')}`;
     ui.original.disabled = !options.original;
     ui.description.disabled = !options.description;
-    const snapshot = { media: media.map(m => ({ ...m })), text, tags: [...session.tags] };
-    drafts.set(options.key, snapshot);
-    options.onDraftChange?.(snapshot);
     renderTags();
 }
 
@@ -385,6 +410,7 @@ function togglePicked(value, box) {
 /** Опрос вместо поста: медиа и текст скрываются, открываются вопрос и варианты. Через «Отложенные» Telegram опрос не ставится. */
 function togglePoll() {
     const o = session.options;
+    if (!session.poll && !currentCapabilities().poll) return;
     session.poll = session.poll ? null : { question: '', options: ['', ''] };
     if (session.poll && o.mode === 'native') o.mode = 'queue';
     renderPoll();
@@ -415,12 +441,12 @@ function addPollOption() {
 }
 
 /** Кнопка отправки для опроса: вопрос и минимум два заполненных варианта. */
-function renderPollState(poll) {
+function renderPollState(poll, blocked) {
     const filled = poll.options.map(v => v.trim()).filter(Boolean);
     const ready = poll.question.trim() !== '' && filled.length >= 2;
-    ui.submit.disabled = !ready;
-    ui.warning.hidden = ready;
-    ui.warning.textContent = 'Напишите вопрос и минимум два варианта ответа.';
+    ui.submit.disabled = !ready || blocked || session.busy;
+    ui.warning.hidden = ready && !blocked;
+    ui.warning.textContent = blocked ? 'Опрос не поддерживается всеми выбранными ресурсами.' : 'Напишите вопрос и минимум два варианта ответа.';
     ui.summary.textContent = `Опрос · ${filled.length} ${pluralRu(filled.length, 'вариант', 'варианта', 'вариантов')}`;
 }
 
@@ -496,6 +522,9 @@ async function submit(e) {
     e.preventDefault();
     if (!session || ui.submit.disabled) return;
     const { options, media } = session;
+    session.busy = true;
+    ui.chips.inert = true; ui.form.querySelector('.pe-body').inert = true;
+    ui.close.disabled = true; ui.form.querySelector('.pe-actions .pe-btn-ghost').disabled = true;
     const label = ui.submit.textContent;
     Object.assign(ui.submit, { disabled: true, textContent: 'Отправляю…' });
     ui.cancel.disabled = true;
@@ -518,6 +547,7 @@ async function submit(e) {
             hashtags: poll || ui.tags.hidden ? [] : [...session.tags] };
         await options.onSubmit(post, onProgress);
         drafts.delete(options.key);
+        session.busy = false;
         closeEditor();
     } catch (error) {
         if (session) { if (error.failedTargets?.length) { options.picked = error.failedTargets; renderWhen(); render(); } ui.warning.hidden = false; ui.warning.textContent = error.message || String(error); }
@@ -525,12 +555,14 @@ async function submit(e) {
         ui.submit.textContent = label;
         ui.cancel.disabled = false;
         ui.progress.hidden = true;
-        if (session) ui.submit.disabled = false;
+        ui.chips.inert = false; ui.form.querySelector('.pe-body').inert = false;
+        ui.close.disabled = false; ui.form.querySelector('.pe-actions .pe-btn-ghost').disabled = false;
+        if (session) { session.busy = false; const message = ui.warning.textContent; render(); ui.warning.hidden = false; ui.warning.textContent = message; }
     }
 }
 
 function closeEditor() {
-    if (!session) return;
+    if (!session || session.busy) return;
     ui.overlay.hidden = true;
     document.body.classList.remove('post-editor-open');
     const onClose = session.options.onClose;
@@ -545,7 +577,8 @@ export function openPostEditor(options) {
     options.mode ??= options.scheduledTs ? 'queue' : 'now';
     options.picked = [...options.picked];
     const draft = options.savedDraft || drafts.get(options.key);
-    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: options.poll ? { question: options.poll.question || '', options: [...(options.poll.options || [])] } : null, dragFrom: null, tags: [...(draft?.tags || options.hashtags || [])] };
+    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: (draft ? draft.poll : options.poll) ? { question: (draft ? draft.poll : options.poll).question || '', options: [...((draft ? draft.poll : options.poll).options || [])] } : null, dragFrom: null, tags: [...(draft?.tags || options.hashtags || [])] };
+    if (session.poll && options.mode === 'native') options.mode = 'queue';
     renderPoll();
     renderWhen();
     ui.text.value = draft ? draft.text : (options.original || '');
@@ -555,6 +588,6 @@ export function openPostEditor(options) {
     document.body.classList.add('post-editor-open');
     render();
     renderStyle();
-    ui.text.focus();
-    ui.text.setSelectionRange(ui.text.value.length, ui.text.value.length);
+    if (session.poll) ui.question.focus();
+    else { ui.text.focus(); ui.text.setSelectionRange(ui.text.value.length, ui.text.value.length); }
 }

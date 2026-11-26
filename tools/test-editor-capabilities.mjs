@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { commonCapabilities, validateTarget, mediaKind } from '../js/editor-capabilities.js';
+const tg={value:'tg:main'}, yt={value:'youtube:1',capabilities:{platform:'youtube',kinds:['video'],mediaMax:1,textLimit:[5000,5000],poll:false}};
+const x={value:'x:1',capabilities:{platform:'x',kinds:['photo','video','animation'],mediaMax:4,textLimit:[280,280],poll:false}};
+assert.deepEqual(commonCapabilities([tg,yt]),{kinds:['video'],mediaMax:1,poll:false});
+assert.equal(commonCapabilities([tg]).poll,true);
+assert.equal(commonCapabilities([{value:'tg:main',unconnected:true}]).poll,false);
+assert.equal(validateTarget(tg,[],'',{question:'?',options:['a','b']}),'');
+assert.notEqual(validateTarget(x,[],'',{question:'?',options:['a','b']}),'');
+assert.notEqual(validateTarget(yt,[],'text',null),'');
+assert.equal(validateTarget(yt,[{kind:'video'}],'title',null),'');
+assert.notEqual(validateTarget(x,[{kind:'image'},{kind:'video'}],'text',null),'');
+assert.equal(mediaKind({kind:'image',name:'abc.GIF'}),'animation');
+assert.equal(validateTarget(x,[],'😀'.repeat(280),null),'');
+assert.notEqual(validateTarget(x,[],'😀'.repeat(281),null),'');
+assert.notEqual(validateTarget({value:'unknown:1'},[],'text',null),'');
+console.log('editor capability tests passed');

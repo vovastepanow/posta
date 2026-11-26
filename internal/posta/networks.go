@@ -338,7 +338,7 @@ func (a *App) NetworksPublic() jx.M {
 	out := jx.M{}
 	for k, n := range a.Networks() {
 		out[k] = jx.M{"title": n.Title, "prefix": n.Prefix, "status": n.Status, "note": n.Note, "text_limit": n.TextLimit, "media_max": n.MediaMax,
-			"kinds": orStrs(n.Kinds), "poll": n.Poll, "fields": n.Fields, "docs": n.Docs, "oauth": n.OAuth != nil,
+			"kinds": orStrs(n.Kinds), "max_bytes": n.MaxBytes, "poll": n.Poll, "fields": n.Fields, "docs": n.Docs, "oauth": n.OAuth != nil,
 			"connect_available": n.PublishingConnectionAvailable(), "publishing_in_scope": publishingInScope(k)}
 	}
 	return out

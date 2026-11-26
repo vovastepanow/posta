@@ -620,7 +620,10 @@ function channelTarget(channel, index) {
     return { value: index === 0 ? 'tg:main' : `tg:${channel.id}`, label: `Канал «${name}»` + (index === 0 && state.channels.length > 1 ? ' (по умолчанию)' : ''), hashtags: channel.hashtags || 'off' };
 }
 const telegramTargets = () => state.channels.map(channelTarget);
-const networkTargets = () => state.networkChannels.map(c => ({ value: `${c.platform}:${c.id}`, label: `${state.networks[c.platform]?.title || c.platform} «${c.title || c.ref}»`, hashtags: c.hashtags || 'off', textLimit: state.networks[c.platform]?.text_limit }));
+const networkTargets = () => state.networkChannels.map(c => ({ value: `${c.platform}:${c.id}`, label: `${state.networks[c.platform]?.title || c.platform} «${c.title || c.ref}»`, hashtags: c.hashtags || 'off', textLimit: state.networks[c.platform]?.text_limit, capabilities: state.networks[c.platform] ? {
+    platform: c.platform, kinds: state.networks[c.platform].kinds, mediaMax: state.networks[c.platform].media_max,
+    textLimit: state.networks[c.platform].text_limit, poll: state.networks[c.platform].poll, maxBytes: state.networks[c.platform].max_bytes
+} : null }));
 const allTargets = () => [...telegramTargets(), ...networkTargets()];
 
 /** Канал по цели поста: tg:main — первый, tg:<id> — конкретный. */
@@ -780,10 +783,10 @@ export async function openFutureDraft() {
         await futureDraftOps;
         const key = await futureDraftKey();
         const saved = await readFutureDraft(key);
-        if (!saved || (!saved.text && !saved.media?.length)) return void log('Черновик пока пуст. Добавьте пост кнопкой +🚀.');
+        if (!saved || (!saved.text && !saved.media?.length && !saved.poll)) return void log('Черновик пока пуст. Добавьте пост кнопкой +🚀.');
         await refreshTelegramTarget();
         saved.media = saved.media.map(m => m.file ? { ...m, src: URL.createObjectURL(m.file), thumb: m.kind === 'image' ? URL.createObjectURL(m.file) : '' } : m);
-        openPostEditor({ key: 'future-draft', savedDraft: saved, picked: allTargets().length ? [allTargets()[0].value] : ['tg:main'], targets: allTargets().length ? allTargets() : [{ value: 'tg:main', label: 'Ресурс не подключён', hashtags: 'off' }], schedule: scheduleOptions(),
+        openPostEditor({ key: 'future-draft', savedDraft: saved, picked: allTargets().length ? [allTargets()[0].value] : ['tg:main'], targets: allTargets().length ? allTargets() : [{ value: 'tg:main', label: 'Ресурс не подключён', hashtags: 'off', unconnected: true }], schedule: scheduleOptions(),
             media: saved.media, original: saved.text, hashtags: saved.tags || [], ai: captionTools(),
             onDraftChange: draft => saveFutureDraft(key, { ...draft, items: draft.text.trim() || draft.media.length ? (saved.items || []) : [] }).catch(error => log(`Не удалось сохранить черновик: ${error.message}`)),
             onClose: refreshFutureDraftButtons,
