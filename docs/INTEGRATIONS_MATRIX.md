@@ -84,3 +84,11 @@ Pinterest video pin references: https://developers.pinterest.com/docs/work-with-
 OAuth callback state is atomically consumed once, tied to the initiating signed-in Posta profile, with owner/beta permission rechecked before connection. CI includes a concurrent PostgreSQL replay/isolation test. This does not certify an actual provider consent flow.
 
 Remaining product-scope blockers: TikTok app approval and mandatory user-facing posting controls; Rutube confirmed publishing API/partner access; Dzen direct publisher access. Do not expose placeholders as operational or bypass account restrictions. VK video and Facebook video still need verified provider workflows and authorized tests.
+
+## Feed ingestion changes (2026-11-26)
+
+- JSON Feed 1.0 and 1.1 are normalized into the existing RSS/Atom tree (https://www.jsonfeed.org/version/1.1/). Discovery, title extraction, review and collection share the parser. Plain-text content remains literal, stable entry IDs and authors are retained; malformed envelopes and duplicate IDs are not accepted as empty feeds. Supported media remain photo and direct MP4/WebM; podcast/audio ingestion is not implemented.
+- Ordered enclosures preserve mixed albums and multiple video files. Media RSS groups are alternative renditions (https://www.rssboard.org/media-rss), not duplicate album items; selected renditions retain their own thumbnail. Incomplete unsupported video is not classified as text-only.
+- Public YouTube feeds are admitted to shared collection only in their existing validated canonical form. User RSS fetches respect cancellation.
+- Rutube retains API descriptions and actual publication time; channel collection reuses the existing author attribution check. Paid/locked/deleted/hidden/live/audio-only records are excluded from the video ingestion route. Archived search responses are not live certification.
+- Separate live feed smoke tests only read fixed public feed URLs and report format/counts. They do not publish, write production records, invoke AI, or certify every provider.

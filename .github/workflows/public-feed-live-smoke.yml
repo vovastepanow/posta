@@ -1,0 +1,26 @@
+name: Public feed parser live smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'internal/posta/rss*.go'
+      - 'internal/posta/json_feed*.go'
+      - 'internal/posta/public_feed_live_test.go'
+      - '.github/workflows/public-feed-live-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  public-feeds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify public RSS, Atom and JSON Feed
+        env:
+          POSTA_FEED_LIVE: '1'
+        run: go test ./internal/posta -run '^TestPublicFeedLiveIntake$' -count=1 -v -timeout=5m
