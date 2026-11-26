@@ -46,14 +46,10 @@ func (a *App) RSSGet(raw string, maxBytes int64, timeout time.Duration, ua strin
 	return FetchResultURL{FetchResult{Error: "слишком много перенаправлений"}, raw}
 }
 
-// RSSGet applies the autopilot's fetch budget to each redirect hop. Legacy
-// user calls keep the existing path and behaviour.
+// RSSGet preserves the caller's cancellation and applies the autopilot
+// fetch budget (when present) to every redirect hop.
 func (u *U) RSSGet(raw string, maxBytes int64, timeout time.Duration, ua string) FetchResultURL {
 	if u.Ctx == nil {
-		return u.App.RSSGet(raw, maxBytes, timeout, ua)
-	}
-	_, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob)
-	if !leased {
 		return u.App.RSSGet(raw, maxBytes, timeout, ua)
 	}
 	for hop := 0; hop <= 3; hop++ {

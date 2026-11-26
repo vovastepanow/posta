@@ -68,6 +68,10 @@ func sharedSourceEligible(platform string, entry jx.M) bool {
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" {
 		return false
 	}
+	if _, ok := canonicalYouTubeFeed(id); ok {
+		return true
+	}
+	if u.Port() != "" && u.Port() != "443" { return false }
 	if u.RawQuery != "" {
 		// Public vc.ru/dtf.ru community feeds are stable publisher IDs.
 		// Arbitrary API calls, searches and signed URLs remain excluded.
