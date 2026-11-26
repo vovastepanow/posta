@@ -1378,7 +1378,7 @@ func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publis
 		if len(prepared) != 0 {
 			return nil, Bad("Опрос не может содержать вложения.")
 		}
-		checked, err := NetworkPollCheck(c.Platform, poll)
+		checked, err := u.ChannelPollCheck(c, poll)
 		if err != nil {
 			return nil, err
 		}

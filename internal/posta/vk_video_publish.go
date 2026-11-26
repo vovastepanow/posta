@@ -43,11 +43,28 @@ func vkVideoAttachmentWith(ctx context.Context,group,path,title,token string,cal
 
 func vkPublishWith(ctx context.Context,c *Channel,p NetPost,call vkMethodFunc,request networkRequestFunc,userToken func()string)(*NetSent,error){
 	if len(p.Media)>10||runeLen(p.Text)>16384{return nil,Bad("ВКонтакте: превышен лимит текста или вложений.")}
-	if len(p.Media)==0&&strings.TrimSpace(p.Text)==""{return nil,Bad("ВКонтакте: пустой пост.")}
+	if len(p.Media)==0&&strings.TrimSpace(p.Text)==""&&p.Poll==nil{return nil,Bad("ВКонтакте: пустой пост.")}
 	for _,f:=range p.Media{if f.Kind!="photo"&&f.Kind!="video"{return nil,Bad("ВКонтакте: неподдерживаемое вложение.")}}
 	group,token:=c.Ref,c.Secrets["token"]
 	if id,err:=strconv.ParseInt(group,10,64);err!=nil||id<=0||token==""{return nil,Bad("ВКонтакте: сообщество не подключено.")}
 	mediaToken:=token
+	if p.Poll!=nil {
+		if len(p.Media)!=0{return nil,Bad("ВКонтакте: опрос с другими вложениями пока не поддерживается.")}
+		poll,err:=NetworkPollCheck("vk",p.Poll);if err!=nil{return nil,err}
+		pt:=""
+		if jx.Bool(c.Meta,"poll_user_token"){pt=token}else if userToken!=nil{pt=userToken()}
+		if pt==""{return nil,Bad("ВКонтакте: для опроса нужен пользовательский токен с доступом к polls.create.")}
+		multiple:="0";if jx.Bool(poll,"multiple"){multiple="1"}
+		res,err:=call(ctx,"polls.create",url.Values{"owner_id":{"-"+group},"question":{jx.Str(poll,"question")},"add_answers":{string(jx.Marshal(jx.Strs(poll,"options")))},"is_multiple":{multiple},"is_anonymous":{"1"}},pt)
+		if err!=nil{return nil,err}
+		m:=jx.ToMap(res);id,owner:=jx.Int(m,"id"),jx.Int(m,"owner_id")
+		if id<=0||strconv.FormatInt(owner,10)!="-"+group{return nil,uncertainPublish("ВКонтакте не подтвердил опрос выбранного сообщества.")}
+		res,err=call(ctx,"wall.post",url.Values{"owner_id":{"-"+group},"from_group":{"1"},"message":{""},"attachments":{fmt.Sprintf("poll%d_%d",owner,id)}},token)
+		if err!=nil{return nil,uncertainPublish("Опрос VK создан, но публикация на стене не подтверждена. Проверьте сообщество перед повтором.")}
+		postID:=jx.Int(jx.ToMap(res),"post_id")
+		if postID<=0{return nil,uncertainPublish("ВКонтакте не вернул ID публикации опроса.")}
+		return &NetSent{URL:fmt.Sprintf("https://vk.com/wall-%s_%d",group,postID),MessageIDs:[]string{strconv.FormatInt(postID,10)}},nil
+	}
 	var att []string
 	videoUploaded:=false
 	title,_:=titleAndBody(p.Text)

@@ -62,7 +62,7 @@ func getOutboxEdit(c *Ctx) (any, error) {
 	if platform == "" {
 		platform = "telegram"
 	}
-	return jx.M{"id": id, "revision": outboxRevision(p), "text": jx.Str(p, "text"), "media": media, "poll": p["poll"], "channel": jx.Str(p, "channel"), "publish_at": jx.Int(p, "publish_at"), "platform": platform, "capabilities": c.A.NetworksPublic()[platform]}, nil
+	return jx.M{"id": id, "revision": outboxRevision(p), "text": jx.Str(p, "text"), "media": media, "poll": p["poll"], "channel": jx.Str(p, "channel"), "publish_at": jx.Int(p, "publish_at"), "platform": platform, "capabilities": c.U.ChannelEditorCapabilities(ch)}, nil
 }
 
 func saveOutboxEdit(c *Ctx) (any, error) {
@@ -102,7 +102,7 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		return nil, fail(409, "Канал больше не подключён.")
 	}
 	if poll != nil {
-		if poll, err = posta.NetworkPollCheck(ch.Platform, poll); err != nil {
+		if poll, err = c.U.ChannelPollCheck(ch, poll); err != nil {
 			return nil, err
 		}
 		text = jx.Str(poll, "question")

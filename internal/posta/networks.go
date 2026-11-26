@@ -94,7 +94,7 @@ func (a *App) Networks() map[string]*Network {
 	r := map[string]*Network{
 		"telegram": {Title: "Telegram", Prefix: "tg", Status: "ready", TextLimit: [2]int{1024, 4096}, MediaMax: 10, Kinds: []string{"photo", "video", "animation", "audio", "document"}, MaxBytes: map[string]int64{"audio": 50_000_000, "document": 50_000_000}, Poll: true},
 		"vk": {Title: "ВКонтакте (группа)", Prefix: "vk", Status: "beta", Note: "Ключ сообщества позволяет проверить и подключить группу; фотографии и видео могут требовать пользовательский токен с доступом к методам API VK.", TextLimit: [2]int{16384, 16384},
-			MediaMax: 10, Kinds: []string{"photo","video"}, MaxBytes: map[string]int64{"photo": 50_000_000,"video":200_000_000}, Docs: "partly",
+			MediaMax: 10, Kinds: []string{"photo","video"}, MaxBytes: map[string]int64{"photo": 50_000_000,"video":200_000_000}, Docs: "partly", Poll: true,
 			Fields: []NetField{{"token", "Ключ сообщества или пользовательский токен VK", true}, {"group", "Адрес или id сообщества", false}}, Connect: vkConnect, Publish: vkPublish},
 		"max": {Title: "MAX", Prefix: "max", Status: "beta", Note: "Бот MAX: текст, фотографии, GIF и видео. Реальная отправка требует прав в целевом чате.", TextLimit: [2]int{4000, 4000}, MediaMax: 12, Kinds: []string{"photo", "animation", "video"}, MaxBytes: map[string]int64{"photo":50_000_000,"animation":50_000_000,"video":250_000_000}, Docs: "ok",
 			Fields: []NetField{{"token", "Токен бота (MAX для бизнеса)", true}, {"chat_id", "id чата, где бот админ", false}}, Connect: maxConnect, Publish: maxPublish},
@@ -772,8 +772,12 @@ func vkConnect(a *App, ctx context.Context, in map[string]string) (*NetResource,
 	if info == nil {
 		return nil, Bad("Сообщество не найдено или токен не даёт к нему доступа.")
 	}
+	// Read-only identification distinguishes a user grant from a community grant.
+	userInfo, userErr := vkCall(ctx,"users.get",url.Values{},token)
+	users := jx.ToMaps(userInfo)
+	userGrant := userErr == nil && len(users) == 1 && jx.Int(users[0],"id") > 0
 	return &NetResource{Ref: strconv.FormatInt(jx.Int(info, "id"), 10), Title: jx.Str(info, "name"), Secrets: map[string]string{"token": token},
-		Meta: jx.M{"screen_name": jx.Str(info, "screen_name")}}, nil
+		Meta: jx.M{"screen_name": jx.Str(info, "screen_name"), "poll_user_token":userGrant}}, nil
 }
 
 func vkPhotoAttachment(ctx context.Context, groupID, path, token string) (string, error) {
@@ -1473,7 +1477,7 @@ func (u *U) NetworksChannelsPublic() []jx.M {
 	out := []jx.M{}
 	for _, c := range u.Channels() {
 		if c.Platform != "telegram" {
-			out = append(out, jx.M{"id": c.ID, "platform": c.Platform, "title": c.ChatTitle, "ref": c.Ref, "screen_name": jx.Str(c.Meta, "screen_name"), "connected_at": c.ConnectedAt, "schedule": ChannelSchedule(c), "style": u.ChannelStylePublic(c), "hashtags": c.Hashtags})
+			out = append(out, jx.M{"id": c.ID, "platform": c.Platform, "title": c.ChatTitle, "ref": c.Ref, "screen_name": jx.Str(c.Meta, "screen_name"), "connected_at": c.ConnectedAt, "schedule": ChannelSchedule(c), "style": u.ChannelStylePublic(c), "hashtags": c.Hashtags, "poll_available":u.ChannelPollAvailable(c)})
 		}
 	}
 	return out

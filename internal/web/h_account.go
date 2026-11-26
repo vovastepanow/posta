@@ -809,7 +809,7 @@ func publish(c *Ctx) (any, error) {
 			return nil, fail(422, title+": отложка средствами соцсети пока только в Telegram.")
 		}
 		if poll != nil {
-			checked, err := posta.NetworkPollCheck(platform, poll)
+			checked, err := u.ChannelPollCheck(ch, poll)
 			if err != nil {
 				return nil, fail(422, err.Error())
 			}
@@ -861,7 +861,7 @@ func publish(c *Ctx) (any, error) {
 	defer os.RemoveAll(work)
 	var response jx.M
 	if poll != nil {
-		if poll, err = posta.NetworkPollCheck(platform, poll); err != nil {
+		if poll, err = u.ChannelPollCheck(ch, poll); err != nil {
 			return nil, err
 		}
 		text = jx.Str(poll, "question")

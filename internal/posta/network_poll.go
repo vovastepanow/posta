@@ -12,7 +12,7 @@ func networkPollLimits(platform string) jx.M {
 	switch platform {
 	case "telegram":
 		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true}
-	case "ok":
+	case "ok", "vk":
 		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true}
 	case "x":
 		return jx.M{"question_max": 280, "options_max": 4, "option_max": 25, "duration": true}
@@ -72,4 +72,27 @@ func NetworkPollCheck(platform string, poll jx.M) (jx.M, error) {
 		out["duration_minutes"] = duration
 	}
 	return out, nil
+}
+
+ // VK polls.create requires a user token; a community token alone is insufficient.
+func (u *U) ChannelPollAvailable(c *Channel) bool {
+	if c == nil { return false }
+	if c.Platform != "vk" { return networkPollLimits(c.Platform) != nil || c.Platform == "" }
+	if jx.Bool(c.Meta,"poll_user_token") && c.Secrets["token"] != "" { return true }
+	t := u.App.vkTokens(u.Ctx)
+	return jx.Str(t,"access_token") != "" && (jx.Int(t,"expires_at") > now()+60 || jx.Str(t,"refresh_token") != "")
+}
+
+func (u *U) ChannelPollCheck(c *Channel, poll jx.M) (jx.M,error) {
+	if !u.ChannelPollAvailable(c) { return nil,Bad("Опрос для этого ресурса недоступен. Для VK подключите пользовательский токен с доступом к polls.create.") }
+	return NetworkPollCheck(c.Platform,poll)
+}
+
+// ChannelEditorCapabilities returns no credentials and reflects the connected resource.
+func (u *U) ChannelEditorCapabilities(c *Channel) jx.M {
+	platform := c.Platform
+	if platform == "" { platform = "telegram" }
+	m := jx.ToMap(u.App.NetworksPublic()[platform])
+	if m != nil { m["poll"] = u.ChannelPollAvailable(c) }
+	return m
 }

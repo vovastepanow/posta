@@ -623,7 +623,7 @@ function channelTarget(channel, index) {
 const telegramTargets = () => state.channels.map(channelTarget);
 const networkTargets = () => state.networkChannels.map(c => ({ value: `${c.platform}:${c.id}`, label: `${state.networks[c.platform]?.title || c.platform} «${c.title || c.ref}»`, hashtags: c.hashtags || 'off', textLimit: state.networks[c.platform]?.text_limit, capabilities: state.networks[c.platform] ? {
     platform: c.platform, kinds: state.networks[c.platform].kinds, mediaMax: state.networks[c.platform].media_max,
-    textLimit: state.networks[c.platform].text_limit, poll: state.networks[c.platform].poll, pollLimits: state.networks[c.platform].poll_limits, maxBytes: state.networks[c.platform].max_bytes
+    textLimit: state.networks[c.platform].text_limit, poll: c.poll_available ?? state.networks[c.platform].poll, pollLimits: state.networks[c.platform].poll_limits, maxBytes: state.networks[c.platform].max_bytes
 } : null }));
 const allTargets = () => [...telegramTargets(), ...networkTargets()];
 
