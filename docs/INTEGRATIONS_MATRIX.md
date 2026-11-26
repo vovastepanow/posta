@@ -19,7 +19,7 @@ Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https:
 | X | OAuth, text publishing; app keys and API access required |
 | Instagram, Facebook, Threads | Placeholder, not an executable publisher |
 | TikTok, Rutube | No executable publisher in current registry |
-| Tumblr | In scope; existing text adapter requires app keys |
+| Tumblr | OAuth NPF text/photos/GIF and one uploaded video; asynchronous video processing, live account check pending |
 | Discord, Mastodon, Bluesky, Reddit, LinkedIn | Existing adapters preserved, new connections disabled |
 | WordPress | Out of scope; existing text adapter preserved |
 | TenChat, Medium, Bitrix24, Google Business Profile | Out of scope |
@@ -66,3 +66,5 @@ WordPress REST API reference: https://developer.wordpress.org/rest-api/reference
 MAX media API reference (checked 2026-11-26): https://dev.max.ru/docs-api/use-cases/sending-messages/media/ and https://dev.max.ru/docs-api/methods/POST/uploads . The provider supports up to 12 attachments; the existing editor has its own 10-file cap. Local preflight and fixture tests do not certify credentials or live delivery.
 
 OK references: https://apiok.ru/dev/examples/photo_upload ; https://apiok.ru/dev/methods/rest/photosV2/photosV2.getUploadUrl ; https://apiok.ru/dev/methods/rest/mediatopic/mediatopic.post ; https://new.apiok.ru/dev/methods/ . Group topic photographs use the uploaded tokens directly without a separate commit. The 10-image / 20 MB limits here are conservative local limits, not certified provider maxima.
+
+Tumblr references: https://github.com/tumblr/docs/blob/master/api.md and https://github.com/tumblr/docs/blob/master/npf-spec.md ; https://help.tumblr.com/knowledge-base/posting-video/ . NPF allows at most one native uploaded video per post. A creation receipt confirms acceptance, not completion of remote video processing. The existing editor limits the album to 10 files; the API supports more image blocks.

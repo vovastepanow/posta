@@ -119,7 +119,7 @@ func (a *App) Networks() map[string]*Network {
 		"pinterest": {Title: "Pinterest", Prefix: "pin", Status: "needs_keys", Note: "Приложение Pinterest; пин всегда с картинкой.", TextLimit: [2]int{800, 800}, MediaMax: 1,
 			Kinds: []string{"photo"}, MaxBytes: map[string]int64{"photo": 20_000_000}, Docs: "ok", AppKeys: []string{"PINTEREST_CLIENT_ID", "PINTEREST_CLIENT_SECRET"},
 			OAuth: pinterestOAuth, Publish: pinterestPublish},
-		"tumblr": {Title: "Tumblr", Prefix: "tumblr", Status: "needs_keys", Note: "Приложение Tumblr, OAuth 2; текстовые посты.", TextLimit: [2]int{4096, 4096}, Docs: "ok",
+		"tumblr": {Title: "Tumblr", Prefix: "tumblr", Status: "needs_keys", Note: "Приложение Tumblr, OAuth 2; текст, фото, GIF, один загружаемый ролик (обработка может занять время).", TextLimit: [2]int{4096, 4096}, MediaMax: 10, Kinds: []string{"photo","animation","video"}, MaxBytes: map[string]int64{"photo":20_000_000,"animation":5_000_000,"video":500_000_000}, Docs: "ok",
 			AppKeys: []string{"TUMBLR_CLIENT_ID", "TUMBLR_CLIENT_SECRET"}, OAuth: tumblrOAuth, Publish: tumblrPublish},
 		"linkedin": {Title: "LinkedIn (профиль)", Prefix: "li", Status: "needs_keys", Note: "Приложение LinkedIn с продуктом «Share on LinkedIn»; токен на 60 дней, без обновления.",
 			TextLimit: [2]int{3000, 3000}, Docs: "partly", AppKeys: []string{"LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"}, OAuth: linkedinOAuth, Publish: linkedinPublish},
@@ -206,7 +206,7 @@ func (a *App) NetworkPreflight(platform, text string, kinds []string) (int, []st
 	if limit := n.textLimit(len(kinds) > 0); runeLen(text) > limit {
 		return 0, nil, Bad("%s: текст длиннее %d символов — сократите его.", n.Title, limit)
 	}
-	kept := 0
+	kept, videos := 0,0
 	skipped := []string{}
 	for _, k := range kinds {
 		if k == "image" {
@@ -215,10 +215,13 @@ func (a *App) NetworkPreflight(platform, text string, kinds []string) (int, []st
 		switch {
 		case !contains(n.Kinds, k):
 			skipped = append(skipped, kindName(k)+": "+n.Title+" такой вид не принимает")
+		case platform == "tumblr" && k == "video" && videos >= 1:
+			skipped = append(skipped,"Tumblr: в одном посте допускается только одно загружаемое видео")
 		case kept >= max(n.MediaMax, 0):
 			skipped = append(skipped, fmt.Sprintf("%s: больше %d файлов для %s", kindName(k), n.MediaMax, n.Title))
 		default:
 			kept++
+			if k=="video"{videos++}
 		}
 	}
 	if (platform == "youtube" || platform == "pinterest") && kept == 0 {
@@ -284,6 +287,9 @@ func (a *App) NetworkPreparedPreflight(platform, text string, media []Prepared) 
 	}
 	if err := a.NetworkDeliveryPreflight(platform, text, kinds); err != nil {
 		return err
+	}
+	if platform=="tumblr" {
+		for _,f:=range media{if f.Kind=="video" && (f.Duration<=0 || f.Duration>600){return Bad("Tumblr: длительность видео должна быть известна и не превышать 10 минут.")}}
 	}
 	_, skipped := networkFitMedia(a.Networks()[platform], media)
 	if len(skipped) > 0 {
@@ -1366,23 +1372,8 @@ var tumblrOAuth = &OAuthFlow{
 	},
 }
 
-func tumblrPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, error) {
-	if strings.TrimSpace(p.Text) == "" {
-		return nil, Bad("Tumblr: пост без текста.")
-	}
-	blog := jx.Str(c.Meta, "blog")
-	r, err := networkHTTP(ctx, "POST", "https://api.tumblr.com/v2/blog/"+blog+"/posts", withCT(bearer(c.Secrets["access_token"]), ctJSON),
-		jsonBody(jx.M{"content": []jx.M{{"type": "text", "text": p.Text}}, "state": "published"}))
-	d, err := networkExpect(r, err, []int{201}, "Пост не опубликован")
-	if err != nil {
-		return nil, err
-	}
-	id := jx.Str(jx.Map(d, "response"), "id")
-	u := ""
-	if id != "" {
-		u = "https://" + blog + "/post/" + id
-	}
-	return &NetSent{URL: u, MessageIDs: []string{id}}, nil
+func tumblrPublish(a *App,ctx context.Context,c *Channel,p NetPost)(*NetSent,error){
+	return tumblrPublishWith(ctx,c,p,networkHTTP)
 }
 
 // ---- LinkedIn ----

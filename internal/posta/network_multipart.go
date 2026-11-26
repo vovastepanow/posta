@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -36,7 +37,7 @@ func networkMultipartFile(fields map[string]string, jsonFields map[string][]byte
 		path:=files[k]
 		src,err:=os.Open(path);if err!=nil{return fail()}
 		h:=make(textproto.MIMEHeader)
-		h.Set("Content-Disposition",mime.FormatMediaType("form-data",map[string]string{"name":k,"filename":filepath.Base(path)}))
+		h.Set("Content-Disposition",mime.FormatMediaType("form-data",map[string]string{"name":k,"filename":networkUploadFilename(path)}))
 		h.Set("Content-Type",sniffMime(path))
 		part,err:=mw.CreatePart(h)
 		if err==nil{_,err=io.Copy(part,src)}
@@ -61,3 +62,12 @@ func networkUploadError(err error, what string) error {
 	return fmt.Errorf("%s (пост ещё не отправлен).",what)
 }
 
+
+// Prepared source and browser uploads may have no extension. Some remote
+// upload endpoints validate the filename as well as the MIME header.
+func networkUploadFilename(path string) string {
+	name:=filepath.Base(path)
+	ext:=map[string]string{"image/jpeg":".jpg","image/png":".png","image/gif":".gif","image/webp":".webp","video/mp4":".mp4","video/webm":".webm","image/bmp":".bmp","video/quicktime":".mov"}[sniffMime(path)]
+	if ext!="" && !strings.EqualFold(filepath.Ext(name),ext){name+=ext}
+	return name
+}
