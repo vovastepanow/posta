@@ -32,6 +32,15 @@ try{
     assert.equal(await page.locator('.pe-demo-error').isVisible(),true);
     assert.equal(await page.locator('.pe-settings-column .pe-target-option').count(),2);
     assert.equal(await page.locator('.pe-compose-column .pe-attachment-section').count(),1);
+    await page.locator('.pe-settings-open').click();
+    assert.equal(await page.locator('.pe-extra-section').isVisible(),true);
+    await page.getByRole('button',{name:'← Назад',exact:true}).click();
+    assert.equal(await page.locator('.pe-extra-section').isVisible(),false);
+    await page.setViewportSize({width:975,height:899});
+    await page.waitForTimeout(100);
+    const compact=await page.locator('.pe-window').evaluate(e=>[...e.querySelectorAll('.pe-compose-column,.pe-settings-column,.pe-variant-bar')].map(n=>({name:n.className,client:n.clientHeight,scroll:n.scrollHeight,width:n.clientWidth,scrollWidth:n.scrollWidth})));
+    assert.ok(compact.every(n=>n.scroll<=n.client+2&&n.scrollWidth<=n.width+2),JSON.stringify(compact));
+    await page.setViewportSize({width:1440,height:900});
     const desktop=await page.locator('.pe-window').evaluate(e=>({height:e.getBoundingClientRect().height,bodyOverflow:getComputedStyle(e.querySelector('.pe-body')).overflowY,left:e.querySelector('.pe-compose-column').getBoundingClientRect().left,right:e.querySelector('.pe-settings-column').getBoundingClientRect().left,footer:e.querySelector('.pe-footer').getBoundingClientRect().bottom,bottom:e.getBoundingClientRect().bottom}));
     assert.ok(desktop.height>=830&&desktop.bodyOverflow==='hidden'&&desktop.left<desktop.right&&desktop.footer<=desktop.bottom,JSON.stringify(desktop));
     assert.equal(await page.locator('.pe-checks').isVisible(),false);

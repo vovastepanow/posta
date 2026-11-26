@@ -2712,3 +2712,63 @@ dialog::backdrop {
   .pe-window .pe-text{min-height:200px}
   .pe-window>.pe-demo-error{padding:6px 9px}
 }
+
+/* No scrolling panels in the composer: compact content, explicit pages for overflow. */
+.pe-window>.pe-body,.pe-window .pe-compose-column,.pe-window .pe-settings-column{overflow:hidden;scrollbar-gutter:auto;scrollbar-width:auto}
+.pe-window .pe-compose-column,.pe-window .pe-settings-column{gap:10px;padding-bottom:0}
+.pe-window .pe-compose-column>.pe-section,.pe-window .pe-settings-column>.pe-section,.pe-window .pe-chips>.pe-section{gap:8px;padding-bottom:10px}
+.pe-window .pe-variant-bar{overflow:hidden;flex-wrap:wrap;gap:4px;padding:2px 0 7px;min-width:0}
+.pe-window .pe-variant-label{flex:none;margin-right:3px}
+.pe-window .pe-variant-tab{flex:1 1 0;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;padding:5px 7px}
+.pe-window .pe-variant-reset{flex:0 0 auto;margin-left:auto}
+.pe-window .pe-variant-select{flex:1;min-width:0;width:auto}
+.pe-window .pe-text{height:clamp(115px,18dvh,200px);min-height:0;resize:none;flex:none}
+.pe-window .pe-format-bar{margin:0;gap:4px}
+.pe-window .pe-chip-row{gap:5px}
+.pe-window .pe-style{padding:6px 10px}
+.pe-window .pe-style-text{height:68px;min-height:0;resize:none}
+.pe-window .pe-format-preview{margin:0;padding:6px 9px}
+.pe-window .pe-preview-copy{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.pe-window .pe-attachment-toolbar{gap:4px}
+.pe-window .pe-attachment{padding:6px 8px;font-size:12px}
+.pe-window .pe-grid{grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:6px}
+.pe-window .pe-card,.pe-window .pe-add{aspect-ratio:4/3}
+.pe-window .pe-add-empty{grid-column:1/-1;aspect-ratio:auto;min-height:40px;display:flex;justify-content:center;align-items:center;gap:8px}
+.pe-window .pe-url-row{flex-wrap:nowrap;gap:6px}
+.pe-window .pe-url-row .pe-input{min-width:0}
+.pe-window .pe-url-row button{flex:none;padding:7px 10px}
+.pe-window .pe-file-area{gap:7px}
+.pe-window .pe-destination-list{max-height:none;overflow:visible;gap:4px}
+.pe-window .pe-target-option{padding:7px 9px}
+.pe-window .pe-timing-section .pe-target-menu{max-height:none;overflow:visible}
+.pe-settings-open{text-align:left;width:100%;font-size:13px}
+.pe-settings-column[data-view=main]>.pe-extra-section,.pe-settings-column[data-view=settings]>.pe-chips,.pe-settings-column[data-view=settings]>.pe-settings-open{display:none!important}
+.pe-window .pe-extras-fields{display:flex;flex-direction:column;gap:9px}
+.pe-window .pe-extra-preview{flex-direction:column;align-items:stretch;gap:4px}
+.pe-window .pe-extra-preview select{flex:none}
+.pe-window .pe-button-row{grid-template-columns:minmax(0,1fr) auto}
+.pe-window .pe-button-row input:first-child{grid-column:1/-1}
+.pe-window .pe-page-hidden{display:none!important}
+.pe-pager{display:flex;flex:none;align-items:center;justify-content:center;gap:10px;color:var(--muted);font-size:12px}
+.pe-pager button{padding:3px 12px}
+.pe-pane-nav,.pe-mobile-nav{display:flex;flex:none;gap:5px}
+.pe-pane-nav .is-active{border-color:var(--accent);color:var(--text)}
+.pe-mobile-nav{display:none}
+.pe-compose-column[data-view=text]>.pe-attachment-section,.pe-compose-column[data-view=media]>.pe-section:not(.pe-attachment-section),.pe-compose-column[data-view=poll]>.pe-section:not(.pe-attachment-section){display:none!important}
+.pe-compose-column[data-view=poll] .pe-attachment-section>:not(.pe-attachment-detail):not(.pe-section-head):not(.pe-attachment-toolbar){display:none!important}
+.pe-compose-column[data-view=media][data-split-poll=true] .pe-attachment-detail{display:none!important}
+.pe-window .pe-poll-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.pe-window .pe-poll-row .pe-input{padding:6px 8px}
+.pe-window .pe-attachment-detail{gap:6px}
+.pe-window>.pe-checks{max-height:none;overflow:visible;gap:4px}
+.pe-window>.pe-checks .pe-check{padding:6px 10px}
+@media(max-width:820px){
+  .pe-window>.pe-body{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);overflow:hidden}
+  .pe-window .pe-mobile-nav{display:flex}
+  .pe-window[data-mobile=compose] .pe-settings-column,.pe-window[data-mobile=settings] .pe-compose-column{display:none}
+  .pe-window .pe-compose-column,.pe-window .pe-settings-column{min-height:0;overflow:hidden;padding:0}
+  .pe-window .pe-settings-column{order:0;border:0}
+  .pe-window .pe-text{height:clamp(100px,16dvh,180px)}
+  .pe-window .pe-variant-tab{flex:1 1 30%}
+  .pe-window .pe-variant-label{width:100%}
+}

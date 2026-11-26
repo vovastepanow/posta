@@ -168,12 +168,24 @@ function buildUi() {
         el('label',{className:'pe-poll-setting'},u.quiz,el('span',{textContent:'Викторина'})),
         el('label',{className:'pe-poll-duration'},el('span',{textContent:'Правильный ответ'}),u.correct),u.explanation);
     u.mediaSection.insertBefore(u.pollSection,u.note);
-    u.extraSection=el('section',{className:'pe-section pe-extra-section'},el('div',{className:'pe-section-head'},el('h3',{textContent:'Настройки публикации'})),u.extras,u.buttons);
+    u.extraPager=el('div',{className:'pe-pager',hidden:true});
+    u.settingsOpen=button('pe-btn pe-settings-open','Настройки публикации →',()=>{u.settingsColumn.dataset.view='settings';});
+    u.settingsBack=button('pe-chip-btn','← Назад',()=>{u.settingsColumn.dataset.view='main';});
+    u.extraSection=el('section',{className:'pe-section pe-extra-section'},el('div',{className:'pe-section-head'},el('h3',{textContent:'Настройки публикации'}),u.settingsBack),u.extras,u.buttons,u.extraPager);
+    u.leftNav=el('div',{className:'pe-pane-nav',hidden:true},
+        button('pe-chip-btn','Текст',()=>{session.leftView='text';fitComposer();}),
+        button('pe-chip-btn','Вложения',()=>{session.leftView='media';fitComposer();}),
+        button('pe-chip-btn','Опрос',()=>{session.leftView='poll';fitComposer();}));
+    u.composeColumn=el('div',{className:'pe-compose-column'},u.variantBar,u.leftNav,u.textSection,u.mediaSection);
+    u.settingsColumn=el('aside',{className:'pe-settings-column',ariaLabel:'Параметры публикации'},u.chips,u.settingsOpen,u.extraSection);
+    u.settingsColumn.dataset.view='main';
+    u.mobileNav=el('div',{className:'pe-mobile-nav'},
+        button('pe-chip-btn','Содержимое',()=>{u.form.dataset.mobile='compose';fitComposer();}),
+        button('pe-chip-btn','Куда и когда',()=>{u.form.dataset.mobile='settings';}));
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
-        el('div', { className: 'pe-body' },
-            el('div', { className: 'pe-compose-column' }, u.variantBar, u.textSection, u.mediaSection),
-            el('aside', { className: 'pe-settings-column', ariaLabel: 'Параметры публикации' }, u.chips, u.extraSection)),
+        u.mobileNav,
+        el('div', { className: 'pe-body' }, u.composeColumn,u.settingsColumn),
         u.checks,
         // Temporary visual fixture only. Never participates in draft validation or submission.
         el('div', { className: 'pe-check is-error pe-demo-error' },
@@ -212,6 +224,8 @@ function buildUi() {
     });
     u.form.addEventListener('submit', submit);
     document.body.append(u.overlay);
+    new ResizeObserver(()=>queueComposerFit()).observe(u.composeColumn);
+    u.styleBox.addEventListener('toggle',queueComposerFit);
     return u;
 }
 
@@ -387,7 +401,57 @@ function mediaCard(item, i, total) {
 }
 
 /** Медиа, счётчики и сводка; черновик сохраняется. */
+let fitFrame=0;
+function queueComposerFit(){
+    if(!session||fitFrame)return;
+    fitFrame=requestAnimationFrame(()=>{fitFrame=0;if(session)fitComposer();});
+}
+function fitComposer(){
+    if(!session||!ui.composeColumn.clientHeight)return;
+    const col=ui.composeColumn,nav=ui.leftNav;
+    // Measure the full layout; if it cannot fit, replace overflow with explicit section navigation.
+    col.dataset.view='all';col.dataset.splitPoll='false';nav.hidden=true;
+    if(col.scrollHeight<=col.clientHeight+2){session.leftView='';return;}
+    const hasText=!ui.textSection.hidden,hasPoll=!ui.pollSection.hidden;
+    const preferred=session.leftView||(!hasText||session.poll||ui.mediaSection.contains(document.activeElement)?'media':'text');
+    nav.hidden=false;
+    nav.children[0].hidden=!hasText;
+    nav.children[2].hidden=true;
+    col.dataset.view=hasText&&preferred==='text'?'text':'media';
+    if(hasPoll&&col.dataset.view==='media'&&col.scrollHeight>col.clientHeight+2){
+        col.dataset.splitPoll='true';nav.children[2].hidden=false;
+        col.dataset.view=preferred==='media'&&ui.fileArea.contains(document.activeElement)?'media':'poll';
+    }else if(hasPoll&&session.leftView==='poll'){
+        col.dataset.splitPoll='true';nav.children[2].hidden=false;col.dataset.view='poll';
+    }
+    if(hasPoll&&session.leftView==='media'&&col.dataset.splitPoll==='true')col.dataset.view='media';
+    session.leftView=col.dataset.view;
+    [...nav.children].forEach((b,i)=>b.classList.toggle('is-active',['text','media','poll'][i]===col.dataset.view));
+}
+// Paging preserves actual inputs and handlers; hidden pages never modify payloads.
+function pageItems(items,key,size,nav,after){
+    const pages=Math.max(1,Math.ceil(items.length/size));
+    const page=Math.min(Math.max(0,session[key]||0),pages-1);session[key]=page;
+    items.forEach((node,i)=>node.classList.toggle('pe-page-hidden',Math.floor(i/size)!==page));
+    nav.hidden=pages===1;
+    const go=step=>{session[key]=page+step;pageItems(items,key,size,nav,after);};
+    nav.replaceChildren(button('pe-chip-btn','‹',()=>go(-1),{disabled:page===0,ariaLabel:'Предыдущая страница'}),
+        el('span',{textContent:`${page+1} / ${pages}`}),
+        button('pe-chip-btn','›',()=>go(1),{disabled:page+1===pages,ariaLabel:'Следующая страница'}));
+    after?.();
+}
+function updateSettingsPages(){
+    const fields=[...ui.extras.children].filter(n=>!n.hidden);
+    const links=ui.buttons.hidden?[]:[...ui.buttons.children];
+    const items=[...fields,...links];
+    pageItems(items,'extraPage',window.innerHeight<650?3:5,ui.extraPager,()=>{
+        const active=links.some(n=>!n.classList.contains('pe-page-hidden'));
+        ui.buttons.classList.toggle('pe-page-hidden',!active);
+        if(active&&links[0])links[0].classList.remove('pe-page-hidden');
+    });
+}
 function render() {
+    queueComposerFit();
     const { media, poll, options } = session;
     syncEditorDraft();
     renderVariantBar();
@@ -427,20 +491,25 @@ function render() {
         el('span',{textContent:p.error}),
         options.picked.length>1?button('pe-chip-btn','Исправить',()=>switchVariant(p.value),{ariaLabel:'Изменить '+p.label,disabled:!!ui.aiBusy}):null)): [el('div',{className:'pe-check is-error',textContent:'Выберите ресурс для публикации.'})]));
 
+    const checkPager=el('div',{className:'pe-pager',hidden:true});
+    const checkItems=[...ui.checks.children];ui.checks.append(checkPager);
+    pageItems(checkItems,'errorPage',1,checkPager);
     updateExtraAvailability();
+    updateSettingsPages();
     renderFormatting();
     const blocked = problems.some(p => p.error) || !problems.length;
     const snapshot = {...cloneDraft(session.base),variants:Object.fromEntries(Object.entries(session.variants).map(([v,d])=>[v,cloneDraft(d)])),picked:[...options.picked]};
     drafts.set(options.key, snapshot);
     options.onDraftChange?.(snapshot);
     if (mediaChanged) { ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
-        media.length ? '' : el('div', { className: 'pe-empty', textContent: 'Перетащите файлы сюда или выберите тип вложения выше' }),
-        el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { delete ui.file.dataset.kind;ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
+        el('button', { type: 'button', className: 'pe-add'+(!media.length?' pe-add-empty':''), ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { delete ui.file.dataset.kind;ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: media.length?'Файл':'Добавить или перетащить файлы сюда' })));
         session.renderedExclusive=isExclusive;session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');session.renderedCoverAllowed=JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story,session.extras.ig_cover_seconds]);
     }
     ui.count.textContent = `${media.length} / ${maxMedia}`;
     ui.textSection.hidden = exclusive;
     ui.extraSection.hidden = Boolean(poll)||(!selectedTargets().some(t=>targetCapabilities(t)?.extras?.some(k=>!ATTACHMENT_EXTRA_KEYS.has(k)))&&!EXTRA_KEYS.some(k=>!ATTACHMENT_EXTRA_KEYS.has(k)&&extraActive(session.extras,k)));
+    ui.settingsOpen.hidden=ui.extraSection.hidden;
+    if(ui.extraSection.hidden)ui.settingsColumn.dataset.view='main';
     if (poll) {
         ui.withContent.disabled=!poll.with_content&&!pollLimits?.with_content;
         ui.addOption.disabled = !pollLimits || poll.options.length >= pollLimits.options_max;
@@ -607,9 +676,11 @@ function targetChip(o) {
         return el('label', { className: 'pe-target-option' }, el('span', { className: 'pe-target-name', textContent: t.label }), box);
     });
     ui.targetLabel = label;
+    const pager=el('div',{className:'pe-pager',hidden:true});
+    pageItems(boxes,'targetPage',window.innerHeight<650?3:5,pager);
     return el('section', { className: 'pe-section pe-destination-section' },
         el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Куда публикуем' }), label),
-        el('div', { className: 'pe-destination-list' }, ...boxes));
+        el('div', { className: 'pe-destination-list' }, ...boxes),pager);
 }
 
 /** Галочка в меню «Куда»: меню остаётся открытым; последний выбранный ресурс снять нельзя. */
@@ -815,6 +886,8 @@ export function openPostEditor(options) {
     ui.aiBusy=false;ui.variantBar.inert=false;ui.aiButton.disabled=false;
     ui.aiNote.textContent = '';
     ui.overlay.hidden = false;
+    ui.form.dataset.mobile='compose';
+    ui.settingsColumn.dataset.view='main';
     document.body.classList.add('post-editor-open');
     render();
     renderStyle();
@@ -868,6 +941,7 @@ function renderFormatting(){
 
 function loadEditorDraft(target,d){
     session.editTarget=target;
+    session.leftView='';session.extraPage=0;
     const copy=cloneDraft(d);
     session.media=copy.media;session.tags=copy.tags;session.poll=clonePoll(copy.poll);session.extras=cloneExtras(copy.extras);
     ui.text.value=copy.text;
@@ -898,8 +972,11 @@ function renderVariantBar(){
     if(key===session.variantKey)return;
     session.variantKey=key;
     const common=all.filter(t=>!Object.hasOwn(session.variants,t.value)).length;
-    const tab=(value,label)=>button('pe-variant-tab'+(session.editTarget===value?' is-active':''),label,()=>switchVariant(value),{ariaPressed:String(session.editTarget===value)});
-    ui.variantBar.replaceChildren(el('span',{className:'pe-variant-label',textContent:'Версии поста'}),
-        tab('',`Общая · ${common}`),...all.map(t=>tab(t.value,(Object.hasOwn(session.variants,t.value)?'✓ ':'')+t.label)),
+    const tab=(value,label)=>button('pe-variant-tab'+(session.editTarget===value?' is-active':''),label,()=>switchVariant(value),{title:label,ariaPressed:String(session.editTarget===value)});
+    const choices=[['',`Общая · ${common}`],...all.map(t=>[t.value,(Object.hasOwn(session.variants,t.value)?'✓ ':'')+t.label])];
+    const select=el('select',{className:'pe-input pe-variant-select',ariaLabel:'Версия поста'},...choices.map(([value,textContent])=>el('option',{value,textContent})));
+    select.value=session.editTarget;select.onchange=()=>switchVariant(select.value);
+    ui.variantBar.replaceChildren(el('span',{className:'pe-variant-label',textContent:'Версия поста'}),
+        ...(all.length<=3?choices.map(([v,l])=>tab(v,l)):[select]),
         session.editTarget?button('pe-chip-btn pe-variant-reset','Использовать общую версию',clearVariant,{title:'Удалить только индивидуальные изменения этого ресурса'}):null);
 }
