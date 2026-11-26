@@ -26,6 +26,7 @@ func pinterestUploadURL(raw string)bool{
 
 func pinterestPublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequestFunc,cover func(context.Context,string)[]byte,wait func(context.Context,time.Duration)error)(*NetSent,error){
  if len(p.Media)!=1{return nil,Bad("Pinterest: нужен один файл изображения или видео.")}
+ extra,err:=PublishExtrasCheck("pinterest",p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
  board:=jx.Str(c.Meta,"board_id")
  if !pinterestIDPattern.MatchString(board){return nil,Bad("Pinterest: не определена доска.")}
  f:=p.Media[0]
@@ -81,7 +82,9 @@ func pinterestPublishWith(ctx context.Context,c *Channel,p NetPost,request netwo
  title,desc:=titleAndBody(p.Text)
  if title==""{title="Пин"}
  if runeLen(title)>100||runeLen(desc)>800{return nil,Bad("Pinterest: превышен лимит заголовка или описания.")}
- r,err:=request(ctx,http.MethodPost,"https://api.pinterest.com/v5/pins",withCT(auth,ctJSON),jsonBody(jx.M{"board_id":board,"title":title,"description":desc,"media_source":media}))
+ pin:=jx.M{"board_id":board,"title":title,"description":desc,"media_source":media}
+ if v:=jx.Str(extra,"link_attachment");v!=""{pin["link"]=v};if v:=jx.Str(extra,"alt_text");v!=""{pin["alt_text"]=v}
+ r,err:=request(ctx,http.MethodPost,"https://api.pinterest.com/v5/pins",withCT(auth,ctJSON),jsonBody(pin))
  d,err:=networkExpect(r,err,[]int{200,201},"Пин не опубликован")
  if err!=nil{return nil,err}
  id:=jx.Str(d,"id")

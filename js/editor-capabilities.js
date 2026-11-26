@@ -72,7 +72,7 @@ export function attachmentError(targets, media, item) {
     return '';
 }
 
-export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag'];
+export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag','yt_privacy','yt_audience','yt_tags','yt_category','yt_license'];
 export const standaloneExtra = e=>Boolean(e?.location||e?.contact);
 export function extraActive(extra,key) {
     return key==='buttons' ? !!extra?.buttons?.length : key==='preview' ? !!extra?.preview && extra.preview!=='default' : Boolean(extra?.[key]);
@@ -96,7 +96,9 @@ export function extraError(targets,media,text,poll,extra) {
     for(const key of EXTRA_KEYS) if(extraActive(extra,key)) {
         const error=extraAvailability(targets,media,text,poll,key);
         if(error)return error;
-        if(key==='alt_text'&&[...extra[key].trim()].length>1000)return 'Альтернативный текст: до 1000 символов.';
+        if(key==='alt_text'){const limit=targets.some(t=>targetCapabilities(t)?.platform==='pinterest')?500:1000;if([...extra[key].trim()].length>limit)return 'Альтернативный текст: до '+limit+' символов.';}
+        if(key==='yt_category'&&!/^[1-9][0-9]{0,2}$/.test(extra[key].trim()))return 'Категория YouTube: числовой ID.';
+        if(key==='yt_tags'&&([...extra[key]].length>500||/[<>\r\n]/.test(extra[key])))return 'Теги YouTube: до 500 символов.';
         if(key==='topic_tag'&&([...extra[key].trim()].length>50||/[#\r\n]/.test(extra[key])))return 'Тема Threads: до 50 символов без #.';
         if(['copyright','link_attachment'].includes(key)){
             try{const v=extra[key].trim(),u=new URL(v);if(v.length>2048||!['http:','https:'].includes(u.protocol)||u.username||u.password||/[,\s]/.test(v))throw Error();}catch{return 'Укажите корректную HTTP(S)-ссылку.';}

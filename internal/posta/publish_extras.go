@@ -22,6 +22,10 @@ func postExtraKinds(platform string) []string {
 		return []string{"alt_text","topic_tag","link_attachment","spoiler"}
 	case "instagram":
 		return []string{"alt_text"}
+	case "pinterest":
+		return []string{"alt_text","link_attachment"}
+	case "youtube":
+		return []string{"yt_privacy","yt_audience","yt_tags","yt_category","yt_license"}
 	}
 	return []string{}
 }
@@ -47,7 +51,7 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 			if len(jx.ToList(value))==0{continue}
 		case "silent","protect","spoiler","signed","close_comments","mark_as_ads":
 			v,ok:=value.(bool);if !ok{return nil,Bad("Некорректный параметр публикации: %s.",key)};if !v{continue}
-		case "alt_text","topic_tag","link_attachment","copyright","vk_geo":
+		case "alt_text","topic_tag","link_attachment","copyright","vk_geo","yt_privacy","yt_audience","yt_tags","yt_category","yt_license":
 			v,ok:=value.(string);if !ok{return nil,Bad("Некорректное значение дополнения %s.",key)};if strings.TrimSpace(v)==""{continue}
 		case "preview":
 			v,ok:=value.(string);if !ok{return nil,Bad("Некорректная настройка предпросмотра.")};if v==""||v=="default"{continue}
@@ -80,7 +84,19 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 			out[key]=buttons
 		case "alt_text":
 			if len(kinds)!=1||!contains([]string{"photo","image"},kinds[0]){return nil,Bad("Альтернативный текст доступен для одной фотографии.")}
-			v:=strings.TrimSpace(jx.ToStr(value));if runeLen(v)>1000{return nil,Bad("Альтернативный текст: до 1000 символов.")};out[key]=v
+			v:=strings.TrimSpace(jx.ToStr(value));limit:=1000;if platform=="pinterest"{limit=500};if runeLen(v)>limit{return nil,Bad("Альтернативный текст: до %d символов.",limit)};out[key]=v
+		case "yt_privacy","yt_audience","yt_license","yt_category","yt_tags":
+			v:=strings.TrimSpace(jx.ToStr(value))
+			switch key{
+			case "yt_privacy":if !contains([]string{"private","unlisted","public"},v){return nil,Bad("Некорректная видимость YouTube.")}
+			case "yt_audience":if !contains([]string{"kids","not_kids"},v){return nil,Bad("Укажите аудиторию YouTube.")}
+			case "yt_license":if !contains([]string{"youtube","creativeCommon"},v){return nil,Bad("Некорректная лицензия YouTube.")}
+			case "yt_category":if !regexp.MustCompile(`^[1-9][0-9]{0,2}$`).MatchString(v){return nil,Bad("Категория YouTube: числовой ID.")}
+			case "yt_tags":
+				tags:=[]string{};n:=0;seen:=map[string]bool{}
+				for _,tag:=range strings.Split(v,","){tag=strings.TrimSpace(tag);if tag==""||seen[strings.ToLower(tag)]{continue};if strings.ContainsAny(tag,"<>\r\n"){return nil,Bad("Некорректный тег YouTube.")};seen[strings.ToLower(tag)]=true;n+=runeLen(tag)+1;if strings.Contains(tag," "){n+=2};tags=append(tags,tag)}
+				if n>500||len(tags)==0{return nil,Bad("Теги YouTube: суммарно до 500 символов.")};v=strings.Join(tags,",")
+			};out[key]=v
 		case "topic_tag":
 			v:=strings.TrimSpace(jx.ToStr(value));if runeLen(v)>50||strings.ContainsAny(v,"#\r\n"){return nil,Bad("Тема Threads: до 50 символов, без # и переносов.")};out[key]=v
 		case "copyright","link_attachment":

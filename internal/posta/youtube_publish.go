@@ -35,6 +35,7 @@ func youtubeAcknowledged(r *netResp,total int64)(int64,bool){
 
 func youtubePublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequestFunc,wait func(context.Context,time.Duration)error)(*NetSent,error){
  if len(p.Media)!=1||p.Media[0].Kind!="video"{return nil,Bad("YouTube: требуется ровно одно видео.")}
+ extra,err:=PublishExtrasCheck("youtube",p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
  f,err:=os.Open(p.Media[0].Path)
  if err!=nil{return nil,Bad("Файл видео не найден.")};defer f.Close()
  info,err:=f.Stat()
@@ -43,10 +44,16 @@ func youtubePublishWith(ctx context.Context,c *Channel,p NetPost,request network
  title,desc:=titleAndBody(p.Text)
  if title==""{title="Shorts"}
  privacy:=jx.Str(c.Meta,"privacy")
+ if v:=jx.Str(extra,"yt_privacy");v!=""{privacy=v}
  if privacy==""{privacy="private"}
  if privacy!="private"&&privacy!="public"&&privacy!="unlisted"{return nil,Bad("YouTube: неверная видимость.")}
  auth:=bearer(c.Secrets["access_token"])
- meta:=jx.M{"snippet":jx.M{"title":trimRunes(title,100),"description":desc},"status":jx.M{"privacyStatus":privacy,"selfDeclaredMadeForKids":false}}
+ snippet:=jx.M{"title":trimRunes(title,100),"description":desc};status:=jx.M{"privacyStatus":privacy,"selfDeclaredMadeForKids":false}
+ if v:=jx.Str(extra,"yt_audience");v!=""{status["selfDeclaredMadeForKids"]=v=="kids"}
+ if v:=jx.Str(extra,"yt_license");v!=""{status["license"]=v}
+ if v:=jx.Str(extra,"yt_category");v!=""{snippet["categoryId"]=v}
+ if v:=jx.Str(extra,"yt_tags");v!=""{snippet["tags"]=strings.Split(v,",")}
+ meta:=jx.M{"snippet":snippet,"status":status}
  h:=withCT(auth,"application/json; charset=UTF-8")
  h["X-Upload-Content-Length"],h["X-Upload-Content-Type"]=strconv.FormatInt(total,10),"video/mp4"
  start,err:=request(ctx,"POST","https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",h,jsonBody(meta))

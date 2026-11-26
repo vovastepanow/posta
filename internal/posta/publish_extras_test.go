@@ -36,3 +36,9 @@ func TestPlatformSpecificExtras(t *testing.T){
  }{if _,err:=PublishExtrasCheck(tc.platform,"post",tc.kinds,nil,tc.extra);err==nil{t.Fatal(tc)}}
  if _,err:=PublishExtrasCheck("threads","post",[]string{"photo"},nil,jx.M{"alt_text":"alt","spoiler":true,"topic_tag":"Design"});err!=nil{t.Fatal(err)}
 }
+
+func TestVideoAndPinOptions(t *testing.T){
+ if _,err:=PublishExtrasCheck("youtube","v",[]string{"video"},nil,jx.M{"yt_privacy":"public","yt_audience":"kids","yt_tags":"a,b,a","yt_category":"22","yt_license":"youtube"});err!=nil{t.Fatal(err)}
+ if _,err:=PublishExtrasCheck("youtube","v",[]string{"video"},nil,jx.M{"yt_privacy":"friends"});err==nil{t.Fatal("invalid privacy")}
+ if _,err:=PublishExtrasCheck("pinterest","p",[]string{"photo"},nil,jx.M{"link_attachment":"https://example.com","alt_text":"photo"});err!=nil{t.Fatal(err)}
+}

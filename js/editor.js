@@ -87,9 +87,10 @@ const hasExtras = () => EXTRA_KEYS.some(k=>extraActive(session.extras,k));
 const botOnlyMedia = () => session.media.some(m => ['audio','document','voice'].includes(mediaKind(m)));
 const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440,quiz:!!p.quiz,correct_answer:p.correct_answer||'',explanation:p.explanation||'',close_minutes:p.close_minutes||0,public:!!p.public} : null;
 const fileKind = f => /\.(pdf|txt|csv|zip|docx|xlsx|pptx)$/i.test(f.name) || f.type==='application/pdf' ? 'document' : /\.(ogg|opus)$/i.test(f.name) ? 'voice' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
-const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null,signed:!!e?.signed,close_comments:!!e?.close_comments,mark_as_ads:!!e?.mark_as_ads,copyright:e?.copyright||'',link_attachment:e?.link_attachment||'',vk_geo:e?.vk_geo||'',alt_text:e?.alt_text||'',topic_tag:e?.topic_tag||''});
+const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null,signed:!!e?.signed,close_comments:!!e?.close_comments,mark_as_ads:!!e?.mark_as_ads,copyright:e?.copyright||'',link_attachment:e?.link_attachment||'',vk_geo:e?.vk_geo||'',alt_text:e?.alt_text||'',topic_tag:e?.topic_tag||'',yt_privacy:e?.yt_privacy||'',yt_audience:e?.yt_audience||'',yt_tags:e?.yt_tags||'',yt_category:e?.yt_category||'',yt_license:e?.yt_license||''});
 const EXTRA_LABELS = {silent:'Без звукового уведомления',protect:'Запретить пересылку и сохранение',spoiler:'Скрыть медиа под спойлером',signed:'Подписать запись именем автора VK',close_comments:'Закрыть комментарии VK',mark_as_ads:'Отметить запись VK как рекламу'};
-const EXTRA_TEXT_LABELS={copyright:'Источник VK (URL)',link_attachment:'Вложение-ссылка',vk_geo:'Координаты VK (широта, долгота)',alt_text:'Описание фото для доступности',topic_tag:'Тема Threads'};
+const EXTRA_TEXT_LABELS={copyright:'Источник VK (URL)',link_attachment:'Вложение-ссылка',vk_geo:'Координаты VK (широта, долгота)',alt_text:'Описание фото для доступности',topic_tag:'Тема Threads',yt_tags:'Теги YouTube через запятую',yt_category:'ID категории YouTube'};
+const EXTRA_SELECTS={yt_privacy:['Видимость YouTube',[['','Настройка канала'],['private','Закрытый доступ'],['unlisted','По ссылке'],['public','Публичный']]],yt_audience:['Аудитория YouTube',[['','По умолчанию'],['kids','Для детей'],['not_kids','Не для детей']]],yt_license:['Лицензия YouTube',[['','По умолчанию'],['youtube','Стандартная'],['creativeCommon','Creative Commons']]]};
 const KIND_LABELS = {photo:'Фото', animation:'GIF', video:'Видео', audio:'Аудио', document:'Документ', voice:'Голосовое'};
 const fileAccept = {photo:'image/jpeg,image/png,image/webp,image/bmp,image/heic,image/avif', animation:'image/gif', video:'video/*', audio:'.mp3,.m4a,audio/mpeg,audio/mp4', document:'.pdf,.txt,.csv,.zip,.docx,.xlsx,.pptx', voice:'.ogg,.opus,audio/ogg'};
 const chip = (label, value) => el('span', { className: 'pe-chip' }, el('span', { className: 'pe-chip-label', textContent: label }), el('strong', { textContent: value }));
@@ -414,6 +415,9 @@ function renderExtras(){
         input.dataset.extraText=key;
         ui.extras.append(el('label',{className:'pe-extra-preview'},el('span',{textContent:label}),input));
     }
+    for(const [key,[label,choices]] of Object.entries(EXTRA_SELECTS)){
+        const select=el('select',{className:'pe-input',ariaLabel:label},...choices.map(([value,textContent])=>el('option',{value,textContent})));select.value=extra[key];select.dataset.extraText=key;select.onchange=()=>{extra[key]=select.value;render();};ui.extras.append(el('label',{className:'pe-extra-preview'},el('span',{textContent:label}),select));
+    }
     renderExtraButtons();
     renderExtraCards();
 }
@@ -453,7 +457,7 @@ function updateExtraAvailability(){
     Object.keys(EXTRA_LABELS).forEach((key,i)=>{const reason=availability(key);inputs[i].disabled=!!reason&&!session.extras[key];inputs[i].closest('label').title=reason;});
     for(const input of ui.extras.querySelectorAll('[data-extra-text]')){
         const key=input.dataset.extraText,reason=availability(key);input.disabled=!!reason&&!extraActive(session.extras,key);input.closest('label').title=reason;
-        input.closest('label').hidden=!!reason&&!extraActive(session.extras,key)&&true;
+        input.closest('label').hidden=!!reason&&!extraActive(session.extras,key);
     }
     const preview=ui.extras.querySelector('select');const reason=availability('preview');preview.disabled=!!reason&&!extraActive(session.extras,'preview');preview.closest('label').title=reason;
     const add=ui.buttons.querySelector('.pe-add-link');add.disabled=!!availability('buttons')||standaloneExtra(session.extras)||session.extras.buttons.length>=8;add.title=availability('buttons');
