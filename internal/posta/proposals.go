@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"os"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -190,17 +191,14 @@ func (u *U) proposalFetchMedia(r jx.M) (m jx.M, gone bool) {
 			if jx.Str(p, "post_id") != mm[2] {
 				continue
 			}
-			img := jx.Str(p, "image")
-			for i, g := range jx.Maps(r, "gallery") {
-				if jx.Str(g, "image") == image {
-					if pg := jx.Maps(p, "gallery"); i < len(pg) {
-						img = jx.Str(pg[i], "image")
-					}
-				}
+			p = newAttachmentRecovery(u).post(p)
+			if jx.Bool(p, "media_incomplete") || jx.Bool(p, "attachment_inventory_incomplete") || jx.Bool(p, "video_unavailable") || !proposalGalleryCompatible(r, p) {
+				return nil, false
 			}
-			return jx.M{"video": jx.Str(p, "video"), "gallery": orMaps(jx.Maps(p, "gallery")), "image": img}, false
+			return p, false
 		}
-		return nil, true
+		// A missing post on a paginated public preview is not proof of deletion.
+		return nil, false
 	}
 	if board, thread, post := jx.Str(r, "board"), jx.Str(r, "thread_id"), jx.Str(r, "post_id"); board != "" && thread != "" && post != "" {
 		data := u.Fetch2chJSON(board, thread)
@@ -229,11 +227,50 @@ func (u *U) proposalFetchMedia(r jx.M) (m jx.M, gone bool) {
 	return jx.M{"video": "", "gallery": []jx.M{}}, false
 }
 
+// A saved album must never shrink or change the type/order of its members
+// because a later provider response is incomplete.
+func proposalGalleryCompatible(old, fresh jx.M) bool {
+	a, b := ContentGallery(old), ContentGallery(fresh)
+	if len(a) > 1 {
+		if len(a) != len(b) {
+			return false
+		}
+		for i := range a {
+			if (jx.Str(a[i], "video") != "") != (jx.Str(b[i], "video") != "") {
+				return false
+			}
+		}
+	}
+	x, y := jx.Maps(old, "source_attachments"), jx.Maps(fresh, "source_attachments")
+	if len(x) > 0 && len(y) > 0 {
+		if len(x) != len(y) {
+			return false
+		}
+		for i := range x {
+			if jx.Str(x[i], "kind") != jx.Str(y[i], "kind") {
+				return false
+			}
+			if url := jx.Str(x[i], "url"); url != "" && jx.Str(y[i], "url") != "" && url != jx.Str(y[i], "url") {
+				return false
+			}
+		}
+	}
+	if PostItemHasVideo(old) && !PostItemHasVideo(fresh) {
+		return false
+	}
+	return true
+}
+
 func (a *App) galleryDownloadImage(url string) []byte {
 	if url == "" {
 		return nil
 	}
-	b := a.HTTPGet(url, 20*time.Second)
+	var b []byte
+	if path := a.MediaPath(url); path != "" {
+		b, _ = os.ReadFile(path)
+	} else {
+		b = a.HTTPGet(url, 20*time.Second)
+	}
 	if len(b) == 0 || len(b) > config.MaxImageBytes {
 		return nil
 	}
@@ -248,13 +285,15 @@ func (u *U) proposalCacheMedia(r, m jx.M) jx.M {
 	if video == "" {
 		video = jx.Str(r, "video")
 	}
-	if video != "" && jx.Str(r, "video_local") == "" {
-		if f := u.DownloadVideoTemp(video, config.VideoMaxBytes, nil); f != "" {
+	if video != "" && u.MediaExisting(jx.Str(m, "video_local")) == "" && u.MediaExisting(jx.Str(r, "video_local")) == "" {
+		if local := u.MediaExisting(video); local != "" {
+			m["video_local"] = local
+		} else if f := u.DownloadVideoTemp(video, config.VideoMaxBytes, nil); f != "" {
 			m["video_local"] = u.CacheDownloadedVideo(video, f)
 			os.Remove(f)
 		}
 	}
-	if u.MediaExisting(jx.Str(r, "image_local")) == "" {
+	if u.MediaExisting(jx.Str(m, "image_local")) == "" && u.MediaExisting(jx.Str(r, "image_local")) == "" {
 		b := u.galleryDownloadImage(jx.Str(m, "image"))
 		if b == nil {
 			b = u.galleryDownloadImage(key)
@@ -268,12 +307,50 @@ func (u *U) proposalCacheMedia(r, m jx.M) jx.M {
 		gallery = jx.Maps(r, "gallery")
 	}
 	if len(gallery) > 1 {
-		m["gallery"] = u.GalleryCacheFiles(gallery, key)
+		old := ContentGallery(r)
+		for i, f := range gallery {
+			gallery[i] = jx.Copy(f)
+			if i >= len(old) {
+				continue
+			}
+			for _, field := range []string{"image", "video"} {
+				if jx.Str(f, field) == jx.Str(old[i], field) && u.MediaExisting(jx.Str(f, field+"_local")) == "" {
+					if local := u.MediaExisting(jx.Str(old[i], field+"_local")); local != "" {
+						gallery[i][field+"_local"] = local
+					}
+				}
+			}
+		}
+		m["gallery"] = u.GalleryCacheFiles(gallery, jx.Str(m, "image"))
 	}
 	return m
 }
 
+// A poster does not count as a cached video. Check every gallery member.
+func (a *App) proposalCacheComplete(r jx.M) bool {
+	if jx.Bool(r, "media_incomplete") || jx.Bool(r, "video_unavailable") {
+		return false
+	}
+	files := ContentGallery(r)
+	if len(files) == 0 {
+		files = []jx.M{r}
+	}
+	for _, f := range files {
+		field := "image"
+		if jx.Str(f, "video") != "" {
+			field = "video"
+		}
+		if a.MediaExisting(jx.Str(f, field+"_local")) == "" && a.MediaExisting(jx.Str(f, field)) == "" {
+			return false
+		}
+	}
+	return true
+}
+
 func proposalApply(r, m jx.M) jx.M {
+	if len(ContentGallery(r)) > 1 && len(ContentGallery(m)) > 0 && !proposalGalleryCompatible(r, m) {
+		return jx.Copy(r)
+	}
 	n := jx.Copy(r)
 	pick := func(k string) {
 		if v := m[k]; v != nil && jx.ToStr(v) != "" {
@@ -283,10 +360,10 @@ func proposalApply(r, m jx.M) jx.M {
 	pick("video")
 	pick("video_local")
 	pick("image_local")
-	if g := jx.Maps(m, "gallery"); len(g) > 0 {
+	if g := jx.Maps(m, "gallery"); len(g) > 0 && len(g) >= len(ContentGallery(r)) {
 		n["gallery"] = g
 	}
-	n["media_checked"], n["media_cached"] = true, true
+	n["media_checked"], n["media_cached"] = true, jx.Bool(m, "media_cached")
 	return n
 }
 
@@ -355,6 +432,7 @@ func (u *U) ProposalRefetch(image string) (jx.M, bool, error) {
 		return nil, false, &Error{503, "Источник не отвечает, попробуйте позже."}
 	}
 	m = u.proposalCacheMedia(record, m)
+	m["media_cached"] = u.proposalCacheComplete(proposalApply(record, m))
 	if jx.Str(m, "image_local") == "" && jx.Str(m, "video_local") == "" && u.MediaExisting(jx.Str(record, "image_local")) == "" && u.MediaExisting(jx.Str(record, "video_local")) == "" {
 		return nil, false, &Error{502, "Не удалось скачать файл: источник не отдал его."}
 	}
@@ -451,8 +529,8 @@ func (u *U) ProposalBackfillMedia(limit int) int {
 			gone[k] = true
 		case m != nil:
 			c := u.proposalCacheMedia(r, m)
-			if jx.Str(c, "image_local") != "" || jx.Str(c, "video_local") != "" || u.MediaExisting(jx.Str(r, "image_local")) != "" ||
-				u.MediaExisting(jx.Str(r, "video_local")) != "" || jx.Str(r, "image_local") == "" {
+			c["media_cached"] = u.proposalCacheComplete(proposalApply(r, c))
+			if jx.Bool(c, "media_cached") || jx.Str(c, "image_local") != "" || jx.Str(c, "video_local") != "" || len(jx.Maps(c, "gallery")) > 1 {
 				found[k] = c
 			}
 		}
@@ -467,7 +545,11 @@ func (u *U) ProposalBackfillMedia(limit int) int {
 	return u.UpdateHistoryProposals(func(r jx.M) jx.M {
 		k := ContentItemKey(r)
 		if m, ok := found[k]; ok && !jx.Bool(r, "media_cached") {
-			return proposalApply(r, m)
+			next := proposalApply(r, m)
+			if reflect.DeepEqual(r, next) {
+				return nil
+			}
+			return next
 		}
 		if gone[k] && !jx.Bool(r, "media_gone") {
 			n := jx.Copy(r)
