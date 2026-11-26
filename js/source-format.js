@@ -7,30 +7,38 @@ export function sourceEditorText(item,shown){
     if(!item?.text_html||plain!==original)return {text:plain,styled:false};
     const root=new DOMParser().parseFromString(item.text_html,'text/html').body;
     let styled=false;
-    const walk=node=>{
-        if(node.nodeType===3)return node.nodeValue||'';
-        if(node.nodeType!==1||['SCRIPT','STYLE','TEMPLATE','IFRAME','OBJECT'].includes(node.tagName))return '';
-        if(node.tagName==='BR')return '\n';
-        const inner=[...node.childNodes].map(walk).join('');
+    const parts=[];
+    const append=(value,mark='')=>{
+        if(!value)return;
+        const last=parts[parts.length-1];
+        if(last&&last.mark===mark&&!last.link)last.value+=value;
+        else parts.push({value,mark});
+    };
+    const walk=(node,mark='')=>{
+        if(node.nodeType===3){append(node.nodeValue||'',mark);return;}
+        if(node.nodeType!==1||['SCRIPT','STYLE','TEMPLATE','IFRAME','OBJECT'].includes(node.tagName))return;
+        if(node.tagName==='BR'){append('\n');return;}
         if(node.tagName==='A'){
             try{
                 const u=new URL(node.getAttribute('href')||'');
-                if(!['https:','http:'].includes(u.protocol)||!u.hostname||u.username||u.password||u.href.length>2048)return inner;
+                if(!['https:','http:'].includes(u.protocol)||!u.hostname||u.username||u.password||u.href.length>2048)throw Error();
                 const href=u.href.replace(/\(/g,'%28').replace(/\)/g,'%29');
                 const label=(node.textContent||href).replace(/\[/g,'［').replace(/\]/g,'］').replace(/\s*\n\s*/g,' ');
-                if(label===href)return href;
-                styled=true;return '['+label+']('+href+')';
-            }catch{return inner;}
+                // A link must stay a link even inside a bold or italic span.
+                styled=true;
+                parts.push({value:label===href?href:'['+label+']('+href+')',link:true});
+                return;
+            }catch{/* Preserve the visible label, not an unsafe URL. */}
         }
-        const mark=markers[node.tagName];
-        if(mark&&inner.trim()){
-            // The delivery grammar supports non-nested inline spans, one line at a time.
-            styled=true;
-            return inner.split('\n').map(line=>line.trim()?mark+line+mark:line).join('\n');
-        }
-        return ['P','DIV','LI','BLOCKQUOTE'].includes(node.tagName)?inner+'\n':inner;
+        for(const child of node.childNodes)walk(child,markers[node.tagName]||mark);
+        if(['P','DIV','LI','BLOCKQUOTE'].includes(node.tagName))append('\n');
     };
-    const text=[...root.childNodes].map(walk).join('').trim();
+    for(const child of root.childNodes)walk(child);
+    const text=parts.map(({value,mark})=>{
+        if(!mark||!value.trim())return value;
+        styled=true;
+        return value.split('\n').map(line=>line.replace(/^(\s*)(.*?\S)(\s*)$/,(_,a,b,c)=>a+mark+b+mark+c)).join('\n');
+    }).join('').trim();
     return {text:text||plain,styled};
 }
 export function plainStyledText(text){

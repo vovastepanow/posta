@@ -25,6 +25,8 @@ try{
         const {draftPayload}=await import('/js/editor-variants.js');
         const imported=sourceEditorText({text:'Bold\nRead',text_html:'<b>Bold</b><br><a href="https://example.com/a">Read</a>'},'Bold\nRead');
         if(imported.text!=='**Bold**\n[Read](https://example.com/a)'||!imported.styled)throw Error('Rich source import failed');
+        const nested=sourceEditorText({text:'Read now',text_html:'<b><a href="https://example.com/a">Read</a> now</b>'},'Read now');
+        if(nested.text!=='[Read](https://example.com/a) **now**')throw Error('Nested link lost');
         const fallback=draftPayload({text:imported.text,extras:{styled_text:true}},{value:'vk:2',capabilities:{extras:[]}});
         if(fallback.text!=='Bold\nRead (https://example.com/a)'||fallback.extras.styled_text)throw Error('Plain source fallback failed');
         const tg={value:'tg:main',label:'Telegram'};
