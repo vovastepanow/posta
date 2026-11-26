@@ -422,6 +422,16 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 			body = append(body, item.kid(tag).html())
 		}
 		files := rssItemMedia(item)
+		explicit := false
+		for _, f := range files { if f.Medium!="thumbnail" {explicit=true;break} }
+		if !explicit {
+			// Inline HTML is an alternate source only when the feed did
+			// not supply explicit attachments.
+			for _, h := range body {
+				inline := rssHTMLAttachments(h)
+				if len(inline)>0 { files=append(files,inline...);break }
+			}
+		}
 		imageFallback := ""
 		// Lemmy RSS exposes the original as an enclosure and a resized copy as
 		// media:content. They are alternative representations, not an album.
@@ -486,8 +496,8 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 		desc := ""
 		for _, h := range body {
 			if h != "" {
-				desc = CleanHTMLText(h)
-				break
+				desc = rssBodyText(h)
+				if desc!="" { break }
 			}
 		}
 		text := title
@@ -539,7 +549,7 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 			// description; only the former can independently stand alone
 			// when an optional cover image is not part of the text format.
 			for _, tag := range []string{"content:encoded", "content"} {
-				if runeLen(CleanHTMLText(item.kid(tag).html())) >= 800 {
+				if runeLen(rssBodyText(item.kid(tag).html())) >= 800 {
 					p["rss_article_body"] = true
 					break
 				}
