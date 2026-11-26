@@ -94,8 +94,14 @@ func instagramBusinessPosts(data []byte, username string, count int, withText bo
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, err
 	}
+	if count <= 0 {
+		return nil, nil
+	}
 	if !strings.EqualFold(response.Business.Username, username) {
 		return nil, Bad("Instagram: ответ другого профиля.")
+	}
+	if response.Business.Media.Data == nil {
+		return nil, Bad("Instagram: отсутствует список публикаций в ответе API.")
 	}
 	var out []jx.M
 	for _, p := range response.Business.Media.Data {
@@ -110,11 +116,11 @@ func instagramBusinessPosts(data []byte, username string, count int, withText bo
 		image, video := "", ""
 		switch p.MediaType {
 		case "IMAGE", "CAROUSEL_ALBUM":
-			image = p.MediaURL
+			image = publicHTTPS(p.MediaURL)
 		case "VIDEO":
-			image, video = p.ThumbnailURL, p.MediaURL
+			image, video = publicHTTPS(p.ThumbnailURL), publicHTTPS(p.MediaURL)
 		}
-		if image == "" && video == "" && len(p.Children.Data) == 0 && (!withText || runeLen(strings.TrimSpace(p.Caption)) < 120) {
+		if p.MediaType != "IMAGE" && p.MediaType != "VIDEO" && p.MediaType != "CAROUSEL_ALBUM" && image == "" && video == "" && len(p.Children.Data) == 0 && (!withText || runeLen(strings.TrimSpace(p.Caption)) < 120) {
 			continue
 		}
 		post := searchPost("Instagram", "instagram:"+username, "https://www.instagram.com/"+username+"/", trimRunes(p.Caption, 80), p.Caption, image, video, p.Permalink, at)
@@ -122,18 +128,21 @@ func instagramBusinessPosts(data []byte, username string, count int, withText bo
 		for _, child := range p.Children.Data {
 			switch child.MediaType {
 			case "IMAGE":
-				if strings.HasPrefix(child.MediaURL, "https://") {
+				if publicHTTPS(child.MediaURL) != "" {
 					media = append(media, jx.M{"image": child.MediaURL, "video": ""})
 				}
 			case "VIDEO":
-				if strings.HasPrefix(child.MediaURL, "https://") {
-					media = append(media, jx.M{"image": child.ThumbnailURL, "video": child.MediaURL})
+				if publicHTTPS(child.MediaURL) != "" {
+					media = append(media, jx.M{"image": publicHTTPS(child.ThumbnailURL), "video": child.MediaURL})
 				}
 			}
 		}
 		if len(media) > 0 {
 			setPostMedia(post, media)
 			post["text_post"] = false
+		}
+		if (p.MediaType == "IMAGE" && image == "") || (p.MediaType == "VIDEO" && video == "") || (p.MediaType == "CAROUSEL_ALBUM" && (len(media) == 0 || len(media) != len(p.Children.Data))) {
+			post["media_incomplete"], post["text_post"] = true, false
 		}
 		out = append(out, post)
 		if len(out) >= count {
@@ -201,6 +210,12 @@ func facebookPagePosts(data []byte, pageID string, count int, withText bool) ([]
 	}
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, err
+	}
+	if response.Data == nil {
+		return nil, Bad("Facebook: отсутствует список публикаций в ответе API.")
+	}
+	if count <= 0 {
+		return nil, nil
 	}
 	var out []jx.M
 	for _, p := range response.Data {

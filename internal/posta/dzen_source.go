@@ -104,6 +104,9 @@ func dzenChannelPosts(data []byte, channel string, count int, withText bool, at 
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, err
 	}
+	if response.Items == nil {
+		return nil, Bad("Дзен: отсутствует список публикаций в ответе API.")
+	}
 	var out []jx.M
 	for _, p := range response.Items {
 		if p.Publisher != channel {
@@ -129,16 +132,25 @@ func dzenChannelPosts(data []byte, channel string, count int, withText bool, at 
 			image = dzenMediaURL(p.Image)
 		}
 		video := dzenMediaURL(p.Video.ID)
+		hasVideo := p.Video.ID != "" || len(p.Video.Streams) > 0
+		if !dzenVideoStream(video) {
+			for _, stream := range p.Video.Streams {
+				if dzenVideoStream(stream) {
+					video = stream
+					break
+				}
+			}
+		}
 		text := strings.TrimSpace(p.Title + "\n" + p.Text)
-		if posted == 0 || (image == "" && video == "" && (!withText || runeLen(text) < 120)) {
+		if posted == 0 || (image == "" && !hasVideo && (!withText || runeLen(text) < 120)) {
 			continue
 		}
 		post := searchPost("Дзен", "dzen:"+channel, "https://dzen.ru/id/"+channel, p.Title, text, image, "", p.Link, posted)
 		// HLS must go through the video queue, never the direct file downloader.
 		if dzenVideoStream(video) {
 			post["video_via"], post["video_page"], post["text_post"] = "ytdlp", video, false
-		} else if video != "" {
-			post["video_unavailable"] = true
+		} else if hasVideo {
+			post["video_unavailable"], post["media_incomplete"], post["text_post"] = true, true, false
 		}
 		if p.Channel != "" {
 			post["source"] = p.Channel

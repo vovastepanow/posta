@@ -15,7 +15,7 @@ import (
 	"posta/internal/jx"
 )
 
-var redditSourcePath = regexp.MustCompile(`^/r/([A-Za-z0-9_]{3,21})/(?:\.rss)?$`)
+var redditSourcePath = regexp.MustCompile(`^/r/([A-Za-z0-9_]{3,21})(?:/|/\.rss)?$`)
 
 func redditSourceName(raw string) string {
 	u, err := url.Parse(raw)
@@ -129,6 +129,12 @@ func redditListingPosts(data []byte, community string, count int, withText bool)
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, err
 	}
+	if response.Data.Children == nil {
+		return nil, Bad("Reddit: отсутствует список публикаций в ответе API.")
+	}
+	if count <= 0 {
+		return nil, nil
+	}
 	var out []jx.M
 	for _, row := range response.Data.Children {
 		p := row.Data
@@ -142,6 +148,7 @@ func redditListingPosts(data []byte, community string, count int, withText bool)
 				images = append(images, image)
 			}
 		}
+		incomplete := len(p.GalleryData.Items) != len(images)
 		if len(images) == 0 && len(p.Preview.Images) > 0 {
 			images = append(images, html.UnescapeString(p.Preview.Images[0].Source.URL))
 		}
@@ -156,19 +163,26 @@ func redditListingPosts(data []byte, community string, count int, withText bool)
 		if !strings.HasPrefix(video, "https://v.redd.it/") {
 			video = ""
 		}
-		if len(images) == 0 && video == "" && (!withText || runeLen(text) < 120) {
+		if !incomplete && len(images) == 0 && video == "" && (!withText || runeLen(text) < 120) {
 			continue
 		}
 		link := "https://www.reddit.com" + p.Permalink
 		post := searchPost("Reddit", "reddit:"+strings.ToLower(community), "https://www.reddit.com/r/"+community+"/.rss", p.Title, text, "", "", link, int64(p.Created))
 		post["source_sensitive"] = p.Over18
 		if len(images) > 0 {
-			post["image"], post["images"] = images[0], images
+			media := make([]jx.M, 0, len(images))
+			for _, image := range images {
+				media = append(media, jx.M{"image": image})
+			}
+			setPostMedia(post, media)
 		}
 		if video != "" {
 			post["video"] = video
 		}
-		if len(images) > 0 || video != "" {
+		if incomplete {
+			post["media_incomplete"] = true
+		}
+		if incomplete || len(images) > 0 || video != "" {
 			post["text_post"] = false
 		}
 		out = append(out, post)

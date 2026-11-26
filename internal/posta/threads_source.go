@@ -55,6 +55,9 @@ func threadsParse(data []byte) ([]threadsPost, error) {
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, err
 	}
+	if response.Data == nil {
+		return nil, Bad("Threads: отсутствует список публикаций в ответе API.")
+	}
 	return response.Data, nil
 }
 
@@ -102,25 +105,26 @@ func threadsProfilePosts(data []byte, username string, count int, withText bool)
 		image, video := "", ""
 		switch p.MediaType {
 		case "IMAGE":
-			image = p.MediaURL
+			image = publicHTTPS(p.MediaURL)
 		case "VIDEO":
-			image, video = p.ThumbnailURL, p.MediaURL
+			image, video = publicHTTPS(p.ThumbnailURL), publicHTTPS(p.MediaURL)
 		}
 		var media []jx.M
 		if p.MediaType == "CAROUSEL_ALBUM" {
 			for _, child := range p.Children.Data {
-				if !strings.HasPrefix(child.MediaURL, "https://") {
+				if publicHTTPS(child.MediaURL) == "" {
 					continue
 				}
 				switch child.MediaType {
 				case "IMAGE":
 					media = append(media, jx.M{"image": child.MediaURL})
 				case "VIDEO":
-					media = append(media, jx.M{"image": child.ThumbnailURL, "video": child.MediaURL})
+					media = append(media, jx.M{"image": publicHTTPS(child.ThumbnailURL), "video": child.MediaURL})
 				}
 			}
 		}
-		if image == "" && video == "" && len(media) == 0 && (!withText || runeLen(strings.TrimSpace(p.Text)) < 120) {
+		incomplete := (p.MediaType == "IMAGE" && image == "") || (p.MediaType == "VIDEO" && video == "") || (p.MediaType == "CAROUSEL_ALBUM" && (len(media) == 0 || len(media) != len(p.Children.Data)))
+		if !incomplete && image == "" && video == "" && len(media) == 0 && (!withText || runeLen(strings.TrimSpace(p.Text)) < 120) {
 			continue
 		}
 		post := searchPost("Threads", "threads:"+strings.ToLower(username), "https://www.threads.net/@"+strings.ToLower(username), trimRunes(p.Text, 80), p.Text, image, video, p.Permalink, at)
@@ -128,8 +132,8 @@ func threadsProfilePosts(data []byte, username string, count int, withText bool)
 			setPostMedia(post, media)
 			post["text_post"] = false
 		}
-		if p.MediaType == "CAROUSEL_ALBUM" && (len(media) == 0 || len(media) != len(p.Children.Data)) {
-			post["media_incomplete"] = true
+		if incomplete {
+			post["media_incomplete"], post["text_post"] = true, false
 		}
 		out = append(out, post)
 		if len(out) >= count {
