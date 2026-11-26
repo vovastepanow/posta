@@ -2676,3 +2676,39 @@ dialog::backdrop {
 .pe-window>.pe-checks .pe-check{grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;border-color:color-mix(in srgb,var(--danger) 42%,var(--line));background:color-mix(in srgb,var(--danger) 6%,var(--surface));border-left:3px solid var(--danger);padding:8px 11px}
 .pe-window>.pe-checks .pe-check strong{color:var(--danger);grid-column:1;font-size:12px}.pe-window>.pe-checks .pe-check span{grid-column:1/-1;font-size:13px;line-height:1.4}.pe-window>.pe-checks .pe-check button{grid-column:2;grid-row:1}
 @media(max-width:720px){.pe-window>.pe-checks{max-height:110px}.pe-attachment-toolbar{gap:5px}}
+
+/* Composer layout: independent content/settings columns, fixed validation and actions. */
+.pe-window{width:min(1200px,100%);height:94dvh;max-height:calc(100dvh - 32px);gap:12px;padding:20px 22px 16px}
+.pe-window>.pe-body{grid-template-columns:minmax(0,2fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);align-content:stretch;gap:18px;overflow:hidden;padding:0;scrollbar-gutter:auto}
+.pe-compose-column,.pe-settings-column{display:flex;flex-direction:column;gap:14px;min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:1px 6px 8px 1px}
+.pe-settings-column{border-left:1px solid var(--line);padding-left:18px}
+.pe-compose-column>.pe-section,.pe-settings-column>.pe-section,.pe-chips>.pe-section{flex:none;min-width:0;padding:0 0 14px;border-bottom:1px solid var(--line)}
+.pe-compose-column>.pe-section:last-child,.pe-settings-column>.pe-section:last-child{border-bottom:0}
+.pe-window .pe-section-head h3{font-size:14px;color:var(--text)}
+.pe-window .pe-text{min-height:clamp(150px,25dvh,280px);resize:vertical}
+.pe-window .pe-grid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.pe-window .pe-card,.pe-window .pe-add{aspect-ratio:4/3}
+.pe-window .pe-chips{display:flex;flex-direction:column;gap:14px;margin:0;min-width:0}
+.pe-destination-list{display:grid;gap:5px;min-width:0;max-height:220px;overflow:auto;scrollbar-width:thin}
+.pe-destination-list .pe-target-option{justify-content:space-between;border:1px solid var(--line);border-radius:8px;min-width:0;padding:9px 11px}
+.pe-destination-list .pe-target-option:has(input:checked){background:var(--surface-2);border-color:var(--line-strong)}
+.pe-target-name{overflow-wrap:anywhere;min-width:0}
+.pe-target-count{color:var(--muted);font-size:12px;font-weight:400;white-space:nowrap}
+.pe-timing-section .pe-target{display:flex;flex-direction:column;min-width:0}
+.pe-timing-section .pe-chip{width:100%;border-radius:8px;justify-content:space-between;text-align:left;white-space:normal;box-sizing:border-box}
+.pe-timing-section .pe-chip strong{overflow-wrap:anywhere;min-width:0}
+.pe-timing-section .pe-target-menu{position:static;width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.pe-window>.pe-demo-error{flex:none;min-width:0;gap:3px;padding:8px 11px;border:1px solid color-mix(in srgb,var(--danger) 42%,var(--line));border-left:3px solid var(--danger);background:color-mix(in srgb,var(--danger) 6%,var(--surface))}
+.pe-demo-error strong{color:var(--danger);font-size:12px}
+.pe-window>.pe-checks{max-height:min(100px,14dvh)}
+.pe-window>.pe-footer{flex:none;padding-top:10px}
+@media(max-width:820px){
+  .pe-window{width:100%;height:100dvh;max-height:100dvh;padding:14px;gap:10px}
+  .pe-overlay{padding:0}
+  .pe-window>.pe-body{display:flex;flex-direction:column;gap:16px;overflow:auto;scrollbar-width:thin}
+  .pe-compose-column,.pe-settings-column{overflow:visible;flex:none;min-height:auto;padding:0;gap:12px}
+  .pe-settings-column{order:-1;border-left:0;border-bottom:1px solid var(--line);padding-bottom:12px}
+  .pe-destination-list{max-height:150px}
+  .pe-window .pe-text{min-height:200px}
+  .pe-window>.pe-demo-error{padding:6px 9px}
+}

@@ -171,9 +171,15 @@ function buildUi() {
     u.extraSection=el('section',{className:'pe-section pe-extra-section'},el('div',{className:'pe-section-head'},el('h3',{textContent:'Настройки публикации'})),u.extras,u.buttons);
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
-        u.chips,u.variantBar,
-        el('div', { className: 'pe-body' }, u.textSection, u.mediaSection, u.extraSection),
-        u.checks,u.warning,
+        el('div', { className: 'pe-body' },
+            el('div', { className: 'pe-compose-column' }, u.variantBar, u.textSection, u.mediaSection),
+            el('aside', { className: 'pe-settings-column', ariaLabel: 'Параметры публикации' }, u.chips, u.extraSection)),
+        u.checks,
+        // Temporary visual fixture only. Never participates in draft validation or submission.
+        el('div', { className: 'pe-check is-error pe-demo-error' },
+            el('strong', { textContent: 'Публикация невозможна · демонстрация' }),
+            el('span', { textContent: 'Одноклассники · выбранный тип вложения не поддерживается' })),
+        u.warning,
         u.progress,
         el('footer', { className: 'pe-footer' }, u.summary, el('div', { className: 'pe-actions' }, reset, u.cancel, u.submit)));
     u.overlay = el('div', { className: 'pe-overlay', hidden: true }, u.form);
@@ -594,19 +600,16 @@ const targetLabel = o => {
 /** Чип «Куда»: один ресурс — подпись; несколько — меню с галочками, отметить можно любые, хотя бы один остаётся. */
 function targetChip(o) {
     if (!o.targets.length) return chip('Куда', 'Нет ресурсов');
-    const label = el('strong', { textContent: `${targetLabel(o)} ▾` });
+    const label = el('strong', { className: 'pe-target-count', textContent: targetLabel(o) });
     const boxes = o.targets.map(t => {
         const box = el('input', { type: 'checkbox', checked: o.picked.includes(t.value) });
         box.addEventListener('change', () => togglePicked(t.value, box));
-        return el('label', { className: 'pe-target-option' }, box, el('span', { textContent: t.label }));
+        return el('label', { className: 'pe-target-option' }, el('span', { className: 'pe-target-name', textContent: t.label }), box);
     });
-    const menu = el('div', { className: 'pe-target-menu', role: 'menu', hidden: true }, ...boxes);
-    menu.addEventListener('click', e => e.stopPropagation());   // клик по галочке не закрывает меню
-    const button = el('button', { type: 'button', className: 'pe-chip pe-chip-target', title: 'Выбрать ресурсы' },
-        el('span', { className: 'pe-chip-label', textContent: 'Куда' }), label);
-    button.onclick = e => { e.stopPropagation(); menu.hidden = !menu.hidden; ui.targetMenu = menu; };
     ui.targetLabel = label;
-    return el('span', { className: 'pe-target' }, button, menu);
+    return el('section', { className: 'pe-section pe-destination-section' },
+        el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Куда публикуем' }), label),
+        el('div', { className: 'pe-destination-list' }, ...boxes));
 }
 
 /** Галочка в меню «Куда»: меню остаётся открытым; последний выбранный ресурс снять нельзя. */
@@ -620,7 +623,7 @@ function togglePicked(value, box) {
     if(session.editTarget&&!o.picked.includes(session.editTarget))loadEditorDraft('',session.base);
     if (o.picked.some(v => !v.startsWith('tg:')) && o.mode === 'native') o.mode = 'queue';
     if (o.mode === 'slot' && !o.picked.every(v => o.schedule?.slots(v))) o.mode = 'queue';
-    ui.targetLabel.textContent = `${targetLabel(o)} ▾`;
+    ui.targetLabel.textContent = targetLabel(o);
     const whenText = ui.chips.querySelector('.pe-chip-when strong');
     if (whenText) whenText.textContent = whenLabel(o);
     render();
@@ -734,7 +737,9 @@ function whenChip(o) {
 
 function renderWhen() {
     const o = session.options;
-    ui.chips.replaceChildren(targetChip(o), o.editing ? chip('Когда', whenLabel(o)) : whenChip(o));
+    ui.chips.replaceChildren(targetChip(o), el('section', { className: 'pe-section pe-timing-section' },
+        el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Публикация' })),
+        o.editing ? chip('Когда', whenLabel(o)) : whenChip(o)));
     ui.title.textContent = o.editing ? 'Редактирование поста' : o.scheduledTs ? 'Отложенный пост' : 'Новый пост';
     ui.submit.textContent = o.editing ? 'Сохранить' : o.scheduledTs ? 'Запланировать' : 'Запостить';
 }

@@ -29,6 +29,11 @@ try{
     const text=page.locator('.pe-text');
     await text.waitFor({state:'visible'});
     assert.equal(await text.inputValue(),'Общий текст');
+    assert.equal(await page.locator('.pe-demo-error').isVisible(),true);
+    assert.equal(await page.locator('.pe-settings-column .pe-target-option').count(),2);
+    assert.equal(await page.locator('.pe-compose-column .pe-attachment-section').count(),1);
+    const desktop=await page.locator('.pe-window').evaluate(e=>({height:e.getBoundingClientRect().height,bodyOverflow:getComputedStyle(e.querySelector('.pe-body')).overflowY,left:e.querySelector('.pe-compose-column').getBoundingClientRect().left,right:e.querySelector('.pe-settings-column').getBoundingClientRect().left,footer:e.querySelector('.pe-footer').getBoundingClientRect().bottom,bottom:e.getBoundingClientRect().bottom}));
+    assert.ok(desktop.height>=830&&desktop.bodyOverflow==='hidden'&&desktop.left<desktop.right&&desktop.footer<=desktop.bottom,JSON.stringify(desktop));
     assert.equal(await page.locator('.pe-checks').isVisible(),false);
     assert.equal(await page.locator('.pe-attachment-section h3').first().textContent(),'Вложения');
     assert.equal(await page.locator('.pe-attachment-section .pe-chip-poll').count(),1);
@@ -77,6 +82,7 @@ try{
     await page.setViewportSize({width:390,height:844});
     const bounds=await page.locator('.pe-window').evaluate(e=>({width:e.getBoundingClientRect().width,scroll:e.scrollWidth,client:e.clientWidth,body:e.querySelector('.pe-body').scrollWidth,bodyClient:e.querySelector('.pe-body').clientWidth}));
     assert.ok(bounds.width<=391&&bounds.scroll<=bounds.client+2&&bounds.body<=bounds.bodyClient+2,JSON.stringify(bounds));
+    assert.equal(await page.locator('.pe-demo-error').isVisible(),true);
     await page.locator('.pe-btn-primary').click();
     await page.waitForFunction(()=>window.result!==null);
     const post=await page.evaluate(()=>window.result);
