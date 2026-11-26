@@ -103,7 +103,8 @@ const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || 
 const fileKind = f => /\.tgs$/i.test(f.name) ? 'sticker' : /\.(pdf|txt|csv|zip|docx|xlsx|pptx)$/i.test(f.name) || f.type==='application/pdf' ? 'document' : /\.(ogg|opus)$/i.test(f.name) ? 'voice' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
 const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null,signed:!!e?.signed,close_comments:!!e?.close_comments,mark_as_ads:!!e?.mark_as_ads,copyright:e?.copyright||'',link_attachment:e?.link_attachment||'',vk_geo:e?.vk_geo||'',alt_text:e?.alt_text||'',topic_tag:e?.topic_tag||'',yt_privacy:e?.yt_privacy||'',yt_audience:e?.yt_audience||'',yt_tags:e?.yt_tags||'',yt_category:e?.yt_category||'',yt_license:e?.yt_license||'',styled_text:!!e?.styled_text,max_sticker:e?.max_sticker||'',first_comment:e?.first_comment||'',paid_partnership:!!e?.paid_partnership,made_with_ai:!!e?.made_with_ai,x_reply_settings:e?.x_reply_settings||'',ig_story:!!e?.ig_story,ig_cover_seconds:e?.ig_cover_seconds||''});
 const EXTRA_LABELS = {ig_story:'Опубликовать как Stories (без подписи)',silent:'Без звукового уведомления',protect:'Запретить пересылку и сохранение',spoiler:'Скрыть медиа под спойлером',signed:'Подписать запись именем автора VK',close_comments:'Закрыть комментарии',mark_as_ads:'Отметить запись VK как рекламу',paid_partnership:'Платное партнёрство X',made_with_ai:'Медиа созданы с ИИ (X)'};
-const EXTRA_TEXT_LABELS={ig_cover_seconds:'Кадр обложки Reels (секунды)',copyright:'Источник VK (URL)',link_attachment:'Вложение-ссылка',vk_geo:'Координаты VK (широта, долгота)',alt_text:'Описание фото для доступности',topic_tag:'Тема Threads',yt_tags:'Теги YouTube через запятую',yt_category:'ID категории YouTube',max_sticker:'Код стикера MAX'};
+const ATTACHMENT_EXTRA_KEYS=new Set(['location','contact','max_sticker','video_cover','styled_text']);
+const EXTRA_TEXT_LABELS={ig_cover_seconds:'Кадр обложки Reels (секунды)',copyright:'Источник VK (URL)',link_attachment:'Вложение-ссылка',vk_geo:'Координаты VK (широта, долгота)',alt_text:'Описание фото для доступности',topic_tag:'Тема Threads',yt_tags:'Теги YouTube через запятую',yt_category:'ID категории YouTube'};
 const EXTRA_SELECTS={yt_privacy:['Видимость YouTube',[['','Настройка канала'],['private','Закрытый доступ'],['unlisted','По ссылке'],['public','Публичный']]],yt_audience:['Аудитория YouTube',[['','По умолчанию'],['kids','Для детей'],['not_kids','Не для детей']]],yt_license:['Лицензия YouTube',[['','По умолчанию'],['youtube','Стандартная'],['creativeCommon','Creative Commons']]],x_reply_settings:['Кто может отвечать в X',[['','Все'],['following','Подписки'],['mentionedUsers','Упомянутые'],['subscribers','Подписчики'],['verified','Верифицированные']]]};
 const KIND_LABELS = {photo:'Фото', animation:'GIF', video:'Видео', audio:'Аудио', document:'Документ', voice:'Голосовое',sticker:'Стикер (WEBP/TGS/WEBM)',video_note:'Видеокружок'};
 const fileAccept = {photo:'image/jpeg,image/png,image/webp,image/bmp,image/heic,image/avif', animation:'image/gif', video:'video/*', audio:'.mp3,.m4a,audio/mpeg,audio/mp4', document:'.pdf,.txt,.csv,.zip,.docx,.xlsx,.pptx', voice:'.ogg,.opus,audio/ogg',sticker:'.webp,.tgs,.webm,image/webp,video/webm',video_note:'.mp4,video/mp4'};
@@ -115,7 +116,7 @@ function buildUi() {
         close: button('pe-close', '✕', closeEditor, { ariaLabel: 'Закрыть' }), count: el('span', { className: 'pe-count' }), grid: el('div', { className: 'pe-grid' }),
         file: el('input', { type: 'file', accept: 'image/*,video/*', multiple: true, hidden: true }), url: el('input', { type: 'url', className: 'pe-input', placeholder: 'Ссылка на медиа: https://…' }),
         note: el('p', { className: 'pe-note' }), text: el('textarea', { className: 'pe-text', rows: 8, placeholder: 'Текст поста…', spellcheck: true }),
-        counter: el('span', { className: 'pe-counter' }), summary: el('span', { className: 'pe-summary' }), extras: el('div',{className:'pe-extras-fields'}), buttons: el('div',{className:'pe-button-rows'}), cards:el('div',{className:'pe-extra-cards'}), checks: el('div', { className: 'pe-checks', role: 'status' }), warning: el('p', { className: 'pe-warning', role: 'alert', hidden: true }),
+        counter: el('span', { className: 'pe-counter' }), summary: el('span', { className: 'pe-summary' }), extras: el('div',{className:'pe-extras-fields'}), buttons: el('div',{className:'pe-button-rows'}), cards:el('div',{className:'pe-extra-cards'}), checks: el('div', { className: 'pe-checks', role: 'status', hidden: true }), pollToggle:button('pe-btn pe-attachment pe-chip-poll','+ Опрос',togglePoll), warning: el('p', { className: 'pe-warning', role: 'alert', hidden: true }),
         original: button('pe-chip-btn', 'Текст оригинала', () => setText(session.options.original)),
         description: button('pe-chip-btn', 'Описание ИИ', () => setText(session.options.description)),
         aiButton: button('pe-chip-btn pe-chip-ai', '✨ Подпись от ИИ', aiCaption, { title: 'ИИ напишет подпись в стиле канала; если в поле уже есть ваш текст — улучшит его' }),
@@ -144,8 +145,12 @@ function buildUi() {
         u.note.textContent = '';
         render();
     });
-    u.mediaSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Медиа' }), u.count), u.attachments, u.grid,
-        el('div', { className: 'pe-url-row' }, u.url, button('pe-btn pe-btn-ghost', 'Добавить по ссылке', addByUrl)), u.note, u.file);
+    u.fileArea=el('div',{className:'pe-file-area'},u.grid,
+        el('div', { className: 'pe-url-row' }, u.url, button('pe-btn pe-btn-ghost', 'Добавить по ссылке', addByUrl)),u.file);
+    u.cardActions=el('div',{className:'pe-card-actions'});
+    u.attachmentHelp=el('p',{className:'pe-poll-help',hidden:true});
+    u.mediaSection = el('section', { className: 'pe-section pe-attachment-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Вложения' }), u.count),
+        el('div',{className:'pe-attachment-toolbar'},u.attachments,u.pollToggle,u.cardActions),u.attachmentHelp,u.fileArea,u.cards,u.note);
     u.learnButton = button('pe-chip-btn', 'Изучить по постам', learnStyle, { title: 'ИИ прочитает последние посты канала и опишет манеру письма (один раз, пара минут)' });
     u.styleBox = el('details', { className: 'pe-style' }, el('summary', { textContent: 'Стиль канала' }), u.styleText,
         el('div', { className: 'pe-chip-row' }, button('pe-chip-btn', 'Сохранить стиль', saveStyle), u.learnButton), u.styleNote);
@@ -157,17 +162,18 @@ function buildUi() {
         button('pe-chip-btn pe-format-action','Ссылка',insertTextLink,{title:'Ссылка с названием'}));
     u.textSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Текст' }), u.counter), u.formatBar,u.text,u.formatPreview,
         el('div', { className: 'pe-chip-row' }, u.original, u.description, u.aiButton, u.excerptButton, button('pe-chip-btn', 'Очистить', () => setText(''))), u.aiNote, u.tags, u.styleBox);
-    u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), el('p',{className:'pe-poll-help',textContent:'Отдельный опрос или опрос с текстом и медиа для VK и OK.'}),el('label',{className:'pe-poll-setting'},u.withContent,el('span',{textContent:'Добавить текст и медиа к опросу'})), u.question, u.pollOptions, u.addOption, el('label', {className:'pe-poll-setting'}, u.multiple, el('span', {textContent:'Разрешить несколько вариантов ответа'})), el('label',{className:'pe-poll-duration',hidden:true},el('span',{textContent:'Длительность опроса в X'}),u.duration),
+    u.pollSection = el('div', { className: 'pe-section pe-attachment-detail', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), el('p',{className:'pe-poll-help',textContent:'Отдельный опрос или опрос с текстом и медиа для VK и OK.'}),el('label',{className:'pe-poll-setting'},u.withContent,el('span',{textContent:'Добавить текст и медиа к опросу'})), u.question, u.pollOptions, u.addOption, el('label', {className:'pe-poll-setting'}, u.multiple, el('span', {textContent:'Разрешить несколько вариантов ответа'})), el('label',{className:'pe-poll-duration',hidden:true},el('span',{textContent:'Длительность опроса в X'}),u.duration),
         el('label',{className:'pe-poll-setting'},u.publicPoll,el('span',{textContent:'Публичное голосование'})),
         el('label',{className:'pe-poll-duration'},el('span',{textContent:'Закрыть голосование через'}),u.closePoll),
         el('label',{className:'pe-poll-setting'},u.quiz,el('span',{textContent:'Викторина'})),
         el('label',{className:'pe-poll-duration'},el('span',{textContent:'Правильный ответ'}),u.correct),u.explanation);
-    u.extraSection=el('section',{className:'pe-section pe-extra-section'},el('div',{className:'pe-section-head'},el('h3',{textContent:'Дополнения и настройки публикации'})),u.extras,u.buttons,u.cards);
+    u.mediaSection.insertBefore(u.pollSection,u.note);
+    u.extraSection=el('section',{className:'pe-section pe-extra-section'},el('div',{className:'pe-section-head'},el('h3',{textContent:'Настройки публикации'})),u.extras,u.buttons);
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
         u.chips,u.variantBar,
-        el('div', { className: 'pe-body' }, u.textSection, u.mediaSection, u.pollSection, u.extraSection, el('section', { className: 'pe-section pe-compatibility' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Проверка площадок' })), u.checks)),
-        u.warning,
+        el('div', { className: 'pe-body' }, u.textSection, u.mediaSection, u.extraSection),
+        u.checks,u.warning,
         u.progress,
         el('footer', { className: 'pe-footer' }, u.summary, el('div', { className: 'pe-actions' }, reset, u.cancel, u.submit)));
     u.overlay = el('div', { className: 'pe-overlay', hidden: true }, u.form);
@@ -386,7 +392,8 @@ function render() {
     const allowed = caps.kinds.filter(kind => media.length<maxMedia && !attachmentError(selectedTargets(), media, {kind}));
     const accept = allowed.map(k => fileAccept[k]).filter(Boolean);
     ui.file.accept = accept.join(',');
-    const mediaChanged = session.renderedMedia?.length !== media.length || media.some((m,i) => m !== session.renderedMedia?.[i]) || session.renderedAllowed !== accept.join(',') || session.renderedCoverAllowed!==JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story,session.extras.ig_cover_seconds]);
+    const isExclusive=Boolean(poll&&!poll.with_content)||(!poll&&standaloneExtra(session.extras));
+    const mediaChanged = session.renderedExclusive!==isExclusive || session.renderedMedia?.length !== media.length || media.some((m,i) => m !== session.renderedMedia?.[i]) || session.renderedAllowed !== accept.join(',') || session.renderedCoverAllowed!==JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story,session.extras.ig_cover_seconds]);
     if (mediaChanged) ui.attachments.replaceChildren(...Object.entries(KIND_LABELS).map(([kind,label]) => {
         const enabled = allowed.includes(kind) && media.length < caps.mediaMax;
         return button('pe-btn pe-attachment', '+ ' + label, () => { ui.file.dataset.kind=kind;ui.file.accept = fileAccept[kind]; ui.file.click(); }, {disabled:!enabled,title:enabled ? 'Добавить: ' + label : 'Недоступно для выбранных ресурсов или состава поста'});
@@ -394,14 +401,25 @@ function render() {
     const canAdd = allowed.length > 0 && media.length < caps.mediaMax;
     ui.url.disabled = !canAdd;
     ui.mediaSection.querySelector('.pe-url-row button').disabled = !canAdd;
-    const pollToggle = ui.chips.querySelector('.pe-chip-poll');
-    if (pollToggle) {
-        pollToggle.disabled = !poll && !caps.poll;
-        pollToggle.title = caps.poll ? 'Опрос вместо текста и медиа' : 'Опрос доступен только при поддержке всеми выбранными ресурсами';
-    }
     const standalone=!poll&&standaloneExtra(session.extras);
+    const exclusive=Boolean(poll&&!poll.with_content)||standalone;
+    ui.pollToggle.disabled=!poll&&(!caps.poll||standalone);
+    ui.pollToggle.textContent=poll?'Опрос ×':'+ Опрос';
+    ui.pollToggle.classList.toggle('is-on',!!poll);
+    ui.pollToggle.setAttribute('aria-pressed',String(!!poll));
+    ui.pollToggle.title=standalone?'Сначала уберите отдельную карточку.':caps.poll?'Добавить или убрать опрос':'Опрос не поддерживается выбранными ресурсами';
+    ui.attachments.querySelectorAll('button').forEach(b=>{if(exclusive)b.disabled=true;});
+    ui.fileArea.hidden=exclusive;
+    ui.count.hidden=exclusive;
+    ui.attachmentHelp.hidden=!exclusive;
+    ui.attachmentHelp.textContent=exclusive?'Текст и файлы сохранены в черновике. Уберите отдельное вложение, чтобы вернуться к ним.':'';
     const problems = allSelectedTargets().map(t=>({label:t.label,value:t.value,custom:Object.hasOwn(session.variants,t.value),error:draftProblem(t,draftFor(session.base,session.variants,t.value))}));
-    ui.checks.replaceChildren(...problems.map(p => el('div', { className: 'pe-check' + (p.error ? ' is-error' : '') }, el('strong', { textContent: p.label+(p.custom?' · свой вариант':'') }), el('span', { textContent: p.error || '✓ Формат совместим' }),options.picked.length>1?button('pe-chip-btn','Изменить',()=>switchVariant(p.value),{ariaLabel:'Изменить '+p.label,disabled:!!ui.aiBusy}):null)));
+    const errors=problems.filter(p=>p.error);
+    ui.checks.hidden=!errors.length&&problems.length>0;
+    ui.checks.replaceChildren(...(problems.length?errors.map(p=>el('div',{className:'pe-check is-error'},
+        el('strong',{textContent:p.label+(p.custom?' · свой вариант':'')}),
+        el('span',{textContent:p.error}),
+        options.picked.length>1?button('pe-chip-btn','Исправить',()=>switchVariant(p.value),{ariaLabel:'Изменить '+p.label,disabled:!!ui.aiBusy}):null)): [el('div',{className:'pe-check is-error',textContent:'Выберите ресурс для публикации.'})]));
 
     updateExtraAvailability();
     renderFormatting();
@@ -412,11 +430,11 @@ function render() {
     if (mediaChanged) { ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
         media.length ? '' : el('div', { className: 'pe-empty', textContent: 'Перетащите файлы сюда или выберите тип вложения выше' }),
         el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { delete ui.file.dataset.kind;ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
-        session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');session.renderedCoverAllowed=JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story,session.extras.ig_cover_seconds]);
+        session.renderedExclusive=isExclusive;session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');session.renderedCoverAllowed=JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story,session.extras.ig_cover_seconds]);
     }
     ui.count.textContent = `${media.length} / ${maxMedia}`;
-    ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll&&!poll.with_content)||standalone;
-    ui.extraSection.hidden = Boolean(poll)||(!selectedTargets().some(t=>targetCapabilities(t)?.extras?.some(k=>k!=='styled_text'))&&!EXTRA_KEYS.some(k=>k!=='styled_text'&&extraActive(session.extras,k)));
+    ui.textSection.hidden = exclusive;
+    ui.extraSection.hidden = Boolean(poll)||(!selectedTargets().some(t=>targetCapabilities(t)?.extras?.some(k=>!ATTACHMENT_EXTRA_KEYS.has(k)))&&!EXTRA_KEYS.some(k=>!ATTACHMENT_EXTRA_KEYS.has(k)&&extraActive(session.extras,k)));
     if (poll) {
         ui.withContent.disabled=!poll.with_content&&!pollLimits?.with_content;
         ui.addOption.disabled = !pollLimits || poll.options.length >= pollLimits.options_max;
@@ -442,8 +460,8 @@ function render() {
     ui.counter.textContent = `${length} / ${limit}`;
     ui.counter.classList.toggle('is-over', over);
     ui.submit.disabled = blocked || session.busy || ui.aiBusy;
-    ui.warning.hidden = !blocked;
-    ui.warning.textContent = empty ? 'Добавьте медиа или текст.' : over ? `Текст длиннее лимита: ${length} из ${limit}.` : 'Исправьте несовместимость в блоке проверки площадок.';
+    ui.warning.hidden = true;
+    ui.warning.textContent = '';
     if(standalone){ui.summary.textContent=session.extras.location?'Геолокация':session.extras.max_sticker?'Стикер MAX':'Карточка контакта';return;}
     ui.summary.textContent = `${media.length} медиа · ${text.length} ${pluralRu(text.length, 'символ', 'символа', 'символов')} · ${options.picked.length} ${pluralRu(options.picked.length, 'ресурс', 'ресурса', 'ресурсов')}`;
     ui.original.disabled = !options.original;
@@ -475,22 +493,23 @@ function renderExtras(){
 }
 function renderExtraCards(){
     const extra=session.extras;
-    const actions=el('div',{className:'pe-chip-row'},...Object.entries({location:'Геолокация',contact:'Контакт'}).map(([key,label])=>{
-        const b=button('pe-btn pe-card-toggle',extra[key]?'✕ '+label:'+ '+label,()=>{
+    ui.cardActions.replaceChildren(...Object.entries({location:'Геолокация',contact:'Контакт'}).map(([key,label])=>{
+        const b=button('pe-btn pe-attachment pe-card-toggle'+(extra[key]?' is-on':''),extra[key]?label+' ×':'+ '+label,()=>{
             if(extra[key])extra[key]=null;
             else {
-                if(standaloneExtra(extra))return;
+                if(session.poll||standaloneExtra(extra))return;
                 extra[key]=key==='location'?{latitude:'',longitude:''}:{first_name:'',last_name:'',phone:''};
             }
             renderExtraCards();render();
         });
-        b.dataset.extraCard=key;return b;
+        b.dataset.extraCard=key;b.setAttribute('aria-pressed',String(!!extra[key]));return b;
     }));
     const fields=[];
     if(extra.location)fields.push(['latitude','Широта',extra.location],['longitude','Долгота',extra.location]);
     if(extra.contact)fields.push(['first_name','Имя',extra.contact],['last_name','Фамилия (необязательно)',extra.contact],['phone','Телефон +…',extra.contact]);
-    ui.cards.replaceChildren(actions,...(fields.length?[el('p',{className:'pe-poll-help',textContent:'Карточка будет опубликована отдельно. Исходные текст и медиа сохраняются в редакторе до выключения карточки.'})]:[]),
-        ...fields.map(([key,label,object])=>el('label',{className:'pe-card-field'},el('span',{textContent:label}),el('input',{className:'pe-input',value:String(object[key]??''),oninput:e=>{object[key]=e.target.value;render();}}))));
+    const sticker=el('input',{className:'pe-input',value:extra.max_sticker,placeholder:'Код стикера MAX',ariaLabel:'Код стикера MAX',oninput:e=>{extra.max_sticker=e.target.value;render();}});
+    ui.cards.replaceChildren(...fields.map(([key,label,object])=>el('label',{className:'pe-card-field'},el('span',{textContent:label}),el('input',{className:'pe-input',ariaLabel:label,value:String(object[key]??''),oninput:e=>{object[key]=e.target.value;render();}}))),
+        el('label',{className:'pe-card-field pe-max-sticker'},el('span',{textContent:'Стикер MAX'}),sticker));
 }
 function renderExtraButtons(){
     ui.buttons.replaceChildren(el('div',{className:'pe-section-head'},el('h3',{textContent:'Кнопки-ссылки'}),button('pe-chip-btn pe-add-link','+ Кнопка',()=>{session.extras.buttons.push({text:'',url:''});renderExtraButtons();render();})),
@@ -514,9 +533,12 @@ function updateExtraAvailability(){
     }
     const preview=ui.extras.querySelector('select');const reason=availability('preview');preview.disabled=!!reason&&!extraActive(session.extras,'preview');preview.closest('label').title=reason;preview.closest('label').hidden=!supported('preview')&&!extraActive(session.extras,'preview');
     ui.buttons.hidden=!supported('buttons')&&!session.extras.buttons.length;
-    ui.cards.hidden=!['location','contact'].some(supported)&&!session.extras.location&&!session.extras.contact;
+    const stickerField=ui.cards.querySelector('.pe-max-sticker');
+    stickerField.hidden=(!supported('max_sticker')&&!session.extras.max_sticker)||!!session.poll;
+    stickerField.querySelector('input').disabled=!session.extras.max_sticker&&(!!availability('max_sticker')||!!session.extras.location||!!session.extras.contact);
+    ui.cards.hidden=!(session.extras.location||session.extras.contact||!stickerField.hidden);
     const add=ui.buttons.querySelector('.pe-add-link');add.disabled=!!availability('buttons')||standaloneExtra(session.extras)||session.extras.buttons.length>=8;add.title=availability('buttons');
-    for(const b of ui.cards.querySelectorAll('[data-extra-card]')){
+    for(const b of ui.cardActions.querySelectorAll('[data-extra-card]')){
         const key=b.dataset.extraCard;const reason=availability(key);
         b.disabled=!session.extras[key]&&(!!reason||standaloneExtra(session.extras));b.title=reason;b.hidden=!supported(key)&&!session.extras[key];
     }
@@ -595,7 +617,7 @@ function togglePicked(value, box) {
     if (!picked.length) { box.checked = true; return; }
     syncEditorDraft();
     o.picked = o.targets.map(t => t.value).filter(v => picked.includes(v));
-    if(session.editTarget&&!o.picked.includes(session.editTarget)){loadEditorDraft('',session.base);ui.chips.querySelector('.pe-chip-poll')?.replaceWith(pollChip());}
+    if(session.editTarget&&!o.picked.includes(session.editTarget))loadEditorDraft('',session.base);
     if (o.picked.some(v => !v.startsWith('tg:')) && o.mode === 'native') o.mode = 'queue';
     if (o.mode === 'slot' && !o.picked.every(v => o.schedule?.slots(v))) o.mode = 'queue';
     ui.targetLabel.textContent = `${targetLabel(o)} ▾`;
@@ -608,7 +630,7 @@ function togglePicked(value, box) {
 /** Опрос вместо поста: медиа и текст скрываются, открываются вопрос и варианты. Через «Отложенные» Telegram опрос не ставится. */
 function togglePoll() {
     const o = session.options;
-    if (!session.poll && !currentCapabilities().poll) return;
+    if (!session.poll && (!currentCapabilities().poll||standaloneExtra(session.extras))) return;
     session.poll = session.poll ? null : { question: '', options: ['', ''], multiple:false };
     if (session.poll && o.mode === 'native') o.mode = 'queue';
     renderPoll();
@@ -650,15 +672,9 @@ function renderPollState(poll, blocked) {
     const filled = poll.options.map(v => v.trim()).filter(Boolean);
     const ready = poll.question.trim() !== '' && filled.length >= 2;
     ui.submit.disabled = blocked || session.busy || ui.aiBusy;
-    ui.warning.hidden = !blocked;
-    ui.warning.textContent = blocked ? 'Проверьте ограничения опроса для выбранных площадок.' : 'Напишите вопрос и минимум два варианта ответа.';
+    ui.warning.hidden = true;
+    ui.warning.textContent = '';
     ui.summary.textContent = `Опрос · ${filled.length} ${pluralRu(filled.length, 'вариант', 'варианта', 'вариантов')}`;
-}
-
-/** Переключатель «Опрос» в строке чипов. */
-function pollChip() {
-    const on = Boolean(session.poll);
-    return el('button', { type: 'button', className: `pe-chip pe-chip-poll${on ? ' is-on' : ''}`, title: 'Опрос вместо текста и медиа', textContent: on ? '📊 Опрос ✕' : '📊 Опрос', onclick: togglePoll });
 }
 
 /** «Куда / Когда»; «Когда» открывает то же окно выбора времени. */
@@ -718,7 +734,7 @@ function whenChip(o) {
 
 function renderWhen() {
     const o = session.options;
-    ui.chips.replaceChildren(targetChip(o), o.editing ? chip('Когда', whenLabel(o)) : whenChip(o), pollChip());
+    ui.chips.replaceChildren(targetChip(o), o.editing ? chip('Когда', whenLabel(o)) : whenChip(o));
     ui.title.textContent = o.editing ? 'Редактирование поста' : o.scheduledTs ? 'Отложенный пост' : 'Новый пост';
     ui.submit.textContent = o.editing ? 'Сохранить' : o.scheduledTs ? 'Запланировать' : 'Запостить';
 }
@@ -761,7 +777,7 @@ async function submit(e) {
         ui.progress.hidden = true;
         ui.variantBar.inert=false;ui.chips.inert = false; ui.form.querySelector('.pe-body').inert = false;
         ui.close.disabled = false; ui.form.querySelector('.pe-actions .pe-btn-ghost').disabled = false;
-        if (session) { session.busy = false; const message = ui.warning.textContent; render(); ui.warning.hidden = false; ui.warning.textContent = message; }
+        if (session) { session.busy = false; const message = ui.warning.textContent; render(); ui.warning.hidden = !message; ui.warning.textContent = message; }
     }
 }
 

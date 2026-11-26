@@ -2664,3 +2664,15 @@ dialog::backdrop {
 .pe-variant-bar{display:flex;flex:none;flex-wrap:nowrap;overflow-x:auto;max-width:100%;min-width:0;gap:6px;align-items:center;padding:5px 0;scrollbar-width:thin}.pe-variant-bar>*{flex-shrink:0}.pe-variant-tab{white-space:nowrap}.pe-check:has(button){grid-template-columns:minmax(0,1fr) auto;align-items:center}.pe-check:has(button)>span{grid-column:1/-1}.pe-check:has(button)>button{grid-column:2;grid-row:1}.pe-body>.pe-section{align-self:start}.pe-extra-preview{flex-wrap:wrap}.pe-extra-text input,.pe-extra-text textarea,.pe-extra-text select{min-width:0;max-width:100%}
 
 .pe-cover-tools{position:absolute;bottom:4px;left:4px;right:4px;display:flex;gap:3px;z-index:2}.pe-cover-tools .pe-btn{background:rgba(0,0,0,.75);color:white;padding:3px 6px;font-size:10px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pe-cover-pick{flex:1}.pe-cover-remove{flex:none}
+
+/* Composer: one attachment toolbox; validation appears only when needed. */
+.pe-attachment-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.pe-attachment-toolbar>.pe-attachments,.pe-card-actions{display:contents}
+.pe-attachment-toolbar .is-on{border-color:var(--accent);color:var(--accent);background:var(--surface)}
+.pe-file-area{display:grid;gap:10px;min-width:0}.pe-file-area[hidden],.pe-extra-cards[hidden],.pe-checks[hidden],.pe-card-field[hidden],.pe-attachment-toolbar [hidden]{display:none!important}
+.pe-attachment-detail,.pe-extra-cards{border-top:1px solid var(--line);padding-top:12px;min-width:0}
+.pe-body>.pe-attachment-section:has(.pe-attachment-detail:not([hidden])){align-self:start}
+.pe-window>.pe-checks{display:flex;flex-direction:column;gap:6px;flex:none;max-height:130px;overflow:auto;min-width:0}
+.pe-window>.pe-checks .pe-check{grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;border-color:color-mix(in srgb,var(--danger) 42%,var(--line));background:color-mix(in srgb,var(--danger) 6%,var(--surface));border-left:3px solid var(--danger);padding:8px 11px}
+.pe-window>.pe-checks .pe-check strong{color:var(--danger);grid-column:1;font-size:12px}.pe-window>.pe-checks .pe-check span{grid-column:1/-1;font-size:13px;line-height:1.4}.pe-window>.pe-checks .pe-check button{grid-column:2;grid-row:1}
+@media(max-width:720px){.pe-window>.pe-checks{max-height:110px}.pe-attachment-toolbar{gap:5px}}
