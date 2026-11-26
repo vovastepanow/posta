@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 
@@ -65,6 +66,13 @@ func facebookPublishWith(ctx context.Context,base string,c *Channel,p NetPost,re
 	if len(p.Media)>10||runeLen(p.Text)>63206{return nil,Bad("Facebook: превышен лимит текста или вложений.")}
 	if strings.TrimSpace(p.Text)==""&&len(p.Media)==0{return nil,Bad("Facebook: пустой пост.")}
 	auth:=bearer(c.Secrets["access_token"])
+	for _,media:=range p.Media{
+		if media.Kind=="video"{
+			if len(p.Media)!=1{return nil,Bad("Facebook: допустим фотоальбом либо одно видео, без смешивания.")}
+			return facebookVideoPublishWith(ctx,base,c,p.Text,media.Path,request)
+		}
+		if media.Kind!="photo"{return nil,Bad("Facebook: неподдерживаемое вложение.")}
+	}
 	var attached []jx.M
 	for _,f:=range p.Media{
 		if f.Kind!="photo"{return nil,Bad("Facebook: пока поддерживаются фотографии.")}
@@ -86,4 +94,20 @@ func facebookPublishWith(ctx context.Context,base string,c *Channel,p NetPost,re
 	id:=jx.Str(data,"id")
 	if !facebookPostIDPattern.MatchString(id)||!strings.HasPrefix(id,c.Ref+"_"){return nil,uncertainPublish("Facebook не вернул ID поста выбранной страницы.")}
 	return &NetSent{URL:"https://www.facebook.com/"+id,MessageIDs:[]string{id}},nil
+}
+
+func facebookVideoPublishWith(ctx context.Context,base string,c *Channel,description,path string,request networkRequestFunc)(*NetSent,error){
+	info,err:=os.Stat(path)
+	if err!=nil||!info.Mode().IsRegular()||info.Size()<=0||info.Size()>200_000_000||sniffMime(path)!="video/mp4"{return nil,Bad("Facebook: требуется подготовленный MP4 до 200 МБ.")}
+	u,err:=url.Parse(base)
+	if err!=nil||u.Scheme!="https"||u.Host!="graph.facebook.com"||u.User!=nil||u.RawQuery!=""||u.Fragment!=""||!metaVersion.MatchString(strings.TrimPrefix(u.Path,"/")){return nil,Bad("Facebook: неверный адрес API.")}
+	u.Host="graph-video.facebook.com"
+	body,ct,cleanup,err:=networkMultipartFile(map[string]string{"description":description,"published":"true"},nil,map[string]string{"source":path})
+	if err!=nil{return nil,err};defer cleanup()
+	r,err:=request(ctx,http.MethodPost,u.String()+"/"+c.Ref+"/videos",withCT(bearer(c.Secrets["access_token"]),ct),body)
+	data,err:=metaPublishExpect(r,err,"Facebook: публикация видео")
+	if err!=nil{return nil,err}
+	id:=jx.Str(data,"id")
+	if !metaDigits.MatchString(id){return nil,uncertainPublish("Facebook не вернул ID загруженного видео.")}
+	return &NetSent{URL:"https://www.facebook.com/"+c.Ref+"/videos/"+id+"/",MessageIDs:[]string{id}},nil
 }

@@ -3,6 +3,9 @@ package posta
 import (
 	"context"
 	"io"
+	"errors"
+	"mime"
+	"mime/multipart"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -31,4 +34,27 @@ func TestFacebookPhotosRemainUnpublishedUntilAllUploaded(t *testing.T){
 		return &netResp{Status:200,Data:jx.M{"id":"12345_33333"}},nil
 	})
 	if err!=nil||sent.MessageIDs[0]!="12345_33333"{t.Fatal(sent,err)}
+}
+
+func TestFacebookVideoPublish(t *testing.T){
+	path:=filepath.Join(t.TempDir(),"video.mp4")
+	if err:=os.WriteFile(path,[]byte{0,0,0,24,'f','t','y','p','m','p','4','2',0,0,0,0,'m','p','4','2','i','s','o','m'},0600);err!=nil{t.Fatal(err)}
+	c:=&Channel{Ref:"12345",Secrets:map[string]string{"access_token":"page-token"}}
+	for _,id:=range []string{"67890",""}{
+		calls:=0
+		sent,err:=facebookPublishWith(context.Background(),"https://graph.facebook.com/v24.0",c,NetPost{Text:"caption",Media:[]Prepared{{Kind:"video",Path:path}}},func(_ context.Context,method,raw string,h map[string]string,body io.Reader)(*netResp,error){
+			calls++
+			if method!="POST"||raw!="https://graph-video.facebook.com/v24.0/12345/videos"||h["Authorization"]!="Bearer page-token"{t.Fatal("incorrect video route")}
+			_,params,err:=mime.ParseMediaType(h["Content-Type"]);if err!=nil{t.Fatal(err)}
+			reader:=multipart.NewReader(body,params["boundary"])
+			fields:=map[string]string{}
+			for{part,err:=reader.NextPart();if err==io.EOF{break};if err!=nil{t.Fatal(err)};b,err:=io.ReadAll(part);if err!=nil{t.Fatal(err)};fields[part.FormName()]=string(b)}
+			if fields["description"]!="caption"||fields["published"]!="true"||len(fields["source"])!=24{t.Fatal("video upload is missing fields")}
+			return &netResp{Status:200,Data:jx.M{"id":id}},nil
+		})
+		if calls!=1{t.Fatal("unexpected request count",calls)}
+		if id==""{if !errors.Is(err,ErrPublishUncertain){t.Fatal(sent,err)}}else if err!=nil||sent==nil||sent.MessageIDs[0]!=id{t.Fatal(sent,err)}
+	}
+	_,err:=facebookPublishWith(context.Background(),"https://graph.facebook.com/v24.0",c,NetPost{Media:[]Prepared{{Kind:"photo",Path:"unread"},{Kind:"video",Path:path}}},func(context.Context,string,string,map[string]string,io.Reader)(*netResp,error){t.Fatal("mixed album reached API");return nil,nil})
+	if err==nil{t.Fatal("mixed album accepted")}
 }
