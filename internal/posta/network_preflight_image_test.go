@@ -9,7 +9,7 @@ func TestVKPreflightAcceptsEditorImages(t *testing.T) {
 		t.Fatalf("VK image preflight: kept=%d skipped=%v err=%v", kept, skipped, err)
 	}
 	_, skipped, err = a.NetworkPreflight("vk", "текст", []string{"video"})
-	if err != nil || len(skipped) != 1 {
+	if err != nil || len(skipped) != 0 {
 		t.Fatalf("VK video preflight: skipped=%v err=%v", skipped, err)
 	}
 }

@@ -11,7 +11,7 @@ Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https:
 | Platform | Existing implementation / gap |
 |---|---|
 | Telegram | Bot and MTProto scheduling; verify album and long-caption handling |
-| VK | Token connection, wall publishing, photos with validated upload destination and group ownership; video not supported in current registry |
+| VK | Wall text/photo/video publishing, validated upload destination and group ownership; video.save requires authorized user token; live account test pending |
 | OK | Group text, photos and videos; requires app key and relevant GROUP_CONTENT, PHOTO_CONTENT, VIDEO_CONTENT and VALUABLE_ACCESS permissions; live account test pending |
 | MAX | Bot, text and uploaded image/video attachments; explicit attachment-processing retry; live account test pending |
 | YouTube | OAuth, resumable video upload in 8 MiB chunks, server-confirmed range recovery and validated video receipt; app keys/audit required |
@@ -92,3 +92,5 @@ Remaining product-scope blockers: TikTok app approval and mandatory user-facing 
 - Public YouTube feeds are admitted to shared collection only in their existing validated canonical form. User RSS fetches respect cancellation.
 - Rutube retains API descriptions and actual publication time; channel collection reuses the existing author attribution check. Paid/locked/deleted/hidden/live/audio-only records are excluded from the video ingestion route. Archived search responses are not live certification.
 - Separate live feed smoke tests only read fixed public feed URLs and report format/counts. They do not publish, write production records, invoke AI, or certify every provider.
+
+VK video upload: https://github.com/VKCOM/vk-api-schema/blob/master/video/methods.json and https://github.com/VKCOM/vk-php-sdk#53-uploading-video-files . video.save wallpost=0, followed by multipart video_file upload; confirm video ID and attach to wall post. A successful upload is not proof that remote video transcoding has finished. Partial video publication or an ambiguous upload stops automatic replay. No VK Clips/Stories side effect or undocumented token acquisition.

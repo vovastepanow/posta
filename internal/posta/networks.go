@@ -93,8 +93,8 @@ func (a *App) Networks() map[string]*Network {
 	na := func(title, note string) *Network { return &Network{Title: title, Status: "unavailable", Note: note} }
 	r := map[string]*Network{
 		"telegram": {Title: "Telegram", Prefix: "tg", Status: "ready", TextLimit: [2]int{1024, 4096}, MediaMax: 10, Kinds: []string{"photo", "video", "animation"}, Poll: true},
-		"vk": {Title: "ВКонтакте (группа)", Prefix: "vk", Status: "beta", Note: "Ключ сообщества позволяет проверить и подключить группу; публикация фотографий может требовать пользовательский токен с доступом к API VK.", TextLimit: [2]int{16384, 16384},
-			MediaMax: 10, Kinds: []string{"photo"}, MaxBytes: map[string]int64{"photo": 50_000_000}, Docs: "unverified",
+		"vk": {Title: "ВКонтакте (группа)", Prefix: "vk", Status: "beta", Note: "Ключ сообщества позволяет проверить и подключить группу; фотографии и видео могут требовать пользовательский токен с доступом к методам API VK.", TextLimit: [2]int{16384, 16384},
+			MediaMax: 10, Kinds: []string{"photo","video"}, MaxBytes: map[string]int64{"photo": 50_000_000,"video":200_000_000}, Docs: "partly",
 			Fields: []NetField{{"token", "Ключ сообщества или пользовательский токен VK", true}, {"group", "Адрес или id сообщества", false}}, Connect: vkConnect, Publish: vkPublish},
 		"max": {Title: "MAX", Prefix: "max", Status: "beta", Note: "Бот MAX: текст, фотографии, GIF и видео. Реальная отправка требует прав в целевом чате.", TextLimit: [2]int{4000, 4000}, MediaMax: 12, Kinds: []string{"photo", "animation", "video"}, MaxBytes: map[string]int64{"photo":50_000_000,"animation":50_000_000,"video":250_000_000}, Docs: "ok",
 			Fields: []NetField{{"token", "Токен бота (MAX для бизнеса)", true}, {"chat_id", "id чата, где бот админ", false}}, Connect: maxConnect, Publish: maxPublish},
@@ -709,6 +709,9 @@ func vkMethodError(method string, code int64, message string) error {
 	if code == 27 && (method == "photos.getWallUploadServer" || method == "photos.saveWallPhoto") {
 		return &vkPhotoAuthError{Bad("ВКонтакте не разрешает загружать фотографии на стену с этим ключом сообщества (ошибка 27). Подключите в профиле VK с доступом к методам загрузки фото или переподключите группу с подходящим пользовательским токеном. Обычный вход через VK ID такого доступа не гарантирует.")}
 	}
+	if code == 27 && method=="video.save" {
+		return &vkVideoAuthError{Bad("ВКонтакте: для загрузки видео необходим пользовательский токен с правом video; обычный ключ сообщества не подходит.")}
+	}
 	if code == 27 {
 		return Bad("ВКонтакте не разрешает метод %s с этим ключом сообщества (ошибка 27). Проверьте доступность метода и тип ключа в VK.", method)
 	}
@@ -775,45 +778,9 @@ func vkUploadURL(raw string) bool {
 }
 
 func vkPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, error) {
-	if len(p.Media)>10{return nil,Bad("ВКонтакте: не более 10 вложений.")}
-	for _,f:=range p.Media{if f.Kind!="photo"{return nil,Bad("ВКонтакте: неподдерживаемое вложение.")}}
-	if runeLen(p.Text) > 16384 {
-		return nil, Bad("Текст длиннее 16384 символов: ВКонтакте его не примет.")
-	}
-	token := c.Secrets["token"]
-	photoToken := token
-	var att []string
-	for _, f := range p.Media {
-		s, err := vkPhotoAttachment(ctx, c.Ref, f.Path, photoToken)
-		var authErr *vkPhotoAuthError
-		if errors.As(err, &authErr) && photoToken == token {
-			// VK ID tokens are user-scoped; never use another account's token.
-			userToken := a.VKAccessToken(a.User(ctx, c.UserID, nil).Ctx)
-			if userToken != "" && userToken != token {
-				photoToken = userToken
-				s, err = vkPhotoAttachment(ctx, c.Ref, f.Path, photoToken)
-				if err != nil {
-					return nil, fmt.Errorf("Не удалось загрузить фото с подключённым пользовательским токеном VK: %w", err)
-				}
-			}
-		}
-		if err != nil {
-			return nil, err
-		}
-		att = append(att, s)
-	}
-	params := url.Values{"owner_id": {"-" + c.Ref}, "from_group": {"1"}, "message": {p.Text}}
-	if len(att) > 0 {
-		params.Set("attachments", strings.Join(att, ","))
-	}
-	res, err := vkCall(ctx, "wall.post", params, token)
-	if err != nil {
-		return nil, err
-	}
-	id := jx.Int(jx.ToMap(res), "post_id")
-	if id<=0{return nil,uncertainPublish("ВКонтакте не вернул ID публикации.")}
-	u := fmt.Sprintf("https://vk.com/wall-%s_%d", c.Ref, id)
-	return &NetSent{URL: u, MessageIDs: []string{strconv.FormatInt(id, 10)}}, nil
+	return vkPublishWith(ctx,c,p,vkCall,networkHTTP,func()string{
+		return a.VKAccessToken(a.User(ctx,c.UserID,nil).Ctx)
+	})
 }
 
 // ---- MAX ----
