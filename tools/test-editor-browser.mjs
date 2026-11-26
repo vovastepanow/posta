@@ -34,6 +34,10 @@ try{
     await text.evaluate(t=>t.setSelectionRange(0,8));
     await page.locator('.pe-format-action').first().click();
     assert.equal(await page.locator('.pe-format-preview b').textContent(),'Telegram');
+    await page.locator('.pe-window input[type=file]').first().setInputFiles({name:'clip.mp4',mimeType:'video/mp4',buffer:Buffer.from('video fixture')});
+    await page.locator('.pe-card input[type=file]').setInputFiles({name:'cover.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXxkAAAAASUVORK5CYII=','base64')});
+    await page.locator('.pe-cover-remove').waitFor({state:'visible'});
+    assert.ok((await page.locator('.pe-card video').getAttribute('poster')).startsWith('blob:'));
     await page.locator('.pe-variant-tab').filter({hasText:'VK'}).click();
     assert.equal(await text.inputValue(),'Общий текст');
     await text.fill('VK text');
@@ -55,6 +59,8 @@ try{
     const post=await page.evaluate(()=>window.result);
     assert.equal(post.payloads['tg:main'].text,'**Telegram** text');
     assert.equal(post.payloads['tg:main'].extras.styled_text,true);
+    assert.equal(post.payloads['tg:main'].media[0].cover.name,'cover.png');
+    assert.equal(post.payloads['vk:2'].media.length,0);
     assert.equal(post.payloads['vk:2'].text,'VK text');
     assert.equal(post.payloads['vk:2'].poll.with_content,true);
     assert.deepEqual(post.payloads['vk:2'].poll.options,['Да','Нет']);

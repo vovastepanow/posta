@@ -360,7 +360,7 @@ function mediaCard(item, i, total) {
             button('pe-tool pe-tool-danger', '✕', () => { session.media.splice(i, 1); render(); }, { ariaLabel: 'Убрать из поста' }),
             button('pe-tool', '›', () => move(i, i + 1), { ariaLabel: 'Сдвинуть вправо', disabled: i === total - 1 })));
     if(item.kind==='video'){
-        const supported=selectedTargets().length&&selectedTargets().every(t=>targetCapabilities(t)?.extras?.includes('video_cover'))&&!session.extras.ig_story;
+        const supported=selectedTargets().length&&selectedTargets().every(t=>{const c=targetCapabilities(t);return c?.extras?.includes('video_cover')&&(c.platform==='telegram'||total===1)})&&!session.extras.ig_story&&!session.extras.ig_cover_seconds;
         if(supported||item.cover){
             const coverInput=el('input',{type:'file',accept:'image/jpeg,image/png,image/webp',hidden:true,onchange:()=>{const file=coverInput.files?.[0];if(!file)return;if(file.size>10_000_000||!['image/jpeg','image/png','image/webp'].includes(file.type)){ui.note.textContent='Обложка: JPEG/PNG/WEBP до 10 МБ.';return;}session.media[i]={...item,cover:{file,src:URL.createObjectURL(file),name:file.name}};render();}});
             card.append(coverInput,el('div',{className:'pe-cover-tools'},button('pe-btn pe-cover-pick',item.cover?'Заменить обложку':'Обложка',()=>coverInput.click(),{disabled:!supported}),item.cover?button('pe-btn pe-cover-remove','✕',()=>{const copy={...item};delete copy.cover;session.media[i]=copy;render();},{ariaLabel:'Удалить обложку'}):null));
@@ -386,7 +386,7 @@ function render() {
     const allowed = caps.kinds.filter(kind => media.length<maxMedia && !attachmentError(selectedTargets(), media, {kind}));
     const accept = allowed.map(k => fileAccept[k]).filter(Boolean);
     ui.file.accept = accept.join(',');
-    const mediaChanged = session.renderedMedia?.length !== media.length || media.some((m,i) => m !== session.renderedMedia?.[i]) || session.renderedAllowed !== accept.join(',') || session.renderedCoverAllowed!==JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story]);
+    const mediaChanged = session.renderedMedia?.length !== media.length || media.some((m,i) => m !== session.renderedMedia?.[i]) || session.renderedAllowed !== accept.join(',') || session.renderedCoverAllowed!==JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story,session.extras.ig_cover_seconds]);
     if (mediaChanged) ui.attachments.replaceChildren(...Object.entries(KIND_LABELS).map(([kind,label]) => {
         const enabled = allowed.includes(kind) && media.length < caps.mediaMax;
         return button('pe-btn pe-attachment', '+ ' + label, () => { ui.file.dataset.kind=kind;ui.file.accept = fileAccept[kind]; ui.file.click(); }, {disabled:!enabled,title:enabled ? 'Добавить: ' + label : 'Недоступно для выбранных ресурсов или состава поста'});
@@ -412,7 +412,7 @@ function render() {
     if (mediaChanged) { ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
         media.length ? '' : el('div', { className: 'pe-empty', textContent: 'Перетащите файлы сюда или выберите тип вложения выше' }),
         el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { delete ui.file.dataset.kind;ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
-        session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');session.renderedCoverAllowed=JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story]);
+        session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');session.renderedCoverAllowed=JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story,session.extras.ig_cover_seconds]);
     }
     ui.count.textContent = `${media.length} / ${maxMedia}`;
     ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll&&!poll.with_content)||standalone;
