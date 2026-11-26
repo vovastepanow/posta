@@ -114,8 +114,8 @@ func (a *App) Networks() map[string]*Network {
 		"youtube": {Title: "YouTube Shorts", Prefix: "yt", Status: "needs_keys", Note: "Проект Google и экран согласия; без аудита ролики приватные. Только видео.",
 			TextLimit: [2]int{5000, 5000}, MediaMax: 1, Kinds: []string{"video"}, MaxBytes: map[string]int64{"video": 200_000_000}, Docs: "ok",
 			AppKeys: []string{"YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET"}, OAuth: youtubeOAuth, Publish: youtubePublish},
-		"pinterest": {Title: "Pinterest", Prefix: "pin", Status: "needs_keys", Note: "Приложение Pinterest; пин всегда с картинкой.", TextLimit: [2]int{800, 800}, MediaMax: 1,
-			Kinds: []string{"photo"}, MaxBytes: map[string]int64{"photo": 20_000_000}, Docs: "ok", AppKeys: []string{"PINTEREST_CLIENT_ID", "PINTEREST_CLIENT_SECRET"},
+		"pinterest": {Title: "Pinterest", Prefix: "pin", Status: "needs_keys", Note: "Приложение Pinterest; фото или видео с обложкой, одна доска на подключение.", TextLimit: [2]int{800, 800}, MediaMax: 1,
+			Kinds: []string{"photo","video"}, MaxBytes: map[string]int64{"photo": 20_000_000,"video":200_000_000}, Docs: "ok", AppKeys: []string{"PINTEREST_CLIENT_ID", "PINTEREST_CLIENT_SECRET"},
 			OAuth: pinterestOAuth, Publish: pinterestPublish},
 		"tumblr": {Title: "Tumblr", Prefix: "tumblr", Status: "needs_keys", Note: "Приложение Tumblr, OAuth 2; текст, фото, GIF, один загружаемый ролик (обработка может занять время).", TextLimit: [2]int{4096, 4096}, MediaMax: 10, Kinds: []string{"photo","animation","video"}, MaxBytes: map[string]int64{"photo":20_000_000,"animation":5_000_000,"video":500_000_000}, Docs: "ok",
 			AppKeys: []string{"TUMBLR_CLIENT_ID", "TUMBLR_CLIENT_SECRET"}, OAuth: tumblrOAuth, Publish: tumblrPublish},
@@ -1223,7 +1223,7 @@ func youtubePublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSen
 var pinterestOAuth = &OAuthFlow{
 	Authorize: func(a *App, state, redirect, _ string) string {
 		return "https://www.pinterest.com/oauth/?" + url.Values{"client_id": {a.NetworkAppKey("PINTEREST_CLIENT_ID")}, "redirect_uri": {redirect},
-			"response_type": {"code"}, "scope": {"boards:read,pins:write"}, "state": {state}}.Encode()
+			"response_type": {"code"}, "scope": {"user_accounts:read,boards:read,pins:read,pins:write"}, "state": {state}}.Encode()
 	},
 	Exchange: func(a *App, ctx context.Context, code, redirect, _ string) (map[string]string, error) {
 		return a.tokenRequest(ctx, "https://api.pinterest.com/v5/oauth/token", url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect},
@@ -1257,37 +1257,12 @@ var pinterestOAuth = &OAuthFlow{
 }
 
 func pinterestPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, error) {
-	var photo *Prepared
-	for i := range p.Media {
-		if p.Media[i].Kind == "photo" {
-			photo = &p.Media[i]
-			break
-		}
+	cover:=func(ctx context.Context,path string)[]byte{
+		board:=a.videoStoryboardContext(ctx,path,1)
+		if board==nil||len(board.Frames)==0{return nil}
+		return board.Frames[0]
 	}
-	if photo == nil {
-		return nil, Bad("Pinterest публикует пины только с картинкой.")
-	}
-	b, err := os.ReadFile(photo.Path)
-	if err != nil {
-		return nil, Bad("Файл картинки не найден.")
-	}
-	title, desc := titleAndBody(p.Text)
-	if title == "" {
-		title = "Пин"
-	}
-	body := jx.M{"board_id": jx.Str(c.Meta, "board_id"), "title": trimRunes(title, 100), "description": trimRunes(desc, 800),
-		"media_source": jx.M{"source_type": "image_base64", "content_type": http.DetectContentType(b), "data": base64.StdEncoding.EncodeToString(b)}}
-	r, err := networkHTTP(ctx, "POST", "https://api.pinterest.com/v5/pins", withCT(bearer(c.Secrets["access_token"]), ctJSON), jsonBody(body))
-	d, err := networkExpect(r, err, []int{201}, "Пин не опубликован")
-	if err != nil {
-		return nil, err
-	}
-	id := jx.Str(d, "id")
-	u := ""
-	if id != "" {
-		u = "https://www.pinterest.com/pin/" + id + "/"
-	}
-	return &NetSent{URL: u, MessageIDs: []string{id}}, nil
+	return pinterestPublishWith(ctx,c,p,networkHTTP,cover,waitNetworkContext)
 }
 
 // ---- Tumblr ----
