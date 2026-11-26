@@ -281,7 +281,7 @@ func rssItemLink(item *xnode, base string) string {
 	return ""
 }
 
-type rssFile struct{ URL, Type, Medium string }
+type rssFile struct{ URL, Type, Medium, Poster string }
 
 func rssItemMedia(item *xnode) []rssFile {
 	var files []rssFile
@@ -297,7 +297,9 @@ func rssItemMedia(item *xnode) []rssFile {
 		if m == "" {
 			m = medium
 		}
-		files = append(files, rssFile{u, strings.ToLower(n.A["type"]), m})
+		poster := ""
+		if thumb:=n.kid("media:thumbnail");thumb!=nil{poster=thumb.A["url"]}
+		files = append(files, rssFile{URL:u, Type:strings.ToLower(n.A["type"]), Medium:m, Poster:poster})
 	}
 	// Preserve source order instead of grouping attachments by XML tag.
 	for _, n := range item.K {
@@ -307,12 +309,16 @@ func rssItemMedia(item *xnode) []rssFile {
 		case "link":
 			if strings.EqualFold(n.A["rel"], "enclosure") { add(n, "") }
 		case "media:group":
-			for _, child := range n.K {
-				switch child.N {
-				case "media:content": add(child, "")
-				case "media:thumbnail": add(child, "thumbnail")
+			// media:group represents alternate encodings of one object.
+			// Retain one supported rendition rather than duplicating it.
+			if selected:=rssMediaGroupChoice(n);selected!=nil{
+				before:=len(files)
+				add(selected,"")
+				if len(files)>before&&files[before].Poster==""{
+					if thumb:=n.kid("media:thumbnail");thumb!=nil{files[before].Poster=thumb.A["url"]}
 				}
 			}
+			for _,thumb:=range n.kids("media:thumbnail"){add(thumb,"thumbnail")}
 		case "media:thumbnail": add(n, "thumbnail")
 		}
 	}
@@ -490,8 +496,8 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 		}
 		text = strings.TrimSpace(text)
 		media, video, incomplete := rssOrderedMedia(files, base, images)
-		textOnly := img == "" && video == "" && withText && runeLen(text) >= minText
-		if img == "" && video == "" && !keepNoImage && !textOnly {
+		textOnly := img == "" && video == "" && !incomplete && withText && runeLen(text) >= minText
+		if img == "" && video == "" && !incomplete && !keepNoImage && !textOnly {
 			continue
 		}
 		short := videoID != "" && (shortsFeed || strings.Contains(link, "/shorts/"))

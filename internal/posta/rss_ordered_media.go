@@ -44,10 +44,13 @@ func rssOrderedMedia(files []rssFile, base string, fallbackImages []string) ([]j
 				m := jx.M{"video": raw}
 				// A global thumbnail is ambiguous with multiple video
 				// enclosures. Attach it only to the first video.
+				localPoster:=rssHTTPS(f.Poster,base)
+				if !rssImageOK(localPoster){localPoster=""}
 				if firstVideo == "" {
 					firstVideo = raw
-					if poster != "" { m["image"] = poster }
+					if localPoster==""{localPoster=poster}
 				}
+				if localPoster!=""{m["image"]=localPoster}
 				media = append(media, m)
 				seen[raw] = true
 			} else {
@@ -70,4 +73,26 @@ func rssOrderedMedia(files []rssFile, base string, fallbackImages []string) ([]j
 		}
 	}
 	return media, firstVideo, incomplete
+}
+
+// Prefer a supported complete representation marked isDefault. When the
+// declared default is unsupported, a supported alternative is preferable.
+func rssMediaGroupChoice(group *xnode) *xnode {
+	var best *xnode
+	bestScore:=-1
+	for _,n:=range group.kids("media:content"){
+		if n.A["url"]==""&&n.A["href"]==""{continue}
+		t:=strings.ToLower(strings.TrimSpace(strings.Split(n.A["type"],";")[0]))
+		raw:=n.A["url"];if raw==""{raw=n.A["href"]}
+		score:=0
+		switch{
+		case t=="video/mp4" || t=="video/webm":score=10
+		case strings.HasPrefix(t,"image/") && rssImageOK(raw):score=10
+		case t=="" && (imageExtRe.MatchString(raw)||strings.HasSuffix(strings.ToLower(raw),".mp4")||strings.HasSuffix(strings.ToLower(raw),".webm")):score=9
+		}
+		if strings.EqualFold(n.A["expression"],"sample"){score-=3}
+		if strings.EqualFold(n.A["isDefault"],"true"){score++}
+		if best==nil||score>bestScore{best,bestScore=n,score}
+	}
+	return best
 }
