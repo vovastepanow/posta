@@ -581,23 +581,24 @@ func (a *App) NetworkRedirectURI() string {
 	return base + "/index.php?action=network_oauth_callback"
 }
 
-func (a *App) NetworkOAuthStateCreate(ctx context.Context, uid, platform, verifier string) string {
+func (a *App) NetworkOAuthStateCreate(ctx context.Context, uid, platform, verifier string) (string,error) {
 	state := randHex(16)
-	a.KVSet(ctx, "netoauth:"+state, jx.M{"uid": uid, "platform": platform, "verifier": verifier, "at": now()}, networkStateSeconds*time.Second)
-	return state
+	if uid==""{return "",Bad("Требуется вход.")}
+	if err:=a.KVSet(ctx, "netoauth:"+state, jx.M{"uid": uid, "platform": platform, "verifier": verifier, "at": now()}, networkStateSeconds*time.Second);err!=nil{return "",err}
+	return state,nil
 }
 
 var stateRe = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
-func (a *App) NetworkOAuthStateTake(ctx context.Context, state string) jx.M {
-	if !stateRe.MatchString(state) {
-		return nil
-	}
-	d := KV(a, ctx, "netoauth:"+state, jx.M(nil))
-	a.KVDelete(ctx, "netoauth:"+state)
-	if d == nil || now()-jx.Int(d, "at") > networkStateSeconds {
-		return nil
-	}
+// A callback may consume its state only once, and only in the profile
+// which initiated authorization. DELETE RETURNING is atomic across processes.
+func (a *App) NetworkOAuthStateTake(ctx context.Context, state, uid string) jx.M {
+	if !stateRe.MatchString(state)||uid==""{return nil}
+	var raw []byte
+	err:=a.DB.Pool.QueryRow(ctx,`DELETE FROM kv WHERE key=$1 AND expires_at>$2 AND value->>'uid'=$3 RETURNING value`,"netoauth:"+state,now(),uid).Scan(&raw)
+	if err!=nil{return nil}
+	d:=jx.Unmarshal(raw)
+	if d==nil||now()-jx.Int(d,"at")>networkStateSeconds{return nil}
 	return d
 }
 
@@ -648,8 +649,8 @@ func (a *App) tokenRequest(ctx context.Context, tokenURL string, form url.Values
 	if err != nil {
 		return nil, err
 	}
-	if e := jx.Str(t, "error"); e != "" {
-		return nil, fmt.Errorf("%s: %s.", what, e)
+	if jx.Str(t,"error")!=""||strings.TrimSpace(jx.Str(t,"access_token"))==""{
+		return nil,Bad("%s: сервис не выдал токен доступа.",what)
 	}
 	return map[string]string{"access_token": jx.Str(t, "access_token"), "refresh_token": jx.Str(t, "refresh_token"), "expires_at": expiresAt(t)}, nil
 }

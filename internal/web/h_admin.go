@@ -202,7 +202,8 @@ func networkOAuthStart(c *Ctx) (any, error) {
 	if n.OAuth.PKCE {
 		verifier = posta.PKCEVerifier()
 	}
-	state := c.A.NetworkOAuthStateCreate(c.R.Context(), c.U.ID, platform, verifier)
+	state,err := c.A.NetworkOAuthStateCreate(c.R.Context(), c.U.ID, platform, verifier)
+	if err!=nil{return nil,fail(503,"Не удалось начать подключение. Повторите позже.")}
 	c.redirect(n.OAuth.Authorize(c.A, state, c.A.NetworkRedirectURI(), verifier))
 	return nil, nil
 }
@@ -210,7 +211,8 @@ func networkOAuthStart(c *Ctx) (any, error) {
 func networkOAuthCallback(c *Ctx) (any, error) {
 	ctx := c.R.Context()
 	q := c.R.URL.Query()
-	data := c.A.NetworkOAuthStateTake(ctx, q.Get("state"))
+	if c.U==nil{return networkBack(c,url.Values{"network_error":{"Войдите в Posta и начните подключение заново."}})}
+	data := c.A.NetworkOAuthStateTake(ctx, q.Get("state"),c.U.ID)
 	if data == nil {
 		return networkBack(c, url.Values{"network_error": {"Вход устарел: начните подключение заново."}})
 	}
@@ -223,6 +225,7 @@ func networkOAuthCallback(c *Ctx) (any, error) {
 		}
 		return networkBack(c, url.Values{"network_error": {title + ": вход отменён."}})
 	}
+	if n.Status=="beta"&&!c.A.IsOwner(ctx,c.U.ID){return networkBack(c,url.Values{"network_error":{"Доступ к бета-подключению закрыт."}})}
 	secrets, err := n.OAuth.Exchange(c.A, ctx, q.Get("code"), c.A.NetworkRedirectURI(), jx.Str(data, "verifier"))
 	if err != nil {
 		return networkBack(c, url.Values{"network_error": {err.Error()}})
@@ -232,7 +235,7 @@ func networkOAuthCallback(c *Ctx) (any, error) {
 		return networkBack(c, url.Values{"network_error": {err.Error()}})
 	}
 	res.Secrets = secrets
-	if err := c.A.User(ctx, jx.Str(data, "uid"), nil).NetworkSaveResource(platform, n, res); err != nil {
+	if err := c.U.NetworkSaveResource(platform, n, res); err != nil {
 		return networkBack(c, url.Values{"network_error": {err.Error()}})
 	}
 	return networkBack(c, url.Values{"network": {"ok"}, "platform": {platform}})
