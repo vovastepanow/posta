@@ -1,5 +1,6 @@
 // editor.js — окно выбора даты и времени и модальный редактор поста (порядок медиа, текст, отправка через onSubmit).
 import { VIDEO_ICON, api, el, pluralRu } from './core.js';
+import { cloneDraft,draftFor,draftPayload,draftProblem,draftNeedsQueue } from './editor-variants.js';
 import { commonCapabilities, commonPollLimits, mediaKind, validateTarget, attachmentError, extraActive, extraAvailability, extraError, EXTRA_KEYS, standaloneExtra } from './editor-capabilities.js';
 
 // ---- Дата и время ----
@@ -81,7 +82,22 @@ let session = null;
 document.addEventListener('click', () => { if (ui?.targetMenu) ui.targetMenu.hidden = true; });   // меню «Куда» закрывается кликом в стороне
 
 const textLimit = (target, mediaCount) => (session.options.targets.find(t => t.value === target)?.textLimit || TEXT_LIMITS[String(target).split(':')[0]] || TEXT_LIMITS.tg)[mediaCount ? 0 : 1];
-const selectedTargets = () => session.options.picked.map(v => session.options.targets.find(t => t.value === v));
+const allSelectedTargets = () => session.options.picked.map(v => session.options.targets.find(t => t.value === v)).filter(Boolean);
+const selectedTargets = () => {
+    const all=allSelectedTargets();
+    if(session.editTarget)return all.filter(t=>t.value===session.editTarget);
+    const shared=all.filter(t=>!Object.hasOwn(session.variants,t.value));
+    return shared.length?shared:all;
+};
+const editingDraft=()=>({text:ui.text.value,media:session.media.map(m=>({...m})),tags:[...session.tags],poll:clonePoll(session.poll),extras:cloneExtras(session.extras)});
+function syncEditorDraft(){
+    const d=editingDraft();
+    if(session.editTarget)session.variants[session.editTarget]=d;
+    else session.base=d;
+    return d;
+}
+const chosenDrafts=()=>allSelectedTargets().map(t=>draftFor(session.base,session.variants,t.value));
+const anyQueueOnly=()=>chosenDrafts().some(draftNeedsQueue);
 const currentCapabilities = () => commonCapabilities(selectedTargets());
 const hasExtras = () => EXTRA_KEYS.some(k=>extraActive(session.extras,k));
 const botOnlyMedia = () => session.media.some(m => ['audio','document','voice','sticker','video_note'].includes(mediaKind(m)));
@@ -97,7 +113,7 @@ const chip = (label, value) => el('span', { className: 'pe-chip' }, el('span', {
 
 function buildUi() {
     const u = {
-        title: el('h2', { id: 'post-editor-title', textContent: 'Новый пост' }), chips: el('div', { className: 'pe-chips' }),
+        title: el('h2', { id: 'post-editor-title', textContent: 'Новый пост' }), chips: el('div', { className: 'pe-chips' }), variantBar:el('div',{className:'pe-variant-bar',hidden:true}),
         close: button('pe-close', '✕', closeEditor, { ariaLabel: 'Закрыть' }), count: el('span', { className: 'pe-count' }), grid: el('div', { className: 'pe-grid' }),
         file: el('input', { type: 'file', accept: 'image/*,video/*', multiple: true, hidden: true }), url: el('input', { type: 'url', className: 'pe-input', placeholder: 'Ссылка на медиа: https://…' }),
         note: el('p', { className: 'pe-note' }), text: el('textarea', { className: 'pe-text', rows: 8, placeholder: 'Текст поста…', spellcheck: true }),
@@ -119,6 +135,7 @@ function buildUi() {
     };
     const reset = button('pe-btn pe-btn-ghost', 'Сбросить правки', () => {
         drafts.delete(session.options.key);
+        session.editTarget='';session.variants={};session.base=null;
         session.media = session.options.media.map(m => ({ ...m }));
         session.tags = [...(session.options.hashtags || [])];
         session.poll = clonePoll(session.options.poll);
@@ -150,7 +167,7 @@ function buildUi() {
     u.extraSection=el('section',{className:'pe-section pe-extra-section'},el('div',{className:'pe-section-head'},el('h3',{textContent:'Дополнения и настройки публикации'})),u.extras,u.buttons,u.cards);
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
-        u.chips,
+        u.chips,u.variantBar,
         el('div', { className: 'pe-body' }, u.textSection, u.mediaSection, u.pollSection, u.extraSection, el('section', { className: 'pe-section pe-compatibility' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Проверка площадок' })), u.checks)),
         u.warning,
         u.progress,
@@ -190,7 +207,7 @@ function buildUi() {
 
 // ---- Подпись от ИИ и стиль канала (сервер: lib/channel_style.php; options.ai задаёт content.js) ----
 
-const styleTarget = () => session.options.picked[0];
+const styleTarget = () => session.editTarget||selectedTargets()[0]?.value||session.options.picked[0];
 
 /** Стиль канала первой выбранной цели → поля блока «Стиль канала». */
 function renderStyle() {
@@ -209,6 +226,7 @@ function renderStyle() {
 
 function setAiBusy(message) {
     ui.aiBusy = Boolean(message);
+    if(session){ui.variantBar.inert=ui.aiBusy||session.busy;}
     ui.aiButton.disabled = ui.aiBusy;
     ui.aiNote.textContent = message;
 }
@@ -340,9 +358,11 @@ function mediaCard(item, i, total) {
 /** Медиа, счётчики и сводка; черновик сохраняется. */
 function render() {
     const { media, poll, options } = session;
+    syncEditorDraft();
+    renderVariantBar();
     const pollLimits = commonPollLimits(selectedTargets());
     const caps = currentCapabilities();
-    if (options.mode === 'native' && (botOnlyMedia() || (!poll && hasExtras()))) { options.mode = 'queue'; renderWhen(); }
+    if (options.mode === 'native' && anyQueueOnly()) { options.mode = 'queue'; renderWhen(); }
     const maxMedia=poll?.with_content?Math.min(caps.mediaMax,pollLimits?.media_max||0):caps.mediaMax;
     const allowed = caps.kinds.filter(kind => media.length<maxMedia && !attachmentError(selectedTargets(), media, {kind}));
     const accept = allowed.map(k => fileAccept[k]).filter(Boolean);
@@ -361,14 +381,13 @@ function render() {
         pollToggle.title = caps.poll ? 'Опрос вместо текста и медиа' : 'Опрос доступен только при поддержке всеми выбранными ресурсами';
     }
     const standalone=!poll&&standaloneExtra(session.extras);
-    const problems = selectedTargets().map(t => ({ label: t?.label || 'Ресурс', error: standalone ? extraError([t],[], '',null,session.extras) : validateTarget(t, media, ui.text.value, poll) }));
-    ui.checks.replaceChildren(...problems.map(p => el('div', { className: 'pe-check' + (p.error ? ' is-error' : '') }, el('strong', { textContent: p.label }), el('span', { textContent: p.error || '✓ Формат совместим' }))));
-    const extrasError = poll ? '' : extraError(selectedTargets(), standalone?[]:media, standalone?'':ui.text.value, null, session.extras);
-    if(extrasError) ui.checks.append(el('div',{className:'pe-check is-error'},el('strong',{textContent:'Дополнения'}),el('span',{textContent:extrasError})));
+    const problems = allSelectedTargets().map(t=>({label:t.label,value:t.value,custom:Object.hasOwn(session.variants,t.value),error:draftProblem(t,draftFor(session.base,session.variants,t.value))}));
+    ui.checks.replaceChildren(...problems.map(p => el('div', { className: 'pe-check' + (p.error ? ' is-error' : '') }, el('strong', { textContent: p.label+(p.custom?' · свой вариант':'') }), el('span', { textContent: p.error || '✓ Формат совместим' }),options.picked.length>1?button('pe-chip-btn','Изменить',()=>switchVariant(p.value),{ariaLabel:'Изменить '+p.label,disabled:!!ui.aiBusy}):null)));
+
     updateExtraAvailability();
     renderFormatting();
-    const blocked = problems.some(p => p.error) || !problems.length || Boolean(extrasError);
-    const snapshot = { media: media.map(m => ({ ...m })), text: ui.text.value, tags: [...session.tags], poll: clonePoll(poll), extras:cloneExtras(session.extras) };
+    const blocked = problems.some(p => p.error) || !problems.length;
+    const snapshot = {...cloneDraft(session.base),variants:Object.fromEntries(Object.entries(session.variants).map(([v,d])=>[v,cloneDraft(d)])),picked:[...options.picked]};
     drafts.set(options.key, snapshot);
     options.onDraftChange?.(snapshot);
     if (mediaChanged) { ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
@@ -394,17 +413,17 @@ function render() {
             if(session.correctKey!==key){ui.correct.replaceChildren(el('option',{value:'',textContent:'Выберите ответ'}),...choices.map(o=>el('option',{value:o,textContent:o})));session.correctKey=key;}
             ui.correct.value=poll.correct_answer||'';
         }
-        if(poll.with_content){const limit=Math.min(...options.picked.map(v=>textLimit(v,media.length)));ui.counter.textContent=`${[...ui.text.value].length} / ${limit}`;}
+        if(poll.with_content){const limit=Math.min(...selectedTargets().map(t=>textLimit(t.value,media.length)));ui.counter.textContent=`${[...ui.text.value].length} / ${limit}`;}
         return renderPollState(poll, blocked);
     }
     const text = ui.text.value;
-    const limit = Math.min(...options.picked.map(v => textLimit(v, media.length)));   // лимит — самый строгий из выбранных ресурсов
+    const limit = Math.min(...selectedTargets().map(t=>textLimit(t.value,media.length)));   // лимит — самый строгий из выбранных ресурсов
     const length = [...text].length;
     const [empty, over] = [!standalone&&!media.length&&!text.trim(), !standalone&&length>limit];
     ui.counter.textContent = `${length} / ${limit}`;
     ui.counter.classList.toggle('is-over', over);
-    ui.submit.disabled = empty || over || blocked || session.busy;
-    ui.warning.hidden = !(empty || over || blocked);
+    ui.submit.disabled = blocked || session.busy;
+    ui.warning.hidden = !blocked;
     ui.warning.textContent = empty ? 'Добавьте медиа или текст.' : over ? `Текст длиннее лимита: ${length} из ${limit}.` : 'Исправьте несовместимость в блоке проверки площадок.';
     if(standalone){ui.summary.textContent=session.extras.location?'Геолокация':session.extras.max_sticker?'Стикер MAX':'Карточка контакта';return;}
     ui.summary.textContent = `${media.length} медиа · ${text.length} ${pluralRu(text.length, 'символ', 'символа', 'символов')} · ${options.picked.length} ${pluralRu(options.picked.length, 'ресурс', 'ресурса', 'ресурсов')}`;
@@ -489,7 +508,7 @@ const tagMode = o => (o.targets.some(t => o.picked.includes(t.value) && t.hashta
 
 /** Строка хэштегов под текстом: чипы с ✕ и поле «+ тег» с подсказками словаря. Теги допишет сервер последней строкой. */
 function renderTags() {
-    const mode = tagMode(session.options);
+    const mode = tagMode({...session.options,picked:selectedTargets().map(t=>t.value)});
     ui.tags.hidden = mode === 'off' || Boolean(session.poll)||session.media.some(m=>['sticker','video_note'].includes(mediaKind(m)));
     if (ui.tags.hidden) return;
     const tagKey = JSON.stringify([mode, session.tags]);
@@ -551,7 +570,9 @@ function togglePicked(value, box) {
     const o = session.options;
     const picked = box.checked ? [...o.picked, value] : o.picked.filter(v => v !== value);
     if (!picked.length) { box.checked = true; return; }
+    syncEditorDraft();
     o.picked = o.targets.map(t => t.value).filter(v => picked.includes(v));
+    if(session.editTarget&&!o.picked.includes(session.editTarget))loadEditorDraft('',session.base);
     if (o.picked.some(v => !v.startsWith('tg:')) && o.mode === 'native') o.mode = 'queue';
     if (o.mode === 'slot' && !o.picked.every(v => o.schedule?.slots(v))) o.mode = 'queue';
     ui.targetLabel.textContent = `${targetLabel(o)} ▾`;
@@ -605,8 +626,8 @@ function addPollOption() {
 function renderPollState(poll, blocked) {
     const filled = poll.options.map(v => v.trim()).filter(Boolean);
     const ready = poll.question.trim() !== '' && filled.length >= 2;
-    ui.submit.disabled = !ready || blocked || session.busy;
-    ui.warning.hidden = ready && !blocked;
+    ui.submit.disabled = blocked || session.busy;
+    ui.warning.hidden = !blocked;
     ui.warning.textContent = blocked ? 'Проверьте ограничения опроса для выбранных площадок.' : 'Напишите вопрос и минимум два варианта ответа.';
     ui.summary.textContent = `Опрос · ${filled.length} ${pluralRu(filled.length, 'вариант', 'варианта', 'вариантов')}`;
 }
@@ -656,7 +677,7 @@ function whenChip(o) {
         { label: 'Сразу', run: () => setWhen(o, { mode: 'now', scheduledTs: 0, scheduledAt: '' }) },
         ...(o.schedule ? [{ label: 'В ближайший слот', run: () => pickSlot(o) }] : []),
         { label: 'Выбрать дату и время…', run: () => pickDate(o) },
-        ...(o.scheduledTs && o.schedule?.native && o.picked.every(v => v.startsWith('tg:')) && o.mode !== 'slot' && !session.poll && !botOnlyMedia() && !hasExtras() ? [
+        ...(o.scheduledTs && o.schedule?.native && o.picked.every(v => v.startsWith('tg:')) && o.mode !== 'slot' && !anyQueueOnly() ? [
             { label: o.mode === 'native' ? '✓ Через «Отложенные» Telegram' : 'Через «Отложенные» Telegram', run: () => setWhen(o, { mode: 'native' }) },
             { label: o.mode === 'queue' ? '✓ Через очередь Posta' : 'Через очередь Posta', run: () => setWhen(o, { mode: 'queue' }) },
         ] : []),
@@ -682,9 +703,10 @@ function renderWhen() {
 async function submit(e) {
     e.preventDefault();
     if (!session || ui.submit.disabled) return;
-    const { options, media } = session;
+    const { options } = session;
+    syncEditorDraft();
     session.busy = true;
-    ui.chips.inert = true; ui.form.querySelector('.pe-body').inert = true;
+    ui.variantBar.inert=true;ui.chips.inert = true; ui.form.querySelector('.pe-body').inert = true;
     ui.close.disabled = true; ui.form.querySelector('.pe-actions .pe-btn-ghost').disabled = true;
     const label = ui.submit.textContent;
     Object.assign(ui.submit, { disabled: true, textContent: 'Отправляю…' });
@@ -701,22 +723,20 @@ async function submit(e) {
     onProgress({ stage: 'Готовлю пост…', percent: null });
     ui.progress.hidden = false;
     try {
-        const { poll } = session;
-        const post = { targets: [...options.picked], mode: options.mode, scheduledAt: options.scheduledAt, scheduledTs: options.mode === 'now' ? 0 : options.scheduledTs || 0,
-            media: (poll&&!poll.with_content)||(!poll&&standaloneExtra(session.extras)) ? [] : media.map(({ kind, src, name, file, existing }) => ({ kind, src, name, file, existing })), text: (poll&&!poll.with_content)||(!poll&&standaloneExtra(session.extras)) ? '' : ui.text.value.trim(),
-            poll: poll ? {...clonePoll(poll), question:poll.question.trim(),options:poll.options.map(v=>v.trim()).filter(Boolean)} : null,
-            hashtags: poll || standaloneExtra(session.extras) || ui.tags.hidden ? [] : [...session.tags], extras:poll ? null : cloneExtras(session.extras) };
+        const payloads=Object.fromEntries(options.picked.map(v=>[v,draftPayload(draftFor(session.base,session.variants,v))]));
+        const first=payloads[options.picked[0]];
+        const post = { ...first, targets:[...options.picked],mode:options.mode,scheduledAt:options.scheduledAt,scheduledTs:options.mode==='now'?0:options.scheduledTs||0,payloads };
         await options.onSubmit(post, onProgress);
         drafts.delete(options.key);
         session.busy = false;
         closeEditor();
     } catch (error) {
-        if (session) { if (error.failedTargets?.length) { options.picked = error.failedTargets; renderWhen(); render(); } ui.warning.hidden = false; ui.warning.textContent = error.message || String(error); }
+        if (session) { if (error.failedTargets?.length) { options.picked = error.failedTargets; if(session.editTarget&&!options.picked.includes(session.editTarget))loadEditorDraft('',session.base);renderWhen(); render(); } ui.warning.hidden = false; ui.warning.textContent = error.message || String(error); }
     } finally {
         ui.submit.textContent = label;
         ui.cancel.disabled = false;
         ui.progress.hidden = true;
-        ui.chips.inert = false; ui.form.querySelector('.pe-body').inert = false;
+        ui.variantBar.inert=false;ui.chips.inert = false; ui.form.querySelector('.pe-body').inert = false;
         ui.close.disabled = false; ui.form.querySelector('.pe-actions .pe-btn-ghost').disabled = false;
         if (session) { session.busy = false; const message = ui.warning.textContent; render(); ui.warning.hidden = false; ui.warning.textContent = message; }
     }
@@ -734,16 +754,19 @@ function closeEditor() {
 /** options: { key, targets: [{value, label, hashtags}], picked: [value], hashtags: ['#рубрика', …], scheduledAt, scheduledTs, media: [{kind, src, thumb, name}], original, description, schedule, onSubmit(post) → Promise }.
  *  post.targets — значения выбранных ресурсов; post.poll — {question, options} вместо текста и медиа. */
 export function openPostEditor(options) {
+    if(session?.busy)return;
     ui ||= buildUi();
     options.mode ??= options.scheduledTs ? 'queue' : 'now';
     options.picked = [...options.picked];
     const draft = options.savedDraft || drafts.get(options.key);
-    session = { options, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: clonePoll(draft && Object.hasOwn(draft,'poll') ? draft.poll : options.poll), extras:cloneExtras(draft && Object.hasOwn(draft,'extras') ? draft.extras : options.extras), dragFrom: null, tags: [...(draft?.tags || options.hashtags || [])] };
-    if (session.poll && options.mode === 'native') options.mode = 'queue';
+    const variants=Object.fromEntries(Object.entries(draft?.variants||{}).filter(([v])=>options.targets.some(t=>t.value===v)).map(([v,d])=>[v,cloneDraft(d)]));
+    session = { options,editTarget:'',base:null,variants, media: (draft ? draft.media : options.media).map(m => ({ ...m })), poll: clonePoll(draft && Object.hasOwn(draft,'poll') ? draft.poll : options.poll), extras:cloneExtras(draft && Object.hasOwn(draft,'extras') ? draft.extras : options.extras), dragFrom: null, tags: [...(draft?.tags || options.hashtags || [])] };
+    ui.text.value = draft ? draft.text : (options.original || '');
+    syncEditorDraft();
+    if (anyQueueOnly() && options.mode === 'native') options.mode = 'queue';
     renderPoll();
     renderExtras();
     renderWhen();
-    ui.text.value = draft ? draft.text : (options.original || '');
     ui.note.textContent = ui.url.value = '';
     ui.aiNote.textContent = '';
     ui.overlay.hidden = false;
@@ -795,4 +818,43 @@ function renderFormatting(){
     }
     nodes.push(document.createTextNode(value.slice(pos)));
     ui.formatPreview.replaceChildren(el('small',{className:'pe-preview-label',textContent:'Предпросмотр форматирования'}),el('div',{className:'pe-preview-copy'},...nodes));
+}
+
+
+function loadEditorDraft(target,d){
+    session.editTarget=target;
+    const copy=cloneDraft(d);
+    session.media=copy.media;session.tags=copy.tags;session.poll=clonePoll(copy.poll);session.extras=cloneExtras(copy.extras);
+    ui.text.value=copy.text;
+    session.renderedMedia=null;session.renderedTags=null;session.correctKey=null;session.variantKey=null;
+    renderPoll();renderExtras();
+    ui.note.textContent=ui.url.value='';
+}
+function switchVariant(target){
+    if(!session||session.busy||ui.aiBusy||session.editTarget===target)return;
+    if(target&&!session.options.picked.includes(target))return;
+    syncEditorDraft();
+    if(target&&!Object.hasOwn(session.variants,target))session.variants[target]=cloneDraft(session.base);
+    loadEditorDraft(target,draftFor(session.base,session.variants,target));
+    renderWhen();render();renderStyle();
+}
+function clearVariant(){
+    if(!session?.editTarget||session.busy||ui.aiBusy)return;
+    const target=session.editTarget;
+    delete session.variants[target];
+    loadEditorDraft('',session.base);renderWhen();render();renderStyle();
+}
+function renderVariantBar(){
+    const all=allSelectedTargets();
+    const shown=!session.options.editing&&(all.length>1||session.editTarget||all.some(t=>Object.hasOwn(session.variants,t.value)));
+    ui.variantBar.hidden=!shown;
+    if(!shown)return;
+    const key=JSON.stringify([all.map(t=>[t.value,t.label,Object.hasOwn(session.variants,t.value)]),session.editTarget]);
+    if(key===session.variantKey)return;
+    session.variantKey=key;
+    const common=all.filter(t=>!Object.hasOwn(session.variants,t.value)).length;
+    const tab=(value,label)=>button('pe-variant-tab'+(session.editTarget===value?' is-active':''),label,()=>switchVariant(value),{ariaPressed:String(session.editTarget===value)});
+    ui.variantBar.replaceChildren(el('span',{className:'pe-variant-label',textContent:'Версии поста'}),
+        tab('',`Общая · ${common}`),...all.map(t=>tab(t.value,(Object.hasOwn(session.variants,t.value)?'✓ ':'')+t.label)),
+        session.editTarget?button('pe-chip-btn pe-variant-reset','Использовать общую версию',clearVariant,{title:'Удалить только индивидуальные изменения этого ресурса'}):null);
 }

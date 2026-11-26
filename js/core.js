@@ -49,6 +49,11 @@ export function postTypeLabel(post) {
     if (post.media > 1) return `альбом · ${post.media}`;
     if (post.kind === 'video') return post.duration ? `видео ${Math.floor(post.duration / 60)}:${String(post.duration % 60).padStart(2, '0')}` : 'видео';
     if (post.kind === 'photo') return 'фото';
+    if(post.kind==='audio')return 'аудио';
+    if(post.kind==='voice')return 'голосовое';
+    if(post.kind==='document')return 'документ';
+    if(post.kind==='sticker')return 'стикер';
+    if(post.kind==='video_note')return 'видеокружок';
     if (post.kind === 'animation') return 'гифка';
     return post.media > 0 ? 'медиа' : 'без подписи';
 }

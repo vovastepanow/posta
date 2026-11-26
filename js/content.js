@@ -4,6 +4,7 @@ import { readFutureDraft, saveFutureDraft, clearFutureDraft } from './future-dra
 import { $, ask, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, qualityText, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
 import { registerViewerGallery, registerViewerPoster, videoFields } from './viewer.js';
 import { formatWhen, openPostEditor } from './editor.js';
+import { draftHasContent } from './editor-variants.js';
 import { openAccountSection } from './account.js';
 import { itemCheck, videoProgress, watchVideo } from './video-pending.js';
 import { articleBrief, articleCaption, cardKind, clampText } from './card.js';
@@ -784,12 +785,14 @@ export async function openFutureDraft() {
         await futureDraftOps;
         const key = await futureDraftKey();
         const saved = await readFutureDraft(key);
-        if (!saved || (!saved.text && !saved.media?.length && !saved.poll && !saved.extras?.location && !saved.extras?.contact)) return void log('Черновик пока пуст. Добавьте пост кнопкой +🚀.');
+        if (!saved || (!draftHasContent(saved)&&!Object.values(saved.variants||{}).some(draftHasContent))) return void log('Черновик пока пуст. Добавьте пост кнопкой +🚀.');
         await refreshTelegramTarget();
-        saved.media = saved.media.map(m => m.file ? { ...m, src: URL.createObjectURL(m.file), thumb: m.kind === 'image' ? URL.createObjectURL(m.file) : '' } : m);
-        openPostEditor({ key: 'future-draft', savedDraft: saved, picked: allTargets().length ? [allTargets()[0].value] : ['tg:main'], targets: allTargets().length ? allTargets() : [{ value: 'tg:main', label: 'Ресурс не подключён', hashtags: 'off', unconnected: true }], schedule: scheduleOptions(),
+        const restoreMedia=d=>{d.media=(d.media||[]).map(m=>{if(!m.file)return m;const src=URL.createObjectURL(m.file);return {...m,src,thumb:m.kind==='image'?src:''};});};
+        restoreMedia(saved);Object.values(saved.variants||{}).forEach(restoreMedia);
+        const picked=(saved.picked||[]).filter(v=>allTargets().some(t=>t.value===v));
+        openPostEditor({ key: 'future-draft', savedDraft: saved, picked:picked.length?picked:allTargets().length ? [allTargets()[0].value] : ['tg:main'], targets: allTargets().length ? allTargets() : [{ value: 'tg:main', label: 'Ресурс не подключён', hashtags: 'off', unconnected: true }], schedule: scheduleOptions(),
             media: saved.media, original: saved.text, hashtags: saved.tags || [], ai: captionTools(),
-            onDraftChange: draft => saveFutureDraft(key, { ...draft, items: draft.text.trim() || draft.media.length ? (saved.items || []) : [] }).catch(error => log(`Не удалось сохранить черновик: ${error.message}`)),
+            onDraftChange: draft => saveFutureDraft(key, { ...draft, items: (draftHasContent(draft)||Object.values(draft.variants||{}).some(draftHasContent)) ? (saved.items || []) : [] }).catch(error => log(`Не удалось сохранить черновик: ${error.message}`)),
             onClose: refreshFutureDraftButtons,
             onSubmit: async (post, onProgress) => { if (!allTargets().length) throw new Error('Подключите ресурс в личном кабинете для публикации.'); const result = await publishToTargets(post, onProgress); await clearFutureDraft(key); refreshFutureDraftButtons(); return result; }
         });
@@ -871,7 +874,7 @@ async function publishToTargets(post, onProgress = null) {
     let marked = null;   // 'liked', если хоть один канал отметил запись сейчас; иначе 'already' при повторе
     for (const target of post.targets) {
         try {
-            const result = await publishToTelegram({ ...post, target }, onProgress);
+            const result = await publishToTelegram({ ...post, ...(post.payloads?.[target]||{}),target }, onProgress);
             if (result?.warning) log(result.warning);
             if (result?.marked === 'liked' || (result?.marked === 'already' && !marked)) marked = result.marked;
         } catch (e) {
@@ -918,7 +921,9 @@ export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', 
         ai: captionTools(), newsUrl: sourceUrl || '',
         onSubmit: async (post, onProgress) => {
             // Ссылку на источник новости не стираем молча: без неё — вопрос, по умолчанию «Да»
-            if (sourceUrl && !String(post.text || '').includes(sourceUrl) && await ask('В тексте поста нет ссылки на новость.', { title: 'Добавить ссылку на источник?', ok: 'Добавить', cancel: 'Без ссылки' })) post.text = `${post.text || ''}\n\nИсточник: ${sourceUrl}`.trim();
+            const payloads=post.payloads?Object.values(post.payloads):[post];
+            const missing=payloads.filter(p=>!(p.poll&&!p.poll.with_content)&&!p.extras?.location&&!p.extras?.contact&&!p.extras?.max_sticker&&!p.media.some(m=>['sticker','video_note'].includes(m.kind))&&!String(p.text||'').includes(sourceUrl));
+            if(sourceUrl&&missing.length&&await ask('В одной или нескольких версиях нет ссылки на новость.',{title:'Добавить ссылку на источник?',ok:'Добавить',cancel:'Без ссылки'})){for(const p of missing)p.text=`${p.text||''}\n\nИсточник: ${sourceUrl}`.trim();}
             if (cardKind(item) === 'article') post.article = articleBrief(item);
             post.record = recordOf(item);
             return publishToTargets(post, onProgress).then(async result => {
