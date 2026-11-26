@@ -4,7 +4,7 @@ import { readFutureDraft, saveFutureDraft, clearFutureDraft } from './future-dra
 import { $, ask, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, qualityText, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
 import { registerViewerGallery, registerViewerPoster, videoFields } from './viewer.js';
 import { formatWhen, openPostEditor } from './editor.js';
-import { draftHasContent } from './editor-variants.js';
+import { draftHasContent, payloadAllowsSourceLink } from './editor-variants.js';
 import { openAccountSection } from './account.js';
 import { itemCheck, videoProgress, watchVideo } from './video-pending.js';
 import { articleBrief, articleCaption, cardKind, clampText } from './card.js';
@@ -922,7 +922,7 @@ export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', 
         onSubmit: async (post, onProgress) => {
             // Ссылку на источник новости не стираем молча: без неё — вопрос, по умолчанию «Да»
             const payloads=post.payloads?Object.values(post.payloads):[post];
-            const missing=payloads.filter(p=>!(p.poll&&!p.poll.with_content)&&!p.extras?.location&&!p.extras?.contact&&!p.extras?.max_sticker&&!p.media.some(m=>['sticker','video_note'].includes(m.kind))&&!String(p.text||'').includes(sourceUrl));
+            const missing=payloads.filter(p=>payloadAllowsSourceLink(p)&&!String(p.text||'').includes(sourceUrl));
             if(sourceUrl&&missing.length&&await ask('В одной или нескольких версиях нет ссылки на новость.',{title:'Добавить ссылку на источник?',ok:'Добавить',cancel:'Без ссылки'})){for(const p of missing)p.text=`${p.text||''}\n\nИсточник: ${sourceUrl}`.trim();}
             if (cardKind(item) === 'article') post.article = articleBrief(item);
             post.record = recordOf(item);

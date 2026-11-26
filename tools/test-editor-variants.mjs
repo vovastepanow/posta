@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {cloneDraft,draftFor,draftPayload,draftProblem,draftNeedsQueue,draftHasContent} from '../js/editor-variants.js';
+import {cloneDraft,draftFor,draftPayload,draftProblem,draftNeedsQueue,draftHasContent,payloadAllowsSourceLink} from '../js/editor-variants.js';
 const base={text:'A',media:[{kind:'photo',src:'https://example.com/a.jpg'}],tags:['#a'],poll:null,extras:{}};
 const tg={value:'tg:main'};
 const x={value:'x:1',capabilities:{platform:'x',kinds:['photo'],mediaMax:4,textLimit:[280,280],poll:false,extras:['first_comment']}};
@@ -22,3 +22,10 @@ assert.equal(draftProblem(tg,card),'');
 assert.equal(draftHasContent({extras:{max_sticker:'a'}}),true);
 assert.equal(draftPayload({...cloneDraft(base),poll:{question:'Q',options:['A','B']}}).media.length,0);
 console.log('editor variant isolation tests passed');
+
+assert.equal(payloadAllowsSourceLink(draftPayload(base)),true);
+assert.equal(payloadAllowsSourceLink(draftPayload({...base,extras:{ig_story:true}})),false);
+assert.equal(payloadAllowsSourceLink(draftPayload(card)),false);
+assert.equal(payloadAllowsSourceLink(draftPayload({...base,media:[{kind:'video_note'}]})),false);
+assert.equal(payloadAllowsSourceLink(draftPayload({...base,poll:{question:'Q',options:['A','B']}})),false);
+assert.equal(payloadAllowsSourceLink(draftPayload({...base,poll:{question:'Q',options:['A','B'],with_content:true}})),true);

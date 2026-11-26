@@ -28,3 +28,7 @@ export function draftNeedsQueue(d) {
 export function draftHasContent(d) {
     return !!(d?.text?.trim()||d?.media?.length||d?.poll||standaloneExtra(d?.extras));
 }
+
+export function payloadAllowsSourceLink(p) {
+    return !(p.poll&&!p.poll.with_content)&&!standaloneExtra(p.extras)&&!p.extras?.ig_story&&!(p.media||[]).some(m=>['sticker','video_note'].includes(mediaKind(m)));
+}
