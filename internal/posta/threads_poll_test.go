@@ -11,6 +11,6 @@ func TestThreadsPollPublication(t *testing.T){
 		return &netResp{Status:200,Data:jx.M{"id":"123"}},nil
 	}
 	p:=NetPost{Poll:jx.M{"question":"Question?","options":[]string{"A","B"}}}
-	sent,err:=threadsPublishWith(context.Background(),&Channel{Ref:"42",Secrets:map[string]string{"access_token":"token"}},p,request,nil,func(context.Context)error{return nil})
+	sent,err:=threadsPublishWith(context.Background(),&Channel{Ref:"12345",Secrets:map[string]string{"access_token":"token"}},p,request,nil,func(context.Context)error{return nil})
 	if err!=nil||sent==nil||calls!=2||sent.MessageIDs[0]!="456"{t.Fatal(sent,err,calls)}
 }
