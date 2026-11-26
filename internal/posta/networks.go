@@ -420,43 +420,50 @@ type netResp struct {
 
 var networkRejectStatuses = []int{400, 401, 403, 404, 410, 422}
 
-func networkURLUnsafe(raw string) string {
+// Resolve once and pin the connection to that validated answer. API requests
+// carry credentials and must never follow redirects or environment proxies.
+func networkResolve(raw string, lookup func(string) ([]net.IP, error)) (*url.URL, []string, error) {
 	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "https" || u.Hostname() == "" {
-		return "Нужен адрес https."
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+		return nil, nil, Bad("Нужен публичный HTTPS-адрес API.")
 	}
-	ips, err := net.LookupIP(u.Hostname())
-	if err != nil || len(ips) == 0 {
-		return "Адрес не найден."
-	}
-	for _, ip := range ips {
-		if !ipPublic(ip) {
-			return "Адрес указывает во внутреннюю сеть сервера."
-		}
-	}
-	return ""
+	return publicResolveAddresses(raw, lookup)
 }
 
-func ipPublic(ip net.IP) bool {
-	return !(ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() ||
-		ip.Equal(net.IPv4bcast) || (ip.To4() != nil && ip.To4()[0] == 100 && ip.To4()[1]&0xc0 == 64))
-}
-
-var netClient = &http.Client{Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+type networkRequestFunc func(context.Context, string, string, map[string]string, io.Reader) (*netResp, error)
 
 func networkHTTP(ctx context.Context, method, rawURL string, headers map[string]string, body io.Reader) (*netResp, error) {
-	if reason := networkURLUnsafe(rawURL); reason != "" {
-		return nil, fmt.Errorf("Запрос отклонён: %s: %w", reason, ErrNetworkRejected)
+	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+	u, addresses, err := networkResolve(rawURL, func(host string) ([]net.IP, error) {
+		return net.DefaultResolver.LookupIP(ctx, "ip4", host)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("Адрес API отклонён или не разрешается: %w", ErrNetworkRejected)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, rawURL, body)
+	dialer := &net.Dialer{Timeout: 8*time.Second}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return dialPublicAddresses(ctx, addresses, dialer.DialContext)
+		},
+		TLSHandshakeTimeout: 8*time.Second,
+	}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error {return http.ErrUseLastResponse}}
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
 	if err != nil {
 		return nil, Bad("Неверный адрес запроса.")
+	}
+	if file, ok := body.(*os.File); ok {
+		if info, err := file.Stat(); err == nil {
+			req.ContentLength = info.Size()
+		}
 	}
 	req.Header.Set("User-Agent", HTTPUA)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	resp, err := netClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		if method != http.MethodGet && method != http.MethodHead {
 			return nil, uncertainPublish("Связь с сервисом прервалась.")
@@ -464,8 +471,8 @@ func networkHTTP(ctx context.Context, method, rawURL string, headers map[string]
 		return nil, Bad("Нет связи с сервисом.")
 	}
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	if err != nil {
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, (8<<20)+1))
+	if err != nil || len(raw)>8<<20 {
 		if method != http.MethodGet && method != http.MethodHead {
 			return nil, uncertainPublish("Ответ сервиса получен не полностью.")
 		}
