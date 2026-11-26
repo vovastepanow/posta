@@ -77,6 +77,7 @@ func (s *Server) Handler() http.Handler {
 	cfg := s.A.Cfg
 	mux.HandleFunc("/index.php", s.api)
 	mux.HandleFunc("/api", s.api)
+	mux.HandleFunc("/delivery-media/", s.A.ServeDeliveryMedia)
 	if cfg.Dev {
 		// режим разработки: войти в браузере без кук (headless-проверки) — только на 127.0.0.1
 		mux.HandleFunc("/dev-login", func(w http.ResponseWriter, r *http.Request) {
