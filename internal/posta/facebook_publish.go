@@ -65,11 +65,13 @@ func facebookPublishWith(ctx context.Context,base string,c *Channel,p NetPost,re
 	if !metaDigits.MatchString(c.Ref)||c.Secrets["access_token"]==""{return nil,Bad("Facebook: страница не подключена.")}
 	if len(p.Media)>10||runeLen(p.Text)>63206{return nil,Bad("Facebook: превышен лимит текста или вложений.")}
 	if strings.TrimSpace(p.Text)==""&&len(p.Media)==0{return nil,Bad("Facebook: пустой пост.")}
+	extra,err:=PublishExtrasCheck("facebook",p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
 	auth:=bearer(c.Secrets["access_token"])
 	for _,media:=range p.Media{
 		if media.Kind=="video"{
 			if len(p.Media)!=1{return nil,Bad("Facebook: допустим фотоальбом либо одно видео, без смешивания.")}
-			return facebookVideoPublishWith(ctx,base,c,p.Text,media.Path,request)
+			sent,err:=facebookVideoPublishWith(ctx,base,c,p.Text,media.Path,request);if err!=nil{return nil,err}
+			facebookFirstComment(ctx,base,sent,jx.Str(extra,"first_comment"),auth,request);return sent,nil
 		}
 		if media.Kind!="photo"{return nil,Bad("Facebook: неподдерживаемое вложение.")}
 	}
@@ -87,13 +89,15 @@ func facebookPublishWith(ctx context.Context,base string,c *Channel,p NetPost,re
 		attached=append(attached,jx.M{"media_fbid":id})
 	}
 	params:=url.Values{"message":{p.Text}}
+	if link:=jx.Str(extra,"link_attachment");link!=""{params.Set("link",link)}
 	for i,f:=range attached{params.Set(fmt.Sprintf("attached_media[%d]",i),string(jx.Marshal(f)))}
 	r,err:=request(ctx,http.MethodPost,base+"/"+c.Ref+"/feed",withCT(auth,ctForm),formBody(params))
 	data,err:=metaPublishExpect(r,err,"Facebook: публикация")
 	if err!=nil{return nil,err}
 	id:=jx.Str(data,"id")
 	if !facebookPostIDPattern.MatchString(id)||!strings.HasPrefix(id,c.Ref+"_"){return nil,uncertainPublish("Facebook не вернул ID поста выбранной страницы.")}
-	return &NetSent{URL:"https://www.facebook.com/"+id,MessageIDs:[]string{id}},nil
+	sent:=&NetSent{URL:"https://www.facebook.com/"+id,MessageIDs:[]string{id}}
+	facebookFirstComment(ctx,base,sent,jx.Str(extra,"first_comment"),auth,request);return sent,nil
 }
 
 func facebookVideoPublishWith(ctx context.Context,base string,c *Channel,description,path string,request networkRequestFunc)(*NetSent,error){
@@ -110,4 +114,17 @@ func facebookVideoPublishWith(ctx context.Context,base string,c *Channel,descrip
 	id:=jx.Str(data,"id")
 	if !metaDigits.MatchString(id){return nil,uncertainPublish("Facebook не вернул ID загруженного видео.")}
 	return &NetSent{URL:"https://www.facebook.com/"+c.Ref+"/videos/"+id+"/",MessageIDs:[]string{id}},nil
+}
+
+var facebookCommentIDPattern=regexp.MustCompile("^[0-9]{5,25}(_[0-9]{5,25})?$")
+
+// Comment failures are independent from the already-confirmed parent post.
+func facebookFirstComment(ctx context.Context,base string,sent *NetSent,comment string,auth map[string]string,request networkRequestFunc){
+ if comment==""||sent==nil||len(sent.MessageIDs)!=1{return}
+ id:=sent.MessageIDs[0]
+ if !facebookCommentIDPattern.MatchString(id){sent.Warning=firstCommentWarning("Facebook");return}
+ r,err:=request(ctx,http.MethodPost,base+"/"+id+"/comments",withCT(auth,ctForm),formBody(url.Values{"message":{comment}}))
+ data,err:=metaPublishExpect(r,err,"Facebook: первый комментарий")
+ if err!=nil||!facebookCommentIDPattern.MatchString(jx.Str(data,"id")){sent.Warning=firstCommentWarning("Facebook");return}
+ sent.CommentID=jx.Str(data,"id")
 }

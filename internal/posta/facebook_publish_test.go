@@ -58,3 +58,25 @@ func TestFacebookVideoPublish(t *testing.T){
 	_,err:=facebookPublishWith(context.Background(),"https://graph.facebook.com/v24.0",c,NetPost{Media:[]Prepared{{Kind:"photo",Path:"unread"},{Kind:"video",Path:path}}},func(context.Context,string,string,map[string]string,io.Reader)(*netResp,error){t.Fatal("mixed album reached API");return nil,nil})
 	if err==nil{t.Fatal("mixed album accepted")}
 }
+
+func TestFacebookLinkAndFirstComment(t *testing.T){
+ c:=&Channel{Ref:"12345",Secrets:map[string]string{"access_token":"page-token"}}
+ for _,failure:=range []bool{false,true}{
+  calls:=0
+  sent,err:=facebookPublishWith(context.Background(),"https://graph.facebook.com/v24.0",c,NetPost{Text:"caption",Extras:jx.M{"link_attachment":"https://example.org/article","first_comment":"comment"}},func(_ context.Context,method,raw string,h map[string]string,body io.Reader)(*netResp,error){
+   calls++
+   b,_:=io.ReadAll(body);q,_:=url.ParseQuery(string(b))
+   if h["Authorization"]!="Bearer page-token"||method!="POST"{t.Fatal("unexpected request")}
+   if calls==1{
+    if !strings.HasSuffix(raw,"/12345/feed")||q.Get("message")!="caption"||q.Get("link")!="https://example.org/article"{t.Fatal(raw,q)}
+    return &netResp{Status:200,Data:jx.M{"id":"12345_33333"}},nil
+   }
+   if calls!=2||!strings.HasSuffix(raw,"/12345_33333/comments")||q.Get("message")!="comment"{t.Fatal(raw,q)}
+   if failure{return &netResp{Status:403,Data:jx.M{"error":jx.M{"code":200}}},nil}
+   return &netResp{Status:200,Data:jx.M{"id":"33333_44444"}},nil
+  })
+  if err!=nil||sent==nil||calls!=2||(sent.Warning!="")!=failure{t.Fatal(sent,err,calls)}
+  if !failure&&sent.CommentID!="33333_44444"{t.Fatal("missing comment ID")}
+ }
+ if _,err:=PublishExtrasCheck("facebook","caption",[]string{"photo"},nil,jx.M{"link_attachment":"https://example.org"});err==nil{t.Fatal("incompatible link accepted")}
+}

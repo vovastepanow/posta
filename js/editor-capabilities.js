@@ -94,7 +94,7 @@ export function extraAvailability(targets,media,text,poll,key) {
     if (key==='spoiler' && (!media.length || media.some(m=>!['photo','animation','video'].includes(mediaKind(m))))) return 'Спойлер доступен только для фото, GIF и видео.';
     if(key==='alt_text'&&(media.length!==1||mediaKind(media[0])!=='photo'))return 'Альтернативный текст доступен для одной фотографии.';
     if(key==='spoiler'&&targets.some(t=>targetCapabilities(t)?.platform==='threads')&&(media.length!==1||!['photo','video'].includes(mediaKind(media[0]))))return 'Спойлер Threads доступен для одного фото или видео.';
-    if(key==='link_attachment'&&targets.some(t=>targetCapabilities(t)?.platform==='threads')&&media.length)return 'Ссылка Threads доступна в текстовом посте.';
+    if(key==='link_attachment'&&targets.some(t=>['threads','facebook'].includes(targetCapabilities(t)?.platform))&&media.length)return 'Ссылка-вложение доступна в текстовом посте.';
     if(key==='link_attachment'&&targets.some(t=>targetCapabilities(t)?.platform==='vk')&&media.length>=10)return 'Ссылка занимает одно место вложения VK.';
     if (key==='preview' && (media.length || !text.trim())) return 'Предпросмотр ссылки доступен в текстовом посте.';
     return '';

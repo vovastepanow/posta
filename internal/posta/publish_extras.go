@@ -22,6 +22,8 @@ func postExtraKinds(platform string) []string {
 		return []string{"close_comments","link_attachment"}
 	case "x":
 		return []string{"first_comment","paid_partnership","made_with_ai","x_reply_settings"}
+	case "facebook":
+		return []string{"first_comment","link_attachment"}
 	case "threads":
 		return []string{"alt_text","topic_tag","link_attachment","spoiler"}
 	case "instagram":
@@ -122,7 +124,7 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 		case "copyright","link_attachment":
 			v:=strings.TrimSpace(jx.ToStr(value));u,err:=url.Parse(v)
 			if len(v)>2048||err!=nil||u.Hostname()==""||u.User!=nil||(u.Scheme!="http"&&u.Scheme!="https")||strings.ContainsAny(v,", \r\n"){return nil,Bad("Укажите корректную HTTP(S)-ссылку.")}
-			if key=="link_attachment"&&((platform=="threads"&&len(kinds)>0)||(platform=="vk"&&len(kinds)>=10)){return nil,Bad("Ссылка несовместима с текущими вложениями.")};out[key]=v
+			if key=="link_attachment"&&(((platform=="threads"||platform=="facebook")&&len(kinds)>0)||(platform=="vk"&&len(kinds)>=10)){return nil,Bad("Ссылка несовместима с текущими вложениями.")};out[key]=v
 		case "vk_geo":
 			v:=strings.Split(jx.ToStr(value),",");if len(v)!=2{return nil,Bad("Укажите широту и долготу через запятую.")}
 			lat,e1:=strconv.ParseFloat(strings.TrimSpace(v[0]),64);lon,e2:=strconv.ParseFloat(strings.TrimSpace(v[1]),64)
