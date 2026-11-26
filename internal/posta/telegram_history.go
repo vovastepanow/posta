@@ -85,7 +85,7 @@ func normalizeTelegramHistory(history tgclient.PublicHistory, name string, count
 		var attachments, gallery []jx.M
 		var images []string
 		var views any
-		incomplete := false
+		incomplete, inventoryIncomplete := false, false
 		// The native history arrives newest first; album members are reversed.
 		oldest := g.messages[len(g.messages)-1]
 		for i := len(g.messages)-1; i >= 0; i-- {
@@ -97,7 +97,7 @@ func normalizeTelegramHistory(history tgclient.PublicHistory, name string, count
 				views = *m.Views
 			}
 			if m.GroupIncomplete {
-				incomplete = true
+				incomplete, inventoryIncomplete = true, true
 			}
 			if m.Kind != "text" {
 				attachment := jx.M{"kind": m.Kind, "message_id": m.ID, "url": fmt.Sprintf("https://t.me/%s/%d", history.Username, m.ID)}
@@ -121,7 +121,7 @@ func normalizeTelegramHistory(history tgclient.PublicHistory, name string, count
 		p := jx.M{"source": name, "source_key": SourceIDFor(PlatformTelegram, history.Username), "post_id": strconv.Itoa(oldest.ID),
 			"url": fmt.Sprintf("https://t.me/%s/%d", history.Username, oldest.ID), "posted_at": oldest.Date,
 			"text": text, "text_post": len(attachments) == 0, "source_attachments": attachments, "views": views,
-			"fetched_via": "telegram_mtproto", "media_incomplete": incomplete}
+			"fetched_via": "telegram_mtproto", "media_incomplete": incomplete, "attachment_inventory_incomplete": inventoryIncomplete}
 		if len(images) > 0 {
 			p["image"], p["image_local"], p["images"] = images[0], images[0], images
 			if len(gallery) > 1 {

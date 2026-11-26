@@ -196,10 +196,10 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 				if native, err := u.telegramUserHistoryPosts(id, jx.Str(src, "name"), config.TelegramPostsPerChannel); err == nil {
 					var ready []jx.M
 					for _, post := range native {
-						if jx.Bool(post, "media_incomplete") || NewsPostOutdated(post, entry) {
+						if NewsPostOutdated(post, entry) {
 							continue
 						}
-						if jx.Str(post, "image") != "" || (acceptText && jx.Bool(post, "text_post")) {
+						if len(jx.Maps(post, "source_attachments")) > 0 || jx.Str(post, "image") != "" || (acceptText && jx.Bool(post, "text_post")) {
 							ready = append(ready, post)
 						}
 					}
@@ -301,7 +301,7 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 	}
 	var playable []jx.M
 	for _, p := range fresh {
-		if !jx.Bool(p, "video_unavailable") && !jx.Bool(p, "media_incomplete") {
+		if (!jx.Bool(p, "video_unavailable") && !jx.Bool(p, "media_incomplete")) || len(jx.Maps(p, "source_attachments")) > 0 {
 			playable = append(playable, p)
 		}
 	}
@@ -1147,8 +1147,18 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 		frozen = u.FrozenSourceLabels()
 	}
 	platOrder := candidatePlatformOrder(byPlatform)
+	recovery := newAttachmentRecovery(u)
 	for _, p := range platOrder {
-		for _, item := range ExpandPostImages(byPlatform[p]) {
+		var ready []jx.M
+		for _, raw := range byPlatform[p] {
+			if policyErr == nil && sourcePolicy(raw) == "" &&
+				!candidateIsKnown(raw, seen) && !IsPostOutdated(jx.Int(raw, "posted_at"), 0, maxAge) &&
+				u.collectorDisplayReason(raw, filters, frozen, adult) == "" && u.UAItemBlocked(raw) == "" {
+				raw = recovery.post(raw)
+			}
+			ready = append(ready, raw)
+		}
+		for _, item := range ExpandPostImages(ready) {
 			if jx.Bool(item, "media_incomplete") || jx.Bool(item, "text_incomplete") {
 				skipped["incomplete_source_post"]++
 				continue

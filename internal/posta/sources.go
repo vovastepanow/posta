@@ -1246,7 +1246,7 @@ func VKWallPost(post jx.M, sourceName, domain string, withText bool, minText int
 		views = jx.Int(v, "count")
 	}
 	p := jx.M{"image": main, "images": images, "text": text, "text_post": textOnly, "source": sourceName, "post_id": id, "posted_at": jx.Int(post, "date"),
-		"source_attachments": attachments, "media_incomplete": incomplete || videoCount > 1, "expected_video_count": videoCount,
+		"source_attachments": attachments, "attachment_inventory_incomplete": incomplete, "media_incomplete": incomplete || videoCount > 1, "expected_video_count": videoCount,
 		"likes": jx.Int(jx.Map(post, "likes"), "count"), "reposts": jx.Int(jx.Map(post, "reposts"), "count"), "comments": jx.Int(jx.Map(post, "comments"), "count"),
 		"views": views, "url": link}
 	if videoPage != "" {

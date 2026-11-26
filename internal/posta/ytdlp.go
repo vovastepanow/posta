@@ -837,7 +837,7 @@ func (u *U) TelegramBigVideosViaAccount(posts []jx.M) []jx.M {
 		return posts
 	}
 	for _, p := range posts {
-		if jx.Bool(p, "video_unavailable") && VideoPageVia(jx.Str(p, "url")) == "tgu" {
+		if jx.Bool(p, "video_unavailable") && len(jx.Maps(p, "source_attachments")) <= 1 && VideoPageVia(jx.Str(p, "url")) == "tgu" {
 			p["video_unavailable"], p["video_via"], p["video_page"] = false, "tgu", jx.Str(p, "url")
 		}
 	}
