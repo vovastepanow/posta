@@ -19,3 +19,18 @@ func TestPublicHistoryRejectsForeignAndProtectedMessages(t *testing.T) {
 		t.Fatalf("unexpected history: %+v", got)
 	}
 }
+
+func TestHistoryPhotoSizeBudget(t *testing.T) {
+	p := &tg.Photo{Sizes: []tg.PhotoSizeClass{
+		&tg.PhotoSize{Type: "s", W: 90, H: 90, Size: 1000},
+		&tg.PhotoSizeProgressive{Type: "m", W: 800, H: 600, Sizes: []int{4000, 8000}},
+		&tg.PhotoSize{Type: "x", W: 1600, H: 1200, Size: 90000},
+	}}
+	if got := bestHistoryPhotoSize(p, 10000); got.kind != "m" || got.size != 8000 {
+		t.Fatalf("size = %+v", got)
+	}
+	b := &historyPhotoBuffer{limit: 3}
+	if _, err := b.Write([]byte("abcd")); err == nil || b.Len() != 0 {
+		t.Fatal("oversized file accepted")
+	}
+}

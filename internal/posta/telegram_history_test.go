@@ -29,3 +29,20 @@ func TestNativeTelegramHistoryPreservesAlbum(t *testing.T) {
 		t.Fatalf("single video not queued for existing preview path: %v", p[2])
 	}
 }
+
+func TestNativeTelegramPhotoAlbumCompleteness(t *testing.T) {
+	h := tgclient.PublicHistory{Username: "publicchannel", Messages: []tgclient.PublicHistoryMessage{
+		{ID: 12, GroupID: 1, Kind: "photo", PhotoURL: "/media/second.jpg"},
+		{ID: 11, GroupID: 1, Kind: "photo", PhotoURL: "/media/first.jpg"},
+	}}
+	p := normalizeTelegramHistory(h, "", 1)[0]
+	g := jx.Maps(p, "gallery")
+	if jx.Bool(p, "media_incomplete") || len(g) != 2 || jx.Str(g[0], "image_local") != "/media/first.jpg" || jx.Str(g[1], "image_local") != "/media/second.jpg" {
+		t.Fatalf("complete album lost: %v", p)
+	}
+	h.Messages[0].PhotoURL = ""
+	p = normalizeTelegramHistory(h, "", 1)[0]
+	if !jx.Bool(p, "media_incomplete") || jx.Bool(p, "text_post") {
+		t.Fatalf("partial album accepted: %v", p)
+	}
+}

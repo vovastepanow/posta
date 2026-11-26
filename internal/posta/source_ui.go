@@ -342,7 +342,7 @@ func (u *U) sourcePreviewMedia(p jx.M) []jx.M {
 		if strings.HasPrefix(s, "https://") {
 			return s
 		}
-		return ""
+		return u.MediaExisting(s)
 	}
 	item := func(kind, src, poster, page string, pending, unavailable bool) jx.M {
 		return jx.M{"kind": kind, "src": src, "poster": poster, "page": page, "pending": pending, "unavailable": unavailable}

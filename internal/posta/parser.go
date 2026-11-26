@@ -192,16 +192,19 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 		page = u.FetchTelegramChannelPage(id, 0)
 		if page == "" || !strings.Contains(page, `data-post="`) {
 			// A personal MTProto read is not a shared catalog activity verdict.
-			if acceptText && u.ID != "" && u.TelegramUserConnected() {
+			if u.ID != "" && u.TelegramUserConnected() {
 				if native, err := u.telegramUserHistoryPosts(id, jx.Str(src, "name"), config.TelegramPostsPerChannel); err == nil {
-					var textPosts []jx.M
+					var ready []jx.M
 					for _, post := range native {
-						if jx.Bool(post, "text_post") && !NewsPostOutdated(post, entry) {
-							textPosts = append(textPosts, post)
+						if jx.Bool(post, "media_incomplete") || NewsPostOutdated(post, entry) {
+							continue
+						}
+						if jx.Str(post, "image") != "" || (acceptText && jx.Bool(post, "text_post")) {
+							ready = append(ready, post)
 						}
 					}
-					u.Log("-> %s %s: резервное чтение MTProto, текстовых постов: %d", platform, label, len(textPosts))
-					return textPosts, nil, ""
+					u.Log("-> %s %s: резервное чтение MTProto, готовых постов: %d", platform, label, len(ready))
+					return ready, nil, ""
 				}
 			}
 			u.Log("-> %s %s: страница не загрузилась или не содержит доступной истории.", platform, label)
