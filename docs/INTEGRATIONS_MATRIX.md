@@ -12,7 +12,7 @@ Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https:
 |---|---|
 | Telegram | Bot and MTProto scheduling; verify album and long-caption handling |
 | VK | Token connection, wall publishing, photos; video not supported in current registry |
-| OK | Requires app key, text publishing only |
+| OK | Requires app key, group text/photo publishing via upload tokens; VIDEO_CONTENT still needed for video adapter |
 | MAX | Bot, text and uploaded image/video attachments; explicit attachment-processing retry; live account test pending |
 | YouTube | OAuth, video upload; app keys/audit required |
 | Pinterest | OAuth, photo pin; app keys required |
@@ -64,3 +64,5 @@ WordPress REST API reference: https://developer.wordpress.org/rest-api/reference
 - Explicitly partial public refreshes keep one previous unflagged snapshot in the JSON record without merging attachments across edits. The latest incomplete observation is not sent through global public topic classification. This is not a full media repair queue or proof of completeness of the previous observation.
 
 MAX media API reference (checked 2026-11-26): https://dev.max.ru/docs-api/use-cases/sending-messages/media/ and https://dev.max.ru/docs-api/methods/POST/uploads . The provider supports up to 12 attachments; the existing editor has its own 10-file cap. Local preflight and fixture tests do not certify credentials or live delivery.
+
+OK references: https://apiok.ru/dev/examples/photo_upload ; https://apiok.ru/dev/methods/rest/photosV2/photosV2.getUploadUrl ; https://apiok.ru/dev/methods/rest/mediatopic/mediatopic.post ; https://new.apiok.ru/dev/methods/ . Group topic photographs use the uploaded tokens directly without a separate commit. The 10-image / 20 MB limits here are conservative local limits, not certified provider maxima.

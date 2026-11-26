@@ -110,7 +110,7 @@ func (a *App) Networks() map[string]*Network {
 			MaxBytes: map[string]int64{"photo": 10_000_000, "animation": 10_000_000, "video": 10_000_000}, Docs: "ok",
 			Fields: []NetField{{"webhook", "Адрес вебхука канала", true}}, Connect: discordConnect, Publish: discordPublish},
 		"dzen": {Title: "Дзен", Status: "manual", Note: "Публичного API публикации нет. Посты Telegram-канала выходят в Дзене сами: Дзен-студия → настройки канала → код для Telegram → бот @zen_sync_bot админом в канал → /sync."},
-		"ok": {Title: "Одноклассники (группа)", Prefix: "ok", Status: "needs_keys", Note: "Ключ приложения OK и постоянный токен группы; только текст.", TextLimit: [2]int{4000, 4000},
+		"ok": {Title: "Одноклассники (группа)", Prefix: "ok", Status: "needs_keys", Note: "Ключ приложения OK и токен с GROUP_CONTENT; фотографии требуют PHOTO_CONTENT.", TextLimit: [2]int{4000, 4000}, MediaMax: 10, Kinds: []string{"photo"}, MaxBytes: map[string]int64{"photo":20_000_000},
 			Docs: "partly", AppKeys: []string{"OK_APP_KEY"}, Connect: okConnect, Publish: okPublish,
 			Fields: []NetField{{"access_token", "Постоянный токен приложения", true}, {"session_secret_key", "Секретный ключ сессии", true}, {"gid", "id группы", false}}},
 		"youtube": {Title: "YouTube Shorts", Prefix: "yt", Status: "needs_keys", Note: "Проект Google и экран согласия; без аудита ролики приватные. Только видео.",
@@ -1109,7 +1109,7 @@ func (a *App) okRequest(ctx context.Context, method string, params map[string]st
 	for k, v := range params {
 		q.Set(k, v)
 	}
-	return networkHTTP(ctx, "GET", "https://api.ok.ru/fb.do?"+q.Encode(), nil, nil)
+	return networkHTTP(ctx, "POST", "https://api.ok.ru/fb.do", map[string]string{"Content-Type":ctForm},formBody(q))
 }
 
 func okConnect(a *App, ctx context.Context, in map[string]string) (*NetResource, error) {
@@ -1122,6 +1122,9 @@ func okConnect(a *App, ctx context.Context, in map[string]string) (*NetResource,
 	if err != nil {
 		return nil, err
 	}
+	if jx.Int(me,"error_code")!=0 || jx.Str(me,"id")=="" && jx.Str(me,"uid")=="" {
+		return nil,Bad("Одноклассники: токен не подтверждён.")
+	}
 	title := strings.TrimSpace(jx.Str(me, "name"))
 	if title == "" {
 		title = "Одноклассники"
@@ -1129,27 +1132,11 @@ func okConnect(a *App, ctx context.Context, in map[string]string) (*NetResource,
 	return &NetResource{Ref: gid, Title: title, Secrets: map[string]string{"access_token": token, "session_secret_key": secret}, Meta: jx.M{"gid": gid}}, nil
 }
 
-func okPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, error) {
-	text := strings.TrimSpace(p.Text)
-	if text == "" {
-		return nil, Bad("Одноклассники: пост без текста.")
+func okPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent,error) {
+	call:=func(ctx context.Context,method string,params map[string]string)(*netResp,error){
+		return a.okRequest(ctx,method,params,c.Secrets["access_token"],c.Secrets["session_secret_key"])
 	}
-	gid := jx.Str(c.Meta, "gid")
-	att := string(jx.Marshal(jx.M{"media": []jx.M{{"type": "text", "text": text}}}))
-	r, err := a.okRequest(ctx, "mediatopic.post", map[string]string{"type": "GROUP_THEME", "gid": gid, "attachment": att}, c.Secrets["access_token"], c.Secrets["session_secret_key"])
-	if err != nil {
-		// This legacy OK method is a mutating GET.
-		return nil, uncertainPublish("Одноклассники: результат запроса неизвестен.")
-	}
-	id, err := okPublishedID(r)
-	if err != nil {
-		return nil, err
-	}
-	u := ""
-	if id != "" {
-		u = "https://ok.ru/group/" + gid + "/topic/" + id
-	}
-	return &NetSent{URL: u, MessageIDs: []string{id}}, nil
+	return okPublishWith(ctx,c,p,call,networkHTTP)
 }
 
 // OK returns an ID as a JSON scalar, but also uses HTTP 200 for API errors.
