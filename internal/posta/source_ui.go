@@ -41,7 +41,6 @@ const (
 	sourcePreviewPosts     = 20
 	sourcePreviewPostsTT   = 8
 	sourcePreviewPostsSlow = 6
-	sourcePreviewTextMax   = 2000
 	SourceAddMaxLink       = 500
 )
 
@@ -332,9 +331,9 @@ func (u *U) SourcePreviewPost(p jx.M) jx.M {
 	if jx.Has(p, "comments") && p["comments"] != nil {
 		comments = jx.Int(p, "comments")
 	}
-	return jx.M{"text": trimRunes(strings.TrimSpace(text), sourcePreviewTextMax), "url": jx.Str(p, "url"), "posted_at": jx.Int(p, "posted_at"),
+	return jx.M{"text": strings.TrimSpace(text), "url": jx.Str(p, "url"), "posted_at": jx.Int(p, "posted_at"),
 		"text_post": jx.Bool(p, "text_post"), "media": u.sourcePreviewMedia(p), "views": views, "reactions": reactions, "comments": comments,
-		"media_incomplete": jx.Bool(p, "media_incomplete"), "fetched_via": jx.Str(p, "fetched_via")}
+		"media_incomplete": jx.Bool(p, "media_incomplete"), "fetched_via": jx.Str(p, "fetched_via"), "text_incomplete": jx.Bool(p, "text_incomplete")}
 }
 
 func (u *U) sourcePreviewMedia(p jx.M) []jx.M {
@@ -349,6 +348,31 @@ func (u *U) sourcePreviewMedia(p jx.M) []jx.M {
 	}
 	page := jx.Str(p, "url")
 	out := []jx.M{}
+	if attachments := jx.Maps(p, "source_attachments"); len(attachments) > 0 {
+		for _, a := range attachments {
+			poster := https(jx.Str(a, "image"))
+			if poster == "" {
+				poster = https(jx.Str(a, "image_local"))
+			}
+			switch jx.Str(a, "kind") {
+			case "photo":
+				if poster != "" {
+					out = append(out, item("image", poster, "", "", false, false))
+				}
+			case "video":
+				video := https(jx.Str(a, "video"))
+				if video == "" {
+					video = https(jx.Str(a, "video_local"))
+				}
+				target := jx.Str(a, "video_page")
+				if target == "" {
+					target = page
+				}
+				out = append(out, item("video", video, poster, target, jx.Bool(a, "video_pending"), video == "" && VideoPageVia(target) == ""))
+			}
+		}
+		return out
+	}
 	if g := jx.Maps(p, "gallery"); len(g) > 0 {
 		videoPage := jx.Str(p, "video_page")
 		for i, x := range g {

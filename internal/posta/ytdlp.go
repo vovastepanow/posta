@@ -934,23 +934,49 @@ func (a *App) videoPreviewEvictOne(ctx context.Context, uid, via string) bool {
 	return true
 }
 
-// VideoPreviewApply — посты с роликом: скачанный — с адресом кэша, ждущий — с пометкой video_pending.
-func (a *App) VideoPreviewApply(ctx context.Context, posts []jx.M) []jx.M {
-	for _, p := range posts {
+// videoPreviewTargets includes independent album videos. Retain the legacy
+// top-level video for older posts, but do not invent extra album downloads.
+func videoPreviewTargets(posts []jx.M) []jx.M {
+	var targets []jx.M
+	for _, post := range posts {
+		for _, attachment := range jx.Maps(post, "source_attachments") {
+			if jx.Str(attachment, "kind") == "video" && VideoPageVia(jx.Str(attachment, "video_page")) != "" {
+				targets = append(targets, attachment)
+			}
+		}
+		if VideoPageVia(jx.Str(post, "video_page")) != "" {
+			targets = append(targets, post)
+		}
+	}
+	return targets
+}
+
+func applyVideoPreviewTargets(posts []jx.M, status func(string) jx.M) {
+	states := map[string]jx.M{}
+	for _, p := range videoPreviewTargets(posts) {
 		page := jx.Str(p, "video_page")
-		if jx.Str(p, "video") != "" || page == "" || VideoPageVia(page) == "" {
+		if jx.Str(p, "video") != "" {
 			continue
 		}
-		st := a.VideoPreviewStatus(ctx, page)
+		st, ok := states[page]
+		if !ok {
+			st = status(page)
+			states[page] = st
+		}
 		switch jx.Str(st, "status") {
 		case "done":
-			p["video"], p["video_local"], p["video_pending"] = st["local"], st["local"], false
+			p["video"], p["video_local"], p["video_pending"], p["video_unavailable"] = st["local"], st["local"], false, false
 		case "queued", "running":
 			p["video_pending"] = true
 		default:
 			p["video_pending"] = false
 		}
 	}
+}
+
+// VideoPreviewApply updates the source preview's individual video tiles.
+func (a *App) VideoPreviewApply(ctx context.Context, posts []jx.M) []jx.M {
+	applyVideoPreviewTargets(posts, func(page string) jx.M { return a.VideoPreviewStatus(ctx, page) })
 	return posts
 }
 
@@ -959,13 +985,28 @@ func (a *App) VideoPreviewApply(ctx context.Context, posts []jx.M) []jx.M {
 func (a *App) VideoPreviewPrepare(ctx context.Context, posts []jx.M, uid string) []jx.M {
 	type want struct{ page, via string }
 	var wants []want
-	for _, p := range posts {
+	seen := map[string]bool{}
+	tguChecked, tguConnected := false, false
+	for _, p := range videoPreviewTargets(posts) {
 		if len(wants) >= videoPreviewFirst {
 			break
 		}
 		page := jx.Str(p, "video_page")
 		via := VideoPageVia(page)
-		if jx.Str(p, "video") != "" || page == "" || via == "" || jx.Str(a.VideoPreviewStatus(ctx, page), "status") == "done" {
+		if jx.Str(p, "video") != "" || via == "" || seen[page] {
+			continue
+		}
+		seen[page] = true
+		if via == "tgu" {
+			if !tguChecked {
+				tguChecked = true
+				tguConnected = uid != "" && a.User(ctx, uid, nil).TelegramUserConnected()
+			}
+			if !tguConnected {
+				continue
+			}
+		}
+		if jx.Str(a.VideoPreviewStatus(ctx, page), "status") == "done" {
 			continue
 		}
 		wants = append(wants, want{page, via})

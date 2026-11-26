@@ -665,8 +665,20 @@ func telegramPostTextFields(content string) (text, markup, forwardedFrom, forwar
 	return
 }
 
-// TelegramPostMedia — медиа сообщения по плиткам альбома.
+// TelegramPostMedia — медиа сообщения по плиткам альбома (старый
+// интерфейс для счётчиков и истории). The complete inventory also includes
+// unresolved tiles with their individual message links.
 func TelegramPostMedia(content string, maxN int) []jx.M {
+	var media []jx.M
+	for _, tile := range telegramMediaInventory(content, maxN, "") {
+		if jx.Str(tile, "image") != "" || jx.Str(tile, "video") != "" {
+			media = append(media, jx.M{"image": jx.Str(tile, "image"), "video": jx.Str(tile, "video")})
+		}
+	}
+	return media
+}
+
+func telegramMediaInventory(content string, maxN int, channel string) []jx.M {
 	if maxN <= 0 {
 		return nil
 	}
@@ -691,9 +703,28 @@ func TelegramPostMedia(content string, maxN int) []jx.M {
 		} else if m := bgImageRe.FindStringSubmatch(part); m != nil {
 			img = htmlAttr(m[1])
 		}
-		if img != "" || video != "" {
-			media = append(media, jx.M{"image": img, "video": video})
+		kind := "photo"
+		if videoPlayerRe.MatchString(content[l[0]:l[1]]) {
+			kind = "video"
 		}
+		tile := jx.M{"kind": kind, "image": img, "video": video}
+		// Grouped tiles use distinct /messageID?single links. Never use the
+		// album's outer ID to download the second or later video.
+		if open := strings.IndexByte(part, '>'); open >= 0 && channel != "" {
+			if link, err := url.Parse(attrOf(part[:open], "href")); err == nil && link.Scheme == "https" && link.Hostname() == "t.me" && link.User == nil && link.Port() == "" && link.Fragment == "" {
+				pieces := strings.Split(strings.Trim(link.Path, "/"), "/")
+				if len(pieces) == 2 && strings.EqualFold(pieces[0], channel) {
+					link.RawQuery, link.ForceQuery = "", false
+					if VideoPageVia(link.String()) == "tgu" {
+						tile["url"] = link.String()
+						if kind == "video" {
+							tile["video_page"], tile["video_via"] = link.String(), "tgu"
+						}
+					}
+				}
+			}
+		}
+		media = append(media, tile)
 		if len(media) >= maxN {
 			break
 		}
@@ -723,10 +754,15 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 	for i := len(blocks) - 1; i >= 0 && len(posts) < count; i-- {
 		b := blocks[i]
 		text, textHTML, forwardedFrom, forwardedURL := telegramPostTextFields(b.Content)
-		media := TelegramPostMedia(b.Content, 10)
+		inventory := telegramMediaInventory(b.Content, 10, channel)
+		var media []jx.M
 		var imgs []string
-		for _, m := range media {
-			imgs = append(imgs, jx.Str(m, "image"))
+		for _, m := range inventory {
+			img, video := jx.Str(m, "image"), jx.Str(m, "video")
+			if img != "" || video != "" {
+				media = append(media, jx.M{"image": img, "video": video})
+			}
+			imgs = append(imgs, img)
 		}
 		images := MediaDedupeURLs(imgs)
 		video := ""
@@ -735,23 +771,26 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 		}
 		// Count missing video tiles independently of the playable ones.
 		// Otherwise a mixed album is incorrectly declared complete.
-		videoTiles := 0
-		for _, loc := range tgMediaSplitRe.FindAllStringIndex(b.Content, -1) {
-			if videoPlayerRe.MatchString(b.Content[loc[0]:loc[1]]) {
+		videoTiles, playableVideos := 0, 0
+		missingPhoto := false
+		for _, m := range inventory {
+			if jx.Str(m, "kind") == "video" {
 				videoTiles++
-			}
-		}
-		playableVideos := 0
-		for _, m := range media {
-			if jx.Str(m, "video") != "" {
-				playableVideos++
+				if jx.Str(m, "video") != "" {
+					playableVideos++
+				}
+			} else if jx.Str(m, "image") == "" {
+				missingPhoto = true
 			}
 		}
 		hasVideo := playableVideos > 0
 		unavailable := !hasVideo && videoTiles > 0
-		mediaIncomplete := videoTiles > playableVideos && (videoTiles > 1 || len(media) > 1)
-		textOnly := len(images) == 0 && !hasVideo && !unavailable && withText && runeLen(text) >= minText && text != ""
-		if len(images) == 0 && !hasVideo && !unavailable && !textOnly {
+		mediaIncomplete := missingPhoto || (videoTiles > playableVideos && len(inventory) > 1)
+		if videoTiles == 1 && len(inventory) == 1 && jx.Str(inventory[0], "video_page") == "" {
+			inventory[0]["video_page"], inventory[0]["video_via"] = "https://t.me/"+channel+"/"+b.ID, "tgu"
+		}
+		textOnly := len(inventory) == 0 && withText && runeLen(text) >= minText && text != ""
+		if len(inventory) == 0 && !textOnly {
 			continue
 		}
 		t := TelegramPostTime(b.Content)
@@ -778,7 +817,7 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 		posts = append(posts, jx.M{"image": main, "images": images[:min(10, len(images))], "link_image": linkImage, "gallery": gallery, "video": video,
 			"text": text, "text_html": textHTML, "forwarded": forwardedFrom != "", "forwarded_from": forwardedFrom, "forwarded_url": forwardedURL,
 			"text_post": textOnly, "source": name, "post_id": b.ID, "posted_at": t, "url": "https://t.me/" + url.PathEscape(channel) + "/" + b.ID,
-			"video_unavailable": unavailable, "media_incomplete": mediaIncomplete, "expected_video_count": videoTiles, "engagement": telegramEngagementSnapshot(eng, b.ID, t)})
+			"video_unavailable": unavailable, "media_incomplete": mediaIncomplete, "source_attachments": inventory, "expected_video_count": videoTiles, "engagement": telegramEngagementSnapshot(eng, b.ID, t)})
 	}
 	return posts
 }

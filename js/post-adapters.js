@@ -47,6 +47,8 @@ export function fromSourcePost(post, source = {}) {
         url,
         text: plainText(post.text),
         media: items,
+        mediaIncomplete: Boolean(post.media_incomplete),
+        textIncomplete: Boolean(post.text_incomplete),
         article: null,
         poll: null,
         stats: { views: post.views ?? null, comments: post.comments ?? null, reactions: post.reactions ?? null },
@@ -196,6 +198,8 @@ export function analyzePost(post) {
     if (tg.length) warnings.push(`В тексте чужие упоминания или ссылки на Telegram (${[...new Set(tg)].slice(0, 3).join(', ')}): при репосте вы рекламируете чужой канал. Уберите или замените на свой.`);
     if (/\berid[:=\s]*[A-Za-z0-9]{6,}|\bреклама\b|#реклама|на правах рекламы/iu.test(text)) warnings.push('Похоже на рекламу (erid или пометка «реклама»): без вашего договора публиковать её нельзя.');
     if (/https?:\/\/\S+/.test(text) && !tg.length) facts.push('есть ссылки');
-    if (media.some(m => m.unavailable)) warnings.push('Большое видео не скачано, в редактор попадут только остальные файлы.');
+    if (post.mediaIncomplete) warnings.push('Не все вложения удалось получить или проверить. Сверьте запись с оригиналом.');
+    if (post.textIncomplete) warnings.push('Источник отдал только часть текста.');
+    if (media.some(m => m.unavailable)) warnings.push('Видео не скачано. Полная публикация требует восстановления файла.');
     return { verdict, metrics, facts, warnings };
 }

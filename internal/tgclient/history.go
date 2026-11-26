@@ -173,15 +173,18 @@ func bestHistoryPhotoSize(photo *tg.Photo, limit int) historyPhotoSize {
 }
 
 type historyPhotoBuffer struct {
-	bytes.Buffer
-	limit int
+	buffer bytes.Buffer
+	limit  int
 }
+
+func (b *historyPhotoBuffer) Len() int { return b.buffer.Len() }
+func (b *historyPhotoBuffer) Bytes() []byte { return b.buffer.Bytes() }
 
 func (b *historyPhotoBuffer) Write(p []byte) (int, error) {
 	if len(p) > b.limit-b.Len() {
 		return 0, errors.New("photo exceeds download budget")
 	}
-	return b.Buffer.Write(p)
+	return b.buffer.Write(p)
 }
 
 func downloadPublicHistoryPhoto(ctx context.Context, api *tg.Client, msg *tg.Message, limit int) ([]byte, error) {

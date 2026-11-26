@@ -107,6 +107,9 @@ func normalizeTelegramHistory(history tgclient.PublicHistory, name string, count
 					gallery = append(gallery, jx.M{"image": m.PhotoURL, "image_local": m.PhotoURL})
 				} else {
 					incomplete = true
+					if m.Kind == "video" {
+						attachment["video_page"], attachment["video_via"] = jx.Str(attachment, "url"), "tgu"
+					}
 				}
 				attachments = append(attachments, attachment)
 			}
