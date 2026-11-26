@@ -198,8 +198,11 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 		f := TelegramPageFacts(page)
 		times, subs = f.PostTimes, f.Subscribers
 		rate = SourceViewRate(subs, f.PostViews)
-		if !strings.Contains(page, `data-post="`) {
-			gone = "канала нет или он закрыт"
+		if len(times) == 0 && len(posts) == 0 {
+			// A login/challenge page or a temporarily unreadable channel
+			// is not proof that the source is closed or inactive.
+			u.Log("-> %s %s: нет подтверждённых публикаций.", platform, label)
+			return nil, nil, ""
 		}
 	case PlatformRSS:
 		withText := acceptText && !jx.Bool(entry, "news")
@@ -282,7 +285,7 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 	}
 	var playable []jx.M
 	for _, p := range fresh {
-		if !jx.Bool(p, "video_unavailable") {
+		if !jx.Bool(p, "video_unavailable") && !jx.Bool(p, "media_incomplete") {
 			playable = append(playable, p)
 		}
 	}
@@ -292,7 +295,7 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 		line += fmt.Sprintf(", устаревших пропущено: %d", old)
 	}
 	if hidden > 0 {
-		line += fmt.Sprintf(", больших видео без файла пропущено: %d", hidden)
+		line += fmt.Sprintf(", неполных медиа-постов пропущено: %d", hidden)
 	}
 	line += " (" + DescribeSourceActivity(activity)
 	if subs > 0 {

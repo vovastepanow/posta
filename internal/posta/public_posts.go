@@ -116,11 +116,23 @@ func (u *U) classifyPublicItem(item jx.M, caption, imageURL string) ([]string, b
 	if jx.Bool(item, "source_sensitive") || jx.Bool(item, "nsfw") || u.ContentIsAdult(item) || len(jx.ToStrs(item["safety"])) > 0 {
 		return nil, true
 	}
+	if jx.Bool(item, "media_incomplete") || jx.Bool(item, "text_incomplete") || jx.Bool(item, "video_unavailable") {
+		u.classificationReason = "incomplete_source_post"
+		return nil, false
+	}
 	if PostItemHasVideo(item) {
 		if local := u.MediaPath(jx.Str(item, "video_local")); local != "" && fileExists(local) {
 			return u.classifyPublicVideoFile(local, caption)
 		}
-		return u.classifyPublicVideo(jx.Str(item, "video"), caption)
+		video := jx.Str(item, "video")
+		if video == "" {
+			for _, attachment := range ContentGallery(item) {
+				if video = jx.Str(attachment, "video"); video != "" {
+					break
+				}
+			}
+		}
+		return u.classifyPublicVideo(video, caption)
 	}
 	if imageURL != "" {
 		// A caption alone cannot rule out subjects introduced by its image.

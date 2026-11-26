@@ -733,16 +733,23 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 		if len(media) > 0 {
 			video = jx.Str(media[0], "video")
 		}
-		// A photo-first album can contain playable video in later tiles.
-		// A directly playable video also need not expose a poster.
-		hasVideo := false
-		for _, m := range media {
-			if jx.Str(m, "video") != "" {
-				hasVideo = true
-				break
+		// Count missing video tiles independently of the playable ones.
+		// Otherwise a mixed album is incorrectly declared complete.
+		videoTiles := 0
+		for _, loc := range tgMediaSplitRe.FindAllStringIndex(b.Content, -1) {
+			if videoPlayerRe.MatchString(b.Content[loc[0]:loc[1]]) {
+				videoTiles++
 			}
 		}
-		unavailable := !hasVideo && videoPlayerRe.MatchString(b.Content)
+		playableVideos := 0
+		for _, m := range media {
+			if jx.Str(m, "video") != "" {
+				playableVideos++
+			}
+		}
+		hasVideo := playableVideos > 0
+		unavailable := !hasVideo && videoTiles > 0
+		mediaIncomplete := videoTiles > playableVideos && (videoTiles > 1 || len(media) > 1)
 		textOnly := len(images) == 0 && !hasVideo && !unavailable && withText && runeLen(text) >= minText && text != ""
 		if len(images) == 0 && !hasVideo && !unavailable && !textOnly {
 			continue
@@ -771,7 +778,7 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 		posts = append(posts, jx.M{"image": main, "images": images[:min(10, len(images))], "link_image": linkImage, "gallery": gallery, "video": video,
 			"text": text, "text_html": textHTML, "forwarded": forwardedFrom != "", "forwarded_from": forwardedFrom, "forwarded_url": forwardedURL,
 			"text_post": textOnly, "source": name, "post_id": b.ID, "posted_at": t, "url": "https://t.me/" + url.PathEscape(channel) + "/" + b.ID,
-			"video_unavailable": unavailable, "engagement": telegramEngagementSnapshot(eng, b.ID, t)})
+			"video_unavailable": unavailable, "media_incomplete": mediaIncomplete, "expected_video_count": videoTiles, "engagement": telegramEngagementSnapshot(eng, b.ID, t)})
 	}
 	return posts
 }
@@ -1136,7 +1143,10 @@ func vkVideoFields(v jx.M) (string, string) {
 
 func VKWallPost(post jx.M, sourceName, domain string, withText bool, minText int) jx.M {
 	var images []string
+	var attachments []jx.M
 	videoPage, videoCover := "", ""
+	videoCount := 0
+	incomplete := false
 	for _, a := range jx.Maps(post, "attachments") {
 		switch jx.Str(a, "type") {
 		case "photo":
@@ -1144,19 +1154,37 @@ func VKWallPost(post jx.M, sourceName, domain string, withText bool, minText int
 			sort.SliceStable(sizes, func(i, j int) bool {
 				return jx.Int(sizes[i], "width")*jx.Int(sizes[i], "height") > jx.Int(sizes[j], "width")*jx.Int(sizes[j], "height")
 			})
-			if len(sizes) > 0 && strings.HasPrefix(jx.Str(sizes[0], "url"), "https://") {
-				images = append(images, jx.Str(sizes[0], "url"))
+			found := false
+			for _, size := range sizes {
+				if image := jx.Str(size, "url"); strings.HasPrefix(image, "https://") {
+					images = append(images, image)
+					attachments = append(attachments, jx.M{"kind": "photo", "image": image})
+					found = true
+					break
+				}
+			}
+			if !found {
+				incomplete = true
 			}
 		case "video":
+			page, cover := vkVideoFields(jx.Map(a, "video"))
+			if page == "" {
+				incomplete = true
+				continue
+			}
+			videoCount++
+			attachments = append(attachments, jx.M{"kind": "video", "image": cover, "video_page": page, "video_via": "ytdlp"})
 			if videoPage == "" {
-				videoPage, videoCover = vkVideoFields(jx.Map(a, "video"))
+				videoPage, videoCover = page, cover
 			}
 		}
 	}
 	if videoCover != "" {
 		images = append([]string{videoCover}, images...)
 	}
-	text := CleanHTMLText(jx.Str(post, "text"))
+	// VK API text is already plain text, not HTML. Preserve newlines and
+	// literal angle brackets rather than stripping them as markup.
+	text := strings.TrimSpace(jx.Str(post, "text"))
 	textOnly := len(images) == 0 && videoPage == "" && withText && runeLen(text) >= minText
 	if len(images) == 0 && !textOnly && videoPage == "" {
 		return nil
@@ -1179,10 +1207,22 @@ func VKWallPost(post jx.M, sourceName, domain string, withText bool, minText int
 		views = jx.Int(v, "count")
 	}
 	p := jx.M{"image": main, "images": images, "text": text, "text_post": textOnly, "source": sourceName, "post_id": id, "posted_at": jx.Int(post, "date"),
+		"source_attachments": attachments, "media_incomplete": incomplete || videoCount > 1, "expected_video_count": videoCount,
 		"likes": jx.Int(jx.Map(post, "likes"), "count"), "reposts": jx.Int(jx.Map(post, "reposts"), "count"), "comments": jx.Int(jx.Map(post, "comments"), "count"),
 		"views": views, "url": link}
 	if videoPage != "" {
 		p["video_via"], p["video_page"] = "ytdlp", videoPage
+	}
+	// Keep repost attribution separate from the author's own comment.
+	if copies := jx.Maps(post, "copy_history"); len(copies) > 0 {
+		var originals []jx.M
+		for _, original := range copies {
+			owner, id := jx.Int(original, "owner_id"), jx.Int(original, "id")
+			if owner != 0 && id > 0 {
+				originals = append(originals, jx.M{"url": fmt.Sprintf("https://vk.com/wall%d_%d", owner, id), "text": jx.Str(original, "text"), "posted_at": jx.Int(original, "date")})
+			}
+		}
+		p["repost_context"] = originals
 	}
 	return p
 }
