@@ -92,11 +92,11 @@ var networkOrder = []string{"telegram", "vk", "max", "bluesky", "mastodon", "dis
 func (a *App) Networks() map[string]*Network {
 	na := func(title, note string) *Network { return &Network{Title: title, Status: "unavailable", Note: note} }
 	r := map[string]*Network{
-		"telegram": {Title: "Telegram", Prefix: "tg", Status: "ready", TextLimit: [2]int{1024, 4096}, MediaMax: 10, Kinds: []string{"photo", "video", "animation", "audio", "document"}, MaxBytes: map[string]int64{"audio": 50_000_000, "document": 50_000_000}, Poll: true},
+		"telegram": {Title: "Telegram", Prefix: "tg", Status: "ready", TextLimit: [2]int{1024, 4096}, MediaMax: 10, Kinds: []string{"photo", "video", "animation", "audio", "document", "voice"}, MaxBytes: map[string]int64{"audio": 50_000_000, "document": 50_000_000, "voice":50_000_000}, Poll: true},
 		"vk": {Title: "ВКонтакте (группа)", Prefix: "vk", Status: "beta", Note: "Ключ сообщества позволяет проверить и подключить группу; фотографии и видео могут требовать пользовательский токен с доступом к методам API VK.", TextLimit: [2]int{16384, 16384},
 			MediaMax: 10, Kinds: []string{"photo","video"}, MaxBytes: map[string]int64{"photo": 50_000_000,"video":200_000_000}, Docs: "partly", Poll: true,
 			Fields: []NetField{{"token", "Ключ сообщества или пользовательский токен VK", true}, {"group", "Адрес или id сообщества", false}}, Connect: vkConnect, Publish: vkPublish},
-		"max": {Title: "MAX", Prefix: "max", Status: "beta", Note: "Бот MAX: текст, фотографии, GIF и видео. Реальная отправка требует прав в целевом чате.", TextLimit: [2]int{4000, 4000}, MediaMax: 12, Kinds: []string{"photo", "animation", "video"}, MaxBytes: map[string]int64{"photo":50_000_000,"animation":50_000_000,"video":250_000_000}, Docs: "ok",
+		"max": {Title: "MAX", Prefix: "max", Status: "beta", Note: "Бот MAX: текст, фотографии, GIF и видео. Реальная отправка требует прав в целевом чате.", TextLimit: [2]int{4000, 4000}, MediaMax: 12, Kinds: []string{"photo", "animation", "video", "audio", "document"}, MaxBytes: map[string]int64{"photo":50_000_000,"animation":50_000_000,"video":250_000_000,"audio":50_000_000,"document":50_000_000}, Docs: "ok",
 			Fields: []NetField{{"token", "Токен бота (MAX для бизнеса)", true}, {"chat_id", "id чата, где бот админ", false}}, Connect: maxConnect, Publish: maxPublish},
 		"bluesky": {Title: "Bluesky", Prefix: "bsky", Status: "beta", Note: "Пароль приложения Bluesky.", TextLimit: [2]int{300, 300}, MediaMax: 4, Kinds: []string{"photo"},
 			MaxBytes: map[string]int64{"photo": 20_000_000}, Docs: "unverified",
@@ -195,6 +195,8 @@ func kindName(kind string) string {
 		return "аудио"
 	case "document":
 		return "документ"
+	case "voice":
+		return "голосовое сообщение"
 	}
 	return "картинка"
 }
@@ -226,6 +228,7 @@ func (a *App) NetworkPreflight(platform, text string, kinds []string) (int, []st
 			if k=="video"{videos++}
 		}
 	}
+	if platform=="max" { if err:=maxAttachmentKindsCheck(kinds);err!=nil{return 0,nil,err} }
 	if platform=="facebook" && len(kinds)>1 {for _,kind:=range kinds{if kind=="video"{return 0,nil,Bad("Facebook: допустим фотоальбом либо одно видео, без смешивания.")}}}
 	if platform=="x" && len(kinds)>1 {for _,kind:=range kinds{if kind!="photo"&&kind!="image"{return 0,nil,Bad("X: допустимы до четырёх фотографий либо одно видео/GIF, без смешивания.")}}}
 	if (platform == "youtube" || platform == "pinterest" || platform == "instagram") && kept == 0 {

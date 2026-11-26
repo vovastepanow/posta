@@ -83,11 +83,11 @@ document.addEventListener('click', () => { if (ui?.targetMenu) ui.targetMenu.hid
 const textLimit = (target, mediaCount) => (session.options.targets.find(t => t.value === target)?.textLimit || TEXT_LIMITS[String(target).split(':')[0]] || TEXT_LIMITS.tg)[mediaCount ? 0 : 1];
 const selectedTargets = () => session.options.picked.map(v => session.options.targets.find(t => t.value === v));
 const currentCapabilities = () => commonCapabilities(selectedTargets());
-const botOnlyMedia = () => session.media.some(m => ['audio','document'].includes(mediaKind(m)));
+const botOnlyMedia = () => session.media.some(m => ['audio','document','voice'].includes(mediaKind(m)));
 const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440} : null;
-const fileKind = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name) ? 'document' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
-const KIND_LABELS = {photo:'Фото', animation:'GIF', video:'Видео', audio:'Аудио', document:'PDF'};
-const fileAccept = {photo:'image/jpeg,image/png,image/webp,image/bmp,image/heic,image/avif', animation:'image/gif', video:'video/*', audio:'.mp3,.m4a,audio/mpeg,audio/mp4', document:'.pdf,application/pdf'};
+const fileKind = f => /\.(pdf|txt|csv|zip|docx|xlsx|pptx)$/i.test(f.name) || f.type==='application/pdf' ? 'document' : /\.(ogg|opus)$/i.test(f.name) ? 'voice' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
+const KIND_LABELS = {photo:'Фото', animation:'GIF', video:'Видео', audio:'Аудио', document:'Документ', voice:'Голосовое'};
+const fileAccept = {photo:'image/jpeg,image/png,image/webp,image/bmp,image/heic,image/avif', animation:'image/gif', video:'video/*', audio:'.mp3,.m4a,audio/mpeg,audio/mp4', document:'.pdf,.txt,.csv,.zip,.docx,.xlsx,.pptx', voice:'.ogg,.opus,audio/ogg'};
 const chip = (label, value) => el('span', { className: 'pe-chip' }, el('span', { className: 'pe-chip-label', textContent: label }), el('strong', { textContent: value }));
 
 function buildUi() {
@@ -260,7 +260,7 @@ function addByUrl() {
     try { url = new URL(value); } catch { ui.note.textContent = 'Это не ссылка.'; return; }
     if (!/^https?:$/.test(url.protocol)) { ui.note.textContent = 'Нужна ссылка http или https.'; return; }
     ui.url.value = ui.note.textContent = '';
-    const kind = /\.(mp3|m4a)$/i.test(url.pathname) ? 'audio' : /\.pdf$/i.test(url.pathname) ? 'document' : /\.(mp4|webm|mov|m4v)$/i.test(url.pathname) ? 'video' : 'image';
+    const kind = /\.(mp3|m4a)$/i.test(url.pathname) ? 'audio' : /\.(pdf|txt|csv|zip|docx|xlsx|pptx)$/i.test(url.pathname) ? 'document' : /\.(ogg|opus)$/i.test(url.pathname) ? 'voice' : /\.(mp4|webm|mov|m4v)$/i.test(url.pathname) ? 'video' : 'image';
     addMedia([{ kind, src: url.href, thumb: kind === 'image' ? url.href : '', name: url.pathname.split('/').pop() || url.hostname }]);
 }
 
@@ -296,8 +296,8 @@ function move(from, to) {
 }
 
 function mediaCard(item, i, total) {
-    const preview = item.kind === 'audio' ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:'Аудио'}), el('span',{textContent:item.name || 'Аудиофайл'}), el('audio',{src:item.src, controls:true, preload:'none'})) :
-        item.kind === 'document' ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:'PDF'}), el('span',{textContent:item.name || 'Документ'})) :
+    const preview = ['audio','voice'].includes(item.kind) ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:item.kind==='voice'?'Голосовое':'Аудио'}), el('span',{textContent:item.name || 'Аудиофайл'}), el('audio',{src:item.src, controls:true, preload:'none'})) :
+        item.kind === 'document' ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:(item.name?.split('.').pop() || 'Файл').toUpperCase()}), el('span',{textContent:item.name || 'Документ'})) :
         item.kind === 'video' ? el('video', { src: item.src, poster: item.thumb || '', muted: true, preload: 'metadata', playsInline: true }) : el('img', { src: item.thumb || item.src, alt: '', draggable: false });
     const card = el('div', { className: 'pe-card', draggable: true }, preview, el('span', { className: 'pe-order', textContent: String(i + 1) }),
         item.kind === 'video' ? el('span', { className: 'video-mark', innerHTML: VIDEO_ICON }) : null,

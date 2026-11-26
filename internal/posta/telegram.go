@@ -608,7 +608,7 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 					progress("Скачиваю видео", nil)
 				}
 				path = filepath.Join(dir, fmt.Sprintf("source-%d", i))
-				if telegram && (it.Kind == "audio" || it.Kind == "document") {
+				if (telegram || platform=="max") && (it.Kind == "audio" || it.Kind == "document" || it.Kind=="voice") {
 					// Use the same SSRF-protected fetcher; validate bytes below.
 					res, err := a.FetchPublic(it.Src, FetchOpts{MaxBytes: min(maxBytes, int64(50_000_000)), Dest: path, Timeout: 180 * time.Second})
 					if err != nil {
@@ -629,18 +629,17 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 			// still checks its own upload limit after video preparation.
 			if info.Size()>maxBytes && !(telegram&&cached){return Prepared{},Bad("Файл превышает локальный предел загрузки %d МиБ.",maxBytes>>20)}
 			mime := sniffMime(path)
-			if it.Kind == "audio" || it.Kind == "document" {
-				if !telegram || route == "account" {
-					return Prepared{}, Bad("Аудио и документы пока доступны только через бота Telegram или очередь Posta.")
+			if it.Kind == "audio" || it.Kind == "document" || it.Kind=="voice" {
+				if (!telegram && platform!="max") || route == "account" || (it.Kind=="voice"&&!telegram) {
+					return Prepared{}, Bad("Этот формат не поддерживается выбранной площадкой или способом публикации.")
 				}
 				if info.Size() > 50_000_000 {
 					return Prepared{}, Bad("Файл превышает лимит 50 МБ.")
 				}
 				if it.Kind == "document" {
-					if mime != "application/pdf" {
-						return Prepared{}, Bad("Пока поддерживаются документы PDF.")
-					}
-					dst := filepath.Join(dir, fmt.Sprintf("document-%d.pdf", i))
+					ext := publishDocumentExtension(name,mime)
+					if ext=="" {return Prepared{},Bad("Поддерживаются документы PDF, TXT, CSV, ZIP, DOCX, XLSX, PPTX.")}
+					dst := filepath.Join(dir, fmt.Sprintf("document-%d%s", i,ext))
 					if err := copyFile(path, dst); err != nil {
 						return Prepared{}, err
 					}
@@ -649,6 +648,13 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 				// Probe the actual container and audio stream, not the supplied extension or MIME.
 				probe := a.TelegramVideoInfo(path)
 				ext := ""
+				if it.Kind=="voice" {
+					if !strings.Contains(probe.Container,"ogg")||probe.Audio!="opus"||probe.Video!="" {return Prepared{},Bad("Голосовое сообщение должно быть OGG/Opus.")}
+					dst:=filepath.Join(dir,fmt.Sprintf("voice-%d.ogg",i))
+					if err:=copyFile(path,dst);err!=nil{return Prepared{},err}
+					return Prepared{Kind:"voice",Path:dst,Duration:probe.Duration},nil
+				}
+				if platform=="max" && (probe.Duration<=0 || probe.Duration>3600) {return Prepared{},Bad("MAX: длительность аудио должна быть известна и не превышать 60 минут.")}
 				switch {
 				case strings.Contains(probe.Container, "mp3") && probe.Audio == "mp3":
 					ext = ".mp3"
@@ -863,6 +869,8 @@ func telegramAttachmentCheck(prepared []Prepared) error {
 	for _, f := range prepared {
 		switch f.Kind {
 		case "photo", "video", "animation":
+		case "voice":
+			if len(prepared)!=1{return Bad("Голосовое сообщение Telegram отправляется отдельно.")}
 		case "audio", "document":
 			for _, other := range prepared {
 				if other.Kind != f.Kind {
@@ -914,12 +922,12 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 		raw = json.RawMessage("[" + string(raw) + "]")
 	case 1:
 		f := prepared[0]
-		method := map[string]string{"photo": "sendPhoto", "animation": "sendAnimation", "video": "sendVideo", "audio": "sendAudio", "document": "sendDocument"}[f.Kind]
+		method := map[string]string{"photo": "sendPhoto", "animation": "sendAnimation", "video": "sendVideo", "audio": "sendAudio", "document": "sendDocument", "voice":"sendVoice"}[f.Kind]
 		fields := map[string]string{"chat_id": chat}
 		if text != "" {
 			fields["caption"] = text
 		}
-		if f.Kind == "audio" && f.Duration > 0 {
+		if (f.Kind == "audio" || f.Kind=="voice") && f.Duration > 0 {
 			fields["duration"] = strconv.Itoa(f.Duration)
 		}
 		if f.Kind == "video" {
@@ -1645,7 +1653,7 @@ func (a *App) PostThumbMake(media []jx.M) string {
 		return ""
 	}
 	f := media[0]
-	if kind := jx.Str(f, "kind"); kind == "audio" || kind == "document" {
+	if kind := jx.Str(f, "kind"); kind == "audio" || kind == "document" || kind=="voice" {
 		return ""
 	}
 	src := jx.Str(f, "path")

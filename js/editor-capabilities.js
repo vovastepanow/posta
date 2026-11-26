@@ -1,5 +1,5 @@
 // UI preflight mirrors implemented delivery capabilities; the server is authoritative.
-const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document'], maxBytes:{audio:50_000_000,document:50_000_000}, mediaMax:10, textLimit:[1024,4096], poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true}};
+const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000}, mediaMax:10, textLimit:[1024,4096], poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true}};
 const REQUIRED = new Set(['youtube','pinterest','instagram']);
 export const mediaKind = m => m.kind === 'image' ? (/^image\/gif$/i.test(m.file?.type || '') || /\.gif(?:[?#]|$)/i.test(m.src || '') || /\.gif$/i.test(m.name || '') ? 'animation' : 'photo') : m.kind;
 export function targetCapabilities(target) {
@@ -10,7 +10,7 @@ export function targetCapabilities(target) {
 export function commonCapabilities(targets) {
     const caps = targets.map(targetCapabilities);
     const known = caps.length > 0 && caps.every(Boolean);
-    return { kinds: known ? ['photo','video','animation','audio','document'].filter(k => caps.every(c => c.kinds?.includes(k))) : [],
+    return { kinds: known ? ['photo','video','animation','audio','document','voice'].filter(k => caps.every(c => c.kinds?.includes(k))) : [],
         mediaMax: known ? Math.min(10, ...caps.map(c => c.mediaMax || 0)) : 0,
         poll: known && caps.every(c => c.poll === true) };
 }
@@ -45,7 +45,9 @@ export function validateTarget(target, media, text, poll) {
     if (effective.some(k => !c.kinds?.includes(k))) return 'Не поддерживается формат одного или нескольких вложений.';
     if (REQUIRED.has(c.platform) && !media.length) return 'Необходимо медиа.';
     if (['facebook','x'].includes(c.platform) && media.length > 1 && effective.some(k => k !== 'photo')) return 'Допустимы фотоальбом или один видеофайл/GIF (если поддерживается).';
-    if (c.platform === 'telegram' && effective.some(k => ['audio','document'].includes(k)) && new Set(effective).size > 1) return 'Аудио и PDF нельзя смешивать с другими типами вложений.';
+    if (c.platform === 'telegram' && effective.includes('voice') && media.length > 1) return 'Голосовое сообщение отправляется отдельно.';
+    if (c.platform === 'telegram' && effective.some(k => ['audio','document'].includes(k)) && new Set(effective).size > 1) return 'Аудио и документы нельзя смешивать с другими типами вложений.';
+    if (c.platform === 'max' && media.length > 1 && effective.some(k=>['audio','document'].includes(k))) return 'MAX: аудио или документ отправляется отдельным вложением.';
     if (c.platform === 'tumblr' && effective.filter(k => k === 'video').length > 1) return 'Допустимо только одно видео.';
     if (['youtube','pinterest'].includes(c.platform) && [...text.trim().split(/\r?\n/)[0]].length > 100) return 'Первая строка (заголовок) длиннее 100 символов.';
     if (media.some((m,i) => m.file && c.maxBytes?.[effective[i]] > 0 && m.file.size > c.maxBytes[effective[i]])) return 'Размер файла превышает лимит ресурса.';

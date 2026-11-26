@@ -14,6 +14,8 @@ func maxUploadKind(kind string) string {
 	switch kind {
 	case "photo","animation":return "image"
 	case "video":return "video"
+	case "audio":return "audio"
+	case "document":return "file"
 	default:return ""
 	}
 }
@@ -24,6 +26,8 @@ func maxUploadURL(raw, kind string) bool {
 	switch kind {
 	case "image":return strings.EqualFold(u.Hostname(),"iu.oneme.ru")
 	case "video":return strings.EqualFold(u.Hostname(),"omub.okcdn.ru")
+	case "audio":return strings.EqualFold(u.Hostname(),"omu.okcdn.ru")
+	case "file":return strings.EqualFold(u.Hostname(),"fu.oneme.ru")
 	}
 	return false
 }
@@ -50,17 +54,27 @@ func maxUploadAttachment(ctx context.Context, token string, f Prepared, request 
 	uploaded,err:=request(ctx,http.MethodPost,uploadURL,headers,body)
 	if err!=nil||uploaded==nil||uploaded.Status!=200{return nil,Bad("MAX не принял файл; пост ещё не отправлен.")}
 	mediaToken:=jx.Str(start,"token")
-	if kind=="image"{mediaToken=maxImageToken(uploaded.Data)}else if strings.TrimSpace(string(uploaded.Raw))!="<retval>1</retval>" && jx.Int(uploaded.Data,"retval")!=1 {
-		return nil,Bad("MAX не подтвердил загрузку видео.")
+	if kind=="image"{mediaToken=maxImageToken(uploaded.Data)}else if kind=="file"{mediaToken=jx.Str(uploaded.Data,"token");if jx.Str(uploaded.Data,"fileId")==""&&jx.Int(uploaded.Data,"fileId")<=0{return nil,Bad("MAX не подтвердил ID файла.")}}else if strings.TrimSpace(string(uploaded.Raw))!="<retval>1</retval>" && jx.Int(uploaded.Data,"retval")!=1 {
+		return nil,Bad("MAX не подтвердил загрузку медиа.")
 	}
 	if mediaToken==""{return nil,Bad("MAX не выдал токен вложения.")}
 	return jx.M{"type":kind,"payload":jx.M{"token":mediaToken}},nil
+}
+
+// File and audio are conservatively published alone; a file may also have a keyboard.
+func maxAttachmentKindsCheck(kinds []string) error {
+	for _,kind:=range kinds {
+		if (kind=="audio"||kind=="document")&&len(kinds)>1{return Bad("MAX: аудио или документ отправляется отдельным вложением.")}
+	}
+	return nil
 }
 
 func maxPublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequestFunc,wait func(context.Context,time.Duration)error)(*NetSent,error){
 	if !chatIDRe.MatchString(c.Ref)||c.Secrets["token"]==""{return nil,Bad("MAX: подключите чат и бота.")}
 	if strings.TrimSpace(p.Text)==""&&len(p.Media)==0{return nil,Bad("MAX: нет текста или вложений.")}
 	if runeLen(p.Text)>4000||len(p.Media)>12{return nil,Bad("MAX: превышен лимит текста или вложений.")}
+	kinds:=[]string{};for _,f:=range p.Media{kinds=append(kinds,f.Kind)}
+	if err:=maxAttachmentKindsCheck(kinds);err!=nil{return nil,err}
 	var attachments []jx.M
 	for _,f:=range p.Media{
 		attachment,err:=maxUploadAttachment(ctx,c.Secrets["token"],f,request)

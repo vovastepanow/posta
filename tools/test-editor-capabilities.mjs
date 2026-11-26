@@ -34,3 +34,10 @@ assert.notEqual(attachmentError([tg,yt],[],{kind:'audio'}),'');
 assert.equal(attachmentError([tg],[{kind:'audio'}],{kind:'audio'}),'');
 assert.notEqual(attachmentError([tg],[{kind:'audio'}],{kind:'document'}),'');
 assert.notEqual(attachmentError([yt],[{kind:'video'}],{kind:'video'}),'');
+
+const mx={value:'max:1',capabilities:{platform:'max',kinds:['photo','video','animation','audio','document'],mediaMax:12,textLimit:[4000,4000]}};
+assert.equal(attachmentError([mx],[],{kind:'audio'}),'');
+assert.notEqual(attachmentError([mx],[{kind:'audio'}],{kind:'audio'}),'');
+assert.equal(attachmentError([tg],[],{kind:'voice'}),'');
+assert.notEqual(attachmentError([tg],[{kind:'voice'}],{kind:'photo'}),'');
+assert.equal(attachmentError([tg,mx],[],{kind:'document'}),'');
