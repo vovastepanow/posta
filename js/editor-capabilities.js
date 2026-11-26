@@ -72,7 +72,7 @@ export function attachmentError(targets, media, item) {
     return '';
 }
 
-export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact'];
+export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag'];
 export const standaloneExtra = e=>Boolean(e?.location||e?.contact);
 export function extraActive(extra,key) {
     return key==='buttons' ? !!extra?.buttons?.length : key==='preview' ? !!extra?.preview && extra.preview!=='default' : Boolean(extra?.[key]);
@@ -81,6 +81,10 @@ export function extraAvailability(targets,media,text,poll,key) {
     if (poll || !targets.length || !targets.every(t=>targetCapabilities(t)?.extras?.includes(key))) return 'Недоступно для выбранных площадок или опроса.';
     if (key==='buttons' && targets.some(t=>targetCapabilities(t)?.platform==='telegram') && media.length>1) return 'Telegram не поддерживает кнопки в альбомах.';
     if (key==='spoiler' && (!media.length || media.some(m=>!['photo','animation','video'].includes(mediaKind(m))))) return 'Спойлер доступен только для фото, GIF и видео.';
+    if(key==='alt_text'&&(media.length!==1||mediaKind(media[0])!=='photo'))return 'Альтернативный текст доступен для одной фотографии.';
+    if(key==='spoiler'&&targets.some(t=>targetCapabilities(t)?.platform==='threads')&&(media.length!==1||!['photo','video'].includes(mediaKind(media[0]))))return 'Спойлер Threads доступен для одного фото или видео.';
+    if(key==='link_attachment'&&targets.some(t=>targetCapabilities(t)?.platform==='threads')&&media.length)return 'Ссылка Threads доступна в текстовом посте.';
+    if(key==='link_attachment'&&targets.some(t=>targetCapabilities(t)?.platform==='vk')&&media.length>=10)return 'Ссылка занимает одно место вложения VK.';
     if (key==='preview' && (media.length || !text.trim())) return 'Предпросмотр ссылки доступен в текстовом посте.';
     return '';
 }
@@ -92,6 +96,12 @@ export function extraError(targets,media,text,poll,extra) {
     for(const key of EXTRA_KEYS) if(extraActive(extra,key)) {
         const error=extraAvailability(targets,media,text,poll,key);
         if(error)return error;
+        if(key==='alt_text'&&[...extra[key].trim()].length>1000)return 'Альтернативный текст: до 1000 символов.';
+        if(key==='topic_tag'&&([...extra[key].trim()].length>50||/[#\r\n]/.test(extra[key])))return 'Тема Threads: до 50 символов без #.';
+        if(['copyright','link_attachment'].includes(key)){
+            try{const v=extra[key].trim(),u=new URL(v);if(v.length>2048||!['http:','https:'].includes(u.protocol)||u.username||u.password||/[,\s]/.test(v))throw Error();}catch{return 'Укажите корректную HTTP(S)-ссылку.';}
+        }
+        if(key==='vk_geo'){const parts=extra[key].split(',');if(parts.length!==2||parts.some(v=>!v.trim()||!Number.isFinite(Number(v)))||Math.abs(Number(parts[0]))>90||Math.abs(Number(parts[1]))>180)return 'Укажите широту и долготу через запятую.';}
         if(key==='location'){
             const l=extra.location, lat=Number(l.latitude),lon=Number(l.longitude);
             if(String(l.latitude??'').trim()===''||String(l.longitude??'').trim()===''||!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return 'Укажите корректную широту и долготу.';

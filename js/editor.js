@@ -87,8 +87,9 @@ const hasExtras = () => EXTRA_KEYS.some(k=>extraActive(session.extras,k));
 const botOnlyMedia = () => session.media.some(m => ['audio','document','voice'].includes(mediaKind(m)));
 const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440,quiz:!!p.quiz,correct_answer:p.correct_answer||'',explanation:p.explanation||'',close_minutes:p.close_minutes||0,public:!!p.public} : null;
 const fileKind = f => /\.(pdf|txt|csv|zip|docx|xlsx|pptx)$/i.test(f.name) || f.type==='application/pdf' ? 'document' : /\.(ogg|opus)$/i.test(f.name) ? 'voice' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
-const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null});
-const EXTRA_LABELS = {silent:'Без звукового уведомления',protect:'Запретить пересылку и сохранение',spoiler:'Скрыть медиа под спойлером'};
+const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null,signed:!!e?.signed,close_comments:!!e?.close_comments,mark_as_ads:!!e?.mark_as_ads,copyright:e?.copyright||'',link_attachment:e?.link_attachment||'',vk_geo:e?.vk_geo||'',alt_text:e?.alt_text||'',topic_tag:e?.topic_tag||''});
+const EXTRA_LABELS = {silent:'Без звукового уведомления',protect:'Запретить пересылку и сохранение',spoiler:'Скрыть медиа под спойлером',signed:'Подписать запись именем автора VK',close_comments:'Закрыть комментарии VK',mark_as_ads:'Отметить запись VK как рекламу'};
+const EXTRA_TEXT_LABELS={copyright:'Источник VK (URL)',link_attachment:'Вложение-ссылка',vk_geo:'Координаты VK (широта, долгота)',alt_text:'Описание фото для доступности',topic_tag:'Тема Threads'};
 const KIND_LABELS = {photo:'Фото', animation:'GIF', video:'Видео', audio:'Аудио', document:'Документ', voice:'Голосовое'};
 const fileAccept = {photo:'image/jpeg,image/png,image/webp,image/bmp,image/heic,image/avif', animation:'image/gif', video:'video/*', audio:'.mp3,.m4a,audio/mpeg,audio/mp4', document:'.pdf,.txt,.csv,.zip,.docx,.xlsx,.pptx', voice:'.ogg,.opus,audio/ogg'};
 const chip = (label, value) => el('span', { className: 'pe-chip' }, el('span', { className: 'pe-chip-label', textContent: label }), el('strong', { textContent: value }));
@@ -408,6 +409,11 @@ function renderExtras(){
     const preview=el('select',{className:'pe-input',ariaLabel:'Превью ссылки'},...[['default','По умолчанию'],['on','Показывать'],['off','Не показывать']].map(([value,textContent])=>el('option',{value,textContent})));
     preview.value=extra.preview;preview.onchange=()=>{extra.preview=preview.value;render();};
     ui.extras.append(el('label',{className:'pe-extra-preview'},el('span',{textContent:'Предпросмотр ссылки'}),preview));
+    for(const [key,label] of Object.entries(EXTRA_TEXT_LABELS)){
+        const input=el('input',{className:'pe-input',value:extra[key],placeholder:label,ariaLabel:label,oninput:e=>{extra[key]=e.target.value;render();}});
+        input.dataset.extraText=key;
+        ui.extras.append(el('label',{className:'pe-extra-preview'},el('span',{textContent:label}),input));
+    }
     renderExtraButtons();
     renderExtraCards();
 }
@@ -443,8 +449,12 @@ function updateExtraAvailability(){
     if(!session)return;
     const card=standaloneExtra(session.extras);
     const availability=key=>card&&['buttons','spoiler','preview'].includes(key)?'Недоступно для отдельной карточки.':extraAvailability(selectedTargets(),card?[]:session.media,card?'':ui.text.value,session.poll,key);
-    const inputs=[...ui.extras.querySelectorAll('input')];
+    const inputs=[...ui.extras.querySelectorAll('input[type=checkbox]')];
     Object.keys(EXTRA_LABELS).forEach((key,i)=>{const reason=availability(key);inputs[i].disabled=!!reason&&!session.extras[key];inputs[i].closest('label').title=reason;});
+    for(const input of ui.extras.querySelectorAll('[data-extra-text]')){
+        const key=input.dataset.extraText,reason=availability(key);input.disabled=!!reason&&!extraActive(session.extras,key);input.closest('label').title=reason;
+        input.closest('label').hidden=!!reason&&!extraActive(session.extras,key)&&true;
+    }
     const preview=ui.extras.querySelector('select');const reason=availability('preview');preview.disabled=!!reason&&!extraActive(session.extras,'preview');preview.closest('label').title=reason;
     const add=ui.buttons.querySelector('.pe-add-link');add.disabled=!!availability('buttons')||standaloneExtra(session.extras)||session.extras.buttons.length>=8;add.title=availability('buttons');
     for(const b of ui.cards.querySelectorAll('[data-extra-card]')){

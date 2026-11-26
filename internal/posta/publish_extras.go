@@ -16,6 +16,12 @@ func postExtraKinds(platform string) []string {
 		return []string{"buttons","silent","protect","spoiler","preview","location","contact"}
 	case "max":
 		return []string{"buttons","preview","location","contact"}
+	case "vk":
+		return []string{"signed","close_comments","mark_as_ads","copyright","link_attachment","vk_geo"}
+	case "threads":
+		return []string{"alt_text","topic_tag","link_attachment","spoiler"}
+	case "instagram":
+		return []string{"alt_text"}
 	}
 	return []string{}
 }
@@ -39,8 +45,10 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 			if jx.ToMap(value)==nil{return nil,Bad("Некорректная карточка публикации.")}
 		case "buttons":
 			if len(jx.ToList(value))==0{continue}
-		case "silent","protect","spoiler":
+		case "silent","protect","spoiler","signed","close_comments","mark_as_ads":
 			v,ok:=value.(bool);if !ok{return nil,Bad("Некорректный параметр публикации: %s.",key)};if !v{continue}
+		case "alt_text","topic_tag","link_attachment","copyright","vk_geo":
+			v,ok:=value.(string);if !ok{return nil,Bad("Некорректное значение дополнения %s.",key)};if strings.TrimSpace(v)==""{continue}
 		case "preview":
 			v,ok:=value.(string);if !ok{return nil,Bad("Некорректная настройка предпросмотра.")};if v==""||v=="default"{continue}
 			if v!="on"&&v!="off"{return nil,Bad("Некорректная настройка предпросмотра.")}
@@ -70,7 +78,22 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 				buttons=append(buttons,jx.M{"text":label,"url":link})
 			}
 			out[key]=buttons
+		case "alt_text":
+			if len(kinds)!=1||!contains([]string{"photo","image"},kinds[0]){return nil,Bad("Альтернативный текст доступен для одной фотографии.")}
+			v:=strings.TrimSpace(jx.ToStr(value));if runeLen(v)>1000{return nil,Bad("Альтернативный текст: до 1000 символов.")};out[key]=v
+		case "topic_tag":
+			v:=strings.TrimSpace(jx.ToStr(value));if runeLen(v)>50||strings.ContainsAny(v,"#\r\n"){return nil,Bad("Тема Threads: до 50 символов, без # и переносов.")};out[key]=v
+		case "copyright","link_attachment":
+			v:=strings.TrimSpace(jx.ToStr(value));u,err:=url.Parse(v)
+			if len(v)>2048||err!=nil||u.Hostname()==""||u.User!=nil||(u.Scheme!="http"&&u.Scheme!="https")||strings.ContainsAny(v,", \r\n"){return nil,Bad("Укажите корректную HTTP(S)-ссылку.")}
+			if key=="link_attachment"&&((platform=="threads"&&len(kinds)>0)||(platform=="vk"&&len(kinds)>=10)){return nil,Bad("Ссылка несовместима с текущими вложениями.")};out[key]=v
+		case "vk_geo":
+			v:=strings.Split(jx.ToStr(value),",");if len(v)!=2{return nil,Bad("Укажите широту и долготу через запятую.")}
+			lat,e1:=strconv.ParseFloat(strings.TrimSpace(v[0]),64);lon,e2:=strconv.ParseFloat(strings.TrimSpace(v[1]),64)
+			if e1!=nil||e2!=nil||math.IsNaN(lat)||math.IsNaN(lon)||math.Abs(lat)>90||math.Abs(lon)>180{return nil,Bad("Некорректные координаты.")}
+			out[key]=strconv.FormatFloat(lat,'f',-1,64)+","+strconv.FormatFloat(lon,'f',-1,64)
 		case "spoiler":
+			if platform=="threads"&&(len(kinds)!=1||!contains([]string{"photo","image","video"},kinds[0])){return nil,Bad("Спойлер Threads доступен для одного фото или видео.")}
 			if len(kinds)==0{return nil,Bad("Спойлер применяется к фото, GIF или видео.")}
 			for _,k:=range kinds{if !contains([]string{"image","photo","animation","video"},k){return nil,Bad("Спойлер не поддерживается для этого типа вложения.")}}
 			out[key]=true

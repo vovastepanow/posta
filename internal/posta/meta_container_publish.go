@@ -27,6 +27,8 @@ func metaContainerPublish(ctx context.Context,c *Channel,p NetPost,s metaContain
  }
  if runeLen(p.Text)>s.textLimit||len(p.Media)>10{return nil,Bad("%s: превышен лимит текста или вложений.",s.name)}
  if len(p.Media)==0&&(!s.textOnly||strings.TrimSpace(p.Text)==""){return nil,Bad("%s: требуется медиа или допустимый текст.",s.name)}
+ platform:="instagram";if s.textOnly{platform="threads"}
+ extra,err:=PublishExtrasCheck(platform,p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
  // A single deadline bounds processing of the entire carousel, rather than
  // allowing each child to extend the delivery indefinitely.
  ctx,cancel:=context.WithTimeout(ctx,4*time.Minute);defer cancel()
@@ -92,6 +94,8 @@ func metaContainerPublish(ctx context.Context,c *Channel,p NetPost,s metaContain
    form.Set("media_type","CAROUSEL");form.Set("children",strings.Join(ids,","))
   }
  }
+ for _,key:=range []string{"alt_text","topic_tag","link_attachment"}{if v:=jx.Str(extra,key);v!=""{form.Set(key,v)}}
+ if jx.Bool(extra,"spoiler"){form.Set("is_spoiler_media","true")}
  id,err:=create(form);if err!=nil{return nil,err}
  if len(p.Media)>0{if err=ready(id);err!=nil{return nil,err}}
  if ctx.Err()!=nil{return nil,ctx.Err()}

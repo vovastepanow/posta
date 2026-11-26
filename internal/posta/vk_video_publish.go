@@ -47,6 +47,7 @@ func vkPublishWith(ctx context.Context,c *Channel,p NetPost,call vkMethodFunc,re
 	for _,f:=range p.Media{if f.Kind!="photo"&&f.Kind!="video"&&f.Kind!="document"&&f.Kind!="animation"{return nil,Bad("ВКонтакте: неподдерживаемое вложение.")}}
 	group,token:=c.Ref,c.Secrets["token"]
 	if id,err:=strconv.ParseInt(group,10,64);err!=nil||id<=0||token==""{return nil,Bad("ВКонтакте: сообщество не подключено.")}
+	extra,err:=PublishExtrasCheck("vk",p.Text,PreparedKinds(p.Media),p.Poll,p.Extras);if err!=nil{return nil,err}
 	mediaToken:=token
 	if p.Poll!=nil {
 		if len(p.Media)!=0{return nil,Bad("ВКонтакте: опрос с другими вложениями пока не поддерживается.")}
@@ -97,7 +98,11 @@ func vkPublishWith(ctx context.Context,c *Channel,p NetPost,call vkMethodFunc,re
 		att=append(att,id)
 	}
 	params:=url.Values{"owner_id":{"-"+group},"from_group":{"1"},"message":{p.Text}}
+	if link:=jx.Str(extra,"link_attachment");link!=""{att=append(att,link)}
 	if len(att)>0{params.Set("attachments",strings.Join(att,","))}
+	for _,key:=range []string{"signed","close_comments","mark_as_ads"}{if jx.Bool(extra,key){params.Set(key,"1")}}
+	if source:=jx.Str(extra,"copyright");source!=""{params.Set("copyright",source)}
+	if geo:=jx.Str(extra,"vk_geo");geo!=""{parts:=strings.Split(geo,",");params.Set("lat",parts[0]);params.Set("long",parts[1])}
 	res,err:=call(ctx,"wall.post",params,token)
 	if err!=nil{return fail(err)}
 	id:=jx.Int(jx.ToMap(res),"post_id")
