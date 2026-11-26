@@ -1,0 +1,63 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+const root=path.resolve(process.argv[2]||'.');
+const server=createServer(async(req,res)=>{
+    try{
+        const p=new URL(req.url,'http://localhost').pathname;
+        if(p==='/'){res.setHeader('Content-Type','text/html; charset=utf-8');return res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/css/app.css"></head><body></body></html>');}
+        if(!/^\/(js|css)\/[\w./-]+\.(js|css)$/.test(p)||p.includes('..')){res.writeHead(404);return res.end();}
+        res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript':'text/css');res.end(await readFile(path.join(root,p)));
+    }catch{res.writeHead(404);res.end();}
+});
+await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+const browser=await chromium.launch();
+try{
+    const page=await browser.newPage({viewport:{width:1440,height:900}});
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.goto('http://127.0.0.1:'+server.address().port);
+    await page.evaluate(async()=>{
+        const {openPostEditor}=await import('/js/editor.js');
+        const tg={value:'tg:main',label:'Telegram'};
+        const vk={value:'vk:2',label:'VK',capabilities:{platform:'vk',kinds:['photo','video','document'],mediaMax:10,textLimit:[16384,16384],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,with_content:true,media_max:9},extras:['first_comment','close_comments']}};
+        window.result=null;
+        openPostEditor({key:'browser-test',targets:[tg,vk],picked:[tg.value,vk.value],media:[],original:'Общий текст',onSubmit:async post=>{window.result=post;}});
+    });
+    const text=page.locator('.pe-text');
+    await text.waitFor({state:'visible'});
+    assert.equal(await text.inputValue(),'Общий текст');
+    await page.locator('.pe-variant-tab').filter({hasText:'Telegram'}).click();
+    await text.fill('Telegram text');
+    await text.evaluate(t=>t.setSelectionRange(0,8));
+    await page.locator('.pe-format-action').first().click();
+    assert.equal(await page.locator('.pe-format-preview b').textContent(),'Telegram');
+    await page.locator('.pe-variant-tab').filter({hasText:'VK'}).click();
+    assert.equal(await text.inputValue(),'Общий текст');
+    await text.fill('VK text');
+    await page.locator('.pe-chip-poll').click();
+    await page.locator('.pe-poll-options').waitFor({state:'visible'});
+    await page.getByLabel('Добавить текст и медиа к опросу').check();
+    await page.getByPlaceholder('Вопрос опроса').fill('Вопрос?');
+    await page.locator('.pe-poll-options input').nth(0).fill('Да');
+    await page.locator('.pe-poll-options input').nth(1).fill('Нет');
+    assert.equal(await text.inputValue(),'VK text');
+    await page.locator('.pe-variant-tab').filter({hasText:'Общая'}).click();
+    assert.equal(await text.inputValue(),'Общий текст');
+    assert.equal(await page.locator('.pe-btn-primary').isEnabled(),true);
+    await page.setViewportSize({width:390,height:844});
+    const bounds=await page.locator('.pe-window').evaluate(e=>({width:e.getBoundingClientRect().width,scroll:e.scrollWidth,client:e.clientWidth,body:e.querySelector('.pe-body').scrollWidth,bodyClient:e.querySelector('.pe-body').clientWidth}));
+    assert.ok(bounds.width<=391&&bounds.scroll<=bounds.client+2&&bounds.body<=bounds.bodyClient+2,JSON.stringify(bounds));
+    await page.locator('.pe-btn-primary').click();
+    await page.waitForFunction(()=>window.result!==null);
+    const post=await page.evaluate(()=>window.result);
+    assert.equal(post.payloads['tg:main'].text,'**Telegram** text');
+    assert.equal(post.payloads['tg:main'].extras.styled_text,true);
+    assert.equal(post.payloads['vk:2'].text,'VK text');
+    assert.equal(post.payloads['vk:2'].poll.with_content,true);
+    assert.deepEqual(post.payloads['vk:2'].poll.options,['Да','Нет']);
+    assert.deepEqual(errors,[]);
+    console.log('Editor browser: isolated variants, formatting, compound poll, mobile layout and submitted payloads passed');
+}finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

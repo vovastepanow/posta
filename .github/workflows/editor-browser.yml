@@ -1,0 +1,29 @@
+name: Editor browser
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'js/**'
+      - 'css/**'
+      - 'tools/test-editor-browser.mjs'
+      - '.github/workflows/editor-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  editor-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated browser-test dependencies
+        run: |
+          npm install --prefix "$RUNNER_TEMP/posta-editor-test" --no-save --no-package-lock playwright@1.56.1
+          node "$RUNNER_TEMP/posta-editor-test/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Exercise actual editor in Chromium
+        run: |
+          cp tools/test-editor-browser.mjs "$RUNNER_TEMP/posta-editor-test/"
+          node "$RUNNER_TEMP/posta-editor-test/test-editor-browser.mjs" "$GITHUB_WORKSPACE"
