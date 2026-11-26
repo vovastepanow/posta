@@ -480,7 +480,7 @@ func (a *App) TelegramVideoInfo(path string) VideoInfo {
 	if err != nil {
 		return VideoInfo{}
 	}
-	key := filepath.Base(path) + ":" + strconv.FormatInt(st.Size(), 10)
+	key := path + ":" + strconv.FormatInt(st.Size(), 10) + ":" + strconv.FormatInt(st.ModTime().UnixNano(), 10)
 	if v, ok := videoInfoCache.Load(key); ok {
 		return v.(VideoInfo)
 	}
@@ -621,6 +621,7 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 				return Prepared{Kind: "animation", Path: path}, nil
 			case strings.HasPrefix(mime, "image/"):
 				if !telegram {
+					if platform=="instagram" || platform=="threads" {return metaPreparePhoto(platform,path,dir,i)}
 					if p,ok:=networkOriginalPhoto(network,path,mime,info.Size());ok{return p,nil}
 				}
 				return telegramPreparePhoto(path, dir, i)

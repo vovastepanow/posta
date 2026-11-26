@@ -90,9 +90,6 @@ var networkOrder = []string{"telegram", "vk", "max", "bluesky", "mastodon", "dis
 
 // Networks — реестр соцсетей; ключи приложений берутся из posta.env.
 func (a *App) Networks() map[string]*Network {
-	keys := func(title, prefix, note string) *Network {
-		return &Network{Title: title, Prefix: prefix, Status: "needs_keys", Note: note}
-	}
 	na := func(title, note string) *Network { return &Network{Title: title, Status: "unavailable", Note: note} }
 	r := map[string]*Network{
 		"telegram": {Title: "Telegram", Prefix: "tg", Status: "ready", TextLimit: [2]int{1024, 4096}, MediaMax: 10, Kinds: []string{"photo", "video", "animation"}, Poll: true},
@@ -125,7 +122,7 @@ func (a *App) Networks() map[string]*Network {
 		"linkedin": {Title: "LinkedIn (профиль)", Prefix: "li", Status: "needs_keys", Note: "Приложение LinkedIn с продуктом «Share on LinkedIn»; токен на 60 дней, без обновления.",
 			TextLimit: [2]int{3000, 3000}, Docs: "partly", AppKeys: []string{"LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"}, OAuth: linkedinOAuth, Publish: linkedinPublish},
 		"threads": {Title:"Threads",Prefix:"threads",Status:"needs_keys",Note:"OAuth приложения Threads; текст, фото, видео и карусели. Для медиа необходим доступный HTTPS-адрес Posta.",TextLimit:[2]int{500,500},MediaMax:10,Kinds:[]string{"photo","video"},MaxBytes:map[string]int64{"photo":8_000_000,"video":200_000_000},Docs:"partly",AppKeys:[]string{"THREADS_CLIENT_ID","THREADS_CLIENT_SECRET"},OAuth:threadsOAuth,Publish:threadsPublish},
-		"instagram": keys("Instagram", "ig", "Meta (Instagram, Facebook) признана экстремистской и запрещена в РФ. Приложение Meta, профессиональный аккаунт."),
+		"instagram": {Title:"Instagram",Prefix:"ig",Status:"needs_keys",Note:"Meta признана экстремистской и запрещена в РФ. OAuth профессионального аккаунта; фотографии, Reels и карусели. Требуется публичный HTTPS-адрес Posta.",TextLimit:[2]int{2200,2200},MediaMax:10,Kinds:[]string{"photo","video"},MaxBytes:map[string]int64{"photo":8_000_000,"video":200_000_000},Docs:"partly",AppKeys:[]string{"INSTAGRAM_CLIENT_ID","INSTAGRAM_CLIENT_SECRET"},OAuth:instagramOAuth,Publish:instagramPublish},
 		"facebook": {Title:"Facebook (страница)",Prefix:"fb",Status:"beta",Note:"Meta признана экстремистской и запрещена в РФ. Нужен токен управляемой страницы с pages_manage_posts; пока текст и фото.",TextLimit:[2]int{63206,63206},MediaMax:10,Kinds:[]string{"photo"},MaxBytes:map[string]int64{"photo":10_000_000},Docs:"partly",Fields:[]NetField{{"page_id","ID страницы Facebook",false},{"access_token","Page access token",true}},Connect:facebookConnect,Publish:facebookPublish},
 		"x": {Title: "X (Twitter)", Prefix: "x", Status: "needs_keys", Note: "Платный доступ к API: бесплатного тарифа нет, посты с URL дороже.", TextLimit: [2]int{280, 280},
 			Docs: "partly", AppKeys: []string{"X_CLIENT_ID", "X_CLIENT_SECRET"}, OAuth: xOAuth, Publish: xPublish},

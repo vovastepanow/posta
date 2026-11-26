@@ -31,5 +31,5 @@ func TestThreadsCarousel(t *testing.T){
  }
  lease:=func(p Prepared)(string,func(),error){return "https://example.org/media/"+p.Kind,func(){revoked++},nil}
  sent,err:=threadsPublishWith(context.Background(),&Channel{Ref:"12345",Secrets:map[string]string{"access_token":"token"}},NetPost{Text:"caption",Media:[]Prepared{{Kind:"photo"},{Kind:"video"}}},req,lease,func(context.Context)error{return nil})
- if err!=nil||sent.MessageIDs[0]!="20001"||revoked!=2||strings.Join(calls,",")!="IMAGE,ready,VIDEO,ready,CAROUSEL,ready,publish"{t.Fatalf("sent=%v err=%v calls=%v revoked=%d",sent,err,calls,revoked)}
+ if err!=nil||sent.MessageIDs[0]!="20001"||revoked!=2||strings.Join(calls,",")!="IMAGE,VIDEO,ready,ready,CAROUSEL,ready,publish"{t.Fatalf("sent=%v err=%v calls=%v revoked=%d",sent,err,calls,revoked)}
 }

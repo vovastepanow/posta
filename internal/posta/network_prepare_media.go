@@ -3,6 +3,10 @@ package posta
 import (
 	"image"
 	"os"
+	"fmt"
+	"path/filepath"
+	"net/http"
+	"posta/internal/imgx"
 )
 
 // Only formats explicitly enabled for a provider can bypass preparation.
@@ -27,4 +31,27 @@ func networkOriginalPhoto(n *Network,path,mime string,size int64)(Prepared,bool)
 	cfg,_,err:=image.DecodeConfig(f)
 	if err!=nil||cfg.Width<=0||cfg.Height<=0||cfg.Width>maxSide||cfg.Height>maxSide||maxPixels>0&&int64(cfg.Width)*int64(cfg.Height)>maxPixels{return Prepared{},false}
 	return Prepared{Kind:"photo",Path:path,Width:cfg.Width,Height:cfg.Height},true
+}
+
+// Prepare an immutable JPEG variant, never crop the source. Reject aspect
+// ratios that the service would otherwise crop automatically.
+func metaPreparePhoto(platform,path,dir string,index int)(Prepared,error){
+ b,err:=os.ReadFile(path);if err!=nil{return Prepared{},Bad("Не удалось прочитать изображение.")}
+ w,h,ok:=imgx.Size(b)
+ if !ok||w<=0||h<=0||int64(w)*int64(h)>40_000_000{return Prepared{},Bad("Некорректный размер изображения.")}
+ maxSide:=4096
+ if platform=="instagram"{
+  if w<320||float64(w)/float64(h)<0.8||float64(w)/float64(h)>1.91{return Prepared{},Bad("Instagram: фото требует ширину от 320 px и пропорции 4:5–1,91:1; автоматическая обрезка отключена.")}
+  maxSide=1440
+ }
+ if http.DetectContentType(b)=="image/jpeg"&&len(b)<=8_000_000&&max(w,h)<=maxSide{return Prepared{Kind:"photo",Path:path,Width:w,Height:h},nil}
+ for q:=90;q>=60;q-=10{
+  out:=imgx.Shrink(b,maxSide,q,true)
+  if len(out)==0||len(out)>8_000_000||http.DetectContentType(out)!="image/jpeg"{continue}
+  nw,nh,ok:=imgx.Size(out);if !ok||nw<=0||nh<=0||max(nw,nh)>maxSide||(platform=="instagram"&&nw<320){continue}
+  dst:=filepath.Join(dir,fmt.Sprintf("meta-photo-%d.jpg",index))
+  if err:=os.WriteFile(dst,out,0600);err!=nil{return Prepared{},err}
+  return Prepared{Kind:"photo",Path:dst,Width:nw,Height:nh},nil
+ }
+ return Prepared{},Bad("Не удалось подготовить JPEG без потери вложения.")
 }

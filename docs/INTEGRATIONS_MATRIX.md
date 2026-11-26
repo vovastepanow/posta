@@ -18,7 +18,8 @@ Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https:
 | Pinterest | OAuth, photo pin; app keys required |
 | X | OAuth, text publishing; app keys and API access required |
 | Facebook | Owner beta, explicit Page token and ID, text/photo feed publishing; app permissions and real account test required |
-| Instagram, Threads | Placeholder, not an executable publisher |
+| Instagram | Professional account OAuth (Instagram Login), JPEG, Reels and ordered carousels; HTTPS media pull and app approval required; live account check pending |
+| Threads | OAuth, text, JPEG/photo, video and ordered carousels; HTTPS media pull and app approval required; live account check pending |
 | TikTok, Rutube | No executable publisher in current registry |
 | Tumblr | OAuth NPF text/photos/GIF and one uploaded video; asynchronous video processing, live account check pending |
 | Discord, Mastodon, Bluesky, Reddit, LinkedIn | Existing adapters preserved, new connections disabled |
@@ -71,3 +72,5 @@ OK references: https://apiok.ru/dev/examples/photo_upload ; https://apiok.ru/dev
 Tumblr references: https://github.com/tumblr/docs/blob/master/api.md and https://github.com/tumblr/docs/blob/master/npf-spec.md ; https://help.tumblr.com/knowledge-base/posting-video/ . NPF allows at most one native uploaded video per post. A creation receipt confirms acceptance, not completion of remote video processing. The existing editor limits the album to 10 files; the API supports more image blocks.
 
 Facebook Pages API references: https://developers.facebook.com/docs/graph-api/reference/page/photos/ and https://developers.facebook.com/docs/graph-api/reference/page/feed/ . Connection validates the explicit Page identity; successful identity lookup alone does not establish publishing permission. Existing global read-only tokens are never reused to publish on behalf of an account.
+
+Meta container publishing: https://www.postman.com/meta/threads/documentation/dht3nzz/threads-api ; https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api . Publishing uses account-scoped tokens, never global read tokens. Media is exposed only via revocable 15-minute bearer links, not arbitrary file paths. Instagram photo variants are JPEG without automatic crop; unsupported aspect ratios are explicitly rejected. Shared local input limit is 200 MiB and editor max is 10 attachments. Token refresh occurs on delivery within seven days of expiry; accounts idle beyond token expiry require reauthorization. No live publish is performed in tests.
