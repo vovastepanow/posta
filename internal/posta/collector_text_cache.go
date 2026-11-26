@@ -210,7 +210,7 @@ func publicEvidenceMatches(item, stored jx.M) bool {
 }
 
 func (u *U) collectorPublicEvidence(item jx.M, topic string) bool {
-	if u.DB == nil || jx.Str(item, "fetched_via") == "telegram_mtproto" || u.analysisPrivate(topic, item) || len(jx.ToStrs(item["safety"])) != 0 {
+	if u.DB == nil || jx.Bool(item, "attachment_recovered") || jx.Str(item, "fetched_via") == "telegram_mtproto" || u.analysisPrivate(topic, item) || len(jx.ToStrs(item["safety"])) != 0 {
 		return false
 	}
 	source, post := ContentSourceKey(item), CandidatePostKey(item)

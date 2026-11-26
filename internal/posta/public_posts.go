@@ -121,6 +121,9 @@ func (u *U) classifyPublicItem(item jx.M, caption, imageURL string) ([]string, b
 		return nil, false
 	}
 	if PostItemHasVideo(item) {
+		if len(ContentGallery(item)) > 1 {
+			return u.classifyPublicMixedAlbum(item, caption)
+		}
 		if local := u.MediaPath(jx.Str(item, "video_local")); local != "" && fileExists(local) {
 			return u.classifyPublicVideoFile(local, caption)
 		}
@@ -177,6 +180,7 @@ func (u *U) classifyPublicImageBytes(image []byte, caption string) ([]string, bo
 		return nil, false
 	}
 	if unsafe {
+		u.classificationMediaSafety = jx.ToStrs(data["safety"])
 		return nil, true
 	}
 	if !sufficient || strings.TrimSpace(jx.Str(data, "description")) == "" {
@@ -388,4 +392,54 @@ func (u *U) classifiedPublicPosts(topic string) map[string][]jx.M {
 // classifyShortlist uses the same classifier as saved content, without local embeddings.
 func (u *U) classifyShortlist(description, caption string) []string {
 	return u.classifyContent(description, caption, false)
+}
+
+// Never publish labels for an album after classifying only one attachment.
+// An unknown result for any member leaves the whole album unresolved.
+func (u *U) classifyPublicMixedAlbum(item jx.M, caption string) ([]string, bool) {
+	return classifyMixedAlbumMembers(ContentGallery(item), func(file jx.M) ([]string, bool) {
+		if u.Ctx.Err() != nil {
+			return nil, false
+		}
+		if video := jx.Str(file, "video"); video != "" {
+			if local := u.MediaExisting(jx.Str(file, "video_local")); local != "" {
+				video = local
+			}
+			return u.classifyPublicVideo(video, caption)
+		}
+		image := jx.Str(file, "image")
+		if local := u.MediaExisting(jx.Str(file, "image_local")); local != "" {
+			image = local
+		}
+		return u.classifyPublicImage(image, caption)
+	})
+}
+
+func classifyMixedAlbumMembers(gallery []jx.M, classify func(jx.M) ([]string, bool)) ([]string, bool) {
+	if len(gallery) < 2 || len(gallery) > 10 {
+		return nil, false
+	}
+	var tags []string
+	unknown := false
+	for _, file := range gallery {
+		found, unsafe := classify(file)
+		if unsafe {
+			return nil, true
+		}
+		if found == nil {
+			unknown = true
+		}
+		for _, tag := range found {
+			if !contains(tags, tag) {
+				tags = append(tags, tag)
+			}
+		}
+	}
+	if unknown {
+		return nil, false
+	}
+	if tags == nil {
+		tags = []string{}
+	}
+	return tags, false
 }

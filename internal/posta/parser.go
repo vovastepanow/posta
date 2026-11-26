@@ -2258,18 +2258,39 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 	}
 	u.Log("Полный анализ %s %s %s", candidateLogLabel(item), kind, jx.Str(item, "image"))
 	var video *Storyboard
-	if direct := jx.Str(item, "video"); direct != "" {
-		video = u.VideoAnalysisInput(direct, poster)
-		if video.File != "" {
-			defer os.Remove(video.File)
+	mixed := isVideo && len(ContentGallery(item)) > 1
+	frames := [][]byte{poster}
+	var galleryBytes map[string][]byte
+	cachedVideo := ""
+	if mixed {
+		var ok bool
+		item, frames, galleryBytes, ok = u.prepareMixedAlbumVision(item, poster)
+		if !ok {
+			u.Log("-> Альбом ещё не удалось исследовать целиком; отложен без оценки.")
+			return false
+		}
+	} else if direct := jx.Str(item, "video"); direct != "" {
+		cachedVideo = u.MediaExisting(jx.Str(item, "video_local"))
+		if cachedVideo == "" {
+			cachedVideo = u.MediaExisting(direct)
+		}
+		if cachedVideo != "" {
+			video = u.VideoStoryboard(u.MediaPath(cachedVideo))
+			if video == nil {
+				u.Log("-> Не удалось извлечь кадры сохранённого видео; отложено.")
+				return false
+			}
+		} else {
+			video = u.VideoAnalysisInput(direct, poster)
+			if video.File != "" {
+				defer os.Remove(video.File)
+			}
 		}
 	} else if jx.Str(item, "video_via") == "ytdlp" && jx.Int(item, "duration") <= ytdlpWatchMaxSeconds {
 		var cleanup func()
 		video, cleanup = u.VideoPageAnalysisInput(jx.Str(item, "video_page"), poster)
 		defer cleanup()
 	}
-	frames := [][]byte{poster}
-	var galleryBytes map[string][]byte
 	if video != nil {
 		frames = video.Frames
 	} else if !isVideo {
@@ -2321,8 +2342,8 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 		}
 	}
 	if isVideo {
-		localVideo := ""
-		if video != nil {
+		localVideo := u.MediaPath(cachedVideo)
+		if video != nil && video.File != "" {
 			localVideo = video.File
 		}
 		u.applyVideoClassification(a, item, localVideo, PostCaptionForAI(item), u.analysisPrivate(topic, item))
@@ -2347,13 +2368,16 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 	u.Log("-> Принято: %s.%s", verdict, tagNote)
 	u.PostSearchSuggest(item, topic)
 	rec := analysisRecord(a, item, topic, "")
+	delete(rec, "_album_frame_counts")
 	rec["analysis_evidence"] = visualEvidenceKind(item, len(frames), sb)
 	u.GeoFill(rec)
 	rec["image_local"] = u.MediaStoreImage(jx.Str(item, "image"), poster)
 	rec["phash"] = ImagePhash(poster)
-	if isVideo {
+	if isVideo && !mixed {
 		direct, page := jx.Str(item, "video"), jx.Str(item, "video_page")
-		if video != nil && video.File != "" {
+		if cachedVideo != "" {
+			rec["video_local"] = cachedVideo
+		} else if video != nil && video.File != "" {
 			mediaKey := direct
 			if mediaKey == "" {
 				mediaKey = page
@@ -2382,6 +2406,14 @@ func (u *U) analyzeCandidate(item jx.M, poster []byte, h History, topic string) 
 			}
 		}
 		rec["gallery"] = u.GalleryCacheFiles(g, jx.Str(item, "image"))
+		if mixed {
+			for _, f := range g {
+				if jx.Str(f, "image") == jx.Str(item, "image") && jx.Str(f, "video") == jx.Str(item, "video") {
+					rec["video_local"] = jx.Str(f, "video_local")
+					break
+				}
+			}
+		}
 	}
 	if jx.Str(rec, "image_local") == "" {
 		u.Log("-> Картинку не удалось сохранить в кэш, на сайте будет исходная ссылка.")

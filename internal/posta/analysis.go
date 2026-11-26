@@ -416,7 +416,7 @@ func (u *U) AnalyzeContentWithVision(images [][]byte, caption string, h History,
 		if err == nil {
 			a := llm.DecodeJSON(r.Text)
 			if validModelContentVerdict(a) && (query == "" || validModelPercent(a["query_match"])) {
-				result := u.finishAnalysis(a, topic, query, video != nil, encoded[0], private, r.Model)
+				result := u.finishAnalysis(a, topic, query, video != nil || PostItemHasVideo(item), encoded[0], private, r.Model)
 				tagCaption := caption
 				if text := PostCaptionForAI(item); text != "" {
 					tagCaption = text
@@ -898,6 +898,9 @@ var _ = sort.Strings
 // Describe only the evidence actually provided, not the media that the
 // model has not received. The same description is part of the cache key.
 func visualEvidenceDescription(item jx.M, count int, video *Storyboard) string {
+	if description := mixedAlbumEvidenceDescription(item); description != "" {
+		return description
+	}
 	if video != nil {
 		return VideoStoryboardDescription(video)
 	}

@@ -113,7 +113,9 @@ func (u *U) applyVideoClassification(result jx.M, item jx.M, localVideo, caption
 	u.classificationMediaSafety = nil
 	var tags []string
 	var unsafe bool
-	if localVideo != "" {
+	if len(ContentGallery(item)) > 1 {
+		tags, unsafe = u.classifyPublicMixedAlbum(item, caption)
+	} else if localVideo != "" {
 		tags, unsafe = u.classifyPublicVideoFile(localVideo, caption)
 	} else {
 		tags, unsafe = u.classifyPublicVideo(jx.Str(item, "video"), caption)
