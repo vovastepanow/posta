@@ -44,7 +44,7 @@ func vkVideoAttachmentWith(ctx context.Context,group,path,title,token string,cal
 func vkPublishWith(ctx context.Context,c *Channel,p NetPost,call vkMethodFunc,request networkRequestFunc,userToken func()string)(*NetSent,error){
 	if len(p.Media)>10||runeLen(p.Text)>16384{return nil,Bad("ВКонтакте: превышен лимит текста или вложений.")}
 	if len(p.Media)==0&&strings.TrimSpace(p.Text)==""&&p.Poll==nil{return nil,Bad("ВКонтакте: пустой пост.")}
-	for _,f:=range p.Media{if f.Kind!="photo"&&f.Kind!="video"{return nil,Bad("ВКонтакте: неподдерживаемое вложение.")}}
+	for _,f:=range p.Media{if f.Kind!="photo"&&f.Kind!="video"&&f.Kind!="document"&&f.Kind!="animation"{return nil,Bad("ВКонтакте: неподдерживаемое вложение.")}}
 	group,token:=c.Ref,c.Secrets["token"]
 	if id,err:=strconv.ParseInt(group,10,64);err!=nil||id<=0||token==""{return nil,Bad("ВКонтакте: сообщество не подключено.")}
 	mediaToken:=token
@@ -74,24 +74,26 @@ func vkPublishWith(ctx context.Context,c *Channel,p NetPost,call vkMethodFunc,re
 	// Once a video is uploaded, a subsequent failure may leave a visible
 	// media object. Stop automatic replay, even if the wall was not posted.
 	fail:=func(err error)(*NetSent,error){
-		if videoUploaded{return nil,uncertainPublish("ВКонтакте: видео уже загружено, публикация на стене не подтверждена; проверьте сообщество перед повтором.")}
+		if videoUploaded{return nil,uncertainPublish("ВКонтакте: вложение уже загружено, публикация на стене не подтверждена; проверьте сообщество перед повтором.")}
 		return nil,err
 	}
 	for _,f:=range p.Media{
 		upload:=func(t string)(string,error){
 			if f.Kind=="video"{return vkVideoAttachmentWith(ctx,group,f.Path,title,t,call,request)}
+			if f.Kind=="document"||f.Kind=="animation"{return vkDocumentAttachmentWith(ctx,group,f,t,call,request)}
 			return vkPhotoAttachmentWith(ctx,group,f.Path,t,call,request)
 		}
 		id,err:=upload(mediaToken)
 		var photoErr *vkPhotoAuthError
 		var videoErr *vkVideoAuthError
-		if err!=nil&&mediaToken==token&&(errors.As(err,&photoErr)||errors.As(err,&videoErr)){
+		var docErr *vkDocumentAuthError
+		if err!=nil&&mediaToken==token&&(errors.As(err,&photoErr)||errors.As(err,&videoErr)||errors.As(err,&docErr)){
 			// Explicit method authorization refusal before a video upload.
 			// A profile-specific user token is never shared with other users.
-			if t:=userToken();t!=""&&t!=token{mediaToken=t;id,err=upload(t)}
+			if userToken!=nil{if t:=userToken();t!=""&&t!=token{mediaToken=t;id,err=upload(t)}}
 		}
 		if err!=nil{return fail(err)}
-		if f.Kind=="video"{videoUploaded=true}
+		if f.Kind=="video"||f.Kind=="document"||f.Kind=="animation"{videoUploaded=true}
 		att=append(att,id)
 	}
 	params:=url.Values{"owner_id":{"-"+group},"from_group":{"1"},"message":{p.Text}}

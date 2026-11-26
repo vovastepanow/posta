@@ -18,6 +18,8 @@ func networkPollLimits(platform string) jx.M {
 		return jx.M{"question_max": 300, "options_max": 10, "option_max": 100, "multiple": true,"public":true}
 	case "x":
 		return jx.M{"question_max": 280, "options_max": 4, "option_max": 25, "duration": true}
+	case "threads":
+		return jx.M{"question_max":500,"options_max":4,"option_max":25}
 	}
 	return nil
 }

@@ -19,6 +19,12 @@ type metaContainerSpec struct {
 
 func metaContainerPublish(ctx context.Context,c *Channel,p NetPost,s metaContainerSpec,request networkRequestFunc,lease mediaLeaseFunc,wait func(context.Context)error)(*NetSent,error){
  if !metaDigits.MatchString(c.Ref)||c.Secrets["access_token"]==""{return nil,Bad("%s: аккаунт не подключён.",s.name)}
+ var poll jx.M
+ if p.Poll!=nil{
+  if !s.textOnly||len(p.Media)>0{return nil,Bad("%s: опросы доступны только в текстовых постах Threads.",s.name)}
+  var err error;poll,err=NetworkPollCheck("threads",p.Poll);if err!=nil{return nil,err}
+  p.Text=jx.Str(poll,"question")
+ }
  if runeLen(p.Text)>s.textLimit||len(p.Media)>10{return nil,Bad("%s: превышен лимит текста или вложений.",s.name)}
  if len(p.Media)==0&&(!s.textOnly||strings.TrimSpace(p.Text)==""){return nil,Bad("%s: требуется медиа или допустимый текст.",s.name)}
  // A single deadline bounds processing of the entire carousel, rather than
@@ -60,6 +66,11 @@ func metaContainerPublish(ctx context.Context,c *Channel,p NetPost,s metaContain
   return fmt.Errorf("%s не завершил обработку медиа; публикация не отправлена",s.name)
  }
  form:=url.Values{s.caption:{p.Text},"media_type":{"TEXT"}}
+ if poll!=nil{
+  options:=jx.M{};keys:=[]string{"option_a","option_b","option_c","option_d"}
+  for i,value:=range jx.Strs(poll,"options"){options[keys[i]]=value}
+  form.Set("poll_attachment",string(jx.Marshal(options)))
+ }
  if len(p.Media)>0{
   mediaForm:=func(i int)url.Values{
    if p.Media[i].Kind=="video"{

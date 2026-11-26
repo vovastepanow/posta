@@ -608,7 +608,7 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 					progress("Скачиваю видео", nil)
 				}
 				path = filepath.Join(dir, fmt.Sprintf("source-%d", i))
-				if (telegram || platform=="max") && (it.Kind == "audio" || it.Kind == "document" || it.Kind=="voice") {
+				if (telegram || platform=="max" || platform=="vk") && (it.Kind == "audio" || it.Kind == "document" || it.Kind=="voice") {
 					// Use the same SSRF-protected fetcher; validate bytes below.
 					res, err := a.FetchPublic(it.Src, FetchOpts{MaxBytes: min(maxBytes, int64(50_000_000)), Dest: path, Timeout: 180 * time.Second})
 					if err != nil {
@@ -630,7 +630,7 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 			if info.Size()>maxBytes && !(telegram&&cached){return Prepared{},Bad("Файл превышает локальный предел загрузки %d МиБ.",maxBytes>>20)}
 			mime := sniffMime(path)
 			if it.Kind == "audio" || it.Kind == "document" || it.Kind=="voice" {
-				if (!telegram && platform!="max") || route == "account" || (it.Kind=="voice"&&!telegram) {
+				if (!telegram && platform!="max" && !(platform=="vk"&&it.Kind=="document")) || route == "account" || (it.Kind=="voice"&&!telegram) {
 					return Prepared{}, Bad("Этот формат не поддерживается выбранной площадкой или способом публикации.")
 				}
 				if info.Size() > 50_000_000 {
@@ -672,6 +672,12 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 			}
 			switch {
 			case mime == "image/gif":
+				if platform=="vk" {
+					if info.Size()>50_000_000{return Prepared{},Bad("GIF превышает локальный лимит 50 МБ.")}
+					dst:=filepath.Join(dir,fmt.Sprintf("animation-%d.gif",i))
+					if err:=copyFile(path,dst);err!=nil{return Prepared{},err}
+					path=dst
+				}
 				return Prepared{Kind: "animation", Path: path}, nil
 			case strings.HasPrefix(mime, "image/"):
 				if !telegram {
