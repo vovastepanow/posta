@@ -16,7 +16,7 @@ Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https:
 | MAX | Bot, text and uploaded image/video attachments; explicit attachment-processing retry; live account test pending |
 | YouTube | OAuth, video upload; app keys/audit required |
 | Pinterest | OAuth, photo pin; app keys required |
-| X | OAuth, text publishing; app keys and API access required |
+| X | OAuth text/photos, single GIF or chunked video; media.write scope and API access required, live account test pending |
 | Facebook | Owner beta, explicit Page token and ID, text/photo feed publishing; app permissions and real account test required |
 | Instagram | Professional account OAuth (Instagram Login), JPEG, Reels and ordered carousels; HTTPS media pull and app approval required; live account check pending |
 | Threads | OAuth, text, JPEG/photo, video and ordered carousels; HTTPS media pull and app approval required; live account check pending |
@@ -74,3 +74,5 @@ Tumblr references: https://github.com/tumblr/docs/blob/master/api.md and https:/
 Facebook Pages API references: https://developers.facebook.com/docs/graph-api/reference/page/photos/ and https://developers.facebook.com/docs/graph-api/reference/page/feed/ . Connection validates the explicit Page identity; successful identity lookup alone does not establish publishing permission. Existing global read-only tokens are never reused to publish on behalf of an account.
 
 Meta container publishing: https://www.postman.com/meta/threads/documentation/dht3nzz/threads-api ; https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api . Publishing uses account-scoped tokens, never global read tokens. Media is exposed only via revocable 15-minute bearer links, not arbitrary file paths. Instagram photo variants are JPEG without automatic crop; unsupported aspect ratios are explicitly rejected. Shared local input limit is 200 MiB and editor max is 10 attachments. Token refresh occurs on delivery within seven days of expiry; accounts idle beyond token expiry require reauthorization. No live publish is performed in tests.
+
+X media API: https://docs.x.com/x-api/media/quickstart/media-upload-chunked and https://docs.x.com/x-api/media/upload-media . Uses dedicated v2 initialize/append/finalize endpoints and checks processing state before publishing. Old account grants may need reconnection to grant media.write. Local limit is deliberately smaller than the provider maximum.

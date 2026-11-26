@@ -124,7 +124,7 @@ func (a *App) Networks() map[string]*Network {
 		"threads": {Title:"Threads",Prefix:"threads",Status:"needs_keys",Note:"OAuth приложения Threads; текст, фото, видео и карусели. Для медиа необходим доступный HTTPS-адрес Posta.",TextLimit:[2]int{500,500},MediaMax:10,Kinds:[]string{"photo","video"},MaxBytes:map[string]int64{"photo":8_000_000,"video":200_000_000},Docs:"partly",AppKeys:[]string{"THREADS_CLIENT_ID","THREADS_CLIENT_SECRET"},OAuth:threadsOAuth,Publish:threadsPublish},
 		"instagram": {Title:"Instagram",Prefix:"ig",Status:"needs_keys",Note:"Meta признана экстремистской и запрещена в РФ. OAuth профессионального аккаунта; фотографии, Reels и карусели. Требуется публичный HTTPS-адрес Posta.",TextLimit:[2]int{2200,2200},MediaMax:10,Kinds:[]string{"photo","video"},MaxBytes:map[string]int64{"photo":8_000_000,"video":200_000_000},Docs:"partly",AppKeys:[]string{"INSTAGRAM_CLIENT_ID","INSTAGRAM_CLIENT_SECRET"},OAuth:instagramOAuth,Publish:instagramPublish},
 		"facebook": {Title:"Facebook (страница)",Prefix:"fb",Status:"beta",Note:"Meta признана экстремистской и запрещена в РФ. Нужен токен управляемой страницы с pages_manage_posts; пока текст и фото.",TextLimit:[2]int{63206,63206},MediaMax:10,Kinds:[]string{"photo"},MaxBytes:map[string]int64{"photo":10_000_000},Docs:"partly",Fields:[]NetField{{"page_id","ID страницы Facebook",false},{"access_token","Page access token",true}},Connect:facebookConnect,Publish:facebookPublish},
-		"x": {Title: "X (Twitter)", Prefix: "x", Status: "needs_keys", Note: "Платный доступ к API: бесплатного тарифа нет, посты с URL дороже.", TextLimit: [2]int{280, 280},
+		"x": {Title: "X (Twitter)", Prefix: "x", Status: "needs_keys", Note: "Требуется доступ к API X и право media.write. Текст, до четырёх фото либо одно видео/GIF.", TextLimit: [2]int{280, 280},MediaMax:4,Kinds:[]string{"photo","video","animation"},MaxBytes:map[string]int64{"photo":5_000_000,"video":200_000_000,"animation":15_000_000},
 			Docs: "partly", AppKeys: []string{"X_CLIENT_ID", "X_CLIENT_SECRET"}, OAuth: xOAuth, Publish: xPublish},
 		"reddit": {Title: "Reddit", Prefix: "reddit", Status: "needs_keys", Note: "Приложение Reddit; постим только в свой профиль, текстом.", TextLimit: [2]int{40000, 40000},
 			Docs: "partly", AppKeys: []string{"REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"}, OAuth: redditOAuth, Publish: redditPublish},
@@ -222,6 +222,7 @@ func (a *App) NetworkPreflight(platform, text string, kinds []string) (int, []st
 			if k=="video"{videos++}
 		}
 	}
+	if platform=="x" && len(kinds)>1 {for _,kind:=range kinds{if kind!="photo"&&kind!="image"{return 0,nil,Bad("X: допустимы до четырёх фотографий либо одно видео/GIF, без смешивания.")}}}
 	if (platform == "youtube" || platform == "pinterest" || platform == "instagram") && kept == 0 {
 		return 0, nil, Bad("%s: необходим поддерживаемый медиафайл.", n.Title)
 	}
@@ -1437,7 +1438,7 @@ var xOAuth = &OAuthFlow{
 	Authorize: func(a *App, state, redirect, verifier string) string {
 		sum := sha256.Sum256([]byte(verifier))
 		return "https://x.com/i/oauth2/authorize?" + url.Values{"response_type": {"code"}, "client_id": {a.NetworkAppKey("X_CLIENT_ID")}, "redirect_uri": {redirect},
-			"scope": {"tweet.write users.read tweet.read offline.access"}, "state": {state}, "code_challenge": {base64.RawURLEncoding.EncodeToString(sum[:])},
+			"scope": {"tweet.write users.read tweet.read media.write offline.access"}, "state": {state}, "code_challenge": {base64.RawURLEncoding.EncodeToString(sum[:])},
 			"code_challenge_method": {"S256"}}.Encode()
 	},
 	Exchange: func(a *App, ctx context.Context, code, redirect, verifier string) (map[string]string, error) {
@@ -1466,28 +1467,11 @@ var xOAuth = &OAuthFlow{
 	},
 }
 
-func xPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, error) {
-	if strings.TrimSpace(p.Text) == "" {
-		return nil, Bad("X: пост без текста.")
-	}
-	if runeLen(p.Text) > 280 {
-		return nil, Bad("Текст длиннее 280 символов: X его не примет.")
-	}
-	r, err := networkHTTP(ctx, "POST", "https://api.x.com/2/tweets", withCT(bearer(c.Secrets["access_token"]), ctJSON), jsonBody(jx.M{"text": p.Text}))
-	d, err := networkExpect(r, err, []int{201}, "Твит не опубликован")
-	if err != nil {
-		return nil, err
-	}
-	id := jx.Str(jx.Map(d, "data"), "id")
-	user := jx.Str(c.Meta, "username")
-	if user == "" {
-		user = "i"
-	}
-	u := ""
-	if id != "" {
-		u = "https://x.com/" + user + "/status/" + id
-	}
-	return &NetSent{URL: u, MessageIDs: []string{id}}, nil
+func xPublish(a *App,ctx context.Context,c *Channel,p NetPost)(*NetSent,error){
+ return xPublishWith(ctx,c,p,networkHTTP,func(ctx context.Context,d time.Duration)error{
+  t:=time.NewTimer(d);defer t.Stop()
+  select{case <-ctx.Done():return ctx.Err();case <-t.C:return nil}
+ })
 }
 
 // ---- Reddit ----
