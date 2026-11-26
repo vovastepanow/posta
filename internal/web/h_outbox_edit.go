@@ -113,7 +113,7 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 	defer os.RemoveAll(work)
 	uploads := map[string]string{}
 	for i, fh := range c.R.MultipartForm.File["files[]"] {
-		if fh.Size > config.TelegramUploadMaxBytes {
+		if fh.Size > config.PublishUploadMaxBytes {
 			return nil, fail(400, "Файл слишком большой.")
 		}
 		f, err := fh.Open()
@@ -126,10 +126,10 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 			f.Close()
 			return nil, err
 		}
-		n, copyErr := io.Copy(out, io.LimitReader(f, config.TelegramUploadMaxBytes+1))
+		n, copyErr := io.Copy(out, io.LimitReader(f, config.PublishUploadMaxBytes+1))
 		f.Close()
 		closeErr := out.Close()
-		if copyErr != nil || closeErr != nil || n > config.TelegramUploadMaxBytes {
+		if copyErr != nil || closeErr != nil || n > config.PublishUploadMaxBytes {
 			return nil, fail(400, "Не удалось сохранить файл.")
 		}
 		uploads[strconv.Itoa(i)] = path
@@ -160,7 +160,7 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		}
 		items = append(items, item)
 	}
-	prepared, err := c.A.TelegramPrepareMedia(items, uploads, work, "bot", nil)
+	prepared, err := c.A.DeliveryPrepareMedia(ch.Platform,items, uploads, work, "bot", nil)
 	if err != nil {
 		return nil, fail(422, err.Error())
 	}

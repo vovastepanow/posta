@@ -462,7 +462,7 @@ func telegramPreparePhoto(path, dir string, index int) (Prepared, error) {
 		return Prepared{}, Bad("Картинка слишком большая даже после сжатия.")
 	}
 	out := filepath.Join(dir, fmt.Sprintf("photo-%d.jpg", index))
-	os.WriteFile(out, jpeg, 0o644)
+	if err:=os.WriteFile(out, jpeg, 0o644);err!=nil{return Prepared{},Bad("Не удалось сохранить подготовленное изображение.")}
 	w, h, _ = imgx.Size(jpeg)
 	return Prepared{Kind: "photo", Path: out, Width: w, Height: h}, nil
 }
@@ -536,8 +536,11 @@ func (a *App) telegramPrepareVideo(path, dir string, index int, route string, pr
 		path = out
 		info = a.TelegramVideoInfo(out)
 	}
-	st, _ := os.Stat(path)
-	if a.TelegramVideoVerdict(st.Size(), route) == "blocked" {
+	st, err := os.Stat(path)
+	if err != nil || !st.Mode().IsRegular() || st.Size()<=0 || info.Video=="" {
+		return Prepared{},Bad("Не удалось подготовить видео.")
+	}
+	if route != "network" && a.TelegramVideoVerdict(st.Size(), route) == "blocked" {
 		return Prepared{}, Bad("Видео %s.", a.TelegramVideoLimitText(st.Size(), route))
 	}
 	return Prepared{Kind: "video", Path: path, Width: info.Width, Height: info.Height, Duration: info.Duration}, nil
@@ -562,6 +565,23 @@ func sniffMime(path string) string {
 
 // TelegramPrepareMedia — файлы поста → готовые к отправке. Гифка в альбоме становится видео.
 func (a *App) TelegramPrepareMedia(items []MediaItem, uploads map[string]string, dir, route string, progress progressFn) ([]Prepared, error) {
+	return a.DeliveryPrepareMedia("telegram",items,uploads,dir,route,progress)
+}
+
+// DeliveryPrepareMedia keeps the original file whenever the selected API
+// supports it. Telegram-only limits and album transformations stay in its route.
+func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads map[string]string, dir, route string, progress progressFn) ([]Prepared, error) {
+	if platform==""{platform="telegram"}
+	telegram:=platform=="telegram"
+	var network *Network
+	maxBytes:=int64(config.TelegramUploadMaxBytes)
+	if !telegram {
+		var err error
+		network,err=a.NetworkFor(platform)
+		if err!=nil{return nil,err}
+		route="network"
+		maxBytes=config.PublishUploadMaxBytes
+	}
 	if len(items) > config.TelegramMaxMedia {
 		return nil, Bad("В пост помещается не больше %d файлов.", config.TelegramMaxMedia)
 	}
@@ -576,8 +596,9 @@ func (a *App) TelegramPrepareMedia(items []MediaItem, uploads map[string]string,
 		}
 		p, err := func() (Prepared, error) {
 			path := ""
-			if it.Upload != "" && uploads[it.Upload] != "" {
+			if it.Upload != "" {
 				path = uploads[it.Upload]
+				if path==""{return Prepared{},Bad("Загруженный файл отсутствует.")}
 			} else if c := a.MediaPath(it.Src); c != "" && fileExists(c) {
 				path = c
 			} else if strings.HasPrefix(strings.ToLower(it.Src), "http://") || strings.HasPrefix(strings.ToLower(it.Src), "https://") {
@@ -585,17 +606,23 @@ func (a *App) TelegramPrepareMedia(items []MediaItem, uploads map[string]string,
 					progress("Скачиваю видео", nil)
 				}
 				path = filepath.Join(dir, fmt.Sprintf("source-%d", i))
-				if err := a.fetchPublicMedia(it.Src, path, config.TelegramUploadMaxBytes); err != nil {
+				if err := a.fetchPublicMedia(it.Src, path, maxBytes); err != nil {
 					return Prepared{}, err
 				}
 			} else {
 				return Prepared{}, Bad("файл недоступен (ни в кэше сайта, ни по ссылке).")
 			}
+			info,err:=os.Stat(path)
+			if err!=nil||!info.Mode().IsRegular()||info.Size()<=0{return Prepared{},Bad("Файл отсутствует или пуст.")}
+			if info.Size()>maxBytes{return Prepared{},Bad("Файл превышает локальный предел загрузки %d МиБ.",maxBytes>>20)}
 			mime := sniffMime(path)
 			switch {
 			case mime == "image/gif":
 				return Prepared{Kind: "animation", Path: path}, nil
 			case strings.HasPrefix(mime, "image/"):
+				if !telegram {
+					if p,ok:=networkOriginalPhoto(network,path,mime,info.Size());ok{return p,nil}
+				}
 				return telegramPreparePhoto(path, dir, i)
 			case strings.HasPrefix(mime, "video/") || mime == "application/octet-stream":
 				return a.telegramPrepareVideo(path, dir, i, route, progress)
@@ -608,7 +635,7 @@ func (a *App) TelegramPrepareMedia(items []MediaItem, uploads map[string]string,
 		p.Name, p.Src = name, it.Src
 		out = append(out, p)
 	}
-	if len(out) > 1 {
+	if telegram && len(out) > 1 {
 		for i, f := range out {
 			if f.Kind != "animation" {
 				continue

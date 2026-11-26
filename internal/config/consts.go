@@ -202,6 +202,8 @@ const (
 	TelegramMaxDelayDays      = 365
 	TelegramPublishedLogLimit = 30
 	TelegramUploadMaxBytes    = 64 << 20
+	// Local delivery input limit, independent of Telegram and API provider limits.
+	PublishUploadMaxBytes     = 200 << 20
 	TelegramUserTimeout       = 300
 	TGUVideoMaxBytes          = 150 << 20 // большое видео поста Telegram, которое скачивает личный аккаунт
 	TGUVideoTimeout           = 900

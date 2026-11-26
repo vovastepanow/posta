@@ -684,7 +684,7 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 		return "", err
 	}
 	defer os.RemoveAll(work)
-	prepared, err := u.TelegramPrepareMedia(items, nil, work, "bot", nil)
+	prepared, err := u.DeliveryPrepareMedia(platform,items, nil, work, "bot", nil)
 	if err != nil {
 		return "", err
 	}

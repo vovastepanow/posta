@@ -685,7 +685,8 @@ func publish(c *Ctx) (any, error) {
 	fields := c.In
 	var uploads map[string]string
 	if strings.HasPrefix(c.R.Header.Get("Content-Type"), "multipart/") {
-		if err := c.R.ParseMultipartForm(64 << 20); err != nil {
+		c.R.Body=http.MaxBytesReader(c.W,c.R.Body,400<<20)
+		if err := c.R.ParseMultipartForm(32 << 20); err != nil {
 			return nil, fail(413, "Файлы вместе весят слишком много для одной отправки: уберите часть файлов.")
 		}
 		defer c.R.MultipartForm.RemoveAll()
@@ -696,32 +697,19 @@ func publish(c *Ctx) (any, error) {
 			}
 		}
 		uploads = map[string]string{}
-		for i, fh := range c.R.MultipartForm.File["files[]"] {
-			if fh.Size > config.TelegramUploadMaxBytes {
-				return nil, fail(400, "Файл «"+fh.Filename+"» больше "+strconv.Itoa(config.TelegramUploadMaxBytes>>20)+" МБ.")
-			}
-			f, err := fh.Open()
-			if err != nil {
-				return nil, fail(400, "Не удалось загрузить файл «"+fh.Filename+"».")
-			}
-			tmp, _ := os.CreateTemp("", "posta-pub-*"+filepath.Ext(fh.Filename))
-			io.Copy(tmp, f)
-			f.Close()
-			tmp.Close()
+		files:=c.R.MultipartForm.File["files[]"]
+		if len(files)==0{files=c.R.MultipartForm.File["files"]}
+		if len(files)>config.TelegramMaxMedia{return nil,fail(400,"Слишком много файлов.")}
+		for i,fh:=range files {
+			if fh.Size<=0||fh.Size>config.PublishUploadMaxBytes{return nil,fail(400,"Файл пуст или превышает локальный предел загрузки.")}
+			f,err:=fh.Open();if err!=nil{return nil,fail(400,"Не удалось прочитать загруженный файл.")}
+			tmp,err:=os.CreateTemp("", "posta-pub-*")
+			if err!=nil{f.Close();return nil,fail(500,"Не удалось сохранить загруженный файл.")}
 			defer os.Remove(tmp.Name())
-			uploads[strconv.Itoa(i)] = tmp.Name()
-		}
-		for i, fh := range c.R.MultipartForm.File["files"] {
-			f, err := fh.Open()
-			if err != nil {
-				continue
-			}
-			tmp, _ := os.CreateTemp("", "posta-pub-*"+filepath.Ext(fh.Filename))
-			io.Copy(tmp, f)
-			f.Close()
-			tmp.Close()
-			defer os.Remove(tmp.Name())
-			uploads[strconv.Itoa(i)] = tmp.Name()
+			copied,copyErr:=io.Copy(tmp,io.LimitReader(f,config.PublishUploadMaxBytes+1))
+			f.Close();closeErr:=tmp.Close()
+			if copyErr!=nil||closeErr!=nil||copied!=fh.Size||copied>config.PublishUploadMaxBytes{return nil,fail(400,"Не удалось полностью сохранить файл.")}
+			uploads[strconv.Itoa(i)]=tmp.Name()
 		}
 	}
 	ch, err := u.PublishChannelResolve(jx.Str(fields, "channel"))
@@ -737,8 +725,8 @@ func publish(c *Ctx) (any, error) {
 	} else {
 		rawItems = jx.Maps(fields, "media")
 	}
-	if len(rawItems) > config.TelegramMaxMedia+1 {
-		rawItems = rawItems[:config.TelegramMaxMedia+1]
+	if len(rawItems) > config.TelegramMaxMedia {
+		return nil,fail(400,"В пост помещается не больше 10 файлов.")
 	}
 	if d := u.PublishMediaDenied(rawItems); d != "" {
 		return nil, fail(422, d)
@@ -887,7 +875,7 @@ func publish(c *Ctx) (any, error) {
 	if mode == "native" {
 		route = "account"
 	}
-	prepared, err := w.TelegramPrepareMedia(items, uploads, work, route, progress)
+	prepared, err := w.DeliveryPrepareMedia(platform,items, uploads, work, route, progress)
 	if err != nil {
 		return nil, fail(422, err.Error())
 	}
