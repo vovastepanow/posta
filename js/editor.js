@@ -1,7 +1,7 @@
 // editor.js — окно выбора даты и времени и модальный редактор поста (порядок медиа, текст, отправка через onSubmit).
 import { VIDEO_ICON, api, el, pluralRu } from './core.js';
 import { cloneDraft,draftFor,draftPayload,draftProblem,draftNeedsQueue } from './editor-variants.js';
-import { commonCapabilities, commonPollLimits, mediaKind, validateTarget, attachmentError, extraActive, extraAvailability, extraError, EXTRA_KEYS, standaloneExtra } from './editor-capabilities.js';
+import { targetCapabilities, commonCapabilities, commonPollLimits, mediaKind, validateTarget, attachmentError, extraActive, extraAvailability, extraError, EXTRA_KEYS, standaloneExtra } from './editor-capabilities.js';
 
 // ---- Дата и время ----
 
@@ -99,8 +99,6 @@ function syncEditorDraft(){
 const chosenDrafts=()=>allSelectedTargets().map(t=>draftFor(session.base,session.variants,t.value));
 const anyQueueOnly=()=>chosenDrafts().some(draftNeedsQueue);
 const currentCapabilities = () => commonCapabilities(selectedTargets());
-const hasExtras = () => EXTRA_KEYS.some(k=>extraActive(session.extras,k));
-const botOnlyMedia = () => session.media.some(m => ['audio','document','voice','sticker','video_note'].includes(mediaKind(m)));
 const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440,quiz:!!p.quiz,correct_answer:p.correct_answer||'',explanation:p.explanation||'',close_minutes:p.close_minutes||0,public:!!p.public,with_content:!!p.with_content} : null;
 const fileKind = f => /\.(pdf|txt|csv|zip|docx|xlsx|pptx)$/i.test(f.name) || f.type==='application/pdf' ? 'document' : /\.(ogg|opus)$/i.test(f.name) ? 'voice' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
 const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null,signed:!!e?.signed,close_comments:!!e?.close_comments,mark_as_ads:!!e?.mark_as_ads,copyright:e?.copyright||'',link_attachment:e?.link_attachment||'',vk_geo:e?.vk_geo||'',alt_text:e?.alt_text||'',topic_tag:e?.topic_tag||'',yt_privacy:e?.yt_privacy||'',yt_audience:e?.yt_audience||'',yt_tags:e?.yt_tags||'',yt_category:e?.yt_category||'',yt_license:e?.yt_license||'',styled_text:!!e?.styled_text,max_sticker:e?.max_sticker||'',first_comment:e?.first_comment||'',paid_partnership:!!e?.paid_partnership,made_with_ai:!!e?.made_with_ai,x_reply_settings:e?.x_reply_settings||''});
@@ -142,7 +140,7 @@ function buildUi() {
         session.extras = cloneExtras(session.options.extras);
         renderExtras();
         u.text.value = session.options.original || '';
-        renderPoll(); renderWhen();
+        syncEditorDraft(); renderPoll(); renderWhen();
         u.note.textContent = '';
         render();
     });
@@ -228,11 +226,13 @@ function setAiBusy(message) {
     ui.aiBusy = Boolean(message);
     if(session){ui.variantBar.inert=ui.aiBusy||session.busy;}
     ui.aiButton.disabled = ui.aiBusy;
+    if(session){if(ui.aiBusy)ui.submit.disabled=true;else render();}
     ui.aiNote.textContent = message;
 }
 
 async function aiCaption() {
-    const o = session.options;
+    const owner=session, editTarget=session.editTarget, o=session.options;
+    const stillCurrent=()=>session===owner&&session.editTarget===editTarget;
     if (!o.ai || ui.aiBusy) return;
     const target = styleTarget();
     let warning = '';
@@ -242,17 +242,20 @@ async function aiCaption() {
         if (!st.summary && st.can_learn && !st.error) {   // стиль ещё не изучен: один раз по постам канала, дальше он хранится в профиле
             setAiBusy('Изучаю стиль канала по постам — это один раз, около двух минут…');
             st = await o.ai.learn(target);
+            if(!stillCurrent())return;
             renderStyle();
             if (!st.summary && st.error) warning = `Стиль изучить не вышло: ${st.error}`;
             setAiBusy('ИИ пишет подпись…');
         }
         const typed = ui.text.value.trim();
         const mine = typed && typed !== (o.original || '').trim() && typed !== (o.description || '').trim() ? typed : '';   // чужой текст по умолчанию черновиком не считаем
-        ui.text.value = await o.ai.generate(target, { description: o.description || '', original: o.original || '', current: mine });
+        const generated=await o.ai.generate(target, { description: o.description || '', original: o.original || '', current: mine });
+        if(!stillCurrent())return;
+        ui.text.value=generated;
         render();
         setAiBusy('');
         ui.aiNote.textContent = warning ? `${warning} Подпись написана в нейтральной манере.` : '';
-    } catch (error) {
+    } catch (error) { if(!stillCurrent())return;
         setAiBusy('');
         ui.aiNote.textContent = error.message;
     }
@@ -260,37 +263,45 @@ async function aiCaption() {
 
 /** Выжимка из статьи новости: заголовок, 2–3 предложения и ссылка на источник; текст поля заменяется. */
 async function makeExcerpt() {
-    const o = session.options;
+    const owner=session, editTarget=session.editTarget, o=session.options;
+    const stillCurrent=()=>session===owner&&session.editTarget===editTarget;
     if (!o.ai || !o.newsUrl || ui.aiBusy) return;
     try {
         setAiBusy('Читаю статью и делаю выжимку…');
         const excerpt = await o.ai.excerpt(o.newsUrl);
+        if(!stillCurrent())return;
         const title = (o.original || '').split('\n')[0].replace(/^\*\*|\*\*$/g, '').trim();
         ui.text.value = [title, excerpt, `Источник: ${o.newsUrl}`].filter(Boolean).join('\n\n');
         render();
         setAiBusy('');
         ui.aiNote.textContent = 'Выжимка вставлена в текст. Проверьте её перед публикацией.';
-    } catch (error) { setAiBusy(''); ui.aiNote.textContent = error.message; }
+    } catch (error) { if(!stillCurrent())return; setAiBusy(''); ui.aiNote.textContent = error.message; }
 }
 
 async function learnStyle() {
-    const o = session.options;
+    const owner=session, editTarget=session.editTarget, o=session.options;
+    const stillCurrent=()=>session===owner&&session.editTarget===editTarget;
     if (!o.ai || ui.aiBusy) return;
     try {
         setAiBusy('Изучаю стиль канала по постам — около двух минут…');
         await o.ai.learn(styleTarget());
+        if(!stillCurrent())return;
         setAiBusy('');
-    } catch (error) { setAiBusy(''); ui.aiNote.textContent = error.message; }
+    } catch (error) { if(!stillCurrent())return; setAiBusy(''); ui.aiNote.textContent = error.message; }
     renderStyle();
 }
 
 async function saveStyle() {
-    const o = session.options;
+    const owner=session, editTarget=session.editTarget, o=session.options;
+    const stillCurrent=()=>session===owner&&session.editTarget===editTarget;
     if (!o.ai || ui.aiBusy) return;
     try {
+        setAiBusy('Сохраняю стиль…');
         await o.ai.save(styleTarget(), ui.styleText.value);
+        if(!stillCurrent())return;
+        setAiBusy('');
         ui.aiNote.textContent = '';
-    } catch (error) { ui.aiNote.textContent = error.message; }
+    } catch (error) { if(!stillCurrent())return; ui.aiNote.textContent = error.message; }
     renderStyle();
 }
 
@@ -397,7 +408,7 @@ function render() {
     }
     ui.count.textContent = `${media.length} / ${maxMedia}`;
     ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll&&!poll.with_content)||standalone;
-    ui.extraSection.hidden = Boolean(poll);
+    ui.extraSection.hidden = Boolean(poll)||(!selectedTargets().some(t=>targetCapabilities(t)?.extras?.some(k=>k!=='styled_text'))&&!EXTRA_KEYS.some(k=>k!=='styled_text'&&extraActive(session.extras,k)));
     if (poll) {
         ui.withContent.disabled=!poll.with_content&&!pollLimits?.with_content;
         ui.addOption.disabled = !pollLimits || poll.options.length >= pollLimits.options_max;
@@ -422,7 +433,7 @@ function render() {
     const [empty, over] = [!standalone&&!media.length&&!text.trim(), !standalone&&length>limit];
     ui.counter.textContent = `${length} / ${limit}`;
     ui.counter.classList.toggle('is-over', over);
-    ui.submit.disabled = blocked || session.busy;
+    ui.submit.disabled = blocked || session.busy || ui.aiBusy;
     ui.warning.hidden = !blocked;
     ui.warning.textContent = empty ? 'Добавьте медиа или текст.' : over ? `Текст длиннее лимита: ${length} из ${limit}.` : 'Исправьте несовместимость в блоке проверки площадок.';
     if(standalone){ui.summary.textContent=session.extras.location?'Геолокация':session.extras.max_sticker?'Стикер MAX':'Карточка контакта';return;}
@@ -486,17 +497,20 @@ function updateExtraAvailability(){
     if(!session)return;
     const card=standaloneExtra(session.extras);
     const availability=key=>card&&['buttons','spoiler','preview','styled_text','first_comment'].includes(key)?'Недоступно для отдельной карточки.':extraAvailability(selectedTargets(),card?[]:session.media,card?'':ui.text.value,session.poll,key);
+    const supported=key=>selectedTargets().some(t=>targetCapabilities(t)?.extras?.includes(key));
     const inputs=[...ui.extras.querySelectorAll('input[type=checkbox]')];
-    Object.keys(EXTRA_LABELS).forEach((key,i)=>{const reason=availability(key);inputs[i].disabled=!!reason&&!session.extras[key];inputs[i].closest('label').title=reason;});
+    Object.keys(EXTRA_LABELS).forEach((key,i)=>{const reason=availability(key);inputs[i].disabled=!!reason&&!session.extras[key];inputs[i].closest('label').title=reason;inputs[i].closest('label').hidden=!supported(key)&&!session.extras[key];});
     for(const input of ui.extras.querySelectorAll('[data-extra-text]')){
         const key=input.dataset.extraText,reason=availability(key);input.disabled=!!reason&&!extraActive(session.extras,key);input.closest('label').title=reason;
-        input.closest('label').hidden=!!reason&&!extraActive(session.extras,key);
+        input.closest('label').hidden=!supported(key)&&!extraActive(session.extras,key);
     }
-    const preview=ui.extras.querySelector('select');const reason=availability('preview');preview.disabled=!!reason&&!extraActive(session.extras,'preview');preview.closest('label').title=reason;
+    const preview=ui.extras.querySelector('select');const reason=availability('preview');preview.disabled=!!reason&&!extraActive(session.extras,'preview');preview.closest('label').title=reason;preview.closest('label').hidden=!supported('preview')&&!extraActive(session.extras,'preview');
+    ui.buttons.hidden=!supported('buttons')&&!session.extras.buttons.length;
+    ui.cards.hidden=!['location','contact'].some(supported)&&!session.extras.location&&!session.extras.contact;
     const add=ui.buttons.querySelector('.pe-add-link');add.disabled=!!availability('buttons')||standaloneExtra(session.extras)||session.extras.buttons.length>=8;add.title=availability('buttons');
     for(const b of ui.cards.querySelectorAll('[data-extra-card]')){
         const key=b.dataset.extraCard;const reason=availability(key);
-        b.disabled=!session.extras[key]&&(!!reason||standaloneExtra(session.extras));b.title=reason;
+        b.disabled=!session.extras[key]&&(!!reason||standaloneExtra(session.extras));b.title=reason;b.hidden=!supported(key)&&!session.extras[key];
     }
 }
 
@@ -568,11 +582,12 @@ function targetChip(o) {
 /** Галочка в меню «Куда»: меню остаётся открытым; последний выбранный ресурс снять нельзя. */
 function togglePicked(value, box) {
     const o = session.options;
+    if(ui.aiBusy||session.busy){box.checked=o.picked.includes(value);return;}
     const picked = box.checked ? [...o.picked, value] : o.picked.filter(v => v !== value);
     if (!picked.length) { box.checked = true; return; }
     syncEditorDraft();
     o.picked = o.targets.map(t => t.value).filter(v => picked.includes(v));
-    if(session.editTarget&&!o.picked.includes(session.editTarget))loadEditorDraft('',session.base);
+    if(session.editTarget&&!o.picked.includes(session.editTarget)){loadEditorDraft('',session.base);ui.chips.querySelector('.pe-chip-poll')?.replaceWith(pollChip());}
     if (o.picked.some(v => !v.startsWith('tg:')) && o.mode === 'native') o.mode = 'queue';
     if (o.mode === 'slot' && !o.picked.every(v => o.schedule?.slots(v))) o.mode = 'queue';
     ui.targetLabel.textContent = `${targetLabel(o)} ▾`;
@@ -626,7 +641,7 @@ function addPollOption() {
 function renderPollState(poll, blocked) {
     const filled = poll.options.map(v => v.trim()).filter(Boolean);
     const ready = poll.question.trim() !== '' && filled.length >= 2;
-    ui.submit.disabled = blocked || session.busy;
+    ui.submit.disabled = blocked || session.busy || ui.aiBusy;
     ui.warning.hidden = !blocked;
     ui.warning.textContent = blocked ? 'Проверьте ограничения опроса для выбранных площадок.' : 'Напишите вопрос и минимум два варианта ответа.';
     ui.summary.textContent = `Опрос · ${filled.length} ${pluralRu(filled.length, 'вариант', 'варианта', 'вариантов')}`;
@@ -702,7 +717,7 @@ function renderWhen() {
 
 async function submit(e) {
     e.preventDefault();
-    if (!session || ui.submit.disabled) return;
+    if (!session || ui.submit.disabled || ui.aiBusy) return;
     const { options } = session;
     syncEditorDraft();
     session.busy = true;
@@ -768,6 +783,7 @@ export function openPostEditor(options) {
     renderExtras();
     renderWhen();
     ui.note.textContent = ui.url.value = '';
+    ui.aiBusy=false;ui.variantBar.inert=false;ui.aiButton.disabled=false;
     ui.aiNote.textContent = '';
     ui.overlay.hidden = false;
     document.body.classList.add('post-editor-open');

@@ -21,6 +21,7 @@ export function draftProblem(target,d) {
     return validateTarget(target,payload.media,payload.text,payload.poll)||extraError([target],payload.media,payload.text,payload.poll,payload.extras);
 }
 export function draftNeedsQueue(d) {
+    if(!d)return false;
     const p=draftPayload(d);
     return Boolean(p.poll)||p.media.some(m=>['audio','document','voice','sticker','video_note'].includes(mediaKind(m)))||EXTRA_KEYS.some(k=>extraActive(p.extras,k));
 }
