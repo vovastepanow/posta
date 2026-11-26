@@ -252,7 +252,7 @@ func rssHTTPS(raw, base string) string {
 	if !strings.HasPrefix(u, "https://") || len(u) > 1000 {
 		return ""
 	}
-	if p, err := url.Parse(u); err != nil || p.Host == "" {
+	if p, err := url.Parse(u); err != nil || p.Hostname() == "" || p.User != nil || (p.Port() != "" && p.Port() != "443") {
 		return ""
 	}
 	return u
@@ -300,27 +300,22 @@ func rssItemMedia(item *xnode) []rssFile {
 		}
 		files = append(files, rssFile{u, strings.ToLower(n.A["type"]), m})
 	}
-	for _, e := range item.kids("enclosure") {
-		add(e, "")
-	}
-	for _, l := range item.kids("link") {
-		if l.A["rel"] == "enclosure" {
-			add(l, "")
+	// Preserve source order instead of grouping attachments by XML tag.
+	for _, n := range item.K {
+		switch n.N {
+		case "enclosure", "media:content":
+			add(n, "")
+		case "link":
+			if strings.EqualFold(n.A["rel"], "enclosure") { add(n, "") }
+		case "media:group":
+			for _, child := range n.K {
+				switch child.N {
+				case "media:content": add(child, "")
+				case "media:thumbnail": add(child, "thumbnail")
+				}
+			}
+		case "media:thumbnail": add(n, "thumbnail")
 		}
-	}
-	for _, c := range item.kids("media:content") {
-		add(c, "")
-	}
-	for _, g := range item.kids("media:group") {
-		for _, c := range g.kids("media:content") {
-			add(c, "")
-		}
-		for _, t := range g.kids("media:thumbnail") {
-			add(t, "thumbnail")
-		}
-	}
-	for _, t := range item.kids("media:thumbnail") {
-		add(t, "thumbnail")
 	}
 	return files
 }
@@ -495,14 +490,7 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 			text = strings.TrimSpace(title + "\n" + desc)
 		}
 		text = strings.TrimSpace(text)
-		video := ""
-		for _, f := range files {
-			if f.Type == "video/mp4" {
-				if video = rssHTTPS(f.URL, base); video != "" {
-					break
-				}
-			}
-		}
+		media, video, incomplete := rssOrderedMedia(files, base, images)
 		textOnly := img == "" && video == "" && withText && runeLen(text) >= minText
 		if img == "" && video == "" && !keepNoImage && !textOnly {
 			continue
@@ -522,14 +510,21 @@ func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withTex
 		if guid == "" {
 			guid = img
 		}
+		if guid == "" { guid = video }
+		if guid == "" {
+			if text == "" { continue }
+			guid = feedURL + "\n" + text + "\n" + item.kid("pubDate").text() + item.kid("published").text()
+		}
 		h := sha1.Sum([]byte(guid))
 		if text == "" {
 			text = EmptyPostText
 		}
 		p := jx.M{"image": img, "images": images, "gallery": []any{}, "video": video, "text": text, "source": src, "post_id": hex.EncodeToString(h[:])[:12],
 			"posted_at": rssItemTime(item), "url": link, "video_unavailable": false, "engagement": nil, "text_post": textOnly}
+		if len(media)>0 && videoID=="" { setPostMedia(p,media) }
+		if incomplete { p["media_incomplete"] = true }
 		feed, _ := url.Parse(feedURL)
-		if kind == "RSS" && video == "" && feed != nil && !strings.HasPrefix(feed.Path, "/feeds/c/") && !strings.HasPrefix(feed.Path, "/@") {
+		if kind == "RSS" && video == "" && !incomplete && feed != nil && !strings.HasPrefix(feed.Path, "/feeds/c/") && !strings.HasPrefix(feed.Path, "/@") {
 			p["article_source"] = true
 			// Distinguish a substantive published body from a headline or
 			// description; only the former can independently stand alone
@@ -752,7 +747,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 	// bounded size retry. No special API source is routed through this path.
 	r := autopilotReadRSS(feedURL, u.RSSGet)
 	if !r.OK || r.Status == 206 || !rssIsFeed(rssLoad(r.Bytes)) {
-		if cid, tab, ok := YouTubeFeedChannel(feedURL); ok {
+		if cid, tab, ok := YouTubeFeedChannel(feedURL); ok && r.Status != 401 && r.Status != 403 && r.Status != 429 {
 			u.Log("YouTube: лента недоступна (%d), список роликов взят через yt-dlp", r.Status)
 			posts, err := u.YouTubeChannelPosts(cid, tab, count)
 			if len(posts) > count {
@@ -1021,10 +1016,9 @@ func (u *U) RSSPreviewPosts(src jx.M, count int) []jx.M {
 		if jx.Bool(p, "article_source") {
 			p = u.ArticleEnrich(p, false)
 		}
-		if jx.Str(p, "image") != "" || (acceptText && runeLen(jx.Str(p, "text")) >= 120) {
-			if jx.Str(p, "image") == "" {
-				p["text_post"] = true
-			}
+		hasMedia := PostItemHasMedia(p)
+		if hasMedia || (acceptText && runeLen(jx.Str(p, "text")) >= 120) {
+			p["text_post"] = !hasMedia
 			out = append(out, p)
 		}
 	}
