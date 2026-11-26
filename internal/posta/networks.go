@@ -98,7 +98,7 @@ func (a *App) Networks() map[string]*Network {
 		"vk": {Title: "ВКонтакте (группа)", Prefix: "vk", Status: "beta", Note: "Ключ сообщества позволяет проверить и подключить группу; публикация фотографий может требовать пользовательский токен с доступом к API VK.", TextLimit: [2]int{16384, 16384},
 			MediaMax: 10, Kinds: []string{"photo"}, MaxBytes: map[string]int64{"photo": 50_000_000}, Docs: "unverified",
 			Fields: []NetField{{"token", "Ключ сообщества или пользовательский токен VK", true}, {"group", "Адрес или id сообщества", false}}, Connect: vkConnect, Publish: vkPublish},
-		"max": {Title: "MAX", Prefix: "max", Status: "beta", Note: "Бот MAX в чате, токен из «MAX для бизнеса»; пока только текст.", TextLimit: [2]int{4000, 4000}, Docs: "partly",
+		"max": {Title: "MAX", Prefix: "max", Status: "beta", Note: "Бот MAX: текст, фотографии, GIF и видео. Реальная отправка требует прав в целевом чате.", TextLimit: [2]int{4000, 4000}, MediaMax: 12, Kinds: []string{"photo", "animation", "video"}, MaxBytes: map[string]int64{"photo":50_000_000,"animation":50_000_000,"video":250_000_000}, Docs: "ok",
 			Fields: []NetField{{"token", "Токен бота (MAX для бизнеса)", true}, {"chat_id", "id чата, где бот админ", false}}, Connect: maxConnect, Publish: maxPublish},
 		"bluesky": {Title: "Bluesky", Prefix: "bsky", Status: "beta", Note: "Пароль приложения Bluesky.", TextLimit: [2]int{300, 300}, MediaMax: 4, Kinds: []string{"photo"},
 			MaxBytes: map[string]int64{"photo": 20_000_000}, Docs: "unverified",
@@ -827,24 +827,7 @@ func maxConnect(a *App, ctx context.Context, in map[string]string) (*NetResource
 }
 
 func maxPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent, error) {
-	if strings.TrimSpace(p.Text) == "" {
-		return nil, Bad("MAX пока публикует только текст, а в посте текста нет.")
-	}
-	if runeLen(p.Text) > 4000 {
-		return nil, Bad("Текст длиннее 4000 символов.")
-	}
-	r, err := networkHTTP(ctx, "POST", maxAPI+"/messages?chat_id="+url.QueryEscape(c.Ref), map[string]string{"Authorization": c.Secrets["token"], "Content-Type": ctJSON},
-		jsonBody(jx.M{"text": p.Text}))
-	d, err := networkExpect(r, err, []int{200}, "Сообщение не отправлено")
-	if err != nil {
-		return nil, err
-	}
-	m := jx.Map(d, "message")
-	id := jx.Str(jx.Map(m, "body"), "mid")
-	if id == "" {
-		id = jx.Str(m, "id")
-	}
-	return &NetSent{MessageIDs: []string{id}}, nil
+	return maxPublishWith(ctx,c,p,networkHTTP,waitNetworkContext)
 }
 
 // ---- Bluesky ----

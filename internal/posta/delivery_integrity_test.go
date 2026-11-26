@@ -12,7 +12,7 @@ func TestDeliveryPreflightRejectsLossAndMissingRequiredMedia(t *testing.T) {
 	a := &App{}
 	for _, tc := range []struct{ platform, text string; kinds []string }{
 		{"vk", "caption", []string{"photo","video"}},
-		{"max", "caption", []string{"image"}},
+		{"max", "caption", []string{"audio"}},
 		{"youtube", "caption", nil},
 		{"pinterest", "caption", nil},
 	} {

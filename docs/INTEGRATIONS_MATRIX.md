@@ -13,7 +13,7 @@ Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https:
 | Telegram | Bot and MTProto scheduling; verify album and long-caption handling |
 | VK | Token connection, wall publishing, photos; video not supported in current registry |
 | OK | Requires app key, text publishing only |
-| MAX | Bot, text only |
+| MAX | Bot, text and uploaded image/video attachments; explicit attachment-processing retry; live account test pending |
 | YouTube | OAuth, video upload; app keys/audit required |
 | Pinterest | OAuth, photo pin; app keys required |
 | X | OAuth, text publishing; app keys and API access required |
@@ -62,3 +62,5 @@ WordPress REST API reference: https://developer.wordpress.org/rest-api/reference
 - Publication success requires a remote identifier. Transport failures, ambiguous receipts and server failures stop automatic retry when identified as uncertain; existing failed-state UI asks the user to reconcile before manual retry. A full provider-specific reconciliation protocol is not implemented yet.
 - Ordinary RSS polling reuses same-origin alternate discovery and bounded size retry. Invalid/truncated XML and partial HTTP responses cannot count as a successful empty feed.
 - Explicitly partial public refreshes keep one previous unflagged snapshot in the JSON record without merging attachments across edits. The latest incomplete observation is not sent through global public topic classification. This is not a full media repair queue or proof of completeness of the previous observation.
+
+MAX media API reference (checked 2026-11-26): https://dev.max.ru/docs-api/use-cases/sending-messages/media/ and https://dev.max.ru/docs-api/methods/POST/uploads . The provider supports up to 12 attachments; the existing editor has its own 10-file cap. Local preflight and fixture tests do not certify credentials or live delivery.
