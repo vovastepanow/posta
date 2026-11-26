@@ -67,6 +67,9 @@ func DownloadVideo(ctx context.Context, acc *Account, channel string, postID int
 		if err != nil {
 			return err
 		}
+		if ch.Username == "" || !strings.EqualFold(ch.Username, strings.TrimPrefix(channel, "@")) || ch.Noforwards {
+			return fail("Видео недоступно для сохранения из этого канала.")
+		}
 		res, err := api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{Channel: inputChannel(ch), ID: []tg.InputMessageClass{&tg.InputMessageID{ID: postID}}})
 		if err != nil {
 			return err
@@ -75,7 +78,7 @@ func DownloadVideo(ctx context.Context, acc *Account, channel string, postID int
 		var doc *tg.Document
 		if m != nil {
 			for _, mc := range m.GetMessages() {
-				if msg, ok := mc.(*tg.Message); ok && msg.ID == postID {
+				if msg, ok := mc.(*tg.Message); ok && msg.ID == postID && !msg.Noforwards {
 					doc = videoDocument(msg)
 				}
 			}

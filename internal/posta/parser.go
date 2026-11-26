@@ -190,8 +190,21 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 	switch platform {
 	case PlatformTelegram:
 		page = u.FetchTelegramChannelPage(id, 0)
-		if page == "" {
-			u.Log("-> %s %s: страница не загрузилась.", platform, label)
+		if page == "" || !strings.Contains(page, `data-post="`) {
+			// A personal MTProto read is not a shared catalog activity verdict.
+			if acceptText && u.ID != "" && u.TelegramUserConnected() {
+				if native, err := u.telegramUserHistoryPosts(id, jx.Str(src, "name"), config.TelegramPostsPerChannel); err == nil {
+					var textPosts []jx.M
+					for _, post := range native {
+						if jx.Bool(post, "text_post") && !NewsPostOutdated(post, entry) {
+							textPosts = append(textPosts, post)
+						}
+					}
+					u.Log("-> %s %s: резервное чтение MTProto, текстовых постов: %d", platform, label, len(textPosts))
+					return textPosts, nil, ""
+				}
+			}
+			u.Log("-> %s %s: страница не загрузилась или не содержит доступной истории.", platform, label)
 			return nil, nil, ""
 		}
 		posts = TelegramPostsFromHTML(page, src, config.TelegramPostsPerChannel, acceptText, 120)

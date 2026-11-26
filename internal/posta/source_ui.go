@@ -230,7 +230,17 @@ func (u *U) BuildSourcePreview(c jx.M, count int) jx.M {
 	case PlatformTelegram:
 		info := u.TelegramChannelInfo(jx.Str(c, "id"), 0)
 		if info == nil {
-			stats["dead"] = "канала нет или он закрыт"
+			stats["url"] = "https://t.me/" + url.PathEscape(jx.Str(c, "id"))
+			if u.ID != "" && u.TelegramUserConnected() {
+				if native, err := u.telegramUserHistoryPosts(jx.Str(c, "id"), jx.Str(c, "name"), count); err == nil {
+					posts = native
+					activity = SourceActivity(postedTimes(posts), now())
+					stats["fetched_via"] = "telegram_mtproto"
+					break
+				}
+			}
+			// Failure to read the preview is not evidence of deletion.
+			stats["fetch_error"] = "Не удалось прочитать публичную историю Telegram."
 			return jx.M{"posts": []jx.M{}, "stats": stats}
 		}
 		feed := u.telegramSourcePreviewFeed(jx.Str(info, "id"), count)
@@ -323,7 +333,8 @@ func (u *U) SourcePreviewPost(p jx.M) jx.M {
 		comments = jx.Int(p, "comments")
 	}
 	return jx.M{"text": trimRunes(strings.TrimSpace(text), sourcePreviewTextMax), "url": jx.Str(p, "url"), "posted_at": jx.Int(p, "posted_at"),
-		"text_post": jx.Bool(p, "text_post"), "media": u.sourcePreviewMedia(p), "views": views, "reactions": reactions, "comments": comments}
+		"text_post": jx.Bool(p, "text_post"), "media": u.sourcePreviewMedia(p), "views": views, "reactions": reactions, "comments": comments,
+		"media_incomplete": jx.Bool(p, "media_incomplete"), "fetched_via": jx.Str(p, "fetched_via")}
 }
 
 func (u *U) sourcePreviewMedia(p jx.M) []jx.M {
