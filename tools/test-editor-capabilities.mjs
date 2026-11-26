@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { commonCapabilities, commonPollLimits, validateTarget, mediaKind, attachmentError } from '../js/editor-capabilities.js';
+import { commonCapabilities, commonPollLimits, validateTarget, mediaKind, attachmentError, extraError } from '../js/editor-capabilities.js';
 const tg={value:'tg:main'}, yt={value:'youtube:1',capabilities:{platform:'youtube',kinds:['video'],mediaMax:1,textLimit:[5000,5000],poll:false}};
 const x={value:'x:1',capabilities:{platform:'x',kinds:['photo','video','animation'],mediaMax:4,textLimit:[280,280],poll:false}};
 assert.deepEqual(commonCapabilities([tg,yt]),{kinds:['video'],mediaMax:1,poll:false});
@@ -45,3 +45,7 @@ assert.equal(attachmentError([tg,mx],[],{kind:'document'}),'');
 assert.equal(validateTarget(tg,[],'',{question:'Q',options:['A','B'],quiz:true,correct_answer:'A'}),'');
 assert.notEqual(validateTarget(tg,[],'',{question:'Q',options:['A','B'],quiz:true,correct_answer:'C'}),'');
 assert.notEqual(validateTarget(xp,[],'',{question:'Q',options:['A','B'],quiz:true,correct_answer:'A'}),'');
+
+assert.equal(extraError([tg],[],'',null,{location:{latitude:'0',longitude:'0'}}),'');
+assert.notEqual(extraError([tg],[],'',null,{location:{latitude:'',longitude:'0'}}),'');
+assert.notEqual(extraError([tg],[],'',null,{contact:{first_name:'A',phone:'123'}}),'');

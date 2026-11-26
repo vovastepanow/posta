@@ -1,5 +1,5 @@
 // UI preflight mirrors implemented delivery capabilities; the server is authoritative.
-const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,quiz:true,close:true}};
+const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview','location','contact'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,quiz:true,close:true}};
 const REQUIRED = new Set(['youtube','pinterest','instagram']);
 export const mediaKind = m => m.kind === 'image' ? (/^image\/gif$/i.test(m.file?.type || '') || /\.gif(?:[?#]|$)/i.test(m.src || '') || /\.gif$/i.test(m.name || '') ? 'animation' : 'photo') : m.kind;
 export function targetCapabilities(target) {
@@ -72,7 +72,8 @@ export function attachmentError(targets, media, item) {
     return '';
 }
 
-export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview'];
+export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact'];
+export const standaloneExtra = e=>Boolean(e?.location||e?.contact);
 export function extraActive(extra,key) {
     return key==='buttons' ? !!extra?.buttons?.length : key==='preview' ? !!extra?.preview && extra.preview!=='default' : Boolean(extra?.[key]);
 }
@@ -84,9 +85,21 @@ export function extraAvailability(targets,media,text,poll,key) {
     return '';
 }
 export function extraError(targets,media,text,poll,extra) {
+    if (standaloneExtra(extra)) {
+        if(extra.location&&extra.contact)return 'Выберите одну карточку.';
+        if(media.length||text.trim()||extraActive(extra,'buttons')||extraActive(extra,'spoiler')||extraActive(extra,'preview'))return 'Карточка публикуется отдельно от текста, медиа и кнопок.';
+    }
     for(const key of EXTRA_KEYS) if(extraActive(extra,key)) {
         const error=extraAvailability(targets,media,text,poll,key);
         if(error)return error;
+        if(key==='location'){
+            const l=extra.location, lat=Number(l.latitude),lon=Number(l.longitude);
+            if(String(l.latitude??'').trim()===''||String(l.longitude??'').trim()===''||!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return 'Укажите корректную широту и долготу.';
+        }
+        if(key==='contact'){
+            const c=extra.contact;
+            if(!c.first_name?.trim()||[...c.first_name.trim()].length>64||[...(c.last_name||'').trim()].length>64||!/^\+[1-9][0-9]{6,14}$/.test(c.phone?.trim()||''))return 'Введите имя и телефон в международном формате.';
+        }
         if(key==='buttons'){
             if(extra.buttons.length>8)return 'Не более 8 кнопок.';
             for(const b of extra.buttons){

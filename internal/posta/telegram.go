@@ -889,9 +889,6 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 	if c.Token == "" || c.ChatID == 0 {
 		return nil, Bad("Telegram не подключён: подключите бота и канал в «Личном кабинете».")
 	}
-	if err := TelegramCheckText(text, len(prepared)); err != nil {
-		return nil, err
-	}
 	if err := telegramAttachmentCheck(prepared); err != nil {
 		return nil, err
 	}
@@ -899,6 +896,7 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 	if len(extra)>0{rawExtra=extra[0]}
 	extras,extraErr:=PublishExtrasCheck("telegram",text,PreparedKinds(prepared),nil,rawExtra)
 	if extraErr!=nil{return nil,extraErr}
+	if !PostExtrasStandalone(extras){if err:=TelegramCheckText(text,len(prepared));err!=nil{return nil,err}}
 	if progress == nil {
 		progress = noProgress
 	}
@@ -922,10 +920,14 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 	var err error
 	switch len(prepared) {
 	case 0:
-		fields:=map[string]string{"chat_id":chat,"text":text,"disable_web_page_preview":"true"}
-		if jx.Str(extras,"preview")=="on"{fields["disable_web_page_preview"]="false"}
+		method,fields:=telegramStandaloneFields(extras)
+		if method==""{
+			method="sendMessage";fields=map[string]string{"text":text,"disable_web_page_preview":"true"}
+			if jx.Str(extras,"preview")=="on"{fields["disable_web_page_preview"]="false"}
+		}
+		fields["chat_id"]=chat
 		telegramExtraFields(fields,extras)
-		raw, err = a.TelegramBotRequest(ctx, c.Token, "sendMessage", fields, nil, 60*time.Second, nil)
+		raw, err = a.TelegramBotRequest(ctx, c.Token, method, fields, nil, 60*time.Second, nil)
 		raw = json.RawMessage("[" + string(raw) + "]")
 	case 1:
 		f := prepared[0]
@@ -1410,15 +1412,15 @@ func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publis
 		}
 		poll, text = checked, jx.Str(checked, "question")
 	}
-	if c.Platform != "" && c.Platform != "telegram" {
-		if err := u.NetworkPreparedPreflight(c.Platform, text, prepared); err != nil {
-			return nil, err
-		}
-	}
 	var rawExtra jx.M
 	if len(extra)>0{rawExtra=extra[0]}
 	extras,err:=PublishExtrasCheck(c.Platform,text,PreparedKinds(prepared),poll,rawExtra)
 	if err!=nil{return nil,err}
+	if c.Platform != "" && c.Platform != "telegram" && !PostExtrasStandalone(extras) {
+		if err := u.NetworkPreparedPreflight(c.Platform, text, prepared); err != nil {
+			return nil, err
+		}
+	}
 	id := randHex(6)
 	media, err := u.outboxMediaMove(work, id, PreparedMaps(prepared))
 	if err != nil {
@@ -1607,7 +1609,7 @@ func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.
 			externalIDs = append(externalIDs, strconv.Itoa(id))
 		}
 	}
-	entry := jx.Merge(TelegramPostSummary(jx.Str(post, "text"), len(shown)), jx.M{"at": now(), "scheduled_for": jx.Int(post, "publish_at"), "url": url, "status": "ok",
+	entry := jx.Merge(TelegramPostSummary(PostExtrasSummary(jx.Str(post,"text"),jx.Map(post,"extras")), len(shown)), jx.M{"at": now(), "scheduled_for": jx.Int(post, "publish_at"), "url": url, "status": "ok",
 		"error": "", "channel": c.ID, "channel_title": c.ChatTitle, "media_src": MediaSourcesOf(shown), "skipped": orStrs(skipped), "thumb_id": jx.Str(post, "thumb_id"), "source_key": jx.Str(post, "source_key"), "topic": jx.Str(post, "topic"), "record": jx.Str(post, "record"), "outbox_id": postID, "external_ids": orStrs(externalIDs)})
 	// The remote API has already accepted the post. Never discard its
 	// queue record or files until the local history commit succeeds.

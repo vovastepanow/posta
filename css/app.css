@@ -2650,3 +2650,6 @@ dialog::backdrop {
 .pe-button-rows { display:grid; gap:8px; }
 .pe-button-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto; gap:8px; }
 @media(max-width:540px){.pe-button-row{grid-template-columns:1fr auto}.pe-button-row input:first-child{grid-column:1/-1}}
+
+.pe-extra-cards { display:grid; gap:8px; border-top:1px solid var(--line); padding-top:10px; }
+.pe-card-field { display:grid; grid-template-columns:minmax(100px,1fr) minmax(0,2fr); gap:8px; align-items:center; font-size:13px; }

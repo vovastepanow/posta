@@ -784,7 +784,7 @@ export async function openFutureDraft() {
         await futureDraftOps;
         const key = await futureDraftKey();
         const saved = await readFutureDraft(key);
-        if (!saved || (!saved.text && !saved.media?.length && !saved.poll)) return void log('Черновик пока пуст. Добавьте пост кнопкой +🚀.');
+        if (!saved || (!saved.text && !saved.media?.length && !saved.poll && !saved.extras?.location && !saved.extras?.contact)) return void log('Черновик пока пуст. Добавьте пост кнопкой +🚀.');
         await refreshTelegramTarget();
         saved.media = saved.media.map(m => m.file ? { ...m, src: URL.createObjectURL(m.file), thumb: m.kind === 'image' ? URL.createObjectURL(m.file) : '' } : m);
         openPostEditor({ key: 'future-draft', savedDraft: saved, picked: allTargets().length ? [allTargets()[0].value] : ['tg:main'], targets: allTargets().length ? allTargets() : [{ value: 'tg:main', label: 'Ресурс не подключён', hashtags: 'off', unconnected: true }], schedule: scheduleOptions(),

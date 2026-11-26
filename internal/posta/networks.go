@@ -390,9 +390,9 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 		}
 		return a.TelegramPublishPrepared(ctx, c, text, media, nil, extras)
 	}
-	if err := a.NetworkPreparedPreflight(c.Platform, text, media); err != nil {
+	if !PostExtrasStandalone(extras){if err := a.NetworkPreparedPreflight(c.Platform, text, media); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrNetworkRejected)
-	}
+	}}
 	if err := a.networkRefreshChannel(ctx, n, c); err != nil {
 		return nil, err
 	}
@@ -400,7 +400,7 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 	if len(skipped) > 0 {
 		return nil, fmt.Errorf("%s: публикация остановлена, чтобы не потерять вложения: %s: %w", n.Title, strings.Join(skipped, "; "), ErrNetworkRejected)
 	}
-	if len(kept) == 0 && strings.TrimSpace(text) == "" {
+	if len(kept) == 0 && strings.TrimSpace(text) == "" && !PostExtrasStandalone(extras) {
 		return nil, fmt.Errorf("%s: в посте нет подходящих файлов и текста: %w", n.Title, ErrNetworkRejected)
 	}
 	sent, err := n.Publish(a, ctx, c, NetPost{Text: text, Media: kept, Poll: poll, Extras:extras})

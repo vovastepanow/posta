@@ -823,9 +823,9 @@ func publish(c *Ctx) (any, error) {
 			}
 			poll, text = checked, jx.Str(checked, "question")
 		}
-		if err := c.A.NetworkDeliveryPreflight(platform, text, kinds); err != nil {
+		if !posta.PostExtrasStandalone(extras){if err := c.A.NetworkDeliveryPreflight(platform, text, kinds); err != nil {
 			return nil, fail(422, err.Error())
-		}
+		}}
 	}
 	if mode == "now" {
 		at = 0
@@ -883,8 +883,8 @@ func publish(c *Ctx) (any, error) {
 				limit = posta.NetworkTextLimit(n, len(items) > 0)
 			}
 		}
-		text = posta.TextWithHashtags(text, w.ChannelHashtags(ch, posta.PublishHashtagsInput(fields["hashtags"])), limit)
-		if platform == "telegram" {
+		if !posta.PostExtrasStandalone(extras){text = posta.TextWithHashtags(text, w.ChannelHashtags(ch, posta.PublishHashtagsInput(fields["hashtags"])), limit)}
+		if platform == "telegram" && !posta.PostExtrasStandalone(extras) {
 			if err := posta.TelegramCheckText(text, len(items)); err != nil {
 				return nil, err
 			}
@@ -940,7 +940,7 @@ func publish(c *Ctx) (any, error) {
 			kind, dur = shown[0].Kind, shown[0].Duration
 		}
 		skipped := sent.Skipped
-		w.TelegramLogPublished(jx.Merge(posta.TelegramPostSummary(text, len(shown)), jx.M{"at": now(), "scheduled_for": 0, "url": sent.URL, "status": "ok", "error": "",
+		w.TelegramLogPublished(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(text,extras), len(shown)), jx.M{"at": now(), "scheduled_for": 0, "url": sent.URL, "status": "ok", "error": "",
 			"media_src": posta.MediaSourcesOf(posta.PreparedMaps(shown)), "channel": ch.ID, "channel_title": ch.ChatTitle, "kind": kind, "duration": dur,
 			"thumb_id": w.PostThumbMake(posta.PreparedMaps(shown)), "skipped": orStrs(skipped), "source_key": jx.Str(sourceMeta, "source_key"), "topic": jx.Str(sourceMeta, "topic"), "record": recordKey}))
 		response = jx.M{"scheduled": false, "url": sent.URL, "messages": len(sent.MessageIDs), "skipped": orStrs(skipped)}
@@ -1088,7 +1088,7 @@ func telegramQueue(c *Ctx) (any, error) {
 	u.TelegramSettleNativePosts()
 	scheduled := []jx.M{}
 	for _, e := range u.Outbox() {
-		scheduled = append(scheduled, jx.Merge(jx.Merge(posta.TelegramPostSummary(jx.Str(e, "text"), len(jx.List(e, "media"))), u.TelegramChannelFields(jx.Str(e, "channel"))),
+		scheduled = append(scheduled, jx.Merge(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(jx.Str(e,"text"),jx.Map(e,"extras")), len(jx.List(e, "media"))), u.TelegramChannelFields(jx.Str(e, "channel"))),
 			jx.M{"id": e["id"], "publish_at": jx.Int(e, "publish_at"), "status": e["status"], "attempts": jx.Int(e, "attempts"), "error": jx.Str(e, "error")}))
 	}
 	sort.SliceStable(scheduled, func(i, j int) bool { return jx.Int(scheduled[i], "publish_at") < jx.Int(scheduled[j], "publish_at") })
@@ -1147,8 +1147,8 @@ func calendar(c *Ctx) (any, error) {
 				}
 			}
 		}
-		p := jx.Merge(jx.Merge(posta.TelegramPostSummary(jx.Str(e, "text"), len(media)), u.TelegramChannelFields(jx.Str(e, "channel"))), jx.M{"id": e["id"],
-			"status": e["status"], "error": jx.Str(e, "error"), "full_text": trimRunes(strings.TrimSpace(jx.Str(e, "text")), 600), "article": e["article"],
+		p := jx.Merge(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(jx.Str(e,"text"),jx.Map(e,"extras")), len(media)), u.TelegramChannelFields(jx.Str(e, "channel"))), jx.M{"id": e["id"],
+			"status": e["status"], "error": jx.Str(e, "error"), "full_text": trimRunes(strings.TrimSpace(posta.PostExtrasSummary(jx.Str(e,"text"),jx.Map(e,"extras"))), 600), "article": e["article"],
 			"group": jx.Str(e, "group"), "kind": kind, "duration": dur, "poll": jx.Has(e, "poll") && e["poll"] != nil, "at": jx.Int(e, "publish_at"), "forecast": forecast,
 			"item_key": jx.Str(e, "record"), "image_key": src, "duplicate": c.A.CalendarDuplicateOf(jx.M{"image": src, "text": jx.Str(e, "text")}, jx.Str(e, "channel"), published, hashes)})
 		posts = append(posts, jx.Merge(p, thumbFields(e)))

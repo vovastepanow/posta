@@ -3,6 +3,9 @@ package posta
 import (
 	"net/url"
 	"strings"
+	"math"
+	"strconv"
+	"regexp"
 
 	"posta/internal/jx"
 )
@@ -10,9 +13,9 @@ import (
 func postExtraKinds(platform string) []string {
 	switch platform {
 	case "", "telegram":
-		return []string{"buttons","silent","protect","spoiler","preview"}
+		return []string{"buttons","silent","protect","spoiler","preview","location","contact"}
 	case "max":
-		return []string{"buttons","preview"}
+		return []string{"buttons","preview","location","contact"}
 	}
 	return []string{}
 }
@@ -31,6 +34,9 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 	out:=jx.M{}
 	for key,value:=range raw {
 		switch key {
+		case "location","contact":
+			if value==nil{continue}
+			if jx.ToMap(value)==nil{return nil,Bad("Некорректная карточка публикации.")}
 		case "buttons":
 			if len(jx.ToList(value))==0{continue}
 		case "silent","protect","spoiler":
@@ -43,6 +49,16 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 		if !contains(postExtraKinds(platform),key){return nil,Bad("Дополнение %s не поддерживается площадкой %s.",key,platform)}
 		if poll!=nil{return nil,Bad("Дополнительные настройки обычного поста нельзя совмещать с опросом.")}
 		switch key {
+		case "location":
+			m:=jx.ToMap(value)
+			lat,err1:=strconv.ParseFloat(jx.ToStr(m["latitude"]),64)
+			lon,err2:=strconv.ParseFloat(jx.ToStr(m["longitude"]),64)
+			if err1!=nil||err2!=nil||math.IsNaN(lat)||math.IsNaN(lon)||math.IsInf(lat,0)||math.IsInf(lon,0)||lat < -90||lat > 90||lon < -180||lon > 180{return nil,Bad("Укажите корректную широту и долготу.")}
+			out[key]=jx.M{"latitude":lat,"longitude":lon}
+		case "contact":
+			m:=jx.ToMap(value);first,last,phone:=strings.TrimSpace(jx.Str(m,"first_name")),strings.TrimSpace(jx.Str(m,"last_name")),strings.TrimSpace(jx.Str(m,"phone"))
+			if first==""||runeLen(first)>64||runeLen(last)>64||strings.ContainsAny(first+last,"\r\n\x00")||!publishPhonePattern.MatchString(phone){return nil,Bad("Укажите имя контакта и телефон в международном формате, например +3581234567.")}
+			out[key]=jx.M{"first_name":first,"last_name":last,"phone":phone}
 		case "buttons":
 			rows:=jx.ToList(value);if len(rows)>8{return nil,Bad("Допустимо не более 8 кнопок-ссылок.")}
 			if platform=="telegram"&&len(kinds)>1{return nil,Bad("Кнопки Telegram нельзя добавить непосредственно к альбому.")}
@@ -64,6 +80,10 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 		default:out[key]=true
 		}
 	}
+	if PostExtrasStandalone(out){
+		if jx.Map(out,"location")!=nil&&jx.Map(out,"contact")!=nil{return nil,Bad("Выберите одну карточку: геолокацию или контакт.")}
+		if len(kinds)>0||strings.TrimSpace(text)!=""||len(jx.Maps(out,"buttons"))>0||jx.Bool(out,"spoiler")||jx.Str(out,"preview")!=""{return nil,Bad("Карточка геолокации или контакта публикуется отдельно от текста и медиа.")}
+	}
 	if len(out)==0{return nil,nil}
 	return out,nil
 }
@@ -75,4 +95,40 @@ func telegramExtraFields(fields map[string]string,extra jx.M) {
 		rows:=[][]jx.M{};for _,b:=range buttons{rows=append(rows,[]jx.M{b})}
 		fields["reply_markup"]=string(jx.Marshal(jx.M{"inline_keyboard":rows}))
 	}
+}
+
+var publishPhonePattern=regexp.MustCompile(`^\\+[1-9][0-9]{6,14}$`)
+
+// PostExtrasStandalone is only used after validating extras.
+func PostExtrasStandalone(extra jx.M) bool { return jx.Map(extra,"location")!=nil||jx.Map(extra,"contact")!=nil }
+
+func PostExtrasSummary(text string,extra jx.M)string{
+	if strings.TrimSpace(text)!=""{return text}
+	if jx.Map(extra,"location")!=nil{return "Геолокация"}
+	if jx.Map(extra,"contact")!=nil{return "Карточка контакта"}
+	return text
+}
+
+func telegramStandaloneFields(extra jx.M)(string,map[string]string){
+	if loc:=jx.Map(extra,"location");loc!=nil{
+		return "sendLocation",map[string]string{"latitude":jx.ToStr(loc["latitude"]),"longitude":jx.ToStr(loc["longitude"])}
+	}
+	if c:=jx.Map(extra,"contact");c!=nil{
+		return "sendContact",map[string]string{"phone_number":jx.Str(c,"phone"),"first_name":jx.Str(c,"first_name"),"last_name":jx.Str(c,"last_name")}
+	}
+	return "",nil
+}
+
+func vcardEscape(s string)string{
+	return strings.NewReplacer("\\","\\\\",";","\\;",",","\\,").Replace(s)
+}
+func maxStandaloneAttachment(extra jx.M)jx.M{
+	if loc:=jx.Map(extra,"location");loc!=nil{return jx.M{"type":"location","latitude":loc["latitude"],"longitude":loc["longitude"]}}
+	if c:=jx.Map(extra,"contact");c!=nil{
+		first,last:=jx.Str(c,"first_name"),jx.Str(c,"last_name")
+		name:=strings.TrimSpace(first+" "+last)
+		card:="BEGIN:VCARD\r\nVERSION:3.0\r\nN:"+vcardEscape(last)+";"+vcardEscape(first)+";;;\r\nFN:"+vcardEscape(name)+"\r\nTEL;TYPE=CELL:"+jx.Str(c,"phone")+"\r\nEND:VCARD\r\n"
+		return jx.M{"type":"contact","payload":jx.M{"name":name,"vcf_info":card}}
+	}
+	return nil
 }

@@ -71,12 +71,14 @@ func maxAttachmentKindsCheck(kinds []string) error {
 
 func maxPublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequestFunc,wait func(context.Context,time.Duration)error)(*NetSent,error){
 	if !chatIDRe.MatchString(c.Ref)||c.Secrets["token"]==""{return nil,Bad("MAX: подключите чат и бота.")}
-	if strings.TrimSpace(p.Text)==""&&len(p.Media)==0{return nil,Bad("MAX: нет текста или вложений.")}
+
 	if runeLen(p.Text)>4000||len(p.Media)>12{return nil,Bad("MAX: превышен лимит текста или вложений.")}
 	kinds:=PreparedKinds(p.Media)
 	if err:=maxAttachmentKindsCheck(kinds);err!=nil{return nil,err}
 	extras,err:=PublishExtrasCheck("max",p.Text,kinds,p.Poll,p.Extras);if err!=nil{return nil,err}
+	if strings.TrimSpace(p.Text)==""&&len(p.Media)==0&&!PostExtrasStandalone(extras){return nil,Bad("MAX: нет текста или вложений.")}
 	var attachments []jx.M
+	if card:=maxStandaloneAttachment(extras);card!=nil{attachments=append(attachments,card)}
 	for _,f:=range p.Media{
 		attachment,err:=maxUploadAttachment(ctx,c.Secrets["token"],f,request)
 		if err!=nil{return nil,err}

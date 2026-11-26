@@ -107,7 +107,12 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		}
 		text = jx.Str(poll, "question")
 	}
-	if poll == nil {
+	var rawExtras jx.M
+	if value:=c.R.FormValue("extras");value!=""{rawExtras=jx.Unmarshal([]byte(value));if rawExtras==nil{return nil,fail(400,"Некорректные дополнения поста.")}}
+	rawKinds:=[]string{};for _,m:=range raw{rawKinds=append(rawKinds,jx.Str(m,"kind"))}
+	checkedExtras,err:=posta.PublishExtrasCheck(ch.Platform,text,rawKinds,poll,rawExtras)
+	if err!=nil{return nil,fail(422,err.Error())}
+	if poll == nil && !posta.PostExtrasStandalone(checkedExtras) {
 		if len(raw) == 0 && strings.TrimSpace(text) == "" {
 			return nil, fail(400, "Добавьте текст или медиа.")
 		}
@@ -175,7 +180,7 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 	if err != nil {
 		return nil, fail(422, err.Error())
 	}
-	if ch.Platform != "telegram" {
+	if ch.Platform != "telegram" && !posta.PostExtrasStandalone(checkedExtras) {
 		kinds := []string{}
 		for _, m := range raw {
 			kinds = append(kinds, jx.Str(m, "kind"))
@@ -187,8 +192,6 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 			return nil, err
 		}
 	}
-	var rawExtras jx.M
-	if value:=c.R.FormValue("extras");value!=""{rawExtras=jx.Unmarshal([]byte(value));if rawExtras==nil{return nil,fail(400,"Некорректные дополнения поста.")}}
 	extras,err:=posta.PublishExtrasCheck(ch.Platform,text,posta.PreparedKinds(prepared),poll,rawExtras)
 	if err!=nil{return nil,fail(422,err.Error())}
 	dir, err := c.A.OutboxMediaDir(id)
