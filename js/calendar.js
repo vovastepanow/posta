@@ -1418,7 +1418,7 @@ async function openQueuePost(post) {
             openPostEditor({
                 key: `outbox:${post.id}`, editing: true, mode: 'queue', scheduledTs: data.publish_at,
                 scheduledAt: formatWhen(new Date(data.publish_at * 1000)),
-                targets: [{ value: target, label: lane.title, hashtags: 'off', textLimit: network?.text_limit, capabilities: network ? { platform: data.platform, kinds: network.kinds, mediaMax: network.media_max, textLimit: network.text_limit, poll: network.poll, maxBytes: network.max_bytes } : null }], picked: [target],
+                targets: [{ value: target, label: lane.title, hashtags: 'off', textLimit: network?.text_limit, capabilities: network ? { platform: data.platform, kinds: network.kinds, mediaMax: network.media_max, textLimit: network.text_limit, poll: network.poll, pollLimits: network.poll_limits, maxBytes: network.max_bytes } : null }], picked: [target],
                 original: data.text || '', description: '', media: data.media || [], poll: data.poll || null,
                 onSubmit: async edited => {
                     const form = new FormData();

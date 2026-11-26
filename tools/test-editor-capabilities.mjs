@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { commonCapabilities, validateTarget, mediaKind } from '../js/editor-capabilities.js';
+import { commonCapabilities, commonPollLimits, validateTarget, mediaKind } from '../js/editor-capabilities.js';
 const tg={value:'tg:main'}, yt={value:'youtube:1',capabilities:{platform:'youtube',kinds:['video'],mediaMax:1,textLimit:[5000,5000],poll:false}};
 const x={value:'x:1',capabilities:{platform:'x',kinds:['photo','video','animation'],mediaMax:4,textLimit:[280,280],poll:false}};
 assert.deepEqual(commonCapabilities([tg,yt]),{kinds:['video'],mediaMax:1,poll:false});
@@ -19,3 +19,11 @@ console.log('editor capability tests passed');
 assert.equal(validateTarget(tg,[{kind:'audio'}],'caption',null),'');
 assert.notEqual(validateTarget(tg,[{kind:'document'},{kind:'image'}],'caption',null),'');
 assert.equal(validateTarget(tg,[{kind:'document'},{kind:'document'}],'caption',null),'');
+
+const xp={...x,capabilities:{...x.capabilities,poll:true,pollLimits:{question_max:280,options_max:4,option_max:25,duration:true}}};
+assert.equal(commonPollLimits([tg,xp]).options_max,4);
+assert.equal(commonPollLimits([tg,xp]).multiple,false);
+assert.equal(validateTarget(xp,[],'',{question:'Vote?',options:['Yes','No'],duration_minutes:60}),'');
+assert.notEqual(validateTarget(xp,[],'',{question:'Vote?',options:['Yes','No'],multiple:true}),'');
+assert.notEqual(validateTarget(xp,[],'',{question:'Vote?',options:['Yes','Yes']}),'');
+assert.notEqual(validateTarget(xp,[],'',{question:'Vote?',options:['Yes','x'.repeat(26)]}),'');

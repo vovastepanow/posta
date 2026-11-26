@@ -91,12 +91,19 @@ func xUploadMedia(ctx context.Context,f Prepared,auth map[string]string,request 
 
 func xPublishWith(ctx context.Context,c *Channel,p NetPost,request networkRequestFunc,wait func(context.Context,time.Duration)error)(*NetSent,error){
  if c.Secrets["access_token"]==""{return nil,Bad("X: аккаунт не подключён.")}
+ var poll jx.M
+ if p.Poll!=nil{
+  if len(p.Media)!=0{return nil,Bad("X: опрос нельзя совмещать с медиа.")}
+  var err error;poll,err=NetworkPollCheck("x",p.Poll);if err!=nil{return nil,err}
+  p.Text=jx.Str(poll,"question")
+ }
  if runeLen(p.Text)>280||len(p.Media)>4||(len(p.Media)==0&&strings.TrimSpace(p.Text)==""){return nil,Bad("X: превышен лимит или пост пуст.")}
  for _,f:=range p.Media{if f.Kind!="photo"&&((f.Kind!="video"&&f.Kind!="animation")||len(p.Media)!=1){return nil,Bad("X: нельзя смешивать видео/GIF с другими файлами.")}}
  ctx,cancel:=context.WithTimeout(ctx,5*time.Minute);defer cancel()
  auth:=bearer(c.Secrets["access_token"])
  body:=jx.M{}
  if strings.TrimSpace(p.Text)!=""{body["text"]=p.Text}
+ if poll!=nil{body["poll"]=jx.M{"options":jx.Strs(poll,"options"),"duration_minutes":jx.Int(poll,"duration_minutes")}}
  var ids []string
  for _,f:=range p.Media{id,err:=xUploadMedia(ctx,f,auth,request,wait);if err!=nil{return nil,err};ids=append(ids,id)}
  if len(ids)>0{body["media"]=jx.M{"media_ids":ids}}

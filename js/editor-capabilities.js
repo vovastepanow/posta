@@ -1,5 +1,5 @@
 // UI preflight mirrors implemented delivery capabilities; the server is authoritative.
-const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document'], maxBytes:{audio:50_000_000,document:50_000_000}, mediaMax:10, textLimit:[1024,4096], poll:true};
+const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document'], maxBytes:{audio:50_000_000,document:50_000_000}, mediaMax:10, textLimit:[1024,4096], poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true}};
 const REQUIRED = new Set(['youtube','pinterest','instagram']);
 export const mediaKind = m => m.kind === 'image' ? (/^image\/gif$/i.test(m.file?.type || '') || /\.gif(?:[?#]|$)/i.test(m.src || '') || /\.gif$/i.test(m.name || '') ? 'animation' : 'photo') : m.kind;
 export function targetCapabilities(target) {
@@ -14,10 +14,28 @@ export function commonCapabilities(targets) {
         mediaMax: known ? Math.min(10, ...caps.map(c => c.mediaMax || 0)) : 0,
         poll: known && caps.every(c => c.poll === true) };
 }
+export function commonPollLimits(targets) {
+    const caps = targets.map(targetCapabilities);
+    if (!caps.length || !caps.every(c => c?.poll && c?.pollLimits)) return null;
+    const limits = caps.map(c => c.pollLimits);
+    return {question_max:Math.min(...limits.map(l=>l.question_max)),options_max:Math.min(...limits.map(l=>l.options_max)),
+        option_max:Math.min(...limits.map(l=>l.option_max)),multiple:limits.every(l=>l.multiple), duration:limits.some(l=>l.duration)};
+}
 export function validateTarget(target, media, text, poll) {
     const c = targetCapabilities(target);
     if (!c) return 'Возможности ресурса недоступны. Проверьте подключение.';
-    if (poll) return c.poll ? '' : 'Опросы не поддерживаются.';
+    if (poll) {
+        if (!c.poll || !c.pollLimits) return 'Опросы не поддерживаются.';
+        const l = c.pollLimits, options = (poll.options || []).map(s=>s.trim()).filter(Boolean);
+        if (![...poll.question.trim()].length || [...poll.question.trim()].length > l.question_max) return 'Вопрос: от 1 до ' + l.question_max + ' символов.';
+        if (options.length < 2 || options.length > l.options_max) return 'Варианты: от 2 до ' + l.options_max + '.';
+        if (options.some(o=>[...o].length > l.option_max)) return 'Вариант ответа: не более ' + l.option_max + ' символов.';
+        if (new Set(options.map(o=>o.toLowerCase())).size !== options.length) return 'Варианты ответа должны различаться.';
+        if (poll.multiple && !l.multiple) return 'Множественный выбор не поддерживается.';
+        const duration = Number(poll.duration_minutes || 1440);
+        if (l.duration && (!Number.isInteger(duration) || duration < 5 || duration > 10080)) return 'Длительность: от 5 минут до 7 дней.';
+        return '';
+    }
     const kinds = media.map(mediaKind);
     // Telegram converts GIFs in albums to video; other adapters validate the original format.
     const effective = c.platform === 'telegram' && kinds.length > 1 ? kinds.map(k => k === 'animation' ? 'video' : k) : kinds;

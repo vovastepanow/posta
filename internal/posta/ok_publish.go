@@ -74,7 +74,15 @@ func okPublishWith(ctx context.Context,c *Channel,p NetPost,call okMethodFunc,re
 	if !okGroupIDPattern.MatchString(gid)||gid!=c.Ref{return nil,Bad("Одноклассники: не определена группа.")}
 	if len(p.Media)>10||runeLen(p.Text)>4000{return nil,Bad("Одноклассники: превышен лимит текста или вложений.")}
 	var media []jx.M
-	if strings.TrimSpace(p.Text)!=""{media=append(media,jx.M{"type":"text","text":p.Text})}
+	if p.Poll!=nil{
+		if len(p.Media)!=0{return nil,Bad("Одноклассники: опрос и медиа в одной публикации пока не поддерживаются.")}
+		poll,err:=NetworkPollCheck("ok",p.Poll);if err!=nil{return nil,err}
+		answers:=[]jx.M{}
+		for _,answer:=range jx.Strs(poll,"options"){answers=append(answers,jx.M{"text":answer})}
+		options:="SingleChoice,AnonymousVoting"
+		if jx.Bool(poll,"multiple"){options="AnonymousVoting"}
+		media=append(media,jx.M{"type":"poll","question":jx.Str(poll,"question"),"answers":answers,"options":options})
+	}else if strings.TrimSpace(p.Text)!=""{media=append(media,jx.M{"type":"text","text":p.Text})}
 	var videoIDs []string
 	for _,f:=range p.Media{
 		var id,kind string

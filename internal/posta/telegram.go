@@ -608,7 +608,16 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 					progress("Скачиваю видео", nil)
 				}
 				path = filepath.Join(dir, fmt.Sprintf("source-%d", i))
-				if err := a.fetchPublicMedia(it.Src, path, maxBytes); err != nil {
+				if telegram && (it.Kind == "audio" || it.Kind == "document") {
+					// Use the same SSRF-protected fetcher; validate bytes below.
+					res, err := a.FetchPublic(it.Src, FetchOpts{MaxBytes: min(maxBytes, int64(50_000_000)), Dest: path, Timeout: 180 * time.Second})
+					if err != nil {
+						return Prepared{}, err
+					}
+					if !res.OK || res.Status != http.StatusOK {
+						return Prepared{}, Bad("Не удалось полностью скачать аудио или PDF по прямой ссылке.")
+					}
+				} else if err := a.fetchPublicMedia(it.Src, path, maxBytes); err != nil {
 					return Prepared{}, err
 				}
 			} else {
@@ -966,29 +975,7 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 
 // TelegramPollCheck — вопрос до 300 символов, 2–10 вариантов по 100.
 func TelegramPollCheck(poll jx.M) (jx.M, error) {
-	q := strings.TrimSpace(jx.Str(poll, "question"))
-	var opts []string
-	for _, o := range jx.List(poll, "options") {
-		if s := strings.TrimSpace(jx.ToStr(o)); s != "" {
-			opts = append(opts, s)
-		}
-	}
-	switch {
-	case q == "":
-		return nil, Bad("Напишите вопрос опроса.")
-	case runeLen(q) > 300:
-		return nil, Bad("Вопрос опроса длиннее 300 символов: %d.", runeLen(q))
-	case len(opts) < 2:
-		return nil, Bad("В опросе нужно минимум два варианта ответа.")
-	case len(opts) > 10:
-		return nil, Bad("В опросе не больше 10 вариантов.")
-	}
-	for _, o := range opts {
-		if runeLen(o) > 100 {
-			return nil, Bad("Вариант ответа длиннее 100 символов.")
-		}
-	}
-	return jx.M{"question": q, "options": opts, "multiple": jx.Bool(poll, "multiple")}, nil
+	return NetworkPollCheck("telegram", poll)
 }
 
 func (a *App) TelegramPublishPoll(ctx context.Context, c *Channel, poll jx.M) (*SentResult, error) {
@@ -1387,10 +1374,17 @@ func PublishArticleInput(raw any) jx.M {
 
 // OutboxQueuePost — пост в нашу очередь: файлы переносятся в папку поста.
 func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publishAt int64, slotAt *int64, work string, poll, article jx.M, group, record string, sourceMeta jx.M) (jx.M, error) {
-	if c.Platform != "" && c.Platform != "telegram" {
-		if poll != nil {
-			return nil, Bad("Опрос доступен только для Telegram.")
+	if poll != nil {
+		if len(prepared) != 0 {
+			return nil, Bad("Опрос не может содержать вложения.")
 		}
+		checked, err := NetworkPollCheck(c.Platform, poll)
+		if err != nil {
+			return nil, err
+		}
+		poll, text = checked, jx.Str(checked, "question")
+	}
+	if c.Platform != "" && c.Platform != "telegram" {
 		if err := u.NetworkPreparedPreflight(c.Platform, text, prepared); err != nil {
 			return nil, err
 		}

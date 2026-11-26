@@ -332,6 +332,10 @@ func init() {
 			if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
 				break
 			}
+			if jx.Str(media[index], "kind") == "document" {
+				c.W.Header().Set("Content-Disposition", "attachment")
+				c.W.Header().Set("X-Content-Type-Options", "nosniff")
+			}
 			c.serveFile(path, "", "private, no-store")
 			return nil, nil
 		}
@@ -801,8 +805,15 @@ func publish(c *Ctx) (any, error) {
 		if n != nil {
 			title = n.Title
 		}
-		if mode == "native" || poll != nil {
-			return nil, fail(422, title+": отложка средствами соцсети и опросы пока только в Telegram.")
+		if mode == "native" {
+			return nil, fail(422, title+": отложка средствами соцсети пока только в Telegram.")
+		}
+		if poll != nil {
+			checked, err := posta.NetworkPollCheck(platform, poll)
+			if err != nil {
+				return nil, fail(422, err.Error())
+			}
+			poll, text = checked, jx.Str(checked, "question")
 		}
 		if err := c.A.NetworkDeliveryPreflight(platform, text, kinds); err != nil {
 			return nil, fail(422, err.Error())
@@ -850,7 +861,7 @@ func publish(c *Ctx) (any, error) {
 	defer os.RemoveAll(work)
 	var response jx.M
 	if poll != nil {
-		if poll, err = posta.TelegramPollCheck(poll); err != nil {
+		if poll, err = posta.NetworkPollCheck(platform, poll); err != nil {
 			return nil, err
 		}
 		text = jx.Str(poll, "question")

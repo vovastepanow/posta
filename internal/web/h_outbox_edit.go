@@ -92,9 +92,6 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		if len(raw) != 0 {
 			return nil, fail(422, "Опрос не может содержать медиа.")
 		}
-		if poll, err = posta.TelegramPollCheck(poll); err != nil {
-			return nil, err
-		}
 	}
 	text := posta.PostCaptionClean(c.R.FormValue("text"))
 	if poll != nil {
@@ -103,6 +100,12 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 	ch := c.U.Channel(jx.Str(post, "channel"))
 	if ch == nil {
 		return nil, fail(409, "Канал больше не подключён.")
+	}
+	if poll != nil {
+		if poll, err = posta.NetworkPollCheck(ch.Platform, poll); err != nil {
+			return nil, err
+		}
+		text = jx.Str(poll, "question")
 	}
 	if poll == nil {
 		if len(raw) == 0 && strings.TrimSpace(text) == "" {
@@ -176,9 +179,6 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		kinds := []string{}
 		for _, m := range raw {
 			kinds = append(kinds, jx.Str(m, "kind"))
-		}
-		if poll != nil {
-			return nil, fail(422, "Опрос доступен только для Telegram.")
 		}
 		if err := c.A.NetworkDeliveryPreflight(ch.Platform, text, kinds); err != nil {
 			return nil, err

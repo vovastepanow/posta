@@ -109,7 +109,7 @@ func (a *App) Networks() map[string]*Network {
 			Fields: []NetField{{"webhook", "Адрес вебхука канала", true}}, Connect: discordConnect, Publish: discordPublish},
 		"dzen": {Title: "Дзен", Status: "manual", Note: "Публичного API публикации нет. Посты Telegram-канала выходят в Дзене сами: Дзен-студия → настройки канала → код для Telegram → бот @zen_sync_bot админом в канал → /sync."},
 		"ok": {Title: "Одноклассники (группа)", Prefix: "ok", Status: "needs_keys", Note: "Ключ приложения OK; GROUP_CONTENT, PHOTO_CONTENT для фото, VIDEO_CONTENT и VALUABLE_ACCESS для видео.", TextLimit: [2]int{4000, 4000}, MediaMax: 10, Kinds: []string{"photo","video"}, MaxBytes: map[string]int64{"photo":20_000_000,"video":200_000_000},
-			Docs: "partly", AppKeys: []string{"OK_APP_KEY"}, Connect: okConnect, Publish: okPublish,
+			Docs: "partly", Poll: true, AppKeys: []string{"OK_APP_KEY"}, Connect: okConnect, Publish: okPublish,
 			Fields: []NetField{{"access_token", "Постоянный токен приложения", true}, {"session_secret_key", "Секретный ключ сессии", true}, {"gid", "id группы", false}}},
 		"youtube": {Title: "YouTube Shorts", Prefix: "yt", Status: "needs_keys", Note: "Проект Google и экран согласия; без аудита ролики приватные. Только видео.",
 			TextLimit: [2]int{5000, 5000}, MediaMax: 1, Kinds: []string{"video"}, MaxBytes: map[string]int64{"video": 200_000_000}, Docs: "ok",
@@ -125,7 +125,7 @@ func (a *App) Networks() map[string]*Network {
 		"instagram": {Title:"Instagram",Prefix:"ig",Status:"needs_keys",Note:"Meta признана экстремистской и запрещена в РФ. OAuth профессионального аккаунта; фотографии, Reels и карусели. Требуется публичный HTTPS-адрес Posta.",TextLimit:[2]int{2200,2200},MediaMax:10,Kinds:[]string{"photo","video"},MaxBytes:map[string]int64{"photo":8_000_000,"video":200_000_000},Docs:"partly",AppKeys:[]string{"INSTAGRAM_CLIENT_ID","INSTAGRAM_CLIENT_SECRET"},OAuth:instagramOAuth,Publish:instagramPublish},
 		"facebook": {Title:"Facebook (страница)",Prefix:"fb",Status:"beta",Note:"Meta признана экстремистской и запрещена в РФ. Нужен токен управляемой страницы с pages_manage_posts; текст, фотоальбом или одно видео.",TextLimit:[2]int{63206,63206},MediaMax:10,Kinds:[]string{"photo","video"},MaxBytes:map[string]int64{"photo":10_000_000,"video":200_000_000},Docs:"partly",Fields:[]NetField{{"page_id","ID страницы Facebook",false},{"access_token","Page access token",true}},Connect:facebookConnect,Publish:facebookPublish},
 		"x": {Title: "X (Twitter)", Prefix: "x", Status: "needs_keys", Note: "Требуется доступ к API X и право media.write. Текст, до четырёх фото либо одно видео/GIF.", TextLimit: [2]int{280, 280},MediaMax:4,Kinds:[]string{"photo","video","animation"},MaxBytes:map[string]int64{"photo":5_000_000,"video":200_000_000,"animation":15_000_000},
-			Docs: "partly", AppKeys: []string{"X_CLIENT_ID", "X_CLIENT_SECRET"}, OAuth: xOAuth, Publish: xPublish},
+			Docs: "partly", Poll: true, AppKeys: []string{"X_CLIENT_ID", "X_CLIENT_SECRET"}, OAuth: xOAuth, Publish: xPublish},
 		"reddit": {Title: "Reddit", Prefix: "reddit", Status: "needs_keys", Note: "Приложение Reddit; постим только в свой профиль, текстом.", TextLimit: [2]int{40000, 40000},
 			Docs: "partly", AppKeys: []string{"REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"}, OAuth: redditOAuth, Publish: redditPublish},
 		"tiktok":   na("TikTok", "Публикация доступна только после аудита приложения TikTok: без проверки видно «только мне»."),
@@ -342,7 +342,7 @@ func (a *App) NetworksPublic() jx.M {
 	out := jx.M{}
 	for k, n := range a.Networks() {
 		out[k] = jx.M{"title": n.Title, "prefix": n.Prefix, "status": n.Status, "note": n.Note, "text_limit": n.TextLimit, "media_max": n.MediaMax,
-			"kinds": orStrs(n.Kinds), "max_bytes": n.MaxBytes, "poll": n.Poll, "fields": n.Fields, "docs": n.Docs, "oauth": n.OAuth != nil,
+			"kinds": orStrs(n.Kinds), "max_bytes": n.MaxBytes, "poll": n.Poll, "poll_limits": networkPollLimits(k), "fields": n.Fields, "docs": n.Docs, "oauth": n.OAuth != nil,
 			"connect_available": n.PublishingConnectionAvailable(), "publishing_in_scope": publishingInScope(k)}
 	}
 	return out
@@ -367,8 +367,19 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 	}
 	media := preparedFromPost(post)
 	text := jx.Str(post, "text")
+	var poll jx.M
+	if raw := jx.Map(post, "poll"); raw != nil {
+		if len(media) != 0 {
+			return nil, fmt.Errorf("Опрос не может содержать вложения: %w", ErrNetworkRejected)
+		}
+		poll, err = NetworkPollCheck(c.Platform, raw)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", err, ErrNetworkRejected)
+		}
+		text = jx.Str(poll, "question")
+	}
 	if c.Platform == "telegram" {
-		if poll := jx.Map(post, "poll"); poll != nil {
+		if poll != nil {
 			return a.TelegramPublishPoll(ctx, c, poll)
 		}
 		return a.TelegramPublishPrepared(ctx, c, text, media, nil)
@@ -386,7 +397,7 @@ func (a *App) OutboxSendPost(ctx context.Context, uid string, post jx.M, c *Chan
 	if len(kept) == 0 && strings.TrimSpace(text) == "" {
 		return nil, fmt.Errorf("%s: в посте нет подходящих файлов и текста: %w", n.Title, ErrNetworkRejected)
 	}
-	sent, err := n.Publish(a, ctx, c, NetPost{Text: text, Media: kept})
+	sent, err := n.Publish(a, ctx, c, NetPost{Text: text, Media: kept, Poll: poll})
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,6 @@
 // editor.js — окно выбора даты и времени и модальный редактор поста (порядок медиа, текст, отправка через onSubmit).
 import { VIDEO_ICON, api, el, pluralRu } from './core.js';
-import { commonCapabilities, mediaKind, validateTarget } from './editor-capabilities.js';
+import { commonCapabilities, commonPollLimits, mediaKind, validateTarget } from './editor-capabilities.js';
 
 // ---- Дата и время ----
 
@@ -84,7 +84,7 @@ const textLimit = (target, mediaCount) => (session.options.targets.find(t => t.v
 const selectedTargets = () => session.options.picked.map(v => session.options.targets.find(t => t.value === v));
 const currentCapabilities = () => commonCapabilities(selectedTargets());
 const botOnlyMedia = () => session.media.some(m => ['audio','document'].includes(mediaKind(m)));
-const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple)} : null;
+const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440} : null;
 const fileKind = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name) ? 'document' : /^audio\//.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
 const KIND_LABELS = {photo:'Фото', animation:'GIF', video:'Видео', audio:'Аудио', document:'PDF'};
 const fileAccept = {photo:'image/jpeg,image/png,image/webp,image/bmp,image/heic,image/avif', animation:'image/gif', video:'video/*', audio:'.mp3,.m4a,audio/mpeg,audio/mp4', document:'.pdf,application/pdf'};
@@ -109,7 +109,7 @@ function buildUi() {
         progress: el('div', { className: 'pe-progress-wrap', hidden: true }, el('span', { className: 'pe-progress-label' }),
             el('div', { className: 'pe-progress-bar' }, el('div', { className: 'pe-progress-fill' })), el('span', { className: 'pe-progress-text' })),
         question: el('input', { type: 'text', className: 'pe-input', maxLength: 300, placeholder: 'Вопрос опроса' }),
-        pollOptions: el('div', { className: 'pe-poll-options' }), attachments: el('div', { className: 'pe-attachments' }), multiple: el('input', {type:'checkbox'}), addOption: button('pe-btn pe-btn-ghost', 'Добавить вариант', addPollOption),
+        pollOptions: el('div', { className: 'pe-poll-options' }), attachments: el('div', { className: 'pe-attachments' }), multiple: el('input', {type:'checkbox'}), duration: el('select',{className:'pe-input'}, ...[[5,'5 минут'],[60,'1 час'],[360,'6 часов'],[1440,'1 сутки'],[4320,'3 суток'],[10080,'7 суток']].map(([value,label])=>el('option',{value:String(value),textContent:label}))), addOption: button('pe-btn pe-btn-ghost', 'Добавить вариант', addPollOption),
         cancel: button('pe-btn', 'Отмена', closeEditor), submit: el('button', { type: 'submit', className: 'pe-btn pe-btn-primary', textContent: 'Запостить' })
     };
     const reset = button('pe-btn pe-btn-ghost', 'Сбросить правки', () => {
@@ -129,7 +129,7 @@ function buildUi() {
         el('div', { className: 'pe-chip-row' }, button('pe-chip-btn', 'Сохранить стиль', saveStyle), u.learnButton), u.styleNote);
     u.textSection = el('section', { className: 'pe-section' }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Текст' }), u.counter), u.text,
         el('div', { className: 'pe-chip-row' }, u.original, u.description, u.aiButton, u.excerptButton, button('pe-chip-btn', 'Очистить', () => setText(''))), u.aiNote, u.tags, u.styleBox);
-    u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), u.question, u.pollOptions, u.addOption, el('label', {className:'pe-poll-setting'}, u.multiple, el('span', {textContent:'Разрешить несколько вариантов ответа'})));
+    u.pollSection = el('section', { className: 'pe-section', hidden: true }, el('div', { className: 'pe-section-head' }, el('h3', { textContent: 'Опрос' })), u.question, u.pollOptions, u.addOption, el('label', {className:'pe-poll-setting'}, u.multiple, el('span', {textContent:'Разрешить несколько вариантов ответа'})), el('label',{className:'pe-poll-duration',hidden:true},el('span',{textContent:'Длительность опроса в X'}),u.duration));
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
         u.chips,
@@ -141,6 +141,7 @@ function buildUi() {
     u.overlay.addEventListener('mousedown', e => { if (e.target === u.overlay) closeEditor(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && session) { e.preventDefault(); closeEditor(); } });
     u.text.addEventListener('input', () => session && render());
+    u.duration.addEventListener('change', () => { if (session?.poll) { session.poll.duration_minutes=Number(u.duration.value); render(); } });
     u.multiple.addEventListener('change', () => { if (session?.poll) { session.poll.multiple = u.multiple.checked; render(); } });
     u.question.addEventListener('input', () => { if (session?.poll) { session.poll.question = u.question.value; render(); } });
     u.url.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addByUrl(); } });
@@ -298,6 +299,7 @@ function mediaCard(item, i, total) {
 /** Медиа, счётчики и сводка; черновик сохраняется. */
 function render() {
     const { media, poll, options } = session;
+    const pollLimits = commonPollLimits(selectedTargets());
     const caps = currentCapabilities();
     if (options.mode === 'native' && botOnlyMedia()) { options.mode = 'queue'; renderWhen(); }
     const allowed = caps.kinds.filter(k => !media.length || !botOnlyMedia() && !['audio','document'].includes(k) || media.every(m => mediaKind(m) === k));
@@ -327,7 +329,12 @@ function render() {
     ui.count.textContent = `${media.length} / ${caps.mediaMax}`;
     if (media.length < caps.mediaMax && ui.note.textContent.startsWith('Для выбранных ресурсов доступно')) ui.note.textContent = '';
     ui.mediaSection.hidden = ui.textSection.hidden = Boolean(poll);
-    if (poll) return renderPollState(poll, blocked);
+    if (poll) {
+        ui.addOption.disabled = !pollLimits || poll.options.length >= pollLimits.options_max;
+        ui.multiple.disabled = !poll.multiple && !pollLimits?.multiple;
+        ui.duration.closest('label').hidden = !pollLimits?.duration;
+        return renderPollState(poll, blocked);
+    }
     const text = ui.text.value;
     const limit = Math.min(...options.picked.map(v => textLimit(v, media.length)));   // лимит — самый строгий из выбранных ресурсов
     const length = [...text].length;
@@ -438,6 +445,7 @@ function renderPoll() {
     if (!poll) return;
     ui.question.value = poll.question;
     ui.multiple.checked = Boolean(poll.multiple);
+    ui.duration.value = String(poll.duration_minutes || 1440);
     ui.pollOptions.replaceChildren(...poll.options.map((value, i) => {
         const input = el('input', { type: 'text', className: 'pe-input', maxLength: 100, value, placeholder: `Вариант ${i + 1}` });
         input.addEventListener('input', () => { poll.options[i] = input.value; render(); });
@@ -460,7 +468,7 @@ function renderPollState(poll, blocked) {
     const ready = poll.question.trim() !== '' && filled.length >= 2;
     ui.submit.disabled = !ready || blocked || session.busy;
     ui.warning.hidden = ready && !blocked;
-    ui.warning.textContent = blocked ? 'Опрос не поддерживается всеми выбранными ресурсами.' : 'Напишите вопрос и минимум два варианта ответа.';
+    ui.warning.textContent = blocked ? 'Проверьте ограничения опроса для выбранных площадок.' : 'Напишите вопрос и минимум два варианта ответа.';
     ui.summary.textContent = `Опрос · ${filled.length} ${pluralRu(filled.length, 'вариант', 'варианта', 'вариантов')}`;
 }
 
@@ -557,7 +565,7 @@ async function submit(e) {
         const { poll } = session;
         const post = { targets: [...options.picked], mode: options.mode, scheduledAt: options.scheduledAt, scheduledTs: options.mode === 'now' ? 0 : options.scheduledTs || 0,
             media: poll ? [] : media.map(({ kind, src, name, file, existing }) => ({ kind, src, name, file, existing })), text: poll ? '' : ui.text.value.trim(),
-            poll: poll ? { question: poll.question.trim(), options: poll.options.map(v => v.trim()).filter(Boolean), multiple: Boolean(poll.multiple) } : null,
+            poll: poll ? { question: poll.question.trim(), options: poll.options.map(v => v.trim()).filter(Boolean), multiple: Boolean(poll.multiple), duration_minutes: poll.duration_minutes || 1440 } : null,
             hashtags: poll || ui.tags.hidden ? [] : [...session.tags] };
         await options.onSubmit(post, onProgress);
         drafts.delete(options.key);
