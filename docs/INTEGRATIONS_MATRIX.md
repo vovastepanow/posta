@@ -1,6 +1,6 @@
 # Integration matrix and refactoring scope
 
-Baseline: 46921ea83903. This is a static code audit, not live API certification.
+Baseline: 46921ea83903. Updated publishing implementation: 72a6dccb0443. This is a static code audit plus deterministic/CI tests, not live API certification.
 
 ## Publishing
 
@@ -11,11 +11,11 @@ Source evidence (checked 2026-11-26): https://smmbox.com/en/tarif.php and https:
 | Platform | Existing implementation / gap |
 |---|---|
 | Telegram | Bot and MTProto scheduling; verify album and long-caption handling |
-| VK | Token connection, wall publishing, photos; video not supported in current registry |
-| OK | Requires app key, group text/photo publishing via upload tokens; VIDEO_CONTENT still needed for video adapter |
+| VK | Token connection, wall publishing, photos with validated upload destination and group ownership; video not supported in current registry |
+| OK | Group text, photos and videos; requires app key and relevant GROUP_CONTENT, PHOTO_CONTENT, VIDEO_CONTENT and VALUABLE_ACCESS permissions; live account test pending |
 | MAX | Bot, text and uploaded image/video attachments; explicit attachment-processing retry; live account test pending |
-| YouTube | OAuth, video upload; app keys/audit required |
-| Pinterest | OAuth, photo pin; app keys required |
+| YouTube | OAuth, resumable video upload in 8 MiB chunks, server-confirmed range recovery and validated video receipt; app keys/audit required |
+| Pinterest | OAuth, single photo or video pin, generated video cover, media processing status; app keys and live account test required; first selected board retained |
 | X | OAuth text/photos, single GIF or chunked video; media.write scope and API access required, live account test pending |
 | Facebook | Owner beta, explicit Page token and ID, text/photo feed publishing; app permissions and real account test required |
 | Instagram | Professional account OAuth (Instagram Login), JPEG, Reels and ordered carousels; HTTPS media pull and app approval required; live account check pending |
@@ -67,7 +67,7 @@ WordPress REST API reference: https://developer.wordpress.org/rest-api/reference
 
 MAX media API reference (checked 2026-11-26): https://dev.max.ru/docs-api/use-cases/sending-messages/media/ and https://dev.max.ru/docs-api/methods/POST/uploads . The provider supports up to 12 attachments; the existing editor has its own 10-file cap. Local preflight and fixture tests do not certify credentials or live delivery.
 
-OK references: https://apiok.ru/dev/examples/photo_upload ; https://apiok.ru/dev/methods/rest/photosV2/photosV2.getUploadUrl ; https://apiok.ru/dev/methods/rest/mediatopic/mediatopic.post ; https://new.apiok.ru/dev/methods/ . Group topic photographs use the uploaded tokens directly without a separate commit. The 10-image / 20 MB limits here are conservative local limits, not certified provider maxima.
+OK references: https://apiok.ru/dev/examples/photo_upload ; https://apiok.ru/dev/methods/rest/photosV2/photosV2.getUploadUrl ; https://apiok.ru/dev/methods/rest/mediatopic/mediatopic.post ; https://new.apiok.ru/dev/methods/ . Group topic photographs use the uploaded tokens directly without a separate commit. The 10-item / 20 MB image and 200 MB video limits here are conservative local limits, not certified provider maxima. Video workflow references: https://apiok.ru/dev/examples/video_upload ; https://apiok.ru/dev/methods/rest/video/video.getUploadUrl ; https://apiok.ru/dev/methods/rest/video/video.update . Upload with post_form=true; finalize only after all attachments upload; after video.update, uncertain outcomes stop automatic replay.
 
 Tumblr references: https://github.com/tumblr/docs/blob/master/api.md and https://github.com/tumblr/docs/blob/master/npf-spec.md ; https://help.tumblr.com/knowledge-base/posting-video/ . NPF allows at most one native uploaded video per post. A creation receipt confirms acceptance, not completion of remote video processing. The existing editor limits the album to 10 files; the API supports more image blocks.
 
@@ -76,3 +76,11 @@ Facebook Pages API references: https://developers.facebook.com/docs/graph-api/re
 Meta container publishing: https://www.postman.com/meta/threads/documentation/dht3nzz/threads-api ; https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api . Publishing uses account-scoped tokens, never global read tokens. Media is exposed only via revocable 15-minute bearer links, not arbitrary file paths. Instagram photo variants are JPEG without automatic crop; unsupported aspect ratios are explicitly rejected. Shared local input limit is 200 MiB and editor max is 10 attachments. Token refresh occurs on delivery within seven days of expiry; accounts idle beyond token expiry require reauthorization. No live publish is performed in tests.
 
 X media API: https://docs.x.com/x-api/media/quickstart/media-upload-chunked and https://docs.x.com/x-api/media/upload-media . Uses dedicated v2 initialize/append/finalize endpoints and checks processing state before publishing. Old account grants may need reconnection to grant media.write. Local limit is deliberately smaller than the provider maximum.
+
+YouTube resumable protocol: https://developers.google.com/youtube/data/guides/using_resumable_upload_protocol . A transfer uses one upload session; uncertain replies are probed in that session, and unresolved results require reconciliation. This is not persisted cross-restart resume.
+
+Pinterest video pin references: https://developers.pinterest.com/docs/work-with-organic-content-and-users/create-boards-and-pins/ ; https://developer.pinterest.com/docs/api/v5/media-create/ ; https://github.com/pinterest/pinterest-python-generated-api-client/blob/main/docs/PinMediaSourceVideoID.md . Upload uses a validated Pinterest S3 host without OAuth bearer, waits for succeeded processing, and creates a cover from a local video frame. Existing OAuth grants may require reconnection. The current resource selects a board during connection; a full board picker is not yet implemented.
+
+OAuth callback state is atomically consumed once, tied to the initiating signed-in Posta profile, with owner/beta permission rechecked before connection. CI includes a concurrent PostgreSQL replay/isolation test. This does not certify an actual provider consent flow.
+
+Remaining product-scope blockers: TikTok app approval and mandatory user-facing posting controls; Rutube confirmed publishing API/partner access; Dzen direct publisher access. Do not expose placeholders as operational or bypass account restrictions. VK video and Facebook video still need verified provider workflows and authorized tests.
