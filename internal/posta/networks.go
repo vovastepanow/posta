@@ -93,7 +93,7 @@ var networkOrder = []string{"telegram", "vk", "max", "bluesky", "mastodon", "dis
 func (a *App) Networks() map[string]*Network {
 	na := func(title, note string) *Network { return &Network{Title: title, Status: "unavailable", Note: note} }
 	r := map[string]*Network{
-		"telegram": {Title: "Telegram", Prefix: "tg", Status: "ready", TextLimit: [2]int{1024, 4096}, MediaMax: 10, Kinds: []string{"photo", "video", "animation", "audio", "document", "voice"}, MaxBytes: map[string]int64{"audio": 50_000_000, "document": 50_000_000, "voice":50_000_000}, Poll: true},
+		"telegram": {Title: "Telegram", Prefix: "tg", Status: "ready", TextLimit: [2]int{1024, 4096}, MediaMax: 10, Kinds: []string{"photo", "video", "animation", "audio", "document", "voice","sticker","video_note"}, MaxBytes: map[string]int64{"audio": 50_000_000, "document": 50_000_000, "voice":50_000_000,"sticker":524288,"video_note":50_000_000}, Poll: true},
 		"vk": {Title: "ВКонтакте (группа)", Prefix: "vk", Status: "beta", Note: "Ключ сообщества позволяет проверить и подключить группу; фотографии и видео могут требовать пользовательский токен с доступом к методам API VK.", TextLimit: [2]int{16384, 16384},
 			MediaMax: 10, Kinds: []string{"photo","video","animation","document"}, MaxBytes: map[string]int64{"photo": 50_000_000,"video":200_000_000,"animation":50_000_000,"document":50_000_000}, Docs: "partly", Poll: true,
 			Fields: []NetField{{"token", "Ключ сообщества или пользовательский токен VK", true}, {"group", "Адрес или id сообщества", false}}, Connect: vkConnect, Publish: vkPublish},

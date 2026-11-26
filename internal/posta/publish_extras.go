@@ -15,7 +15,7 @@ func postExtraKinds(platform string) []string {
 	case "", "telegram":
 		return []string{"buttons","silent","protect","spoiler","preview","location","contact","styled_text"}
 	case "max":
-		return []string{"buttons","preview","location","contact","styled_text"}
+		return []string{"buttons","preview","location","contact","styled_text","max_sticker"}
 	case "vk":
 		return []string{"signed","close_comments","mark_as_ads","copyright","link_attachment","vk_geo"}
 	case "threads":
@@ -51,7 +51,7 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 			if len(jx.ToList(value))==0{continue}
 		case "silent","protect","spoiler","signed","close_comments","mark_as_ads","styled_text":
 			v,ok:=value.(bool);if !ok{return nil,Bad("Некорректный параметр публикации: %s.",key)};if !v{continue}
-		case "alt_text","topic_tag","link_attachment","copyright","vk_geo","yt_privacy","yt_audience","yt_tags","yt_category","yt_license":
+		case "alt_text","topic_tag","link_attachment","copyright","vk_geo","yt_privacy","yt_audience","yt_tags","yt_category","yt_license","max_sticker":
 			v,ok:=value.(string);if !ok{return nil,Bad("Некорректное значение дополнения %s.",key)};if strings.TrimSpace(v)==""{continue}
 		case "preview":
 			v,ok:=value.(string);if !ok{return nil,Bad("Некорректная настройка предпросмотра.")};if v==""||v=="default"{continue}
@@ -82,6 +82,9 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 				buttons=append(buttons,jx.M{"text":label,"url":link})
 			}
 			out[key]=buttons
+		case "max_sticker":
+			v:=strings.TrimSpace(jx.ToStr(value));if !regexp.MustCompile("^[A-Za-z0-9_-]{1,128}$").MatchString(v){return nil,Bad("Укажите код стикера MAX.")}
+			out[key]=v
 		case "alt_text":
 			if len(kinds)!=1||!contains([]string{"photo","image"},kinds[0]){return nil,Bad("Альтернативный текст доступен для одной фотографии.")}
 			v:=strings.TrimSpace(jx.ToStr(value));limit:=1000;if platform=="pinterest"{limit=500};if runeLen(v)>limit{return nil,Bad("Альтернативный текст: до %d символов.",limit)};out[key]=v
@@ -123,7 +126,8 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 		}
 	}
 	if PostExtrasStandalone(out){
-		if jx.Map(out,"location")!=nil&&jx.Map(out,"contact")!=nil{return nil,Bad("Выберите одну карточку: геолокацию или контакт.")}
+		n:=0;for _,key:=range []string{"location","contact","max_sticker"}{if jx.Has(out,key){n++}}
+		if n!=1{return nil,Bad("Выберите одну карточку или стикер.")}
 		if len(kinds)>0||strings.TrimSpace(text)!=""||len(jx.Maps(out,"buttons"))>0||jx.Bool(out,"spoiler")||jx.Bool(out,"styled_text")||jx.Str(out,"preview")!=""{return nil,Bad("Карточка геолокации или контакта публикуется отдельно от текста и медиа.")}
 	}
 	if len(out)==0{return nil,nil}
@@ -142,12 +146,13 @@ func telegramExtraFields(fields map[string]string,extra jx.M) {
 var publishPhonePattern=regexp.MustCompile(`^[+][1-9][0-9]{6,14}$`)
 
 // PostExtrasStandalone is only used after validating extras.
-func PostExtrasStandalone(extra jx.M) bool { return jx.Map(extra,"location")!=nil||jx.Map(extra,"contact")!=nil }
+func PostExtrasStandalone(extra jx.M) bool { return jx.Map(extra,"location")!=nil||jx.Map(extra,"contact")!=nil||jx.Str(extra,"max_sticker")!="" }
 
 func PostExtrasSummary(text string,extra jx.M)string{
 	if strings.TrimSpace(text)!=""{return text}
 	if jx.Map(extra,"location")!=nil{return "Геолокация"}
 	if jx.Map(extra,"contact")!=nil{return "Карточка контакта"}
+	if jx.Str(extra,"max_sticker")!=""{return "Стикер MAX"}
 	return text
 }
 
@@ -165,6 +170,7 @@ func vcardEscape(s string)string{
 	return strings.NewReplacer("\\","\\\\",";","\\;",",","\\,").Replace(s)
 }
 func maxStandaloneAttachment(extra jx.M)jx.M{
+	if v:=jx.Str(extra,"max_sticker");v!=""{return jx.M{"type":"sticker","payload":jx.M{"code":v}}}
 	if loc:=jx.Map(extra,"location");loc!=nil{return jx.M{"type":"location","latitude":loc["latitude"],"longitude":loc["longitude"]}}
 	if c:=jx.Map(extra,"contact");c!=nil{
 		first,last:=jx.Str(c,"first_name"),jx.Str(c,"last_name")

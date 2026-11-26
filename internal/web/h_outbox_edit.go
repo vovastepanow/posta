@@ -112,7 +112,7 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 			return nil, fail(400, "Добавьте текст или медиа.")
 		}
 		if ch.Platform == "telegram" {
-			if err := posta.TelegramCheckText(text, len(raw)); err != nil {
+			if err := posta.TelegramMediaTextCheck(text, rawKinds); err != nil {
 				return nil, err
 			}
 		}

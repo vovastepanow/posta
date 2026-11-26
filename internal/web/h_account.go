@@ -872,9 +872,9 @@ func publish(c *Ctx) (any, error) {
 				limit = posta.NetworkTextLimit(n, len(items) > 0)
 			}
 		}
-		if !posta.PostExtrasStandalone(extras){text = posta.TextWithHashtags(text, w.ChannelHashtags(ch, posta.PublishHashtagsInput(fields["hashtags"])), limit)}
+		if !posta.PostExtrasStandalone(extras)&&!contains(kinds,"sticker")&&!contains(kinds,"video_note"){text = posta.TextWithHashtags(text, w.ChannelHashtags(ch, posta.PublishHashtagsInput(fields["hashtags"])), limit)}
 		if platform == "telegram" && !posta.PostExtrasStandalone(extras) {
-			if err := posta.TelegramCheckText(text, len(items)); err != nil {
+			if err := posta.TelegramMediaTextCheck(text, kinds); err != nil {
 				return nil, err
 			}
 		}

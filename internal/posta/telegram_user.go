@@ -214,7 +214,7 @@ func TelegramUserChannelRef(c *Channel) string {
 func (u *U) TelegramUserSchedule(c *Channel, text string, prepared []Prepared, publishAt int64, progress progressFn) ([]int, error) {
 	var media []tgclient.Media
 	for _, f := range prepared {
-		if f.Kind == "audio" || f.Kind == "document" || f.Kind=="voice" {
+		if f.Kind == "audio" || f.Kind == "document" || f.Kind=="voice" || f.Kind=="sticker" || f.Kind=="video_note" {
 			return nil, Bad("Аудио и документы пока ставятся через очередь Posta.")
 		}
 		media = append(media, tgclient.Media{Kind: f.Kind, Path: f.Path, Width: f.Width, Height: f.Height, Duration: f.Duration})

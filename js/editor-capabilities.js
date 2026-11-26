@@ -1,5 +1,5 @@
 // UI preflight mirrors implemented delivery capabilities; the server is authoritative.
-const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview','location','contact','styled_text'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,quiz:true,close:true}};
+const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice','sticker','video_note'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000,sticker:524288,video_note:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview','location','contact','styled_text'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,quiz:true,close:true}};
 const REQUIRED = new Set(['youtube','pinterest','instagram']);
 export const mediaKind = m => m.kind === 'image' ? (/^image\/gif$/i.test(m.file?.type || '') || /\.gif(?:[?#]|$)/i.test(m.src || '') || /\.gif$/i.test(m.name || '') ? 'animation' : 'photo') : m.kind;
 export function targetCapabilities(target) {
@@ -10,7 +10,7 @@ export function targetCapabilities(target) {
 export function commonCapabilities(targets) {
     const caps = targets.map(targetCapabilities);
     const known = caps.length > 0 && caps.every(Boolean);
-    return { kinds: known ? ['photo','video','animation','audio','document','voice'].filter(k => caps.every(c => c.kinds?.includes(k))) : [],
+    return { kinds: known ? ['photo','video','animation','audio','document','voice','sticker','video_note'].filter(k => caps.every(c => c.kinds?.includes(k))) : [],
         mediaMax: known ? Math.min(10, ...caps.map(c => c.mediaMax || 0)) : 0,
         poll: known && caps.every(c => c.poll === true) };
 }
@@ -57,6 +57,7 @@ export function validateTarget(target, media, text, poll) {
     if (effective.some(k => !c.kinds?.includes(k))) return 'Не поддерживается формат одного или нескольких вложений.';
     if (REQUIRED.has(c.platform) && !media.length) return 'Необходимо медиа.';
     if (['facebook','x'].includes(c.platform) && media.length > 1 && effective.some(k => k !== 'photo')) return 'Допустимы фотоальбом или один видеофайл/GIF (если поддерживается).';
+    if(c.platform==='telegram'&&effective.some(k=>['sticker','video_note'].includes(k))&&(media.length!==1||text.trim()))return 'Стикер и видеокружок отправляются отдельно, без подписи.';
     if (c.platform === 'telegram' && effective.includes('voice') && media.length > 1) return 'Голосовое сообщение отправляется отдельно.';
     if (c.platform === 'telegram' && effective.some(k => ['audio','document'].includes(k)) && new Set(effective).size > 1) return 'Аудио и документы нельзя смешивать с другими типами вложений.';
     if (c.platform === 'max' && media.length > 1 && effective.some(k=>['audio','document'].includes(k))) return 'MAX: аудио или документ отправляется отдельным вложением.';
@@ -77,8 +78,8 @@ export function attachmentError(targets, media, item) {
     return '';
 }
 
-export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag','yt_privacy','yt_audience','yt_tags','yt_category','yt_license','styled_text'];
-export const standaloneExtra = e=>Boolean(e?.location||e?.contact);
+export const EXTRA_KEYS = ['buttons','silent','protect','spoiler','preview','location','contact','signed','close_comments','mark_as_ads','copyright','link_attachment','vk_geo','alt_text','topic_tag','yt_privacy','yt_audience','yt_tags','yt_category','yt_license','styled_text','max_sticker'];
+export const standaloneExtra = e=>Boolean(e?.location||e?.contact||e?.max_sticker);
 export function extraActive(extra,key) {
     return key==='buttons' ? !!extra?.buttons?.length : key==='preview' ? !!extra?.preview && extra.preview!=='default' : Boolean(extra?.[key]);
 }
@@ -96,7 +97,7 @@ export function extraAvailability(targets,media,text,poll,key) {
 }
 export function extraError(targets,media,text,poll,extra) {
     if (standaloneExtra(extra)) {
-        if(extra.location&&extra.contact)return 'Выберите одну карточку.';
+        if([extra.location,extra.contact,extra.max_sticker].filter(Boolean).length>1)return 'Выберите одну карточку или стикер.';
         if(media.length||text.trim()||extraActive(extra,'buttons')||extraActive(extra,'spoiler')||extraActive(extra,'preview')||extraActive(extra,'styled_text'))return 'Карточка публикуется отдельно от текста, медиа и кнопок.';
     }
     for(const key of EXTRA_KEYS) if(extraActive(extra,key)) {
@@ -110,6 +111,7 @@ export function extraError(targets,media,text,poll,extra) {
             try{const v=extra[key].trim(),u=new URL(v);if(v.length>2048||!['http:','https:'].includes(u.protocol)||u.username||u.password||/[,\s]/.test(v))throw Error();}catch{return 'Укажите корректную HTTP(S)-ссылку.';}
         }
         if(key==='vk_geo'){const parts=extra[key].split(',');if(parts.length!==2||parts.some(v=>!v.trim()||!Number.isFinite(Number(v)))||Math.abs(Number(parts[0]))>90||Math.abs(Number(parts[1]))>180)return 'Укажите широту и долготу через запятую.';}
+        if(key==='max_sticker'&&!/^[A-Za-z0-9_-]{1,128}$/.test(extra[key].trim()))return 'Укажите код стикера MAX.';
         if(key==='location'){
             const l=extra.location, lat=Number(l.latitude),lon=Number(l.longitude);
             if(String(l.latitude??'').trim()===''||String(l.longitude??'').trim()===''||!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return 'Укажите корректную широту и долготу.';

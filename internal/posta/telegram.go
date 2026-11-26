@@ -608,7 +608,7 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 					progress("Скачиваю видео", nil)
 				}
 				path = filepath.Join(dir, fmt.Sprintf("source-%d", i))
-				if (telegram || platform=="max" || platform=="vk") && (it.Kind == "audio" || it.Kind == "document" || it.Kind=="voice") {
+				if (telegram || platform=="max" || platform=="vk") && (it.Kind == "audio" || it.Kind == "document" || it.Kind=="voice" || it.Kind=="sticker" || it.Kind=="video_note") {
 					// Use the same SSRF-protected fetcher; validate bytes below.
 					res, err := a.FetchPublic(it.Src, FetchOpts{MaxBytes: min(maxBytes, int64(50_000_000)), Dest: path, Timeout: 180 * time.Second})
 					if err != nil {
@@ -629,6 +629,20 @@ func (a *App) DeliveryPrepareMedia(platform string, items []MediaItem, uploads m
 			// still checks its own upload limit after video preparation.
 			if info.Size()>maxBytes && !(telegram&&cached){return Prepared{},Bad("Файл превышает локальный предел загрузки %d МиБ.",maxBytes>>20)}
 			mime := sniffMime(path)
+			if it.Kind=="sticker"||it.Kind=="video_note" {
+				if !telegram||route=="account"{return Prepared{},Bad("Стикер и видеокружок доступны через бота Telegram или очередь Posta.")}
+				if it.Kind=="sticker"{
+					if mime!="image/webp"||info.Size()>512*1024{return Prepared{},Bad("Статический стикер: WEBP до 512 КБ.")}
+					b,err:=os.ReadFile(path);if err!=nil{return Prepared{},err}
+					w,h,ok:=imgx.Size(b);if !ok||w<=0||h<=0||w>512||h>512||(w!=512&&h!=512){return Prepared{},Bad("Стикер должен иметь одну сторону 512 px, другую не более 512 px.")}
+					dst:=filepath.Join(dir,fmt.Sprintf("sticker-%d.webp",i));if err=copyFile(path,dst);err!=nil{return Prepared{},err}
+					return Prepared{Kind:"sticker",Path:dst,Width:w,Height:h},nil
+				}
+				probe:=a.TelegramVideoInfo(path)
+				if err:=telegramVideoNoteCheck(probe,info.Size());err!=nil{return Prepared{},err}
+				dst:=filepath.Join(dir,fmt.Sprintf("video-note-%d.mp4",i));if err=copyFile(path,dst);err!=nil{return Prepared{},err}
+				return Prepared{Kind:"video_note",Path:dst,Width:probe.Width,Height:probe.Height,Duration:probe.Duration},nil
+			}
 			if it.Kind == "audio" || it.Kind == "document" || it.Kind=="voice" {
 				if (!telegram && platform!="max" && !(platform=="vk"&&it.Kind=="document")) || route == "account" || (it.Kind=="voice"&&!telegram) {
 					return Prepared{}, Bad("Этот формат не поддерживается выбранной площадкой или способом публикации.")
@@ -875,8 +889,8 @@ func telegramAttachmentCheck(prepared []Prepared) error {
 	for _, f := range prepared {
 		switch f.Kind {
 		case "photo", "video", "animation":
-		case "voice":
-			if len(prepared)!=1{return Bad("Голосовое сообщение Telegram отправляется отдельно.")}
+		case "voice","sticker","video_note":
+			if len(prepared)!=1{return Bad("Голосовое сообщение, стикер и видеокружок Telegram отправляются отдельно.")}
 		case "audio", "document":
 			for _, other := range prepared {
 				if other.Kind != f.Kind {
@@ -902,7 +916,7 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 	if len(extra)>0{rawExtra=extra[0]}
 	extras,extraErr:=PublishExtrasCheck("telegram",text,PreparedKinds(prepared),nil,rawExtra)
 	if extraErr!=nil{return nil,extraErr}
-	if !PostExtrasStandalone(extras){if err:=TelegramCheckText(text,len(prepared));err!=nil{return nil,err}}
+	if !PostExtrasStandalone(extras){if err:=TelegramMediaTextCheck(text,PreparedKinds(prepared));err!=nil{return nil,err}}
 	if progress == nil {
 		progress = noProgress
 	}
@@ -940,7 +954,7 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 		raw = json.RawMessage("[" + string(raw) + "]")
 	case 1:
 		f := prepared[0]
-		method := map[string]string{"photo": "sendPhoto", "animation": "sendAnimation", "video": "sendVideo", "audio": "sendAudio", "document": "sendDocument", "voice":"sendVoice"}[f.Kind]
+		method := map[string]string{"photo": "sendPhoto", "animation": "sendAnimation", "video": "sendVideo", "audio": "sendAudio", "document": "sendDocument", "voice":"sendVoice","sticker":"sendSticker","video_note":"sendVideoNote"}[f.Kind]
 		fields := map[string]string{"chat_id": chat}
 		telegramExtraFields(fields,extras)
 		if jx.Bool(extras,"spoiler"){fields["has_spoiler"]="true"}
@@ -951,6 +965,7 @@ func (a *App) TelegramPublishPrepared(ctx context.Context, c *Channel, text stri
 		if (f.Kind == "audio" || f.Kind=="voice") && f.Duration > 0 {
 			fields["duration"] = strconv.Itoa(f.Duration)
 		}
+		if f.Kind=="video_note"{fields["duration"]=strconv.Itoa(f.Duration);fields["length"]=strconv.Itoa(f.Width)}
 		if f.Kind == "video" {
 			fields["supports_streaming"] = "true"
 			fields["width"], fields["height"], fields["duration"] = strconv.Itoa(f.Width), strconv.Itoa(f.Height), strconv.Itoa(f.Duration)
@@ -1413,6 +1428,7 @@ func PublishArticleInput(raw any) jx.M {
 
 // OutboxQueuePost — пост в нашу очередь: файлы переносятся в папку поста.
 func (u *U) OutboxQueuePost(c *Channel, text string, prepared []Prepared, publishAt int64, slotAt *int64, work string, poll, article jx.M, group, record string, sourceMeta jx.M, extra ...jx.M) (jx.M, error) {
+	if c.Platform==""||c.Platform=="telegram"{if err:=TelegramStandaloneMediaCheck(text,PreparedKinds(prepared));err!=nil{return nil,err}}
 	if poll != nil {
 		checked, err := u.ChannelPollCheck(c, poll)
 		if err != nil {
@@ -1699,7 +1715,7 @@ func (a *App) PostThumbMake(media []jx.M) string {
 	id := randHex(6)
 	out := a.ThumbFile(id)
 	vf := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease", thumbSide, thumbSide)
-	if jx.Str(f, "kind") == "video" {
+	if jx.Str(f, "kind") == "video" || jx.Str(f,"kind")=="video_note" {
 		if a.FFmpegRun([]string{"-ss", "1", "-i", src, "-frames:v", "1", "-vf", vf, "-q:v", "4", "-f", "image2"}, out, time.Minute) ||
 			a.FFmpegRun([]string{"-i", src, "-frames:v", "1", "-vf", vf, "-q:v", "4", "-f", "image2"}, out, time.Minute) {
 			return id

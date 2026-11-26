@@ -84,15 +84,15 @@ const textLimit = (target, mediaCount) => (session.options.targets.find(t => t.v
 const selectedTargets = () => session.options.picked.map(v => session.options.targets.find(t => t.value === v));
 const currentCapabilities = () => commonCapabilities(selectedTargets());
 const hasExtras = () => EXTRA_KEYS.some(k=>extraActive(session.extras,k));
-const botOnlyMedia = () => session.media.some(m => ['audio','document','voice'].includes(mediaKind(m)));
+const botOnlyMedia = () => session.media.some(m => ['audio','document','voice','sticker','video_note'].includes(mediaKind(m)));
 const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440,quiz:!!p.quiz,correct_answer:p.correct_answer||'',explanation:p.explanation||'',close_minutes:p.close_minutes||0,public:!!p.public,with_content:!!p.with_content} : null;
 const fileKind = f => /\.(pdf|txt|csv|zip|docx|xlsx|pptx)$/i.test(f.name) || f.type==='application/pdf' ? 'document' : /\.(ogg|opus)$/i.test(f.name) ? 'voice' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
-const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null,signed:!!e?.signed,close_comments:!!e?.close_comments,mark_as_ads:!!e?.mark_as_ads,copyright:e?.copyright||'',link_attachment:e?.link_attachment||'',vk_geo:e?.vk_geo||'',alt_text:e?.alt_text||'',topic_tag:e?.topic_tag||'',yt_privacy:e?.yt_privacy||'',yt_audience:e?.yt_audience||'',yt_tags:e?.yt_tags||'',yt_category:e?.yt_category||'',yt_license:e?.yt_license||'',styled_text:!!e?.styled_text});
+const cloneExtras = e => ({buttons:(e?.buttons || []).map(b=>({...b})),silent:!!e?.silent,protect:!!e?.protect,spoiler:!!e?.spoiler,preview:e?.preview || 'default',location:e?.location?{...e.location}:null,contact:e?.contact?{...e.contact}:null,signed:!!e?.signed,close_comments:!!e?.close_comments,mark_as_ads:!!e?.mark_as_ads,copyright:e?.copyright||'',link_attachment:e?.link_attachment||'',vk_geo:e?.vk_geo||'',alt_text:e?.alt_text||'',topic_tag:e?.topic_tag||'',yt_privacy:e?.yt_privacy||'',yt_audience:e?.yt_audience||'',yt_tags:e?.yt_tags||'',yt_category:e?.yt_category||'',yt_license:e?.yt_license||'',styled_text:!!e?.styled_text,max_sticker:e?.max_sticker||''});
 const EXTRA_LABELS = {silent:'Без звукового уведомления',protect:'Запретить пересылку и сохранение',spoiler:'Скрыть медиа под спойлером',signed:'Подписать запись именем автора VK',close_comments:'Закрыть комментарии VK',mark_as_ads:'Отметить запись VK как рекламу'};
-const EXTRA_TEXT_LABELS={copyright:'Источник VK (URL)',link_attachment:'Вложение-ссылка',vk_geo:'Координаты VK (широта, долгота)',alt_text:'Описание фото для доступности',topic_tag:'Тема Threads',yt_tags:'Теги YouTube через запятую',yt_category:'ID категории YouTube'};
+const EXTRA_TEXT_LABELS={copyright:'Источник VK (URL)',link_attachment:'Вложение-ссылка',vk_geo:'Координаты VK (широта, долгота)',alt_text:'Описание фото для доступности',topic_tag:'Тема Threads',yt_tags:'Теги YouTube через запятую',yt_category:'ID категории YouTube',max_sticker:'Код стикера MAX'};
 const EXTRA_SELECTS={yt_privacy:['Видимость YouTube',[['','Настройка канала'],['private','Закрытый доступ'],['unlisted','По ссылке'],['public','Публичный']]],yt_audience:['Аудитория YouTube',[['','По умолчанию'],['kids','Для детей'],['not_kids','Не для детей']]],yt_license:['Лицензия YouTube',[['','По умолчанию'],['youtube','Стандартная'],['creativeCommon','Creative Commons']]]};
-const KIND_LABELS = {photo:'Фото', animation:'GIF', video:'Видео', audio:'Аудио', document:'Документ', voice:'Голосовое'};
-const fileAccept = {photo:'image/jpeg,image/png,image/webp,image/bmp,image/heic,image/avif', animation:'image/gif', video:'video/*', audio:'.mp3,.m4a,audio/mpeg,audio/mp4', document:'.pdf,.txt,.csv,.zip,.docx,.xlsx,.pptx', voice:'.ogg,.opus,audio/ogg'};
+const KIND_LABELS = {photo:'Фото', animation:'GIF', video:'Видео', audio:'Аудио', document:'Документ', voice:'Голосовое',sticker:'Стикер WEBP',video_note:'Видеокружок'};
+const fileAccept = {photo:'image/jpeg,image/png,image/webp,image/bmp,image/heic,image/avif', animation:'image/gif', video:'video/*', audio:'.mp3,.m4a,audio/mpeg,audio/mp4', document:'.pdf,.txt,.csv,.zip,.docx,.xlsx,.pptx', voice:'.ogg,.opus,audio/ogg',sticker:'.webp,image/webp',video_note:'.mp4,video/mp4'};
 const chip = (label, value) => el('span', { className: 'pe-chip' }, el('span', { className: 'pe-chip-label', textContent: label }), el('strong', { textContent: value }));
 
 function buildUi() {
@@ -172,7 +172,8 @@ function buildUi() {
     u.file.addEventListener('change', () => {
         const files = [...u.file.files];
         u.file.value = '';
-        addFiles(files);
+        const requested=u.file.dataset.kind||'';delete u.file.dataset.kind;
+        addFiles(files,requested);
     });
     u.grid.addEventListener('dragover', e => {
         if (session && !session.busy && e.dataTransfer?.types.includes('Files')) { e.preventDefault(); u.grid.classList.add('is-file-drop'); }
@@ -288,10 +289,10 @@ function addByUrl() {
     addMedia([{ kind, src: url.href, thumb: kind === 'image' ? url.href : '', name: url.pathname.split('/').pop() || url.hostname }]);
 }
 
-function addFiles(files) {
+function addFiles(files,requested='') {
     const items = [], errors = [];
     for (const file of files) {
-        const kind = fileKind(file);
+        const kind = ['sticker','video_note'].includes(requested)?requested:fileKind(file);
         if (!kind) { errors.push(file.name + ': неподдерживаемый формат.'); continue; }
         const src = URL.createObjectURL(file);
         items.push({kind, src, thumb:kind === 'image' ? src : '', name:file.name, file});
@@ -322,8 +323,8 @@ function move(from, to) {
 function mediaCard(item, i, total) {
     const preview = ['audio','voice'].includes(item.kind) ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:item.kind==='voice'?'Голосовое':'Аудио'}), el('span',{textContent:item.name || 'Аудиофайл'}), el('audio',{src:item.src, controls:true, preload:'none'})) :
         item.kind === 'document' ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:(item.name?.split('.').pop() || 'Файл').toUpperCase()}), el('span',{textContent:item.name || 'Документ'})) :
-        item.kind === 'video' ? el('video', { src: item.src, poster: item.thumb || '', muted: true, preload: 'metadata', playsInline: true }) : el('img', { src: item.thumb || item.src, alt: '', draggable: false });
-    const card = el('div', { className: 'pe-card', draggable: true }, preview, el('span', { className: 'pe-order', textContent: String(i + 1) }),
+        ['video','video_note'].includes(item.kind) ? el('video', { src: item.src, poster: item.thumb || '', muted: true, preload: 'metadata', playsInline: true }) : el('img', { src: item.thumb || item.src, alt: '', draggable: false });
+    const card = el('div', { className: 'pe-card'+(item.kind==='video_note'?' pe-video-note':''), draggable: true }, preview, el('span', { className: 'pe-order', textContent: String(i + 1) }),
         item.kind === 'video' ? el('span', { className: 'video-mark', innerHTML: VIDEO_ICON }) : null,
         el('div', { className: 'pe-card-tools' }, button('pe-tool', '‹', () => move(i, i - 1), { ariaLabel: 'Сдвинуть влево', disabled: i === 0 }),
             button('pe-tool pe-tool-danger', '✕', () => { session.media.splice(i, 1); render(); }, { ariaLabel: 'Убрать из поста' }),
@@ -349,7 +350,7 @@ function render() {
     const mediaChanged = session.renderedMedia?.length !== media.length || media.some((m,i) => m !== session.renderedMedia?.[i]) || session.renderedAllowed !== accept.join(',');
     if (mediaChanged) ui.attachments.replaceChildren(...Object.entries(KIND_LABELS).map(([kind,label]) => {
         const enabled = allowed.includes(kind) && media.length < caps.mediaMax;
-        return button('pe-btn pe-attachment', '+ ' + label, () => { ui.file.accept = fileAccept[kind]; ui.file.click(); }, {disabled:!enabled,title:enabled ? 'Добавить: ' + label : 'Недоступно для выбранных ресурсов или состава поста'});
+        return button('pe-btn pe-attachment', '+ ' + label, () => { ui.file.dataset.kind=kind;ui.file.accept = fileAccept[kind]; ui.file.click(); }, {disabled:!enabled,title:enabled ? 'Добавить: ' + label : 'Недоступно для выбранных ресурсов или состава поста'});
     }));
     const canAdd = allowed.length > 0 && media.length < caps.mediaMax;
     ui.url.disabled = !canAdd;
@@ -372,7 +373,7 @@ function render() {
     options.onDraftChange?.(snapshot);
     if (mediaChanged) { ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
         media.length ? '' : el('div', { className: 'pe-empty', textContent: 'Перетащите файлы сюда или выберите тип вложения выше' }),
-        el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
+        el('button', { type: 'button', className: 'pe-add', ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { delete ui.file.dataset.kind;ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: 'Файл' })));
         session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');
     }
     ui.count.textContent = `${media.length} / ${maxMedia}`;
@@ -405,7 +406,7 @@ function render() {
     ui.submit.disabled = empty || over || blocked || session.busy;
     ui.warning.hidden = !(empty || over || blocked);
     ui.warning.textContent = empty ? 'Добавьте медиа или текст.' : over ? `Текст длиннее лимита: ${length} из ${limit}.` : 'Исправьте несовместимость в блоке проверки площадок.';
-    if(standalone){ui.summary.textContent=session.extras.location?'Геолокация':'Карточка контакта';return;}
+    if(standalone){ui.summary.textContent=session.extras.location?'Геолокация':session.extras.max_sticker?'Стикер MAX':'Карточка контакта';return;}
     ui.summary.textContent = `${media.length} медиа · ${text.length} ${pluralRu(text.length, 'символ', 'символа', 'символов')} · ${options.picked.length} ${pluralRu(options.picked.length, 'ресурс', 'ресурса', 'ресурсов')}`;
     ui.original.disabled = !options.original;
     ui.description.disabled = !options.description;
@@ -463,7 +464,7 @@ function renderExtraButtons(){
 function updateExtraAvailability(){
     if(!session)return;
     const card=standaloneExtra(session.extras);
-    const availability=key=>card&&['buttons','spoiler','preview'].includes(key)?'Недоступно для отдельной карточки.':extraAvailability(selectedTargets(),card?[]:session.media,card?'':ui.text.value,session.poll,key);
+    const availability=key=>card&&['buttons','spoiler','preview','styled_text'].includes(key)?'Недоступно для отдельной карточки.':extraAvailability(selectedTargets(),card?[]:session.media,card?'':ui.text.value,session.poll,key);
     const inputs=[...ui.extras.querySelectorAll('input[type=checkbox]')];
     Object.keys(EXTRA_LABELS).forEach((key,i)=>{const reason=availability(key);inputs[i].disabled=!!reason&&!session.extras[key];inputs[i].closest('label').title=reason;});
     for(const input of ui.extras.querySelectorAll('[data-extra-text]')){
@@ -487,7 +488,7 @@ const tagMode = o => (o.targets.some(t => o.picked.includes(t.value) && t.hashta
 /** Строка хэштегов под текстом: чипы с ✕ и поле «+ тег» с подсказками словаря. Теги допишет сервер последней строкой. */
 function renderTags() {
     const mode = tagMode(session.options);
-    ui.tags.hidden = mode === 'off' || Boolean(session.poll);
+    ui.tags.hidden = mode === 'off' || Boolean(session.poll)||session.media.some(m=>['sticker','video_note'].includes(mediaKind(m)));
     if (ui.tags.hidden) return;
     const tagKey = JSON.stringify([mode, session.tags]);
     if (session.renderedTags === tagKey) return;
