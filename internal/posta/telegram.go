@@ -1573,6 +1573,18 @@ func (u *U) OutboxDuplicatePost(postID string, publishAt int64) (jx.M, error) {
 		}
 		g := jx.Copy(f)
 		g["path"] = filepath.Join(to, name)
+		if cover := jx.Str(f, "cover_path"); cover != "" {
+			coverName := filepath.Base(cover)
+			dest := filepath.Join(to, coverName)
+			if fileExists(dest) {
+				dest = filepath.Join(to, fmt.Sprintf("copy-cover-%d.jpg", len(media)))
+			}
+			if err := copyFile(filepath.Join(from, coverName), dest); err != nil {
+				os.RemoveAll(to)
+				return nil, Bad("Не удалось скопировать обложку видео.")
+			}
+			g["cover_path"] = dest
+		}
 		media = append(media, g)
 	}
 	cp := jx.Merge(src, jx.M{"id": id, "created_at": now(), "publish_at": publishAt, "slot_at": nil, "slot": false, "status": "queued", "attempts": 0, "error": "",
@@ -1611,7 +1623,8 @@ func (a *App) outboxRetryOrFail(ctx context.Context, postID, uid string, post jx
 	}
 	post["status"] = status
 	tag, err := a.DB.Pool.Exec(ctx, `UPDATE outbox SET status=$1, publish_at=$2, data=$3 WHERE id=$4 AND user_id=$5 AND status='sending'
-		AND COALESCE(data->>'sending_at','')=$6 AND COALESCE(data->>'attempts','')=$7`,
+		AND COALESCE(data->>'sending_at','')=$6 AND COALESCE(data->>'attempts','')=$7
+		AND NOT (data ? 'confirmed_receipt')`,
 		status, jx.Int(post, "publish_at"), jx.Marshal(post), postID, uid, sendingAt, originalAttempts)
 	if err != nil {
 		fmt.Printf("публикатор: не удалось сохранить состояние очереди %s: %v\n", postID, err)
@@ -1767,7 +1780,9 @@ func (a *App) ThumbGC(ctx context.Context) int {
 		}
 		id := strings.TrimSuffix(e.Name(), ".jpg")
 		var used bool
-		a.DB.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM outbox WHERE data->>'thumb_id' = $1) OR EXISTS (SELECT 1 FROM published WHERE data->>'thumb_id' = $1)`, id).Scan(&used)
+		if err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM outbox WHERE data->>'thumb_id' = $1) OR EXISTS (SELECT 1 FROM published WHERE data->>'thumb_id' = $1)`, id).Scan(&used); err != nil {
+			continue // failed lookup is not evidence that the file is unreferenced
+		}
 		if !used && os.Remove(filepath.Join(a.ThumbDir(), e.Name())) == nil {
 			n++
 		}
@@ -1969,6 +1984,14 @@ func (a *App) OutboxProcessDue(ctx context.Context) map[string]int {
 		}
 		rows.Close()
 		for _, s := range list {
+			if jx.Has(s.post, "confirmed_receipt") {
+				if err := a.outboxRecoverReceipt(ctx, s.id, s.uid, s.post); err != nil {
+					fmt.Printf("публикатор: подтверждённый пост %s ожидает сохранения журнала: %v\n", s.id, err)
+				} else {
+					res["sent"]++
+				}
+				continue
+			}
 			if jx.Int(s.post, "sending_at") > t-outboxSendingTimeout {
 				continue
 			}
@@ -2008,15 +2031,29 @@ func (a *App) OutboxProcessDue(ctx context.Context) map[string]int {
 			}
 			continue
 		}
-		if err := a.outboxFinishSent(ctx, id, uid, post, c, sent); err != nil {
-			// Do not automatically resend a post already accepted by the
-			// remote platform. The stale-sending path will ask for review.
+		if !outboxConfirmedResult(sent) {
+			if a.outboxRetryOrFail(ctx, id, uid, post, "Соцсеть не подтвердила идентификатор поста. Проверьте канал перед повтором.", true) {
+				res["failed"]++
+			}
+			continue
+		}
+		// Once the provider accepted a post, retain its receipt even if the
+		// ordinary worker context was cancelled during a graceful shutdown.
+		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
+		if err := a.outboxStoreReceipt(finishCtx, id, uid, post, c, sent); err != nil {
+			fmt.Printf("публикатор: не удалось сохранить подтверждение %s: %v\n", id, err)
+		}
+		if err := a.outboxFinishSent(finishCtx, id, uid, post, c, sent); err != nil {
+			// If persisted, the receipt lets a later pass finish locally.
+			// Otherwise the stale-sending guard still prevents blind retry.
 			fmt.Printf("публикатор: пост %s отправлен, но запись результата не завершена: %v\n", id, err)
+			cancel()
 			continue
 		}
 		if rec := jx.Str(post, "record"); rec != "" {
-			a.User(ctx, uid, nil).ContentMarkPosted(rec)
+			a.User(finishCtx, uid, nil).ContentMarkPosted(rec)
 		}
+		cancel()
 		res["sent"]++
 	}
 	return res

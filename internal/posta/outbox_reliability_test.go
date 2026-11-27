@@ -140,3 +140,53 @@ func TestOutboxFinalizeAtomicPostgres(t *testing.T) {
 		t.Fatal("stale finalization duplicated published history")
 	}
 }
+
+func TestOutboxConfirmedReceiptRecoveryPostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_TEST_PG")
+	if dsn == "" {
+		t.Skip("POSTA_TEST_PG not set; requires disposable database")
+	}
+	ctx := context.Background()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{DB: d, Mem: NewMemCache(100), Cfg: config.Server{DataDir: t.TempDir()}}
+	uid, id := randHex(16), randHex(6)
+	u := a.User(ctx, uid, nil)
+	defer d.Pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, uid)
+	at := now()
+	post := jx.M{"id": id, "status": "sending", "channel": "original", "publish_at": at - 900, "sending_at": at - 900, "attempts": 1, "text": "test"}
+	if _, err := u.OutboxUpdate(func([]jx.M) []jx.M { return []jx.M{post} }); err != nil {
+		t.Fatal(err)
+	}
+	channel := &Channel{ID: "original", ChatTitle: "Original channel", Platform: "telegram"}
+	sent := &SentResult{MessageIDs: []int{123}, URL: "https://t.me/example/123"}
+	if err := a.outboxStoreReceipt(ctx, id, uid, post, channel, sent); err != nil {
+		t.Fatal(err)
+	}
+	// A stale worker's timeout must not erase the durable confirmation.
+	if a.outboxRetryOrFail(ctx, id, uid, post, "timeout", true) {
+		t.Fatal("confirmed publication became retryable")
+	}
+	rows := u.Outbox()
+	if len(rows) != 1 || !jx.Has(rows[0], "confirmed_receipt") || jx.Str(rows[0], "status") != "sending" {
+		t.Fatal("confirmation lost")
+	}
+	// Recovery needs neither an attached account nor another network call.
+	if err := a.outboxRecoverReceipt(ctx, id, uid, rows[0]); err != nil {
+		t.Fatal(err)
+	}
+	published := u.Published(0)
+	if len(u.Outbox()) != 0 || len(published) != 1 || jx.Str(published[0], "url") != sent.URL ||
+		!slices.Contains(jx.Strs(published[0], "external_ids"), "123") {
+		t.Fatal("receipt did not become the original published record")
+	}
+	if err := a.outboxRecoverReceipt(ctx, id, uid, rows[0]); err == nil || len(u.Published(0)) != 1 {
+		t.Fatal("stale recovery duplicated journal entry")
+	}
+}
