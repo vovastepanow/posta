@@ -59,10 +59,14 @@ deployed="$(cat "$deployed_file" 2>/dev/null || true)"
 migration_pending="${HOME}/.posta-auto-update-migration-pending"
 health_url="${POSTA_UPDATE_HEALTH_URL:-http://127.0.0.1:8090/}"
 migration_healthy() {
-    local code
+    local code pid after
     /usr/bin/systemctl is-active --quiet posta || return 1
+    pid="$(/usr/bin/systemctl show --property=MainPID --value posta)" || return 1
+    deployment_process_matches "$pid" "$APP/bin/posta" || return 1
     code="$(curl --silent --output /dev/null --max-time 3 --write-out '%{http_code}' "$health_url")" || return 1
-    [[ "$code" =~ ^(2|3)[0-9][0-9]$ || "$code" = 401 || "$code" = 403 ]]
+    [[ "$code" =~ ^(2|3)[0-9][0-9]$ || "$code" = 401 || "$code" = 403 ]] || return 1
+    after="$(/usr/bin/systemctl show --property=MainPID --value posta)" || return 1
+    [ "$pid" = "$after" ] && deployment_process_matches "$after" "$APP/bin/posta"
 }
 source "$APP/deploy/auto-update-state.sh"
 if [ -e "$migration_pending" ]; then
@@ -170,12 +174,21 @@ if [ "$migration_release" = 1 ]; then
     done
     fail "Migration release did not become healthy; database backup and previous executable preserved."
 fi
-if ! sudo -n /usr/bin/systemctl restart posta ||
-   ! /usr/bin/systemctl is-active --quiet posta; then
-    log "Service restart/health failed; restoring previous executable."
-    cp -p bin/posta.previous bin/posta
-    sudo -n /usr/bin/systemctl restart posta || true
-    fail "Deployment failed; inspect journalctl -u posta."
+if sudo -n /usr/bin/systemctl restart posta; then
+    # Type=simple can be active while startup is still failing. Confirm
+    # both the new executable and HTTP readiness before recording a deploy.
+    for ((attempt=0; attempt<30; attempt++)); do
+        if migration_healthy; then
+            printf '%s\n' "$target" > "$deployed_file"
+            log "Deployed ${target:0:8}; service healthy."
+            exit 0
+        fi
+        sleep 2
+    done
 fi
-printf "%s\n" "$target" > "$deployed_file"
-log "Deployed ${target:0:8}; service active."
+log "Service restart/health failed; restoring previous executable."
+# Never truncate a running executable (ETXTBSY). Replace it atomically.
+cp -p bin/posta.previous bin/posta.rollback
+mv -f bin/posta.rollback bin/posta
+sudo -n /usr/bin/systemctl restart posta || true
+fail "Deployment failed; inspect journalctl -u posta."

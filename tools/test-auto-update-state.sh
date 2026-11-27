@@ -35,3 +35,10 @@ fi
 confirm_pending_migration "$current" "$pending" "$deployed"
 [ "$(cat "$deployed")" = "$current" ]
 [ ! -e "$pending" ]
+
+deployment_process_matches "$$" "/proc/$$/exe"
+if deployment_process_matches "$$" "$deployed" || deployment_process_matches 0 "/proc/$$/exe" ||
+   deployment_process_matches "../self" "/proc/$$/exe"; then
+    echo "unrelated or invalid process accepted" >&2
+    exit 1
+fi

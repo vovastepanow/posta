@@ -9,3 +9,10 @@ confirm_pending_migration() {
     printf '%s\n' "$pending" > "$deployed_file" || return 2
     rm -f "$pending_file" || return 2
 }
+
+# Linux systemd service runs as the deployment owner. Comparing inodes
+# detects an old process that is still listening after atomic replacement.
+deployment_process_matches() {
+    local pid="$1" expected="$2"
+    [[ "$pid" =~ ^[1-9][0-9]*$ && "/proc/$pid/exe" -ef "$expected" ]]
+}
