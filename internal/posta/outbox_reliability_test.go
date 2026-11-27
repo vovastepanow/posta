@@ -256,13 +256,14 @@ func TestOutboxDuplicateEditedPayloadPostgres(t *testing.T) {
 	if err := os.MkdirAll(edit, 0700); err != nil {
 		t.Fatal(err)
 	}
-	video, cover := filepath.Join(edit, "video.mp4"), filepath.Join(edit, "cover.jpg")
-	for _, f := range []string{video, cover} {
+	video, cover := filepath.Join(edit, "video.mp4"), filepath.Join(edit, "1-image.jpg")
+	image := filepath.Join(edit, "image.jpg")
+	for _, f := range []string{video, cover, image} {
 		if err := os.WriteFile(f, []byte(f), 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	post := jx.M{"id": id, "status": "queued", "publish_at": now() + 3600, "media": []jx.M{{"kind": "video", "path": video, "cover_path": cover}}}
+	post := jx.M{"id": id, "status": "queued", "publish_at": now() + 3600, "media": []jx.M{{"kind": "video", "path": video, "cover_path": cover}, {"kind": "photo", "path": image}}}
 	if _, err := u.OutboxUpdate(func([]jx.M) []jx.M { return []jx.M{post} }); err != nil {
 		t.Fatal(err)
 	}
@@ -275,6 +276,20 @@ func TestOutboxDuplicateEditedPayloadPostgres(t *testing.T) {
 	}
 	if !outboxMediaReady(duplicate) {
 		t.Fatal("copy still relies on removed original")
+	}
+	files := jx.Maps(duplicate, "media")
+	if len(files) != 2 {
+		t.Fatalf("duplicate lost attachments: %+v", files)
+	}
+	for _, tc := range []struct{ path, original string }{
+		{jx.Str(files[0], "path"), video},
+		{jx.Str(files[0], "cover_path"), cover},
+		{jx.Str(files[1], "path"), image},
+	} {
+		data, err := os.ReadFile(tc.path)
+		if err != nil || string(data) != tc.original {
+			t.Fatalf("attachment overwritten: %s: %v", tc.path, err)
+		}
 	}
 }
 

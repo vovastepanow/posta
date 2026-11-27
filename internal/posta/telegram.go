@@ -1565,7 +1565,7 @@ func (u *U) OutboxDuplicatePost(postID string, publishAt int64) (jx.M, error) {
 	var media []jx.M
 	for _, f := range jx.Maps(src, "media") {
 		original := jx.Str(f, "path")
-		dest := filepath.Join(to, fmt.Sprintf("%d-%s", len(media), filepath.Base(original)))
+		dest := filepath.Join(to, fmt.Sprintf("media-%d%s", len(media), filepath.Ext(original)))
 		if !outboxRegularFile(from, original) || copyFile(original, dest) != nil {
 			os.RemoveAll(to)
 			return nil, Bad("Не удалось скопировать файлы поста.")
@@ -1573,11 +1573,9 @@ func (u *U) OutboxDuplicatePost(postID string, publishAt int64) (jx.M, error) {
 		g := jx.Copy(f)
 		g["path"] = dest
 		if cover := jx.Str(f, "cover_path"); cover != "" {
-			coverName := filepath.Base(cover)
-			dest := filepath.Join(to, coverName)
-			if fileExists(dest) {
-				dest = filepath.Join(to, fmt.Sprintf("copy-cover-%d.jpg", len(media)))
-			}
+			// Cover and attachment namespaces must be disjoint even when
+			// a source filename happens to match a later attachment.
+			dest := filepath.Join(to, fmt.Sprintf("cover-%d%s", len(media), filepath.Ext(cover)))
 			if !outboxRegularFile(from, cover) || copyFile(cover, dest) != nil {
 				os.RemoveAll(to)
 				return nil, Bad("Не удалось скопировать обложку видео.")
