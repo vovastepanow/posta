@@ -61,6 +61,12 @@ const (
 	regSample                        // отклонён по другой теме: оценить по сохранённому сэмплу без сети
 )
 
+// registryRetryDelay backs off temporary fetch failures without marking a source dead.
+func registryRetryDelay(attempts int) int64 {
+	delay := RegistryRetryAfter * int64(1<<min(max(attempts-1, 0), 3))
+	return min(delay, 7*RegistryRetryAfter)
+}
+
 // registryDecide — решение по строке реестра для темы. nil — источника в реестре нет.
 func registryDecide(r *registryRow, topic string, at, recheckDays, sampleDays int64) (registryVerdict, string) {
 	if r == nil {
@@ -77,7 +83,7 @@ func registryDecide(r *registryRow, topic string, at, recheckDays, sampleDays in
 		fallthrough // old versions incorrectly marked repeated temporary failures dead
 	case RegStatusFailed:
 		// Temporary failures do not prove the source is dead. Back off up to a week.
-		delay := discoveryRetryDelay(r.FailCount)
+		delay := registryRetryDelay(r.FailCount)
 		if at-r.CheckedAt < delay {
 			return regSkip, fmt.Sprintf("не загрузился — повтор через %d дн.", delay/RegistryRetryAfter)
 		}
