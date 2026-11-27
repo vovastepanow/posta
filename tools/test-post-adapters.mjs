@@ -31,3 +31,10 @@ assert.ok(analyzePost(mixed).warnings.some(x => x.includes('часть текс�
 assert.equal(recordMediaIncomplete({image:'https://example.org/cover.jpg', expected_video_count:1}), true);
 assert.equal(recordMediaIncomplete({video_unavailable:true, image:'https://example.org/cover.jpg'}), true);
 assert.equal(recordMediaIncomplete({gallery:[{image:'https://example.org/photo.jpg'},{video:'https://example.org/a.mp4'},{video:'https://example.org/b.mp4'}], expected_video_count:2}), false);
+
+const selected = fromRecord({source:'Telegram | Example channel', text:'Complete text', why_relevant:'Matches the topic', posted_at:123, gallery:[{image:'https://example.org/a.jpg'},{video:'https://example.org/a.mp4'}]});
+assert.equal(selected.source.name, 'Example channel');
+assert.equal(selected.selectionReason, 'Matches the topic');
+assert.equal(selected.media.length, 2);
+assert.equal(selected.media[1].kind, 'video');
+assert.equal(fromRecord({text:'No review'}).selectionReason, '');

@@ -1168,9 +1168,10 @@ func fileExists(p string) bool {
 // readRequestImage — файл image_file из формы или картинка по ссылке image_url.
 func readRequestImage(c *Ctx) ([]byte, error) {
 	if strings.HasPrefix(c.R.Header.Get("Content-Type"), "multipart/") {
-		if err := c.R.ParseMultipartForm(config.MaxImageBytes + 1<<20); err != nil {
-			return nil, fail(400, "Изображение должно быть не больше 10 МБ.")
+		if err := parseUploadForm(c, config.MaxImageBytes+(1<<20), config.MaxImageBytes); err != nil {
+			return nil, err
 		}
+		defer c.R.MultipartForm.RemoveAll()
 		if f, h, err := c.R.FormFile("image_file"); err == nil {
 			defer f.Close()
 			if h.Size > config.MaxImageBytes {

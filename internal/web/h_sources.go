@@ -1,7 +1,9 @@
 package web
 
 import (
+	"errors"
 	"io"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
@@ -255,25 +257,39 @@ func topicAvailable(c *Ctx) error {
 
 func now() int64 { return time.Now().Unix() }
 
-// multipartFiles — файлы поля name во временные файлы (удаляет cleanup).
-func multipartFiles(c *Ctx, field string, maxTotal int64) ([]posta.Upload, func(), error) {
-	cleanup := func() {}
-	if err := c.R.ParseMultipartForm(32 << 20); err != nil {
-		if c.R.ContentLength > maxTotal {
-			return nil, cleanup, fail(413, "Слишком много за раз: уберите часть файлов.")
-		}
-		return nil, cleanup, fail(400, "Не удалось прочитать загрузку.")
+// parseUploadForm bounds the whole request, including chunked uploads and
+// non-file fields. ParseMultipartForm's argument is only a memory threshold.
+func parseUploadForm(c *Ctx, maxTotal, memory int64) error {
+	if c.R.ContentLength > maxTotal {
+		return fail(413, "Слишком много за раз: уберите часть файлов.")
 	}
-	var out []posta.Upload
+	c.R.Body = http.MaxBytesReader(c.W, c.R.Body, maxTotal)
+	if err := c.R.ParseMultipartForm(memory); err != nil {
+		var limit *http.MaxBytesError
+		if errors.As(err, &limit) {
+			return fail(413, "Слишком много за раз: уберите часть файлов.")
+		}
+		return fail(400, "Не удалось прочитать загрузку.")
+	}
+	return nil
+}
+
+// multipartFiles copies uploads into independent temporary paths. Cleanup
+// owns both the parsed form and every copied file, even on an early failure.
+func multipartFiles(c *Ctx, field string, maxTotal int64) ([]posta.Upload, func(), error) {
 	var paths []string
-	cleanup = func() {
-		for _, p := range paths {
-			os.Remove(p)
+	cleanup := func() {
+		for _, path := range paths {
+			os.Remove(path)
 		}
 		if c.R.MultipartForm != nil {
 			c.R.MultipartForm.RemoveAll()
 		}
 	}
+	if err := parseUploadForm(c, maxTotal, 32<<20); err != nil {
+		return nil, cleanup, err
+	}
+	var out []posta.Upload
 	for _, fh := range c.R.MultipartForm.File[field] {
 		f, err := fh.Open()
 		if err != nil {
@@ -285,10 +301,13 @@ func multipartFiles(c *Ctx, field string, maxTotal int64) ([]posta.Upload, func(
 			f.Close()
 			return nil, cleanup, err
 		}
-		io.Copy(tmp, f)
-		f.Close()
-		tmp.Close()
 		paths = append(paths, tmp.Name())
+		_, copyErr := io.Copy(tmp, f)
+		f.Close()
+		closeErr := tmp.Close()
+		if copyErr != nil || closeErr != nil {
+			return nil, cleanup, errors.Join(copyErr, closeErr)
+		}
 		out = append(out, posta.Upload{Name: fh.Filename, Path: tmp.Name()})
 	}
 	return out, cleanup, nil
