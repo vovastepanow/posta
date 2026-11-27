@@ -171,8 +171,15 @@ func hasUnavailablePoolVideo(pool []jx.M) bool {
 // poolVideoCacheLost checks the actual record, not its cover URL. A missing
 // cover is shared by text posts and coverless videos and is not an identity.
 func (a *App) poolVideoCacheLost(it jx.M) bool {
-	for _, f := range append([]jx.M{it}, jx.Maps(it, "gallery")...) {
-		if jx.Str(f, "video") != "" && jx.Str(f, "video_local") != "" && a.MediaExisting(jx.Str(f, "video_local")) == "" {
+	missing := func(f jx.M) bool {
+		local := jx.Str(f, "video_local")
+		return jx.Str(f, "video") != "" && local != "" && a.MediaExisting(local) == ""
+	}
+	if missing(it) {
+		return true
+	}
+	for _, f := range jx.Maps(it, "gallery") {
+		if missing(f) {
 			return true
 		}
 	}
@@ -182,33 +189,35 @@ func (a *App) poolVideoCacheLost(it jx.M) bool {
 // PoolWithoutLostVideo removes only records whose cached video is missing.
 // Recheck under the content lock in case the worker repaired a file meanwhile.
 func (u *U) PoolWithoutLostVideo(pool []jx.M) []jx.M {
-	hasLost := false
-	for _, it := range pool {
-		if u.poolVideoCacheLost(it) {
-			hasLost = true
-			break
-		}
-	}
-	if hasLost {
-		u.PoolUpdate(func(all []jx.M) []jx.M {
-			out := make([]jx.M, 0, len(all))
-			for _, it := range all {
-				if !u.poolVideoCacheLost(it) {
-					out = append(out, it)
-				}
+	filter := func() ([]jx.M, bool) {
+		out := make([]jx.M, 0, len(pool))
+		hasLost := false
+		for _, it := range pool {
+			if u.poolVideoCacheLost(it) {
+				hasLost = true
+			} else if !poolUnavailableVideo(it) {
+				out = append(out, it)
 			}
-			if len(out) == len(all) {
-				return nil
-			}
-			return out
-		})
-	}
-	out := []jx.M{}
-	for _, it := range pool {
-		if !u.poolVideoCacheLost(it) && !poolUnavailableVideo(it) {
-			out = append(out, it)
 		}
+		return out, hasLost
 	}
+	out, hasLost := filter()
+	if !hasLost {
+		return out
+	}
+	u.PoolUpdate(func(all []jx.M) []jx.M {
+		kept := make([]jx.M, 0, len(all))
+		for _, it := range all {
+			if !u.poolVideoCacheLost(it) {
+				kept = append(kept, it)
+			}
+		}
+		if len(kept) == len(all) {
+			return nil
+		}
+		return kept
+	})
+	out, _ = filter()
 	return out
 }
 
@@ -222,13 +231,14 @@ func PoolOrder(pool []jx.M) []jx.M {
 // the existing topic groups, postponement and source diversity still apply.
 func poolOrderWithPreference(pool []jx.M, bonus func(jx.M) int64) []jx.M {
 	type entry struct {
-		item  jx.M
-		seq   int
-		score int64
+		item               jx.M
+		source             string
+		score, postponedAt int64
+		postponed          bool
 	}
 	var order []string
 	groups := map[string][]entry{}
-	for i, it := range pool {
+	for _, it := range pool {
 		t := jx.Str(it, "topic")
 		if _, ok := groups[t]; !ok {
 			order = append(order, t)
@@ -237,42 +247,42 @@ func poolOrderWithPreference(pool []jx.M, bonus func(jx.M) int64) []jx.M {
 		if fresh <= 0 {
 			fresh = jx.Int(it, "pooled_at")
 		}
-		if bonus != nil && !jx.Bool(it, "postponed_at") {
+		postponed := jx.Bool(it, "postponed_at")
+		if bonus != nil && !postponed {
 			fresh += bonus(it)
 		}
-		groups[t] = append(groups[t], entry{item: it, seq: i, score: fresh})
+		groups[t] = append(groups[t], entry{
+			item: it, source: ContentSourceKey(it), score: fresh,
+			postponedAt: jx.Int(it, "postponed_at"), postponed: postponed,
+		})
 	}
 	out := make([]jx.M, 0, len(pool))
 	for _, t := range order {
 		g := groups[t]
 		sort.SliceStable(g, func(a, b int) bool {
-			pa, pb := jx.Int(g[a].item, "postponed_at"), jx.Int(g[b].item, "postponed_at")
-			if pa != pb {
-				return pa < pb
+			if g[a].postponedAt != g[b].postponedAt {
+				return g[a].postponedAt < g[b].postponedAt
 			}
-			fa, fb := g[a].score, g[b].score
-			if fa != fb {
-				return fa > fb
-			}
-			return g[a].seq < g[b].seq
+			return g[a].score > g[b].score
 		})
 		last := ""
 		hasLast := false
 		for len(g) > 0 {
 			pick := 0
-			if hasLast && ContentSourceKey(g[0].item) == last {
+			if hasLast && g[0].source == last {
 				for k := 1; k < len(g) && k <= config.PoolDiversityWindow; k++ {
-					c := g[k].item
-					if ContentSourceKey(c) != last && jx.Bool(c, "postponed_at") == jx.Bool(g[0].item, "postponed_at") {
+					if g[k].source != last && g[k].postponed == g[0].postponed {
 						pick = k
 						break
 					}
 				}
 			}
-			it := g[pick].item
-			g = append(g[:pick], g[pick+1:]...)
-			last, hasLast = ContentSourceKey(it), true
-			out = append(out, it)
+			chosen := g[pick]
+			// Shift only the bounded prefix, not every remaining entry.
+			copy(g[1:pick+1], g[:pick])
+			g = g[1:]
+			last, hasLast = chosen.source, true
+			out = append(out, chosen.item)
 		}
 	}
 	return out
