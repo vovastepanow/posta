@@ -43,8 +43,12 @@ jobs:
             echo "The deploy script must not depend on Python."
             exit 1
           fi
-      - name: Check deployment shell scripts
-        run: bash -n deploy/auto-update.sh deploy/enable-auto-update.sh research/posta_multi/*.sh
+      - name: Check deployment shell scripts and migration recovery
+        run: |
+          for file in deploy/*.sh research/posta_multi/*.sh tools/test-auto-update-state.sh; do
+            bash -n "$file"
+          done
+          bash tools/test-auto-update-state.sh
       - name: Syntax-check all isolated Posta Multi Python research modules
         run: python3 -m compileall -q research/posta_multi
       - name: Unit-test private AV comparison report safety (Python stdlib)

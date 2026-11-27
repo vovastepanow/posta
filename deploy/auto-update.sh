@@ -49,11 +49,37 @@ if command -v crontab >/dev/null 2>&1; then
         fi
     fi
 fi
-git fetch --quiet origin main
 current="$(git rev-parse HEAD)"
-main_tip="$(git rev-parse refs/remotes/origin/main)"
 deployed_file="${HOME}/.posta-auto-update-deployed"
 deployed="$(cat "$deployed_file" 2>/dev/null || true)"
+
+# Resolve pending migrations before contacting GitHub or selecting another
+# green release. A newer CI commit must never overwrite an unconfirmed
+# migration's recovery state or executable.
+migration_pending="${HOME}/.posta-auto-update-migration-pending"
+health_url="${POSTA_UPDATE_HEALTH_URL:-http://127.0.0.1:8090/}"
+migration_healthy() {
+    local code
+    /usr/bin/systemctl is-active --quiet posta || return 1
+    code="$(curl --silent --output /dev/null --max-time 3 --write-out '%{http_code}' "$health_url")" || return 1
+    [[ "$code" =~ ^(2|3)[0-9][0-9]$ || "$code" = 401 || "$code" = 403 ]]
+}
+source "$APP/deploy/auto-update-state.sh"
+if [ -e "$migration_pending" ]; then
+    if confirm_pending_migration "$current" "$migration_pending" "$deployed_file"; then
+        log "Deployed ${current:0:8}; service healthy after migrations."
+        exit 0
+    else
+        pending_result=$?
+        if [ "$pending_result" = 3 ]; then
+            fail "Pending migration marker does not match the checkout; manual recovery required."
+        fi
+        fail "Migration deployment not yet healthy; previous executable and database backup preserved. Inspect service journal."
+    fi
+fi
+
+git fetch --quiet origin main
+main_tip="$(git rev-parse refs/remotes/origin/main)"
 
 # No GitHub API request is necessary when the fetched tip is already deployed.
 if [ "$current" = "$main_tip" ] && [ "$deployed" = "$main_tip" ]; then exit 0; fi
@@ -107,25 +133,7 @@ if [ -n "$migration_changes" ]; then
     log "New migrations detected; service will back up PostgreSQL before applying."
 fi
 
-# If a previous migration deployment is still unconfirmed, do not overwrite
-# its pre-migration executable or restart it again on every cron invocation.
-migration_pending="${HOME}/.posta-auto-update-migration-pending"
-health_url="${POSTA_UPDATE_HEALTH_URL:-http://127.0.0.1:8090/}"
-migration_healthy() {
-    local code
-    /usr/bin/systemctl is-active --quiet posta || return 1
-    code="$(curl --silent --output /dev/null --max-time 3 --write-out '%{http_code}' "$health_url")" || return 1
-    [[ "$code" =~ ^(2|3)[0-9][0-9]$ || "$code" = 401 || "$code" = 403 ]]
-}
-if [ "$migration_release" = 1 ] && [ "$current" = "$target" ] && [ "$(cat "$migration_pending" 2>/dev/null || true)" = "$target" ]; then
-    if migration_healthy; then
-        printf '%s\n' "$target" > "$deployed_file"
-        rm -f "$migration_pending"
-        log "Deployed ${target:0:8}; service healthy after migrations."
-        exit 0
-    fi
-    fail "Migration deployment not yet healthy; previous executable and database backup preserved. Inspect service journal."
-fi
+
 
 # The /tmp tmpfs on this host can fill up; both Go and cgo/GCC must use disk.
 export PATH="/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
