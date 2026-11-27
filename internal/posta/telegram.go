@@ -1566,20 +1566,21 @@ func (u *U) OutboxDuplicatePost(postID string, publishAt int64) (jx.M, error) {
 	}
 	var media []jx.M
 	for _, f := range jx.Maps(src, "media") {
-		name := filepath.Base(jx.Str(f, "path"))
-		if err := copyFile(filepath.Join(from, name), filepath.Join(to, name)); err != nil {
+		original := jx.Str(f, "path")
+		dest := filepath.Join(to, fmt.Sprintf("%d-%s", len(media), filepath.Base(original)))
+		if !outboxRegularFile(from, original) || copyFile(original, dest) != nil {
 			os.RemoveAll(to)
 			return nil, Bad("Не удалось скопировать файлы поста.")
 		}
 		g := jx.Copy(f)
-		g["path"] = filepath.Join(to, name)
+		g["path"] = dest
 		if cover := jx.Str(f, "cover_path"); cover != "" {
 			coverName := filepath.Base(cover)
 			dest := filepath.Join(to, coverName)
 			if fileExists(dest) {
 				dest = filepath.Join(to, fmt.Sprintf("copy-cover-%d.jpg", len(media)))
 			}
-			if err := copyFile(filepath.Join(from, coverName), dest); err != nil {
+			if !outboxRegularFile(from, cover) || copyFile(cover, dest) != nil {
 				os.RemoveAll(to)
 				return nil, Bad("Не удалось скопировать обложку видео.")
 			}
@@ -1589,9 +1590,24 @@ func (u *U) OutboxDuplicatePost(postID string, publishAt int64) (jx.M, error) {
 	}
 	cp := jx.Merge(src, jx.M{"id": id, "created_at": now(), "publish_at": publishAt, "slot_at": nil, "slot": false, "status": "queued", "attempts": 0, "error": "",
 		"next_try_at": 0, "group": randHex(6), "media": media})
-	if _, err := u.OutboxUpdate(func(q []jx.M) []jx.M { return append(q, cp) }); err != nil {
+	delete(cp, "sending_at")
+	delete(cp, "confirmed_receipt")
+	copied := false
+	if _, err := u.OutboxUpdate(func(q []jx.M) []jx.M {
+		for _, current := range q {
+			if jx.Str(current, "id") == postID && string(jx.Marshal(current)) == string(jx.Marshal(src)) {
+				copied = true
+				return append(q, cp)
+			}
+		}
+		return nil
+	}); err != nil {
 		os.RemoveAll(to)
 		return nil, err
+	}
+	if !copied {
+		os.RemoveAll(to)
+		return nil, Bad("Исходный пост изменился. Обновите календарь.")
 	}
 	return cp, nil
 }

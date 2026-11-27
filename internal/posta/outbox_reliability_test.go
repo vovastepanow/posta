@@ -232,3 +232,70 @@ func TestOutboxRepairDoesNotOverwriteClaimPostgres(t *testing.T) {
 		t.Fatal("repair changed in-flight post or files")
 	}
 }
+
+func TestOutboxDuplicateEditedPayloadPostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_TEST_PG")
+	if dsn == "" {
+		t.Skip("POSTA_TEST_PG not set")
+	}
+	ctx := context.Background()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{DB: d, Mem: NewMemCache(100), Cfg: config.Server{DataDir: t.TempDir()}}
+	uid, id := randHex(16), randHex(6)
+	u := a.User(ctx, uid, nil)
+	defer d.Pool.Exec(ctx, "DELETE FROM users WHERE id=$1", uid)
+	root, _ := a.OutboxMediaDir(id)
+	edit := filepath.Join(root, "edit-test")
+	if err := os.MkdirAll(edit, 0700); err != nil {
+		t.Fatal(err)
+	}
+	video, cover := filepath.Join(edit, "video.mp4"), filepath.Join(edit, "cover.jpg")
+	for _, f := range []string{video, cover} {
+		if err := os.WriteFile(f, []byte(f), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	post := jx.M{"id": id, "status": "queued", "publish_at": now() + 3600, "media": []jx.M{{"kind": "video", "path": video, "cover_path": cover}}}
+	if _, err := u.OutboxUpdate(func([]jx.M) []jx.M { return []jx.M{post} }); err != nil {
+		t.Fatal(err)
+	}
+	duplicate, err := u.OutboxDuplicatePost(id, now()+7200)
+	if err != nil || duplicate == nil {
+		t.Fatalf("duplicate edited payload: %v", err)
+	}
+	if !u.OutboxRemovePost(id) {
+		t.Fatal("remove original")
+	}
+	if !outboxMediaReady(duplicate) {
+		t.Fatal("copy still relies on removed original")
+	}
+}
+
+func TestOutboxCleanupReplacedMediaOnlyOwnFiles(t *testing.T) {
+	a := &App{Cfg: config.Server{DataDir: t.TempDir()}}
+	id := randHex(6)
+	root, _ := a.OutboxMediaDir(id)
+	oldDir, newDir := filepath.Join(root, "edit-old"), filepath.Join(root, "edit-new")
+	for _, dir := range []string{oldDir, newDir} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old, keep, foreign := filepath.Join(oldDir, "photo.jpg"), filepath.Join(newDir, "photo.jpg"), filepath.Join(t.TempDir(), "foreign.jpg")
+	for _, path := range []string{old, keep, foreign} {
+		if err := os.WriteFile(path, []byte("image"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a.OutboxCleanupReplacedMedia(id, []jx.M{{"path": old}, {"path": keep}, {"path": foreign}}, []jx.M{{"path": keep}})
+	if fileExists(old) || !fileExists(keep) || !fileExists(foreign) {
+		t.Fatal("cleanup removed active or unrelated files")
+	}
+}
