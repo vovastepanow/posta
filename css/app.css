@@ -6,7 +6,7 @@
     color-scheme: light;
     --surface: #fffdf7; --surface-2: #f1ecdf; --surface-3: #eae3d3;
     --line: #ded5c3; --line-strong: #bdb29e;
-    --text: #27251f; --muted: #716c60; --faint: #716c60;
+    --text: #27251f; --muted: #716c60;
     --accent: #f3e8ae; --accent-text: #27251f;
     --danger: #a52d25; --red: #a52d25; --link: #514276;
     --ok: #286744; --ok-pill: #286744; --blue: #315e87; --warm: #8a5a00;
@@ -76,8 +76,6 @@ body { font-family: var(--font-ui); }
 .side-nav a:hover, .side-nav .tab-btn:hover, .side-list li:hover { background: rgba(39, 37, 31, .07); }
 .side-nav a.is-active, .side-nav .tab-btn.active, .side-list li.is-active { background: #f3e8ae; color: #27251f; }
 .side-nav a.is-active em { background: #d9c66e; color: #27251f; }
-.primary-button, .topic-row button { background: #ffda1a; color: #27251f; box-shadow: 0 2px 0 rgba(39, 37, 31, .16); }
-.primary-button:hover:not(:disabled), .topic-row button:hover:not(:disabled) { background: #f0cb00; box-shadow: 0 3px 0 rgba(39, 37, 31, .18); }
 .secondary-button, .refresh-button, .account-secondary, .model-panel button { background: #fffdf7; border-color: #ded5c3; color: #27251f; }
 .secondary-button:hover, .refresh-button:hover, .account-secondary:hover { background: #f3e8ae; border-color: #bdb29e; }
 .topic-switch-button, .topic-switch-menu, .activity-console, .account-card, .proposal-card, .cal-card { background-color: #fffdf7; }
@@ -135,8 +133,8 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 /* Календарь v4: «Заполнить дыры», Предложка, охват по часам, повтор */
 .cal-tools .cal-fill { border-color: var(--red); background: var(--red); color: var(--on-bright); font-weight: 600; }
 .cal-hour.is-best { color: var(--red); font-weight: 600; }
-.cal-reach-bar { position: absolute; right: 0; bottom: 1px; height: 3px; max-width: 28px; border-radius: 2px; background: var(--red); opacity: 0.6; }
-.cal-dup-warning { margin: 8px 0; padding: 8px 10px; border: 2px solid var(--red); border-radius: var(--radius); color: var(--text); font-size: 13px; }
+.cal-reach-bar { right: 0; bottom: 1px; height: 3px; border-radius: 2px; background: var(--red); opacity: 0.6; }
+.cal-dup-warning { margin: 8px 0; border: 2px solid var(--red); }
 .cal-plan, .cal-pool { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .cal-plan-count, .cal-plan-note { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
 .cal-plan-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 2px 8px; align-items: start; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); }
@@ -149,8 +147,8 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .cal-plan-text { font-size: 13px; }
 .cal-plan-remove { justify-self: start; border: 0; background: transparent; color: var(--red); font-size: 12px; text-decoration: underline; }
 .cal-pool-row { list-style: none; }
-.cal-pool-item { display: grid; grid-template-columns: 44px 1fr; gap: 8px; width: 100%; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); text-align: left; }
-.cal-pool-item > img { grid-row: 1 / span 2; width: 44px; height: 44px; object-fit: cover; border-radius: 6px; }
+.cal-pool-item { grid-template-columns: 44px 1fr; gap: 8px; border: 1px solid var(--line); background: var(--surface); }
+.cal-pool-item > img { width: 44px; height: 44px; border-radius: 6px; }
 .activity-console-output { box-sizing: border-box; height: 100%; overflow-y: auto; padding: 8px 12px; scrollbar-color: var(--line-strong) transparent; }
 .activity-console-line { margin: 0 0 7px; padding-left: 1.5em; text-indent: -1.5em; color: var(--text); overflow-wrap: anywhere; }
 .console-time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -207,7 +205,7 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .topic-form label { color: var(--muted); font-size: 12px; }
 #content-tab .topic-form { width: min(100%, 460px); align-self: center; }
 .topic-row { display: flex; gap: 8px; }
-.topic-row input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.topic-row input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .topic2-field { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 12px; border: 1px dashed var(--line-strong); border-radius: 6px; color: var(--faint); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
 .topic2-field:hover { border-color: var(--muted); color: var(--muted); }
 .topic2-field.is-active { border: 1px solid var(--muted); background: var(--bg); color: var(--text); cursor: text; }
@@ -378,7 +376,7 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .video-mark svg { width: 14px; height: 14px; }
 /* Мозаика источника: плитки на весь контейнер с зазором 2 px, раскладку выбирает sources.js */
 /* Лента остальных файлов кандидата: прокручивается по горизонтали, миниатюры — квадраты */
-.source-coverage { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.source-coverage { margin: 4px 0 0; }
 /* Активность и аудитория — «чипы» */
 .engagement-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .eng-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12px; line-height: 1.4; }
@@ -904,7 +902,6 @@ body.tree-sheet-open { overflow: hidden; }
     flex-wrap: wrap;
     align-items: flex-end;
     gap: 12px;
-    padding: 16px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--surface);
@@ -953,20 +950,20 @@ body.tree-sheet-open { overflow: hidden; }
 .db-actions button { min-height: 26px; padding: 0 7px; font-size: 11px; }
 .database-danger-zone { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; padding: 14px 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--muted); font-size: 13px; }
 .admin-section[data-admin-section="databases"] { height: 100%; overflow: hidden; }
-.database-layout { display: grid; grid-template-columns: minmax(200px, 25%) 1fr; gap: 16px; height: 100%; min-height: 500px; }
+.database-layout { display: grid; grid-template-columns: minmax(200px, 25%) 1fr; gap: 16px; height: 100%; }
 .database-sidebar { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .database-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
 .database-list { flex: 1; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); padding: 8px; min-height: 0; }
 .database-list-item { padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; color: var(--text); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all 150ms ease; background: var(--surface); }
-.database-list-item:hover { background: var(--surface-2); border-color: var(--line); }
-.database-list-item.active { background: var(--accent); color: var(--accent-text); border-color: var(--line-strong); font-weight: 500; }
+.database-list-item:hover { border-color: var(--line); }
+.database-list-item.active { background: var(--accent); color: var(--accent-text); font-weight: 500; }
 .database-browser { display: flex; flex-direction: column; gap: 12px; }
 .database-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
 .database-breadcrumb { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; flex: 1; min-width: 0; }
 .database-breadcrumb span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .database-breadcrumb .separator { color: var(--faint); }
 .database-viewer { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: start; }
-.database-nav-btn { width: 40px; height: 40px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center; transition: all 150ms ease; }
+.database-nav-btn { width: 40px; height: 40px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 150ms ease; }
 .database-nav-btn:hover { border-color: var(--line-strong); background: var(--surface-2); }
 .database-nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 /* === ПРОСМОТР ЗАПИСИ БАЗЫ ДАННЫХ === */
@@ -1042,22 +1039,14 @@ body.tree-sheet-open { overflow: hidden; }
 }
 
 .database-record-field {
-    display: grid;
-    gap: 6px;
     padding-bottom: 12px;
     border-bottom: 1px solid var(--line-strong);
 }
 
 .database-record-field:last-child {
-    border-bottom: none;
     padding-bottom: 0;
 }
 
-.database-record-field-label {
-    color: var(--muted);
-    font-size: 11px;
-            font-weight: 700;
-}
 
 .database-record-field-value {
     color: var(--text);
@@ -1097,7 +1086,6 @@ body.tree-sheet-open { overflow: hidden; }
 .database-record-top {
     display: grid;
     grid-template-columns: minmax(240px, 1fr) 2fr;
-    gap: 20px;
     padding: 16px;
     border-bottom: 1px solid var(--line-strong);
     align-items: start;
@@ -1222,11 +1210,8 @@ body.tree-sheet-open { overflow: hidden; }
 }
 
 .database-record-expandable summary {
-    cursor: pointer;
     padding: 12px 0;
-    color: var(--muted);
     font-size: 13px;
-    font-weight: 600;
     user-select: none;
     transition: color 0.15s;
 }
@@ -1363,7 +1348,7 @@ img:not(#image-viewer-image) { cursor: zoom-in; }
 
 /* ---- Редактор поста ---- */
 .pe-overlay { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 16px; background: var(--modal-dim); animation: pe-fade 0.18s ease-out; }
-.pe-window { position: relative; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; width: min(1240px, 100%); height: min(880px, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); padding: 24px 26px 20px; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); animation: pe-rise 0.22s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.pe-window { position: relative; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; width: min(1240px, 100%); height: min(880px, calc(100dvh - 32px)); padding: 24px 26px 20px; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); animation: pe-rise 0.22s cubic-bezier(0.2, 0.9, 0.3, 1); }
 @keyframes pe-fade { from { opacity: 0; } }
 @keyframes pe-rise { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
 .pe-header, .pe-section-head, .pe-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -1569,7 +1554,7 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .cal-body.is-list { overflow-y: auto; }
 .cal-body.is-half { --half-c: color-mix(in srgb, var(--line) 70%, transparent); }
 .cal-body.is-tenth { --tenth-c: color-mix(in srgb, var(--line) 40%, transparent); }
-.cal-axis { position: absolute; left: 0; top: 0; bottom: 0; z-index: 3; width: 44px; background: var(--surface); border-right: 1px solid var(--line); pointer-events: none; }
+.cal-axis { position: absolute; left: 0; top: 0; bottom: 0; z-index: 3; width: 44px; pointer-events: none; }
 .cal-hour { position: absolute; left: 0; right: 6px; transform: translateY(-50%); color: var(--muted); font-family: var(--font-ui); font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
 .cal-now-tag { position: absolute; right: 2px; transform: translateY(-50%); padding: 0 4px; border-radius: 4px; background: var(--red); color: var(--on-bright); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cal-days { position: absolute; left: 74px; right: 0; top: 0; bottom: 0; overflow: hidden; touch-action: none; user-select: none;
@@ -1594,16 +1579,13 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .cal-day.is-past .cal-day-head { color: var(--muted); }
 .cal-day.is-today .cal-dnum { font-size: 26px; font-weight: 600; color: var(--accent-text); }   /* число сегодня — без кружка, 26 px */
 .cal-col { position: absolute; top: var(--cal-head); bottom: 0; left: 0; right: 0; overflow: hidden; }
-.cal-now { position: absolute; left: 0; right: 0; z-index: 0; height: 0; border-top: 2px solid var(--red); pointer-events: none; }
+.cal-now { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--red); pointer-events: none; }
 .cal-now::before { content: ''; position: absolute; left: 0; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
 
 .cal-thumb { display: block; width: 100%; height: 100%; object-fit: cover; }
 .cal-ph { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; overflow: hidden; color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; }
-.cal-badge { position: relative; display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; border: 1.5px solid var(--line-strong); border-radius: 50%; color: var(--on-bright); font-size: 10px; font-weight: 700; line-height: 1; }
+.cal-badge { position: relative; display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; border: 1.5px solid var(--line-strong); border-radius: 50%; line-height: 1; }
 .cal-badge.is-ok { background: var(--ok); }
-.cal-badge.is-danger { background: var(--danger); }
-.cal-badge.is-blue { background: var(--blue); }
-.cal-badge.is-accent { background: var(--accent); }
 .cal-badge.is-accent::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--line-strong); }
 .cal-badge.is-accent { animation: cal-pulse 1.2s ease-in-out infinite; }
 @keyframes cal-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.25); opacity: 0.7; } }
@@ -1661,7 +1643,7 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .cal-more:hover { color: var(--text); text-decoration: underline; }
 
 /* Панель подробностей */
-.cal-panel { position: fixed; top: 96px; right: 16px; bottom: 16px; z-index: 60; width: min(360px, calc(100vw - 32px)); display: grid; align-content: start; gap: 10px; overflow-y: auto; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+.cal-panel { position: fixed; top: 96px; right: 16px; bottom: 16px; z-index: 60; width: min(360px, calc(100vw - 32px)); display: grid; align-content: start; padding: 16px; box-shadow: var(--shadow-card); }
 .cal-panel:focus { outline: none; }
 .cal-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cal-panel-head b { font-family: var(--font-ui); font-size: 18px; font-weight: 600; }
@@ -1715,7 +1697,7 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .cal-phone-list { flex: 1; min-height: 0; display: grid; grid-auto-rows: max-content; align-content: start; gap: 8px; overflow-y: auto; padding: 10px 16px 150px; }
 .cal-phone-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: center; }
 .cal-phone-time { font-family: var(--font-ui); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.cal-phone-card { position: relative; display: flex; align-items: center; gap: 10px; height: 64px; padding: 6px 10px 6px 12px; overflow: hidden; border: 1.5px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: inset 4px 0 0 var(--c); text-align: left; color: var(--text); }
+.cal-phone-card { position: relative; display: flex; align-items: center; gap: 10px; height: 64px; padding: 6px 10px 6px 12px; overflow: hidden; border: 1.5px solid var(--line-strong); background: var(--surface); box-shadow: inset 4px 0 0 var(--c); text-align: left; color: var(--text); }
 .cal-phone-thumb { width: 50px; height: 50px; flex: none; border-radius: 8px; object-fit: cover; background: var(--surface-3); }
 .cal-phone-thumb.is-text { display: grid; place-items: center; font-size: 10px; color: var(--muted); }
 .cal-phone-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -1994,7 +1976,6 @@ body.console-collapsed .activity-console { display: none; }
 }
 
 .article-reader-foot .btn { width: auto; height: auto; padding: 10px 16px; white-space: nowrap; font-size: 15px; }
-.cal-phone-text.is-article { display: grid; gap: 2px; }
 .cal-phone-text.is-article b { font-family: var(--font-ui); font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
 .cal-phone-lead { color: var(--muted); font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
 /* Телефон: строка темы не шире экрана (поле ввода не тянет ширину документа) */
@@ -2274,7 +2255,6 @@ body.pv-open { overflow: hidden; }
 .cal-card:hover { z-index: 2; translate: none; box-shadow: 0 4px 4px 18px rgba(5, 6, 14, .45); }
 .cal-card:focus-visible { outline: 2px dashed var(--line-strong); outline-offset: 3px; }
 .cal-card.is-selected, .cal-card[aria-pressed="true"] { border: 2px solid var(--line-strong); box-shadow: 0 0 0 3px var(--accent), 4px 4px 0 3px var(--shadow-ink); }
-.cal-card[data-status="failed"] { border-color: var(--danger); box-shadow: 0 2px 2px 18px rgba(5, 6, 14, .45); }
 .cal-card.is-dragging { opacity: 0.35; pointer-events: none; }
 
 /* Полная: миниатюра во всю высоту 64 px, справа черта */
@@ -2317,7 +2297,7 @@ body.pv-open { overflow: hidden; }
 .cal-card .cal-status-dot.is-accent { background: var(--accent); animation: cal-pulse 1.2s ease-in-out infinite; }
 
 /* Средняя: миниатюра 24, время, точка, аватар; текст — одна строка (56 px) */
-.cal-card[data-mode="mid"] { display: flex; align-items: center; gap: 6px; height: 56px; padding: 5px 6px; border-radius: 9px; box-shadow: 0 2px 2px 18px rgba(5, 6, 14, .45); }
+.cal-card[data-mode="mid"] { display: flex; align-items: center; gap: 6px; height: 56px; border-radius: 9px; box-shadow: 0 2px 2px 18px rgba(5, 6, 14, .45); }
 .cal-card[data-mode="mid"] .cal-media { width: 24px; height: 24px; flex: none; border: 1.5px solid var(--line-strong); border-radius: 5px; }
 .cal-card[data-mode="mid"] .cal-quote { font-size: 18px; }
 .cal-card[data-mode="mid"] .cal-card-body { gap: 2px; padding: 0; }
@@ -2365,8 +2345,6 @@ body.pv-open { overflow: hidden; }
 .cal-phone-card.is-past .cal-phone-media { border-right-color: var(--line); }
 
 /* Свободный слот и стопка — 22 px, в новом языке */
-.cal-free { height: 22px; border: 1.5px dashed var(--c); color: var(--muted); font-size: 12px; }
-.cal-free:hover { border-style: solid; border-color: var(--line-strong); background: var(--accent); color: var(--accent-text); }
 
 /* Анимация возврата карточки (после переноса, отмены) — тот же переход, что был */
 .cal-card.is-animate { transition: transform 0.3s ease, opacity 0.12s; }
@@ -2658,7 +2636,7 @@ dialog::backdrop {
 
 .pe-video-note video{border-radius:50%;object-fit:contain;aspect-ratio:1;overflow:hidden}
 
-.pe-variant-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 16px;border-bottom:1px solid var(--line)}.pe-variant-label{font-size:12px;opacity:.65;margin-right:4px}.pe-variant-tab{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;padding:6px 10px;font-size:12px;cursor:pointer}.pe-variant-tab.is-active{background:var(--panel);border-color:var(--accent);font-weight:600}.pe-variant-reset{margin-left:auto}.pe-check:has(button){grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto}.pe-comment-field{grid-column:1/-1}.pe-comment-field textarea{min-height:68px;resize:vertical;flex:1}
+.pe-variant-bar{flex-wrap:wrap;padding:8px 16px;border-bottom:1px solid var(--line)}.pe-variant-label{font-size:12px;opacity:.65;margin-right:4px}.pe-variant-tab{max-width:220px;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;padding:6px 10px;font-size:12px;cursor:pointer}.pe-variant-tab.is-active{background:var(--panel);border-color:var(--accent);font-weight:600}.pe-variant-reset{margin-left:auto}.pe-check:has(button){grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto}.pe-comment-field{grid-column:1/-1}.pe-comment-field textarea{min-height:68px;resize:vertical;flex:1}
 
 /* Keep per-resource editing compact without hiding individual selections. */
 .pe-variant-bar{display:flex;flex:none;flex-wrap:nowrap;overflow-x:auto;max-width:100%;min-width:0;gap:6px;align-items:center;padding:5px 0;scrollbar-width:thin}.pe-variant-bar>*{flex-shrink:0}.pe-variant-tab{white-space:nowrap}.pe-check:has(button){grid-template-columns:minmax(0,1fr) auto;align-items:center}.pe-check:has(button)>span{grid-column:1/-1}.pe-check:has(button)>button{grid-column:2;grid-row:1}.pe-body>.pe-section{align-self:start}.pe-extra-preview{flex-wrap:wrap}.pe-extra-text input,.pe-extra-text textarea,.pe-extra-text select{min-width:0;max-width:100%}
@@ -2687,7 +2665,6 @@ dialog::backdrop {
 .pe-window .pe-section-head h3{font-size:14px;color:var(--text)}
 .pe-window .pe-text{min-height:clamp(150px,25dvh,280px);resize:vertical}
 .pe-window .pe-grid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
-.pe-window .pe-card,.pe-window .pe-add{aspect-ratio:4/3}
 .pe-window .pe-chips{display:flex;flex-direction:column;gap:14px;margin:0;min-width:0}
 .pe-destination-list{display:grid;gap:5px;min-width:0;max-height:220px;overflow:auto;scrollbar-width:thin}
 .pe-destination-list .pe-target-option{justify-content:space-between;border:1px solid var(--line);border-radius:8px;min-width:0;padding:9px 11px}
