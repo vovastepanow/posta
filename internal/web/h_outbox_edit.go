@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -66,9 +65,8 @@ func getOutboxEdit(c *Ctx) (any, error) {
 }
 
 func saveOutboxEdit(c *Ctx) (any, error) {
-	c.R.Body = http.MaxBytesReader(c.W, c.R.Body, 400<<20)
-	if err := c.R.ParseMultipartForm(64 << 20); err != nil {
-		return nil, fail(413, "Не удалось прочитать файлы поста.")
+	if err := parseUploadForm(c, publishRequestMaxBytes, 64<<20); err != nil {
+		return nil, err
 	}
 	defer c.R.MultipartForm.RemoveAll()
 	id, revision := c.R.FormValue("id"), c.R.FormValue("revision")
@@ -122,29 +120,9 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		return nil, err
 	}
 	defer os.RemoveAll(work)
-	uploads := map[string]string{}
- if len(c.R.MultipartForm.File["files[]"])>2*config.TelegramMaxMedia{return nil,fail(400,"Слишком много файлов.")}
-	for i, fh := range c.R.MultipartForm.File["files[]"] {
-		if fh.Size > config.PublishUploadMaxBytes {
-			return nil, fail(400, "Файл слишком большой.")
-		}
-		f, err := fh.Open()
-		if err != nil {
-			return nil, err
-		}
-		path := filepath.Join(work, fmt.Sprintf("upload-%d", i))
-		out, err := os.Create(path)
-		if err != nil {
-			f.Close()
-			return nil, err
-		}
-		n, copyErr := io.Copy(out, io.LimitReader(f, config.PublishUploadMaxBytes+1))
-		f.Close()
-		closeErr := out.Close()
-		if copyErr != nil || closeErr != nil || n > config.PublishUploadMaxBytes {
-			return nil, fail(400, "Не удалось сохранить файл.")
-		}
-		uploads[strconv.Itoa(i)] = path
+	uploads, err := publishUploadPaths(c.R.MultipartForm, work)
+	if err != nil {
+		return nil, err
 	}
 	if denied := c.U.PublishMediaDenied(raw); denied != "" {
 		return nil, fail(422, denied)

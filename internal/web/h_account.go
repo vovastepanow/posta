@@ -689,31 +689,24 @@ func publish(c *Ctx) (any, error) {
 	fields := c.In
 	var uploads map[string]string
 	if strings.HasPrefix(c.R.Header.Get("Content-Type"), "multipart/") {
-		c.R.Body=http.MaxBytesReader(c.W,c.R.Body,400<<20)
-		if err := c.R.ParseMultipartForm(32 << 20); err != nil {
-			return nil, fail(413, "Файлы вместе весят слишком много для одной отправки: уберите часть файлов.")
+		if err := parseUploadForm(c, publishRequestMaxBytes, 32<<20); err != nil {
+			return nil, err
 		}
 		defer c.R.MultipartForm.RemoveAll()
 		fields = jx.M{}
-		for k, v := range c.R.MultipartForm.Value {
-			if len(v) > 0 {
-				fields[k] = v[0]
+		for key, values := range c.R.MultipartForm.Value {
+			if len(values) > 0 {
+				fields[key] = values[0]
 			}
 		}
-		uploads = map[string]string{}
-		files:=c.R.MultipartForm.File["files[]"]
-		if len(files)==0{files=c.R.MultipartForm.File["files"]}
-		if len(files)>2*config.TelegramMaxMedia{return nil,fail(400,"Слишком много файлов.")}
-		for i,fh:=range files {
-			if fh.Size<=0||fh.Size>config.PublishUploadMaxBytes{return nil,fail(400,"Файл пуст или превышает локальный предел загрузки.")}
-			f,err:=fh.Open();if err!=nil{return nil,fail(400,"Не удалось прочитать загруженный файл.")}
-			tmp,err:=os.CreateTemp("", "posta-pub-*")
-			if err!=nil{f.Close();return nil,fail(500,"Не удалось сохранить загруженный файл.")}
-			defer os.Remove(tmp.Name())
-			copied,copyErr:=io.Copy(tmp,io.LimitReader(f,config.PublishUploadMaxBytes+1))
-			f.Close();closeErr:=tmp.Close()
-			if copyErr!=nil||closeErr!=nil||copied!=fh.Size||copied>config.PublishUploadMaxBytes{return nil,fail(400,"Не удалось полностью сохранить файл.")}
-			uploads[strconv.Itoa(i)]=tmp.Name()
+		dir, err := os.MkdirTemp("", "posta-pub-")
+		if err != nil {
+			return nil, fail(500, "Не удалось создать каталог загрузки.")
+		}
+		defer os.RemoveAll(dir)
+		uploads, err = publishUploadPaths(c.R.MultipartForm, dir)
+		if err != nil {
+			return nil, err
 		}
 	}
 	ch, err := u.PublishChannelResolve(jx.Str(fields, "channel"))
