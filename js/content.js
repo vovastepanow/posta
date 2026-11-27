@@ -10,7 +10,7 @@ import { itemCheck, videoProgress, watchVideo } from './video-pending.js';
 import { articleBrief, cardKind, clampText } from './card.js';
 import { fromRecord, recordSlides, recordMediaIncomplete, hasRecordContent } from './post-adapters.js';
 import { renderPostSheet } from './post-view.js';
-import { sourceEditorText, articleEditorContent, editorRecordKey } from './source-format.js';
+import { sourceEditorText, articleEditorContent, editorRecordKey, editorArticleURL, editorDestinationSelection } from './source-format.js';
 
 const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], channels: [], networkChannels: [], networks: {}, nativeAccount: false };
 const TOPIC_CONFIRM = 'Сменить тему поиска? Неоценённые записи по старой теме будут убраны из пула, и поиск начнётся заново. История оценок сохранится.';
@@ -690,8 +690,8 @@ function itemMedia(item) {
 // Import the same complete blocks as the article reader, never substitute a teaser.
 async function editorContent(item,shown){
     const originalMedia=itemMedia(item);
-    if(cardKind(item)!=='article')return {...sourceEditorText(item,shown),media:originalMedia};
-    const url=safeSourcePostUrl(item);
+    if(cardKind(item)!=='article'&&!item.article_source)return {...sourceEditorText(item,shown),media:originalMedia};
+    const url=editorArticleURL(item);
     if(!url)throw new Error('Не удалось определить адрес полной статьи.');
     let imported;
     try{
@@ -922,7 +922,7 @@ const recordOf = item => ({ item_key: item.item_key || '', image: item.image || 
 const newsSourceUrl = item => (String(item.source_key || '').startsWith('rss:') && String(item.source_url || '').startsWith('https://') ? item.source_url : '');
 
 /** Редактор поста. Необязательно: scheduledTs и channel (id канала) — время и канал уже выбраны (календарь, слот); onDone — после постановки/публикации. */
-export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', onDone = null } = {}) {
+export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', channels = [], onDone = null } = {}) {
     logPostCheck(item.post_check);
     if (recordMediaIncomplete(item)) throw new Error('Сначала восстановите все вложения и текст записи.');
     await refreshTelegramTarget();
@@ -939,9 +939,10 @@ export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', 
     const sourceUrl = newsSourceUrl(item);
     const sourceText = original && !NO_TEXT.includes(original) ? original : '';
     // Цель канала: первый канал — tg:main (как в telegramTargets), остальные — tg:<id>
-    const target = channel ? (state.channels[0]?.id === channel ? 'tg:main' : allTargets().find(t => t.value.endsWith(':' + channel))?.value) : allTargets()[0].value;
+    const targets=allTargets();
+    const picked=editorDestinationSelection(targets,channels.length?channels:(channel?[channel]:[]),state.channels[0]?.id);
     openPostEditor({
-        key: editorRecordKey(item), picked: [target || allTargets()[0].value], targets: allTargets(), schedule: scheduleOptions(),
+        key: editorRecordKey(item), picked, targets, schedule: scheduleOptions(),
         scheduledTs, scheduledAt: scheduledTs ? formatWhen(new Date(scheduledTs * 1000)) : '', description: item.description || '', original: sourceText, extras:{styled_text:imported.styled},
         media: imported.media, hashtags: item.hashtags || [],
         ai: captionTools(), newsUrl: sourceUrl || '',

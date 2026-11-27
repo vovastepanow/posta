@@ -417,6 +417,8 @@ func articleApplyOsnova(post jx.M, a jx.M, link string) jx.M {
 		// A lead is presentation metadata, not the body of the article.
 		body = jx.Str(a, "lead")
 		post["text_incomplete"] = true
+	} else {
+		delete(post, "text_incomplete")
 	}
 	post["text"] = strings.TrimSpace(strings.Join([]string{jx.Str(a, "title"), body}, "\n\n"))
 	eng := jx.M{"source": "osnova"}

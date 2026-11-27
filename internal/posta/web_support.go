@@ -100,7 +100,8 @@ func (u *U) ArticleURLIsOwn(link string) bool {
 		return false
 	}
 	for _, r := range append(u.Pool(), u.History().All()...) {
-		if jx.Str(r, "url") == link {
+		// Both representations originate in the user's own record.
+		if jx.Str(r, "url") == link || jx.Str(r, "source_url") == link {
 			return true
 		}
 	}

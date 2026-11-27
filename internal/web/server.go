@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -81,8 +82,16 @@ func (s *Server) Handler() http.Handler {
 	if cfg.Dev {
 		// режим разработки: войти в браузере без кук (headless-проверки) — только на 127.0.0.1
 		mux.HandleFunc("/dev-login", func(w http.ResponseWriter, r *http.Request) {
-			http.SetCookie(w, &http.Cookie{Name: config.SessionCookie, Value: r.URL.Query().Get("sid"), Path: "/", HttpOnly: true})
-			http.Redirect(w, r, r.URL.Query().Get("to"), http.StatusFound)
+			if !localNoAuthRequest(r) {
+				http.NotFound(w, r)
+				return
+			}
+			to := r.URL.Query().Get("to")
+			if !strings.HasPrefix(to, "/") || strings.HasPrefix(to, "//") || strings.ContainsAny(to, "\\\r\n") {
+				to = "/"
+			}
+			http.SetCookie(w, &http.Cookie{Name: config.SessionCookie, Value: r.URL.Query().Get("sid"), Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+			http.Redirect(w, r, to, http.StatusFound)
 		})
 	}
 	mediaURL := "/" + strings.Trim(cfg.MediaURL, "/") + "/"
@@ -152,15 +161,24 @@ func staticSite(root string) http.Handler {
 	})
 }
 
+// Media cache paths are flat generated names, not a browsable directory.
+var cachedMediaName = regexp.MustCompile(`^[a-f0-9]{32}\.[a-z0-9]{2,5}$`)
+
 func staticFiles(root string, maxAge time.Duration) http.Handler {
-	files := http.FileServer(http.Dir(root))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/.") || strings.HasPrefix(r.URL.Path, ".") {
+		name := strings.TrimPrefix(r.URL.Path, "/")
+		if !cachedMediaName.MatchString(name) {
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Cache-Control", "public, max-age="+strconv.Itoa(int(maxAge.Seconds())))
-		files.ServeHTTP(w, r)
+		path := filepath.Join(root, name)
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "private, max-age="+strconv.Itoa(int(maxAge.Seconds())))
+		http.ServeFile(w, r, path)
 	})
 }
 

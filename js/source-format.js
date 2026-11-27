@@ -106,3 +106,22 @@ export function editorRecordKey(item) {
     if(page)return 'page:'+page;
     return 'content:'+JSON.stringify([item?.item_key||'',item?.video||item?.display_video||'',item?.image||item?.display_image||'',item?.text_original??item?.text??'',item?.text_html||'']);
 }
+
+// Article reads remain authorized by the server against the current user's records.
+export function editorArticleURL(item) {
+    for(const value of [item?.url,item?.source_url]){
+        try{
+            const u=new URL(String(value||''));
+            if(u.protocol==='https:'&&!u.username&&!u.password)return u.href;
+        }catch{}
+    }
+    return '';
+}
+
+export function editorDestinationSelection(targets, ids, primaryId) {
+    const requested=[...new Set(ids||[])];
+    if(!requested.length)return targets.length?[targets[0].value]:[];
+    const picked=requested.map(id=>id===primaryId?targets.find(t=>t.value==='tg:main')?.value:targets.find(t=>t.value.slice(t.value.indexOf(':')+1)===id)?.value);
+    if(picked.some(v=>!v))throw Error('Один из выбранных ресурсов больше не подключён.');
+    return [...new Set(picked)];
+}

@@ -1245,15 +1245,15 @@ const poolContext = () => ({
     targets: () => enabledChannels().map(c => c.id)   // отмеченные ресурсы — цели «Заполнить дыры» и постановки
 });
 
-/** Пост из Предложки на время — во все отмеченные ресурсы одной группой. Фото — через очередь; видео и текст без картинки —
- *  в редактор с первым отмеченным ресурсом (редактор ставит в один канал). Возвращает id первого поста очереди или null. */
+/** Пост из Предложки на время — во все отмеченные ресурсы. Простые фото — через очередь;
+ *  сложные записи — через общий редактор с тем же набором ресурсов. */
 async function commitPoolItem(item, at) {
     if (at < Date.now() + MIN) { setStatus('Раньше, чем через минуту, пост не запланировать.', true); return null; }
     const targets = enabledChannels().map(c => c.id);
     if (!targets.length) { setStatus('Отметьте хотя бы один ресурс.', true); return null; }
     const image = item.image || item.display_image || '';
     if (item.format === 'video' || !image || item.article || item.article_source || item.text_html) {
-        postItemToTelegram(item, { scheduledTs: Math.floor(at / 1000), channel: targets[0], onDone: () => loadCalendar() }).catch(error => setStatus(error.message, true));
+        postItemToTelegram(item, { scheduledTs: Math.floor(at / 1000), channels: targets, onDone: () => loadCalendar() }).catch(error => setStatus(error.message, true));
         return null;
     }
     setStatus('Ставлю пост из Предложки в очередь…');

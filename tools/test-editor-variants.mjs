@@ -36,3 +36,10 @@ assert.notEqual(editorRecordKey({text:'First text'}),editorRecordKey({text:'Seco
 assert.notEqual(editorRecordKey({video:'a',image:'same'}),editorRecordKey({video:'b',image:'same'}));
 assert.equal(editorRecordKey({source_key:'telegram:abcde',post_id:'12',image:'old'}),editorRecordKey({source_key:'telegram:abcde',post_id:'12',image:'new'}));
 assert.notEqual(editorRecordKey({source_key:'telegram:abcde',post_id:'12'}),editorRecordKey({source_key:'telegram:other',post_id:'12'}));
+
+import {editorArticleURL,editorDestinationSelection} from '../js/source-format.js';
+assert.equal(editorArticleURL({url:'https://vc.ru/123456',source_url:'https://example.com/feed'}),'https://vc.ru/123456');
+assert.equal(editorArticleURL({url:'javascript:alert(1)',source_url:'https://example.com/a'}),'https://example.com/a');
+const destinations=[{value:'tg:main'},{value:'vk:group'},{value:'tg:second'}];
+assert.deepEqual(editorDestinationSelection(destinations,['primary','group','second'],'primary'),['tg:main','vk:group','tg:second']);
+assert.throws(()=>editorDestinationSelection(destinations,['missing'],'primary'));

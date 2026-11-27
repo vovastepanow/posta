@@ -801,19 +801,25 @@ func MediaItemURLs(item jx.M) []string {
 
 // MediaRemove — удалить файл, если он не показывается ни одному пользователю.
 func (a *App) MediaRemove(ctx context.Context, url string) {
+	a.removeUnreferencedMedia(ctx, url)
+}
+
+// Recheck the live database immediately before deleting a cached file.
+// A failed read must never be treated as absence of references.
+func (a *App) removeUnreferencedMedia(ctx context.Context, url string) bool {
 	p := a.MediaPath(url)
-	if p == "" {
-		return
+	if p == "" || a.DB == nil {
+		return false
 	}
 	if _, protected := mediaProtect.Load(filepath.Base(p)); protected {
-		return
+		return false
 	}
 	var used bool
-	err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pool_items WHERE strpos(data::text, $1) > 0) OR EXISTS (SELECT 1 FROM history_items WHERE strpos(data::text, $1) > 0)`, url).Scan(&used)
+	err := a.DB.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pool_items WHERE strpos(data::text, $1) > 0) OR EXISTS (SELECT 1 FROM history_items WHERE strpos(data::text, $1) > 0) OR EXISTS (SELECT 1 FROM public_posts WHERE strpos(data::text, $1) > 0)`, url).Scan(&used)
 	if err != nil || used {
-		return
+		return false
 	}
-	os.Remove(p)
+	return os.Remove(p) == nil
 }
 
 // MediaCleanup — удалить файлы, на которые не ссылается ни одна запись; свежие щадит. Массовое удаление блокируется.
@@ -861,7 +867,7 @@ func (u *U) MediaCleanup(pool []jx.M, includeFresh, force bool) int {
 	}
 	n := 0
 	for _, name := range remove {
-		if os.Remove(filepath.Join(u.Cfg.MediaDir, name)) == nil {
+		if u.removeUnreferencedMedia(u.Ctx, u.Cfg.MediaURL+"/"+name) {
 			n++
 		}
 	}
