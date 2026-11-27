@@ -2,7 +2,6 @@ package posta
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -128,17 +127,24 @@ var Tunables = []Tunable{
 	{"captions_per_hour", "Публикация", "Подписей от ИИ в час", "На пользователя.", "int", 30, 0, 1000, "", nil},
 }
 
-func tunableByKey(key string) *Tunable {
+// The definitions are static; retain their display order while avoiding a scan
+// of the full registry for every parser and autopilot setting lookup.
+var tunablesByKey = func() map[string]*Tunable {
+	index := make(map[string]*Tunable, len(Tunables))
 	for i := range Tunables {
-		if Tunables[i].Key == key {
-			return &Tunables[i]
+		t := &Tunables[i]
+		if _, exists := index[t.Key]; exists {
+			panic("duplicate tunable: " + t.Key)
 		}
+		index[t.Key] = t
 	}
-	return nil
-}
+	return index
+}()
+
+func tunableByKey(key string) *Tunable { return tunablesByKey[key] }
 
 type tunableCache struct {
-	sync.Mutex
+	sync.RWMutex
 	vals jx.M
 	read time.Time
 }
@@ -146,8 +152,17 @@ type tunableCache struct {
 var tunables tunableCache
 
 func (a *App) tunableValues() jx.M {
+	tunables.RLock()
+	if tunables.vals != nil && time.Since(tunables.read) < 15*time.Second {
+		vals := tunables.vals
+		tunables.RUnlock()
+		return vals
+	}
+	tunables.RUnlock()
+
 	tunables.Lock()
 	defer tunables.Unlock()
+	// Another reader may already have refreshed the cache.
 	if tunables.vals != nil && time.Since(tunables.read) < 15*time.Second {
 		return tunables.vals
 	}
@@ -183,7 +198,7 @@ func (a *App) TStr(key string) string { return jx.ToStr(a.tunable(key)) }
 // TunablesPublic — параметры для админки: описание и текущее значение.
 func (a *App) TunablesPublic() []jx.M {
 	vals := a.tunableValues()
-	var out []jx.M
+	out := make([]jx.M, 0, len(Tunables))
 	for _, t := range Tunables {
 		v, set := vals[t.Key]
 		if !set || v == nil {
@@ -252,4 +267,3 @@ func (a *App) TunablesSave(ctx context.Context, changes jx.M) error {
 	return err
 }
 
-var _ = fmt.Sprint
