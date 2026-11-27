@@ -173,18 +173,28 @@ func DvachThreadPosts(data jx.M) []jx.M {
 	return jx.Maps(threads[0], "posts")
 }
 
+var (
+	dvachImagePathRe = regexp.MustCompile("(?i)^src/[0-9]+/[^/]+\\.(?:jpe?g|png|gif|webp)$")
+	dvachVideoPathRe = regexp.MustCompile("(?i)^src/[0-9]+/[^/]+\\.(?:webm|mp4)$")
+	dvachThumbPathRe = regexp.MustCompile("(?i)^thumb/[0-9]+/[^/]+\\.(?:jpe?g|png|gif|webp)$")
+)
+
+func dvachMediaPathMatch(board, path string, pattern *regexp.Regexp) bool {
+	if !strings.HasPrefix(path, "/") {
+		return false
+	}
+	b, rest, ok := strings.Cut(path[1:], "/")
+	return ok && strings.EqualFold(b, board) && pattern.MatchString(rest)
+}
+
 // DvachPostMedia — медиа поста: у видео image — превью; без превью видео пропускается.
 func DvachPostMedia(board string, post jx.M, withVideo bool) []jx.M {
-	q := regexp.QuoteMeta(board)
-	img := regexp.MustCompile(`(?i)^/` + q + `/src/[0-9]+/[^/]+\.(?:jpe?g|png|gif|webp)$`)
-	vid := regexp.MustCompile(`(?i)^/` + q + `/src/[0-9]+/[^/]+\.(?:webm|mp4)$`)
-	thumb := regexp.MustCompile(`(?i)^/` + q + `/thumb/[0-9]+/[^/]+\.(?:jpe?g|png|gif|webp)$`)
 	var media []jx.M
 	for _, f := range jx.Maps(post, "files") {
 		p, t := jx.Str(f, "path"), jx.Str(f, "thumbnail")
-		if img.MatchString(p) {
+		if dvachMediaPathMatch(board, p, dvachImagePathRe) {
 			media = append(media, jx.M{"image": "https://2ch.hk" + p, "video": ""})
-		} else if withVideo && vid.MatchString(p) && thumb.MatchString(t) {
+		} else if withVideo && dvachMediaPathMatch(board, p, dvachVideoPathRe) && dvachMediaPathMatch(board, t, dvachThumbPathRe) {
 			media = append(media, jx.M{"image": "https://2ch.hk" + t, "video": "https://2ch.hk" + p})
 		}
 	}

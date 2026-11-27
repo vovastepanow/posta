@@ -76,6 +76,8 @@ func init() {
 		return jx.M{"rows": rows, "counts": counts, "topic": c.U.CurrentTopic()}, nil
 	})
 	registrySID := regexp.MustCompile(`^[a-z0-9]+:\S{1,600}$`)
+	muteSID := regexp.MustCompile(`^[a-z]+:\S{1,600}$`)
+	importLines := regexp.MustCompile(`\r?\n`)
 	post("registry_readd", func(c *Ctx) (any, error) {
 		if !registrySID.MatchString(c.Str("source_id")) {
 			return nil, fail(400, "Некорректный источник.")
@@ -93,7 +95,7 @@ func init() {
 	})
 	post("source_mute", func(c *Ctx) (any, error) {
 		sid := c.Str("source_id")
-		if !regexp.MustCompile(`^[a-z]+:\S{1,600}$`).MatchString(sid) {
+		if !muteSID.MatchString(sid) {
 			return nil, fail(400, "Некорректный источник.")
 		}
 		on := jx.Bool(c.In, "on")
@@ -140,7 +142,7 @@ func init() {
 		if l := jx.Strs(c.In, "links"); len(l) > 0 {
 			links = l
 		} else {
-			links = regexp.MustCompile(`\r?\n`).Split(c.Str("links"), -1)
+			links = importLines.Split(c.Str("links"), -1)
 		}
 		u, cancel := c.userDetached(3 * time.Minute)
 		defer cancel()

@@ -1227,6 +1227,8 @@ func ChannelSchedule(c *Channel) jx.M {
 	return jx.M{"tz": tz, "jitter": min(schedMaxJitter, max(0, int(jx.Int(s, "jitter")))), "slots": slots}
 }
 
+var scheduleSlotsSplitRe = regexp.MustCompile(`[\s,;]+`)
+
 // ChannelScheduleSave — проверить и сохранить расписание.
 func (u *U) ChannelScheduleSave(channelID string, sched jx.M) (jx.M, error) {
 	c := u.Channel(channelID)
@@ -1246,7 +1248,7 @@ func (u *U) ChannelScheduleSave(channelID string, sched jx.M) (jx.M, error) {
 		}
 		var list []string
 		if s, ok := times.(string); ok {
-			list = regexp.MustCompile(`[\s,;]+`).Split(strings.TrimSpace(s), -1)
+			list = scheduleSlotsSplitRe.Split(strings.TrimSpace(s), -1)
 		} else {
 			list = jx.ToStrs(times)
 		}
