@@ -114,3 +114,20 @@ func TestPikabuNoServerResults(t *testing.T) {
 		t.Fatal("разметка Pikabu появилась — пересмотреть, можно включать площадку")
 	}
 }
+
+func TestLemmyParseKeepsShortCoverlessVideo(t *testing.T) {
+	body := []byte(`{"posts":[
+		{"post":{"name":"Cat","ap_id":"https://lemmy.example/post/1","url":"https://cdn.example/cat.mp4","published":"2026-11-26T12:00:00Z","community_id":1}},
+		{"post":{"name":"Dog","ap_id":"https://lemmy.example/post/2","body":"![](https://cdn.example/dog.webm)","published":"2026-11-26T12:00:00Z","community_id":1}},
+		{"post":{"name":"Hi","ap_id":"https://lemmy.example/post/3","published":"2026-11-26T12:00:00Z","community_id":1}}
+	]}`)
+	posts, err := LemmyParse(body)
+	if err != nil || len(posts) != 2 {
+		t.Fatalf("expected two video posts, got %d: %v", len(posts), err)
+	}
+	for i, want := range []string{"https://cdn.example/cat.mp4", "https://cdn.example/dog.webm"} {
+		if jx.Str(posts[i], "video") != want || jx.Bool(posts[i], "text_post") {
+			t.Fatalf("video lost or classified as text: %v", posts[i])
+		}
+	}
+}

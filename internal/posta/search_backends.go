@@ -219,7 +219,7 @@ func lemmyVideoURL(candidate string) string {
 	return ""
 }
 
-// LemmyParse — ответ поиска Lemmy (posts[]): источник — сообщество; без картинки пост не берём.
+// LemmyParse — ответ поиска Lemmy (posts[]): источник — сообщество; сохраняем текстовые и медийные публикации.
 func LemmyParse(data []byte) ([]jx.M, error) {
 	var resp struct {
 		Posts []struct {
@@ -264,7 +264,11 @@ func LemmyParse(data []byte) ([]jx.M, error) {
 				break
 			}
 		}
-		if img == "" && runeLen(strings.TrimSpace(v.Name+" "+CleanHTMLText(v.Body))) < 20 {
+		video := lemmyVideoURL(v.URL)
+		if video == "" {
+			video = lemmyBodyVideo(v.Body)
+		}
+		if img == "" && video == "" && runeLen(strings.TrimSpace(v.Name+" "+CleanHTMLText(v.Body))) < 20 {
 			continue
 		}
 		at, err := time.Parse(time.RFC3339Nano, v.Published)
@@ -274,10 +278,6 @@ func LemmyParse(data []byte) ([]jx.M, error) {
 		page := v.APID
 		if page == "" {
 			page = v.URL
-		}
-		video := lemmyVideoURL(v.URL)
-		if video == "" {
-			video = lemmyBodyVideo(v.Body)
 		}
 		post := searchPost(PlatformLemmy, fmt.Sprintf("lemmy:%d", v.CommunityID), p.Community.ActorID, v.Name, CleanHTMLText(v.Name+"\n"+v.Body), img, video, page, at.Unix())
 		post["source_sensitive"] = v.NSFW
