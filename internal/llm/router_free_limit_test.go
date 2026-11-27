@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -36,5 +37,27 @@ func TestUpstreamTokenLimitUsesShortCooldown(t *testing.T) {
 	remaining := time.Until(r.freeBlocked[model.Model])
 	if remaining < time.Minute || remaining > 3*time.Minute {
 		t.Fatalf("unexpected upstream cooldown: %s", remaining)
+	}
+}
+
+func TestFreeQuotaReservedBeforeCall(t *testing.T) {
+	r := &Router{}
+	r.SetFreeUsed(1)
+	if err := r.reserveFreeAttempt(context.Background(), FreeVision, 2); err != nil {
+		t.Fatal(err)
+	}
+	if r.FreeUsed() != 2 || r.reserveFreeAttempt(context.Background(), FreeVision, 2) == nil {
+		t.Fatal("configured cap was exceeded")
+	}
+	r.countFree(FreeVision, errors.New("HTTP 429"))
+	if r.FreeUsed() != 2 {
+		t.Fatal("attempt counted twice")
+	}
+	r.SetFreeUsed(0)
+	r.ReserveFree = func(context.Context, string, int) (int, error) {
+		return 0, errors.New("database unavailable")
+	}
+	if r.reserveFreeAttempt(context.Background(), FreeVision, 2) == nil || r.FreeUsed() != 0 {
+		t.Fatal("unreserved provider call allowed")
 	}
 }

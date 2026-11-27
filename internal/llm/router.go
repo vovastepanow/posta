@@ -205,6 +205,9 @@ type Router struct {
 	LoadSettings func() Settings
 	// Spent — потрачено в OpenRouter за сегодня (долл.), с учётом этого процесса; nil — бюджет не проверяется.
 	Spent func() float64
+	// ReserveFree persists the attempt before sending it to the provider.
+	// It returns the authoritative UTC daily count, or denies the attempt.
+	ReserveFree func(context.Context, string, int) (int, error)
 	// OnCall — после каждого вызова (журнал, ClickHouse, учёт расходов).
 	OnCall func(Call)
 	// Log — строки в журнал сборщика или ответа API.
@@ -332,6 +335,9 @@ func (r *Router) blocked(t Target, req *Request, s Settings) string {
 	if time.Now().Before(r.freeDailyBlockedUntil) {
 		return "OpenRouter сообщил об исчерпании суточного лимита; повторная проверка после " + r.freeDailyBlockedUntil.Format("15:04")
 	}
+	if s.FreeDailyLimit > 0 && r.freeDay == time.Now().UTC().Format("2006-01-02") && r.freeUsed >= s.FreeDailyLimit {
+		return "достигнут заданный лимит бесплатных запросов"
+	}
 	return ""
 }
 
@@ -341,11 +347,7 @@ func (r *Router) countFree(t Target, err error) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	day := time.Now().Format("2006-01-02")
-	if r.freeDay != day {
-		r.freeDay, r.freeUsed = day, 0
-	}
-	r.freeUsed++
+
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), "free-models-per-day") {
 		// Периодически пробуем снова: время сброса может измениться.
 		r.freeDailyBlockedUntil = time.Now().Add(15 * time.Minute)
@@ -363,10 +365,38 @@ func (r *Router) countFree(t Target, err error) {
 	}
 }
 
+// reserveFreeAttempt holds the local lock across the durable reservation.
+// Failed transport attempts remain counted; a rejected call gate does not
+// consume the provider quota. A zero configured limit retains unlimited mode.
+func (r *Router) reserveFreeAttempt(ctx context.Context, t Target, limit int) error {
+	if t.Provider != "openrouter" || !t.Free() {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	day := time.Now().UTC().Format("2006-01-02")
+	if r.freeDay != day {
+		r.freeDay, r.freeUsed = day, 0
+	}
+	if limit > 0 && r.freeUsed >= limit {
+		return errors.New("достигнут заданный лимит бесплатных запросов")
+	}
+	if r.ReserveFree != nil {
+		count, err := r.ReserveFree(ctx, day, limit)
+		if err != nil {
+			return err
+		}
+		r.freeUsed = count
+	} else {
+		r.freeUsed++
+	}
+	return nil
+}
+
 // SetFreeUsed — сколько бесплатных запросов уже сделано сегодня (восстановление после перезапуска).
 func (r *Router) SetFreeUsed(n int) {
 	r.mu.Lock()
-	r.freeDay, r.freeUsed = time.Now().Format("2006-01-02"), n
+	r.freeDay, r.freeUsed = time.Now().UTC().Format("2006-01-02"), n
 	r.mu.Unlock()
 }
 
@@ -374,7 +404,7 @@ func (r *Router) SetFreeUsed(n int) {
 func (r *Router) FreeUsed() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.freeDay != time.Now().Format("2006-01-02") {
+	if r.freeDay != time.Now().UTC().Format("2006-01-02") {
 		return 0
 	}
 	return r.freeUsed
@@ -466,7 +496,6 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 		if err == nil && settle != nil {
 			settle(resp.CostUSD)
 		}
-		r.countFree(t, err)
 		if err == nil {
 			if i == 0 {
 				r.noteSuccess(req.Role)
@@ -509,7 +538,6 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 		if !alreadyTried && r.OpenRouter != nil && r.OpenRouter.Configured() && r.blocked(free, req, s) == "" {
 			logf("-> выбранная модель вернула 403; пробую бесплатный резерв OpenRouter.")
 			resp, err := r.try(ctx, req, free, true)
-			r.countFree(free, err)
 			if err == nil {
 				return resp, nil
 			}
@@ -551,11 +579,15 @@ func (r *Router) try(ctx context.Context, req *Request, t Target, isFallback boo
 	if err := checkCallGate(ctx, t); err != nil {
 		return nil, err
 	}
+	if err := r.reserveFreeAttempt(ctx, t, r.Settings().FreeDailyLimit); err != nil {
+		return nil, err
+	}
 	call := Call{Role: req.Role, Target: t, Req: req, Fallback: isFallback, Started: time.Now()}
 	if !req.Quiet && r.Log != nil {
 		r.Log(req.UserID, exchangeLine("→", t.Model, requestSummary(req, t)))
 	}
 	resp, err := p.Generate(ctx, t.Model, req)
+	r.countFree(t, err)
 	if err == nil && strings.TrimSpace(resp.Text) == "" && len(resp.Logprobs) == 0 {
 		err = errors.New("модель вернула пустой ответ")
 	}
@@ -642,8 +674,15 @@ func (r *Router) EmbedSource(ctx context.Context, target Target, texts []string)
 	if reason := r.blocked(target, &Request{FreeOnly: true}, r.Settings()); reason != "" {
 		return nil, errors.New(reason)
 	}
-	if limit := r.Settings().FreeDailyLimit; limit > 0 && r.FreeUsed() >= limit*8/10 {
-		return nil, errors.New("free quota reserved for content evaluation")
+	limit := r.Settings().FreeDailyLimit
+	if limit > 0 {
+		limit = limit * 8 / 10
+		if limit == 0 {
+			return nil, errors.New("free quota reserved for content evaluation")
+		}
+	}
+	if err := r.reserveFreeAttempt(ctx, target, limit); err != nil {
+		return nil, err
 	}
 	started := time.Now()
 	vectors, err := r.OpenRouter.embedSource(ctx, target.Model, texts)
@@ -665,7 +704,23 @@ func (r *Router) Embed(ctx context.Context, texts []string) ([][]float64, error)
 		if err != nil {
 			continue
 		}
-		if out, err := p.Embed(ctx, t.Model, texts); err == nil {
+		settings := r.Settings()
+		if r.blocked(t, &Request{}, settings) != "" {
+			continue
+		}
+		if err := checkCallGate(ctx, t); err != nil {
+			return nil, err
+		}
+		if err := r.reserveFreeAttempt(ctx, t, settings.FreeDailyLimit); err != nil {
+			return nil, err
+		}
+		started := time.Now()
+		out, err := p.Embed(ctx, t.Model, texts)
+		r.countFree(t, err)
+		if r.OnCall != nil {
+			r.OnCall(Call{Role: RoleEmbed, Target: t, Started: started, Err: err})
+		}
+		if err == nil {
 			return out, nil
 		}
 	}

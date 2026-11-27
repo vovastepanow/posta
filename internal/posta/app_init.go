@@ -43,6 +43,7 @@ func New(ctx context.Context, cfg config.Server) (*App, error) {
 	a.LLM = llm.NewRouter(llm.NewOllama(cfg.OllamaURL), llm.NewOpenRouter(cfg.OpenRouterURL, cfg.OpenRouterKey, cfg.OpenRouterTitle, cfg.PublicURL))
 	a.LLM.LoadSettings = a.LLMSettings
 	a.LLM.Spent = a.LLMSpentToday
+	a.LLM.ReserveFree = a.reserveLLMFree
 	a.LLM.OnCall = a.onLLMCall
 	a.LLM.Log = func(uid, line string) {
 		if uid != "" && a.ParserRunning(uid) {
@@ -243,15 +244,18 @@ func (a *App) onLLMCall(c llm.Call) {
 	a.CH.AICall(rec)
 	ctx := a.ctxOrBg()
 	if rec.CostUSD > 0 {
-		a.LLMSpentToday()
 		a.spentMu.Lock()
+		day := time.Now().UTC().Format("2006-01-02")
+		key := "llm_spent:" + day
+		if a.spentDay != day {
+			a.spentDay = day
+			a.spentUSD = KV(a, ctx, key, 0.0)
+		}
 		a.spentUSD += rec.CostUSD
-		total := a.spentUSD
+		if err := a.KVSet(ctx, key, a.spentUSD, 3*24*time.Hour); err != nil {
+			log.Printf("Учёт расходов ИИ: %v", err)
+		}
 		a.spentMu.Unlock()
-		a.KVSet(ctx, spendKey(), total, 3*24*time.Hour)
-	}
-	if c.Target.Provider == "openrouter" && c.Target.Free() {
-		a.KVSet(ctx, "llm_free_used:"+time.Now().UTC().Format("2006-01-02"), a.LLM.FreeUsed(), 3*24*time.Hour)
 	}
 }
 
