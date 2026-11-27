@@ -86,26 +86,6 @@ func (u *U) TopicUsableSources(d *SourceDB, topic string) int {
 	return n
 }
 
-// discoveryProgress persists the unfinished batch and its unexamined candidates per topic.
-type discoveryProgress struct {
-	Platform     string                         `json:"platform,omitempty"`
-	Target       int                            `json:"target"`
-	Found        int                            `json:"found"`
-	Pending      []DiscoveryCandidate           `json:"pending"`
-	Active       bool                           `json:"active"`
-	Checked      int                            `json:"checked"`
-	Rejected     int                            `json:"rejected"`
-	Failed       int                            `json:"failed"`
-	Added        int                            `json:"added"`
-	Suggested    int                            `json:"suggested"`
-	Queries      map[string]discoveryQueryStats `json:"queries,omitempty"`
-	ExtraQueries []string                       `json:"extra_queries,omitempty"`
-	SearchRounds int                            `json:"search_rounds,omitempty"`
-	ExpandedAt   int64                          `json:"expanded_at,omitempty"`
-	Retries      []discoveryRetry               `json:"retries,omitempty"`
-	Errors       []string                       `json:"errors,omitempty"`
-}
-
 func (u *U) discoveryScopedKey(key string) string {
 	if job, ok := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); ok && job != nil {
 		return key + ":v2:" + repeatDigest(job.Scope)
@@ -427,6 +407,16 @@ func parseCombinedSourceReview(reply string, hasTaste bool) *sourceEvaluation {
 	return ev
 }
 
+func clampScore(x float64) float64 {
+	if x < 0 {
+		return 0
+	}
+	if x > 100 {
+		return 100
+	}
+	return x
+}
+
 type sourceEvaluation struct {
 	ReviewedSamples int
 	PersonalBlog    string
@@ -436,7 +426,6 @@ type sourceEvaluation struct {
 	TextOnly        bool
 	Reason          string
 	Quality         jx.M
-	Goodness        *GoodnessResult
 	Taste           *int
 	TasteIncluded   bool
 }
