@@ -38,11 +38,14 @@ func (u *U) applyOutboxRepair(original, updated jx.M, staged map[string]string) 
 				}
 			}
 			for dest, src := range staged {
-				if filepath.Clean(dest) != filepath.Join(dir, filepath.Base(dest)) {
+				if !outboxRepairDestination(dir, dest) {
 					installErr = Bad("Некорректный путь файла очереди.")
 					return nil
 				}
 				if !fileExists(dest) {
+					if installErr = os.MkdirAll(filepath.Dir(dest), 0775); installErr != nil {
+						return nil
+					}
 					if installErr = os.Rename(src, dest); installErr != nil {
 						return nil
 					}
@@ -134,7 +137,7 @@ func (u *U) repairOneOutbox(post jx.M, apply bool) []string {
 		if fileExists(dest) {
 			continue
 		}
-		if dest == "" || filepath.Clean(dest) != filepath.Join(dir, filepath.Base(dest)) {
+		if !outboxRepairDestination(dir, dest) {
 			ok = false
 			lines = append(lines, fmt.Sprintf("файл %d: некорректный путь; требуется редактор", k+1))
 			continue

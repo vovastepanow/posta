@@ -1536,9 +1536,7 @@ func (u *U) OutboxRemovePost(postID string) bool {
 	if n == 0 {
 		return false
 	}
-	if d, err := u.OutboxMediaDir(postID); err == nil {
-		os.RemoveAll(d)
-	}
+	u.removeOutboxDirectory(u.Ctx, postID)
 	return true
 }
 
@@ -1705,9 +1703,7 @@ func (a *App) outboxFinishSent(ctx context.Context, postID, uid string, post jx.
 		platform = "telegram"
 	}
 	u.publishedEvent(entry, platform)
-	if d, err := a.OutboxMediaDir(postID); err == nil {
-		os.RemoveAll(d)
-	}
+	a.removeOutboxDirectory(ctx, postID)
 	return nil
 }
 

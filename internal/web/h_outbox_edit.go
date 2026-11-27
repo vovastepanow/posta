@@ -258,6 +258,6 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		return nil, err
 	}
 	committed = true
-	c.A.OutboxCleanupReplacedMedia(id, jx.Maps(post, "media"), media)
+	c.A.OutboxCleanupReplacedMedia(c.R.Context(), id, jx.Maps(post, "media"), media)
 	return ok(jx.M{"id": id}), nil
 }

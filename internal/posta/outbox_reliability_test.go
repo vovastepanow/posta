@@ -294,8 +294,70 @@ func TestOutboxCleanupReplacedMediaOnlyOwnFiles(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	a.OutboxCleanupReplacedMedia(id, []jx.M{{"path": old}, {"path": keep}, {"path": foreign}}, []jx.M{{"path": keep}})
+	outboxCleanupReplacedMedia(root, []jx.M{{"path": old}, {"path": keep}, {"path": foreign}}, []jx.M{{"path": keep}}, func(string) bool { return false })
 	if fileExists(old) || !fileExists(keep) || !fileExists(foreign) {
 		t.Fatal("cleanup removed active or unrelated files")
+	}
+}
+
+func TestOutboxLegacySharedCoverSurvivesRemovalPostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_TEST_PG")
+	if dsn == "" {
+		t.Skip("POSTA_TEST_PG not set")
+	}
+	ctx := context.Background()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{DB: d, Mem: NewMemCache(100), Cfg: config.Server{DataDir: t.TempDir()}}
+	uid, first, second := randHex(16), randHex(6), randHex(6)
+	u := a.User(ctx, uid, nil)
+	defer d.Pool.Exec(ctx, "DELETE FROM users WHERE id=$1", uid)
+	root, _ := a.OutboxMediaDir(first)
+	if err := os.MkdirAll(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	cover := filepath.Join(root, "cover.jpg")
+	if err := os.WriteFile(cover, []byte("cover"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	items := []jx.M{
+		{"id": first, "status": "queued", "media": []jx.M{{"cover_path": cover}}},
+		{"id": second, "status": "queued", "media": []jx.M{{"cover_path": cover}}},
+	}
+	if _, err := u.OutboxUpdate(func([]jx.M) []jx.M { return items }); err != nil {
+		t.Fatal(err)
+	}
+	a.OutboxCleanupReplacedMedia(ctx, first, []jx.M{{"cover_path": cover}}, nil)
+	if !fileExists(cover) || !u.OutboxRemovePost(first) || !fileExists(cover) {
+		t.Fatal("legacy duplicate lost its shared cover")
+	}
+	if !u.OutboxRemovePost(second) {
+		t.Fatal("could not remove remaining reference")
+	}
+	a.removeOutboxDirectory(ctx, first)
+	if fileExists(cover) {
+		t.Fatal("unreferenced directory not cleaned")
+	}
+}
+
+func TestOutboxRepairDestinationAcceptsEditedRevision(t *testing.T) {
+	root := t.TempDir()
+	if !outboxRepairDestination(root, filepath.Join(root, "edit-abc", "video.mp4")) ||
+		outboxRepairDestination(root, filepath.Join(root, "..", "other.mp4")) ||
+		outboxRepairDestination(root, filepath.Join(root, "other", "video.mp4")) {
+		t.Fatal("incorrect repair destination validation")
+	}
+	link := filepath.Join(root, "edit-link")
+	if err := os.Symlink(t.TempDir(), link); err != nil {
+		t.Fatal(err)
+	}
+	if outboxRepairDestination(root, filepath.Join(link, "video.mp4")) {
+		t.Fatal("repair followed symlink")
 	}
 }
