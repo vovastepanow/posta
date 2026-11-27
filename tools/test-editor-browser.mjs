@@ -39,7 +39,7 @@ try{
     const text=page.locator('.pe-text');
     await text.waitFor({state:'visible'});
     assert.equal(await text.inputValue(),'Общий текст');
-    assert.equal(await page.locator('.pe-demo-error').isVisible(),true);
+    assert.equal(await page.locator('.pe-demo-error').count(),0);
     assert.equal(await page.locator('.pe-settings-column .pe-target-option').count(),2);
     assert.equal(await page.locator('.pe-compose-column .pe-attachment-section').count(),1);
     await page.locator('.pe-settings-open').click();
@@ -101,7 +101,7 @@ try{
     await page.setViewportSize({width:390,height:844});
     const bounds=await page.locator('.pe-window').evaluate(e=>({width:e.getBoundingClientRect().width,scroll:e.scrollWidth,client:e.clientWidth,body:e.querySelector('.pe-body').scrollWidth,bodyClient:e.querySelector('.pe-body').clientWidth}));
     assert.ok(bounds.width<=391&&bounds.scroll<=bounds.client+2&&bounds.body<=bounds.bodyClient+2,JSON.stringify(bounds));
-    assert.equal(await page.locator('.pe-demo-error').isVisible(),true);
+    assert.equal(await page.locator('.pe-demo-error').count(),0);
     await page.locator('.pe-btn-primary').click();
     await page.waitForFunction(()=>window.result!==null);
     const post=await page.evaluate(()=>window.result);

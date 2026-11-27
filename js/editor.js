@@ -187,10 +187,6 @@ function buildUi() {
         u.mobileNav,
         el('div', { className: 'pe-body' }, u.composeColumn,u.settingsColumn),
         u.checks,
-        // Temporary visual fixture only. Never participates in draft validation or submission.
-        el('div', { className: 'pe-check is-error pe-demo-error' },
-            el('strong', { textContent: 'Публикация невозможна · демонстрация' }),
-            el('span', { textContent: 'Одноклассники · выбранный тип вложения не поддерживается' })),
         u.warning,
         u.progress,
         el('footer', { className: 'pe-footer' }, u.summary, el('div', { className: 'pe-actions' }, reset, u.cancel, u.submit)));

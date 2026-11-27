@@ -268,7 +268,7 @@ func (a *App) LLMPublic(ctx context.Context) jx.M {
 		roles = append(roles, jx.M{"role": r, "title": llm.RoleTitles[r], "primary": rc.Primary, "fallback": rc.Fallback, "threshold": rc.Threshold})
 	}
 	out := jx.M{"settings": s, "roles": roles, "spent_today": a.LLMSpentToday(), "free_used": a.LLM.FreeUsed(), "openrouter_key": a.Cfg.OpenRouterKey != "",
-		"presets": []jx.M{{"id": "free", "title": "Бесплатно", "note": "Отсев на своём компьютере, анализ — бесплатная модель OpenRouter, резерв — Ollama."},
+		"presets": []jx.M{{"id": "free", "title": "Бесплатно", "note": "Бесплатный Nemotron через OpenRouter, без локальной модели. Семантический фильтр источников имеет отдельную квоту."},
 			{"id": "local", "title": "Только свой компьютер", "note": "Всё на Ollama: бесплатно, но медленно на слабой видеокарте."},
 			{"id": "hybrid", "title": "Гибрид", "note": "Отсев локально, остальное — дешёвые платные модели (нужен бюджет)."},
 			{"id": "cloud", "title": "Облако", "note": "OpenRouter без локальных моделей и резерва; сходство тем по эмбеддингам выключено."}}}

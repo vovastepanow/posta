@@ -113,7 +113,7 @@ var (
 
 // Preset — готовый набор:
 //
-//	free   — бесплатно: отсев локально (2B), анализ и умные задачи — бесплатная модель OpenRouter, резерв — Ollama;
+//	free   — бесплатная модель OpenRouter, без обязательной локальной модели и повторного быстрого анализа;
 //	local  — всё на Ollama;
 //	hybrid — отсев локально, остальное — дешёвые платные модели (нужен бюджет);
 //	cloud  — запросы в OpenRouter, без локальных моделей.
@@ -125,15 +125,16 @@ func Preset(name string) Settings {
 	switch name {
 	case "free":
 		set(RoleClassify, FreeVision, Off)
-		set(RolePrescreen, LocalFast, Off)
-		set(RoleAnalysis, FreeVision, LocalSmart)
-		s.Roles[RoleAnalysis] = RoleConfig{Primary: FreeVision, Fallback: LocalSmart, Threshold: 65}
-		set(RoleJudge, FreeVision, LocalSmart)
-		set(RoleSmart, FreeVision, LocalSmart)
-		set(RoleText, FreeVision, LocalSmart)
-		set(RoleRadar, FreeVision, LocalSmart)
+		// Avoid buying a second inference for the same post. The collector
+		// proceeds to its full analysis when the quick local screen is off.
+		set(RolePrescreen, Off, Off)
+		s.Roles[RoleAnalysis] = RoleConfig{Primary: FreeVision, Fallback: Off, Threshold: 65}
+		set(RoleJudge, FreeVision, Off)
+		set(RoleSmart, FreeVision, Off)
+		set(RoleText, FreeVision, Off)
+		set(RoleRadar, FreeVision, Off)
 		set(RoleTranslate, Off, Off)
-		set(RoleEmbed, LocalEmbed, Off)
+		set(RoleEmbed, Off, Off)
 	case "cloud":
 		set(RoleClassify, Target{"openrouter", "nvidia/nemotron-3.5-super-vl"}, Off)
 		set(RoleClassifyVerify, CloudSmart, Off)

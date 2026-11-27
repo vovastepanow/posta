@@ -829,7 +829,6 @@ func (u *U) PostSearchSuggest(item jx.M, topic string) {
 		link = jx.Str(item, "source_url")
 	}
 	a.Origin = "пост прошёл отбор: " + link
-	u.DiscoveryDefer(topic, *a, "пост прошёл отбор — проверю в следующем подборе")
 	u.suggestAutopilotSource(topic, *a)
 }
 

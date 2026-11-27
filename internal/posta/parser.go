@@ -2012,7 +2012,8 @@ func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline
 			c.knownHashes[hash] = jx.Str(item, "source")
 		}
 		row := prescreenRow{Item: item, Poster: poster, Pos: pos, Source: src, Phash: hash, Private: u.analysisPrivate(topic, item)}
-		if !collectorPrescreenComplete(item) {
+		primary, fallback, _ := u.LLM.Resolve(u.Ctx, llm.RolePrescreen)
+		if (primary.Empty() && fallback.Empty()) || !collectorPrescreenComplete(item) {
 			// No extra AI call for evidence that cannot justify a rejection.
 			c.stats["prescreen_bypassed_media"]++
 			c.passedTotal++
