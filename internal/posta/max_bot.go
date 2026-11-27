@@ -272,6 +272,6 @@ func (a *App) maxBotReply(ctx context.Context, bot maxServiceBot, token,secret s
 	}
 	body:=jx.M{"text":text,"attachments":[]jx.M{{"type":"inline_keyboard","payload":jx.M{"buttons":[][]jx.M{{{"type":"link","text":"Открыть Posta","url":site+"/"}}}}}}}
 	r,err:=request(ctx,"POST",maxAPI+"/messages?user_id="+strconv.FormatInt(id,10),map[string]string{"Authorization":token,"Content-Type":ctJSON},jsonBody(body))
-	if err!=nil || r==nil || r.Status!=200 { return Bad("MAX не подтвердил отправку сообщения.") }
+	if err!=nil || r==nil || r.Status!=200 || jx.Str(jx.Map(jx.Map(r.Data,"message"),"body"),"mid")=="" { return Bad("MAX не подтвердил отправку сообщения.") }
 	return nil
 }
