@@ -361,10 +361,40 @@ func TestAutopilotLiveRSSAutoDelivery(t *testing.T) {
 	if _, err := d.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
-	const topic, owner, feed = "Live technology dispatch", "autopilot-live-delivery", "https://hnrss.org/frontpage"
-	key, source := autopilotTopicKey(topic), "rss:"+feed
+	const topic, owner = "Live technology dispatch", "autopilot-live-delivery"
 	router := llm.NewRouter(llm.NewOllama("http://127.0.0.1:1"), llm.NewOpenRouter("", "", "", ""))
 	a := &App{DB: d, LLM: router, Cfg: config.Server{MediaDir: t.TempDir(), MediaURL: "/media"}}
+	// The production delivery path is exercised with a real, fresh RSS item.
+	// An unrelated feed outage should not prevent testing database delivery.
+	var feed string
+	var article jx.M
+	for _, candidate := range []string{"https://hnrss.org/frontpage", "https://news.ycombinator.com/rss", "https://feeds.bbci.co.uk/news/technology/rss.xml"} {
+		live := a.User(ctx, "", nil).RSSGet(candidate, rssMaxBytes, 15*time.Second, HTTPUA)
+		if !live.OK || !rssIsFeed(rssLoad(live.Bytes)) {
+			t.Logf("LIVE DELIVERY INPUT: feed=%s HTTP=%d error=%v", candidate, live.Status, live.Error)
+			continue
+		}
+		posts, err := RSSParse(live.Bytes, 20, "", candidate, true, true, 0)
+		if err != nil {
+			t.Logf("LIVE DELIVERY INPUT: feed=%s parse=%v", candidate, err)
+			continue
+		}
+		for _, post := range autopilotFreshRSSSamples(posts, time.Now().Unix()) {
+			if CandidatePostKey(post) != "" && AnalysisText(post) != "" &&
+				autopilotPublicPostURL(jx.Str(post, "url"), false) && ContentImageKey(post) == "" && !PostItemHasVideo(post) {
+				feed, article = candidate, post
+				break
+			}
+		}
+		if article != nil {
+			break
+		}
+		t.Logf("LIVE DELIVERY INPUT: feed=%s has no eligible text-only item", candidate)
+	}
+	if article == nil {
+		t.Fatal("none of the real RSS inputs supplied an eligible fresh text-only article")
+	}
+	key, source := autopilotTopicKey(topic), "rss:"+feed
 	if err := a.LoadCatalog(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -401,25 +431,6 @@ func TestAutopilotLiveRSSAutoDelivery(t *testing.T) {
 		t.Fatalf("auto job=%+v err=%v", job, err)
 	}
 	job.MaxProbation = 3
-	live := a.User(ctx, "", nil).RSSGet(feed, rssMaxBytes, 15*time.Second, HTTPUA)
-	if !live.OK || !rssIsFeed(rssLoad(live.Bytes)) {
-		t.Fatalf("live RSS HTTP %d: %v", live.Status, live.Error)
-	}
-	posts, err := RSSParse(live.Bytes, 20, "", feed, true, true, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var article jx.M
-	for _, post := range autopilotFreshRSSSamples(posts, time.Now().Unix()) {
-		if CandidatePostKey(post) != "" && AnalysisText(post) != "" &&
-			autopilotPublicPostURL(jx.Str(post, "url"), false) && ContentImageKey(post) == "" && !PostItemHasVideo(post) {
-			article = post
-			break
-		}
-	}
-	if article == nil {
-		t.Fatal("live RSS had no eligible text-only article")
-	}
 	analysis := jx.M{
 		"advertising": false, "relevance": 95, "topic_match": true,
 		"model": "deterministic-test", "description": "Technology article",
