@@ -58,18 +58,19 @@ jobs:
       - name: Unit-test independent source audit helper (Python stdlib)
         run: python3 -m unittest discover -s research/source_audit/tests -v
       - name: Check autopilot interface JavaScript
-        run: node --check js/networks.js && node --check js/max-bot.js && node --check js/sources.js && node --check js/content.js && node --check js/post-view.js && node --check js/video-pending.js && node --check js/post-adapters.js && node --check js/editor.js && node --check js/editor-capabilities.js && node --check js/editor-variants.js
+        run: node --check js/networks.js && node --check js/max-bot.js && node --check js/sources.js && node --check js/source-pages.js && node --check js/main.js && node --check js/content.js && node --check js/post-view.js && node --check js/video-pending.js && node --check js/post-adapters.js && node --check js/editor.js && node --check js/editor-capabilities.js && node --check js/editor-variants.js
       - name: Verify post adapters
         run: |
           test_dir=$(mktemp -d)
           trap 'rm -rf "$test_dir"' EXIT
           mkdir -p "$test_dir/tools"
           cp -r js "$test_dir/js"
-          cp tools/test-post-adapters.mjs tools/test-editor-capabilities.mjs tools/test-editor-variants.mjs "$test_dir/tools/"
+          cp tools/test-post-adapters.mjs tools/test-editor-capabilities.mjs tools/test-editor-variants.mjs tools/test-source-pages.mjs "$test_dir/tools/"
           printf '%s\n' '{"type":"module"}' > "$test_dir/package.json"
           node "$test_dir/tools/test-post-adapters.mjs"
           node "$test_dir/tools/test-editor-capabilities.mjs"
           node "$test_dir/tools/test-editor-variants.mjs"
+          node "$test_dir/tools/test-source-pages.mjs"
       - name: Unit tests
         run: go test ./...
 
@@ -106,7 +107,7 @@ jobs:
       - name: Verify public source hint staging and owner-safe delivery
         run: go test ./internal/posta -run '^(TestAutopilotConsumesAcceptedSourceHintsPostgres|TestAutopilotDeliversContentPerOwnerPostgres|TestAutopilotDirectDeliversWithoutApprovedSourcePostgres|TestAutopilotEvidenceDedupPostgres|TestAutopilotAuditFunnelPostgres|TestAutopilotYieldEvidencePostgres|TestAutopilotAvailableSupplyPostgres)$' -count=1 -timeout=12m
       - name: Verify candidate queue, probation and activation with PostgreSQL
-        run: go test ./internal/posta -run '^(TestAutopilotShadowQueuePostgres|TestMalformedCandidateDoesNotStarveAutopilotReviewPostgres|TestAutopilotModeClaimsDoNotStarvePostgres|TestAutopilotRecoversStaleFailuresWithoutBypassingQuotaPostgres|TestLegacyPendingTransferredOutOfManualShelfPostgres|TestAutopilotProbationNotStarvedByCandidateBacklogPostgres|TestAutopilotShadowEvidencePromotionPostgres|TestAutopilotCandidateToActiveLifecyclePostgres|TestAutopilotFullRecheckPostgres|TestAutopilotYieldRecheckBoundedPostgres|TestAutopilotRepairYieldAdmissionPostgres|TestPersonalBlogPreferencePersistsByTopicPostgres|TestAutopilotYieldMixedSourceLifecyclePostgres|TestAutopilotYieldPilotLifecyclePostgres|TestAutopilotClassifierFailureDoesNotBlockNextCandidatePostgres|TestAutopilotIndependentRestartAndLeaseRecoveryPostgres|TestAutopilotProjectionRespectsStateAndOverridePostgres|TestAutopilotPrepareSkipsInvalidRejectedProjectionsPostgres|TestAutopilotAutoDemandReconciliationPostgres|TestAutopilotRegistryIdentityPreservesVerdictsPostgres)$' -count=1 -timeout=12m
+        run: go test ./internal/posta -run '^(TestAutopilotShadowQueuePostgres|TestMalformedCandidateDoesNotStarveAutopilotReviewPostgres|TestAutopilotModeClaimsDoNotStarvePostgres|TestAutopilotRecoversStaleFailuresWithoutBypassingQuotaPostgres|TestLegacyPendingTransferredOutOfManualShelfPostgres|TestAutopilotProbationNotStarvedByCandidateBacklogPostgres|TestAutopilotShadowEvidencePromotionPostgres|TestAutopilotCandidateToActiveLifecyclePostgres|TestAutopilotFullRecheckPostgres|TestAutopilotYieldRecheckBoundedPostgres|TestAutopilotRepairYieldAdmissionPostgres|TestPersonalBlogPreferencePersistsByTopicPostgres|TestAutopilotYieldMixedSourceLifecyclePostgres|TestAutopilotYieldPilotLifecyclePostgres|TestAutopilotClassifierFailureDoesNotBlockNextCandidatePostgres|TestAutopilotIndependentRestartAndLeaseRecoveryPostgres|TestAutopilotProjectionRespectsStateAndOverridePostgres|TestAutopilotPrepareSkipsInvalidRejectedProjectionsPostgres|TestAutopilotAutoDemandReconciliationPostgres|TestAutopilotDemandProfilesPostgres|TestAutopilotAPIIsUserScopedPostgres|TestAutopilotRegistryIdentityPreservesVerdictsPostgres)$' -count=1 -timeout=12m
       - name: Verify atomic pool votes and repeat memory with PostgreSQL
         env:
           POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable

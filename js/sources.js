@@ -10,6 +10,7 @@ import { loadImage, pageCheck, videoProgress, watchVideo } from './video-pending
 import { shortText } from './card.js';
 import { initRegistry, loadRegistry } from './registry.js';
 import { prepareOwnImage } from './image-prepare.js';
+import { collectSourcePages } from './source-pages.js';
 
 const topicSources = { sources: [], topic: '', filter: 'all', loading: false };
 
@@ -183,37 +184,21 @@ function openAutopilotSourceDialog(topic, state, count) {
     const context = { dialog, topic: topic.topic, state, mode: topic.mode };
     autopilotSourceDialog = context;
     let version = 0;
+    let controller;
     const loadAllSources = async () => {
         const current = ++version;
+        controller?.abort();
+        controller = new AbortController();
         reload.disabled = true;
         status.textContent = 'Загрузка…';
         // Keep the current cards visible during refresh, including on errors.
         if (!list.children.length) list.append(el('p', { className: 'autopilot-source-empty', textContent: 'Загружаю источники…' }));
         try {
-            let after = '', snapshotAvailable = true;
-            const sources = [];
-            const seen = new Set();
-            // Read every page automatically, never ask the user to page through
-            // a modest queue. Bound loops in case a buggy server repeats a cursor.
-            for (let page = 0; page < 100; page++) {
-                const result = await api('source_autopilot_sources', {
-                    params: { topic: topic.topic, mode: topic.mode, state, after, limit: 500 }
-                });
-                if (current !== version || !dialog.open) return;
-                if (state === 'found' && result.snapshot_available === false) {
-                    snapshotAvailable = false;
-                    break;
-                }
-                for (const item of result.sources || []) {
-                    if (!seen.has(item.source_id)) {
-                        seen.add(item.source_id);
-                        sources.push(item);
-                    }
-                }
-                const next = result.next_after || '';
-                if (!next || next === after) break;
-                after = next;
-            }
+            const { sources, snapshotAvailable } = await collectSourcePages(
+                after => api('source_autopilot_sources', {
+                    params: { topic: topic.topic, mode: topic.mode, state, after, limit: 500 },
+                    signal: controller.signal
+                }), { state, signal: controller.signal });
             if (current !== version || !dialog.open) return;
             list.replaceChildren();
             if (!snapshotAvailable) {
@@ -237,6 +222,7 @@ function openAutopilotSourceDialog(topic, state, count) {
     };
     const dismiss = () => {
         version++;
+        controller?.abort();
         if (autopilotSourceDialog === context) autopilotSourceDialog = null;
         dialog.remove();
     };
@@ -665,44 +651,27 @@ async function autopilotExportSourcesForTopic(topic, states = autopilotExportSta
     const sources = new Map();
     let snapshotAvailable = true;
     for (const state of states) {
-        let after = '';
-        const cursors = new Set();
-        for (let page = 0; page < 100; page++) {
-            const data = await api('source_autopilot_sources', {
-                params: { topic: topic.topic, mode: topic.mode, state, after, limit: 500 }
+        const section = await collectSourcePages(after => api('source_autopilot_sources', {
+            params: { topic: topic.topic, mode: topic.mode, state, after, limit: 500 }
+        }), { state });
+        if (!section.snapshotAvailable) snapshotAvailable = false;
+        for (const item of section.sources) {
+            // A recheck may move a source between states during export.
+            sources.set(item.source_id, {
+                source_id: autopilotExportSafeValue(item.source_id),
+                url: autopilotExportSafeValue(item.url),
+                name: item.name || '',
+                source_kind: item.source_kind || '',
+                state: item.state,
+                reason: item.reason || '',
+                reason_label: autopilotSourceReasonLabels[item.reason] || item.reason || '',
+                personal_blog: item.personal_blog || 'unknown',
+                source_tags: item.personal_blog === 'yes' && !['category', 'community'].includes(item.source_kind) ? ['личный_блог'] : [],
+                review_evidence: item.review_evidence || {},
+                first_seen_at: item.first_seen_at || 0,
+                checked_at: item.checked_at || 0,
+                next_check_at: item.next_check_at || 0
             });
-            if (state === 'found' && data.snapshot_available === false) {
-                snapshotAvailable = false;
-                break;
-            }
-            for (const item of data.sources || []) {
-                if (!item.source_id) continue;
-                // Re-checking may move a source to another state mid-export.
-                // Keep only one row per ID, while preserving the reason shown.
-                sources.set(item.source_id, {
-                    source_id: autopilotExportSafeValue(item.source_id),
-                    url: autopilotExportSafeValue(item.url),
-                    name: item.name || '',
-                    source_kind: item.source_kind || '',
-                    state: item.state,
-                    reason: item.reason || '',
-                    reason_label: autopilotSourceReasonLabels[item.reason] || item.reason || '',
-                    personal_blog: item.personal_blog || 'unknown',
-                    source_tags: item.personal_blog === 'yes' && !['category', 'community'].includes(item.source_kind) ? ['личный_блог'] : [],
-                    // The API already whitelists public audit excerpts and numeric evidence.
-                    review_evidence: item.review_evidence || {},
-                    first_seen_at: item.first_seen_at || 0,
-                    checked_at: item.checked_at || 0,
-                    next_check_at: item.next_check_at || 0
-                });
-            }
-            const next = String(data.next_after || '');
-            if (!next) break;
-            if (next === after || cursors.has(next) || page === 99) {
-                throw new Error('Сервер вернул некорректную или слишком длинную пагинацию (' + state + '). Список не скопирован частично.');
-            }
-            cursors.add(next);
-            after = next;
         }
     }
     const entries = [...sources.values()];
