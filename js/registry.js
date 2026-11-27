@@ -3,7 +3,7 @@
 import { $, ask, api, el, formatAgo, log } from './core.js';
 
 const STATUS_LABEL = {
-    catalog: 'в каталоге', suggested: 'предложен', owner_yes: 'одобрили вы', owner_no: 'отклонили вы', owner_maybe: 'отметили «не знаю»',
+    discovered: 'обнаружен', catalog: 'в каталоге', suggested: 'предложен', owner_yes: 'одобрили вы', owner_no: 'отклонили вы', owner_maybe: 'отметили «не знаю»',
     rejected: 'не подошёл', dead: 'мёртвый', failed: 'не загрузился', ukraine: 'украинский',
 };
 const PLATFORMS = ['Telegram', 'ВКонтакте', 'RSS', 'Одноклассники', 'TikTok', 'Двач', '4chan'];

@@ -1852,6 +1852,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				THEN (s.evidence->>'search_rank')::numeric ELSE 1000000 END AS search_rank,
 			(s.evidence ? 'review_policy_v3_scheduled' AND NOT (s.evidence ? 'review_policy_v3_checked')) AS reaudit,
 			(s.evidence ? 'full_recheck_at' AND s.checked_at < (s.evidence->>'full_recheck_at')::bigint) AS fresh_recheck,
+			(s.evidence ? 'embedding_deferred_at') AS embed_deferred,
 			(s.state IN ('candidate','rejected') AND s.evidence ? 'preliminary_probe_scheduled' AND NOT (s.evidence ? 'preliminary_post_probe')) AS probe_priority,
 			COALESCE(s.evidence @> '{"yield_pilot":true}'::jsonb,false) AS pilot,
 			(s.state='active' AND COALESCE(s.evidence->>'source_decision_policy','') NOT IN ('yield_v2','yield_pilot','strict_v1_live_guard')) AS legacy_active,
@@ -1875,10 +1876,11 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
 	), ranked AS (
 		SELECT source_id,state,resume_state,lane,reaudit,pilot,probe_positive,legacy_active,
+			COALESCE(fresh_recheck,false) AS fresh_recheck,embed_deferred,
 			row_number() OVER (PARTITION BY lane ORDER BY fresh_recheck DESC NULLS LAST,probe_priority DESC,reaudit DESC,checked_at,first_seen_at,search_rank,source_id) AS lane_rank
 		FROM due
 	)
-	SELECT source_id,state,resume_state,reaudit,pilot,probe_positive,legacy_active,lane FROM ranked
+	SELECT source_id,state,resume_state,reaudit,pilot,probe_positive,legacy_active,lane,fresh_recheck,embed_deferred FROM ranked
 	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit,
 		TopicProfileVersion, time.Now().Add(-autopilotDirectMaxAge).Unix())
 	if err != nil {
@@ -1887,12 +1889,13 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 	type sourceRow struct {
 		id, state, resume                           string
 		reaudit, pilot, probePositive, legacyActive bool
-		lane                                        int
+		lane                                       int
+		freshRecheck, embedDeferred                bool
 	}
 	var ids []sourceRow
 	for rows.Next() {
 		var row sourceRow
-		if err := rows.Scan(&row.id, &row.state, &row.resume, &row.reaudit, &row.pilot, &row.probePositive, &row.legacyActive, &row.lane); err != nil {
+		if err := rows.Scan(&row.id, &row.state, &row.resume, &row.reaudit, &row.pilot, &row.probePositive, &row.legacyActive, &row.lane, &row.freshRecheck, &row.embedDeferred); err != nil {
 			rows.Close()
 			return err
 		}
@@ -1999,7 +2002,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		at := time.Now()
 		// Only initial candidate reviews reuse public listings. Established
 		// sources and explicit rechecks always obtain a new observation.
-		reuse := state == "candidate" && !row.reaudit
+		reuse := state == "candidate" && !row.reaudit && !row.freshRecheck
 		res, reused := a.autopilotReviewListing(source, feed, reuse, fetch)
 		if err := autopilotBudgetError(ctx); err != nil {
 			return err
@@ -2190,6 +2193,26 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				return err
 			}
 			continue
+		}
+		if reason == "" && state == "candidate" && job.Scope == autopilotAutoScope && a.LLM != nil {
+			score, status := a.autopilotEmbeddingPrescreen(ctx, job, sourceInfo, samples)
+			evidence["embedding_prescreen_status"] = status
+			if score != nil {
+				evidence["embedding_prescreen"] = score
+				if !verifiedAdmission && !row.reaudit && !row.freshRecheck && !row.embedDeferred &&
+					a.autopilotMayDeferEmbedding(job.Topic, samples, score) {
+					evidence["embedding_deferred_at"] = at.Unix()
+					if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state,
+						"semantic_prescreen_deferred", jx.Marshal(evidence), at, at.Add(2*time.Hour)); err != nil &&
+						!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+						return err
+					}
+					continue
+				}
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 		}
 		if reason == "" && (state == "candidate" || (!policy.YieldEnabled && row.reaudit && (state == "probation" || state == "active"))) {
 			autopilotResetAssessmentCause(ctx)

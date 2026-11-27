@@ -45,7 +45,7 @@ func mergeThematicRSS(existing []jx.M, blocked map[string]bool) ([]jx.M, []strin
 // Previously checked/rejected sources and existing entries are never overwritten.
 func (a *App) SeedThematicRSS(ctx context.Context) ([]string, error) {
 	blocked := map[string]bool{}
-	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id FROM source_registry`)
+	rows, err := a.DB.Pool.Query(ctx, `SELECT source_id FROM source_registry WHERE status<>'discovered'`)
 	if err != nil {
 		return nil, err
 	}

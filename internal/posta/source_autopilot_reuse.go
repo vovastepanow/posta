@@ -74,6 +74,15 @@ func (a *App) autopilotNominateIndexedSources(ctx context.Context, job *autopilo
 	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope || limit <= 0 {
 		return nil
 	}
+	var pending int
+	if err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND state='candidate'`, job.Scope, job.TopicKey).Scan(&pending); err != nil {
+		return err
+	}
+	limit = min(limit, 64-pending)
+	if limit <= 0 {
+		return nil
+	}
 	topic := a.TopicLookup(job.Topic)
 	if topic == nil || topic.Key == "" {
 		return nil
@@ -91,11 +100,14 @@ func (a *App) autopilotNominateIndexedSources(ctx context.Context, job *autopilo
 		ORDER BY p.last_seen DESC LIMIT 500
 	) SELECT source_key,count(*) FROM recent GROUP BY source_key HAVING count(*)>=2
 		ORDER BY count(*) DESC,max(last_seen) DESC,source_key LIMIT $5`,
-		topic.Key, job.Scope, job.TopicKey, at.Add(-7*24*time.Hour).Unix(), min(32,limit*4))
+		topic.Key, job.Scope, job.TopicKey, at.Add(-7*24*time.Hour).Unix(), min(32, limit*4))
 	if err != nil {
 		return err
 	}
-	type nomination struct { source string; posts int }
+	type nomination struct {
+		source string
+		posts  int
+	}
 	var candidates []nomination
 	for rows.Next() {
 		var n nomination
@@ -103,7 +115,7 @@ func (a *App) autopilotNominateIndexedSources(ctx context.Context, job *autopilo
 			rows.Close()
 			return err
 		}
-		candidates = append(candidates,n)
+		candidates = append(candidates, n)
 	}
 	err = rows.Err()
 	rows.Close()
@@ -129,7 +141,7 @@ func (a *App) autopilotNominateIndexedSources(ctx context.Context, job *autopilo
 			continue
 		}
 		if err := registerAutopilotCandidateWithEvidence(ctx, a.DB, job, n.source, "discovered",
-			jx.Marshal(jx.M{"discovery_origin":"indexed_post","indexed_post_count":n.posts}), at); err != nil {
+			jx.Marshal(jx.M{"discovery_origin": "indexed_post", "indexed_post_count": n.posts}), at); err != nil {
 			return err
 		}
 		limit--
