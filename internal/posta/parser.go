@@ -267,9 +267,9 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 	}
 	switch event {
 	case "frozen":
-		u.registryUpsert(registryWrite{SourceID: key, Platform: platform, Status: RegStatusDead, Reason: "заморожен: " + jx.Str(updated, "frozen_reason")})
+		u.registryUpsert(registryWrite{SourceID: SourceIDFor(platform, jx.Str(entry, "id")), Platform: platform, Status: RegStatusDead, Reason: "заморожен: " + jx.Str(updated, "frozen_reason")})
 	case "revived":
-		u.registryUpsert(registryWrite{SourceID: key, Platform: platform, Status: RegStatusCatalog, Reason: "в каталоге"})
+		u.registryUpsert(registryWrite{SourceID: SourceIDFor(platform, jx.Str(entry, "id")), Platform: platform, Status: RegStatusCatalog, Reason: "в каталоге"})
 	}
 	if event == "frozen" || event == "still_frozen" {
 		skip := activeOnly

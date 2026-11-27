@@ -91,9 +91,18 @@ func SourceIDFor(platform, id string) string {
 			return "rss:" + feed
 		}
 	}
-	prefix := map[string]string{PlatformTelegram: "telegram:", PlatformVK: "vk:", PlatformRSS: "rss:", PlatformOK: "ok:", PlatformTikTok: "tiktok:"}[platform]
-	if prefix == "" {
-		prefix = "source:"
+	prefix := "source:"
+	switch platform {
+	case PlatformTelegram:
+		prefix = "telegram:"
+	case PlatformVK:
+		prefix = "vk:"
+	case PlatformRSS:
+		prefix = "rss:"
+	case PlatformOK:
+		prefix = "ok:"
+	case PlatformTikTok:
+		prefix = "tiktok:"
 	}
 	return prefix + strings.ToLower(id)
 }
