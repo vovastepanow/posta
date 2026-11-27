@@ -505,6 +505,15 @@ func TestAutopilotLiveSearchLinkComparison(t *testing.T) {
 			newIDs = append(newIDs, candidate.ID)
 		}
 		found += len(newIDs)
+		var resultHosts []string
+		if doc := rssLoad(res.Bytes); rssIsFeed(doc) {
+			for _, item := range rssItems(doc) {
+				if link, err := url.Parse(autopilotTikTokUnwrapBing(rssItemLink(item, res.URL))); err == nil && link.Hostname() != "" {
+					resultHosts = append(resultHosts, link.Hostname())
+				}
+			}
+		}
+		t.Logf("LIVE SEARCH RSS: result_hosts=%q", resultHosts[:min(12, len(resultHosts))])
 		t.Logf("LIVE SEARCH: query=%q provider=%s legacy=%d direct=%d ids=%v", tc.query, p.Host, len(old), len(newIDs), newIDs[:min(len(newIDs), 8)])
 	}
 	if available == 0 {

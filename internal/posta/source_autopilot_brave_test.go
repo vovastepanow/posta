@@ -159,3 +159,38 @@ func TestAutopilotPublisherSearchUsesBingWhenBraveUnavailable(t *testing.T) {
 		t.Fatal("healthy primary search caused an extra fallback request")
 	}
 }
+
+func TestAutopilotPublisherSearchBingHTMLFallback(t *testing.T) {
+	brave := func(string) FetchResultURL {
+		return FetchResultURL{FetchResult: FetchResult{Status: 429}}
+	}
+	calls := 0
+	bing := func(raw string, _ int64, _ time.Duration, _ string) FetchResultURL {
+		calls++
+		body := `<rss><channel><item><link>https://example.org/unrelated</link></item></channel></rss>`
+		if !strings.Contains(raw, "format=rss") {
+			body = `<html><body>
+<a href="https://t.me/navigation_noise">Navigation</a>
+<ul><li class="b_algo"><h2><a href="https://t.me/s/real_channel/12">Real channel</a></h2>
+<a href="https://t.me/snippet_noise">Not a result title</a></li>
+<li class="b_ad"><h2><a href="https://t.me/advert_noise">Ad</a></h2></li>
+<li class="b_algo"><h2><a href="https://t.me.evil.org/fake_channel">Fake</a></h2></li></ul>
+</body></html>`
+		}
+		return FetchResultURL{URL: raw, FetchResult: FetchResult{OK: true, Status: 200, Bytes: []byte(body)}}
+	}
+	result := autopilotPublisherSearchWith("camera lenses", PlatformTelegram, brave, bing)
+	got := autopilotSearchLinkedCandidates(result, PlatformTelegram)
+	if calls != 2 || !autopilotPublisherSearchResponseValid(result) || len(got) != 1 || got[0].ID != "real_channel" {
+		t.Fatalf("fallback calls=%d candidates=%+v", calls, got)
+	}
+	calls = 0
+	blocked := func(raw string, _ int64, _ time.Duration, _ string) FetchResultURL {
+		calls++
+		return FetchResultURL{URL: raw, FetchResult: FetchResult{Status: 429}}
+	}
+	autopilotPublisherSearchWith("camera lenses", PlatformTelegram, brave, blocked)
+	if calls != 1 {
+		t.Fatal("blocked provider retried")
+	}
+}

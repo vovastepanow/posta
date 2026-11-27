@@ -11,6 +11,19 @@ import (
 // Search uses public endpoints only. The returned links are merely
 // candidates and always go through public-page validation and assessment.
 func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandidate {
+	// Native directory worked in the public smoke run. Avoid spending two
+	// search-engine requests before using it, when it has usable candidates.
+	if platform == PlatformTelegram && u.Ctx.Err() == nil && autopilotBudgetError(u.Ctx) == nil {
+		if found, err := u.autopilotTelegramIndex(query); err == nil && len(found) > 0 {
+			for i := range found {
+				found[i].Origin = "публичный каталог Telegram «" + query + "»"
+			}
+			if u.discoverySearchObservation != nil {
+				u.discoverySearchObservation(platform, query, "ok")
+			}
+			return found
+		}
+	}
 	host := "t.me"
 	if platform == PlatformVK {
 		host = "vk.com"
@@ -45,18 +58,6 @@ func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandida
 		}
 		if len(out) > 0 {
 			status = "ok"
-		}
-	}
-	if platform == PlatformTelegram && len(out) == 0 && u.Ctx.Err() == nil && autopilotBudgetError(u.Ctx) == nil {
-		if found, err := u.autopilotTelegramIndex(query); err == nil {
-			status = "empty"
-			for _, candidate := range found {
-				candidate.Origin = "публичный каталог Telegram «" + query + "»"
-				out = append(out, candidate)
-			}
-			if len(out) > 0 {
-				status = "ok"
-			}
 		}
 	}
 	if u.discoverySearchObservation != nil {

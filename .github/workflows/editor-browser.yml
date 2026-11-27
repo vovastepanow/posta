@@ -22,7 +22,7 @@ jobs:
       - name: Install isolated browser-test dependencies
         run: |
           npm install --prefix "$RUNNER_TEMP/posta-editor-test" --no-save --no-package-lock playwright@1.56.1
-          node "$RUNNER_TEMP/posta-editor-test/node_modules/playwright/cli.js" install --with-deps chromium
+          node "$RUNNER_TEMP/posta-editor-test/node_modules/playwright/cli.js" install chromium
       - name: Exercise actual editor in Chromium
         run: |
           cp tools/test-editor-browser.mjs "$RUNNER_TEMP/posta-editor-test/"

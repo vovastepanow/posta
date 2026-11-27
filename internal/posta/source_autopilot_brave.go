@@ -65,9 +65,21 @@ func autopilotPublisherSearchWith(query, platform string, brave func(string) Fet
 	if autopilotPublisherSearchResponseValid(primary) && len(autopilotSearchLinkedCandidates(primary, platform)) > 0 {
 		return primary
 	}
-	secondary := bing("https://www.bing.com/search?q="+url.QueryEscape(query)+"&format=rss", rssMaxBytes, 15*time.Second, BrowserUA)
+	endpoint := "https://www.bing.com/search?q=" + url.QueryEscape(query)
+	secondary := bing(endpoint+"&format=rss", rssMaxBytes, 15*time.Second, BrowserUA)
 	if autopilotPublisherSearchResponseValid(secondary) {
-		if len(autopilotSearchLinkedCandidates(secondary, platform)) > 0 || !autopilotPublisherSearchResponseValid(primary) {
+		if len(autopilotSearchLinkedCandidates(secondary, platform)) > 0 {
+			return secondary
+		}
+		// Bing RSS can return unrelated sites even for a site: query.
+		// Try its ordinary result page once, but never retry a blocked request.
+		if secondary.Status != 206 && rssIsFeed(rssLoad(secondary.Bytes)) {
+			page := bing(endpoint, 3<<20, 15*time.Second, BrowserUA)
+			if autopilotPublisherSearchResponseValid(page) && len(autopilotSearchLinkedCandidates(page, platform)) > 0 {
+				return page
+			}
+		}
+		if !autopilotPublisherSearchResponseValid(primary) {
 			return secondary
 		}
 	}
@@ -84,10 +96,65 @@ func autopilotPublisherSearchResponseValid(r FetchResultURL) bool {
 		lower := strings.ToLower(string(r.Bytes))
 		return !strings.Contains(lower, "captcha") && !strings.Contains(lower, "challenge_required")
 	case "www.bing.com":
-		return rssIsFeed(rssLoad(r.Bytes))
+		return r.Status != 206 && (rssIsFeed(rssLoad(r.Bytes)) || len(autopilotBingHTMLLinks(r.Bytes, p)) > 0)
 	default:
 		return false
 	}
+}
+
+// Only result-title anchors within Bing's actual organic result rows count.
+// Decode Bing's known tracking wrapper locally, without following redirects.
+func autopilotBingHTMLLinks(body []byte, base *url.URL) []string {
+	lower := strings.ToLower(string(body))
+	if strings.Contains(lower, "challenge_required") || strings.Contains(lower, "id=\"b_captcha\"") || strings.Contains(lower, "id=\"captcha\"") {
+		return nil
+	}
+	doc, err := html.Parse(strings.NewReader(string(body)))
+	if err != nil {
+		return nil
+	}
+	var links []string
+	var walk func(*html.Node, bool, bool)
+	walk = func(n *html.Node, result, title bool) {
+		if len(links) >= 100 {
+			return
+		}
+		if n.Type == html.ElementNode {
+			if n.Data == "script" || n.Data == "style" || n.Data == "template" {
+				return
+			}
+			if n.Data == "li" {
+				result = false
+				for _, attr := range n.Attr {
+					if attr.Key == "class" {
+						for _, class := range strings.Fields(attr.Val) {
+							if class == "b_algo" {
+								result = true
+							}
+						}
+					}
+				}
+			}
+			if result && n.Data == "h2" {
+				title = true
+			}
+			if result && title && n.Data == "a" {
+				for _, attr := range n.Attr {
+					if attr.Key == "href" {
+						if href, e := url.Parse(attr.Val); e == nil {
+							links = append(links, autopilotTikTokUnwrapBing(base.ResolveReference(href).String()))
+						}
+						break
+					}
+				}
+			}
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child, result, title)
+		}
+	}
+	walk(doc, false, false)
+	return links
 }
 
 // Search documents are not a list of sources. URLs in scripts, unrelated
@@ -128,7 +195,9 @@ func autopilotSearchLinkedCandidates(r FetchResultURL, platform string) []Discov
 			for _, item := range rssItems(doc) {
 				links = append(links, autopilotTikTokUnwrapBing(rssItemLink(item, r.URL)))
 			}
-		} else if platform == PlatformTikTok {
+		} else if parsed := autopilotBingHTMLLinks(r.Bytes, final); len(parsed) > 0 {
+			links = parsed
+		} else if platform == PlatformTikTok && !strings.Contains(string(r.Bytes), "<") {
 			// The older TikTok adapter returns a normalized URL list.
 			links = strings.Fields(string(r.Bytes))
 		} else {

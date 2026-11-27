@@ -161,7 +161,7 @@ func (a *App) sourceEmbeddingInputs(topic string, posts []jx.M) (string, []strin
 	var captions []string
 	seen := map[string]bool{}
 	for _, p := range posts[:min(10, len(posts))] {
-		if jx.Bool(p, "text_incomplete") {
+		if jx.Bool(p, "text_incomplete") || sourceReviewSensitive(p) {
 			continue
 		}
 		caption := sourceReviewCaption(jx.Str(p, "text"))
@@ -176,6 +176,11 @@ func (a *App) sourceEmbeddingInputs(topic string, posts []jx.M) (string, []strin
 }
 
 func (a *App) autopilotEmbeddingPrescreen(ctx context.Context, job *autopilotJob, info jx.M, posts []jx.M) (*sourceEmbeddingScore, string) {
+	for _, post := range posts {
+		if sourceReviewSensitive(post) {
+			return nil, "sensitive_sample"
+		}
+	}
 	target := a.LLM.SourceEmbeddingTarget()
 	if target.Empty() {
 		return nil, "openrouter_embedding_disabled"
@@ -273,7 +278,7 @@ func (a *App) autopilotEmbeddingEligible(ctx context.Context, topic string, post
 	format := u.TopicFormatOf(topic)
 	textOnly := format.Media == "optional" && format.Judge != "image" && !sourcePostsHaveImages(posts)
 	for _, post := range posts {
-		if jx.Bool(post, "text_incomplete") || jx.Bool(post, "media_incomplete") || jx.Bool(post, "video_unavailable") ||
+		if sourceReviewSensitive(post) || jx.Bool(post, "text_incomplete") || jx.Bool(post, "media_incomplete") || jx.Bool(post, "video_unavailable") ||
 			PostItemHasVideo(post) || jx.Str(post, "video_via") != "" || jx.Str(post, "audio") != "" || len(jx.List(post, "source_attachments")) > 0 ||
 			len(jx.List(post, "gallery")) > 0 || len(jx.List(post, "media")) > 0 {
 			textOnly = false
@@ -281,4 +286,10 @@ func (a *App) autopilotEmbeddingEligible(ctx context.Context, topic string, post
 		}
 	}
 	return textOnly
+}
+
+// Never put marked sensitive or account-derived observations in shared text
+// caches or send them through the optional public embedding path.
+func sourceReviewSensitive(post jx.M) bool {
+	return jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0
 }

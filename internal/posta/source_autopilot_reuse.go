@@ -95,7 +95,8 @@ func (a *App) autopilotNominateIndexedSources(ctx context.Context, job *autopilo
 		SELECT p.source_key,p.post_key,p.last_seen
 		FROM public_post_topics t JOIN public_posts p USING(source_key,post_key)
 		WHERE t.topic_key=$1 AND p.last_seen >= $4
-			AND NOT (p.data @> '{"text_incomplete":true}' OR p.data @> '{"media_incomplete":true}' OR p.data @> '{"source_sensitive":true}' OR p.data @> '{"nsfw":true}')
+			AND NOT (p.data @> '{"text_incomplete":true}' OR p.data @> '{"media_incomplete":true}' OR p.data @> '{"source_sensitive":true}' OR p.data @> '{"nsfw":true}' OR p.data @> '{"video_unavailable":true}')
+			AND COALESCE(p.data->'safety', '[]'::jsonb) IN ('[]'::jsonb, 'null'::jsonb)
 			AND NOT EXISTS (SELECT 1 FROM source_autopilot_sources s WHERE s.scope=$2 AND s.topic_key=$3 AND s.source_id=p.source_key)
 			AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE o.scope=$2 AND o.topic_key=$3 AND o.owner_id='' AND o.source_id=p.source_key AND o.decision='excluded')
 		ORDER BY p.last_seen DESC LIMIT 500
@@ -238,7 +239,7 @@ func (a *App) autopilotReuseTextReview(ctx context.Context, job *autopilotJob, i
 		return evaluate(info, posts, job.Topic)
 	}
 	for _, post := range posts {
-		if PostItemHasVideo(post) || jx.Str(post, "video_via") != "" || jx.Str(post, "audio") != "" ||
+		if sourceReviewSensitive(post) || PostItemHasVideo(post) || jx.Str(post, "video_via") != "" || jx.Str(post, "audio") != "" ||
 			jx.Bool(post, "text_incomplete") || jx.Bool(post, "media_incomplete") || jx.Bool(post, "video_unavailable") ||
 			len(jx.List(post, "source_attachments")) > 0 || len(jx.List(post, "gallery")) > 0 {
 			return evaluate(info, posts, job.Topic)
