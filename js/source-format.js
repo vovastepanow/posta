@@ -94,3 +94,15 @@ export function articleEditorContent(article, fallbackTitle=''){
     if(cover&&!media.some(m=>m.src===cover))media.unshift({kind:'image',src:cover,thumb:cover,name:'Обложка статьи'});
     return {text:parts.join('\n\n'),styled,media,bodyFound};
 }
+
+// Identify the record, never its thumbnail alone. A source post identity
+// survives refreshed media URLs. A synthesized viewer item has no post ID,
+// so include its actual video/image and text as the final fallback.
+export function editorRecordKey(item) {
+    const source=String(item?.source_key||'');
+    const post=String(item?.post_id||'');
+    const page=String(item?.source_url||item?.url||item?.video_page||'');
+    if(source&&post)return 'record:'+JSON.stringify([source,post,item?.thread_id||'']);
+    if(page)return 'page:'+page;
+    return 'content:'+JSON.stringify([item?.item_key||'',item?.video||item?.display_video||'',item?.image||item?.display_image||'',item?.text_original??item?.text??'',item?.text_html||'']);
+}

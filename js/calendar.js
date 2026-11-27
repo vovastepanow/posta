@@ -1252,7 +1252,7 @@ async function commitPoolItem(item, at) {
     const targets = enabledChannels().map(c => c.id);
     if (!targets.length) { setStatus('Отметьте хотя бы один ресурс.', true); return null; }
     const image = item.image || item.display_image || '';
-    if (item.format === 'video' || !image) {
+    if (item.format === 'video' || !image || item.article || item.article_source || item.text_html) {
         postItemToTelegram(item, { scheduledTs: Math.floor(at / 1000), channel: targets[0], onDone: () => loadCalendar() }).catch(error => setStatus(error.message, true));
         return null;
     }

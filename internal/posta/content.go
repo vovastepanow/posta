@@ -312,7 +312,7 @@ func (a *App) ContentHistoryRecord(item jx.M, complaintReason any) jx.M {
 		"source_url": SourcePostURL(item), "posted_at": item["posted_at"], "engagement": item["engagement"], "complaint_reason": complaintReason,
 		"video": jx.Str(item, "video"), "video_via": jx.Str(item, "video_via"), "video_page": jx.Str(item, "video_page"), "image_local": jx.Str(item, "image_local"), "video_local": jx.Str(item, "video_local"),
 		"phash": jx.Str(item, "phash"), "repeat_file_hashes": item["repeat_file_hashes"], "text_post": item["text_post"], "gallery": ContentGallery(item), "timestamp": now()}
-	for _, k := range []string{"url", "article", "title", "source_sensitive", "nsfw", "safety", "interest", "practical_value", "specificity", "evidence", "analysis_model", "analysis_evidence", "media_incomplete", "text_incomplete", "video_unavailable", "video_error", "expected_video_count", "source_attachments", "attachment_inventory_incomplete", "attachment_recovered", "fetched_via"} {
+	for _, k := range []string{"url", "article", "article_text", "article_source", "title", "source_sensitive", "nsfw", "safety", "interest", "practical_value", "specificity", "evidence", "analysis_model", "analysis_evidence", "media_incomplete", "text_incomplete", "video_unavailable", "video_error", "expected_video_count", "source_attachments", "attachment_inventory_incomplete", "attachment_recovered", "fetched_via"} {
 		if v, ok := item[k]; ok {
 			rec[k] = v
 		}

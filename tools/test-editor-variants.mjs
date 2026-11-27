@@ -30,3 +30,9 @@ assert.equal(payloadAllowsSourceLink(draftPayload(card)),false);
 assert.equal(payloadAllowsSourceLink(draftPayload({...base,media:[{kind:'video_note'}]})),false);
 assert.equal(payloadAllowsSourceLink(draftPayload({...base,poll:{question:'Q',options:['A','B']}})),false);
 assert.equal(payloadAllowsSourceLink(draftPayload({...base,poll:{question:'Q',options:['A','B'],with_content:true}})),true);
+
+import {editorRecordKey} from '../js/source-format.js';
+assert.notEqual(editorRecordKey({text:'First text'}),editorRecordKey({text:'Second text'}));
+assert.notEqual(editorRecordKey({video:'a',image:'same'}),editorRecordKey({video:'b',image:'same'}));
+assert.equal(editorRecordKey({source_key:'telegram:abcde',post_id:'12',image:'old'}),editorRecordKey({source_key:'telegram:abcde',post_id:'12',image:'new'}));
+assert.notEqual(editorRecordKey({source_key:'telegram:abcde',post_id:'12'}),editorRecordKey({source_key:'telegram:other',post_id:'12'}));

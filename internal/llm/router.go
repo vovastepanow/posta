@@ -645,8 +645,12 @@ func (r *Router) EmbedSource(ctx context.Context, target Target, texts []string)
 	if limit := r.Settings().FreeDailyLimit; limit > 0 && r.FreeUsed() >= limit*8/10 {
 		return nil, errors.New("free quota reserved for content evaluation")
 	}
+	started := time.Now()
 	vectors, err := r.OpenRouter.embedSource(ctx, target.Model, texts)
 	r.countFree(target, err)
+	if r.OnCall != nil {
+		r.OnCall(Call{Role: RoleEmbed, Target: target, Started: started, Err: err})
+	}
 	return vectors, err
 }
 

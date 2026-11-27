@@ -10,7 +10,7 @@ import { itemCheck, videoProgress, watchVideo } from './video-pending.js';
 import { articleBrief, cardKind, clampText } from './card.js';
 import { fromRecord, recordSlides, recordMediaIncomplete, hasRecordContent } from './post-adapters.js';
 import { renderPostSheet } from './post-view.js';
-import { sourceEditorText, articleEditorContent } from './source-format.js';
+import { sourceEditorText, articleEditorContent, editorRecordKey } from './source-format.js';
 
 const state = { item: null, slides: [], index: 0, poll: null, voting: false, preloaded: [], channels: [], networkChannels: [], networks: {}, nativeAccount: false };
 const TOPIC_CONFIRM = 'Сменить тему поиска? Неоценённые записи по старой теме будут убраны из пула, и поиск начнётся заново. История оценок сохранится.';
@@ -699,10 +699,9 @@ async function editorContent(item,shown){
         imported=articleEditorContent(data.article,item.article?.title);
         if(!imported.bodyFound)throw new Error('Текст статьи не найден.');
     }catch(error){
-        const body=String(item.article_text||'').trim();
-        if(!body)throw new Error('Не удалось загрузить полную статью: '+error.message);
-        imported=articleEditorContent({title:item.article?.title,blocks:[{type:'p',text:body}]});
-        log('Статья перенесена из сохранённого текста; дополнительные ссылки и изображения могли быть недоступны.');
+        // A saved RSS summary or legacy article_text may be only a lead.
+        // Never silently present it as a complete article.
+        throw new Error('Не удалось загрузить полную статью: '+error.message);
     }
     const media=[...originalMedia];
     for(const m of imported.media)if(!media.some(existing=>existing.src===m.src||existing.thumb===m.src))media.push(m);
@@ -818,7 +817,7 @@ export async function openFutureDraft() {
         restoreMedia(saved);Object.values(saved.variants||{}).forEach(restoreMedia);
         const picked=(saved.picked||[]).filter(v=>allTargets().some(t=>t.value===v));
         openPostEditor({ key: 'future-draft', savedDraft: saved, picked:picked.length?picked:allTargets().length ? [allTargets()[0].value] : ['tg:main'], targets: allTargets().length ? allTargets() : [{ value: 'tg:main', label: 'Ресурс не подключён', hashtags: 'off', unconnected: true }], schedule: scheduleOptions(),
-            media: saved.media, original: saved.text, hashtags: saved.tags || [], ai: captionTools(),
+            media: saved.media, original: saved.text, extras:saved.extras, poll:saved.poll, hashtags: saved.tags || [], ai: captionTools(),
             onDraftChange: draft => saveFutureDraft(key, { ...draft, items: (draftHasContent(draft)||Object.values(draft.variants||{}).some(draftHasContent)) ? (saved.items || []) : [] }).catch(error => log(`Не удалось сохранить черновик: ${error.message}`)),
             onClose: refreshFutureDraftButtons,
             onSubmit: async (post, onProgress) => { if (!allTargets().length) throw new Error('Подключите ресурс в личном кабинете для публикации.'); const result = await publishToTargets(post, onProgress); await clearFutureDraft(key); refreshFutureDraftButtons(); return result; }
@@ -942,7 +941,7 @@ export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', 
     // Цель канала: первый канал — tg:main (как в telegramTargets), остальные — tg:<id>
     const target = channel ? (state.channels[0]?.id === channel ? 'tg:main' : allTargets().find(t => t.value.endsWith(':' + channel))?.value) : allTargets()[0].value;
     openPostEditor({
-        key: cardKind(item)==='article'?'article:'+safeSourcePostUrl(item):item.image || item.display_image || '', picked: [target || allTargets()[0].value], targets: allTargets(), schedule: scheduleOptions(),
+        key: editorRecordKey(item), picked: [target || allTargets()[0].value], targets: allTargets(), schedule: scheduleOptions(),
         scheduledTs, scheduledAt: scheduledTs ? formatWhen(new Date(scheduledTs * 1000)) : '', description: item.description || '', original: sourceText, extras:{styled_text:imported.styled},
         media: imported.media, hashtags: item.hashtags || [],
         ai: captionTools(), newsUrl: sourceUrl || '',

@@ -349,7 +349,7 @@ func (a *App) tiktokPostFromItem(user string, it jx.M, src string) jx.M {
 		text = EmptyPostText
 	}
 	return jx.M{"image": cover, "images": []any{cover}, "gallery": []any{}, "video": "", "video_unavailable": false, "video_via": "ytdlp", "video_page": page,
-		"engagement": nil, "text": trimRunes(text, 1000), "source": src, "post_id": id, "posted_at": jx.Int(it, "timestamp"), "url": page,
+		"engagement": nil, "text": text, "source": src, "post_id": id, "posted_at": jx.Int(it, "timestamp"), "url": page,
 		"views": jx.Int(it, "view_count"), "likes": jx.Int(it, "like_count"), "comments": jx.Int(it, "comment_count"), "reshares": jx.Int(it, "repost_count"),
 		"duration": jx.Int(it, "duration")}
 }

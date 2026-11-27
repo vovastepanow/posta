@@ -511,6 +511,9 @@ func (a *App) CalendarPlanPick(slots []FillSlot, candidates, history []jx.M, lim
 			if key == "" || used[key] {
 				continue
 			}
+			if calendarRequiresEditor(c) {
+				continue
+			}
 			if _, err := a.calendarRecordMedia(c); err != nil {
 				continue
 			}
@@ -639,6 +642,9 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 	if u.UARecordHidden(record) || (!u.AdultAllowed() && u.ContentIsAdult(record)) {
 		return "", Bad("Публикация этого материала недоступна.")
 	}
+	if calendarRequiresEditor(record) {
+		return "", Bad("Статья или форматированный текст: откройте пост в редакторе, чтобы сохранить всё содержимое.")
+	}
 	items, err := u.calendarRecordMedia(record)
 	if err != nil {
 		return "", err
@@ -744,4 +750,10 @@ func (a *App) calendarRecordMedia(record jx.M) ([]MediaItem, error) {
 		return nil, Bad("В записи нет доступного текста или медиа.")
 	}
 	return items, nil
+}
+
+// calendarRequiresEditor protects rich originals until the quick scheduler
+// can carry the same complete structured payload as the editor.
+func calendarRequiresEditor(record jx.M) bool {
+	return len(jx.Map(record, "article")) > 0 || jx.Bool(record, "article_source") || strings.TrimSpace(jx.Str(record, "text_html")) != ""
 }

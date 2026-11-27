@@ -801,6 +801,14 @@ func dbDefinitions() map[string]dbDef {
 
 var dbOrder = []string{"topic_sources", "content_pool", "content_history", "sources_db"}
 
+func ownerDatabase(database string) bool {
+	switch database {
+	case "analysis_cache", "screened_cache", "kv", "source_verdicts", "sources_db":
+		return true
+	}
+	return false
+}
+
 func databaseOptions(c *Ctx) (any, error) {
 	defs := dbDefinitions()
 	order := append([]string{}, dbOrder...)
@@ -809,6 +817,9 @@ func databaseOptions(c *Ctx) (any, error) {
 	}
 	list := []jx.M{}
 	for _, id := range order {
+		if ownerDatabase(id) && ownerOnly(c) != nil {
+			continue
+		}
 		d := defs[id]
 		colls := []jx.M{}
 		for _, cl := range d.Collections {
@@ -831,6 +842,11 @@ func collLabel(d dbDef, coll string) (string, bool) {
 // databaseOpen — записи коллекции: пул и история — только темы, выбранной во вкладках; SQL-таблицы — только свои строки.
 func databaseOpen(c *Ctx, database, coll string) (dbDef, []jx.M, error) {
 	d, known := dbDefinitions()[database]
+	if ownerDatabase(database) {
+		if err := ownerOnly(c); err != nil {
+			return d, nil, err
+		}
+	}
 	if !known {
 		return d, nil, fail(400, "Неизвестная база данных.")
 	}

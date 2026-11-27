@@ -412,11 +412,13 @@ func articleApplyOsnova(post jx.M, a jx.M, link string) jx.M {
 	post["article"] = jx.M{"title": a["title"], "lead": a["lead"], "cover": a["cover"], "rubric": a["rubric"], "author": a["author"],
 		"minutes": a["minutes"], "words": a["words"], "site": hostOf(link)}
 	body := articleBodyText(jx.Maps(a, "blocks"))
+	post["article_text"] = body
 	if body == "" {
+		// A lead is presentation metadata, not the body of the article.
 		body = jx.Str(a, "lead")
+		post["text_incomplete"] = true
 	}
 	post["text"] = strings.TrimSpace(strings.Join([]string{jx.Str(a, "title"), body}, "\n\n"))
-	post["article_text"] = body
 	eng := jx.M{"source": "osnova"}
 	for k, v := range jx.Map(a, "counters") {
 		eng[k] = v

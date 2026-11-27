@@ -47,6 +47,12 @@ var sqlViewTables = map[string]string{
 
 // SQLTableRows — строки служебной таблицы для просмотра (только чтение; свои строки, если таблица по пользователям).
 func (u *U) SQLTableRows(table string) ([]jx.M, error) {
+	switch table {
+	case "analysis_cache", "screened_cache", "kv", "source_verdicts":
+		if !u.IsOwner(u.Ctx, u.ID) {
+			return nil, Bad("Служебная таблица недоступна.")
+		}
+	}
 	q, known := sqlViewTables[table]
 	if !known {
 		return nil, Bad("Неизвестная таблица.")
