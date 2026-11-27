@@ -13,6 +13,7 @@ import (
 	"os"
 	"regexp"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -106,7 +107,137 @@ func (s *Server) Handler() http.Handler {
 	if base := strings.TrimRight(cfg.BasePath, "/"); base != "" {
 		h = http.StripPrefix(base, mux)
 	}
-	return securityHeaders(h)
+	return securityHeaders(withBuildRevision(h, runningBuildRevision()))
+}
+
+// Read the executing binary's build metadata, never the mutable checkout.
+func runningBuildRevision() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" && regexp.MustCompile(`^[a-f0-9]{40}// Package web — HTTP: тот же JSON API, что был у index.php (?action=…), статика интерфейса и медиа.
+package web
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log"
+	"mime"
+	"net"
+	"net/http"
+	"os"
+	"regexp"
+	"path/filepath"
+	"runtime/debug"
+	"strconv"
+	"strings"
+	"time"
+
+	"posta/internal/config"
+	"posta/internal/jx"
+	"posta/internal/posta"
+)
+
+type Server struct {
+	A *posta.App
+}
+
+// Ctx — один запрос API.
+type Ctx struct {
+	W      http.ResponseWriter
+	R      *http.Request
+	A      *posta.App
+	U      *posta.U
+	In     jx.M
+	SID    string
+	Action string
+	done   bool
+}
+
+// Resp — ответ с кодом, отличным от 200.
+type Resp struct {
+	Status int
+	Body   any
+}
+
+type handler struct {
+	post bool
+	fn   func(c *Ctx) (any, error)
+	// noUser — не нужен вошедший пользователь (вход, проверка доступа)
+	noUser bool
+}
+
+var routes = map[string]handler{}
+
+func get(name string, fn func(c *Ctx) (any, error))  { routes[name] = handler{fn: fn} }
+func post(name string, fn func(c *Ctx) (any, error)) { routes[name] = handler{post: true, fn: fn} }
+
+func ok(extra jx.M) jx.M {
+	out := jx.M{"status": "success"}
+	for k, v := range extra {
+		out[k] = v
+	}
+	return out
+}
+
+func fail(status int, msg string) error { return &posta.Error{Status: status, Msg: msg} }
+
+func (c *Ctx) Q(k string) string { return c.R.URL.Query().Get(k) }
+
+func (c *Ctx) Str(k string) string { return jx.Str(c.In, k) }
+
+func New(a *posta.App) *Server { return &Server{A: a} }
+
+// Handler — сайт целиком: API, медиа, страницы и статика из web/.
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	cfg := s.A.Cfg
+	mux.HandleFunc("/index.php", s.api)
+	mux.HandleFunc("/api", s.api)
+	mux.HandleFunc("/delivery-media/", s.A.ServeDeliveryMedia)
+	mux.HandleFunc("/max-bot/webhook", s.maxBotWebhook)
+	if cfg.Dev {
+		// режим разработки: войти в браузере без кук (headless-проверки) — только на 127.0.0.1
+		mux.HandleFunc("/dev-login", func(w http.ResponseWriter, r *http.Request) {
+			if !localNoAuthRequest(r) {
+				http.NotFound(w, r)
+				return
+			}
+			to := r.URL.Query().Get("to")
+			if !strings.HasPrefix(to, "/") || strings.HasPrefix(to, "//") || strings.ContainsAny(to, "\\\r\n") {
+				to = "/"
+			}
+			http.SetCookie(w, &http.Cookie{Name: config.SessionCookie, Value: r.URL.Query().Get("sid"), Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+			http.Redirect(w, r, to, http.StatusFound)
+		})
+	}
+	mediaURL := "/" + strings.Trim(cfg.MediaURL, "/") + "/"
+	mux.Handle(mediaURL, http.StripPrefix(mediaURL, s.cachedMedia()))
+	web := filepath.Join(cfg.Root, "web")
+	if _, err := os.Stat(web); err != nil {
+		web = cfg.Root // до переезда интерфейса в web/: index.html, js/, css/ лежат в корне
+	}
+	mux.Handle("/", staticSite(web))
+	var h http.Handler = mux
+	if base := strings.TrimRight(cfg.BasePath, "/"); base != "" {
+		h = http.StripPrefix(base, mux)
+	}
+).MatchString(setting.Value) {
+				return setting.Value
+			}
+		}
+	}
+	return ""
+}
+
+func withBuildRevision(h http.Handler, revision string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if revision != "" && localNoAuthRequest(r) {
+			w.Header().Set("X-Posta-Revision", revision)
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func securityHeaders(h http.Handler) http.Handler {

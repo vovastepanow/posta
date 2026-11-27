@@ -42,3 +42,13 @@ if deployment_process_matches "$$" "$deployed" || deployment_process_matches 0 "
     echo "unrelated or invalid process accepted" >&2
     exit 1
 fi
+
+# Cross-UID deployment: /proc may be inaccessible. Reject equal-second
+# starts, a stale build, and any differently configured executable.
+legacy_deployment_matches '{ path=/srv/posta/bin/posta ; argv[]=/srv/posta/bin/posta serve ; }' /srv/posta/bin/posta 102 101 "$current" "$current"
+if legacy_deployment_matches '{ path=/srv/posta/bin/posta ; }' /srv/posta/bin/posta 101 101 "$current" "$current" ||
+   legacy_deployment_matches '{ path=/srv/posta/bin/posta ; }' /srv/posta/bin/posta 102 101 "$old" "$current" ||
+   legacy_deployment_matches '{ path=/other/posta ; }' /srv/posta/bin/posta 102 101 "$current" "$current"; then
+    echo "unverified legacy deployment accepted" >&2
+    exit 1
+fi

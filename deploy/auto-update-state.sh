@@ -10,9 +10,20 @@ confirm_pending_migration() {
     rm -f "$pending_file" || return 2
 }
 
-# Linux systemd service runs as the deployment owner. Comparing inodes
-# detects an old process that is still listening after atomic replacement.
+# When the service and updater share a UID, inode comparison is reliable.
+# When they do not, /proc/PID/exe can be inaccessible.
 deployment_process_matches() {
     local pid="$1" expected="$2"
     [[ "$pid" =~ ^[1-9][0-9]*$ && "/proc/$pid/exe" -ef "$expected" ]]
+}
+
+# Conservative compatibility check for releases without an HTTP build header.
+# ExecStart's path is supplied by systemd, not by an HTTP client. Require a
+# strictly later process start than replacement of the exact built binary.
+legacy_deployment_matches() {
+    local exec_start="$1" expected="$2" started="$3" changed="$4" revision="$5" target="$6"
+    [[ "$exec_start" == *"path=$expected ;"* ]] || return 1
+    [[ "$revision" =~ ^[0-9a-f]{40}$ && "$revision" = "$target" ]] || return 1
+    [[ "$started" =~ ^[0-9]+$ && "$changed" =~ ^[0-9]+$ ]] || return 1
+    (( started > changed ))
 }

@@ -3,6 +3,7 @@
 # Run as the owner of /var/www/html/posta, never as root.
 set -Eeuo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 APP="${POSTA_DEPLOY_DIR:-/var/www/html/posta}"
 REPO="vovastepanow/posta"
 LOG_PREFIX="[posta-auto-update]"
@@ -58,21 +59,42 @@ deployed="$(cat "$deployed_file" 2>/dev/null || true)"
 # migration's recovery state or executable.
 migration_pending="${HOME}/.posta-auto-update-migration-pending"
 health_url="${POSTA_UPDATE_HEALTH_URL:-http://127.0.0.1:8090/}"
+health_target="$current"
+# Source the matching helper beside this script, including a one-shot
+# bootstrap fetched from a verified CI commit into a temporary directory.
+source "$SCRIPT_DIR/auto-update-state.sh"
 migration_healthy() {
-    local code pid after
+    local pid after headers code revision
     /usr/bin/systemctl is-active --quiet posta || return 1
     pid="$(/usr/bin/systemctl show --property=MainPID --value posta)" || return 1
-    deployment_process_matches "$pid" "$APP/bin/posta" || return 1
-    code="$(curl --silent --output /dev/null --max-time 3 --write-out '%{http_code}' "$health_url")" || return 1
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+    headers="$(curl --silent --output /dev/null --dump-header - --max-time 3 --write-out '\n%{http_code}' "$health_url")" || return 1
+    code="$(printf '%s\n' "$headers" | tail -n 1)"
     [[ "$code" =~ ^(2|3)[0-9][0-9]$ || "$code" = 401 || "$code" = 403 ]] || return 1
+    revision="$(printf '%s\n' "$headers" | awk 'tolower($1)=="x-posta-revision:" {gsub(/\r/,"",$2); print $2}')"
     after="$(/usr/bin/systemctl show --property=MainPID --value posta)" || return 1
-    [ "$pid" = "$after" ] && deployment_process_matches "$after" "$APP/bin/posta"
+    [ "$pid" = "$after" ] || return 1
+    if [ -n "$revision" ]; then
+        [ "$revision" = "$health_target" ]
+        return
+    fi
+    # Older builds have no revision header. Reading another UID's /proc
+    # exe is often forbidden. In that case use systemd's exact ExecStart,
+    # installed binary build metadata and a strictly newer start timestamp.
+    deployment_process_matches "$pid" "$APP/bin/posta" && return 0
+    local executable started changed binary_revision
+    executable="$(/usr/bin/systemctl show --property=ExecStart --value posta)" || return 1
+    started="$(/usr/bin/systemctl show --property=ExecMainStartTimestamp --value posta)" || return 1
+    started="$(date -d "$started" +%s 2>/dev/null)" || return 1
+    changed="$(stat -c %Z "$APP/bin/posta")" || return 1
+    binary_revision="$(go version -m "$APP/bin/posta" | awk '$1=="build" && $2 ~ /^vcs.revision=/ {sub(/^vcs.revision=/,"",$2);print $2}')" || return 1
+    legacy_deployment_matches "$executable" "$APP/bin/posta" "$started" "$changed" "$binary_revision" "$health_target" || return 1
+    [ "$pid" = "$(/usr/bin/systemctl show --property=MainPID --value posta)" ]
 }
-source "$APP/deploy/auto-update-state.sh"
 if [ -e "$migration_pending" ]; then
     if confirm_pending_migration "$current" "$migration_pending" "$deployed_file"; then
         log "Deployed ${current:0:8}; service healthy after migrations."
-        exit 0
+        deployed="$current"
     else
         pending_result=$?
         if [ "$pending_result" = 3 ]; then
@@ -149,7 +171,8 @@ mkdir -p "$TMPDIR" "$GOCACHE"
 log "Deploying ${current:0:8} -> ${target:0:8}"
 git merge --ff-only --quiet "$target"
 [ "$(git rev-parse HEAD)" = "$target" ] || fail "Working copy changed during pull."
-go build -p 2 -o bin/posta.new ./cmd/posta
+go build -buildvcs=true -p 2 -o bin/posta.new ./cmd/posta
+health_target="$target"
 
 # Preserve last executable; only non-migration releases may auto-roll back.
 if [ ! -f "$migration_pending" ]; then
