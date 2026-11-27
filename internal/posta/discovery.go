@@ -1,7 +1,6 @@
 package posta
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -31,9 +30,6 @@ type DiscoveryCandidate struct {
 	Priority, Tail                   int
 	Front                            bool
 }
-
-// ErrDiscoveryMissing — кандидата нет на площадке: отказ без повтора.
-var ErrDiscoveryMissing = errors.New("кандидата нет")
 
 // TopicOwnSourcesCount — своих источников у темы: каналы и паблики, привязанные к ней, и доски, совпавшие по тегам.
 func (u *U) TopicOwnSourcesCount(d *SourceDB, topic string) int {
@@ -180,49 +176,6 @@ func DiscoveryCleanQuery(q string) string {
 		return ""
 	}
 	return trimRunes(strings.Join(words, " "), 50)
-}
-
-type discoveryPlan struct {
-	Queries  []string
-	Telegram []string
-}
-
-// discoveryAIPlan — запросы: название темы, синонимы, готовые запросы дерева, запросы профиля, по два у частных тем.
-func (u *U) discoveryAIPlan(topic string) discoveryPlan {
-	profile := u.TopicProfileEnsure(topic)
-	if profile == nil {
-		u.Log("-> Профиль темы не составлен — поиск только по названию и его синонимам.")
-	}
-	e := u.TopicLookup(topic)
-	var cands []string
-	if e != nil {
-		cands = append(append(append(cands, e.Title), e.Queries...), e.Aliases...)
-	} else {
-		cands = []string{topic}
-	}
-	if profile != nil {
-		cands = append(cands, profile.Queries...)
-	}
-	if e != nil {
-		for _, c := range u.TopicChildren(e) {
-			if c.Profile != nil {
-				cands = append(cands, c.Profile.Queries[:min(2, len(c.Profile.Queries))]...)
-			}
-		}
-	}
-	var queries []string
-	seen := map[string]bool{}
-	for _, q := range cands {
-		if q = DiscoveryCleanQuery(q); q != "" && !TextIsUkrainian(q) && !seen[TopicNorm(q)] {
-			seen[TopicNorm(q)] = true
-			queries = append(queries, q)
-		}
-	}
-	plan := discoveryPlan{Queries: queries[:min(12, len(queries))]}
-	if profile != nil {
-		plan.Telegram = profile.Telegram[:min(20, len(profile.Telegram))]
-	}
-	return plan
 }
 
 // DiscoveryTopicKeywords — слова темы из профиля.
@@ -782,70 +735,6 @@ func (u *U) discoveryTelegramAccountChannels(queries, similarTo []string) []TGCh
 	return out
 }
 
-var pipePrefixRe = regexp.MustCompile(`^[^|]{1,24}\|\s*`)
-
-func discoveryPlainName(n string) string {
-	return strings.TrimSpace(pipePrefixRe.ReplaceAllString(strings.TrimSpace(n), ""))
-}
-
-func discoveryCleanHandles(handles []string) []string {
-	var out []string
-	seen := map[string]bool{}
-	for _, h := range handles {
-		h = strings.TrimLeft(strings.TrimSpace(tmeRe.ReplaceAllString(h, "")), "@")
-		if IsValidTelegramChannel(h) && !seen[strings.ToLower(h)] {
-			seen[strings.ToLower(h)] = true
-			out = append(out, h)
-		}
-	}
-	return out[:min(len(out), 15)]
-}
-
-func (u *U) discoveryApprovedNames(d *SourceDB, topic string) []string {
-	var names []string
-	for _, k := range []string{"telegram_channels", "vk_publics", "rss_feeds"} {
-		l := *d.List(k)
-		for i := len(l) - 1; i >= 0; i-- {
-			if u.CatalogEntryMatchesTopic(l[i], topic, false) {
-				names = append(names, discoveryPlainName(jx.Str(l[i], "name")))
-			}
-		}
-	}
-	var votes []jx.M
-	for _, v := range d.Votes {
-		if jx.Str(v, "vote") == "approve" && u.TopicSame(jx.Str(v, "topic"), topic) {
-			votes = append(votes, v)
-		}
-	}
-	sort.SliceStable(votes, func(i, j int) bool { return jx.Int(votes[i], "timestamp") > jx.Int(votes[j], "timestamp") })
-	for _, v := range votes {
-		names = append(names, discoveryPlainName(jx.Str(v, "name")))
-	}
-	var out []string
-	for _, n := range uniqueStrings(names) {
-		if n != "" {
-			out = append(out, n)
-		}
-	}
-	return out[:min(25, len(out))]
-}
-
-func (u *U) discoveryRejectedNames(votes []jx.M, topic string) []string {
-	var rej []jx.M
-	for _, v := range votes {
-		if jx.Str(v, "vote") == "reject" && jx.Str(v, "reason") == "off_topic" && u.TopicSame(jx.Str(v, "topic"), topic) {
-			rej = append(rej, v)
-		}
-	}
-	sort.SliceStable(rej, func(i, j int) bool { return jx.Int(rej[i], "timestamp") > jx.Int(rej[j], "timestamp") })
-	var out []string
-	for _, v := range rej {
-		out = append(out, discoveryPlainName(jx.Str(v, "name")))
-	}
-	out = uniqueStrings(out)
-	return out[:min(15, len(out))]
-}
-
 // SourceVoteOrigin — происхождение решения для учёта по видам находок.
 func SourceVoteOrigin(s jx.M) jx.M {
 	if s == nil {
@@ -904,27 +793,6 @@ func DiscoveryReasonWithRefs(reason string, refs []string) string {
 		return reason
 	}
 	return fmt.Sprintf("%s Ещё %d раз найден через %s.", reason, len(refs), strings.Join(refs[:min(3, len(refs))], ", "))
-}
-
-func (u *U) discoveryAddRefs(topic string, refs map[string][]string) {
-	if len(refs) == 0 {
-		return
-	}
-	u.UpdateCatalog(u.Ctx, func(d *SourceDB) bool {
-		changed := false
-		for _, s := range d.Suggestions {
-			add := refs[jx.Str(s, "source_id")]
-			if len(add) == 0 || !u.TopicSame(jx.Str(s, "topic"), topic) {
-				continue
-			}
-			all := uniqueStrings(append(jx.Strs(s, "refs"), add...))
-			s["refs"] = all[:min(len(all), config.DiscoveryRefsMax)]
-			s["timestamp"] = now()
-			changed = true
-			u.Log("-> %s: повторно найден — записей происхождения: %d.", jx.Str(s, "name"), len(jx.List(s, "refs")))
-		}
-		return changed
-	})
 }
 
 var DiscoveryOriginLabels = map[string]string{"tg_search": "поиск Telegram", "tg_name": "название от модели", "model_handle": "адрес от модели",
