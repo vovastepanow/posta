@@ -97,6 +97,7 @@ func (a *App) autopilotNominateIndexedSources(ctx context.Context, job *autopilo
 		WHERE t.topic_key=$1 AND p.last_seen >= $4
 			AND NOT (p.data @> '{"text_incomplete":true}' OR p.data @> '{"media_incomplete":true}' OR p.data @> '{"source_sensitive":true}' OR p.data @> '{"nsfw":true}' OR p.data @> '{"video_unavailable":true}')
 			AND COALESCE(p.data->'safety', '[]'::jsonb) IN ('[]'::jsonb, 'null'::jsonb)
+			AND NOT (p.data @> '{"attachment_recovered":true}' OR p.data @> '{"fetched_via":"telegram_mtproto"}')
 			AND NOT EXISTS (SELECT 1 FROM source_autopilot_sources s WHERE s.scope=$2 AND s.topic_key=$3 AND s.source_id=p.source_key)
 			AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE o.scope=$2 AND o.topic_key=$3 AND o.owner_id='' AND o.source_id=p.source_key AND o.decision='excluded')
 		ORDER BY p.last_seen DESC LIMIT 500

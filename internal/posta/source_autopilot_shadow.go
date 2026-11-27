@@ -1478,7 +1478,7 @@ func autopilotSourceCaptionSample(posts []jx.M) ([]string, int) {
 	readable := 0
 	for _, post := range posts[:min(len(posts), config.SourceReviewCaptions)] {
 		caption := strings.TrimSpace(jx.Str(post, "text"))
-		if jx.Bool(post, "text_incomplete") || jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") {
+		if jx.Bool(post, "text_incomplete") || sourceReviewSensitive(post) {
 			caption = ""
 		}
 		if caption == EmptyPostText {

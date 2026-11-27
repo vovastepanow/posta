@@ -3,6 +3,8 @@ package posta
 import (
 	"math"
 	"testing"
+
+	"posta/internal/jx"
 )
 
 func TestSourceEmbeddingCacheAndCosine(t *testing.T) {
@@ -56,5 +58,22 @@ func TestSourceEmbeddingLexicalAnchorsKeepContext(t *testing.T) {
 	}
 	if !sourceEmbeddingLexicalMatch(anchors, []string{"Разбор: таргетированная реклама для магазина пряжи"}) {
 		t.Fatal("a real marketing case lost its positive anchor")
+	}
+}
+
+func TestSourceReviewSensitiveRejectsAccountEvidence(t *testing.T) {
+	for _, post := range []jx.M{
+		{"source_sensitive": true},
+		{"nsfw": true},
+		{"safety": []string{"sensitive"}},
+		{"attachment_recovered": true},
+		{"fetched_via": "telegram_mtproto"},
+	} {
+		if !sourceReviewSensitive(post) {
+			t.Fatalf("private or sensitive evidence admitted: %v", post)
+		}
+	}
+	if sourceReviewSensitive(jx.M{"text": "ordinary public post"}) {
+		t.Fatal("ordinary public text blocked")
 	}
 }

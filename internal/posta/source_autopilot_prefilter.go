@@ -291,5 +291,6 @@ func (a *App) autopilotEmbeddingEligible(ctx context.Context, topic string, post
 // Never put marked sensitive or account-derived observations in shared text
 // caches or send them through the optional public embedding path.
 func sourceReviewSensitive(post jx.M) bool {
-	return jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0
+	return jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 ||
+		jx.Bool(post, "attachment_recovered") || jx.Str(post, "fetched_via") == "telegram_mtproto"
 }

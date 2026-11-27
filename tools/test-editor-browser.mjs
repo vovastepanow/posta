@@ -124,9 +124,10 @@ try{
     await page.waitForFunction(()=>document.querySelector('.pe-compose-column')?.dataset.overflow==='true');
     assert.equal(await pane.evaluate(n=>getComputedStyle(n).overflowY),'auto');
     const lastOption=page.getByPlaceholder('Вариант 10',{exact:true});
+    await lastOption.scrollIntoViewIfNeeded();
     await lastOption.fill('Last reachable option');
     assert.equal(await lastOption.inputValue(),'Last reachable option');
-    assert.ok(await lastOption.evaluate(n=>{const r=n.getBoundingClientRect(),p=n.closest('.pe-compose-column').getBoundingClientRect();return r.top>=p.top-2&&r.bottom<=p.bottom+2;}));
+    await page.waitForFunction(()=>{const n=document.querySelector('input[placeholder="Вариант 10"]');if(!n)return false;const r=n.getBoundingClientRect(),p=n.closest('.pe-compose-column').getBoundingClientRect();return r.top>=p.top-2&&r.bottom<=p.bottom+2;},{},{timeout:5000});
     assert.deepEqual(errors,[]);
     console.log('Editor browser: isolated variants, formatting, compound poll, mobile layout and submitted payloads passed');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

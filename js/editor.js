@@ -414,6 +414,8 @@ function fitComposer(){
     fitPaneOverflow(ui.settingsColumn);
     if(!ui.composeColumn.clientHeight)return;
     const col=ui.composeColumn,nav=ui.leftNav;
+    const previousView=col.dataset.view,previousTop=col.scrollTop;
+    const active=document.activeElement;
     // Measure the full layout; if it cannot fit, replace overflow with explicit section navigation.
     col.dataset.view='all';col.dataset.splitPoll='false';nav.hidden=true;
     if(col.scrollHeight<=col.clientHeight+2){session.leftView='';fitPaneOverflow(col);return;}
@@ -435,6 +437,16 @@ function fitComposer(){
     // Keep the normal no-scroll layout. If even one selected section is
     // taller than an unusually small viewport, allow access to every field.
     fitPaneOverflow(col);
+    if(col.dataset.overflow==='true'){
+        if(previousView===col.dataset.view)col.scrollTop=previousTop;
+        // A reflow may change the pane height. Keep the active editor field
+        // inside the visible portion, without moving focus or the whole dialog.
+        if(active&&col.contains(active)&&active.matches('input:not([type=file]),textarea,select')&&active.getClientRects().length){
+            const r=active.getBoundingClientRect(),b=col.getBoundingClientRect();
+            if(r.top<b.top)col.scrollTop-=b.top-r.top+4;
+            else if(r.bottom>b.bottom)col.scrollTop+=r.bottom-b.bottom+4;
+        }
+    }
 }
 // Paging preserves actual inputs and handlers; hidden pages never modify payloads.
 function pageItems(items,key,size,nav,after){
