@@ -39,6 +39,13 @@ func TestCallGateChargesProviderRetry(t *testing.T) {
 		return &http.Response{StatusCode: 404, Body: io.NopCloser(strings.NewReader("{}")), Header: make(http.Header)}, nil
 	})}
 	r := NewRouter(NewOllama("http://127.0.0.1:1"), or)
+	// This fixture intentionally tests a paid provider retry; authorize the
+	// first attempt explicitly before exercising its independent call gate.
+	r.LoadSettings = func() Settings {
+		s := Preset("free")
+		s.DailyBudgetUSD = 1
+		return s
+	}
 	blocked := errors.New("budget exhausted")
 	ctx := WithCallGate(context.Background(), func(context.Context, Target) error {
 		gates++
