@@ -10,12 +10,16 @@ func TestPublishingCatalogCompetitorScope(t *testing.T) {
 	a := &App{}
 	catalog := a.Networks()
 	for _, platform := range []string{"vk_clips", "whatsapp", "likee", "yappy"} {
-		if catalog[platform] != nil || contains(networkOrder, platform) {
+		if catalog[platform] != nil {
 			t.Errorf("unexpected publishing destination: %s", platform)
 		}
 	}
-	for _, platform := range []string{"telegram", "vk", "ok", "max", "youtube", "rutube", "tiktok", "dzen", "instagram", "facebook", "threads", "x", "pinterest", "tumblr", "linkedin", "viber", "reddit", "discord", "bluesky", "mastodon", "tenchat", "medium", "bitrix", "wordpress", "google_business"} {
-		if catalog[platform] == nil || !contains(networkOrder, platform) {
+	expected := []string{"telegram", "vk", "ok", "max", "youtube", "rutube", "tiktok", "dzen", "instagram", "facebook", "threads", "x", "pinterest", "tumblr", "linkedin", "viber", "reddit", "discord", "bluesky", "mastodon", "tenchat", "medium", "bitrix", "wordpress", "google_business"}
+	if len(catalog) != len(expected) {
+		t.Errorf("catalog has %d entries, want %d", len(catalog), len(expected))
+	}
+	for _, platform := range expected {
+		if catalog[platform] == nil {
 			t.Errorf("missing publishing destination: %s", platform)
 		}
 	}
@@ -84,5 +88,30 @@ func TestPublishingScopeContainsOnlySelectedImplementedAdapters(t *testing.T) {
 		if publishingInScope(key) != contains(want, key) {
 			t.Errorf("unexpected scope: %s", key)
 		}
+	}
+}
+
+func TestNetworkCatalogCopiesAndCurrentKeys(t *testing.T) {
+	a := &App{}
+	a.Cfg.NetworkKeys = map[string]string{}
+	first, err := a.NetworkFor("youtube")
+	if err != nil || first.Status != "needs_keys" {
+		t.Fatalf("unconfigured YouTube: %v, %v", first, err)
+	}
+	first.Kinds[0] = "changed"
+	first.MaxBytes["video"] = 1
+	first.AppKeys[0] = "changed"
+	first.OAuth.PKCE = !first.OAuth.PKCE
+	a.Cfg.NetworkKeys["YOUTUBE_CLIENT_ID"] = "test"
+	a.Cfg.NetworkKeys["YOUTUBE_CLIENT_SECRET"] = "test"
+	second, err := a.NetworkFor("youtube")
+	if err != nil || second.Status != "beta" || second.Kinds[0] != "video" ||
+		second.MaxBytes["video"] != 200_000_000 || second.AppKeys[0] != "YOUTUBE_CLIENT_ID" ||
+		second.OAuth.PKCE == first.OAuth.PKCE {
+		t.Fatalf("catalog leaked mutations or stale configuration: %v, %v", second, err)
+	}
+	if !jx.Bool(jx.Map(a.NetworksPublicFor(true), "youtube"), "connect_available") ||
+		jx.Bool(jx.Map(a.NetworksPublicFor(false), "youtube"), "connect_available") {
+		t.Fatal("beta adapter availability must depend on owner rights")
 	}
 }

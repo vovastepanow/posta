@@ -1,10 +1,8 @@
-// profile.js — имя, аватар и тариф владельца в нижней части бокового меню (студия и приложение).
-// Без зависимостей: страница студии не грузит core.js.
-
-const $ = id => document.getElementById(id);
+// Имя, аватар и тариф владельца в боковом меню.
+import { $ } from './core.js';
 
 /** Имя владельца: имя из Telegram, логин, название канала или «Владелец». */
-export function profileName(info) {
+function profileName(info) {
     const channel = info.channels?.[0];
     return info.auth?.tg_name || info.auth?.login || channel?.title || 'Владелец';
 }

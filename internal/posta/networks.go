@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -19,9 +20,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"posta/internal/imgx"
@@ -88,11 +91,19 @@ type Network struct {
 	OAuth     *OAuthFlow
 }
 
-var networkOrder = []string{"telegram", "vk", "max", "bluesky", "mastodon", "discord", "dzen", "ok", "youtube", "pinterest", "tumblr", "linkedin",
-	"threads", "instagram", "facebook", "x", "reddit", "tiktok", "rutube", "viber", "tenchat", "medium", "bitrix", "wordpress", "google_business"}
+var (
+	networkCatalogOnce sync.Once
+	networkCatalog map[string]*Network
+)
 
-// Networks — реестр соцсетей; ключи приложений берутся из posta.env.
-func (a *App) Networks() map[string]*Network {
+// networkTemplates builds immutable adapter definitions once. Configuration
+// and mutable slices/maps are copied when a caller requests a network.
+func networkTemplates() map[string]*Network {
+	networkCatalogOnce.Do(func() { networkCatalog = newNetworkCatalog() })
+	return networkCatalog
+}
+
+func newNetworkCatalog() map[string]*Network {
 	na := func(title, note string) *Network { return &Network{Title: title, Status: "unavailable", Note: note} }
 	r := map[string]*Network{
 		"telegram": {Title: "Telegram", Prefix: "tg", Status: "ready", TextLimit: [2]int{1024, 4096}, MediaMax: 10, Kinds: []string{"photo", "video", "animation", "audio", "document", "voice","sticker","video_note"}, MaxBytes: map[string]int64{"audio": 50_000_000, "document": 50_000_000, "voice":50_000_000,"sticker":524288,"video_note":50_000_000}, Poll: true},
@@ -144,14 +155,40 @@ func (a *App) Networks() map[string]*Network {
 	r["telegram"].Publish = telegramNetworkPublish
 	for k, n := range r {
 		n.Key = k
-		if len(n.AppKeys) > 0 {
-			n.Status = "needs_keys"
-			if a.networkKeysPresent(n.AppKeys) {
-				n.Status = "beta"
-			}
-		}
 	}
 	return r
+}
+
+func (a *App) network(platform string) *Network {
+	template := networkTemplates()[platform]
+	if template == nil {
+		return nil
+	}
+	n := *template
+	n.Kinds = slices.Clone(n.Kinds)
+	n.MaxBytes = maps.Clone(n.MaxBytes)
+	n.Fields = slices.Clone(n.Fields)
+	n.AppKeys = slices.Clone(n.AppKeys)
+	if n.OAuth != nil {
+		flow := *n.OAuth
+		n.OAuth = &flow
+	}
+	if len(n.AppKeys) > 0 {
+		n.Status = "needs_keys"
+		if a.networkKeysPresent(n.AppKeys) {
+			n.Status = "beta"
+		}
+	}
+	return &n
+}
+
+// Networks — независимые описания адаптеров с текущей конфигурацией.
+func (a *App) Networks() map[string]*Network {
+	out := make(map[string]*Network, len(networkTemplates()))
+	for key := range networkTemplates() {
+		out[key] = a.network(key)
+	}
+	return out
 }
 
 func (a *App) NetworkAppKey(name string) string { return strings.TrimSpace(a.Cfg.NetworkKeys[name]) }
@@ -167,7 +204,7 @@ func (a *App) networkKeysPresent(names []string) bool {
 
 // NetworkFor — адаптер публикации для платформы; соцсеть без публикации — понятная ошибка.
 func (a *App) NetworkFor(platform string) (*Network, error) {
-	n := a.Networks()[platform]
+	n := a.network(platform)
 	if n == nil {
 		return nil, Bad("Неизвестная соцсеть: %s.", platform)
 	}
@@ -206,10 +243,15 @@ func kindName(kind string) string {
 
 // NetworkPreflight — до скачивания: текст по лимиту ресурса, виды файлов по реестру.
 func (a *App) NetworkPreflight(platform, text string, kinds []string) (int, []string, error) {
-	n := a.Networks()[platform]
+	n := a.network(platform)
 	if n == nil {
 		return 0, nil, Bad("Неизвестная соцсеть: %s.", platform)
 	}
+	return networkPreflight(n, text, kinds)
+}
+
+func networkPreflight(n *Network, text string, kinds []string) (int, []string, error) {
+	platform := n.Key
 	if limit := n.textLimit(len(kinds) > 0); runeLen(text) > limit {
 		return 0, nil, Bad("%s: текст длиннее %d символов — сократите его.", n.Title, limit)
 	}
@@ -277,7 +319,15 @@ func networkFitMedia(n *Network, media []Prepared) ([]Prepared, []string) {
 // NetworkDeliveryPreflight rejects an incompatible target variant instead of
 // silently deleting attachments. The user may explicitly edit the variant.
 func (a *App) NetworkDeliveryPreflight(platform, text string, kinds []string) error {
-	_, skipped, err := a.NetworkPreflight(platform, text, kinds)
+	n := a.network(platform)
+	if n == nil {
+		return Bad("Неизвестная соцсеть: %s.", platform)
+	}
+	return networkDeliveryPreflight(n, text, kinds)
+}
+
+func networkDeliveryPreflight(n *Network, text string, kinds []string) error {
+	_, skipped, err := networkPreflight(n, text, kinds)
 	if err != nil {
 		return err
 	}
@@ -288,20 +338,17 @@ func (a *App) NetworkDeliveryPreflight(platform, text string, kinds []string) er
 }
 
 func (a *App) NetworkPreparedPreflight(platform, text string, media []Prepared) error {
-	if _, err := a.NetworkFor(platform); err != nil {
+	n, err := a.NetworkFor(platform)
+	if err != nil {
 		return err
 	}
-	var kinds []string
-	for _, file := range media {
-		kinds = append(kinds, file.Kind)
-	}
-	if err := a.NetworkDeliveryPreflight(platform, text, kinds); err != nil {
+	if err := networkDeliveryPreflight(n, text, PreparedKinds(media)); err != nil {
 		return err
 	}
 	if platform=="tumblr" {
 		for _,f:=range media{if f.Kind=="video" && (f.Duration<=0 || f.Duration>600){return Bad("Tumblr: длительность видео должна быть известна и не превышать 10 минут.")}}
 	}
-	_, skipped := networkFitMedia(a.Networks()[platform], media)
+	_, skipped := networkFitMedia(n, media)
 	if len(skipped) > 0 {
 		return Bad("Не все вложения можно отправить: %s.", strings.Join(skipped, "; "))
 	}
