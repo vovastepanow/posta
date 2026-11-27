@@ -933,21 +933,6 @@ body.tree-sheet-open { overflow: hidden; }
 .database-empty { padding: 28px 16px; border: 1px dashed var(--line-strong); border-radius: 6px; color: var(--muted); text-align: center; }
 
 /* ---- Таблица коллекции: ширина по контейнеру, без горизонтальной прокрутки, длинный текст — с многоточием ---- */
-.db-table-wrap { max-width: 100%; max-height: 70vh; overflow-x: hidden; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
-.db-table { table-layout: fixed; width: 100%; border-collapse: collapse; font-size: 12px; }
-.db-table th, .db-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; color: var(--text); overflow: hidden; }
-.db-table td > span, .db-table td > a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db-table th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db-table tbody tr:hover td { background: var(--surface-3); }
-.db-num, .db-empty-cell { color: var(--faint); font-variant-numeric: tabular-nums; }
-.db-num { width: 36px; }
-.db-picture { width: 72px; }
-.db-actions-col, .db-actions { width: 168px; }
-.db-thumb { display: block; width: 56px; height: 56px; object-fit: cover; border-radius: 4px; cursor: zoom-in; }
-.db-no-file { color: var(--faint); font-size: 11px; font-style: italic; }
-.db-link { color: var(--text); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
-.db-actions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-.db-actions button { min-height: 26px; padding: 0 7px; font-size: 11px; }
 .database-danger-zone { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; padding: 14px 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--muted); font-size: 13px; }
 .admin-section[data-admin-section="databases"] { height: 100%; overflow: hidden; }
 .database-layout { display: grid; grid-template-columns: minmax(200px, 25%) 1fr; gap: 16px; height: 100%; }

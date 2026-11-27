@@ -675,12 +675,6 @@ const targetName = value => {
     return c ? `${value.startsWith('tg:') ? 'Telegram' : (state.networks[c.platform]?.title || c.platform)} «${c.title || c.ref || '@' + c.username}»` : 'Ресурс';
 };
 
-/** Текст поста по умолчанию: оригинал записи. */
-const defaultText = item => {
-    const original = String(item.text || '').trim();
-    return original && !NO_TEXT.includes(original) ? original : '';
-};
-
 /** Never silently discard attachments before the user selects a target. */
 function itemMedia(item) {
     return itemSlides(item).filter(s => !s.textPost && (s.video || s.image)).map((s, i) => ({ kind: s.video ? 'video' : 'image', src: s.video || s.image, thumb: s.image,

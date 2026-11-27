@@ -866,22 +866,6 @@ function renderRecordField(key, value) {
 }
 
 const DB_TIME_FIELDS = ['posted_at', 'timestamp', 'pooled_at', 'created_at', 'at'];
-/** Поля, которые помещаются в таблицу. Полная запись — в «Ред.» (там JSON со всеми полями). Порядок — как в базе. */
-const DB_TABLE_FIELDS = ['image_local', 'topic', 'tags', 'source', 'text', 'description', 'relevance', 'rating', 'rating_assigned', 'posted_at', 'pooled_at', 'timestamp'];
-const DB_TEXT_LIMIT = 200;
-
-/** Ячейка: значение целиком, длинный текст сокращается с многоточием; полный текст — в подсказке. */
-function dbCell(key, value) {
-    if (value === null || value === undefined || value === '') return el('span', { className: 'db-empty-cell', textContent: '—' });
-    if (typeof value === 'boolean') return value ? 'да' : 'нет';
-    if (Array.isArray(value) && value.every(v => typeof v === 'string')) return value.length ? value.join(', ') : el('span', { className: 'db-empty-cell', textContent: '—' });
-    if (DB_TIME_FIELDS.includes(key)) return Number(value) > 0 ? el('span', { title: new Date(Number(value) * 1000).toLocaleString('ru-RU'), textContent: new Date(Number(value) * 1000).toLocaleString('ru-RU') }) : el('span', { className: 'db-empty-cell', textContent: '—' });
-    const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
-    const short = text.length > DB_TEXT_LIMIT ? `${text.slice(0, DB_TEXT_LIMIT - 1)}…` : text;
-    if (/^https:\/\//.test(text)) return el('a', { className: 'db-link', href: text, target: '_blank', rel: 'noopener noreferrer', title: text, textContent: short });
-    return el('span', { title: text, textContent: short });
-}
-
 /** Запись как элемент единого медиапросмотрщика (видео — с постером, картинка — локальная копия или исходная ссылка). */
 function dbMediaItem(r) {
     if (r === null || typeof r !== 'object') return null;
@@ -890,32 +874,6 @@ function dbMediaItem(r) {
     if (video) return { kind: 'video', src: r.video_local || r.video, poster: r.image_local || '', fallback: r.video || '', sourceUrl, alt: r.text || '' };
     const image = r.image_local || r.image;
     return image ? { kind: 'image', src: image, fallback: r.image || '', sourceUrl, alt: r.text || '', ...videoFields(r, sourceUrl) } : null;
-}
-
-/** Таблица коллекции: видимые поля в порядке базы, миниатюра открывает общий просмотрщик, в конце — действия. */
-function recordsTable(items, columns, missing = new Set()) {
-    const shown = columns.filter(c => DB_TABLE_FIELDS.includes(c) && c !== 'image_local');
-    const media = items.map((r, i) => ({ i, item: missing.has(i) ? null : dbMediaItem(r) })).filter(x => x.item);
-    const openMedia = i => openViewerGallery(media.map(x => x.item), Math.max(0, media.findIndex(x => x.i === i)));
-    const button = (className, textContent, onclick) => el('button', { type: 'button', className, textContent, onclick });
-    const head = el('tr', {}, el('th', { className: 'db-num', textContent: '#' }), el('th', { className: 'db-picture', textContent: dbFieldLabel('image_local'), title: DB_FIELDS.image_local[1] }),
-        ...shown.map(c => el('th', { textContent: dbFieldLabel(c), title: DB_FIELDS[c]?.[1] ? `${DB_FIELDS[c][1]} (поле ${c})` : `поле ${c}` })), el('th', { className: 'db-actions-col', textContent: 'действия' }));
-    const rows = items.map((r, i) => {
-        const object = r !== null && typeof r === 'object' && !Array.isArray(r) ? r : { value: r };
-        const link = safeSourcePostUrl(object);
-        const picture = missing.has(i) ? el('span', { className: 'db-no-file', textContent: 'нет файла', title: 'Локальная копия удалена очисткой раньше. Исходная ссылка может быть недоступна.' })
-            : dbMediaItem(object)
-            ? el('img', { className: 'db-thumb', src: object.image_local || object.image, alt: '', loading: 'lazy', title: 'Открыть просмотр', onclick: e => { e.stopPropagation(); openMedia(i); },   // глобальный обработчик просмотрщика не должен открыть картинку вместо видео
-                // локальной копии нет (удалена раньше) — показываем исходную ссылку
-                onerror: e => { if (object.image && e.currentTarget.getAttribute('src') !== object.image) e.currentTarget.src = object.image; } })
-            : el('span', { className: 'db-empty-cell', textContent: '—' });
-        return el('tr', {}, el('td', { className: 'db-num', textContent: String(i + 1) }), el('td', { className: 'db-picture' }, picture),
-            ...shown.map(c => el('td', {}, dbCell(c, object[c]))),
-            el('td', { className: 'db-actions' }, button('database-edit-button', 'Ред.', () => openDialog('Редактировать запись', r, i)),
-                button('database-delete-button', 'Удалить', async () => (await ask('Это действие нельзя отменить.', { title: `Удалить запись #${i + 1}?`, ok: 'Удалить', danger: true })) && change('database_delete', { index: i, expected: r })),
-                link ? el('a', { className: 'database-source-link', href: link, target: '_blank', rel: 'noopener noreferrer', textContent: 'Пост ↗' }) : null));
-    });
-    return el('div', { className: 'db-table-wrap' }, el('table', { className: 'db-table' }, el('thead', {}, head), el('tbody', {}, ...rows)));
 }
 
 /** Заготовка новой записи под коллекцию. */
