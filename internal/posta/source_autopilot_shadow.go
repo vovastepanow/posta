@@ -1889,8 +1889,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 	type sourceRow struct {
 		id, state, resume                           string
 		reaudit, pilot, probePositive, legacyActive bool
-		lane                                       int
-		freshRecheck, embedDeferred                bool
+		lane                                        int
+		freshRecheck, embedDeferred                 bool
 	}
 	var ids []sourceRow
 	for rows.Next() {
@@ -2002,7 +2002,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		at := time.Now()
 		// Only initial candidate reviews reuse public listings. Established
 		// sources and explicit rechecks always obtain a new observation.
-		reuse := state == "candidate" && !row.reaudit && !row.freshRecheck
+		reuse := job.Scope == autopilotAutoScope && state == "candidate" && !row.reaudit && !row.freshRecheck
 		res, reused := a.autopilotReviewListing(source, feed, reuse, fetch)
 		if err := autopilotBudgetError(ctx); err != nil {
 			return err
@@ -2039,7 +2039,9 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				if err := recordAutopilotShadowFetch(ctx, a.DB, job, source, at.Unix(), len(posts)); err != nil {
 					return err
 				}
-				a.rememberAutopilotListing(source, res, len(posts))
+				if job.Scope == autopilotAutoScope {
+					a.rememberAutopilotListing(source, res, len(posts))
+				}
 			}
 		}
 		// Older Lemmy community candidates may have entered this queue
@@ -2114,7 +2116,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		auditSamples := autopilotAuditPostSamples(samples)
 		sourceInfo := autopilotSourceReviewInfo(platform, id, feed, res, samples)
 		displayEvidence := autopilotSourceDisplayEvidence(sourceInfo, platform, feed)
-		if reason == "" && len(samples) > 0 {
+		if reason == "" && len(samples) > 0 && job.Scope == autopilotAutoScope {
 			if err := a.rememberAutopilotPublicProfile(ctx, job, source, sourceInfo, at); err != nil {
 				return err
 			}

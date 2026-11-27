@@ -625,30 +625,24 @@ func (r *Router) noteFailure(role Role, err error, primary, fallback Target) {
 	}
 }
 
-// LocalEmbeddingTarget returns the configured local embedding model, never a
-// cloud fallback. The source prescreen has its own CPU budget.
-func (r *Router) LocalEmbeddingTarget(ctx context.Context) Target {
-	p, f, _ := r.Resolve(ctx, RoleEmbed)
-	for _, target := range []Target{p, f} {
-		if target.Provider == "ollama" && !target.Empty() {
-			return target
-		}
+// SourceEmbeddingTarget is deliberately independent of the legacy local
+// embedding role. Public autopilot never starts Ollama.
+func (r *Router) SourceEmbeddingTarget() Target {
+	if !r.OpenRouter.Configured() || r.Settings().DailyBudgetUSD <= 0 {
+		return Off
 	}
-	return Off
+	return Target{"openrouter", "openai/text-embedding-3-small"}
 }
 
-// EmbedLocal uses exactly the model identified by the caller's cache key.
-// A changed setting, unavailable provider or error is not permission to
-// fall back to a billable embedding API.
-func (r *Router) EmbedLocal(ctx context.Context, target Target, texts []string) ([][]float64, error) {
-	if target.Empty() || target.Provider != "ollama" || r.LocalEmbeddingTarget(ctx) != target {
-		return nil, errors.New("локальная модель эмбеддингов недоступна")
+// EmbedSource uses only the bounded OpenRouter route, with no paid fallback.
+func (r *Router) EmbedSource(ctx context.Context, target Target, texts []string) ([][]float64, error) {
+	if target.Empty() || r.SourceEmbeddingTarget() != target {
+		return nil, errors.New("OpenRouter source embedding unavailable")
 	}
-	p, err := r.provider(target)
-	if err != nil {
-		return nil, err
+	if reason := r.blocked(target, &Request{}, r.Settings()); reason != "" {
+		return nil, errors.New(reason)
 	}
-	return p.Embed(ctx, target.Model, texts)
+	return r.OpenRouter.embedSource(ctx, target.Model, texts)
 }
 
 // Embed — эмбеддинги роли embed.

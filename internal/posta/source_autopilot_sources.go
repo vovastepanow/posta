@@ -97,7 +97,10 @@ func registerAutopilotCandidateWithEvidence(ctx context.Context, database *db.DB
 		}
 		// Record only a public, validated identity; this does not approve it
 		// globally or copy a topic rejection onto another topic.
-		return rememberAutopilotIdentity(ctx, tx, sourceID, at.Unix())
+		if job.Scope == autopilotAutoScope {
+			return rememberAutopilotIdentity(ctx, tx, sourceID, at.Unix())
+		}
+		return nil
 	})
 }
 

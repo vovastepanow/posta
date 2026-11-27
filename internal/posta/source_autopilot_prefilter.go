@@ -19,7 +19,7 @@ const sourceEmbeddingTTL = 7 * 24 * time.Hour
 // Cache by the actual model and normalized input, not by topic or source.
 // Float32 binary encoding avoids large JSON arrays; values expire via CacheGC.
 func sourceEmbeddingKey(model, text string) string {
-	return "source_embedding:v1:" + repeatDigest(model+"\x00"+text)
+	return "source_embedding:v2:512:" + repeatDigest(model+"\x00"+text)
 }
 
 func packSourceEmbedding(v []float64) []byte {
@@ -36,7 +36,7 @@ func packSourceEmbedding(v []float64) []byte {
 	norm = math.Sqrt(norm)
 	out := make([]byte, len(v)*4)
 	for i, x := range v {
-		binary.LittleEndian.PutUint32(out[i*4:], math.Float32bits(float32(x/norm)))
+		binary.LittleEndian.PutUint32(out[i*4:], math.Float32bits(float32(x / norm)))
 	}
 	return out
 }
@@ -72,18 +72,18 @@ func sourceEmbeddingCosine(a, b []float64) (float64, bool) {
 }
 
 type sourceEmbeddingScore struct {
-	Model string `json:"model"`
-	Posts int `json:"posts"`
-	Max float64 `json:"max_cosine"`
-	Mean float64 `json:"mean_cosine"`
-	LexicalMatch bool `json:"lexical_match"`
+	Model        string  `json:"model"`
+	Posts        int     `json:"posts"`
+	Max          float64 `json:"max_cosine"`
+	Mean         float64 `json:"mean_cosine"`
+	LexicalMatch bool    `json:"lexical_match"`
 }
 
 func sourceEmbeddingSummarize(model string, vectors [][]float64, lexical bool) *sourceEmbeddingScore {
 	if len(vectors) < 3 {
 		return nil
 	}
-	score := &sourceEmbeddingScore{Model: model, Posts: len(vectors)-1, Max: -1, LexicalMatch: lexical}
+	score := &sourceEmbeddingScore{Model: model, Posts: len(vectors) - 1, Max: -1, LexicalMatch: lexical}
 	for _, v := range vectors[1:] {
 		s, ok := sourceEmbeddingCosine(vectors[0], v)
 		if !ok {
@@ -161,9 +161,9 @@ func (a *App) sourceEmbeddingInputs(topic string, posts []jx.M) (string, []strin
 }
 
 func (a *App) autopilotEmbeddingPrescreen(ctx context.Context, job *autopilotJob, info jx.M, posts []jx.M) (*sourceEmbeddingScore, string) {
-	target := a.LLM.LocalEmbeddingTarget(ctx)
+	target := a.LLM.SourceEmbeddingTarget()
 	if target.Empty() {
-		return nil, "local_model_disabled"
+		return nil, "openrouter_embedding_disabled"
 	}
 	query, anchors, captions := a.sourceEmbeddingInputs(job.Topic, posts)
 	if len(captions) < 2 {
@@ -190,32 +190,49 @@ func (a *App) autopilotEmbeddingPrescreen(ctx context.Context, job *autopilotJob
 		unavailableKey := "source_embedding_unavailable:" + target.String()
 		if a.Mem != nil {
 			if _, unavailable := a.Mem.Get(unavailableKey); unavailable {
-				return nil, "local_model_unavailable"
+				return nil, "openrouter_embedding_unavailable"
 			}
 		}
-		// Independent CPU quota, reserved before the actual model call.
-		// No use of OpenRouter and no drain of the main LLM call budget.
+		// Reserve a conservative input-token cost before the request.
+		// UTF-8 bytes plus overhead bound the ordinary text tokenizer's
+		// input size. The provider price cap is $0.02/M input tokens.
+		// Keep the reservation even on an ambiguous transport failure.
+		paidLimit := autopilotPaidLimitMicro(ctx)
+		if paidLimit <= 0 {
+			return nil, "embedding_budget_disabled"
+		}
+		var bytes int64
+		for _, s := range missing {
+			bytes += int64(len(s)) + 64
+		}
+		cost := max(int64(1), (bytes+49)/50)
 		at, id := time.Now(), randHex(16)
 		err := withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
 			if err := reserveAutopilotBudgetTx(ctx, tx, id+":server", "server", "source_embedding", at, 1, 200); err != nil {
 				return err
 			}
-			return reserveAutopilotBudgetTx(ctx, tx, id+":topic", autopilotBudgetTopicScope(job), "source_embedding", at, 1, 80)
+			if err := reserveAutopilotBudgetTx(ctx, tx, id+":topic", autopilotBudgetTopicScope(job), "source_embedding", at, 1, 80); err != nil {
+				return err
+			}
+			if err := reserveAutopilotBudgetTx(ctx, tx, id+":embedding_paid", "server", "source_embedding_usd_micro", at, cost, 10000); err != nil {
+				return err
+			}
+			return reserveAutopilotBudgetTx(ctx, tx, id+":paid", "autopilot_paid", "usd_micro", at, cost, paidLimit)
 		})
 		if errors.Is(err, errAutopilotBudgetExhausted) {
-			return nil, "local_budget_exhausted"
+			return nil, "embedding_budget_exhausted"
 		}
 		if err != nil {
-			return nil, "local_budget_unavailable"
+			return nil, "embedding_budget_unavailable"
 		}
 		embedCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		got, err := a.LLM.EmbedLocal(embedCtx, target, missing)
+		got, err := a.LLM.EmbedSource(embedCtx, target, missing)
 		cancel()
 		if err != nil || len(got) != len(missing) {
 			if a.Mem != nil {
 				a.Mem.Set(unavailableKey, true, 10*time.Minute)
 			}
-			return nil, "local_model_unavailable"
+			return nil, "openrouter_embedding_unavailable"
 		}
 		for j, i := range indexes {
 			raw := packSourceEmbedding(got[j])

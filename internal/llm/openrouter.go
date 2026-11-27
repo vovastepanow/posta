@@ -380,6 +380,47 @@ func (o *OpenRouter) Embed(ctx context.Context, model string, texts []string) ([
 	return out, nil
 }
 
+// embedSource caps provider prices and validates the ordering of a batch.
+func (o *OpenRouter) embedSource(ctx context.Context, model string, texts []string) ([][]float64, error) {
+	if model != "openai/text-embedding-3-small" || len(texts) == 0 || len(texts) > 11 {
+		return nil, fmt.Errorf("invalid source embedding request")
+	}
+	total := 0
+	for _, text := range texts {
+		total += len(text)
+	}
+	if total > 40000 {
+		return nil, fmt.Errorf("source embedding input too large")
+	}
+	raw, status, err := o.do(ctx, "/embeddings", map[string]any{
+		"model": model, "input": texts, "dimensions": 512, "encoding_format": "float",
+		"provider": map[string]any{
+			"max_price": map[string]any{"prompt": 0.02, "request": 0},
+			"allow_fallbacks": false,
+		},
+	}, 15*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	var reply struct {
+		Data []struct {
+			Index     *int      `json:"index"`
+			Embedding []float64 `json:"embedding"`
+		} `json:"data"`
+	}
+	if status != 200 || json.Unmarshal(raw, &reply) != nil || len(reply.Data) != len(texts) {
+		return nil, fmt.Errorf("OpenRouter source embeddings: HTTP %d", status)
+	}
+	out := make([][]float64, len(texts))
+	for _, row := range reply.Data {
+		if row.Index == nil || *row.Index < 0 || *row.Index >= len(out) || out[*row.Index] != nil || len(row.Embedding) != 512 {
+			return nil, fmt.Errorf("invalid OpenRouter embedding batch")
+		}
+		out[*row.Index] = row.Embedding
+	}
+	return out, nil
+}
+
 // Credits — остаток и расход ключа (для админки).
 func (o *OpenRouter) Credits(ctx context.Context) (total, used float64, err error) {
 	raw, status, err := o.do(ctx, "/credits", nil, 15*time.Second)
