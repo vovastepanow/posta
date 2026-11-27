@@ -76,13 +76,21 @@ func TestAutopilotAPIIsUserScopedPostgres(t *testing.T) {
 	}
 	ua := a.User(ctx, "autopilot-api-a", nil)
 	ub := a.User(ctx, "autopilot-api-b", nil)
-	if err = ua.SourceAutopilotDemandSave("Тема A", "shadow", 5, 3); err != nil {
+	topicA, topicB := "Тема A "+randHex(6), "Тема B "+randHex(6)
+	// Saving a demand also creates shared jobs; remove them even on failure
+	// so the next lifecycle test cannot claim this fixture's job.
+	t.Cleanup(func() {
+		if _, err := d.Pool.Exec(context.Background(), `DELETE FROM source_autopilot_jobs WHERE topic_key IN ($1,$2)`, autopilotTopicKey(topicA), autopilotTopicKey(topicB)); err != nil {
+			t.Errorf("cleanup jobs: %v", err)
+		}
+	})
+	if err = ua.SourceAutopilotDemandSave(topicA, "shadow", 5, 3); err != nil {
 		t.Fatal(err)
 	}
-	if err = ub.SourceAutopilotDemandSave("Тема B", "shadow", 5, 3); err != nil {
+	if err = ub.SourceAutopilotDemandSave(topicB, "shadow", 5, 3); err != nil {
 		t.Fatal(err)
 	}
-	if err = ua.SourceAutopilotDemandSave("Тема A", "auto", 5, 3); err != nil {
+	if err = ua.SourceAutopilotDemandSave(topicA, "auto", 5, 3); err != nil {
 		t.Fatal(err)
 	}
 	status, err := ua.SourceAutopilotStatus()
@@ -90,13 +98,13 @@ func TestAutopilotAPIIsUserScopedPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	topics, ok := status["topics"].([]jx.M)
-	if !ok || len(topics) != 1 || jx.Str(topics[0], "topic") != "Тема A" || jx.Str(topics[0], "mode") != "auto" {
+	if !ok || len(topics) != 1 || jx.Str(topics[0], "topic") != topicA || jx.Str(topics[0], "mode") != "auto" {
 		t.Fatalf("leaked another owner's demands: %+v", status)
 	}
-	if _, err = ua.SourceAutopilotHistory("Тема B", "auto", 0, 1); err == nil {
+	if _, err = ua.SourceAutopilotHistory(topicB, "auto", 0, 1); err == nil {
 		t.Fatal("history of another owner's profile was exposed")
 	}
-	key := autopilotTopicKey("Тема A")
+	key := autopilotTopicKey(topicA)
 	at := now()
 	readyBefore, delayedBefore := jx.Int(topics[0], "queue_ready"), jx.Int(topics[0], "queue_delayed")
 	testPrefix := "rss:https://queue-" + randHex(8) + ".example.org/"
@@ -124,11 +132,11 @@ func TestAutopilotAPIIsUserScopedPostgres(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = d.Pool.Exec(context.Background(), `DELETE FROM source_autopilot_decisions WHERE scope='public' AND topic_key=$1`, key)
 	})
-	page, err := ua.SourceAutopilotHistory("Тема A", "auto", 0, 1)
+	page, err := ua.SourceAutopilotHistory(topicA, "auto", 0, 1)
 	if err != nil || jx.Int(page, "next_before") == 0 {
 		t.Fatalf("history first page: %+v %v", page, err)
 	}
-	page, err = ua.SourceAutopilotHistory("Тема A", "auto", jx.Int(page, "next_before"), 1)
+	page, err = ua.SourceAutopilotHistory(topicA, "auto", jx.Int(page, "next_before"), 1)
 	if err != nil || len(page["decisions"].([]jx.M)) != 1 || jx.Int(page, "next_before") != 0 {
 		t.Fatalf("history next page: %+v %v", page, err)
 	}
