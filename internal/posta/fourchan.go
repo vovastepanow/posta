@@ -439,32 +439,6 @@ func (a *App) FourchanApproveBoard(topic, board string) {
 	})
 }
 
-// FourchanSourceCandidates — треды досок темы — кандидаты на вкладке «Источники».
-func (u *U) FourchanSourceCandidates(voted map[string]bool, topic string) []jx.M {
-	boards := u.FourchanBoardsForTopic(topic)
-	rand.Shuffle(len(boards), func(i, j int) { boards[i], boards[j] = boards[j], boards[i] })
-	var out []jx.M
-	for _, board := range boards[:min(3, len(boards))] {
-		threads, err := u.FourchanThreads(board)
-		if err != nil {
-			continue
-		}
-		for _, t := range threads[:min(10, len(threads))] {
-			sid := fmt.Sprintf("4chan:%s:%d", board, jx.Int(t, "no"))
-			if voted[sid] || FourchanThreadDeadReason(t) != "" {
-				continue
-			}
-			name := strings.TrimSpace(jx.Str(t, "sub"))
-			if name == "" {
-				name = "#" + jx.Str(t, "no")
-			}
-			out = append(out, SourceCandidate(sid, Platform4chan, Platform4chan+" /"+board+"/ · "+trimRunes(name, 80), "Тред 4chan с картинками по теме.",
-				jx.M{"board": board, "thread_id": jx.Str(t, "no"), "thread_posts": jx.Int(t, "replies"), "last_hit": jx.Int(t, "last_modified")}))
-		}
-	}
-	return out
-}
-
 // FourchanPreview — превью треда для карточки.
 func (u *U) FourchanPreview(c jx.M, count int) []jx.M {
 	thread := jx.M{"no": jx.Int(c, "thread_id"), "sub": ""}
@@ -480,11 +454,3 @@ func (u *U) FourchanPreview(c jx.M, count int) []jx.M {
 	return out
 }
 
-// SourceCandidate — кандидат для вкладки «Источники».
-func SourceCandidate(id, platform, name, reason string, extra jx.M) jx.M {
-	c := jx.M{"source_id": id, "platform": platform, "name": name, "reason": reason}
-	for k, v := range extra {
-		c[k] = v
-	}
-	return c
-}
