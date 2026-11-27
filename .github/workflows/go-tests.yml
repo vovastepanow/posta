@@ -102,29 +102,7 @@ jobs:
       - name: Verify public source hint staging and owner-safe delivery
         run: go test ./internal/posta -run '^(TestAutopilotConsumesAcceptedSourceHintsPostgres|TestAutopilotDeliversContentPerOwnerPostgres|TestAutopilotDirectDeliversWithoutApprovedSourcePostgres|TestAutopilotEvidenceDedupPostgres|TestAutopilotAuditFunnelPostgres|TestAutopilotYieldEvidencePostgres|TestAutopilotAvailableSupplyPostgres)$' -count=1 -timeout=12m
       - name: Verify candidate queue, probation and activation with PostgreSQL
-        run: go test ./internal/posta -run '^(TestAutopilotShadowQueuePostgres|TestMalformedCandidateDoesNotStarveAutopilotReviewPostgres|TestAutopilotModeClaimsDoNotStarvePostgres|TestAutopilotRecoversStaleFailuresWithoutBypassingQuotaPostgres|TestLegacyPendingTransferredOutOfManualShelfPostgres|TestAutopilotProbationNotStarvedByCandidateBacklogPostgres|TestAutopilotShadowEvidencePromotionPostgres|TestAutopilotCandidateToActiveLifecyclePostgres|TestAutopilotFullRecheckPostgres|TestAutopilotYieldRecheckBoundedPostgres|TestAutopilotRepairYieldAdmissionPostgres|TestPersonalBlogPreferencePersistsByTopicPostgres|TestAutopilotYieldMixedSourceLifecyclePostgres|TestAutopilotYieldPilotLifecyclePostgres|TestAutopilotClassifierFailureDoesNotBlockNextCandidatePostgres|TestAutopilotIndependentRestartAndLeaseRecoveryPostgres|TestAutopilotProjectionRespectsStateAndOverridePostgres|TestAutopilotPrepareSkipsInvalidRejectedProjectionsPostgres|TestAutopilotAutoDemandReconciliationPostgres|TestAutopilotRegistryIdentityPreservesVerdictsPostgres) -count=1 -timeout=12m
-      - name: Verify atomic pool votes and repeat memory with PostgreSQL
-        env:
-          POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
-        run: go test ./internal/posta -run '^(TestVotePoolAtomicPostgres|TestRepeatMemoryPostgres|TestOutboxEditAndClaimPostgres|TestLostCoverlessVideoKeepsTextPostPostgres|TestOutboxFinalizeAtomicPostgres|TestMediaRemoveKeepsFilesOnDatabaseFailurePostgres|TestPoolUpdatePreservesUnchangedRowsPostgres|TestTextProposalAndMarkPostedPostgres|TestNativeSettleAndSlotConflictPostgres|TestVideoJobFollowsLikedRecordPostgres|TestVotesKeepDifferentVideosWithSameCoverPostgres|TestHistoryDeltaAndCancelGuardPostgres|TestCollectorTextCacheReusesPublicVerdictsPostgres|TestVisiblePoolQuotaPostgres|TestSettingsConcurrentIndependentChangesPostgres|TestNetworkOAuthStateSingleUsePostgres|TestPublicPostPartialRefreshPostgres)$' -count=1 -timeout=5m
-      - name: Install FFmpeg for queued video tests
-        run: |
-          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends ffmpeg
-          fi
-      - name: Verify queued editor edits and video cover persistence
-        env:
-          POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
-        run: |
-          ffmpeg -version
-          ffprobe -version
-          go test ./internal/web -run '^(TestOutboxEditPostgres|TestOutboxVideoCoverEditPostgres)$' -count=1 -timeout=5m
-      - name: Verify historic OK rejections with PostgreSQL
-        run: go test ./internal/posta -run '^TestAutopilotReconsiderHistoricOKRejectsOnlyOncePostgres$' -count=1 -timeout=3m
-      - name: Verify model failure recovery and text-only feeds
-        run: go test ./internal/posta -run '^(TestAutopilotQueryUsesObservedYieldAndExploresPostgres|TestAutopilotQueryGenerationRetriesAfterProviderFailure|TestAutopilotGeneratesQueriesThroughModelGate|TestSourcePostsHaveImages|TestEvaluateTextOnlySourceWithoutImage|TestAutopilotPreliminaryPass|TestAutopilotSourceReviewInterval)$' -count=1 -timeout=5m
- -count=1 -timeout=12m
+        run: go test ./internal/posta -run '^(TestAutopilotShadowQueuePostgres|TestMalformedCandidateDoesNotStarveAutopilotReviewPostgres|TestAutopilotModeClaimsDoNotStarvePostgres|TestAutopilotRecoversStaleFailuresWithoutBypassingQuotaPostgres|TestLegacyPendingTransferredOutOfManualShelfPostgres|TestAutopilotProbationNotStarvedByCandidateBacklogPostgres|TestAutopilotShadowEvidencePromotionPostgres|TestAutopilotCandidateToActiveLifecyclePostgres|TestAutopilotFullRecheckPostgres|TestAutopilotYieldRecheckBoundedPostgres|TestAutopilotRepairYieldAdmissionPostgres|TestPersonalBlogPreferencePersistsByTopicPostgres|TestAutopilotYieldMixedSourceLifecyclePostgres|TestAutopilotYieldPilotLifecyclePostgres|TestAutopilotClassifierFailureDoesNotBlockNextCandidatePostgres|TestAutopilotIndependentRestartAndLeaseRecoveryPostgres|TestAutopilotProjectionRespectsStateAndOverridePostgres|TestAutopilotPrepareSkipsInvalidRejectedProjectionsPostgres|TestAutopilotAutoDemandReconciliationPostgres|TestAutopilotRegistryIdentityPreservesVerdictsPostgres)$' -count=1 -timeout=12m
       - name: Verify atomic pool votes and repeat memory with PostgreSQL
         env:
           POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
