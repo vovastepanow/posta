@@ -395,7 +395,11 @@ var videoIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 
 // RSSParse — посты ленты, самые свежие первыми: с картинкой (у видео — постер); YouTube — с ссылкой на ролик.
 func RSSParse(data []byte, count int, name, feedURL string, keepNoImage, withText bool, minText int) ([]jx.M, error) {
-	doc := rssLoad(data)
+	return rssParseLoadedDocument(rssLoad(data), count, name, feedURL, keepNoImage, withText, minText)
+}
+
+// Reuse an already validated document rather than decoding the same feed twice.
+func rssParseLoadedDocument(doc *xnode, count int, name, feedURL string, keepNoImage, withText bool, minText int) ([]jx.M, error) {
 	if !rssIsFeed(doc) {
 		return nil, Bad("Это не RSS, Atom или JSON Feed.")
 	}

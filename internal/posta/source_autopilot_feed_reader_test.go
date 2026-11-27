@@ -55,3 +55,22 @@ func TestRSSLoadDecodesDeclaredWindows1251(t *testing.T) {
 		t.Fatalf("legacy feed not decoded: %+v", doc)
 	}
 }
+
+func TestAutopilotParseReviewListingKeepsFailuresIndependent(t *testing.T) {
+	const feed = "https://example.org/feed"
+	listing := func(body string) FetchResultURL {
+		return FetchResultURL{URL: feed, FetchResult: FetchResult{OK: true, Bytes: []byte(body)}}
+	}
+	if _, reason := autopilotParseReviewListing(PlatformTikTok, "example", "tiktok:example", listing("{")); reason != "feed_parse_failed" {
+		t.Fatalf("malformed JSON: %q", reason)
+	}
+	if _, reason := autopilotParseReviewListing(PlatformRSS, feed, feed, listing("<html><body>not a feed</body></html>")); reason != "unrecognized_feed" {
+		t.Fatalf("unrecognized listing: %q", reason)
+	}
+	if posts, reason := autopilotParseReviewListing(PlatformTikTok, "example", "tiktok:example", listing(`[{"text":"example"}]`)); reason != "" || len(posts) != 1 || posts[0]["text"] != "example" {
+		t.Fatalf("valid JSON listing: %v, %q", posts, reason)
+	}
+	if posts, reason := autopilotParseReviewListing(PlatformRSS, feed, feed, listing(`<feed xmlns="http://www.w3.org/2005/Atom"><title>Example</title></feed>`)); reason != "" || len(posts) != 0 {
+		t.Fatalf("valid empty feed: %v, %q", posts, reason)
+	}
+}

@@ -1844,68 +1844,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 	if fetch == nil || evaluate == nil || assess == nil || threshold < 0 || threshold > 100 {
 		return errors.New("invalid shadow review policy")
 	}
-	// Give probation, independently nominated authors, raw candidates and established feeds separate lanes.
-	// Otherwise a large backlog of never-checked candidates (checked_at=0)
-	// always wins over probation sources, preventing them from collecting the
-	// evidence required to become active. Interleave by rank to reserve review
-	// capacity for each lane even when another lane has thousands of entries.
-	rows, err := a.DB.Pool.Query(ctx, `WITH due AS (
-		SELECT s.source_id,s.state,s.resume_state,s.checked_at,s.first_seen_at,
-			CASE WHEN jsonb_typeof(s.evidence->'search_rank')='number'
-				THEN (s.evidence->>'search_rank')::numeric ELSE 1000000 END AS search_rank,
-			(s.evidence ? 'review_policy_v3_scheduled' AND NOT (s.evidence ? 'review_policy_v3_checked')) AS reaudit,
-			(s.evidence ? 'full_recheck_at' AND s.checked_at < (s.evidence->>'full_recheck_at')::bigint) AS fresh_recheck,
-			(s.evidence ? 'embedding_deferred_at') AS embed_deferred,
-			(s.state IN ('candidate','rejected') AND s.evidence ? 'preliminary_probe_scheduled' AND NOT (s.evidence ? 'preliminary_post_probe')) AS probe_priority,
-			COALESCE(s.evidence @> '{"yield_pilot":true}'::jsonb,false) AS pilot,
-			(s.state='active' AND COALESCE(s.evidence->>'source_decision_policy','') NOT IN ('yield_v2','yield_pilot','strict_v1_live_guard')) AS legacy_active,
-			COALESCE(s.evidence->'preliminary_post_probe' @> jsonb_build_object('has_eligible',true,'policy_version',$5::integer),false) AS probe_positive,
-			CASE
-				WHEN s.state='probation' THEN 0
-				WHEN s.state='candidate' AND EXISTS (
-					SELECT 1 FROM source_autopilot_direct_results d
-					WHERE d.scope=s.scope AND d.topic_key=s.topic_key AND d.source_id=s.source_id
-					AND d.policy_version=$5 AND d.published_at >= $6 AND d.assessed_at >= $6
-				) THEN 1
-				WHEN s.state='candidate' AND s.evidence->>'discovery_origin' IN ('citation','indexed_post') THEN 2
-				WHEN s.state='candidate' THEN 3
-				WHEN s.state='active' THEN 4
-				ELSE 5 END AS lane
-		FROM source_autopilot_sources s
-		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown')
-		AND (s.next_check_at <= $3 OR (s.state='candidate' AND
-			(s.reason='probation_full' OR
-			 (s.reason IN ('feed_unavailable','insufficient_fresh_samples') AND s.checked_at < $3-3600))))
-		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
-	), ranked AS (
-		SELECT source_id,state,resume_state,lane,reaudit,pilot,probe_positive,legacy_active,
-			COALESCE(fresh_recheck,false) AS fresh_recheck,embed_deferred,
-			row_number() OVER (PARTITION BY lane ORDER BY fresh_recheck DESC NULLS LAST,probe_priority DESC,reaudit DESC,checked_at,first_seen_at,search_rank,source_id) AS lane_rank
-		FROM due
-	)
-	SELECT source_id,state,resume_state,reaudit,pilot,probe_positive,legacy_active,lane,fresh_recheck,embed_deferred FROM ranked
-	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit,
-		TopicProfileVersion, time.Now().Add(-autopilotDirectMaxAge).Unix())
-	if err != nil {
-		return err
-	}
-	type sourceRow struct {
-		id, state, resume                           string
-		reaudit, pilot, probePositive, legacyActive bool
-		lane                                        int
-		freshRecheck, embedDeferred                 bool
-	}
-	var ids []sourceRow
-	for rows.Next() {
-		var row sourceRow
-		if err := rows.Scan(&row.id, &row.state, &row.resume, &row.reaudit, &row.pilot, &row.probePositive, &row.legacyActive, &row.lane, &row.freshRecheck, &row.embedDeferred); err != nil {
-			rows.Close()
-			return err
-		}
-		ids = append(ids, row)
-	}
-	err = rows.Err()
-	rows.Close()
+	ids, err := a.autopilotDueReviewSources(ctx, job, limit)
 	if err != nil {
 		return err
 	}
@@ -1928,76 +1867,20 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		// A persisted malformed/unsupported ID used to be silently skipped
-		// without advancing its check time. Since due candidates are ordered
-		// by oldest check, even ONE such row could occupy the same review
-		// slot forever and starve all healthy publishers behind it.
-		if _, _, _, valid := autopilotSourceParts(source); !valid {
-			at := time.Now()
-			const invalidReason = "unsupported_source_format"
-			var invalidErr error
-			switch state {
-			case "candidate", "probation":
-				invalidErr = transitionAutopilotSource(ctx, a.DB, job, source, state,
-					"rejected", invalidReason, []byte(`{}`), at,
-					time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC))
-			case "active":
-				invalidErr = transitionAutopilotSource(ctx, a.DB, job, source, state,
-					"cooldown", invalidReason, []byte(`{}`), at,
-					time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC))
-			case "cooldown":
-				invalidErr = recordAutopilotSourceCheck(ctx, a.DB, job, source, state,
-					invalidReason, []byte(`{}`), at,
-					time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC))
-			case "rejected":
-				invalidErr = withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
-					_, err := tx.Exec(ctx, `UPDATE source_autopilot_sources
-						SET reason=$4,checked_at=$5,next_check_at=$6
-						WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND state='rejected'`,
-						job.Scope, job.TopicKey, source, invalidReason, at.Unix(),
-						time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC).Unix())
-					return err
-				})
-			}
-			if invalidErr != nil && !errors.Is(invalidErr, errAutopilotSourceChanged) &&
-				!errors.Is(invalidErr, errAutopilotSourceOverride) {
-				return invalidErr
-			}
-			continue
-		}
-		if state == "cooldown" {
-			at := time.Now()
-			if job.Scope == autopilotAutoScope && a.autopilotProjectionPossible(job, source) != nil {
-				if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, "projection_conflict", []byte(`{}`), at, at.Add(7*24*time.Hour)); err != nil && !errors.Is(err, errAutopilotSourceChanged) {
-					return err
-				}
-				continue
-			}
-			if err := transitionAutopilotSource(ctx, a.DB, job, source, "cooldown", row.resume, "cooldown_elapsed", []byte(`{}`), at, at); err != nil && !errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) && !errors.Is(err, errAutopilotProbationLimit) {
+		platform, id, _, valid := autopilotSourceParts(source)
+		if !valid {
+			if err := a.autopilotRejectUnsupportedReviewSource(ctx, job, source, state); err != nil {
 				return err
 			}
 			continue
 		}
-		if state == "rejected" {
-			at := time.Now()
-			if err := transitionAutopilotSource(ctx, a.DB, job, source, "rejected", "candidate", "periodic_reconsideration", []byte(`{}`), at, at); err != nil && !errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
-				return err
-			}
+		handled, err := a.autopilotPrepareReviewSource(ctx, job, row)
+		if err != nil {
+			return err
+		}
+		if handled {
 			continue
 		}
-		if state == "candidate" {
-			if job.Scope == autopilotAutoScope {
-				if err := a.autopilotProjectionPossible(job, source); err != nil {
-					at := time.Now()
-					if saveErr := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, "projection_conflict", []byte(`{}`), at, at.Add(7*24*time.Hour)); saveErr != nil && !errors.Is(saveErr, errAutopilotSourceChanged) {
-						return saveErr
-					}
-					continue
-				}
-			}
-
-		}
-		platform, id, _, _ := autopilotSourceParts(source)
 		feed := id
 		if platform != PlatformRSS {
 			feed = source
@@ -2017,28 +1900,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			reason = autopilotFeedReadReason(res)
 			nextCheck = autopilotRetryAt(at, source, res.RetryAfter)
 		} else {
-			if platform == PlatformTikTok {
-				err = json.Unmarshal(res.Bytes, &posts)
-			} else if platform == PlatformTelegram || platform == PlatformVK || platform == PlatformOK {
-				posts, err = autopilotPublicSocialPosts(platform, id, res)
-			} else if autopilotPublicRedditFeed(feed) {
-				posts, err = autopilotRedditListing(res.Bytes, feed, res.URL)
-			} else if _, ok := autopilotMastodonFeed(feed); ok {
-				posts, err = autopilotMastodonSafeStatuses(res.Bytes, feed)
-			} else if host, id := osnovaTimelineSource(feed); host != "" {
-				posts, err = osnovaTimelinePosts(res.Bytes, host, id)
-			} else if channel := RutubeChannelID(feed); channel != "" {
-				posts, err = autopilotRutubeChannelPosts(res.Bytes, channel)
-			} else if source := pikabuCommunityURL(feed); source != "" {
-				posts, err = pikabuCommunityPosts(res.Bytes, source, 20, true)
-			} else if !rssIsFeed(rssLoad(res.Bytes)) {
-				reason = "unrecognized_feed"
-			} else {
-				posts, err = RSSParse(res.Bytes, 20, "", res.URL, true, true, 0)
-			}
-			if err != nil {
-				reason = "feed_parse_failed"
-			} else if reason == "" && !reused {
+			posts, reason = autopilotParseReviewListing(platform, id, feed, res)
+			if reason == "" && !reused {
 				if err := recordAutopilotShadowFetch(ctx, a.DB, job, source, at.Unix(), len(posts)); err != nil {
 					return err
 				}
@@ -2058,8 +1921,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				"rejected", "off_topic_group", jx.Marshal(jx.M{
 					"origin": "lemmy", "topic": job.Topic,
 				}), at, at.Add(30*24*time.Hour)); err != nil &&
-				!errors.Is(err, errAutopilotSourceChanged) &&
-				!errors.Is(err, errAutopilotSourceOverride) {
+				!autopilotSourceSuperseded(err) {
 				return err
 			}
 			continue
@@ -2077,7 +1939,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
 				"cooldown", reason, jx.Marshal(jx.M{"http_status": res.Status, "retry_reason": reason}),
 				at, retry); err != nil &&
-				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				!autopilotSourceSuperseded(err) {
 				return err
 			}
 			continue
@@ -2089,7 +1951,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
 				"rejected", reason, jx.Marshal(jx.M{"http_status": res.Status}), at,
 				at.Add(30*24*time.Hour)); err != nil &&
-				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				!autopilotSourceSuperseded(err) {
 				return err
 			}
 			continue
@@ -2101,7 +1963,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, state,
 				"cooldown", reason, jx.Marshal(jx.M{"http_status": res.Status}),
 				at, at.Add(24*time.Hour)); err != nil &&
-				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				!autopilotSourceSuperseded(err) {
 				return err
 			}
 			continue
@@ -2136,14 +1998,14 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "rejected",
 						topicReason, jx.Marshal(jx.M{"http_status": res.Status, "ok_topic_reaudit": true, "review_samples": auditSamples}),
 						at, at.Add(30*24*time.Hour)); err != nil &&
-						!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+						!autopilotSourceSuperseded(err) {
 						return err
 					}
 				} else {
 					if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown",
 						topicReason, jx.Marshal(jx.M{"http_status": res.Status, "ok_topic_reaudit": true, "review_samples": auditSamples}),
 						at, at.Add(12*time.Hour)); err != nil &&
-						!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+						!autopilotSourceSuperseded(err) {
 						return err
 					}
 				}
@@ -2164,7 +2026,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					"review_samples":           auditSamples,
 					"review_policy_v3_checked": true,
 				}), at, at.Add(retry)); err != nil &&
-				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				!autopilotSourceSuperseded(err) {
 				return err
 			}
 			continue
@@ -2184,7 +2046,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, state,
 				"cooldown", "no_recent_publications", jx.Marshal(evidence),
 				at, at.Add(7*24*time.Hour)); err != nil &&
-				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				!autopilotSourceSuperseded(err) {
 				return err
 			}
 			continue
@@ -2194,7 +2056,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		}
 		if reason == "" && policy.YieldEnabled && state == "candidate" && len(autopilotFreshRSSSamples(samples, at.Unix())) == 0 {
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown", "insufficient_fresh_samples", jx.Marshal(evidence), at, at.Add(7*24*time.Hour)); err != nil &&
-				!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+				!autopilotSourceSuperseded(err) {
 				return err
 			}
 			continue
@@ -2210,7 +2072,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					evidence["embedding_deferred_at"] = at.Unix()
 					if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state,
 						"semantic_prescreen_deferred", jx.Marshal(evidence), at, at.Add(2*time.Hour)); err != nil &&
-						!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+						!autopilotSourceSuperseded(err) {
 						return err
 					}
 					continue
@@ -2284,7 +2146,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 						}
 						if err := transitionAutopilotSource(ctx, a.DB, job, source, state, next,
 							"preliminary_topic_mismatch", jx.Marshal(evidence), at, at.Add(retry)); err != nil &&
-							!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+							!autopilotSourceSuperseded(err) {
 							return err
 						}
 						continue
@@ -2303,7 +2165,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 							}
 							continue
 						}
-						if errors.Is(err, errAutopilotSourceChanged) || errors.Is(err, errAutopilotSourceOverride) {
+						if autopilotSourceSuperseded(err) {
 							continue
 						}
 						return err
@@ -2337,7 +2199,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 						if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
 							decision, decisionReason, jx.Marshal(evidence), at,
 							at.Add(retry)); err != nil &&
-							!errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+							!autopilotSourceSuperseded(err) {
 							return err
 						}
 						continue
@@ -2361,7 +2223,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					}
 					continue
 				}
-				if errors.Is(err, errAutopilotSourceChanged) || errors.Is(err, errAutopilotSourceOverride) {
+				if autopilotSourceSuperseded(err) {
 					continue
 				}
 				return err
@@ -2388,7 +2250,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					return ctx.Err()
 				}
 				if reason := autopilotStreamUnavailableReason(err); newTrial && reason != "" && !autopilotPostAuditHasUseful(trace) {
-					if transitionErr := transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown", reason, jx.Marshal(evidence), at, at.Add(24*time.Hour)); transitionErr != nil && !errors.Is(transitionErr, errAutopilotSourceChanged) && !errors.Is(transitionErr, errAutopilotSourceOverride) {
+					if transitionErr := transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown", reason, jx.Marshal(evidence), at, at.Add(24*time.Hour)); transitionErr != nil && !autopilotSourceSuperseded(transitionErr) {
 						return transitionErr
 					}
 					continue
@@ -2439,7 +2301,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					if next == "rejected" {
 						nextCheck = at.Add(30 * 24 * time.Hour)
 					}
-					if err := transitionAutopilotSource(ctx, a.DB, job, source, state, next, why, jx.Marshal(evidence), at, nextCheck); err != nil && !errors.Is(err, errAutopilotSourceChanged) && !errors.Is(err, errAutopilotSourceOverride) {
+					if err := transitionAutopilotSource(ctx, a.DB, job, source, state, next, why, jx.Marshal(evidence), at, nextCheck); err != nil && !autopilotSourceSuperseded(err) {
 						return err
 					}
 					continue

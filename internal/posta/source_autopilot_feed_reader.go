@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -82,4 +83,36 @@ func autopilotFeedReadReason(r FetchResultURL) string {
 	default:
 		return "feed_unavailable"
 	}
+}
+
+// Parse one listing independently of earlier sources. Keep an unrecognized
+// format distinct from a recognized feed whose parser failed.
+func autopilotParseReviewListing(platform, id, feed string, res FetchResultURL) ([]jx.M, string) {
+	var posts []jx.M
+	var err error
+	if platform == PlatformTikTok {
+		err = json.Unmarshal(res.Bytes, &posts)
+	} else if platform == PlatformTelegram || platform == PlatformVK || platform == PlatformOK {
+		posts, err = autopilotPublicSocialPosts(platform, id, res)
+	} else if autopilotPublicRedditFeed(feed) {
+		posts, err = autopilotRedditListing(res.Bytes, feed, res.URL)
+	} else if _, ok := autopilotMastodonFeed(feed); ok {
+		posts, err = autopilotMastodonSafeStatuses(res.Bytes, feed)
+	} else if host, timelineID := osnovaTimelineSource(feed); host != "" {
+		posts, err = osnovaTimelinePosts(res.Bytes, host, timelineID)
+	} else if channel := RutubeChannelID(feed); channel != "" {
+		posts, err = autopilotRutubeChannelPosts(res.Bytes, channel)
+	} else if source := pikabuCommunityURL(feed); source != "" {
+		posts, err = pikabuCommunityPosts(res.Bytes, source, 20, true)
+	} else {
+		doc := rssLoad(res.Bytes)
+		if !rssIsFeed(doc) {
+			return nil, "unrecognized_feed"
+		}
+		posts, err = rssParseLoadedDocument(doc, 20, "", res.URL, true, true, 0)
+	}
+	if err != nil {
+		return posts, "feed_parse_failed"
+	}
+	return posts, ""
 }

@@ -217,3 +217,142 @@ func recordAutopilotSourceCheck(ctx context.Context, database *db.DB, job *autop
 		return err
 	})
 }
+
+type autopilotReviewSourceRow struct {
+	id, state, resume                           string
+	reaudit, pilot, probePositive, legacyActive bool
+	lane                                        int
+	freshRecheck, embedDeferred                 bool
+}
+
+func (a *App) autopilotDueReviewSources(ctx context.Context, job *autopilotJob, limit int) ([]autopilotReviewSourceRow, error) {
+	// Give probation, independently nominated authors, raw candidates and established feeds separate lanes.
+	// Otherwise a large backlog of never-checked candidates (checked_at=0)
+	// always wins over probation sources, preventing them from collecting the
+	// evidence required to become active. Interleave by rank to reserve review
+	// capacity for each lane even when another lane has thousands of entries.
+	rows, err := a.DB.Pool.Query(ctx, `WITH due AS (
+		SELECT s.source_id,s.state,s.resume_state,s.checked_at,s.first_seen_at,
+			CASE WHEN jsonb_typeof(s.evidence->'search_rank')='number'
+				THEN (s.evidence->>'search_rank')::numeric ELSE 1000000 END AS search_rank,
+			(s.evidence ? 'review_policy_v3_scheduled' AND NOT (s.evidence ? 'review_policy_v3_checked')) AS reaudit,
+			(s.evidence ? 'full_recheck_at' AND s.checked_at < (s.evidence->>'full_recheck_at')::bigint) AS fresh_recheck,
+			(s.evidence ? 'embedding_deferred_at') AS embed_deferred,
+			(s.state IN ('candidate','rejected') AND s.evidence ? 'preliminary_probe_scheduled' AND NOT (s.evidence ? 'preliminary_post_probe')) AS probe_priority,
+			COALESCE(s.evidence @> '{"yield_pilot":true}'::jsonb,false) AS pilot,
+			(s.state='active' AND COALESCE(s.evidence->>'source_decision_policy','') NOT IN ('yield_v2','yield_pilot','strict_v1_live_guard')) AS legacy_active,
+			COALESCE(s.evidence->'preliminary_post_probe' @> jsonb_build_object('has_eligible',true,'policy_version',$5::integer),false) AS probe_positive,
+			CASE
+				WHEN s.state='probation' THEN 0
+				WHEN s.state='candidate' AND EXISTS (
+					SELECT 1 FROM source_autopilot_direct_results d
+					WHERE d.scope=s.scope AND d.topic_key=s.topic_key AND d.source_id=s.source_id
+					AND d.policy_version=$5 AND d.published_at >= $6 AND d.assessed_at >= $6
+				) THEN 1
+				WHEN s.state='candidate' AND s.evidence->>'discovery_origin' IN ('citation','indexed_post') THEN 2
+				WHEN s.state='candidate' THEN 3
+				WHEN s.state='active' THEN 4
+				ELSE 5 END AS lane
+		FROM source_autopilot_sources s
+		WHERE s.scope=$1 AND s.topic_key=$2 AND s.state IN ('candidate','probation','active','rejected','cooldown')
+		AND (s.next_check_at <= $3 OR (s.state='candidate' AND
+			(s.reason='probation_full' OR
+			 (s.reason IN ('feed_unavailable','insufficient_fresh_samples') AND s.checked_at < $3-3600))))
+		AND NOT EXISTS (SELECT 1 FROM source_autopilot_overrides o WHERE (o.scope=$1 OR ($1='public:shadow' AND o.scope='public')) AND o.owner_id='' AND o.topic_key=$2 AND o.source_id=s.source_id AND o.decision='excluded')
+	), ranked AS (
+		SELECT source_id,state,resume_state,lane,reaudit,pilot,probe_positive,legacy_active,
+			COALESCE(fresh_recheck,false) AS fresh_recheck,embed_deferred,
+			row_number() OVER (PARTITION BY lane ORDER BY fresh_recheck DESC NULLS LAST,probe_priority DESC,reaudit DESC,checked_at,first_seen_at,search_rank,source_id) AS lane_rank
+		FROM due
+	)
+	SELECT source_id,state,resume_state,reaudit,pilot,probe_positive,legacy_active,lane,fresh_recheck,embed_deferred FROM ranked
+	ORDER BY lane_rank,lane LIMIT $4`, job.Scope, job.TopicKey, time.Now().Unix(), limit,
+		TopicProfileVersion, time.Now().Add(-autopilotDirectMaxAge).Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []autopilotReviewSourceRow
+	for rows.Next() {
+		var row autopilotReviewSourceRow
+		if err := rows.Scan(&row.id, &row.state, &row.resume, &row.reaudit, &row.pilot, &row.probePositive, &row.legacyActive, &row.lane, &row.freshRecheck, &row.embedDeferred); err != nil {
+			return nil, err
+		}
+		ids = append(ids, row)
+	}
+	return ids, rows.Err()
+}
+
+// A concurrent decision or an explicit exclusion supersedes an observation.
+// Other failures still need to reach the worker (including probation limits).
+func autopilotSourceSuperseded(err error) bool {
+	return errors.Is(err, errAutopilotSourceChanged) || errors.Is(err, errAutopilotSourceOverride)
+}
+
+// Malformed source IDs must advance their check time, otherwise one invalid
+// row can monopolize the review queue. Retain the state-specific decision.
+func (a *App) autopilotRejectUnsupportedReviewSource(ctx context.Context, job *autopilotJob, source, state string) error {
+	at := time.Now()
+	nextCheck := time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)
+	const reason = "unsupported_source_format"
+	var err error
+	switch state {
+	case "candidate", "probation":
+		err = transitionAutopilotSource(ctx, a.DB, job, source, state, "rejected", reason, []byte(`{}`), at, nextCheck)
+	case "active":
+		err = transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown", reason, []byte(`{}`), at, nextCheck)
+	case "cooldown":
+		err = recordAutopilotSourceCheck(ctx, a.DB, job, source, state, reason, []byte(`{}`), at, nextCheck)
+	case "rejected":
+		err = withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, `UPDATE source_autopilot_sources
+						SET reason=$4,checked_at=$5,next_check_at=$6
+						WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND state='rejected'`,
+				job.Scope, job.TopicKey, source, reason, at.Unix(), nextCheck.Unix())
+			return err
+		})
+	}
+	if autopilotSourceSuperseded(err) {
+		return nil
+	}
+	return err
+}
+
+// Handle state-only work before reading the publisher. A handled row must
+// not also be fetched in the same pass.
+func (a *App) autopilotPrepareReviewSource(ctx context.Context, job *autopilotJob, row autopilotReviewSourceRow) (bool, error) {
+	source, state := row.id, row.state
+	switch state {
+	case "cooldown":
+		at := time.Now()
+		if job.Scope == autopilotAutoScope && a.autopilotProjectionPossible(job, source) != nil {
+			err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, "projection_conflict", []byte(`{}`), at, at.Add(7*24*time.Hour))
+			if errors.Is(err, errAutopilotSourceChanged) {
+				err = nil
+			}
+			return true, err
+		}
+		err := transitionAutopilotSource(ctx, a.DB, job, source, "cooldown", row.resume, "cooldown_elapsed", []byte(`{}`), at, at)
+		if autopilotSourceSuperseded(err) || errors.Is(err, errAutopilotProbationLimit) {
+			err = nil
+		}
+		return true, err
+	case "rejected":
+		at := time.Now()
+		err := transitionAutopilotSource(ctx, a.DB, job, source, "rejected", "candidate", "periodic_reconsideration", []byte(`{}`), at, at)
+		if autopilotSourceSuperseded(err) {
+			err = nil
+		}
+		return true, err
+	case "candidate":
+		if job.Scope == autopilotAutoScope && a.autopilotProjectionPossible(job, source) != nil {
+			at := time.Now()
+			err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, "projection_conflict", []byte(`{}`), at, at.Add(7*24*time.Hour))
+			if errors.Is(err, errAutopilotSourceChanged) {
+				err = nil
+			}
+			return true, err
+		}
+	}
+	return false, nil
+}
