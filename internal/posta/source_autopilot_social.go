@@ -38,6 +38,15 @@ func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandida
 	} else {
 		r = u.autopilotPublisherSearch(search, platform)
 	}
+	out, status := autopilotPublicSocialSearchCandidates(r, query, platform)
+	if u.discoverySearchObservation != nil {
+		u.discoverySearchObservation(platform, query, status)
+	}
+	return out
+}
+
+// Treat unavailable or unrecognized search documents as failures, not topic evidence.
+func autopilotPublicSocialSearchCandidates(r FetchResultURL, query, platform string) ([]DiscoveryCandidate, string) {
 	status := "unavailable"
 	var out []DiscoveryCandidate
 	valid := autopilotPublisherSearchResponseValid(r)
@@ -46,9 +55,6 @@ func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandida
 	}
 	if valid {
 		status = autopilotPublisherSearchStatus(r, platform)
-		if platform == PlatformTikTok {
-			status = "empty" // the legacy normalized TikTok URL list is not RSS/HTML
-		}
 		for _, candidate := range autopilotSearchLinkedCandidates(r, platform) {
 			if candidate.Platform != platform {
 				continue
@@ -63,10 +69,7 @@ func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandida
 			status = "ok"
 		}
 	}
-	if u.discoverySearchObservation != nil {
-		u.discoverySearchObservation(platform, query, status)
-	}
-	return out
+	return out, status
 }
 
 func autopilotPublicSocialPosts(platform, id string, res FetchResultURL) ([]jx.M, error) {

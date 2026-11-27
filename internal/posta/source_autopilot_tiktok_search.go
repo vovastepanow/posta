@@ -42,7 +42,7 @@ var autopilotTikTokBingPause struct {
 // direct, canonical TikTok links are accepted; an empty result is unknown.
 func autopilotTikTokBingLinks(r FetchResultURL) []string {
 	final, err := url.Parse(r.URL)
-	if !r.OK || err != nil || final.Scheme != "https" || final.Host != "www.bing.com" || final.User != nil {
+	if !r.OK || r.Status == 206 || err != nil || final.Scheme != "https" || final.Host != "www.bing.com" || final.User != nil || final.Path != "/search" {
 		return nil
 	}
 	doc := rssLoad(r.Bytes)
@@ -155,7 +155,7 @@ func autopilotTikTokSearchHasLinks(body []byte, requireVideo bool) bool {
 }
 func autopilotTikTokSearchResponseValid(r FetchResultURL) bool {
 	p, err := url.Parse(r.URL)
-	if !r.OK || err != nil || p.Scheme != "https" || p.User != nil || (p.Host != "search.brave.com" && p.Host != "www.bing.com") {
+	if !r.OK || r.Status == 206 || err != nil || p.Scheme != "https" || p.User != nil || p.Path != "/search" || (p.Host != "search.brave.com" && p.Host != "www.bing.com") {
 		return false
 	}
 	lower := strings.ToLower(string(r.Bytes))

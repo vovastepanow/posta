@@ -91,7 +91,7 @@ func autopilotPublisherSearchWith(query, platform string, brave func(string) Fet
 
 func autopilotPublisherSearchResponseValid(r FetchResultURL) bool {
 	p, err := url.Parse(r.URL)
-	if !r.OK || err != nil || p.Scheme != "https" || p.User != nil || p.Port() != "" || p.Path != "/search" {
+	if !r.OK || r.Status == 206 || err != nil || p.Scheme != "https" || p.User != nil || p.Port() != "" || p.Path != "/search" {
 		return false
 	}
 	switch p.Host {

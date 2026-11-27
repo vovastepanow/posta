@@ -252,3 +252,23 @@ func TestAutopilotTelegramPageDoesNotAttributeForeignPosts(t *testing.T) {
 		t.Fatalf("foreign or incorrectly attributed posts: %+v %v",posts,err)
 	}
 }
+
+func TestAutopilotPublicSocialSearchRejectsUnknownTikTokPage(t *testing.T) {
+	for _, tc := range []struct {
+		url, body, want string
+		code int
+	}{
+		{"https://search.brave.com/search", "<html>Consent required</html>", "unavailable", 200},
+		{"https://search.brave.com/search", "<html>No results found for your query</html>", "empty", 200},
+		{"https://www.bing.com/search", "https://www.tiktok.com/@cats", "ok", 200},
+		{"https://www.bing.com/search", "https://www.tiktok.com/@cats", "unavailable", 206},
+		{"https://search.brave.com/settings", "<a href=\"https://www.tiktok.com/@cats\">cats</a>", "unavailable", 200},
+		{"https://www.bing.com/search", "<rss><channel><item><link>https://example.org/cats</link></item></channel></rss>", "unavailable", 200},
+	} {
+		r := FetchResultURL{URL: tc.url, FetchResult: FetchResult{OK: true, Status: tc.code, Bytes: []byte(tc.body)}}
+		got, status := autopilotPublicSocialSearchCandidates(r, "cats", PlatformTikTok)
+		if status != tc.want || (len(got) > 0) != (tc.want == "ok") {
+			t.Fatalf("status=%s want=%s candidates=%+v body=%s", status, tc.want, got, tc.body)
+		}
+	}
+}
