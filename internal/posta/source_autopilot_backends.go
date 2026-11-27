@@ -1,32 +1,69 @@
 package posta
 
-// Keep the search order and configuration switches in one table. Disabled
-// backends are filtered before the adaptive runner rotates the enabled list.
+import "posta/internal/jx"
+
+type autopilotSearchBackend struct {
+	name, setting string
+	search func(*U, string, string, int64) []DiscoveryCandidate
+}
+
+// Search order and public diagnostics are derived from the same registry.
+var autopilotSearchRegistry = []autopilotSearchBackend{
+	{"Telegram", "search_telegram", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.autopilotFindPublicSocial(query, PlatformTelegram)
+	}},
+	{"ВКонтакте", "search_vk", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.autopilotFindPublicSocial(query, PlatformVK)
+	}},
+	{"YouTube", "search_youtube", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.autopilotFindYouTube(query)
+	}},
+	{"Rutube", "search_rutube", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.autopilotFindRutube(query)
+	}},
+	{"TikTok", "autopilot_search_tiktok", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.autopilotFindPublicSocial(query, PlatformTikTok)
+	}},
+	{"Одноклассники", "autopilot_search_ok", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.discoveryFindOK([]string{query}, topic)
+	}},
+	{"Bluesky", "search_bluesky", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.discoveryFindBluesky([]string{query})
+	}},
+	{"Lemmy", "search_lemmy", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.discoveryFindLemmy([]string{query}, topic)
+	}},
+	{"Mastodon", "search_mastodon", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.autopilotFindMastodon(query)
+	}},
+	{"Reddit", "search_reddit", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.autopilotFindReddit(query)
+	}},
+	{"Хабр", "autopilot_search_habr", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.autopilotFindHabr(query, int(turn%11))
+	}},
+	{"Tumblr", "autopilot_search_tumblr", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.autopilotFindTumblr(query)
+	}},
+	{"Новости RSS", "search_news", func(u *U, query, topic string, turn int64) []DiscoveryCandidate {
+		return u.discoveryFindNewsFeeds([]string{query})
+	}},
+}
+
 func (u *U) autopilotSearchBackends(query, topic string, turn int64) []func() []DiscoveryCandidate {
-	queries := []string{query}
-	options := []struct {
-		setting string
-		search  func() []DiscoveryCandidate
-	}{
-		{"search_telegram", func() []DiscoveryCandidate { return u.autopilotFindPublicSocial(query, PlatformTelegram) }},
-		{"search_vk", func() []DiscoveryCandidate { return u.autopilotFindPublicSocial(query, PlatformVK) }},
-		{"search_youtube", func() []DiscoveryCandidate { return u.autopilotFindYouTube(query) }},
-		{"search_rutube", func() []DiscoveryCandidate { return u.autopilotFindRutube(query) }},
-		{"autopilot_search_tiktok", func() []DiscoveryCandidate { return u.autopilotFindPublicSocial(query, PlatformTikTok) }},
-		{"autopilot_search_ok", func() []DiscoveryCandidate { return u.discoveryFindOK(queries, topic) }},
-		{"search_bluesky", func() []DiscoveryCandidate { return u.discoveryFindBluesky(queries) }},
-		{"search_lemmy", func() []DiscoveryCandidate { return u.discoveryFindLemmy(queries, topic) }},
-		{"search_mastodon", func() []DiscoveryCandidate { return u.autopilotFindMastodon(query) }},
-		{"search_reddit", func() []DiscoveryCandidate { return u.autopilotFindReddit(query) }},
-		{"autopilot_search_habr", func() []DiscoveryCandidate { return u.autopilotFindHabr(query, int(turn%11)) }},
-		{"autopilot_search_tumblr", func() []DiscoveryCandidate { return u.autopilotFindTumblr(query) }},
-		{"search_news", func() []DiscoveryCandidate { return u.discoveryFindNewsFeeds(queries) }},
-	}
 	var enabled []func() []DiscoveryCandidate
-	for _, option := range options {
-		if u.App.TBool(option.setting) {
-			enabled = append(enabled, option.search)
+	for _, backend := range autopilotSearchRegistry {
+		if u.TBool(backend.setting) {
+			enabled = append(enabled, func() []DiscoveryCandidate { return backend.search(u, query, topic, turn) })
 		}
 	}
 	return enabled
+}
+
+func autopilotBackendStatus(enabled func(string) bool) []jx.M {
+	out := make([]jx.M, 0, len(autopilotSearchRegistry))
+	for _, backend := range autopilotSearchRegistry {
+		out = append(out, jx.M{"name": backend.name, "enabled": enabled(backend.setting), "access": "public"})
+	}
+	return out
 }

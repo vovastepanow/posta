@@ -88,6 +88,31 @@ func readAutopilotSourceTotals(ctx context.Context, q db.Querier, scope, key str
 	return t, err
 }
 
+func readAutopilotStateReasons(ctx context.Context, q db.Querier, scope, key string) (map[string]jx.M, error) {
+	out := map[string]jx.M{
+		"candidate": {}, "probation": {}, "rejected": {}, "cooldown": {},
+	}
+	rows, err := q.Query(ctx, `SELECT state,COALESCE(NULLIF(reason,''),'not_checked'),count(*)
+		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2
+		AND state IN ('candidate','probation','rejected','cooldown')
+		GROUP BY 1,2`, scope, key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var state, reason string
+		var count int
+		if err := rows.Scan(&state, &reason, &count); err != nil {
+			return nil, err
+		}
+		if counts := out[state]; counts != nil {
+			counts[reason] = count
+		}
+	}
+	return out, rows.Err()
+}
+
 func autopilotFailureKind(lastError string) string {
 	switch {
 	case strings.Contains(lastError, errAutopilotBudgetExhausted.Error()):
@@ -279,31 +304,13 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		row["yield_pilot_enabled"] = u.TBool("autopilot_yield_pilot")
 		// Persisted last outcomes explain why a nonempty candidate queue has
 		// not produced probation sources. Aggregate only; no source IDs leak.
-		outcomes := jx.M{}
-		outcomeRows, outcomeErr := u.DB.Pool.Query(u.Ctx, `SELECT reason,count(*)
-			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state='candidate'
-			GROUP BY reason`, scope, key)
-		if outcomeErr != nil {
-			return nil, outcomeErr
+		reasons, err := readAutopilotStateReasons(u.Ctx, u.DB.Pool, scope, key)
+		if err != nil {
+			return nil, err
 		}
-		for outcomeRows.Next() {
-			var reason string
-			var count int
-			if err := outcomeRows.Scan(&reason, &count); err != nil {
-				outcomeRows.Close()
-				return nil, err
-			}
-			if reason == "" {
-				reason = "not_checked"
-			}
-			outcomes[reason] = count
+		for state, counts := range reasons {
+			row[state+"_reasons"] = counts
 		}
-		outcomeErr = outcomeRows.Err()
-		outcomeRows.Close()
-		if outcomeErr != nil {
-			return nil, outcomeErr
-		}
-		row["candidate_reasons"] = outcomes
 		auditCtx, auditCancel := context.WithTimeout(u.Ctx, 2*time.Second)
 		funnel, auditErr := AutopilotAuditFunnel(auditCtx, u.DB.Pool, scope, key, time.Now())
 		auditCancel()
@@ -337,51 +344,32 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			return nil, causeErr
 		}
 		row["candidate_assessment_causes"] = assessmentCauses
-		probationReasons, rejectedReasons, cooldownReasons := jx.M{}, jx.M{}, jx.M{}
-		probationRows, probationErr := u.DB.Pool.Query(u.Ctx, `SELECT state,COALESCE(NULLIF(reason,''),'not_checked'),count(*)
-			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND state IN ('probation','rejected','cooldown')
-			GROUP BY 1,2`, scope, key)
-		if probationErr != nil {
-			return nil, probationErr
-		}
-		for probationRows.Next() {
-			var state, reason string
-			var count int
-			if err := probationRows.Scan(&state, &reason, &count); err != nil {
-				probationRows.Close()
-				return nil, err
-			}
-			switch state {
-			case "probation":
-				probationReasons[reason] = count
-			case "rejected":
-				rejectedReasons[reason] = count
-			case "cooldown":
-				cooldownReasons[reason] = count
-			}
-		}
-		probationErr = probationRows.Err()
-		probationRows.Close()
-		if probationErr != nil {
-			return nil, probationErr
-		}
-		row["probation_reasons"] = probationReasons
-		row["rejected_reasons"], row["cooldown_reasons"] = rejectedReasons, cooldownReasons
 		var lastSuccess int64
 		if err = u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(max(fetched_at),0) FROM source_autopilot_collection_passes WHERE scope=$1 AND topic_key=$2`, scope, key).Scan(&lastSuccess); err != nil {
 			return nil, err
 		}
+		var directRecent int
 		if d.Mode == "auto" {
 			var directSuccess int64
-			if err = u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(max(assessed_at),0)
+			if err = u.DB.Pool.QueryRow(u.Ctx, `SELECT COALESCE(max(assessed_at),0),count(*)
 				FROM source_autopilot_direct_results WHERE scope='public' AND topic_key=$1
 				AND published_at >= $2 AND assessed_at >= $2 AND policy_version=$3`,
-				key, time.Now().Add(-autopilotDirectMaxAge).Unix(), TopicProfileVersion).Scan(&directSuccess); err != nil {
+				key, time.Now().Add(-autopilotDirectMaxAge).Unix(), TopicProfileVersion).Scan(&directSuccess, &directRecent); err != nil {
 				return nil, err
 			}
 			lastSuccess = max(lastSuccess, directSuccess)
 		}
 		row["last_success"] = lastSuccess
+		var totals autopilotSourceTotals
+		if d.Mode == "auto" {
+			totals, err = readAutopilotSourceTotals(u.Ctx, u.DB.Pool, autopilotAutoScope, key)
+			if err != nil {
+				return nil, err
+			}
+			row["auto_candidates"], row["auto_sources_probation"], row["auto_sources_active"] = totals.Candidates, totals.Probation, totals.Active
+			row["auto_sources_cooldown"], row["auto_sources_rejected"] = totals.Cooldown, totals.Rejected
+			row["direct_qualified_recent"] = directRecent
+		}
 		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint,attempts FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&next, &lease, &enabled, &eligible, &lastError, &checkpoint, &attempts)
 		if err == nil {
 			row["job_exists"] = true
@@ -390,11 +378,8 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			row["attempts"] = attempts
 			stats := jx.Unmarshal(checkpoint)
 			// Pipeline telemetry is written in both auto and shadow modes.
-			for key, value := range map[string]string{
-				"pipeline_phase":      "pipeline_phase",
-				"last_search_outcome": "last_search_outcome",
-			} {
-				row[key] = jx.Str(stats, value)
+			for _, key := range []string{"pipeline_phase", "last_search_outcome"} {
+				row[key] = jx.Str(stats, key)
 			}
 			for _, key := range []string{"pipeline_phase_at", "last_search_at", "last_source_candidates", "last_direct_sources", "last_search_backends", "last_backends_ok", "last_backends_empty", "last_backends_unavailable"} {
 				row[key] = jx.Int(stats, key)
@@ -406,22 +391,6 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 				row["direct_reviewed_total"] = jx.Int(stats, "direct_reviewed_total")
 				row["direct_accepted_total"] = jx.Int(stats, "direct_accepted_total")
 				row["direct_rejected_total"] = jx.Int(stats, "direct_rejected_total")
-				var recent int
-				err := u.DB.Pool.QueryRow(u.Ctx, `SELECT count(*) FROM source_autopilot_direct_results
-					WHERE scope='public' AND topic_key=$1 AND published_at >= $2 AND assessed_at >= $2 AND policy_version=$3`,
-					key, time.Now().Add(-autopilotDirectMaxAge).Unix(), TopicProfileVersion).Scan(&recent)
-				if err != nil {
-					return nil, err
-				}
-				row["direct_qualified_recent"] = recent
-				totals, err := readAutopilotSourceTotals(u.Ctx, u.DB.Pool, autopilotAutoScope, key)
-				if err != nil {
-					return nil, err
-				}
-				row["auto_candidates"] = totals.Candidates
-				row["auto_sources_probation"] = totals.Probation
-				row["auto_sources_active"] = totals.Active
-				row["auto_sources_cooldown"], row["auto_sources_rejected"] = totals.Cooldown, totals.Rejected
 				row["diagnosis"] = autopilotStatusReason(autopilotStatusInput{
 					Paused: d.Paused, Enabled: enabled, Eligible: eligible,
 					Running: lease > now(), Failure: failure,
@@ -455,20 +424,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		}
 		topics = append(topics, row)
 	}
-	backends := []jx.M{
-		{"name": "Telegram", "enabled": u.TBool("search_telegram"), "access": "public"},
-		{"name": "ВКонтакте", "enabled": u.TBool("search_vk"), "access": "public"},
-		{"name": "YouTube", "enabled": u.TBool("search_youtube"), "access": "public"},
-		{"name": "TikTok", "enabled": u.TBool("autopilot_search_tiktok"), "access": "public"},
-		{"name": "Одноклассники", "enabled": u.TBool("autopilot_search_ok"), "access": "public"},
-		{"name": "Bluesky", "enabled": u.TBool("search_bluesky"), "access": "public"},
-		{"name": "Lemmy", "enabled": u.TBool("search_lemmy"), "access": "public"},
-		{"name": "Mastodon", "enabled": u.TBool("search_mastodon"), "access": "public"},
-		{"name": "Reddit", "enabled": u.TBool("search_reddit"), "access": "public"},
-		{"name": "Хабр", "enabled": u.TBool("autopilot_search_habr"), "access": "public"},
-		{"name": "Tumblr", "enabled": u.TBool("autopilot_search_tumblr"), "access": "public"},
-		{"name": "Новости RSS", "enabled": u.TBool("search_news"), "access": "public"},
-	}
+	backends := autopilotBackendStatus(u.TBool)
 	revision := "unknown"
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
