@@ -86,10 +86,6 @@ func (u *U) TopicUsableSources(d *SourceDB, topic string) int {
 	return n
 }
 
-func DiscoveryLastRun(d *SourceDB, topic string) int64 {
-	return jx.Int(jx.Map(d.Discovery, "runs"), strings.ToLower(strings.TrimSpace(topic)))
-}
-
 // discoveryProgress persists the unfinished batch and its unexamined candidates per topic.
 type discoveryProgress struct {
 	Platform     string                         `json:"platform,omitempty"`
@@ -131,16 +127,6 @@ func (u *U) discoveryScopedTopic(topic string) string {
 	return TopicNorm(topic)
 }
 
-func (u *U) DiscoveryProgress(topic string) (found, target, pending int, active bool) {
-	p := KV(u.App, u.Ctx, u.discoveryProgressKey(topic), discoveryProgress{})
-	for _, c := range p.Pending {
-		if discoveryMatchesPlatform(c, p.Platform) {
-			pending++
-		}
-	}
-	return p.Found, p.Target, pending, p.Active
-}
-
 // DiscoveryPipelinePublic combines persistent batch progress with the live state for this topic.
 func (u *U) DiscoveryPipelinePublic(topic string) jx.M {
 	p := KV(u.App, u.Ctx, u.discoveryProgressKey(topic), discoveryProgress{})
@@ -154,18 +140,10 @@ func (u *U) DiscoveryPipelinePublic(topic string) jx.M {
 	if e := u.TopicLookup(topic); e != nil {
 		ownSources = u.TopicOwnSourceCount(e, nil)
 	}
-	u.parsers.mu.Lock()
-	paused := u.parsers.discoveryPaused[TopicNorm(topic)]
-	u.parsers.mu.Unlock()
 	out := jx.M{"platform": p.Platform, "enabled": u.TBool("discovery"), "active": p.Active, "found": p.Found, "target": p.Target,
 		"pending": len(p.Pending), "checked": p.Checked, "rejected": p.Rejected, "failed": p.Failed,
-		"added": p.Added, "suggested": p.Suggested, "running": false, "paused": paused, "errors": p.Errors, "retry_count": len(p.Retries), "last_search": discoveryLastSearch(p.Queries), "insight": discoveryQueryInsight(p.Queries),
+		"added": p.Added, "suggested": p.Suggested, "running": false, "paused": false, "errors": p.Errors, "retry_count": len(p.Retries), "last_search": discoveryLastSearch(p.Queries), "insight": discoveryQueryInsight(p.Queries),
 		"own_sources": ownSources, "analyzed_posts": analyzed, "accepted_posts": passed, "analyzed_sources": len(verdicts)}
-	if value, ok := u.discoveryLive.Load(u.discoveryProgressKey(topic)); ok {
-		for key, value := range value.(jx.M) {
-			out[key] = value
-		}
-	}
 	return out
 }
 
@@ -202,17 +180,7 @@ func (u *U) TopicHealthPublic(topic string) jx.M {
 	return out
 }
 
-// SourceDiscoveryDue never schedules the retired legacy source scanner.
-// Active public demands are handled by the dedicated source-autopilot worker.
-func (u *U) SourceDiscoveryDue(d *SourceDB, topic string) bool {
-	return false
-}
-
-func (a *App) RequestSourceDiscovery() {
-	a.UpdateCatalog(a.ctxOrBg(), func(d *SourceDB) bool { d.Discovery["requested"] = true; return true })
-}
-
-// discoveryKnownIDs — уже известные: каталог и реестр проверенных (пропуск по решению реестра, без сетевых запросов).
+// discoveryTopicKnown — уже известные источники по теме.
 func (u *U) discoveryTopicKnown(d *SourceDB, topic string) map[string]bool {
 	known := map[string]bool{}
 	for _, c := range CatalogKinds {
@@ -239,14 +207,6 @@ func (u *U) discoveryTopicKnown(d *SourceDB, topic string) map[string]bool {
 		if u.TopicSame(t, topic) {
 			known[jx.Str(s, "source_id")] = true
 		}
-	}
-	return known
-}
-
-func (u *U) discoveryKnownIDs(d *SourceDB, topic string) map[string]bool {
-	known := u.discoveryTopicKnown(d, topic)
-	for sid := range u.registryKnown(topic) {
-		known[sid] = true
 	}
 	return known
 }
@@ -320,96 +280,12 @@ func (a *App) DiscoveryTopicKeywords(topic string) []string {
 	return nil
 }
 
-// discoveryKeywordHit — слово темы в названии, описании или в нескольких последних подписях. nil — слов нет.
-func (u *U) discoveryKeywordHit(topic, title, desc string, texts []string) *bool {
-	words := u.DiscoveryTopicKeywords(topic)
-	if len(words) == 0 {
-		return nil
-	}
-	yes, no := true, false
-	if TopicWordsHit(title, words) || TopicWordsHit(desc, words) {
-		return &yes
-	}
-	hits, n := 0, 0
-	for _, t := range texts {
-		if strings.TrimSpace(t) == "" {
-			continue
-		}
-		if n++; n > config.DiscoveryKeywordRecent {
-			break
-		}
-		if TopicWordsHit(t, words) {
-			hits++
-		}
-	}
-	if hits >= config.DiscoveryKeywordMinTexts {
-		return &yes
-	}
-	return &no
-}
-
-func (u *U) discoveryTitleHit(topic, title, desc string) *bool {
-	words := u.DiscoveryTopicKeywords(topic)
-	if len(words) == 0 {
-		return nil
-	}
-	r := TopicWordsHit(title, words) || TopicWordsHit(desc, words)
-	return &r
-}
-
 func sourceQueryRule(topic string) string {
 	q := TopicQueryOf(topic)
 	if q == "" {
 		return ""
 	}
 	return " Уточнение: «" + q + "». Канал должен быть не только по теме, но и про уточнение (место, команда, персонаж, бренд); общий канал по теме без уточнения — не подходит."
-}
-
-// RunQueryDiscovery — подбор источников по уточнению: поиск каналов Telegram по запросу и по запросу со словом темы.
-func (u *U) RunQueryDiscovery(key string) {
-	q := TopicQueryOf(key)
-	if q == "" {
-		return
-	}
-	lock := u.namedLock("query:" + strings.ToLower(key))
-	if !lock.TryLock() {
-		return
-	}
-	defer lock.Unlock()
-	base := TopicBase(key)
-	queries := uniqueStrings([]string{q, q + " " + base})
-	u.Log("-> Подбор источников по уточнению «%s»: ищу каналы в Telegram по запросам «%s».", q, strings.Join(queries, "», «"))
-	found := u.discoveryTelegramAccountChannels(queries, nil)
-	found = found[:min(len(found), config.TopicQueryChannelsPerRun)]
-	u.Log("-> Найдено каналов: %d.", len(found))
-	stats := map[string]int{}
-	known := u.discoveryKnownIDs(u.Catalog(), key)
-	for _, ch := range found {
-		if sourceKnownWithLegacy(known, SourceIDFor(PlatformTelegram, ch.Username)) {
-			continue
-		}
-		u.checkDiscoveryCandidate(DiscoveryCandidate{Platform: PlatformTelegram, ID: ch.Username, Origin: "поиск по уточнению «" + q + "»", OriginKind: "tg_name"}, key, stats)
-	}
-	u.Log("-> Итог по уточнению: проверено %d, принято %d, в предложения %d, отказ %d.", stats["checked"], stats["added"], stats["suggested"], stats["rejected"])
-}
-
-// QueryDiscoveryQuotaTake — не больше TopicQueryDiscoveryPerDay новых уточнений в сутки.
-func (u *U) QueryDiscoveryQuotaTake(key string) bool {
-	allowed := false
-	k := strings.ToLower(key)
-	KVUpdate(u.App, u.Ctx, "query_discovery:"+u.ID+":"+time.Now().Format("2006-01-02"), 48*time.Hour, func(list []string, _ bool) *[]string {
-		if contains(list, k) {
-			allowed = true
-			return &list
-		}
-		if len(list) >= config.TopicQueryDiscoveryPerDay {
-			return &list
-		}
-		allowed = true
-		list = append(list, k)
-		return &list
-	})
-	return allowed
 }
 
 type sourceReview struct {
@@ -662,19 +538,6 @@ func (u *U) evaluateSource(info jx.M, posts []jx.M, topic string) *sourceEvaluat
 	return &sourceEvaluation{Score: min(text.Score, review.Score), Images: []int{review.Score}, Text: &s, Reason: review.Reason, PersonalBlog: review.PersonalBlog, ReviewedSamples: min(text.Samples, review.Samples)}
 }
 
-func sourceEvaluationBasis(e *sourceEvaluation) string {
-	if e.Text != nil {
-		return fmt.Sprintf("подписи %d%%", *e.Text)
-	}
-	var s []string
-	for _, x := range e.Images {
-		s = append(s, fmt.Sprint(x))
-	}
-	return "картинки " + strings.Join(s, "/")
-}
-
-// ---- Доски Двача под тему ----
-
 func (a *App) dvachBoardList() map[string]jx.M {
 	var list []jx.M
 	out := map[string]jx.M{}
@@ -910,372 +773,6 @@ func (u *U) DvachBoardsForTopic(topic string, chooseIfMissing bool) []string {
 	return always(chosen)
 }
 
-// ---- Проверка кандидатов ----
-
-// storeDiscoveredSource — итог проверки → каталог, предложения или отказ: added | suggested | rejected | failed.
-// Предложение нужно и по теме, и по годноте; очередь предложений темы ограничена (сверх — лучшие по баллу). Итог пишется в реестр.
-func (u *U) storeDiscoveredSource(c DiscoveryCandidate, info jx.M, ev *sourceEvaluation, topic string, activity jx.M, extra int) string {
-	score := 0
-	var q jx.M
-	if ev != nil {
-		score, q = ev.Score, ev.Quality
-	}
-	sid := SourceIDFor(c.Platform, c.ID)
-	result := "rejected"
-	// Automatic admission needs both strong relevance and enough evidence.
-	// Samples without a goodness assessment stay in the review queue.
-	autoScore := max(u.TInt("auto_add_score"), 90)
-	if discoveryAutoEligible(score, autoScore+extra, ev, len(jx.Maps(info, "posts"))) {
-		result = "added"
-	} else if score >= u.TInt("suggest_score")+extra {
-		result = "suggested"
-	}
-	rejectReason := ""
-	if ev != nil {
-		rejectReason = ev.Reason
-	}
-	if result != "rejected" && ev != nil && ev.Goodness != nil && ev.Goodness.Score < u.TInt("goodness_min") {
-		rejectReason = fmt.Sprintf("не годнота: %d%% (%s)", ev.Goodness.Score, ev.Goodness.Note)
-		result = "rejected"
-	}
-	title := jx.Str(info, "title")
-	tn := TopicNorm(topic)
-	_, err := u.UpdateCatalog(u.Ctx, func(d *SourceDB) bool {
-		switch result {
-		case "added":
-			e := jx.M{"id": info["id"], "name": title, "topics": []any{TopicBase(topic)}, "auto": true, "score": score, "preview": SourcePreviewImages(jx.Maps(info, "posts"))}
-			if qq := TopicQueryOf(topic); qq != "" {
-				e["query"] = qq
-			}
-			if activity != nil {
-				e["activity"] = activity
-			}
-			if q != nil {
-				e["audience"] = jx.M{"subscribers": q["subscribers"], "view_rate": q["view_rate"], "checked_at": now()}
-			}
-			l := d.List(CatalogKind(c.Platform))
-			found := false
-			for _, existing := range *l {
-				if strings.EqualFold(jx.Str(existing, "id"), jx.Str(e, "id")) {
-					u.addApprovedSource(d, jx.M{"platform": c.Platform, "id": e["id"], "name": e["name"]}, topic)
-					found = true
-					break
-				}
-			}
-			if !found {
-				*l = append(*l, e)
-			}
-		case "suggested":
-			reason := fmt.Sprintf("Найден автоподбором по теме «%s» (%s): оценка %d%%", topic, c.Origin, score)
-			if q != nil {
-				reason += fmt.Sprintf(" (по теме %d%%), ", jx.Int(q, "content")) + DescribeSourceAudience(jx.Int(q, "subscribers"), floatPtr(q["view_rate"]), q)
-			} else if s := jx.Int(info, "subscribers"); s > 0 {
-				reason += ", подписчиков " + FormatSubscribers(s)
-			}
-			if activity != nil {
-				reason += ", " + DescribeSourceActivity(activity)
-			}
-			if ev != nil && ev.Goodness != nil {
-				reason += fmt.Sprintf(", годнота %d%% (%s)", ev.Goodness.Score, ev.Goodness.Note)
-			}
-			if ev != nil && strings.TrimSpace(ev.Reason) != "" {
-				reason += ". " + trimRunes(strings.TrimSpace(ev.Reason), 180)
-			}
-			if desc := jx.Str(info, "description"); desc != "" {
-				reason += ". " + trimRunes(desc, 160)
-			} else {
-				reason += "."
-			}
-			d.Suggestions = append(d.Suggestions, jx.M{"source_id": sid, "platform": c.Platform, "id": info["id"], "name": SourceDisplayName(c.Platform, title),
-				"score": score, "topic": topic, "timestamp": now(), "origin": jx.M{"kind": c.OriginKind, "detail": c.Origin}, "refs": []any{}, "reason": reason})
-		}
-		return true
-	})
-	if err != nil {
-		// каталог не сохранён — и реестр не пишем: кандидат найдётся снова
-		u.Log("Каталог не сохранён, %s не записан: %v", sid, err)
-		return "failed"
-	}
-	reg := registryWrite{SourceID: sid, Platform: c.Platform, Name: title, URL: registryURL(c.Platform, c.ID), Status: RegStatusRejected, Checked: true,
-		Topic: tn, Result: &registryTopic{Score: score, Reason: rejectReason, At: now()}, Origin: jx.M{"kind": c.OriginKind, "detail": c.Origin},
-		Sample: registrySample(jx.Maps(info, "posts"))}
-	switch result {
-	case "added":
-		reg.Status = RegStatusCatalog
-	case "suggested":
-		reg.Status = RegStatusSuggested
-	}
-	if q != nil {
-		reg.Metrics = jx.M{}
-		for k, v := range q {
-			reg.Metrics[k] = v
-		}
-		if activity != nil {
-			reg.Metrics["activity"] = activity
-		}
-	}
-	if err := u.registryUpsert(reg); err != nil {
-		u.Log("Реестр источников: не сохранён %s: %v", sid, err)
-	}
-	return result
-}
-
-func floatPtr(v any) *float64 {
-	if v == nil {
-		return nil
-	}
-	f := jx.ToFloat(v)
-	return &f
-}
-
-func (u *U) discoveryCheapNote(c DiscoveryCandidate, reason string) {
-	if u.run == nil {
-		return
-	}
-	g := DiscoveryGroupOf(c.Platform, c.ID)
-	if u.run.DiscoveryCheap[g] == nil {
-		u.run.DiscoveryCheap[g] = map[string]int{}
-	}
-	u.run.DiscoveryCheap[g][reason]++
-}
-
-func rejectInfo(c DiscoveryCandidate) jx.M {
-	return jx.M{"id": c.ID, "title": c.ID, "description": "", "posts": []any{}}
-}
-
-// checkDiscoveryCandidate — проверка одного кандидата. Возвращает ссылки на другие площадки и признак «не загрузилось».
-func (u *U) checkDiscoveryCandidate(c DiscoveryCandidate, topic string, stats map[string]int) (links []DiscoveryCandidate, failed bool) {
-	label := DiscoveryLabel(c)
-	phase := func(action string) {
-		if u.discoveryPhase != nil {
-			u.discoveryPhase(action + ": " + label)
-		}
-	}
-	phase("Проверяем реестр")
-	extra := 0
-	if c.Depth >= 2 {
-		extra = config.DiscoveryDeepExtraScore
-	}
-	sid := SourceIDFor(c.Platform, c.ID)
-	verdict, why, row := u.RegistryVerdict(sid, topic)
-	if verdict == regSkip {
-		u.discoveryCheapNote(c, "реестр: "+why)
-		return nil, false
-	}
-	if verdict == regSample {
-		u.registrySampleCheck(c, topic, row, stats)
-		return nil, false
-	}
-	stats["checked"]++
-	reject := func(info jx.M) {
-		stats["rejected"]++
-		u.storeDiscoveredSource(c, info, nil, topic, nil, 0)
-	}
-	if u.UASourceBlocked(sid, c.Info) != "" {
-		u.Log("-> %s: украинский источник — пропуск.", label)
-		reject(rejectInfo(c))
-		u.registryUpsert(registryWrite{SourceID: sid, Platform: c.Platform, Status: RegStatusUkraine, Reason: "украинский источник"})
-		return nil, false
-	}
-	pre := ""
-	if c.Platform == PlatformTelegram {
-		pre = c.ID + " "
-	}
-	if DiscoveryLanguageReject(pre + jx.Str(c.Info, "title")) {
-		u.discoveryCheapNote(c, "не на том языке")
-		reject(rejectInfo(c))
-		return nil, false
-	}
-	phase("Загружаем источник и посты")
-	info, err := u.discoveryProbe(c, topic)
-	if u.Ctx.Err() != nil {
-		return nil, true
-	}
-	if err != nil {
-		if errors.Is(err, ErrDiscoveryMissing) {
-			u.Log("-> %s: %s", label, strings.TrimPrefix(err.Error(), ErrDiscoveryMissing.Error()+": "))
-			reject(rejectInfo(c))
-			u.registryUpsert(registryWrite{SourceID: sid, Platform: c.Platform, Status: RegStatusDead, Reason: "пустой, закрытый или удалённый источник"})
-			return nil, false
-		}
-		stats["failed"]++
-		u.discoveryCandidateError(c, err)
-		u.registryUpsert(registryWrite{SourceID: sid, Platform: c.Platform, Status: RegStatusFailed, Reason: err.Error(), Checked: true, Failed: true,
-			Topic: TopicNorm(topic), Result: &registryTopic{Reason: "не загрузилось", At: now()}})
-		return nil, true
-	}
-	if alt := jx.Str(info, "alt_id"); alt != "" {
-		u.discoveryMarkChecked(topic, PlatformRSS, alt)
-	}
-	posts := jx.Maps(info, "posts")
-	linked := linkedCandidates(info)
-	subs := jx.Int(info, "subscribers")
-	views := viewPtrs(info["post_views"])
-	if len(views) == 0 {
-		for _, p := range posts {
-			if jx.Has(p, "views") {
-				v := jx.Int(p, "views")
-				views = append(views, &v)
-			}
-		}
-	}
-	rate := SourceViewRate(subs, views)
-	var times []int64
-	for _, t := range jx.List(info, "post_times") {
-		times = append(times, jx.ToInt(t))
-	}
-	if len(times) == 0 {
-		for _, p := range posts {
-			times = append(times, jx.Int(p, "posted_at"))
-		}
-	}
-	phase("Проверяем активность и аудиторию")
-	activity := SourceActivity(times, 0)
-	title := label + " «" + jx.Str(info, "title") + "»"
-	inactive := SourceInactivityReason(activity, 0)
-	if inactive == "" {
-		inactive = SourceDeadAudienceReason(subs, rate)
-	}
-	if inactive != "" {
-		stats["rejected"]++
-		u.discoveryCheapNote(c, "мёртвых")
-		u.storeDiscoveredSource(c, info, nil, topic, nil, 0)
-		return linked, false
-	}
-	var fresh []jx.M
-	for _, p := range posts {
-		if !IsPostOutdated(jx.Int(p, "posted_at"), 0, config.ContentMaxAgeDays) {
-			fresh = append(fresh, p)
-		}
-	}
-	posts = fresh
-	named := c.OriginKind == "tg_name" || c.OriginKind == "model_handle"
-	var hit *bool
-	if !named {
-		if c.Depth >= 1 {
-			hit = u.discoveryTitleHit(topic, jx.Str(info, "title"), jx.Str(info, "description"))
-		} else {
-			var texts []string
-			for _, p := range posts {
-				texts = append(texts, jx.Str(p, "text"))
-			}
-			hit = u.discoveryKeywordHit(topic, jx.Str(info, "title"), jx.Str(info, "description"), texts)
-		}
-	}
-	// Picture-led VK posts may have no caption at all. The image model can
-	// judge these; absence of a keyword is not evidence of a mismatch.
-	if c.Platform == PlatformVK && hit != nil && !*hit && u.TopicFormatOf(topic).Judge != "text" {
-		meaningful := false
-		for _, post := range posts {
-			caption := strings.TrimSpace(jx.Str(post, "text"))
-			if caption != "" && caption != EmptyPostText {
-				meaningful = true
-				break
-			}
-		}
-		if !meaningful {
-			hit = nil
-		}
-	}
-	if hit != nil && !*hit {
-		where := "в канале"
-		if c.Depth >= 1 {
-			where = "в названии и описании"
-		}
-		u.Log("-> %s: нет слов темы %s — пропуск без проверки картинок.", title, where)
-		reject(info)
-		return nil, false
-	}
-	if DiscoveryLanguageReject(jx.Str(info, "title") + " " + jx.Str(info, "description")) {
-		u.Log("-> %s: язык названия и описания не тот — пропуск без проверки картинок.", title)
-		reject(info)
-		return nil, false
-	}
-	uaPosts := 0
-	for _, p := range posts {
-		if u.UAItemBlocked(p) != "" {
-			uaPosts++
-		}
-	}
-	if u.UASourceBlocked(sid, info) != "" || uaPosts >= 2 {
-		u.Log("-> %s: украинский источник — пропуск без проверки картинок.", title)
-		reject(info)
-		u.registryUpsert(registryWrite{SourceID: sid, Platform: c.Platform, Status: RegStatusUkraine, Reason: "украинский источник"})
-		return nil, false
-	}
-	phase("Оцениваем соответствие теме")
-	var ev *sourceEvaluation
-	if len(posts) > 0 {
-		ev = u.evaluateSource(info, posts, topic)
-	}
-	if u.Ctx.Err() != nil {
-		return nil, true
-	}
-	if ev == nil {
-		u.Log("-> %s: нет постов с картинками — пропуск.", title)
-		reject(info)
-		return linked, false
-	}
-	q := SourceQualityScore(float64(ev.Score), subs, rate)
-	q["subscribers"] = subs
-	if rate != nil {
-		q["view_rate"] = *rate
-	} else {
-		q["view_rate"] = nil
-	}
-	ev.Quality = q
-	ev.Score = int(jx.Int(q, "score"))
-	phase("Оцениваем качество источника")
-	g := u.candidateGoodness(c, posts, rate, activity)
-	ev.Goodness = &g
-	if u.Ctx.Err() != nil {
-		return nil, true
-	}
-	phase("Сохраняем результат")
-	result := u.storeDiscoveredSource(c, info, ev, topic, activity, extra)
-	stats[result]++
-	if ev.TextOnly {
-		u.Log("-> %s: по названию и постам не по теме (%d%%) — пропуск без проверки картинок.", title, *ev.Text)
-		return nil, false
-	}
-	reason := ""
-	if ev.Reason != "" {
-		reason = ", " + ev.Reason
-	}
-	u.Log("-> %s: по теме %d%% (%s%s), %s, %s, глубина %d → %d%% — %s.", title, jx.Int(q, "content"), sourceEvaluationBasis(ev), reason,
-		DescribeSourceAudience(subs, rate, q), DescribeSourceActivity(activity), c.Depth, ev.Score,
-		map[string]string{"added": "добавлен в каталог", "suggested": "в предложения", "rejected": "не подходит", "failed": "не сохранено"}[result])
-	return linked, false
-}
-
-func (u *U) discoveryCandidateError(c DiscoveryCandidate, err error) {
-	message := fmt.Sprintf("%s: %s", DiscoveryLabel(c), err)
-	if c.Platform == PlatformRSS {
-		u.discoveryError(message)
-	} else {
-		u.Log("-> %s", message)
-	}
-}
-
-func viewPtrs(v any) []*int64 {
-	switch x := v.(type) {
-	case []*int64:
-		return x
-	case []any:
-		var out []*int64
-		for _, e := range x {
-			if e == nil {
-				out = append(out, nil)
-				continue
-			}
-			n := jx.ToInt(e)
-			out = append(out, &n)
-		}
-		return out
-	}
-	return nil
-}
-
 func linkedCandidates(info jx.M) []DiscoveryCandidate {
 	var out []DiscoveryCandidate
 	switch l := info["linked"].(type) {
@@ -1289,12 +786,6 @@ func linkedCandidates(info jx.M) []DiscoveryCandidate {
 		}
 	}
 	return out
-}
-
-// discoveryMarkChecked — альтернативный адрес того же источника отмечен проверенным по теме.
-func (u *U) discoveryMarkChecked(topic, platform, id string) {
-	u.registryUpsert(registryWrite{SourceID: SourceIDFor(platform, id), Platform: platform, Status: RegStatusRejected, Checked: true,
-		Topic: TopicNorm(topic), Result: &registryTopic{Reason: "альтернативный адрес этого же источника", At: now()}})
 }
 
 // discoveryTelegramAccountChannels — каналы через аккаунт Telegram: поиск по запросам или похожие.
@@ -1510,48 +1001,4 @@ func (a *App) DiscoveryOriginReport(d *SourceDB, topic string) map[string]map[st
 		bump(k, vote)
 	}
 	return rows
-}
-
-func (u *U) discoveryTopicAbandoned(topic string) bool {
-	return u.ID != "" && u.run != nil && !u.run.FixedTopic && !u.TopicSame(u.CurrentTopic(), topic)
-}
-
-// RunSourceDiscovery is retired: only the fenced public source-autopilot
-// worker may discover, review and connect new sources. The old scanner
-// must not mutate the shared catalog or create a second approval queue.
-func (u *U) RunSourceDiscovery(topic string, maxSeconds int) {
-	// Kept as a compatibility entry point for old parser scheduling calls.
-}
-
-// StartSourceDiscovery starts a manual run immediately, independently of the collector.
-func (u *U) StartSourceDiscovery(topic, platform string) string {
-	return "auto_only"
-}
-
-func (u *U) startSourceDiscovery(topic string, maxSeconds int, manual bool, platform string) (*discoveryRun, string) {
-	// Legacy discovery used to write both automatic catalog admissions and
-	// manually reviewed suggestions. Its background callers are retained for
-	// compatibility, but the pipeline is never launched.
-	return nil, "auto_only"
-}
-
-// StopSourceDiscovery pauses automatic discovery for this topic until manually started again.
-func (u *U) StopSourceDiscovery(topic string) (bool, bool) {
-	key := TopicNorm(topic)
-	u.parsers.mu.Lock()
-	u.parsers.discoveryPaused[key] = true
-	run := u.parsers.discoveryRuns[key]
-	if run != nil {
-		run.cancel()
-	}
-	u.parsers.mu.Unlock()
-	if run == nil {
-		return false, false
-	}
-	select {
-	case <-run.done:
-		return true, false
-	case <-time.After(5 * time.Second):
-		return true, true
-	}
 }

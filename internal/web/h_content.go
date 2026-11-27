@@ -602,9 +602,6 @@ func saveTopic(c *Ctx) (any, error) {
 		return nil, err
 	}
 	lacks := u.TopicLacksSources(c.A.Catalog(), topic)
-	if lacks {
-		c.A.RequestSourceDiscovery()
-	}
 	parser := "unchanged"
 	changed := !u.TopicSame(topic, previous)
 	if changed {

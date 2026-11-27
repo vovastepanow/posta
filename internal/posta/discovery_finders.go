@@ -1008,14 +1008,6 @@ func (u *U) discoverySummaryLines(report map[string]map[string]int, reasons map[
 		}
 		line := fmt.Sprintf("%s: найдено %d, проверено %d, принято %d, отказ %d, не загрузилось %d, известных пропущено %d",
 			discoveryGroupNames[g], r["found"], r["checked"], r["accepted"], r["rejected"], r["failed"], r["known"])
-		if u.run != nil && len(u.run.DiscoveryCheap[g]) > 0 {
-			var parts []string
-			for k, v := range u.run.DiscoveryCheap[g] {
-				parts = append(parts, fmt.Sprintf("%d %s", v, k))
-			}
-			sort.Strings(parts)
-			line += ", без модели: " + strings.Join(parts, ", ")
-		}
 		if why, ok := reasons[g]; ok {
 			line += " (" + why + ")"
 		}

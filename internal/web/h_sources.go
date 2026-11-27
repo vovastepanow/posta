@@ -253,40 +253,6 @@ func topicAvailable(c *Ctx) error {
 	return nil
 }
 
-func discoveryStatus(c *Ctx) (any, error) {
-	u := c.U
-	d := c.A.Catalog()
-	topic := u.CurrentTopic()
-	auto, frozen, sugg := 0, 0, 0
-	for _, ck := range posta.CatalogKinds {
-		for _, e := range *d.List(ck.Kind) {
-			if !u.CatalogEntryMatchesTopic(e, topic, false) {
-				continue
-			}
-			if jx.Bool(e, "auto") {
-				auto++
-			}
-			if jx.Has(e, "frozen_until") {
-				frozen++
-			}
-		}
-	}
-	for _, s := range d.Suggestions {
-		if u.TopicsAreEquivalent(jx.Str(s, "topic"), topic) {
-			sugg++
-		}
-	}
-	var info any
-	if e := c.A.TopicEnsure(c.R.Context(), topic); e != nil {
-		info = u.TopicPublic(e, d)
-	}
-	found, target, pending, active := u.DiscoveryProgress(topic)
-	disc := d.Discovery
-	running := now()-jx.Int(disc, "running_since") < int64(c.A.TInt("discovery_minutes")*60+120)
-	return jx.M{"enabled": c.A.TBool("discovery"), "topic": topic, "topic_info": info, "last_topic": jx.Str(disc, "topic"), "last_run": jx.Int(disc, "last_run"),
-		"requested": jx.Bool(disc, "requested"), "running": running, "batch_found": found, "batch_target": target, "batch_pending": pending, "batch_active": active, "auto_added": auto, "frozen": frozen, "suggestions": sugg, "vk_connected": c.A.VKIsConnected(c.U.Ctx)}, nil
-}
-
 func now() int64 { return time.Now().Unix() }
 
 // multipartFiles — файлы поля name во временные файлы (удаляет cleanup).

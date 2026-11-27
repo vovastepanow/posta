@@ -49,12 +49,11 @@ type Run struct {
 	FourchanAPICached    int
 	FourchanMedia        int
 	NewsEnrichLeft       int
-	DiscoveryCheap       map[string]map[string]int
 	FixedTopic           bool // CLI: тема зафиксирована, смена настроек не прерывает подбор
 }
 
 func newRun(a *App) *Run {
-	return &Run{TextAnalysesLeft: a.TInt("text_per_pass"), SourceMisses: map[string]int{}, NewsEnrichLeft: NewsEnrichPerPass, DiscoveryCheap: map[string]map[string]int{}}
+	return &Run{TextAnalysesLeft: a.TInt("text_per_pass"), SourceMisses: map[string]int{}, NewsEnrichLeft: NewsEnrichPerPass}
 }
 
 type userParser struct {
@@ -85,17 +84,10 @@ type ParserManager struct {
 	sharedPaused    bool
 	sharedCancel    context.CancelFunc
 	sharedDone      chan struct{}
-	discoveryRuns   map[string]*discoveryRun
-	discoveryPaused map[string]bool
-}
-
-type discoveryRun struct {
-	cancel context.CancelFunc
-	done   chan struct{}
 }
 
 func newParserManager(a *App) *ParserManager {
-	return &ParserManager{app: a, users: map[string]*userParser{}, slots: make(chan struct{}, 64), discoveryRuns: map[string]*discoveryRun{}, discoveryPaused: map[string]bool{}}
+	return &ParserManager{app: a, users: map[string]*userParser{}, slots: make(chan struct{}, 64)}
 }
 
 func (m *ParserManager) user(uid string) *userParser {
@@ -491,10 +483,6 @@ func (a *App) PauseAllParsers() int {
 	sharedCancel, sharedDone := a.parsers.sharedCancel, a.parsers.sharedDone
 	var active []*userParser
 	var cancels []context.CancelFunc
-	for key, run := range a.parsers.discoveryRuns {
-		a.parsers.discoveryPaused[key] = true
-		cancels = append(cancels, run.cancel)
-	}
 	for _, p := range a.parsers.users {
 		p.mu.Lock()
 		p.paused = true

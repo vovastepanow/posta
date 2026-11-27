@@ -165,68 +165,6 @@ func (u *U) RegistryVerdict(sid, topic string) (registryVerdict, string, *regist
 	return v, reason, r
 }
 
-// registryKnown — источники, которые по теме пропускаются без запросов к сети (сэмпл-проверка в этот набор не входит).
-func (u *U) registryKnown(topic string) map[string]bool {
-	out := u.discoveryTopicKnown(u.Catalog(), topic)
-	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id, status, reason, check_count, fail_count, checked_at, topics, sample_at, sample IS NOT NULL FROM source_registry
-		WHERE status IN ('dead','failed','ukraine') OR (status='rejected' AND topics ? $1)`, TopicNorm(topic))
-	if err != nil {
-		u.Log("Реестр источников: не прочитан: %v", err)
-		return out
-	}
-	defer rows.Close()
-	recheck, sample, at := int64(u.TInt("registry_recheck_days")), int64(u.TInt("registry_sample_days")), now()
-	for rows.Next() {
-		var r registryRow
-		var topics []byte
-		if rows.Scan(&r.SourceID, &r.Status, &r.Reason, &r.CheckCount, &r.FailCount, &r.CheckedAt, &topics, &r.SampleAt, &r.HasSample) != nil {
-			continue
-		}
-		json.Unmarshal(topics, &r.Topics)
-		if v, _ := registryDecide(&r, topic, at, recheck, sample); v == regSkip {
-			out[r.SourceID] = true
-		}
-	}
-	return out
-}
-
-// registrySampleCheck — отклонён по другой теме: оценка по сохранённым подписям, без сетевых запросов (один вызов модели).
-func (u *U) registrySampleCheck(c DiscoveryCandidate, topic string, r *registryRow, stats map[string]int) {
-	// украинский источник в сэмпле не оцениваем: статус ukraine — пропуск навсегда
-	uaPosts := 0
-	for _, p := range r.Sample {
-		if u.UAItemBlocked(p) != "" {
-			uaPosts++
-		}
-	}
-	if u.UASourceBlocked(r.SourceID, jx.M{"title": r.Name}) != "" || uaPosts >= 2 {
-		u.registryUpsert(registryWrite{SourceID: r.SourceID, Platform: r.Platform, Status: RegStatusUkraine, Reason: "украинский источник"})
-		u.discoveryCheapNote(c, "реестр: украинский источник")
-		return
-	}
-	var caps []string
-	for _, p := range r.Sample {
-		if t := strings.TrimSpace(jx.Str(p, "text")); t != "" && t != EmptyPostText {
-			caps = append(caps, t)
-		}
-	}
-	if len(caps) == 0 {
-		u.discoveryCheapNote(c, "реестр: сэмпл без подписей")
-		return
-	}
-	rev := u.sourceTextReview(r.Name, "", topic, caps)
-	if rev == nil {
-		return
-	}
-	s := rev.Score
-	ev := &sourceEvaluation{Score: s, Text: &s, TextOnly: s < config.DiscoveryTextRejectScore, Reason: rev.Reason}
-	info := jx.M{"id": c.ID, "title": r.Name, "description": "", "posts": []any{}}
-	result := u.storeDiscoveredSource(c, info, ev, topic, nil, 0)
-	stats[result]++
-	u.Log("-> %s по сохранённому сэмплу: по теме «%s» %d%% — %s.", DiscoveryLabel(c), topic, s,
-		map[string]string{"added": "добавлен в каталог", "suggested": "в предложения", "rejected": "не подходит", "failed": "не сохранено"}[result])
-}
-
 const registrySampleSize = 8
 
 // registrySample — последние посты для сэмпла реестра: до 8 коротких записей с подписью или картинкой; без постов — nil (старый сэмпл сохраняется).

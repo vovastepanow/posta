@@ -37,7 +37,6 @@ type App struct {
 
 	catalog                 *Catalog
 	parsers                 *ParserManager
-	discoveryLive           sync.Map // текущий проход подбора по теме → снимок состояния
 	discoveryOwnershipOnce  sync.Once
 	discoveryOwnershipSlots chan struct{}
 	autopilotWorkerMu       sync.Mutex
@@ -99,7 +98,6 @@ type U struct {
 	log                        func(string)
 	run                        *Run                         // состояние прохода сборщика (бывшие $GLOBALS); nil вне сборщика
 	discoverySearchObservation func(string, string, string) // площадка, запрос, результат поиска
-	discoveryPhase             func(string)                 // подробности текущей проверки кандидата
 	discoveryIssue             func(string)                 // ошибки текущего поиска для панели источников
 }
 

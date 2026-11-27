@@ -1,7 +1,6 @@
 package posta
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
@@ -29,9 +28,8 @@ func TestDiscoveryErrorsReachJournalAndPanel(t *testing.T) {
 	var journal, panel []string
 	u := &U{log: func(line string) { journal = append(journal, line) }, discoveryIssue: func(line string) { panel = append(panel, line) }}
 	u.discoveryNewsError("мемы", FetchResult{Status: 503})
-	u.discoveryCandidateError(DiscoveryCandidate{Platform: PlatformRSS, ID: "https://example.org/feed"}, errors.New("Лента не загрузилась: HTTP 404"))
-	for _, want := range []string{"Bing News «мемы»: HTTP 503", "Лента не загрузилась: HTTP 404"} {
-		if len(journal) != 2 || len(panel) != 2 || !strings.Contains(strings.Join(journal, "\n"), want) || !strings.Contains(strings.Join(panel, "\n"), want) {
+	for _, want := range []string{"Bing News «мемы»: HTTP 503"} {
+		if len(journal) != 1 || len(panel) != 1 || !strings.Contains(strings.Join(journal, "\n"), want) || !strings.Contains(strings.Join(panel, "\n"), want) {
 			t.Fatalf("missing %q in journal %v or panel %v", want, journal, panel)
 		}
 	}
