@@ -16,7 +16,7 @@ func init() {
 	})
 	post("max_bot_configure",func(c *Ctx)(any,error){
 		if err:=ownerOnly(c);err!=nil { return nil,err }
-		if err:=c.A.MaxBotConfigure(c.R.Context(),c.Str("token"));err!=nil { return nil,err }
+		if err:=c.A.MaxBotConfigure(c.R.Context(),c.Str("token"),c.Str("site_url"));err!=nil { return nil,err }
 		return ok(nil),nil
 	})
 	post("max_bot_link_start",func(c *Ctx)(any,error){

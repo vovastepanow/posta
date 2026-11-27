@@ -39,11 +39,25 @@ function render(data){
     body.replaceChildren(actions,el('p',{className:'account-muted',textContent:data.linked?'В боте доступны команды /start, /status и /help.':data.configured?'Откройте бота по одноразовой ссылке и подтвердите код в этом кабинете.':'Владелец сервиса должен подключить общего бота. Для обычных пользователей токен не нужен.'}));
     if(data.owner){
         const token=el('input',{type:'password',name:'token',autocomplete:'off',placeholder:data.username?'Новый токен или пусто для повтора':'Вставьте токен созданного бота',required:!data.username});
+        // Use the real external browser URL rather than proxy headers or an
+        // internal localhost address from the installation configuration.
+        const current=new URL('./',location.href);
+        const external=current.protocol==='https:' && current.hostname.includes('.') && !current.hostname.endsWith('.local') && !current.hostname.endsWith('.localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(current.hostname) && !current.port;
+        const site=el('input',{type:'url',name:'site_url',autocomplete:'url',value:data.site_url || (external?current.href:'https://posta.rocks/'),placeholder:'https://posta.rocks/',required:true,readOnly:data.configured===true});
         const submit=el('button',{type:'submit',className:'primary-button',textContent:data.configured?'Проверить и обновить подключение':'Подключить общего бота'});
-        const form=el('form',{className:'telegram-form'},el('label',{},el('span',{textContent:'Токен MAX для бизнеса'}),token),submit);
+        const form=el('form',{className:'telegram-form'},el('label',{},el('span',{textContent:'Публичный HTTPS-адрес Posta'}),site),
+            el('p',{className:'account-muted',textContent:'Укажите адрес, по которому Posta открывается через интернет. Вебхук будет создан автоматически. Адрес localhost не подходит.'}),
+            el('label',{},el('span',{textContent:'Токен MAX для бизнеса'}),token),submit);
         form.onsubmit=e=>{e.preventDefault();busy(submit,async()=>{
             status('Проверяю бота и HTTPS-вебхук…');
-            try{await api('max_bot_configure',{body:{token:token.value}});status('Бот подключён.');await loadMaxBot();}
+            try{await api('max_bot_configure',{body:{token:token.value,site_url:site.value.trim()}});status('Бот подключён.');await loadMaxBot();}
+            catch(error){
+                // If identity verification succeeded, the encrypted token was
+                // already saved even if registration failed. Permit a retry.
+                const saved=await api('max_bot_status').catch(()=>null);
+                if(saved?.username){token.required=false;token.placeholder='Токен сохранён — можно повторить без ввода';}
+                throw error;
+            }
             finally{token.value='';}
         });};
         body.append(el('details',{className:'max-bot-owner',open:!data.configured},el('summary',{textContent:'Настройка владельца'+(data.username?' · @'+data.username:'')}),el('p',{className:'account-muted',textContent:'Токен хранится зашифрованно. Posta проверит его и зарегистрирует защищённый вебхук автоматически.'}),form));

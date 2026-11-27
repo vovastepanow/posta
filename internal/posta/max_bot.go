@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -31,6 +32,7 @@ type maxServiceBot struct {
 	TokenEnc string `json:"token_enc"`
 	SecretEnc string `json:"secret_enc"`
 	Ready bool `json:"ready"`
+	SiteURL string `json:"site_url,omitempty"`
 }
 
 var maxBotSetupMu sync.Mutex
@@ -57,18 +59,32 @@ func (a *App) maxBotSecrets(bot maxServiceBot) (string,string) {
 }
 
 func maxBotSiteURL(raw string) string {
-	p,err:=url.Parse(strings.TrimRight(raw,"/"))
-	if err!=nil || p.Scheme!="https" || p.Hostname()=="" || p.User!=nil || p.RawQuery!="" || p.Fragment!="" || p.Port()!="" {
+	p,err:=url.Parse(strings.TrimRight(strings.TrimSpace(raw),"/"))
+	if err!=nil || p.Scheme!="https" || p.Hostname()=="" || p.User!=nil || p.RawQuery!="" || p.ForceQuery || p.Fragment!="" || p.Port()!="" || p.Opaque!="" {
+		return ""
+	}
+	host:=strings.ToLower(strings.TrimSuffix(p.Hostname(),"."))
+	// MAX requires a publicly reachable TLS domain. Do not accept localhost,
+	// IP literals, or a single-label/private network hostname.
+	if net.ParseIP(host)!=nil || !strings.Contains(host,".") || strings.HasSuffix(host,".localhost") || strings.HasSuffix(host,".local") || strings.HasSuffix(host,".internal") || strings.HasSuffix(host,".lan") {
 		return ""
 	}
 	return p.String()
 }
 
+// A bot-specific, owner-confirmed URL persists across restarts. Existing
+// deployments with a valid POSTA_PUBLIC_URL continue to work unchanged.
+func (a *App) maxBotSite(bot maxServiceBot) string {
+	if bot.SiteURL!="" { return maxBotSiteURL(bot.SiteURL) }
+	return maxBotSiteURL(a.Cfg.PublicURL)
+}
+
 func (a *App) MaxBotPublic(ctx context.Context, uid string) (jx.M,error) {
 	bot:=a.maxBotConfig(ctx)
 	token,secret:=a.maxBotSecrets(bot)
-	ready:=bot.Ready && token!="" && secret!="" && maxBotSiteURL(a.Cfg.PublicURL)!=""
-	out:=jx.M{"configured":ready,"linked":false,"username":bot.Username}
+	site:=a.maxBotSite(bot)
+	ready:=bot.Ready && token!="" && secret!="" && site!=""
+	out:=jx.M{"configured":ready,"linked":false,"username":bot.Username,"site_url":site}
 	if !ready { return out,nil }
 	out["url"]="https://max.ru/"+bot.Username
 	var linked bool
@@ -77,18 +93,22 @@ func (a *App) MaxBotPublic(ctx context.Context, uid string) (jx.M,error) {
 	return out,err
 }
 
-func (a *App) MaxBotConfigure(ctx context.Context, token string) error {
-	return a.maxBotConfigureWith(ctx,token,networkHTTP)
+func (a *App) MaxBotConfigure(ctx context.Context, token, siteURL string) error {
+	return a.maxBotConfigureWith(ctx,token,siteURL,networkHTTP)
 }
 
-func (a *App) maxBotConfigureWith(ctx context.Context, token string, request networkRequestFunc) error {
+func (a *App) maxBotConfigureWith(ctx context.Context, token, siteURL string, request networkRequestFunc) error {
 	maxBotSetupMu.Lock()
 	defer maxBotSetupMu.Unlock()
 	token=strings.TrimSpace(token)
-	site:=maxBotSiteURL(a.Cfg.PublicURL)
-	if site=="" { return Bad("Для бота MAX нужен публичный HTTPS-адрес Posta (POSTA_PUBLIC_URL).") }
 	if a.DB==nil || a.Box==nil { return Bad("Хранилище секретов недоступно.") }
 	old:=a.maxBotConfig(ctx)
+	site:=a.maxBotSite(old)
+	if strings.TrimSpace(siteURL)!="" { site=maxBotSiteURL(siteURL) }
+	if site=="" { return Bad("Укажите публичный HTTPS-адрес сайта Posta в настройке бота MAX. Локальный адрес не подходит.") }
+	if old.Ready && a.maxBotSite(old)!="" && site!=a.maxBotSite(old) {
+		return Conflict("У бота уже настроен другой адрес вебхука. Сначала нужно перенести действующую подписку.")
+	}
 	if token=="" { token,_=a.maxBotSecrets(old) }
 	if len(token)<10 || len(token)>1024 || strings.ContainsAny(token," \t\r\n") { return Bad("Укажите токен бота MAX.") }
 	ctx,cancel:=context.WithTimeout(ctx,25*time.Second)
@@ -102,7 +122,7 @@ func (a *App) maxBotConfigureWith(ctx context.Context, token string, request net
 	if old.ID!=0 && old.ID!=identity.ID { return Conflict("Уже настроен другой общий бот. Замену бота нужно выполнить отдельно, чтобы не потерять привязки.") }
 	_,secret:=a.maxBotSecrets(old)
 	if secret=="" { secret=randHex(32) }
-	bot:=maxServiceBot{ID:identity.ID,Username:identity.Username,TokenEnc:a.Box.Encrypt(token,maxBotConfigKey+":token"),SecretEnc:a.Box.Encrypt(secret,maxBotConfigKey+":secret")}
+	bot:=maxServiceBot{ID:identity.ID,Username:identity.Username,SiteURL:site,TokenEnc:a.Box.Encrypt(token,maxBotConfigKey+":token"),SecretEnc:a.Box.Encrypt(secret,maxBotConfigKey+":secret")}
 	// Save credentials first so the webhook can authenticate any provider probe.
 	if err=a.KVSet(ctx,maxBotConfigKey,bot,0);err!=nil { return err }
 	r,err=request(ctx,"POST",maxAPI+"/subscriptions",withCT(headers,ctJSON),jsonBody(jx.M{"url":site+"/max-bot/webhook","secret":secret,"update_types":[]string{"bot_started","message_created"}}))
@@ -245,7 +265,7 @@ func (a *App) MaxBotHandleWebhook(ctx context.Context, supplied string, raw []by
 }
 
 func (a *App) maxBotReply(ctx context.Context, bot maxServiceBot, token,secret string, id int64, command string, request networkRequestFunc) error {
-	site:=maxBotSiteURL(a.Cfg.PublicURL)
+	site:=a.maxBotSite(bot)
 	if site=="" { return Bad("Публичный адрес не настроен.") }
 	text:="Posta — поиск контента и автопостинг.\n\n/start — открыть Posta\n/status — состояние вашего профиля\n/help — помощь\n\nЧтобы связать аккаунты, откройте «Личный кабинет → Соцсети → Бот Posta в MAX»."
 	if strings.HasPrefix(command,"/start link_") {

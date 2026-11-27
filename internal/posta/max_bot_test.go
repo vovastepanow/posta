@@ -31,7 +31,7 @@ func TestMaxBotPrivateCommands(t *testing.T) {
 func TestMaxBotCodeAndHTTPS(t *testing.T){
 	a:=maxBotCode("secret","token",123)
 	if !maxBotConfirmCode.MatchString(a) || a!=maxBotCode("secret","token",123) || a==maxBotCode("secret","token",124) || a==maxBotCode("other","token",123) { t.Fatal("confirmation not bound to identity and secret") }
-	for _,bad:=range []string{"http://example.org","https://user@example.org","https://example.org:8080","https://example.org/?q=1","https://example.org/#x"} {
+	for _,bad:=range []string{"http://example.org","https://user@example.org","https://example.org:8080","https://example.org/?q=1","https://example.org/#x","https://localhost/posta","https://127.0.0.1/posta","https://machine.local","https://example.org/?"} {
 		if maxBotSiteURL(bad)!="" { t.Fatalf("accepted %q",bad) }
 	}
 	if maxBotSiteURL("https://example.org/posta/")!="https://example.org/posta" { t.Fatal("base path lost") }
@@ -47,12 +47,12 @@ func TestMaxServiceBotProfileLinkPostgres(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	defer d.Close()
 	if _, err := d.Migrate(ctx); err != nil { t.Fatal(err) }
-	a := &App{DB:d, Box:secret.FromKey([32]byte{1}), Cfg:config.Server{PublicURL:"https://example.org/posta"}}
+	a := &App{DB:d, Box:secret.FromKey([32]byte{1}), Cfg:config.Server{PublicURL:"http://localhost/posta"}}
 	defer a.KVDelete(ctx,maxBotConfigKey)
 	const credential = "test-token-not-a-real-credential"
 	const botID int64 = 9007199254740993
 	requests:=0
-	err=a.maxBotConfigureWith(ctx,credential,func(_ context.Context, method, raw string, headers map[string]string, body io.Reader)(*netResp,error){
+	err=a.maxBotConfigureWith(ctx,credential,"https://example.org/posta/",func(_ context.Context, method, raw string, headers map[string]string, body io.Reader)(*netResp,error){
 		requests++
 		if headers["Authorization"]!=credential { t.Fatal("wrong API credential") }
 		switch raw {
@@ -74,7 +74,7 @@ func TestMaxServiceBotProfileLinkPostgres(t *testing.T) {
 	if err!=nil || requests!=2 { t.Fatalf("configure: %v requests=%d",err,requests) }
 	bot:=a.maxBotConfig(ctx)
 	token,webhookSecret:=a.maxBotSecrets(bot)
-	if !bot.Ready || bot.ID!=botID || token!=credential || webhookSecret=="" || strings.Contains(string(a.KVRaw(ctx,maxBotConfigKey)),credential) { t.Fatal("invalid encrypted bot config") }
+	if !bot.Ready || bot.SiteURL!="https://example.org/posta" || a.maxBotSite(bot)!=bot.SiteURL || bot.ID!=botID || token!=credential || webhookSecret=="" || strings.Contains(string(a.KVRaw(ctx,maxBotConfigKey)),credential) { t.Fatal("invalid encrypted bot config") }
 	uid,other:=randHex(16),randHex(16)
 	for _, id:=range []string{uid,other}{
 		if _,err:=d.Pool.Exec(ctx,`INSERT INTO users(id,created_at) VALUES($1,$2)`,id,now());err!=nil { t.Fatal(err) }
@@ -94,7 +94,7 @@ func TestMaxServiceBotProfileLinkPostgres(t *testing.T) {
 	if err=a.MaxBotLinkConfirm(ctx,uid,linkToken,code);err!=nil { t.Fatal(err) }
 	if err=a.MaxBotLinkConfirm(ctx,uid,linkToken,code);err==nil { t.Fatal("confirmation replay accepted") }
 	public,err:=a.MaxBotPublic(ctx,uid)
-	if err!=nil || !jx.Bool(public,"linked") || strings.Contains(string(jx.Marshal(public)),credential) || strings.Contains(string(jx.Marshal(public)),webhookSecret) { t.Fatal("bad public state") }
+	if err!=nil || !jx.Bool(public,"configured") || jx.Str(public,"site_url")!="https://example.org/posta" || !jx.Bool(public,"linked") || strings.Contains(string(jx.Marshal(public)),credential) || strings.Contains(string(jx.Marshal(public)),webhookSecret) { t.Fatal("bad public state") }
 	otherState,err:=a.MaxBotLinkStart(ctx,other)
 	if err!=nil { t.Fatal(err) }
 	otherToken:=jx.Str(otherState,"token")
