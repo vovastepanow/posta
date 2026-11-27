@@ -52,3 +52,11 @@ if legacy_deployment_matches '{ path=/srv/posta/bin/posta ; }' /srv/posta/bin/po
     echo "unverified legacy deployment accepted" >&2
     exit 1
 fi
+
+# Systemd reports realtime microseconds; same-second replacement and start
+# are distinguishable without guessing or requiring a privileged /proc read.
+legacy_deployment_matches '{ path=/srv/posta/bin/posta ; }' /srv/posta/bin/posta 1795797600123457 1795797600123456 "$current" "$current"
+if legacy_deployment_matches '{ path=/srv/posta/bin/posta ; }' /srv/posta/bin/posta 1795797600123455 1795797600123456 "$current" "$current"; then
+    echo "stale microsecond process accepted" >&2
+    exit 1
+fi

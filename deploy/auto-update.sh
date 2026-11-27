@@ -81,13 +81,25 @@ migration_healthy() {
     # Older builds have no revision header. Reading another UID's /proc
     # exe is often forbidden. In that case use systemd's exact ExecStart,
     # installed binary build metadata and a strictly newer start timestamp.
-    deployment_process_matches "$pid" "$APP/bin/posta" && return 0
-    local executable started changed binary_revision
-    executable="$(/usr/bin/systemctl show --property=ExecStart --value posta)" || return 1
-    started="$(/usr/bin/systemctl show --property=ExecMainStartTimestamp --value posta)" || return 1
-    started="$(date -d "$started" +%s 2>/dev/null)" || return 1
-    changed="$(stat -c %Z "$APP/bin/posta")" || return 1
+    local executable started changed binary_revision dbus_start
     binary_revision="$(go version -m "$APP/bin/posta" | awk '$1=="build" && $2 ~ /^vcs.revision=/ {sub(/^vcs.revision=/,"",$2);print $2}')" || return 1
+    [ "$binary_revision" = "$health_target" ] || return 1
+    if deployment_process_matches "$pid" "$APP/bin/posta"; then
+        [ "$pid" = "$(/usr/bin/systemctl show --property=MainPID --value posta)" ]
+        return
+    fi
+    executable="$(/usr/bin/systemctl show --property=ExecStart --value posta)" || return 1
+    # Prefer systemd's microsecond D-Bus property: the binary replacement and
+    # service start usually occur within the same wall-clock second.
+    dbus_start="$(busctl --system get-property org.freedesktop.systemd1 /org/freedesktop/systemd1/unit/posta_2eservice org.freedesktop.systemd1.Service ExecMainStartTimestamp 2>/dev/null || true)"
+    if [[ "$dbus_start" =~ ^t\ ([0-9]+)$ ]]; then
+        started="${BASH_REMATCH[1]}"
+        changed="$(date -d "$(stat -c %z "$APP/bin/posta")" +%s%6N 2>/dev/null)" || return 1
+    else
+        started="$(/usr/bin/systemctl show --property=ExecMainStartTimestamp --value posta)" || return 1
+        started="$(date -d "$started" +%s 2>/dev/null)" || return 1
+        changed="$(stat -c %Z "$APP/bin/posta")" || return 1
+    fi
     legacy_deployment_matches "$executable" "$APP/bin/posta" "$started" "$changed" "$binary_revision" "$health_target" || return 1
     [ "$pid" = "$(/usr/bin/systemctl show --property=MainPID --value posta)" ]
 }
