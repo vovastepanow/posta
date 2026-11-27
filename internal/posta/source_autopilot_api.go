@@ -62,6 +62,13 @@ func autopilotStatusReason(in autopilotStatusInput) string {
 	}
 }
 
+func autopilotModeRoute(mode string) (scope, kind, setting string) {
+	if mode == "auto" {
+		return autopilotAutoScope, autopilotAutoKind, "autopilot_auto"
+	}
+	return autopilotShadowScope, autopilotShadowKind, "autopilot_shadow"
+}
+
 type autopilotSourceTotals struct {
 	Candidates, Probation, Active, Cooldown, Rejected, Checked int
 }
@@ -128,10 +135,7 @@ func (u *U) SourcePipelinePublic(topic string) jx.M {
 	if mode != "auto" && mode != "shadow" {
 		return out
 	}
-	scope, kind, setting := autopilotShadowScope, autopilotShadowKind, "autopilot_shadow"
-	if mode == "auto" {
-		scope, kind, setting = autopilotAutoScope, autopilotAutoKind, "autopilot_auto"
-	}
+	scope, kind, setting := autopilotModeRoute(mode)
 	enabled := u.TBool(setting)
 	worker := u.App.autopilotWorkerHealth(mode)
 	at := now()
@@ -235,10 +239,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		var enabled, eligible bool
 		var lastError string
 		var checkpoint []byte
-		scope, kind := autopilotShadowScope, autopilotShadowKind
-		if d.Mode == "auto" {
-			scope, kind = autopilotAutoScope, autopilotAutoKind
-		}
+		scope, kind, setting := autopilotModeRoute(d.Mode)
 		// Aggregate queue health for the selected worker only. Unlike the
 		// legacy discovery "found" counter these are persistent source rows,
 		// so operators can distinguish backlog from scheduled retry and AI stalls.
@@ -440,10 +441,6 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		// Pauses and saved administrator OFF settings are intentional and
 		// must not be presented as crashes.
 		if d.Mode != "off" && !d.Paused {
-			setting := "autopilot_shadow"
-			if d.Mode == "auto" {
-				setting = "autopilot_auto"
-			}
 			if u.TBool(setting) {
 				switch {
 				case !backgroundEnabled:
@@ -687,19 +684,12 @@ func (u *U) SourceAutopilotSources(topic, mode, state, after string, limit int) 
 	if !owns {
 		return nil, NotFound("Тема автопилота не найдена.")
 	}
-	scope := autopilotShadowScope
-	if mode == "auto" {
-		scope = autopilotAutoScope
-	}
+	scope, kind, _ := autopilotModeRoute(mode)
 	// The latest search cohort is stored in the job checkpoint: existing
 	// sources may be rediscovered without a new discovery decision, and they
 	// may already have moved to probation or active.
 	var latestIDs []string
 	if state == "found" {
-		kind := autopilotShadowKind
-		if mode == "auto" {
-			kind = autopilotAutoKind
-		}
 		var checkpoint []byte
 		err := u.DB.Pool.QueryRow(u.Ctx, `SELECT checkpoint FROM source_autopilot_jobs
 			WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&checkpoint)
@@ -827,10 +817,7 @@ func (u *U) SourceAutopilotHistory(topic, mode string, before int64, limit int) 
 	if !owns {
 		return nil, NotFound("Тема автопилота не найдена.")
 	}
-	scope := autopilotShadowScope
-	if mode == "auto" {
-		scope = autopilotAutoScope
-	}
+	scope, _, _ := autopilotModeRoute(mode)
 	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT id,source_id,old_state,new_state,reason,evidence,policy_version,at FROM source_autopilot_decisions WHERE scope=$1 AND topic_key=$2 AND ($3=0 OR id<$3) ORDER BY id DESC LIMIT $4`, scope, key, before, limit+1)
 	if err != nil {
 		return nil, err
@@ -890,10 +877,7 @@ func (u *U) SourceAutopilotDemandSave(topic, mode string, rate, horizon float64)
 	if mode == "off" || (mode == "auto" && rate == 0) || (previousErr == nil && previousMode == mode && !wasPaused) {
 		return nil
 	}
-	scope, kind, setting := autopilotShadowScope, autopilotShadowKind, "autopilot_shadow"
-	if mode == "auto" {
-		scope, kind, setting = autopilotAutoScope, autopilotAutoKind, "autopilot_auto"
-	}
+	scope, kind, setting := autopilotModeRoute(mode)
 	// Respect a persisted administrator disable; the response explicitly
 	// exposes that switch so users see why no job was started.
 	if !u.TBool(setting) {
@@ -926,10 +910,7 @@ func (u *U) SourceAutopilotRequest(topic string) error {
 	if paused || mode == "off" || (mode == "auto" && rate == 0) {
 		return Bad("Включите автопилот и задайте ненулевую частоту публикаций.")
 	}
-	scope, kind, setting := autopilotShadowScope, autopilotShadowKind, "autopilot_shadow"
-	if mode == "auto" {
-		scope, kind, setting = autopilotAutoScope, autopilotAutoKind, "autopilot_auto"
-	}
+	scope, kind, setting := autopilotModeRoute(mode)
 	if !u.TBool(setting) {
 		return Bad("Этот режим автопилота выключен на сервере.")
 	}

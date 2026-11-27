@@ -65,8 +65,9 @@ func autopilotProjectionTopics(profiles jx.M) []any {
 
 func (a *App) autopilotProjectedCounts(ctx context.Context, topic string) (int, int, error) {
 	visible := map[string]bool{}
+	catalog := a.Catalog()
 	for _, kind := range CatalogKinds {
-		for _, entry := range *a.Catalog().List(kind.Kind) {
+		for _, entry := range *catalog.List(kind.Kind) {
 			if a.CatalogEntryMatchesTopic(entry, topic, false) {
 				visible[SourceIDFor(kind.Platform, jx.Str(entry, "id"))] = true
 			}
