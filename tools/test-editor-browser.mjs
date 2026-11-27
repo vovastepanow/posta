@@ -9,6 +9,10 @@ const server=createServer(async(req,res)=>{
     try{
         const p=new URL(req.url,'http://localhost').pathname;
         if(p==='/'){res.setHeader('Content-Type','text/html; charset=utf-8');return res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/css/app.css"></head><body></body></html>');}
+        if(p==='/home-test'){
+            const html=(await readFile(path.join(root,'index.html'),'utf8')).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace('class="app-loading"','class="app-loading is-done"');
+            res.setHeader('Content-Type','text/html; charset=utf-8');return res.end(html);
+        }
         if(!/^\/(js|css)\/[\w./-]+\.(js|css)$/.test(p)||p.includes('..')){res.writeHead(404);return res.end();}
         res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript':'text/css');res.end(await readFile(path.join(root,p)));
     }catch{res.writeHead(404);res.end();}
@@ -146,6 +150,42 @@ try{
     await previewPage.keyboard.press('Escape');
     await previewPage.locator('.pv').waitFor({state:'hidden'});
     await previewPage.close();
+    // Load the actual home module with the real markup and a deterministic API.
+    const homePage=await browser.newPage({viewport:{width:1440,height:900}});
+    homePage.on('pageerror',e=>errors.push(e.message));
+    await homePage.route('**/*',route=>{
+        const url=new URL(route.request().url());
+        if(url.hostname!=='127.0.0.1')return route.abort();
+        if(url.pathname!=='/index.php')return route.continue();
+        const fixtures={
+            proposals:{items:[
+                {item_key:'text',text:'Текстовый пост',text_post:true,timestamp:3,source:'Telegram | Example',why_relevant:'Соответствует теме'},
+                {item_key:'photo',text:'Фото поста',display_image:'/fixture.png',timestamp:2},
+                {item_key:'video',text:'Видео поста',video_via:'ytdlp',video_pending:true,timestamp:1}
+            ]},
+            account_info:{user_id:'test-home',auth:{login:'Test'}},
+            topic_sources:{sources:[]},
+            studio_live:{items:[],pool:3,running:false},
+            billing_info:{plan:{title:'Тест'}},
+        };
+        return route.fulfill({json:fixtures[url.searchParams.get('action')]||{}});
+    });
+    await homePage.goto('http://127.0.0.1:'+server.address().port+'/home-test');
+    await homePage.evaluate(()=>import('/js/home.js').then(()=>null));
+    await homePage.waitForFunction(()=>document.querySelectorAll('#grid .tile').length===3);
+    assert.equal(await homePage.locator('#grid .rejected-reason').count(),0);
+    assert.equal(await homePage.getByRole('button',{name:'Убрать из отобранных',exact:true}).count(),3);
+    await homePage.locator('#chips button').filter({hasText:'Видео'}).click();
+    assert.equal(await homePage.locator('#grid .tile').count(),1);
+    assert.ok((await homePage.locator('#grid').textContent()).includes('Видео поста'));
+    await homePage.locator('#chips button').filter({hasText:'Текст'}).click();
+    assert.equal(await homePage.locator('#grid .tile').count(),1);
+    await homePage.locator('#grid .tile b').click();
+    await homePage.locator('.pv').waitFor({state:'visible'});
+    assert.ok((await homePage.locator('.pv-body').textContent()).includes('Почему отобран: Соответствует теме'));
+    await homePage.keyboard.press('Escape');
+    await homePage.locator('.pv').waitFor({state:'hidden'});
+    await homePage.close();
     assert.deepEqual(errors,[]);
     console.log('Editor browser: isolated variants, formatting, compound poll, mobile layout and submitted payloads passed');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

@@ -23,7 +23,7 @@ const firstLine = i => cleanCaption(i.text).split('\n')[0].replace(/#\S+/g, '').
 const FILTERS = [
     ['all', 'Всё', () => true],
     ['images', 'Картинки', i => postMedia(i).some(file => file.image) && !hasVideo(i)],
-    ['videos', 'Видео', hasVideo],
+    ['videos', 'Видео', i => hasVideo(i)],
     ['text', 'Текст', i => !postMedia(i).length && !hasVideo(i)],
     ['telegram', 'Из Telegram', i => platformOf(i) === 'Telegram'],
     ['boards', 'С имиджбордов', i => ['Двач', '4chan'].includes(platformOf(i))],
