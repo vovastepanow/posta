@@ -382,7 +382,7 @@ func (o *OpenRouter) Embed(ctx context.Context, model string, texts []string) ([
 
 // embedSource caps provider prices and validates the ordering of a batch.
 func (o *OpenRouter) embedSource(ctx context.Context, model string, texts []string) ([][]float64, error) {
-	if model != "openai/text-embedding-3-small" || len(texts) == 0 || len(texts) > 11 {
+	if model != "nvidia/nemotron-3.5-embed-1b:free" || len(texts) == 0 || len(texts) > 11 {
 		return nil, fmt.Errorf("invalid source embedding request")
 	}
 	total := 0
@@ -393,9 +393,9 @@ func (o *OpenRouter) embedSource(ctx context.Context, model string, texts []stri
 		return nil, fmt.Errorf("source embedding input too large")
 	}
 	raw, status, err := o.do(ctx, "/embeddings", map[string]any{
-		"model": model, "input": texts, "dimensions": 512, "encoding_format": "float",
+		"model": model, "input": texts, "encoding_format": "float", "input_type": "search_document",
 		"provider": map[string]any{
-			"max_price": map[string]any{"prompt": 0.02, "request": 0},
+			"max_price":       map[string]any{"prompt": 0, "request": 0},
 			"allow_fallbacks": false,
 		},
 	}, 15*time.Second)
@@ -413,10 +413,10 @@ func (o *OpenRouter) embedSource(ctx context.Context, model string, texts []stri
 	}
 	out := make([][]float64, len(texts))
 	for _, row := range reply.Data {
-		if row.Index == nil || *row.Index < 0 || *row.Index >= len(out) || out[*row.Index] != nil || len(row.Embedding) != 512 {
+		if row.Index == nil || *row.Index < 0 || *row.Index >= len(out) || out[*row.Index] != nil || len(row.Embedding) != 2048 {
 			return nil, fmt.Errorf("invalid OpenRouter embedding batch")
 		}
-		out[*row.Index] = row.Embedding
+		out[*row.Index] = row.Embedding[:512]
 	}
 	return out, nil
 }

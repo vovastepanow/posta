@@ -628,10 +628,10 @@ func (r *Router) noteFailure(role Role, err error, primary, fallback Target) {
 // SourceEmbeddingTarget is deliberately independent of the legacy local
 // embedding role. Public autopilot never starts Ollama.
 func (r *Router) SourceEmbeddingTarget() Target {
-	if !r.OpenRouter.Configured() || r.Settings().DailyBudgetUSD <= 0 {
+	if !r.OpenRouter.Configured() {
 		return Off
 	}
-	return Target{"openrouter", "openai/text-embedding-3-small"}
+	return Target{"openrouter", "nvidia/nemotron-3.5-embed-1b:free"}
 }
 
 // EmbedSource uses only the bounded OpenRouter route, with no paid fallback.
@@ -639,10 +639,15 @@ func (r *Router) EmbedSource(ctx context.Context, target Target, texts []string)
 	if target.Empty() || r.SourceEmbeddingTarget() != target {
 		return nil, errors.New("OpenRouter source embedding unavailable")
 	}
-	if reason := r.blocked(target, &Request{}, r.Settings()); reason != "" {
+	if reason := r.blocked(target, &Request{FreeOnly: true}, r.Settings()); reason != "" {
 		return nil, errors.New(reason)
 	}
-	return r.OpenRouter.embedSource(ctx, target.Model, texts)
+	if limit := r.Settings().FreeDailyLimit; limit > 0 && r.FreeUsed() >= limit*8/10 {
+		return nil, errors.New("free quota reserved for content evaluation")
+	}
+	vectors, err := r.OpenRouter.embedSource(ctx, target.Model, texts)
+	r.countFree(target, err)
+	return vectors, err
 }
 
 // Embed — эмбеддинги роли embed.

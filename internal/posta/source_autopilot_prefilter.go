@@ -19,7 +19,7 @@ const sourceEmbeddingTTL = 7 * 24 * time.Hour
 // Cache by the actual model and normalized input, not by topic or source.
 // Float32 binary encoding avoids large JSON arrays; values expire via CacheGC.
 func sourceEmbeddingKey(model, text string) string {
-	return "source_embedding:v2:512:" + repeatDigest(model+"\x00"+text)
+	return "source_embedding:v3:document:512:" + repeatDigest(model+"\x00"+text)
 }
 
 func packSourceEmbedding(v []float64) []byte {
@@ -197,31 +197,21 @@ func (a *App) autopilotEmbeddingPrescreen(ctx context.Context, job *autopilotJob
 				return nil, "openrouter_embedding_unavailable"
 			}
 		}
-		// Reserve a conservative input-token cost before the request.
-		// UTF-8 bytes plus overhead bound the ordinary text tokenizer's
-		// input size. The provider price cap is $0.02/M input tokens.
-		// Keep the reservation even on an ambiguous transport failure.
-		paidLimit := autopilotPaidLimitMicro(ctx)
-		if paidLimit <= 0 {
+		// Limit free embedding calls independently, preserving most of the
+		// shared provider quota for the actual quality classifier.
+		at, id := time.Now(), randHex(16)
+		limit := min(int64(20), int64(a.LLM.Settings().FreeDailyLimit)/10)
+		if limit <= 0 {
 			return nil, "embedding_budget_disabled"
 		}
-		var bytes int64
-		for _, s := range missing {
-			bytes += int64(len(s)) + 64
-		}
-		cost := max(int64(1), (bytes+49)/50)
-		at, id := time.Now(), randHex(16)
 		err := withAutopilotLease(ctx, a.DB, job, func(tx pgx.Tx) error {
-			if err := reserveAutopilotBudgetTx(ctx, tx, id+":server", "server", "source_embedding", at, 1, 200); err != nil {
+			if err := ensureAutopilotShadowDemand(ctx, tx, job); err != nil {
 				return err
 			}
-			if err := reserveAutopilotBudgetTx(ctx, tx, id+":topic", autopilotBudgetTopicScope(job), "source_embedding", at, 1, 80); err != nil {
+			if err := reserveAutopilotBudgetTx(ctx, tx, id+":server", "server", "source_embedding", at, 1, limit); err != nil {
 				return err
 			}
-			if err := reserveAutopilotBudgetTx(ctx, tx, id+":embedding_paid", "server", "source_embedding_usd_micro", at, cost, 10000); err != nil {
-				return err
-			}
-			return reserveAutopilotBudgetTx(ctx, tx, id+":paid", "autopilot_paid", "usd_micro", at, cost, paidLimit)
+			return reserveAutopilotBudgetTx(ctx, tx, id+":topic", autopilotBudgetTopicScope(job), "source_embedding", at, 1, min(int64(8), limit))
 		})
 		if errors.Is(err, errAutopilotBudgetExhausted) {
 			return nil, "embedding_budget_exhausted"
