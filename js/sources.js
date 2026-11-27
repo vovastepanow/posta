@@ -15,6 +15,10 @@ import { collectSourcePages } from './source-pages.js';
 const topicSources = { sources: [], topic: '', filter: 'all', loading: false };
 
 let latestAutopilotDiagnostic = null;
+let autopilotStatusLoading = false;
+let autopilotStatusRevision = 0;
+let autopilotPendingMutations = 0;
+let autopilotMutationQueue = Promise.resolve();
 let autopilotSourceDialog = null;
 const autopilotSourceStates = { found: 'Найдено за цикл', candidate: 'Ожидают проверки', probation: 'На испытании', active: 'Подтверждено', cooldown: 'Повторная проверка позже', rejected: 'Отклонённые источники' };
 const autopilotSourceStateLabels = { candidate: 'Ожидает проверки', probation: 'На испытании', active: 'Подтверждён', cooldown: 'Повторная проверка', rejected: 'Отклонён' };
@@ -238,6 +242,8 @@ function openAutopilotSourceDialog(topic, state, count) {
 function renderAutopilot(data) {
     latestAutopilotDiagnostic = data;
     const container = $('autopilot-topics');
+    const histories = new Map([...container.querySelectorAll('details[data-autopilot-history]')]
+        .map(node => [node.dataset.autopilotHistory, node]));
     container.replaceChildren();
     const backends = (data.backends || []).filter(backend => backend.enabled).map(backend => backend.name).join(', ') || 'не включены';
     $('autopilot-status').textContent = `Версия сервера: ${data.server_revision || 'неизвестна'}. Теневой режим на сервере: ${data.shadow_enabled ? 'включён' : 'выключен'}; автоматический: ${data.auto_enabled ? 'включён' : 'выключен'}. Настроенные площадки: ${backends}.`;
@@ -465,8 +471,7 @@ function renderAutopilot(data) {
         modeSelect.addEventListener('change', async () => {
             modeSelect.disabled = true;
             try {
-                const result = await api('source_autopilot_demand', { body: { topic: topic.topic, mode: modeSelect.value, posts_per_day: topic.posts_per_day, horizon_days: topic.horizon_days } });
-                renderAutopilot(result);
+                await mutateAutopilot('source_autopilot_demand', { topic: topic.topic, mode: modeSelect.value, posts_per_day: topic.posts_per_day, horizon_days: topic.horizon_days });
             } catch (error) { $('autopilot-status').textContent = `Настройки не сохранены: ${error.message}`; modeSelect.value = topic.mode; modeSelect.disabled = false; }
         });
         const blogSelect = el('select');
@@ -483,9 +488,7 @@ function renderAutopilot(data) {
         blogSelect.addEventListener('change', async () => {
             blogSelect.disabled = true;
             try {
-                renderAutopilot(await api('source_personal_blog_mode', {
-                    body: { topic: topic.topic, mode: blogSelect.value }
-                }));
+                await mutateAutopilot('source_personal_blog_mode', { topic: topic.topic, mode: blogSelect.value });
             } catch (error) {
                 $('autopilot-status').textContent = 'Не удалось сохранить фильтр блогов: ' + error.message;
                 blogSelect.value = topic.personal_blog_mode || 'any';
@@ -494,48 +497,20 @@ function renderAutopilot(data) {
         });
         const blogFilter = el('label', { title: 'Фильтр применяется к выдаче постов и сборщику. Неизвестный тип исключается при строгом режиме.' },
             el('span', { textContent: 'Тег #личный_блог: ' }), blogSelect);
-        const history = el('details', {}, el('summary', { textContent: 'История решений' }));
-        history.hidden = topic.mode === 'off';
-        const historyList = el('div', { textContent: 'Откройте историю, чтобы загрузить решения.' });
-        const more = el('button', { className: 'secondary-button', type: 'button', textContent: 'Показать ещё', hidden: true });
-        history.append(historyList, more);
-        let historyLoaded = false, historyLoading = false, before = 0;
-        const loadHistoryPage = async () => {
-            if (historyLoading) return;
-            historyLoading = true;
-            more.disabled = true;
-            try {
-                const result = await api('source_autopilot_history', { params: { topic: topic.topic, mode: topic.mode, before, limit: 20 } });
-                if (!historyLoaded) historyList.replaceChildren();
-                historyLoaded = true;
-                for (const decision of result.decisions || []) {
-                    const states = { candidate: 'кандидат', probation: 'испытание', active: 'подтверждён', rejected: 'отклонён', cooldown: 'ожидание' };
-                    const reasons = { discovered: 'найден', shadow_preliminary_pass: 'прошёл предварительную проверку', observed_useful: 'подтверждена полезность', observed_ad_or_duplicates: 'слишком много рекламы или дублей', observed_irrelevant: 'недостаточно материалов по теме', observed_low_yield: 'мало полезных публикаций после фильтров', source_reaudit_v3_scheduled: 'назначена повторная проверка', quality_drift: 'качество снизилось' };
-                    const text = `${decision.source_id}: ${states[decision.old_state] || 'найден'} → ${states[decision.new_state] || decision.new_state}; ${reasons[decision.reason] || decision.reason}. ${formatAgo(decision.at)}.`;
-                    historyList.append(el('p', { textContent: text }));
-                }
-                if (!before && !(result.decisions || []).length) historyList.textContent = 'Решений пока нет.';
-                before = result.next_before || 0;
-                more.hidden = !before;
-            } catch (error) { $('autopilot-status').textContent = `История недоступна: ${error.message}`; }
-            finally { historyLoading = false; more.disabled = false; }
-        };
-        more.addEventListener('click', loadHistoryPage);
-        history.addEventListener('toggle', () => {
-            if (history.open && !historyLoaded && topic.mode !== 'off') loadHistoryPage();
-        });
+        const historyKey = JSON.stringify([topic.topic, topic.mode]);
+        const history = histories.get(historyKey) || createAutopilotHistory(topic, historyKey);
         const request = el('button', { className: 'secondary-button', type: 'button', textContent: 'Запросить проверку', disabled: topic.mode === 'off' || topic.paused });
         request.addEventListener('click', async () => {
             request.disabled = true;
             try {
-                renderAutopilot(await api('source_autopilot_request', { body: { topic: topic.topic } }));
+                await mutateAutopilot('source_autopilot_request', { topic: topic.topic });
                 $('autopilot-status').textContent = 'Проверка запрошена. Срок повтора и суточные лимиты сохранены.';
             } catch (error) { $('autopilot-status').textContent = `Не удалось запросить проверку: ${error.message}`; request.disabled = false; }
         });
         const pause = el('button', { className: 'secondary-button', type: 'button', textContent: topic.paused ? 'Продолжить' : 'Пауза', disabled: topic.mode === 'off' });
         pause.addEventListener('click', async () => {
             pause.disabled = true;
-            try { renderAutopilot(await api('source_autopilot_pause', { body: { topic: topic.topic, paused: !topic.paused } })); }
+            try { await mutateAutopilot('source_autopilot_pause', { topic: topic.topic, paused: !topic.paused }); }
             catch (error) { $('autopilot-status').textContent = `Не удалось изменить паузу: ${error.message}`; pause.disabled = false; }
         });
         container.append(el('div', { className: 'autopilot-topic-row' }, description,
@@ -543,10 +518,45 @@ function renderAutopilot(data) {
     }
 }
 
+function createAutopilotHistory(topic, key) {
+    const history = el('details', {}, el('summary', { textContent: 'История решений' }));
+    history.hidden = topic.mode === 'off';
+    history.dataset.autopilotHistory = key;
+    const historyList = el('div', { textContent: 'Откройте историю, чтобы загрузить решения.' });
+    const more = el('button', { className: 'secondary-button', type: 'button', textContent: 'Показать ещё', hidden: true });
+    history.append(historyList, more);
+    let historyLoaded = false, historyLoading = false, before = 0;
+    const loadHistoryPage = async () => {
+        if (historyLoading) return;
+        historyLoading = true;
+        more.disabled = true;
+        try {
+            const result = await api('source_autopilot_history', { params: { topic: topic.topic, mode: topic.mode, before, limit: 20 } });
+            if (!historyLoaded) historyList.replaceChildren();
+            historyLoaded = true;
+            for (const decision of result.decisions || []) {
+                const states = { candidate: 'кандидат', probation: 'испытание', active: 'подтверждён', rejected: 'отклонён', cooldown: 'ожидание' };
+                const reasons = { discovered: 'найден', shadow_preliminary_pass: 'прошёл предварительную проверку', observed_useful: 'подтверждена полезность', observed_ad_or_duplicates: 'слишком много рекламы или дублей', observed_irrelevant: 'недостаточно материалов по теме', observed_low_yield: 'мало полезных публикаций после фильтров', source_reaudit_v3_scheduled: 'назначена повторная проверка', quality_drift: 'качество снизилось' };
+                const text = `${decision.source_id}: ${states[decision.old_state] || 'найден'} → ${states[decision.new_state] || decision.new_state}; ${reasons[decision.reason] || decision.reason}. ${formatAgo(decision.at)}.`;
+                historyList.append(el('p', { textContent: text }));
+            }
+            if (!before && !(result.decisions || []).length) historyList.textContent = 'Решений пока нет.';
+            before = result.next_before || 0;
+            more.hidden = !before;
+        } catch (error) { $('autopilot-status').textContent = `История недоступна: ${error.message}`; }
+        finally { historyLoading = false; more.disabled = false; }
+    };
+    more.addEventListener('click', loadHistoryPage);
+    history.addEventListener('toggle', () => {
+        if (history.open && !historyLoaded && topic.mode !== 'off') loadHistoryPage();
+    });
+    return history;
+}
+
 async function loadAutopilotTopicOptions() {
     const select = $('autopilot-topic');
-    const current = select.value;
     const data = await api('topics');
+    const current = select.value;
     const topics = data.topics || [];
     const options = [el('option', { value: '', textContent: 'Выберите тему из дерева' })];
     const unique = new Set();
@@ -756,12 +766,32 @@ async function copyAutopilotSources() {
     }
 }
 
-async function loadAutopilot() {
-    if (DEBUG_MODE) { $('autopilot-status').textContent = 'В демо-режиме проверка недоступна.'; return; }
+// Serialize mutations and invalidate older status polls. A slow read cannot
+// undo a successful setting change in the interface.
+async function mutateAutopilot(action, body) {
+    autopilotStatusRevision++;
+    autopilotPendingMutations++;
+    const request = autopilotMutationQueue.then(() => api(action, { body }));
+    autopilotMutationQueue = request.catch(() => {});
     try {
-        await loadAutopilotTopicOptions();
-        renderAutopilot(await api('source_autopilot_status'));
-    } catch (error) { $('autopilot-status').textContent = `Сведения недоступны: ${error.message}`; }
+        renderAutopilot(await request);
+    } finally {
+        autopilotPendingMutations--;
+    }
+}
+
+async function loadAutopilot(reloadTopics = false) {
+    if (DEBUG_MODE) { $('autopilot-status').textContent = 'В демо-режиме проверка недоступна.'; return; }
+    if (autopilotStatusLoading || autopilotPendingMutations) return;
+    autopilotStatusLoading = true;
+    const revision = autopilotStatusRevision;
+    try {
+        if (reloadTopics || $('autopilot-topic').options.length < 2) await loadAutopilotTopicOptions();
+        const data = await api('source_autopilot_status');
+        if (revision === autopilotStatusRevision && !autopilotPendingMutations) renderAutopilot(data);
+    } catch (error) {
+        if (revision === autopilotStatusRevision) $('autopilot-status').textContent = `Сведения недоступны: ${error.message}`;
+    } finally { autopilotStatusLoading = false; }
 }
 
 async function saveAutopilot(event) {
@@ -773,8 +803,7 @@ async function saveAutopilot(event) {
         if (!selected.value || !selected.selectedOptions[0] || selected.selectedOptions[0].value !== selected.value) {
             throw new Error('Выберите тему из дерева.');
         }
-        const result = await api('source_autopilot_demand', { body: { topic: selected.value, mode: $('autopilot-mode').value, posts_per_day: Number($('autopilot-rate').value), horizon_days: Number($('autopilot-horizon').value) } });
-        renderAutopilot(result);
+        await mutateAutopilot('source_autopilot_demand', { topic: selected.value, mode: $('autopilot-mode').value, posts_per_day: Number($('autopilot-rate').value), horizon_days: Number($('autopilot-horizon').value) });
     } catch (error) { $('autopilot-status').textContent = `Настройки не сохранены: ${error.message}`; }
     finally { button.disabled = false; }
 }
@@ -1331,7 +1360,7 @@ export function initializeSourceTab() {
     initRegistry();
     $('topic-sources-section').addEventListener('toggle', () => { if ($('topic-sources-section').open) loadTopicSources(); });
     $('registry-section').addEventListener('toggle', () => { if ($('registry-section').open) loadRegistry(); });
-    onTabOpen('source-tab', () => { loadAutopilot(); loadTopicSources(); if ($('registry-section').open) loadRegistry(); loadMirrors(); loadMirrorChannels(); });
+    onTabOpen('source-tab', () => { loadAutopilot(true); loadTopicSources(); if ($('registry-section').open) loadRegistry(); loadMirrors(); loadMirrorChannels(); });
     onParserStateChange(running => {
         if (!running && isTabActive('source-tab')) loadTopicSources();
     });

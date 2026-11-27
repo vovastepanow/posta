@@ -190,6 +190,41 @@ try{
     await homePage.keyboard.press('Escape');
     await homePage.locator('.pv').waitFor({state:'hidden'});
     await homePage.close();
+    // Refreshing source status must preserve an opened, already loaded history.
+    const sourcesPage=await browser.newPage({viewport:{width:1440,height:900}});
+    sourcesPage.on('pageerror',e=>errors.push(e.message));
+    let statusReads=0, historyReads=0;
+    await sourcesPage.route('**/*',route=>{
+        const url=new URL(route.request().url());
+        if(url.hostname!=='127.0.0.1')return route.abort();
+        if(url.pathname!=='/index.php')return route.continue();
+        const action=url.searchParams.get('action');
+        if(action==='source_autopilot_status')statusReads++;
+        if(action==='source_autopilot_history')historyReads++;
+        const fixtures={
+            topics:{topics:[{title:'SMM и блогинг',path:'SMM и блогинг'}]},
+            source_autopilot_status:{server_revision:'test',auto_enabled:true,topics:[{topic:'SMM и блогинг',mode:'auto',posts_per_day:10,horizon_days:3,attempts:statusReads}]},
+            source_autopilot_history:{decisions:[{source_id:'rss:example.org',new_state:'candidate',reason:'discovered',at:1}]},
+            topic_sources:{sources:[]},mirror_list:{mirrors:[]},telegram_queue:{connected:false}
+        };
+        return route.fulfill({json:fixtures[action]||{}});
+    });
+    await sourcesPage.goto('http://127.0.0.1:'+server.address().port+'/home-test');
+    await sourcesPage.evaluate(async()=>{
+        const {initializeCore,switchTab}=await import('/js/core.js');
+        initializeCore();
+        const {initializeSourceTab}=await import('/js/sources.js');
+        initializeSourceTab();
+        switchTab('source-tab');
+    });
+    const history=sourcesPage.locator('#autopilot-topics details[data-autopilot-history]');
+    await history.locator('summary').click();
+    await history.getByText('rss:example.org:',{exact:false}).waitFor();
+    await sourcesPage.evaluate(async()=>{const {switchTab}=await import('/js/core.js');switchTab('source-tab');});
+    await sourcesPage.waitForFunction(()=>document.querySelector('#autopilot-topics')?.textContent.includes('Запусков задания: 2'));
+    assert.equal(await history.evaluate(e=>e.open),true);
+    assert.equal(historyReads,1);
+    await sourcesPage.close();
     assert.deepEqual(errors,[]);
     console.log('Editor browser: isolated variants, formatting, compound poll, mobile layout and submitted payloads passed');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
