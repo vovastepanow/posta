@@ -6,7 +6,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestSourceAutopilotFreeFailoverOnModel403(t *testing.T) {
@@ -152,5 +155,56 @@ func TestSourceAutopilotPaidNemotronFailoverIsScopedAndBudgetGated(t *testing.T)
 				t.Fatalf("paid model calls=%d; models=%v", paidCalls, models)
 			}
 		})
+	}
+}
+
+func TestSourceAutopilotPaidReserveRequiresGateAndSerializesCalls(t *testing.T) {
+	var paidCalls atomic.Int32
+	var spent atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		var body struct{ Model string `json:"model"` }
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if body.Model == FreeVision.Model {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"error":{"message":"free-models-per-day limit reached"}}`))
+			return
+		}
+		paidCalls.Add(1)
+		time.Sleep(30*time.Millisecond)
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}],"usage":{"cost":0.001}}`))
+	}))
+	defer server.Close()
+	r := NewRouter(NewOllama("http://127.0.0.1:1"), NewOpenRouter(server.URL,"test","",""))
+	ctx := WithSourceAutopilotPaidNemotronFallback(context.Background())
+	_, _ = r.Generate(ctx, &Request{Role: RoleSmart, Prompt: "Judge"})
+	if paidCalls.Load() != 0 {
+		t.Fatal("paid fallback without a budget gate")
+	}
+	ctx = WithCallGate(ctx, func(_ context.Context, target Target) error {
+		if !target.Free() && spent.Load() {
+			return errors.New("budget exhausted")
+		}
+		return nil
+	})
+	r.OnCall = func(call Call) {
+		if !call.Target.Free() && call.Resp != nil {
+			spent.Store(true)
+		}
+	}
+	var wg sync.WaitGroup
+	for i:=0;i<8;i++ {
+		wg.Add(1)
+		go func(){
+			defer wg.Done()
+			_, _ = r.Generate(ctx, &Request{Role: RoleSmart, Prompt: "Judge"})
+		}()
+	}
+	wg.Wait()
+	if paidCalls.Load() != 1 {
+		t.Fatalf("concurrent paid calls passed one-charge budget: %d",paidCalls.Load())
 	}
 }

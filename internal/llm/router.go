@@ -234,6 +234,8 @@ type Router struct {
 	Log func(userID, line string)
 
 	classificationSlots   chan struct{}
+	paidOnce              sync.Once
+	paidSlots             chan struct{}
 	mu                    sync.Mutex
 	freeDay               string
 	freeUsed              int
@@ -567,11 +569,11 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 	// Use the SAME multimodal Nemotron on its paid endpoint after the free
 	// variant is rate-limited. Never use it for ordinary tasks, private requests,
 	// FreeOnly requests, or when the scoped database spend gate is exhausted.
-	if allow, _ := ctx.Value(autopilotPaidNemotronFallbackKey{}).(bool); allow && freeRateLimited && nemotronFreeSelected && !req.Private && !req.FreeOnly && ctx.Err() == nil &&
+	if allow, _ := ctx.Value(autopilotPaidNemotronFallbackKey{}).(bool); allow && hasCallGate(ctx) && freeRateLimited && nemotronFreeSelected && !req.Private && !req.FreeOnly && ctx.Err() == nil &&
 		r.OpenRouter != nil && r.OpenRouter.Configured() {
 		paid := Target{Provider: "openrouter", Model: "nvidia/nemotron-3.5-super-vl"}
 		logf("-> бесплатный Nemotron ограничен; пробую платную версию в пределах бюджета автопилота.")
-		if resp, err := r.try(ctx, req, paid, true); err == nil {
+		if resp, err := r.tryWithPaidReserve(ctx, req, paid, true, true); err == nil {
 			return resp, nil
 		} else {
 			lastErr = err
@@ -592,6 +594,38 @@ func shortErr(err error) string {
 }
 
 func (r *Router) try(ctx context.Context, req *Request, t Target, isFallback bool) (*Response, error) {
+	return r.tryWithPaidReserve(ctx, req, t, isFallback, false)
+}
+
+func hasCallGate(ctx context.Context) bool {
+	gate, ok := ctx.Value(callGateKey{}).(func(context.Context, Target) error)
+	return ok && gate != nil
+}
+
+// Serialize paid calls per router. Recheck spend after waiting, and keep the
+// slot until the provider's cost has been recorded. This limits overshoot to
+// one in-flight charge per process; an exact prepaid cap still needs the
+// provider's own spending limit, because failed calls can have unknown cost.
+func (r *Router) tryWithPaidReserve(ctx context.Context, req *Request, t Target, isFallback, scopedReserve bool) (*Response, error) {
+	if t.Provider == "openrouter" && !t.Free() {
+		r.paidOnce.Do(func() { r.paidSlots = make(chan struct{}, 1) })
+		select {
+		case r.paidSlots <- struct{}{}:
+			defer func() { <-r.paidSlots }()
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if scopedReserve {
+			if !hasCallGate(ctx) || req.Private || req.FreeOnly {
+				return nil, errors.New("платный резерв требует проверки отдельного бюджета")
+			}
+		} else if why := r.blocked(t, req, r.Settings()); why != "" {
+			return nil, errors.New(why)
+		}
+	}
 	p, err := r.provider(t)
 	if err != nil {
 		return nil, err
