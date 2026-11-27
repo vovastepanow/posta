@@ -171,7 +171,11 @@ try{
         return route.fulfill({json:fixtures[url.searchParams.get('action')]||{}});
     });
     await homePage.goto('http://127.0.0.1:'+server.address().port+'/home-test');
-    await homePage.evaluate(()=>import('/js/home.js').then(()=>null));
+    await homePage.evaluate(async()=>{
+        const {initializeCore}=await import('/js/core.js');
+        initializeCore();
+        await import('/js/home.js');
+    });
     await homePage.waitForFunction(()=>document.querySelectorAll('#grid .tile').length===3);
     assert.equal(await homePage.locator('#grid .rejected-reason').count(),0);
     assert.equal(await homePage.getByRole('button',{name:'Убрать из отобранных',exact:true}).count(),3);
