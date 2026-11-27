@@ -80,7 +80,7 @@ func publicClassificationInput(post jx.M) (caption, image string, ok bool) {
 }
 
 func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, description, imageURL string, item jx.M) {
-	result, err := a.DB.Pool.Exec(ctx, `UPDATE public_posts SET classification_at=$3 WHERE source_key=$1 AND post_key=$2 AND classification_at < $3-3600 AND NOT EXISTS (SELECT 1 FROM public_post_topics t WHERE t.source_key=$1 AND t.post_key=$2)`, source, key, now())
+	result, err := a.DB.Pool.Exec(ctx, `UPDATE public_posts SET classification_at=$3 WHERE source_key=$1 AND post_key=$2 AND classification_at < $3-3600 AND data=$4::jsonb AND NOT EXISTS (SELECT 1 FROM public_post_topics t WHERE t.source_key=$1 AND t.post_key=$2)`, source, key, now(), jx.Marshal(item))
 	if err != nil || result.RowsAffected() != 1 {
 		return
 	}
@@ -363,7 +363,9 @@ func (u *U) classifiedPublicPosts(topic string) map[string][]jx.M {
 	if t == nil || t.Key == "" {
 		return out
 	}
-	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT p.platform,p.source_key,p.data FROM public_posts p JOIN public_post_topics t USING(source_key,post_key) WHERE t.topic_key=$1 AND p.last_seen >= $2 ORDER BY p.last_seen DESC LIMIT 100`, t.Key, now()-7*86400)
+	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT p.platform,p.source_key,p.data FROM public_posts p JOIN public_post_topics t USING(source_key,post_key) WHERE t.topic_key=$1 AND p.last_seen >= $2
+		AND NOT (p.data @> '{"text_incomplete":true}' OR p.data @> '{"media_incomplete":true}' OR p.data @> '{"video_unavailable":true}' OR p.data @> '{"source_sensitive":true}' OR p.data @> '{"nsfw":true}')
+		ORDER BY p.last_seen DESC LIMIT 100`, t.Key, now()-7*86400)
 	if err != nil {
 		return out
 	}

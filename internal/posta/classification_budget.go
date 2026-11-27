@@ -14,7 +14,7 @@ func (u *U) reserveClassification() (func(float64), bool) {
 	} // isolated tests use their own router budget
 	key := "classification_budget:" + time.Now().UTC().Format("2006-01-02")
 	var value float64
-	err := u.DB.Pool.QueryRow(u.Ctx, `INSERT INTO kv(key,value,expires_at,updated_at) VALUES($1,'0.025'::jsonb,0,now()) ON CONFLICT(key) DO UPDATE SET value=to_jsonb((kv.value::text)::numeric+0.025),updated_at=now() WHERE (kv.value::text)::numeric+0.025<=0.10 RETURNING (value::text)::float8`, key).Scan(&value)
+	err := u.DB.Pool.QueryRow(u.Ctx, `INSERT INTO kv(key,value,expires_at,updated_at) VALUES($1,'0.025'::jsonb,$2,now()) ON CONFLICT(key) DO UPDATE SET value=to_jsonb((kv.value::text)::numeric+0.025),updated_at=now() WHERE (kv.value::text)::numeric+0.025<=0.10 RETURNING (value::text)::float8`, key, time.Now().Add(7*24*time.Hour).Unix()).Scan(&value)
 	if err != nil {
 		return nil, false
 	}

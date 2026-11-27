@@ -97,7 +97,6 @@ func (a *App) StartBackground() {
 	a.Go("video-worker", a.RunVideoWorker)
 	if !a.Cfg.Dev || os.Getenv("POSTA_DEV_PARSERS") == "1" {
 		a.Go("shared-collection", a.runSharedCollection)
-		a.Go("source-discovery", a.runSourceDiscoveryWorker)
 		a.Go("source-autopilot-shadow", func(ctx context.Context) {
 			a.superviseAutopilotWorker(ctx, "shadow", a.runAutopilotShadowWorker)
 		})

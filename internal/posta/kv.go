@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"log"
 	"context"
 	"encoding/json"
 	"strings"
@@ -128,6 +129,15 @@ func (a *App) CacheGC(ctx context.Context) {
 	// Directly verified posts are ephemeral; retain no stale public
 	// assessments after their permitted 48-hour delivery window.
 	a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_direct_results WHERE assessed_at < $1 OR published_at < $1`, t-int64(autopilotDirectMaxAge/time.Second))
+	// The public inventory is a derived cache. Personal pools, history,
+	// queued posts and the permanent source registry are never removed here.
+	if _, err := a.DB.Pool.Exec(ctx, `WITH expired AS (
+		SELECT source_key,post_key FROM public_posts
+		WHERE last_seen < $1 ORDER BY last_seen LIMIT 1000 FOR UPDATE SKIP LOCKED
+	) DELETE FROM public_posts p USING expired e
+	WHERE p.source_key=e.source_key AND p.post_key=e.post_key`, t-90*86400); err != nil {
+		log.Printf("Очистка публичного индекса: %v", err)
+	}
 }
 
 // ---- MemCache: сырые ответы площадок и прочее на минуты — только в памяти процесса. ----

@@ -11,7 +11,7 @@ import (
 
 // Индекс качества источника (0–100): (лайки + 0,5·«не знаю» + 2) / (лайки + 0,5·«не знаю» + дизлайки + 4). Без оценок — 50; каждая оценка сдвигает его
 // (первый лайк — 60, «не знаю» — 55,6, дизлайк — 40), а чем больше оценок, тем меньше сдвиг и тем точнее значение.
-// Для досок оценки постов считаются отдельно по каждой теме; жалоба «ошибка подбора» — дизлайк.
+// Для досок оценки считаются по теме; жалоба «ошибка подбора» не влияет на общий рейтинг источника.
 
 const SourceQualityStart = 50.0
 
@@ -41,8 +41,9 @@ func (a *App) SourceQualityUpdate(ctx context.Context, record jx.M) {
 	}
 	var likes, maybes, dislikes int
 	err := a.DB.Pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE collection = 'liked'), count(*) FILTER (WHERE collection = 'undecided'),
-			count(*) FILTER (WHERE collection = 'disliked' OR (collection = 'complaints' AND data->>'complaint_reason' = 'match_error'))
-		FROM history_items WHERE collection IN ('liked', 'disliked', 'undecided', 'complaints')
+			count(*) FILTER (WHERE collection = 'disliked')
+		FROM history_items WHERE collection IN ('liked', 'disliked', 'undecided')
+		AND COALESCE(data->>'preference_vote','') IN ('','like','dislike','maybe')
 		AND regexp_replace(data->>'source_key', '^((4chan|dvach):[^:]+):.*$', '\1') = $1`, key).Scan(&likes, &maybes, &dislikes)
 	if err != nil {
 		return

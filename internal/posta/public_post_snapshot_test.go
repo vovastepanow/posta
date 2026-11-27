@@ -55,3 +55,45 @@ func TestPublicPostPartialRefreshPostgres(t *testing.T) {
 		t.Fatalf("sensitive refresh retained previous content: %v", got)
 	}
 }
+
+func TestPublicPostRevisionInvalidatesTopicsPostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_TEST_PG")
+	if dsn == "" {
+		t.Skip("POSTA_TEST_PG not set")
+	}
+	ctx := context.Background()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{DB: d}
+	source := "integration-revision-" + randHex(8)
+	defer d.Pool.Exec(ctx, "DELETE FROM public_posts WHERE source_key=$1", source)
+	post := jx.M{"url": "https://example.com/post/2", "text": "SMM campaign", "views": 10}
+	key := CandidatePostKey(post)
+	a.storePublicPosts(ctx, PlatformRSS, source, []jx.M{post})
+	if _, err := d.Pool.Exec(ctx, "INSERT INTO public_post_topics(source_key,post_key,topic_key) VALUES($1,$2,'smm')", source, key); err != nil {
+		t.Fatal(err)
+	}
+	check := func(want int) {
+		t.Helper()
+		var count int
+		if err := d.Pool.QueryRow(ctx, "SELECT count(*) FROM public_post_topics WHERE source_key=$1 AND post_key=$2", source, key).Scan(&count); err != nil || count != want {
+			t.Fatalf("labels=%d want %d: %v", count, want, err)
+		}
+	}
+	post["views"] = 20
+	a.storePublicPosts(ctx, PlatformRSS, source, []jx.M{post})
+	check(1)
+	post["text"] = "Knitting a sweater"
+	a.storePublicPosts(ctx, PlatformRSS, source, []jx.M{post})
+	check(0)
+	var checked int64
+	if err := d.Pool.QueryRow(ctx, "SELECT classification_at FROM public_posts WHERE source_key=$1 AND post_key=$2", source, key).Scan(&checked); err != nil || checked != 0 {
+		t.Fatalf("classification not reset: %d %v", checked, err)
+	}
+}
