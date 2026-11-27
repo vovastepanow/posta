@@ -16,6 +16,7 @@ on:
       - internal/posta/source_autopilot_telegram_index.go
       - internal/posta/source_autopilot_youtube_search.go
       - internal/posta/source_autopilot_social.go
+      - internal/posta/sources.go
       - internal/posta/discovery.go
 
 permissions:

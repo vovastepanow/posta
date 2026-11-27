@@ -190,3 +190,45 @@ func TestOutboxConfirmedReceiptRecoveryPostgres(t *testing.T) {
 		t.Fatal("stale recovery duplicated journal entry")
 	}
 }
+
+func TestOutboxRepairDoesNotOverwriteClaimPostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_TEST_PG")
+	if dsn == "" {
+		t.Skip("POSTA_TEST_PG not set")
+	}
+	ctx := context.Background()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{DB: d, Mem: NewMemCache(100), Cfg: config.Server{DataDir: t.TempDir()}}
+	uid, id := randHex(16), randHex(6)
+	u := a.User(ctx, uid, nil)
+	defer d.Pool.Exec(ctx, "DELETE FROM users WHERE id=$1", uid)
+	at := now()
+	post := jx.M{"id": id, "status": "queued", "publish_at": at - 5, "text": "old"}
+	if _, err := u.OutboxUpdate(func([]jx.M) []jx.M { return []jx.M{post} }); err != nil {
+		t.Fatal(err)
+	}
+	original := u.Outbox()[0]
+	updated := jx.Merge(original, jx.M{"text": "repaired"})
+	dir, _ := a.OutboxMediaDir(id)
+	stage := filepath.Join(t.TempDir(), "staged.jpg")
+	if err := os.WriteFile(stage, []byte("complete file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(dir, "restored.jpg")
+	if _, _, err := a.outboxClaimDue(ctx, id, at); err != nil {
+		t.Fatal(err)
+	}
+	if applied, err := u.applyOutboxRepair(original, updated, map[string]string{dest: stage}); err != nil || applied {
+		t.Fatalf("stale repair applied: %v %v", applied, err)
+	}
+	if fileExists(dest) || !fileExists(stage) || jx.Str(u.Outbox()[0], "status") != "sending" {
+		t.Fatal("repair changed in-flight post or files")
+	}
+}
