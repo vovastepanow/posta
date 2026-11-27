@@ -42,7 +42,6 @@ func init() {
 	})
 	get("parser_status", parserStatus)
 	get("studio_live", studioLive)
-	get("studio_city", studioCity)
 	get("studio_rejected", func(c *Ctx) (any, error) {
 		return jx.M{"items": c.U.RejectedPosts(c.U.SearchTopicKey())}, nil
 	})
@@ -478,7 +477,7 @@ func parserStatus(c *Ctx) (any, error) {
 	return r, nil
 }
 
-// studioLive — «смотровое окно» студии: последние отобранные посты пула (новые сверху) и ход сборщика одним запросом.
+// studioLive — сводка подбора: последние отобранные посты пула (новые сверху) и ход сборщика одним запросом.
 func studioLive(c *Ctx) (any, error) {
 	u := c.U
 	if err := u.PruneOldPool(); err != nil {
@@ -517,7 +516,7 @@ func studioLive(c *Ctx) (any, error) {
 	if a, _ := st["activity"].([]string); len(a) > 8 {
 		st["activity"] = a[len(a)-8:]
 	}
-	// журнал студии: 40 строк с шагом и временем; шаг текущего прохода и воронка последнего — вне работы
+	// журнал подбора: 40 строк с шагом и временем; шаг текущего прохода и воронка последнего — вне работы
 	st["journal"], st["stage"] = c.A.ParserJournal(c.U.ID, 40), c.A.ParserStageOf(c.U.ID)
 	if running, _ := st["running"].(bool); !running {
 		st["last_pass"] = c.A.ParserLastPass(c.U.ID)
@@ -525,15 +524,6 @@ func studioLive(c *Ctx) (any, error) {
 	st["items"], st["pool"], st["topic"] = items, poolCount, u.CurrentTopic()
 	st["source_discovery"] = u.DiscoveryPipelinePublic(u.CurrentTopic())
 	return st, nil
-}
-
-// studioCity — «город» студии: по дням за год — пул по текущей теме и публикации.
-func studioCity(c *Ctx) (any, error) {
-	start, pool, published, err := c.U.StudioCity(time.Now())
-	if err != nil {
-		return nil, err
-	}
-	return jx.M{"start": start.Format("2006-01-02"), "days": len(pool), "pool": pool, "published": published, "topic": c.U.CurrentTopic()}, nil
 }
 
 func settings(c *Ctx) (any, error) {

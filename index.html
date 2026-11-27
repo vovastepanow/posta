@@ -17,9 +17,9 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@700;800;900&display=swap">
 <link rel="stylesheet" href="css/shell.css?v=warm-paper-1">
 <link rel="stylesheet" href="css/app.css?v=connections-2">
-<link rel="stylesheet" href="css/studio.css?v=rejected-page-1">
+<link rel="stylesheet" href="css/home.css?v=home-cleanup-1">
 <script type="module" src="js/main.js?v=content-pool-2"></script>
-<script type="module" src="js/studio.js?v=rejected-page-1"></script>
+<script type="module" src="js/home.js?v=home-cleanup-1"></script>
 <script>setTimeout(() => document.getElementById('app-loading')?.classList.add('is-done'), 20000);</script>
 </head>
 <body>
@@ -95,8 +95,6 @@
 <div class="shared-content">
 <!-- Главная страница -->
 <div id="home-tab" class="view-panel wide-panel home-tab active">
-  <div class="studio-dashboard">
-    <div class="studio-home-main">
     <div class="section-head"><div><h1>Мой контент</h1><p>Сохранённые материалы для публикации</p></div><a class="cta" href="index.html#content">Разобрать подборку <span id="home-pool-count"></span> →</a></div>
     <label class="search home-search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Поиск по моему контенту" aria-label="Поиск по моему контенту"><kbd>/</kbd></label>
     <div class="toolbar">
@@ -104,20 +102,11 @@
       <select id="sort"><option value="new">Сначала новые</option><option value="rel">По оценке модели</option></select>
     </div>
     <div id="grid" class="grid"><p class="muted">Загрузка…</p></div>
-
-    </div>
-
-  </div>
 </div>
 <div id="rejected-tab" class="view-panel wide-panel rejected-tab">
   <div class="section-head"><div><h1>Отсеянные посты</h1><p>Отклонения по текущей теме за последние 30 дней · до 200 постов</p></div></div>
   <div id="rejected-grid" class="grid"><p class="muted">Загрузка…</p></div>
 </div>
-<svg class="fakecur" id="fakecur" viewBox="0 0 22 22" hidden aria-hidden="true">
-  <circle cx="11" cy="11" r="8" fill="rgba(124,92,255,.25)" stroke="#eef0fb" stroke-width="1.5"></circle>
-  <path d="M4 11h-3M21 11h-3M11 4V1M11 21v-3" stroke="#eef0fb" stroke-width="1.5"></path>
-  <circle cx="11" cy="11" r="1.6" fill="#eef0fb"></circle>
-</svg>
 <div id="preview-backdrop" class="preview-backdrop" hidden></div>
 <dialog class="preview" id="preview" aria-label="Просмотр поста" aria-modal="true"></dialog>
 <div id="content-tab" class="view-panel">
