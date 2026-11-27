@@ -1982,6 +1982,8 @@ func (u *U) screen(topic, stage string, item jx.M, score int, passed bool, reaso
 // prescreenBatch — быстрая оценка пачки: прошедшие в порядке очереди.
 func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline time.Time) []prescreenRow {
 	var passed, toScore []prescreenRow
+	primary, fallback, _ := u.LLM.Resolve(u.Ctx, llm.RolePrescreen)
+	prescreenEnabled := !primary.Empty() || !fallback.Empty()
 	for pos, item := range batch {
 		if time.Now().After(deadline) || !u.Alive() {
 			break
@@ -2012,8 +2014,7 @@ func (u *U) prescreenBatch(batch []jx.M, topic string, c *prescreenCtx, deadline
 			c.knownHashes[hash] = jx.Str(item, "source")
 		}
 		row := prescreenRow{Item: item, Poster: poster, Pos: pos, Source: src, Phash: hash, Private: u.analysisPrivate(topic, item)}
-		primary, fallback, _ := u.LLM.Resolve(u.Ctx, llm.RolePrescreen)
-		if (primary.Empty() && fallback.Empty()) || !collectorPrescreenComplete(item) {
+		if !prescreenEnabled || !collectorPrescreenComplete(item) {
 			// No extra AI call for evidence that cannot justify a rejection.
 			c.stats["prescreen_bypassed_media"]++
 			c.passedTotal++

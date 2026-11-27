@@ -171,11 +171,30 @@ func Preset(name string) Settings {
 	return s
 }
 
-// Normalize — пропущенные роли берутся из пресета local.
+// Normalize fills missing roles from the free preset, migrating only exact
+// legacy defaults. Explicit custom model choices remain unchanged.
 func (s Settings) Normalize() Settings {
 	base := Preset("free")
-	if s.Roles == nil {
-		s.Roles = map[Role]RoleConfig{}
+	roles := make(map[Role]RoleConfig, len(s.Roles))
+	for role, cfg := range s.Roles {
+		roles[role] = cfg
+	}
+	s.Roles = roles
+	if s.Preset == "free" {
+		for _, role := range []Role{RoleAnalysis, RoleJudge, RoleSmart, RoleText, RoleRadar} {
+			cfg := s.Roles[role]
+			if cfg.Primary == FreeVision && cfg.Fallback == LocalSmart {
+				cfg.Fallback = Off
+				s.Roles[role] = cfg
+			}
+		}
+		for role, legacy := range map[Role]Target{RolePrescreen: LocalFast, RoleEmbed: LocalEmbed} {
+			cfg := s.Roles[role]
+			if cfg.Primary == legacy && cfg.Fallback.Empty() {
+				cfg.Primary, cfg.Fallback = Off, Off
+				s.Roles[role] = cfg
+			}
+		}
 	}
 	for _, r := range Roles {
 		if _, ok := s.Roles[r]; !ok {

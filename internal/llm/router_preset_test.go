@@ -18,3 +18,20 @@ func TestFreePresetDoesNotRequireLocalModels(t *testing.T) {
 		t.Fatal("explicit local preset no longer works")
 	}
 }
+
+func TestNormalizeMigratesOnlyLegacyFreeDefaults(t *testing.T) {
+	s := Preset("free")
+	s.Roles[RolePrescreen] = RoleConfig{Primary: LocalFast, Fallback: Off}
+	s.Roles[RoleAnalysis] = RoleConfig{Primary: FreeVision, Fallback: LocalSmart, Threshold: 71}
+	custom := Target{"openrouter", "custom:free"}
+	s.Roles[RoleSmart] = RoleConfig{Primary: custom, Fallback: LocalSmart}
+	n := s.Normalize()
+	if !n.Roles[RolePrescreen].Primary.Empty() || !n.Roles[RoleAnalysis].Fallback.Empty() ||
+		n.Roles[RoleAnalysis].Threshold != 71 || n.Roles[RoleSmart].Primary != custom ||
+		n.Roles[RoleSmart].Fallback != LocalSmart {
+		t.Fatal("legacy defaults or custom settings mishandled")
+	}
+	if s.Roles[RoleAnalysis].Fallback != LocalSmart {
+		t.Fatal("normalization mutated the original map")
+	}
+}
