@@ -36,7 +36,7 @@ func New(ctx context.Context, cfg config.Server) (*App, error) {
 			log.Printf("ClickHouse: схема: %v", err)
 		}
 	}
-	a := &App{Cfg: cfg, DB: d, CH: sink, Box: box, Mem: NewMemCache(4000), HTTP: defaultClient}
+	a := &App{Cfg: cfg, DB: d, CH: sink, Box: box, Mem: NewMemCache(4000), autopilotListings: NewMemCache(128), HTTP: defaultClient}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.catalog = &Catalog{app: a}
 	a.parsers = newParserManager(a)

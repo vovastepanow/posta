@@ -92,7 +92,12 @@ func registerAutopilotCandidateWithEvidence(ctx context.Context, database *db.DB
 			ON CONFLICT DO NOTHING RETURNING scope,topic_key,source_id)
 			INSERT INTO source_autopilot_decisions(scope,topic_key,source_id,old_state,new_state,reason,policy_version,at,evidence)
 			SELECT scope,topic_key,source_id,'','candidate',$6,$4,$5,$7::jsonb FROM inserted`, job.Scope, job.TopicKey, sourceID, TopicProfileVersion, at.Unix(), origin, evidence)
-		return err
+		if err != nil {
+			return err
+		}
+		// Record only a public, validated identity; this does not approve it
+		// globally or copy a topic rejection onto another topic.
+		return rememberAutopilotIdentity(ctx, tx, sourceID, at.Unix())
 	})
 }
 

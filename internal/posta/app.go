@@ -30,6 +30,8 @@ type App struct {
 	LLM  *llm.Router
 	Box  *secret.Box
 	Mem  *MemCache
+	// Bounded public listing cache, separate from the general request cache.
+	autopilotListings *MemCache
 	HTTP *http.Client
 
 	catalog                 *Catalog

@@ -479,6 +479,9 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		if err := a.autopilotConsumeCitations(ctx, job); err != nil {
 			return err
 		}
+		if err := a.autopilotNominateIndexedSources(ctx, job, 8); err != nil {
+			return err
+		}
 		if err := a.autopilotMarkPhase(ctx, job, "prepare_projection"); err != nil {
 			return err
 		}
@@ -1860,7 +1863,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					WHERE d.scope=s.scope AND d.topic_key=s.topic_key AND d.source_id=s.source_id
 					AND d.policy_version=$5 AND d.published_at >= $6 AND d.assessed_at >= $6
 				) THEN 1
-				WHEN s.state='candidate' AND s.evidence->>'discovery_origin'='citation' THEN 2
+				WHEN s.state='candidate' AND s.evidence->>'discovery_origin' IN ('citation','indexed_post') THEN 2
 				WHEN s.state='candidate' THEN 3
 				WHEN s.state='active' THEN 4
 				ELSE 5 END AS lane
@@ -1994,7 +1997,10 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			feed = source
 		}
 		at := time.Now()
-		res := fetch(feed)
+		// Only initial candidate reviews reuse public listings. Established
+		// sources and explicit rechecks always obtain a new observation.
+		reuse := state == "candidate" && !row.reaudit
+		res, reused := a.autopilotReviewListing(source, feed, reuse, fetch)
 		if err := autopilotBudgetError(ctx); err != nil {
 			return err
 		}
@@ -2026,10 +2032,11 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 			if err != nil {
 				reason = "feed_parse_failed"
-			} else if reason == "" {
+			} else if reason == "" && !reused {
 				if err := recordAutopilotShadowFetch(ctx, a.DB, job, source, at.Unix(), len(posts)); err != nil {
 					return err
 				}
+				a.rememberAutopilotListing(source, res, len(posts))
 			}
 		}
 		// Older Lemmy community candidates may have entered this queue
@@ -2104,6 +2111,11 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		auditSamples := autopilotAuditPostSamples(samples)
 		sourceInfo := autopilotSourceReviewInfo(platform, id, feed, res, samples)
 		displayEvidence := autopilotSourceDisplayEvidence(sourceInfo, platform, feed)
+		if reason == "" && len(samples) > 0 {
+			if err := a.rememberAutopilotPublicProfile(ctx, job, source, sourceInfo, at); err != nil {
+				return err
+			}
+		}
 		// A missing OK title is a parsing/metadata failure, NOT evidence
 		// that the group is about another topic. Look at multiple published
 		// captions before rejecting a group with a generic title.
@@ -2153,6 +2165,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		for key, value := range displayEvidence {
 			evidence[key] = value
 		}
+		evidence["shared_listing_reused"] = reused
 		if res.Status > 0 {
 			evidence["http_status"] = res.Status
 		}
