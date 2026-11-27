@@ -1368,6 +1368,9 @@ func (u *U) PublishMediaDenied(items []jx.M) string {
 		if jx.Str(it, "upload") != "" || src == "" {
 			continue
 		}
+		if path := u.MediaPath(src); path != "" && !u.CachedMediaAllowed(u.Ctx, u.ID, filepath.Base(path)) {
+			return "Файл недоступен для этого аккаунта."
+		}
 		r := u.ContentRecordByMedia(src)
 		if r == nil {
 			continue

@@ -146,6 +146,9 @@ func saveOutboxEdit(c *Ctx) (any, error) {
 		}
 		uploads[strconv.Itoa(i)] = path
 	}
+	if denied := c.U.PublishMediaDenied(raw); denied != "" {
+		return nil, fail(422, denied)
+	}
 	existing := jx.Maps(post, "media")
 	used := map[int]bool{}
 	items := make([]posta.MediaItem, 0, len(raw))

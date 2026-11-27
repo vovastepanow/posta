@@ -95,7 +95,7 @@ func (s *Server) Handler() http.Handler {
 		})
 	}
 	mediaURL := "/" + strings.Trim(cfg.MediaURL, "/") + "/"
-	mux.Handle(mediaURL, http.StripPrefix(mediaURL, staticFiles(cfg.MediaDir, 7*24*time.Hour)))
+	mux.Handle(mediaURL, http.StripPrefix(mediaURL, s.cachedMedia()))
 	web := filepath.Join(cfg.Root, "web")
 	if _, err := os.Stat(web); err != nil {
 		web = cfg.Root // до переезда интерфейса в web/: index.html, js/, css/ лежат в корне
@@ -159,6 +159,42 @@ func staticSite(root string) http.Handler {
 		r2.URL.Path = clean
 		files.ServeHTTP(w, r2)
 	})
+}
+
+// Cached files require an existing session, and privately imported files
+// additionally require their original owner's identity.
+func (s *Server) cachedMedia() http.Handler {
+	files := staticFiles(s.A.Cfg.MediaDir, 7*24*time.Hour)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/")
+		if !cachedMediaName.MatchString(name) {
+			http.NotFound(w, r)
+			return
+		}
+		ctx := r.Context()
+		uid := s.A.SessionUser(ctx, cookie(r, config.SessionCookie))
+		if uid == "" && localNoAuthRequest(r) && s.A.IsOwner(ctx, s.A.Cfg.LocalNoAuthOwner) {
+			uid = s.A.Cfg.LocalNoAuthOwner
+		}
+		if uid == "" || !s.A.CachedMediaAllowed(ctx, uid, name) {
+			http.NotFound(w, r)
+			return
+		}
+		// Browser cache must not bypass authorization after account switching.
+		files.ServeHTTP(mediaNoStoreWriter{w}, r)
+	})
+}
+
+type mediaNoStoreWriter struct{ http.ResponseWriter }
+
+func (w mediaNoStoreWriter) WriteHeader(code int) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w mediaNoStoreWriter) Write(p []byte) (int, error) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	return w.ResponseWriter.Write(p)
 }
 
 // Media cache paths are flat generated names, not a browsable directory.

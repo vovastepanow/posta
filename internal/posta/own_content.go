@@ -8,6 +8,7 @@ import (
 	"encoding/csv"
 	"encoding/hex"
 	"fmt"
+	"image"
 	"io"
 	"net/http"
 	"net/url"
@@ -69,11 +70,17 @@ func (u *U) OwnStoreImage(b []byte) (string, error) {
 		return "", Bad("%s", err.Error())
 	}
 	h := sha1.Sum(b)
-	p := u.MediaStoreImage("own:"+u.ID+":"+hex.EncodeToString(h[:]), b)
-	if p == "" {
-		return "", Bad("Не удалось сохранить картинку на сервере.")
+	_, format, err := image.DecodeConfig(bytes.NewReader(b))
+	ext, ok := imageExt[format]
+	if err != nil || !ok {
+		return "", Bad("Неподдерживаемый формат изображения.")
 	}
-	return p, nil
+	name := MediaCacheName("own:"+u.ID+":"+hex.EncodeToString(h[:]), ext)
+	// Reserve the private identity before the file becomes addressable.
+	if err := u.registerPrivateMedia(name); err != nil {
+		return "", err
+	}
+	return u.MediaWrite(name, b)
 }
 
 // OwnAddToPool — новые посты в начало подборки; уже известные пропускаются.
