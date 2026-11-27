@@ -705,9 +705,9 @@ func (u *U) TopicSources() []jx.M {
 
 // TopicSourcesFor uses the same catalog and inheritance rules as the current-topic view.
 func (u *U) TopicSourcesFor(topic string) []jx.M {
-	d := u.catalogWithPersonalPins(topic)
-	overrides := u.sourceOverridesForTopic(topic)
 	pins := u.personalSourcePins(topic)
+	d := u.catalogWithPins(topic, pins)
+	overrides := u.sourceOverridesForTopic(topic)
 	autopilot := map[string]jx.M{}
 	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id,state,reason,evidence FROM source_autopilot_sources WHERE scope='public' AND topic_key=$1`, autopilotTopicKey(topic))
 	if err == nil {
@@ -725,7 +725,8 @@ func (u *U) TopicSourcesFor(topic string) []jx.M {
 		platform := ck.Platform
 		for _, e := range *d.List(ck.Kind) {
 			id := strings.TrimLeft(jx.Str(e, "id"), "@")
-			if !u.CatalogEntryMatchesTopic(e, topic, false) || u.UASourceBlocked(SourceIDFor(platform, id), jx.M{"title": jx.Str(e, "name")}) != "" {
+			sid := SourceIDFor(platform, id)
+			if !u.CatalogEntryMatchesTopic(e, topic, false) || u.UASourceBlocked(sid, jx.M{"title": jx.Str(e, "name")}) != "" {
 				continue
 			}
 			if (platform == PlatformRSS && !IsValidRSSURL(id)) || (platform == PlatformOK && !IsValidOKGroup(id)) || (platform == PlatformTikTok && !IsValidTikTokUser(id)) {
@@ -775,14 +776,14 @@ func (u *U) TopicSourcesFor(topic string) []jx.M {
 				activity = DescribeSourceActivity(a)
 			}
 			preview := jx.List(e, "preview")
-			cards = append(cards, jx.M{"source_id": SourceIDFor(platform, id), "platform": platform, "id": id, "name": name, "url": link, "handle": handle, "autopilot": autopilot[SourceIDFor(platform, id)],
+			cards = append(cards, jx.M{"source_id": sid, "platform": platform, "id": id, "name": name, "url": link, "handle": handle, "autopilot": autopilot[sid],
 				"topics": orAny(jx.List(e, "topics")), "kind": kind, "needs_title": needsTitle, "platform_label": func() string {
 					if platform == PlatformRSS {
 						return RSSPlatformLabel(id)
 					}
 					return platform
 				}(), "own": len(jx.List(e, "topics")) > 0 && u.CatalogEntryMatchesTopic(e, topic, true),
-				"auto": jx.Bool(e, "auto"), "autopilot_managed": jx.Bool(e, "autopilot_managed"), "score": score, "muted": sourceExcludedByOverride(overrides, SourceIDFor(platform, id)), "pinned": jx.Has(pins, SourceIDFor(platform, id)), "subscribers": subs, "subscribers_label": label, "view_rate": rate, "activity": activity,
+				"auto": jx.Bool(e, "auto"), "autopilot_managed": jx.Bool(e, "autopilot_managed"), "score": score, "muted": sourceExcludedByOverride(overrides, sid), "pinned": jx.Has(pins, sid), "subscribers": subs, "subscribers_label": label, "view_rate": rate, "activity": activity,
 				"frozen": jx.Has(e, "frozen_until"), "frozen_reason": jx.Str(e, "frozen_reason"), "avatar": jx.Str(e, "avatar"), "preview": orAny(preview[:min(4, len(preview))])})
 		}
 	}

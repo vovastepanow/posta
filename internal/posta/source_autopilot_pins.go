@@ -78,29 +78,40 @@ func (u *U) SourcePersonalPin(sid string, pinned bool) error {
 }
 
 func (u *U) catalogWithPersonalPins(topic string) *SourceDB {
+	return u.catalogWithPins(topic, u.personalSourcePins(topic))
+}
+
+// Index only catalog sections containing valid pins and clone the shared
+// snapshot only when a pin actually needs to be restored.
+func (u *U) catalogWithPins(topic string, pins jx.M) *SourceDB {
 	d := u.Catalog()
-	pins := u.personalSourcePins(topic)
-	if len(pins) == 0 {
-		return d
-	}
-	copy := d.Clone()
+	result := d
+	visibleByKind := map[string]map[string]bool{}
 	for sid, value := range pins {
 		entry, ok := value.(map[string]any)
 		platform, _, kind, valid := autopilotSourceParts(sid)
 		if !ok || !valid || (!sharedSourceEligible(platform, entry) && !(platform == PlatformRSS && autopilotPinnablePublicRSS(entry))) || SourceIDFor(platform, jx.Str(entry, "id")) != sid {
 			continue
 		}
-		list := copy.List(kind)
-		visible := false
-		for _, existing := range *list {
-			if SourceIDFor(platform, jx.Str(existing, "id")) == sid && u.CatalogEntryMatchesTopic(existing, topic, false) {
-				visible = true
-				break
+		visible := visibleByKind[kind]
+		if visible == nil {
+			visible = map[string]bool{}
+			for _, existing := range *d.List(kind) {
+				if u.CatalogEntryMatchesTopic(existing, topic, false) {
+					visible[SourceIDFor(platform, jx.Str(existing, "id"))] = true
+				}
 			}
+			visibleByKind[kind] = visible
 		}
-		if !visible {
-			*list = append(*list, jx.Unmarshal(jx.Marshal(entry)))
+		if visible[sid] {
+			continue
 		}
+		if result == d {
+			result = d.Clone()
+		}
+		list := result.List(kind)
+		*list = append(*list, jx.Unmarshal(jx.Marshal(entry)))
+		visible[sid] = true
 	}
-	return copy
+	return result
 }
