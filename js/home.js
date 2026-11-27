@@ -1,7 +1,7 @@
 // Главная страница: контент, источники и состояние подбора.
 // Данные — тот же API, что у приложения.
 import { showPlan, showProfile } from './profile.js';
-import { $, api, cleanCaption, el, formatAgo, log, onTabOpen, onTopicChange, switchTab } from './core.js';
+import { $, api, cleanCaption, el, formatAgo, log, onTabOpen, onTopicChange, safeSourcePostUrl, switchTab } from './core.js';
 import { bindFutureDraftButton, applyRocketCheck, postItemToTelegram, toggleFutureDraft } from './content.js';
 import { fromRecord, recordSlides } from './post-adapters.js';
 import { closePostView, openPostView } from './post-view.js';
@@ -22,9 +22,9 @@ const firstLine = i => cleanCaption(i.text).split('\n')[0].replace(/#\S+/g, '').
 
 const FILTERS = [
     ['all', 'Всё', () => true],
-    ['images', 'Картинки', i => !!i.display_image && !i.display_video && !i.video],
-    ['videos', 'Видео', i => postMedia(i).some(file => file.video) || !!(i.video_via || i.video_pending)],
-    ['text', 'Текст', i => !i.display_image],
+    ['images', 'Картинки', i => postMedia(i).some(file => file.image) && !hasVideo(i)],
+    ['videos', 'Видео', hasVideo],
+    ['text', 'Текст', i => !postMedia(i).length && !hasVideo(i)],
     ['telegram', 'Из Telegram', i => platformOf(i) === 'Telegram'],
     ['boards', 'С имиджбордов', i => ['Двач', '4chan'].includes(platformOf(i))],
 ];
@@ -37,11 +37,14 @@ function visible() {
 }
 
 const postMedia = item => recordSlides(item).filter(file => !file.textPost);
+function hasVideo(item, files = postMedia(item)) {
+    return files.some(file => file.video) || Boolean(item.video_via || item.video_pending || item.video_unavailable);
+}
 
 const videoObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
     for (const entry of entries) {
         const video = entry.target;
-        if (entry.isIntersecting && !document.hidden) {
+        if (video.isConnected && entry.isIntersecting && !document.hidden) {
             if (!video.getAttribute('src')) video.src = video.dataset.src;
             video.play().catch(() => {});
         } else video.pause();
@@ -54,6 +57,18 @@ document.addEventListener('visibilitychange', () => {
     else videos.forEach(video => { videoObserver.unobserve(video); videoObserver.observe(video); });
 });
 
+// Unobserve and release old decoders before replacing either grid.
+function replaceGrid(grid, ...children) {
+    for (const video of grid.querySelectorAll('video')) {
+        videoObserver?.unobserve(video);
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+    }
+    grid.replaceChildren(...children);
+    if (videoObserver) grid.querySelectorAll('video').forEach(video => videoObserver.observe(video));
+}
+
 function makeVideo(src, poster) {
     const video = el('video', { poster: poster || '', muted: true, loop: true, playsInline: true, preload: 'none' });
     if (!videoObserver) { video.src = src; video.autoplay = true; }
@@ -64,7 +79,8 @@ function makeVideo(src, poster) {
 function card(i, rejection = null) {
     const files = postMedia(i), first = files[0];
     const media = first?.video ? makeVideo(first.video, first.image) : first?.image ? el('img', { src: first.image, alt: '', loading: 'lazy' }) : el('div', { className: 'text-only', textContent: (i.text || '').slice(0, 220) });
-    const hasVideo = files.some(file => file.video) || Boolean(i.video_via || i.video_pending);
+    const video = hasVideo(i, files);
+    const sourceUrl = safeSourcePostUrl(i);
     const ago = i.timestamp ? formatAgo(i.timestamp) : '';
     const title = firstLine(i);
     const rocket = el('button', { type: 'button', className: 'home-card-action', textContent: '🚀', ariaLabel: 'Подготовить пост', onclick: async e => {
@@ -80,14 +96,14 @@ function card(i, rejection = null) {
     } });
     return el('article', { className: 'tile', tabIndex: 0, role: 'button', ariaLabel: `Открыть пост: ${title}`, onclick: e => { if (!e.target.closest('a, img, button')) { e.stopPropagation(); openPreview(i); } }, onkeydown: e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openPreview(i); } } },
         el('div', { className: 'tile-media' }, media,
-            hasVideo ? el('span', { className: 'tile-video-mark', ariaLabel: 'Есть видео', textContent: '▶' }) : null,
+            video ? el('span', { className: 'tile-video-mark', ariaLabel: 'Есть видео', textContent: '▶' }) : null,
             files.length > 1 ? el('span', { className: 'tile-media-count', ariaLabel: `Медиафайлов: ${files.length}`, textContent: `▣ ${files.length}` }) : null),
         el('div', { className: 'tile-body' },
             el('b', { textContent: title }),
             el('small', { textContent: [platformOf(i), ago].filter(Boolean).join(' · ') }),
             rejection ? el('p', { className: 'rejected-reason', textContent: `Причина: ${rejection.reason || (rejection.stage === 'prescreen' ? 'Вероятный мусор' : 'Не прошёл оценку')}` }) : null,
             rejection ? el('small', { className: 'rejected-stage', textContent: [({ filter: 'Фильтры', prescreen: 'Быстрая оценка' })[rejection.stage] || 'Глубокая оценка', rejection.score != null ? `${rejection.score}%` : '', rejection.at ? formatAgo(rejection.at) : ''].filter(Boolean).join(' · ') }) : null,
-            i.source_url ? el('a', { href: i.source_url, target: '_blank', rel: 'noopener', textContent: '↗', title: 'Открыть у источника' }) : null,
+            sourceUrl ? el('a', { href: sourceUrl, target: '_blank', rel: 'noopener', textContent: '↗', title: 'Открыть у источника' }) : null,
             el('div', { className: 'home-card-actions' }, rocket, add, rejection ? null : remove)));
 }
 
@@ -139,7 +155,7 @@ async function loadRejected({ silent = false } = {}) {
     const grid = $('rejected-grid');
     if (!silent) {
         rejectedSignature = null;
-        grid.replaceChildren(el('p', { className: 'muted', textContent: 'Загрузка…' }));
+        replaceGrid(grid, el('p', { className: 'muted', textContent: 'Загрузка…' }));
     }
     try {
         const data = await api('studio_rejected');
@@ -148,10 +164,9 @@ async function loadRejected({ silent = false } = {}) {
         const signature = JSON.stringify(records);
         if (signature === rejectedSignature) return;
         rejectedSignature = signature;
-        grid.replaceChildren(...(records.length ? records.map(record => card(record.item || {}, record)) : [el('p', { className: 'muted', textContent: 'Пока нет сохранённых отклонений. Они появятся после следующих проходов.' })]));
-        if (videoObserver) grid.querySelectorAll('video').forEach(video => videoObserver.observe(video));
+        replaceGrid(grid, ...(records.length ? records.map(record => card(record.item || {}, record)) : [el('p', { className: 'muted', textContent: 'Пока нет сохранённых отклонений. Они появятся после следующих проходов.' })]));
     } catch (error) {
-        if (request === rejectedRequest && !silent) grid.replaceChildren(el('p', { className: 'muted', textContent: `Не удалось загрузить: ${error.message}` }));
+        if (request === rejectedRequest && !silent) replaceGrid(grid, el('p', { className: 'muted', textContent: `Не удалось загрузить: ${error.message}` }));
     }
 }
 $('show-rejected').addEventListener('click', () => switchTab('rejected-tab'));
@@ -308,37 +323,47 @@ function renderLive(r) {
 
 function render() {
     const list = visible();
-    $('grid').querySelectorAll('video').forEach(video => videoObserver?.unobserve(video));
-    $('grid').replaceChildren(...(list.length ? list.map(card) : [el('p', { className: 'muted', textContent: 'Здесь пока пусто: лайкните посты в «Предложке» — они появятся здесь.' })]));
-    if (videoObserver) $('grid').querySelectorAll('video').forEach(video => videoObserver.observe(video));
-    $('chips').replaceChildren(...FILTERS.map(([id, label, f]) => el('button', {
-        type: 'button', className: state.filter === id ? 'is-active' : '', onclick: () => { state.filter = id; render(); },
-    }, label, el('em', { textContent: String(state.items.filter(f).length) }))));
-    $('side-filters').replaceChildren(...FILTERS.slice(0, 4).map(([id, label, f]) => el('li', { className: state.filter === id ? 'is-active' : '', onclick: () => { state.filter = id; render(); } },
-        el('span', { textContent: label }), el('em', { textContent: String(state.items.filter(f).length) }))));
+    replaceGrid($('grid'), ...(list.length ? list.map(item => card(item)) : [el('p', { className: 'muted', textContent: 'Здесь пока пусто: лайкните посты в «Предложке» — они появятся здесь.' })]));
+    const filters = FILTERS.map(([id, label, f]) => ({ id, label, count: state.items.filter(f).length }));
+    const props = id => ({ className: state.filter === id ? 'is-active' : '', onclick: () => { state.filter = id; render(); } });
+    const countNode = count => el('em', { textContent: String(count) });
+    $('chips').replaceChildren(...filters.map(({ id, label, count }) => el('button', { type: 'button', ...props(id) }, label, countNode(count))));
+    $('side-filters').replaceChildren(...filters.slice(0, 4).map(({ id, label, count }) => el('li', props(id), el('span', { textContent: label }), countNode(count))));
 }
 
 async function loadContent() {
-    const [proposals, info] = await Promise.all([api('proposals'), api('account_info')]);
-    state.items = proposals.items || [];
-    showProfile(info);
-    render();
+    const request = ++loadContent.request;
+    try {
+        const [proposals, info] = await Promise.all([api('proposals'), api('account_info')]);
+        if (request !== loadContent.request) return;
+        state.items = proposals.items || [];
+        showProfile(info);
+        render();
+    } catch (error) {
+        if (request === loadContent.request) throw error;
+    }
 }
 
+loadContent.request = 0;
+
 async function loadSources() {
+    const request = ++loadSources.request;
     const r = await api('topic_sources');
-    const counts = {};
+    if (request !== loadSources.request) return;
+    const counts = Object.create(null);
     for (const s of r.sources || []) counts[s.platform] = (counts[s.platform] || 0) + 1;
     $('side-sources').replaceChildren(...(Object.keys(counts).length ? Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([p, n]) =>
         el('li', {}, el('i', { textContent: PLATFORMS[p] || '◌' }), el('span', { textContent: p }), el('em', { textContent: String(n) })))
         : [el('li', { className: 'muted', textContent: 'Источников темы пока нет' })]));
 }
 
+loadSources.request = 0;
+
 function init() {
     $('sort').onchange = e => { state.sort = e.target.value; render(); };
     $('search').oninput = e => { state.q = e.target.value; render(); };
     document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== $('search')) { e.preventDefault(); $('search').focus(); } });
-    const fail = e => { $('grid').replaceChildren(el('p', { className: 'muted', textContent: e.status === 401 ? 'Войдите в приложение, чтобы увидеть материалы.' : `Ошибка: ${e.message}` })); };
+    const fail = e => { replaceGrid($('grid'), el('p', { className: 'muted', textContent: e.status === 401 ? 'Войдите в приложение, чтобы увидеть материалы.' : `Ошибка: ${e.message}` })); };
     loadContent().catch(fail);
     const panel = $('live-panel');
     const placePanel = tab => {
@@ -351,7 +376,7 @@ function init() {
     onTabOpen('home-tab', () => loadContent().catch(fail));
     onTabOpen('rejected-tab', () => loadRejected());
     if ($('rejected-tab').classList.contains('active')) loadRejected();
-    onTopicChange(() => { loadContent().catch(fail); loadLive(); if ($('rejected-tab').classList.contains('active')) loadRejected(); });
+    onTopicChange(() => { loadContent().catch(fail); loadSources().catch(() => {}); loadLive(); if ($('rejected-tab').classList.contains('active')) loadRejected(); });
     document.addEventListener('posta:pool-updated', loadLive);
     loadSources().catch(() => {});
     renderPipe({});

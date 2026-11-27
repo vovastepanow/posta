@@ -42,7 +42,7 @@ export function mediaDedupeUrls(urls) {
         const key = mediaFileKey(url);
         const current = best.get(key);
         const score = mediaSizeScore(url);
-        if (current === undefined || score > mediaSizeScore(current) || (score === mediaSizeScore(current) && url.length > current.length)) best.set(key, url);
+        if (!current || score > current.score || (score === current.score && url.length > current.url.length)) best.set(key, { url, score });
     }
-    return [...best.values()];
+    return [...best.values()].map(item => item.url);
 }

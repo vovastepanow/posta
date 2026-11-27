@@ -128,6 +128,24 @@ try{
     await lastOption.fill('Last reachable option');
     assert.equal(await lastOption.inputValue(),'Last reachable option');
     await page.waitForFunction(()=>{const n=document.querySelector('input[placeholder="Вариант 10"]');if(!n)return false;const r=n.getBoundingClientRect(),p=n.closest('.pe-compose-column').getBoundingClientRect();return r.top>=p.top-2&&r.bottom<=p.bottom+2;},{},{timeout:5000});
+    const previewPage=await browser.newPage({viewport:{width:900,height:700}});
+    previewPage.on('pageerror',e=>errors.push(e.message));
+    await previewPage.goto('http://127.0.0.1:'+server.address().port);
+    await previewPage.evaluate(async()=>{
+        const {fromRecord}=await import('/js/post-adapters.js');
+        const {openPostView}=await import('/js/post-view.js');
+        const post=fromRecord({text:'Проверяем общий просмотр',source:'Telegram | Example',source_url:'https://t.me/example/1',why_relevant:'Соответствует теме'});
+        window.previewAction=0;
+        openPostView([post],0,{actions:()=>[{label:'Тестовое действие',run:()=>{window.previewAction++;}}]});
+    });
+    await previewPage.locator('.pv').waitFor({state:'visible'});
+    assert.equal(await previewPage.locator('.pv-source-name').textContent(),'Example');
+    assert.ok((await previewPage.locator('.pv-body').textContent()).includes('Почему отобран: Соответствует теме'));
+    await previewPage.getByRole('button',{name:'Тестовое действие'}).click();
+    assert.equal(await previewPage.evaluate(()=>window.previewAction),1);
+    await previewPage.keyboard.press('Escape');
+    await previewPage.locator('.pv').waitFor({state:'hidden'});
+    await previewPage.close();
     assert.deepEqual(errors,[]);
     console.log('Editor browser: isolated variants, formatting, compound poll, mobile layout and submitted payloads passed');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
