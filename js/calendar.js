@@ -1,7 +1,7 @@
 // calendar.js — вкладка «Календарь»: сетка дней с масштабом (колесо — от трёх дней до месяца), карточки постов
 // с содержимым по ширине колонки, свободные слоты, список, панель подробностей, подсказка «один раз».
 // Перетаскивание и жесты фона — в calendar-drag.js, чистая модель — в calendar-model.js.
-import { $, api, apiUrl, ask, cleanCaption, el, isTabActive, onTabOpen, PHOTO_ICON, switchTab, VIDEO_ICON } from './core.js';
+import { $, api, apiUrl, ask, cleanCaption, el, isTabActive, onTabOpen, PHOTO_ICON, pluralRu, switchTab, VIDEO_ICON } from './core.js';
 import { addDays, centeredHourShift, dayAgenda, easeView, freeSlots, hourSpan, hourWindow, layoutDay, layoutRow, shiftHourWindow, slotTimes, snapGestureDays, snapView, summary, viewGapPx, weekStart, wheelFactor, wheelPixels, zoomAround, zoomHoursAround, zoomLimitReached, ZOOM_DAYS_MAX, ZOOM_DAYS_MIN, DAY, HOUR, MIN } from './calendar-model.js';
 import { postItemToTelegram } from './content.js';
 import { isPhone, phoneView } from './calendar-phone.js';
@@ -65,7 +65,7 @@ const unix = ms => Math.floor(ms / 1000);
 const postKey = post => post.id || `${post.at}|${post.channel}|${(post.text || '').slice(0, 16)}`;
 const midnight = ms => addDays(ms, 0);
 const isPast = post => post.status === 'sent' || post.at * 1000 < Date.now();
-const postWord = n => (n % 10 === 1 && n % 100 !== 11 ? 'пост' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'поста' : 'постов');
+const postWord = n => pluralRu(n, 'пост', 'поста', 'постов');
 
 /** Значок статуса: одинаковый во всех видах и в панели; queued значка не имеет. */
 function statusBadge(post, compact = false) {

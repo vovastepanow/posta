@@ -2,7 +2,10 @@
 // Данные — тот же API, что у приложения.
 import { showPlan, showProfile } from './profile.js';
 import { $, api, cleanCaption, el, formatAgo, log, onTabOpen, onTopicChange, switchTab } from './core.js';
-import { bindFutureDraftButton, applyRocketCheck, postItemToTelegram } from './content.js';
+import { bindFutureDraftButton, applyRocketCheck, postItemToTelegram, toggleFutureDraft } from './content.js';
+import { fromRecord, recordSlides } from './post-adapters.js';
+import { closePostView, openPostView } from './post-view.js';
+import { pickDateTime } from './editor.js';
 
 const PLATFORMS = { YouTube: '▶', Telegram: '✈', 'ВКонтакте': 'VK', RSS: '◉', 'Двач': '2ch', '4chan': '4ch', 'Одноклассники': 'OK', TikTok: '♪' };
 const state = { items: [], filter: 'all', sort: 'new', q: '' };
@@ -14,9 +17,6 @@ const platformOf = item => {
     const p = s.split(' | ')[0];
     return PLATFORMS[p] ? p : (s.includes('Двач') ? 'Двач' : 'Сайт');
 };
-
-const PLATFORM_COLORS = { Telegram: '#4fd1ff', YouTube: '#ff5a7a', 'ВКонтакте': '#6f9bff', 'Двач': '#ffd166', '4chan': '#9be15d', RSS: '#c86bff', 'Сайт': '#c86bff' };
-const colorOf = p => PLATFORM_COLORS[p] || '#e06bff';
 
 const firstLine = i => cleanCaption(i.text).split('\n')[0].replace(/#\S+/g, '').trim().slice(0, 90);
 
@@ -36,13 +36,7 @@ function visible() {
     return list.sort(state.sort === 'rel' ? (a, b) => (b.relevance || 0) - (a.relevance || 0) : (a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 }
 
-function postMedia(item) {
-    if (item.gallery?.length > 1) return item.gallery.map(file => ({ image: file.display_image || file.image || '', video: file.display_video || file.video || '' }));
-    if (item.images?.length > 1) return item.images.map((src, index) => ({ image: index === 0 ? item.display_image || src : src, video: index === 0 ? item.display_video || item.video || '' : '' }));
-    const image = item.display_image || item.image || '';
-    const video = item.display_video || item.video || '';
-    return image || video ? [{ image, video }] : [];
-}
+const postMedia = item => recordSlides(item).filter(file => !file.textPost);
 
 const videoObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
     for (const entry of entries) {
@@ -60,10 +54,9 @@ document.addEventListener('visibilitychange', () => {
     else videos.forEach(video => { videoObserver.unobserve(video); videoObserver.observe(video); });
 });
 
-function makeVideo(src, poster, preview = false) {
-    const video = el('video', { poster: poster || '', muted: !preview, autoplay: preview, loop: !preview, playsInline: true, preload: preview ? 'auto' : 'none', controls: preview });
-    video.setAttribute('playsinline', '');
-    if (preview || !videoObserver) { video.src = src; video.autoplay = true; }
+function makeVideo(src, poster) {
+    const video = el('video', { poster: poster || '', muted: true, loop: true, playsInline: true, preload: 'none' });
+    if (!videoObserver) { video.src = src; video.autoplay = true; }
     else video.dataset.src = src;
     return video;
 }
@@ -98,65 +91,32 @@ function card(i, rejection = null) {
             el('div', { className: 'home-card-actions' }, rocket, add, rejection ? null : remove)));
 }
 
-// ---- просмотр поста ----
-function openPreview(i) {
-    const dlg = $('preview');
-    const backdrop = $('preview-backdrop');
-    const showPreview = () => { backdrop.hidden = false; dlg.show(); };
-    const files = postMedia(i);
-    let currentMedia = 0;
-    const mediaHost = el('div', { className: 'preview-media' });
-    const showMedia = () => {
-        const file = files[currentMedia];
-        mediaHost.querySelector('video')?.pause();
-        if (!file) return;
-        const media = file.video ? makeVideo(file.video, file.image, true) : el('img', { src: file.image, alt: `Медиа ${currentMedia + 1} из ${files.length}` });
-        mediaHost.replaceChildren(media);
-        if (files.length > 1) {
-            const previous = el('button', { type: 'button', className: 'preview-media-prev', ariaLabel: 'Предыдущий файл', textContent: '‹', onclick: () => { currentMedia = (currentMedia + files.length - 1) % files.length; showMedia(); } });
-            const next = el('button', { type: 'button', className: 'preview-media-next', ariaLabel: 'Следующий файл', textContent: '›', onclick: () => { currentMedia = (currentMedia + 1) % files.length; showMedia(); } });
-            mediaHost.append(previous, next, el('span', { className: 'preview-media-counter', textContent: `${currentMedia + 1} / ${files.length}` }));
-        }
-    };
-    showMedia();
-    const p = platformOf(i);
+// The same post viewer is used by the calendar, sources and home.
+function openPreview(item) {
+    const post = fromRecord(item);
     const openEditor = async scheduled => {
+        let scheduledTs = 0;
+        if (scheduled) {
+            closePostView();
+            const date = await pickDateTime({});
+            if (!date) return openPreview(item);
+            scheduledTs = Math.floor(date.getTime() / 1000);
+        } else closePostView();
         try {
-            let scheduledTs = 0;
-            if (scheduled) {
-                dlg.close();
-                const { pickDateTime } = await import('./editor.js');
-                const date = await pickDateTime({});
-                if (!date) { showPreview(); return; }
-                scheduledTs = Math.floor(date.getTime() / 1000);
-            }
-            if (dlg.open) dlg.close();
-            const { postItemToTelegram } = await import('./content.js');
-            await postItemToTelegram(i, { scheduledTs, onDone: () => loadContent().catch(() => {}) });
+            await postItemToTelegram(item, { scheduledTs, onDone: () => loadContent().catch(() => {}) });
         } catch (error) {
-            $('preview-error').textContent = `Не удалось открыть редактор: ${error.message}`;
-            if (!dlg.open) showPreview();
+            log('Не удалось открыть редактор: ' + error.message);
+            openPreview(item);
         }
     };
-    dlg.replaceChildren(
-        el('h2', { className: 'preview-title', textContent: 'Просмотр поста' }),
-        el('button', { type: 'button', className: 'preview-close', textContent: '×', ariaLabel: 'Закрыть', onclick: () => dlg.close() }),
-        files.length ? mediaHost : null,
-        el('div', { className: 'preview-body' },
-            el('p', { className: 'preview-meta' }, el('span', { className: 'badge-inline', style: `--c:${colorOf(p)}`, textContent: `${PLATFORMS[p] || '◌'} ${p}` }),
-                el('span', { textContent: String(i.source || '').split(' | ').pop() }),
-                i.relevance ? el('span', { textContent: `★ ${i.relevance}` }) : null,
-                i.timestamp ? el('span', { className: 'muted', textContent: formatAgo(i.timestamp) }) : null),
-            el('p', { className: 'preview-text', textContent: cleanCaption(i.text) }),
-            i.why_relevant ? el('p', { className: 'preview-why' }, el('b', { textContent: 'Почему отобран: ' }), i.why_relevant) : null,
-            el('p', { id: 'preview-error', className: 'preview-error', role: 'alert' }),
-            el('div', { className: 'preview-actions' },
-                el('button', { type: 'button', className: 'cta', textContent: '🚀', ariaLabel: 'Подготовить пост', title: 'Подготовить пост', onclick: () => openEditor(false) }),
-                bindFutureDraftButton(el('button', { type: 'button', className: 'ghost', textContent: '+🚀', ariaLabel: 'Добавить в будущий пост' }), () => i),
-                el('button', { type: 'button', className: 'ghost', textContent: '🕒', ariaLabel: 'Запланировать', title: 'Запланировать', onclick: () => openEditor(true) })),
-            i.source_url ? el('a', { className: 'preview-source', href: i.source_url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть оригинал ↗' }) : null));
-    dlg.onclose = () => { backdrop.hidden = true; dlg.querySelector('video')?.pause(); };
-    showPreview();
+    openPostView([post], 0, {
+        title: 'Просмотр поста',
+        actions: () => [
+            { label: 'Подготовить пост', icon: '🚀', primary: true, setup: button => applyRocketCheck(button, item.post_check, 'Подготовить пост'), run: () => openEditor(false) },
+            { label: 'Добавить в будущий пост', setup: button => bindFutureDraftButton(button, () => item, { click: false }), run: () => toggleFutureDraft(item) },
+            { label: 'Запланировать', icon: '🕒', run: () => openEditor(true) },
+        ],
+    });
 }
 
 // ---- Сводка подбора ----
@@ -398,8 +358,6 @@ function init() {
     loadLive();
     window.addEventListener('parser-stopped', loadLive);
     api('billing_info').then(showPlan).catch(() => {});
-    $('preview-backdrop').addEventListener('click', () => $('preview').close());
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('preview').open && $('image-viewer').hidden) $('preview').close(); }, true);
 }
 
 init();

@@ -222,7 +222,7 @@ function sideBlocks(post, { big = false, ctx = overlayContext(post) } = {}) {
     const blocks = [sourceRow(post), post.media?.length ? mosaicBlock(post.media, ctx) : null, textBlock(post, big)];
     if (post.poll) blocks.push(pollBlock(post.poll));
     if (ctx.stats) blocks.push(statsRow(post), insightBlock(post));
-    blocks.push(actionsBar(post, ctx.actions), ctx.link ? linkRow(post) : null);
+    blocks.push(selectionReasonBlock(post), actionsBar(post, ctx.actions), ctx.link ? linkRow(post) : null);
     return blocks.filter(Boolean);
 }
 
@@ -621,6 +621,10 @@ function actionsBar(post, actions) {
     }));
 }
 
+function selectionReasonBlock(post) {
+    return post.selectionReason ? el('p', { className: 'pv-facts' }, el('b', { textContent: 'Почему отобран: ' }), post.selectionReason) : null;
+}
+
 function linkRow(post) {
     return post.url ? el('a', { className: 'pv-link', href: post.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть в источнике ↗' }) : null;
 }
@@ -638,6 +642,7 @@ function articleBlock(post, ctx) {
         el('h2', { className: 'pv-article-title', textContent: a.title || post.text.split('\n')[0] || '' }),
         a.lead ? el('p', { className: 'pv-article-lead', textContent: a.lead }) : null,
         blocks,
+        selectionReasonBlock(post),
         actionsBar(post, ctx.actions),
         ctx.link ? linkRow(post) : null);
 }

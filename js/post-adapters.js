@@ -109,8 +109,9 @@ export function fromRecord(item) {
         reactions: reactions.length ? reactions : null };
     return {
         key: `record:${item?.item_key || item?.id || url || ''}`,
-        source: { name: item?.article?.site || hostOf(url || item?.url), url: url, badge: '' },
+        source: { name: item?.article?.site || String(item?.source || '').split(' | ').pop() || hostOf(url || item?.url), url, badge: '' },
         date: Number(item?.posted_at) > 0 ? Number(item.posted_at) : null,
+        selectionReason: typeof item?.why_relevant === 'string' ? item.why_relevant : '',
         url,
         text: plainText(item?.text),
         textHtml: typeof item?.text_html === 'string' ? item.text_html : '',
