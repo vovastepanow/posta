@@ -50,6 +50,13 @@ func ContentItemKey(item jx.M) string {
 	if item == nil {
 		return ""
 	}
+	// A publisher may reuse its logo or cover across unrelated articles.
+	// Use the original article identity, not that shared decoration.
+	if len(jx.Map(item, "article")) > 0 || jx.Bool(item, "article_source") {
+		if key := CandidatePostKey(item); key != "" {
+			return key
+		}
+	}
 	if PostItemHasVideo(item) || jx.Str(item, "video_via") != "" || jx.Bool(item, "video_unavailable") {
 		// Use the stable post or page identity even after the worker replaces
 		// the remote video with a local cache path.

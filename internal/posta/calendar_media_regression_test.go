@@ -72,3 +72,26 @@ func TestCalendarRichOriginal(t *testing.T) {
 		t.Fatal("incorrect rich post routing")
 	}
 }
+
+func TestCalendarArticleIdentityDoesNotUseCover(t *testing.T) {
+	cover := "https://example.org/shared-cover.jpg"
+	first := jx.M{"article_source": true, "image": cover, "url": "https://vc.ru/123456", "text": "First article"}
+	second := jx.M{"article_source": true, "image": cover, "url": "https://vc.ru/123457", "text": "Second article"}
+	if ContentItemKey(first) == ContentItemKey(second) || ContentItemKey(first) == cover {
+		t.Fatal("articles with shared covers have the same identity")
+	}
+	h := History{"liked": []jx.M{first, second}}
+	if got := calendarFillRecord(ContentItemKey(second), nil, h); jx.Str(got, "text") != "Second article" {
+		t.Fatal("wrong article selected")
+	}
+	if calendarFillRecord(cover, nil, h) != nil || historyCanonicalKey(h, cover) != "" {
+		t.Fatal("ambiguous legacy cover resolved to arbitrary article")
+	}
+	if got := calendarFillRecord(cover, []jx.M{first}, nil); ContentItemKey(got) != ContentItemKey(first) {
+		t.Fatal("unambiguous legacy cover lost compatibility")
+	}
+	history := (&App{}).ContentHistoryRecord(first, nil)
+	if ContentItemKey(history) != ContentItemKey(first) {
+		t.Fatal("article identity changed after saving history")
+	}
+}

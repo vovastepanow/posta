@@ -588,14 +588,26 @@ func calendarFillRecord(key string, pool []jx.M, h History) jx.M {
 	for _, c := range config.ProposalCollections {
 		lists = append(lists, h[c])
 	}
+	var found jx.M
+	identity := ""
 	for _, l := range lists {
 		for _, r := range l {
-			if ContentItemKey(r) == key && !jx.Bool(r, "proposal_hidden") && !jx.Bool(r, "content_deleted") {
-				return r
+			canonical := ContentItemKey(r)
+			if canonical == "" || (canonical != key && ContentImageKey(r) != key) ||
+				jx.Bool(r, "proposal_hidden") || jx.Bool(r, "content_deleted") {
+				continue
+			}
+			if identity != "" && identity != canonical {
+				// Old clients address a thumbnail. Never choose between
+				// two distinct articles or videos with the same cover.
+				return nil
+			}
+			if found == nil {
+				found, identity = r, canonical
 			}
 		}
 	}
-	return nil
+	return found
 }
 
 // CalendarFillApply — каждый пост ставится той же подготовкой и очередью, что обычная публикация; частичный успех — не ошибка.
@@ -638,8 +650,9 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 	}
 	record := calendarFillRecord(key, pool, history)
 	if record == nil {
-		return "", NotFound("Запись больше не доступна для планирования.")
+		return "", NotFound("Запись больше не доступна или неоднозначна. Обновите календарь.")
 	}
+	key = ContentItemKey(record)
 	if u.UARecordHidden(record) || (!u.AdultAllowed() && u.ContentIsAdult(record)) {
 		return "", Bad("Публикация этого материала недоступна.")
 	}

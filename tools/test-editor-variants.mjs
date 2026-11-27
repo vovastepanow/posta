@@ -43,3 +43,5 @@ assert.equal(editorArticleURL({url:'javascript:alert(1)',source_url:'https://exa
 const destinations=[{value:'tg:main'},{value:'vk:group'},{value:'tg:second'}];
 assert.deepEqual(editorDestinationSelection(destinations,['primary','group','second'],'primary'),['tg:main','vk:group','tg:second']);
 assert.throws(()=>editorDestinationSelection(destinations,['missing'],'primary'));
+
+assert.notEqual(editorRecordKey({url:'https://example.org/1',source_url:'https://example.org/feed'}),editorRecordKey({url:'https://example.org/2',source_url:'https://example.org/feed'}));
