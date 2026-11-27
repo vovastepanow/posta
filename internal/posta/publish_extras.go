@@ -97,7 +97,7 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 			if !contains([]string{"following","mentionedUsers","subscribers","verified"},v){return nil,Bad("X: неизвестное ограничение ответов.")}
 			out[key]=v
 		case "max_sticker":
-			v:=strings.TrimSpace(jx.ToStr(value));if !regexp.MustCompile("^[A-Za-z0-9_-]{1,128}$").MatchString(v){return nil,Bad("Укажите код стикера MAX.")}
+			v:=strings.TrimSpace(jx.ToStr(value));if !publishStickerPattern.MatchString(v){return nil,Bad("Укажите код стикера MAX.")}
 			out[key]=v
 		case "ig_story":
 			if len(kinds)!=1||!contains([]string{"photo","image","video"},kinds[0])||strings.TrimSpace(text)!=""{return nil,Bad("Stories: одно фото или видео, без подписи.")};out[key]=true
@@ -113,7 +113,7 @@ func PublishExtrasCheck(platform,text string,kinds []string,poll,raw jx.M) (jx.M
 			case "yt_privacy":if !contains([]string{"private","unlisted","public"},v){return nil,Bad("Некорректная видимость YouTube.")}
 			case "yt_audience":if !contains([]string{"kids","not_kids"},v){return nil,Bad("Укажите аудиторию YouTube.")}
 			case "yt_license":if !contains([]string{"youtube","creativeCommon"},v){return nil,Bad("Некорректная лицензия YouTube.")}
-			case "yt_category":if !regexp.MustCompile(`^[1-9][0-9]{0,2}$`).MatchString(v){return nil,Bad("Категория YouTube: числовой ID.")}
+			case "yt_category":if !publishYTCategoryPattern.MatchString(v){return nil,Bad("Категория YouTube: числовой ID.")}
 			case "yt_tags":
 				tags:=[]string{};n:=0;seen:=map[string]bool{}
 				for _,tag:=range strings.Split(v,","){tag=strings.TrimSpace(tag);if tag==""||seen[strings.ToLower(tag)]{continue};if strings.ContainsAny(tag,"<>\r\n"){return nil,Bad("Некорректный тег YouTube.")};seen[strings.ToLower(tag)]=true;n+=runeLen(tag)+1;if strings.Contains(tag," "){n+=2};tags=append(tags,tag)}
@@ -164,7 +164,11 @@ func telegramExtraFields(fields map[string]string,extra jx.M) {
 	}
 }
 
-var publishPhonePattern=regexp.MustCompile(`^[+][1-9][0-9]{6,14}$`)
+var (
+	publishPhonePattern = regexp.MustCompile(`^[+][1-9][0-9]{6,14}$`)
+	publishStickerPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+	publishYTCategoryPattern = regexp.MustCompile(`^[1-9][0-9]{0,2}$`)
+)
 
 // PostExtrasStandalone is only used after validating extras.
 func PostExtrasStandalone(extra jx.M) bool { return jx.Map(extra,"location")!=nil||jx.Map(extra,"contact")!=nil||jx.Str(extra,"max_sticker")!="" }

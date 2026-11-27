@@ -8,8 +8,9 @@ func autopilotProbationPoolAllowed(pool []jx.M, topic, source string, probation 
 	}
 	limit := max(1, target*max(1, min(100, percent))/100)
 	count := 0
+	topicKey := autopilotTopicKey(topic)
 	for _, item := range pool {
-		if autopilotTopicKey(jx.Str(item, "topic")) != autopilotTopicKey(topic) {
+		if autopilotTopicKey(jx.Str(item, "topic")) != topicKey {
 			continue
 		}
 		current := ContentSourceKey(item)

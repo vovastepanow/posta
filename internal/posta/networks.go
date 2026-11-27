@@ -334,17 +334,7 @@ func (n *Network) PublishingConnectionAllowed(owner bool) bool {
 
 // NetworksPublicFor — реестр с учётом прав пользователя.
 func (a *App) NetworksPublicFor(owner bool) jx.M {
-	out := a.NetworksPublic()
-	for k, n := range a.Networks() {
-		if !publishingInScope(k) {
-			delete(out, k)
-			continue
-		}
-		if entry, ok := out[k].(jx.M); ok {
-			entry["connect_available"] = n.PublishingConnectionAllowed(owner)
-		}
-	}
-	return out
+	return a.networksPublic(owner, true)
 }
 
 // PublishingInScope gates new publication requests, not historical records.
@@ -352,11 +342,23 @@ func PublishingInScope(platform string) bool { return publishingInScope(platform
 
 // NetworksPublic — реестр для интерфейса.
 func (a *App) NetworksPublic() jx.M {
+	return a.networksPublic(false, false)
+}
+
+func (a *App) networksPublic(owner, scoped bool) jx.M {
 	out := jx.M{}
 	for k, n := range a.Networks() {
+		inScope := publishingInScope(k)
+		if scoped && !inScope {
+			continue
+		}
+		available := n.PublishingConnectionAvailable()
+		if scoped {
+			available = n.PublishingConnectionAllowed(owner)
+		}
 		out[k] = jx.M{"title": n.Title, "prefix": n.Prefix, "status": n.Status, "note": n.Note, "text_limit": n.TextLimit, "media_max": n.MediaMax,
 			"kinds": orStrs(n.Kinds), "max_bytes": n.MaxBytes, "poll": n.Poll, "poll_limits": networkPollLimits(k), "extras":postExtraKinds(k), "fields": n.Fields, "docs": n.Docs, "oauth": n.OAuth != nil,
-			"connect_available": n.PublishingConnectionAvailable(), "publishing_in_scope": publishingInScope(k)}
+			"connect_available": available, "publishing_in_scope": inScope}
 	}
 	return out
 }

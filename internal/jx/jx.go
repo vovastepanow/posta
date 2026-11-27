@@ -171,29 +171,39 @@ func ToList(v any) []any {
 func Maps(m M, k string) []M { return ToMaps(m[k]) }
 
 func ToMaps(v any) []M {
-	var out []M
-	for _, e := range ToList(v) {
-		if x, ok := e.(M); ok {
-			out = append(out, x)
+	switch x := v.(type) {
+	case []M:
+		// Preserve the independent slice and nil result for an empty list.
+		return append([]M(nil), x...)
+	case []any:
+		var out []M
+		for _, e := range x {
+			if m, ok := e.(M); ok {
+				out = append(out, m)
+			}
 		}
+		return out
 	}
-	return out
+	return nil
 }
 
 // Strs — строки списка (не строки пропускаются).
 func Strs(m M, k string) []string { return ToStrs(m[k]) }
 
 func ToStrs(v any) []string {
-	if s, ok := v.([]string); ok {
-		return s
-	}
-	var out []string
-	for _, e := range ToList(v) {
-		if s, ok := e.(string); ok {
-			out = append(out, s)
+	switch x := v.(type) {
+	case []string:
+		return x
+	case []any:
+		var out []string
+		for _, e := range x {
+			if s, ok := e.(string); ok {
+				out = append(out, s)
+			}
 		}
+		return out
 	}
-	return out
+	return nil
 }
 
 // Copy — поверхностная копия записи.
