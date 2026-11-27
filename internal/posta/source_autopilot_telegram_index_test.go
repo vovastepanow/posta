@@ -39,3 +39,10 @@ func TestAutopilotTelegramIndexRanksActiveBeforeStale(t *testing.T) {
 		t.Fatalf("unexpected ranking: %+v %v",got,err)
 	}
 }
+
+func TestTelegramIndexCacheKeyNormalizesOnlySameIntent(t *testing.T) {
+	key := telegramIndexCacheKey("  SMM   cases ")
+	if key != telegramIndexCacheKey("smm cases") || key == telegramIndexCacheKey("smm tutorials") || key == telegramIndexCacheKey("cases smm") {
+		t.Fatal("incorrect directory search identity")
+	}
+}

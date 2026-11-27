@@ -12,6 +12,10 @@ on:
       - internal/posta/source_autopilot_queries.go
       - internal/posta/source_autopilot_shadow.go
       - internal/posta/source_autopilot_reuse.go
+      - internal/posta/source_autopilot_brave.go
+      - internal/posta/source_autopilot_telegram_index.go
+      - internal/posta/source_autopilot_youtube_search.go
+      - internal/posta/source_autopilot_social.go
       - internal/posta/discovery.go
 
 permissions:

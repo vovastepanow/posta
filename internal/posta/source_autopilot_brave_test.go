@@ -208,3 +208,22 @@ func TestAutopilotPublisherSearchStatusDistinguishesOffsiteResults(t *testing.T)
 		}
 	}
 }
+
+func TestAutopilotPublisherSearchDoesNotLearnFromUnknownBravePage(t *testing.T) {
+	primary := FetchResultURL{URL: "https://search.brave.com/search", FetchResult: FetchResult{OK: true, Status: 200, Bytes: []byte("<html>Consent required</html>")}}
+	if got := autopilotPublisherSearchStatus(primary, PlatformTelegram); got != "unavailable" {
+		t.Fatalf("unknown markup treated as %s", got)
+	}
+	primary.Bytes = []byte("<html>No results found for your query</html>")
+	if got := autopilotPublisherSearchStatus(primary, PlatformTelegram); got != "empty" {
+		t.Fatalf("explicit empty result treated as %s", got)
+	}
+	primary.Bytes = []byte("<html>Search temporarily unavailable</html>")
+	bing := func(raw string, _ int64, _ time.Duration, _ string) FetchResultURL {
+		return FetchResultURL{URL: raw, FetchResult: FetchResult{OK: true, Status: 200, Bytes: []byte("<rss><channel><item><link>https://example.org/cats</link></item></channel></rss>")}}
+	}
+	got := autopilotPublisherSearchWith("site:t.me cats", PlatformTelegram, func(string) FetchResultURL { return primary }, bing)
+	if autopilotPublisherSearchStatus(got, PlatformTelegram) != "unavailable" || !strings.Contains(got.URL, "bing.com") {
+		t.Fatal("site filter failure masked by unknown primary document")
+	}
+}

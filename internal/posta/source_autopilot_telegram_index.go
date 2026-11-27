@@ -128,13 +128,28 @@ func (u *U) autopilotTelegramIndexRequest(query string) ([]DiscoveryCandidate, e
 	return autopilotTelegramIndexRankedCandidates(r.Bytes,query,time.Now())
 }
 
+// Cache only validated public channel identities, not raw directory pages.
+// Identical search intents can reuse one request across public topics.
+func telegramIndexCacheKey(query string) string {
+	return fmt.Sprintf("telegram_index:v1:%x", sha256.Sum256([]byte(strings.ToLower(strings.Join(strings.Fields(query), " ")))))
+}
+
 // A small optional fallback, not a bulk crawler. Four requests per UTC day
-// across processes, at most one per normalized query. Provider errors stop
-// requests for the rest of the day. No user credentials or content are sent.
+// across processes, at most one per normalized query. No user credentials
+// or source contents are sent.
 func (u *U) autopilotTelegramIndex(query string) ([]DiscoveryCandidate, error) {
 	query = strings.Join(strings.Fields(query), " ")
 	if query == "" || utf8.RuneCountInString(query) > 64 || u.DB == nil {
 		return nil, errors.New("Telegram directory query unavailable")
+	}
+	job, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob)
+	if !leased || !validAutopilotPublicJob(job) {
+		return nil, errors.New("Telegram directory requires an active public worker")
+	}
+	key := telegramIndexCacheKey(query)
+	var cached []DiscoveryCandidate
+	if u.CacheGet(u.Ctx, key, &cached) {
+		return cached, nil
 	}
 	now := time.Now().UTC()
 	if KV(u.App, u.Ctx, "autopilot_telegram_index_pause_until", int64(0)) > now.Unix() {
@@ -142,18 +157,19 @@ func (u *U) autopilotTelegramIndex(query string) ([]DiscoveryCandidate, error) {
 	}
 	day := now.Format("2006-01-02")
 	id := fmt.Sprintf("telegram_index:%s:%x", day, sha256.Sum256([]byte(strings.ToLower(query))))
-	job, leased := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob)
-	if !leased || !validAutopilotPublicJob(job) {
-		return nil, errors.New("Telegram directory requires an active public worker")
-	}
 	if err := reserveAutopilotJobBudget(u.Ctx, u.DB, job, id, "server", "telegram_index", now, 1, 4); err != nil {
 		return nil, err
 	}
 	out, err := u.autopilotTelegramIndexRequest(query)
 	if err != nil {
-		until := max(now.Add(24*time.Hour).Unix(), KV(u.App, u.Ctx, "autopilot_telegram_index_pause_until", int64(0)))
-		_ = u.KVSet(u.Ctx, "autopilot_telegram_index_pause_until", until, time.Until(time.Unix(until, 0)))
+		// A locally exhausted fetch quota or cancelled worker says nothing
+		// about the health of the external directory.
+		if u.Ctx.Err() == nil && autopilotBudgetError(u.Ctx) == nil && !autopilotSearchFetchCapReached(u.Ctx) {
+			until := max(now.Add(24*time.Hour).Unix(), KV(u.App, u.Ctx, "autopilot_telegram_index_pause_until", int64(0)))
+			_ = u.KVSet(u.Ctx, "autopilot_telegram_index_pause_until", until, time.Until(time.Unix(until, 0)))
+		}
 		return nil, err
 	}
+	u.CacheSet(u.Ctx, key, out, 24*time.Hour)
 	return out, nil
 }

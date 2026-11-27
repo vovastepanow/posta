@@ -493,7 +493,7 @@ func TestAutopilotLiveSearchLinkComparison(t *testing.T) {
 		{"site:vk.com уход за домашними кошками", PlatformVK},
 		{"site:youtube.com/channel astrophotography tutorials", PlatformRSS},
 	}
-	available, found := 0, 0
+	available, found, unavailableSiteSearch := 0, 0, 0
 	for _, tc := range cases {
 		if ctx.Err() != nil {
 			break
@@ -505,6 +505,11 @@ func TestAutopilotLiveSearchLinkComparison(t *testing.T) {
 		}
 		p, _ := url.Parse(res.URL)
 		available++
+		status := autopilotPublisherSearchStatus(res, tc.platform)
+		if status == "unavailable" {
+			unavailableSiteSearch++
+		}
+		t.Logf("LIVE SEARCH STATUS: query=%q status=%s", tc.query, status)
 		old := map[string]bool{}
 		for _, candidate := range SourceLinkedSources(string(res.Bytes)) {
 			if candidate.Platform == tc.platform {
@@ -531,7 +536,7 @@ func TestAutopilotLiveSearchLinkComparison(t *testing.T) {
 		t.Skip("anonymous search provider unavailable; no live comparison can be claimed")
 	}
 	if found == 0 {
-		t.Fatal("search returned accessible documents but no supported direct publisher hyperlinks; inspect live provider markup")
+		t.Fatalf("external site search yielded no publishers (unavailable or ignored site filter=%d/%d); native discovery is tested separately", unavailableSiteSearch, available)
 	}
 }
 

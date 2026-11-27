@@ -79,7 +79,10 @@ func autopilotPublisherSearchWith(query, platform string, brave func(string) Fet
 				return page
 			}
 		}
-		if !autopilotPublisherSearchResponseValid(primary) {
+		// Prefer a confirmed empty result over an unavailable provider.
+		// A syntactically valid Brave page alone is not proof of no matches.
+		if autopilotPublisherSearchStatus(secondary, platform) == "empty" ||
+			autopilotPublisherSearchStatus(primary, platform) != "empty" {
 			return secondary
 		}
 	}
@@ -114,14 +117,21 @@ func autopilotPublisherSearchStatus(r FetchResultURL, platform string) string {
 	}
 	p, _ := url.Parse(r.URL)
 	if p.Host == "www.bing.com" {
-		if doc := rssLoad(r.Bytes); rssIsFeed(doc) && len(rssItems(doc)) > 0 {
+		if doc := rssLoad(r.Bytes); rssIsFeed(doc) {
+			if len(rssItems(doc)) == 0 {
+				return "empty"
+			}
 			return "unavailable"
 		}
-		if len(autopilotBingHTMLLinks(r.Bytes, p)) > 0 {
-			return "unavailable"
-		}
+		return "unavailable"
 	}
-	return "empty"
+	// A consent page, changed markup, or off-site results are not a
+	// successful negative search. Only an explicit no-results marker is.
+	lower := strings.ToLower(string(r.Bytes))
+	if strings.Contains(lower, "no results found for") || strings.Contains(lower, "no results found for your query") {
+		return "empty"
+	}
+	return "unavailable"
 }
 
 // Only result-title anchors within Bing's actual organic result rows count.
