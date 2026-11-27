@@ -1459,6 +1459,12 @@ function postActions(post) {
     const { id } = post;
     const toneOf = label => (['В лучшее время', 'Повторить'].includes(label) ? 'primary-button' : ['Отменить', 'Удалить'].includes(label) ? 'cal-act is-danger' : 'cal-act');
     const action = (label, run, confirmText = '') => el('button', { type: 'button', className: toneOf(label), textContent: label, onclick: () => runAction(run, confirmText) });
+    const copyAction = () => action('Копия в канал…', async () => {
+        const at = await pickTime(post);
+        if (!at) return '';
+        await api('telegram_duplicate', { body: { id, publish_at: unix(at.getTime()) } });
+        return `Копия создана на ${whenLabel(at.getTime())}.`;
+    });
     if (post.status === 'queued') return [
         el('button', { type: 'button', className: 'primary-button', textContent: 'Редактировать', onclick: () => openQueuePost(post) }),
         action('В лучшее время', () => api('telegram_reschedule', { body: { id, slot: true } }).then(() => 'Пост перенесён в ближайший слот.')),
@@ -1468,23 +1474,13 @@ function postActions(post) {
             await api('telegram_reschedule', { body: { id, publish_at: unix(at.getTime()) } });
             return `Пост перенесён на ${whenLabel(at.getTime())}.`;
         }),
-        action('Копия в канал…', async () => {
-            const at = await pickTime(post);
-            if (!at) return '';
-            await api('telegram_duplicate', { body: { id, publish_at: unix(at.getTime()) } });
-            return `Копия создана на ${whenLabel(at.getTime())}.`;
-        }),
+        copyAction(),
         action('Отменить', () => api('telegram_cancel', { body: { id } }).then(() => 'Отложенный пост отменён.'), 'Отменить пост? Он не будет опубликован.')
     ];
     if (post.status === 'failed') return [
         el('button', { type: 'button', className: 'cal-act', textContent: 'Редактировать', onclick: () => openQueuePost(post) }),
         action('Повторить', () => api('telegram_retry', { body: { id } }).then(() => 'Пост снова в очереди.')),
-        action('Копия в канал…', async () => {
-            const at = await pickTime(post);
-            if (!at) return '';
-            await api('telegram_duplicate', { body: { id, publish_at: unix(at.getTime()) } });
-            return `Копия создана на ${whenLabel(at.getTime())}.`;
-        }),
+        copyAction(),
         action('Удалить', () => api('telegram_cancel', { body: { id } }).then(() => 'Пост удалён.'), 'Удалить пост из очереди?')
     ];
     if (post.status === 'telegram') return [

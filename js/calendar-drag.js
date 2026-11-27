@@ -15,6 +15,15 @@ const STICK_WORD = { slot: 'к слоту расписания', hour: 'к ча�
 
 let drag = null;   // активный перенос: {post, card, host, origin, began, target, ...}
 
+// Обе точки входа используют один набор обработчиков; cleanup снимает тот же набор.
+function setDragListeners(active) {
+    const method = active ? 'addEventListener' : 'removeEventListener';
+    for (const [event, handler] of [
+        ['pointermove', onMove], ['pointerup', onUp], ['pointercancel', cancelDrag],
+        ['keydown', onKey], ['keyup', onKey]
+    ]) document[method](event, handler);
+}
+
 /** Перенос поста: мышь — со сдвига на 5 px, палец — после удержания; sent, sending, telegram не двигаются. */
 export function startDrag(event, post, card, host) {
     if (drag || event.button !== 0 || !['queued', 'failed'].includes(post.status)) return;
@@ -22,11 +31,7 @@ export function startDrag(event, post, card, host) {
     drag = { post, card, host, touch, origin: post.at * 1000, x0: event.clientX, y0: event.clientY, last: event, began: false, copy: false,
         target: null, ghost: null, line: null, marks: null, edgeDir: 0, edgeTimer: 0, vEdgeDir: 0, vEdgeTimer: 0, holdTimer: 0, lastKind: null, lastDay: null };
     if (touch) drag.holdTimer = setTimeout(() => drag && begin(drag), TOUCH_HOLD_MS);
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-    document.addEventListener('pointercancel', cancelDrag);
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('keyup', onKey);
+    setDragListeners(true);
 }
 
 /** Esc или отмена указателя: перенос снимается, пост остаётся на месте. */
@@ -45,11 +50,7 @@ export function startPoolDrag(event, item, node, host) {
     drag = { post: { channel, status: 'queued', text: item.text || '' }, kind: 'pool', item, card: node, host, touch: false, origin: null,
         x0: event.clientX, y0: event.clientY, last: event, began: false, copy: false, target: null, ghost: null, line: null, marks: null,
         edgeDir: 0, edgeTimer: 0, vEdgeDir: 0, vEdgeTimer: 0, holdTimer: 0, lastKind: null, lastDay: null };
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-    document.addEventListener('pointercancel', cancelDrag);
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('keyup', onKey);
+    setDragListeners(true);
 }
 
 export const isDragging = () => drag !== null;
@@ -293,11 +294,7 @@ function cleanup() {
     clearInterval(d.edgeTimer);
     clearInterval(d.vEdgeTimer);
     if (d.vEdgeDir) d.host.thawHours();
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', cancelDrag);
-    document.removeEventListener('keydown', onKey);
-    document.removeEventListener('keyup', onKey);
+    setDragListeners(false);
     d.ghost?.remove();
     d.preview?.remove();
     d.was?.remove();
