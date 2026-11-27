@@ -70,6 +70,12 @@ func TestOutboxEditPostgres(t *testing.T) {
 		f.Close()
 		media = append(media, jx.M{"kind": "photo", "path": path, "name": name, "src": "https://example.com/" + name})
 	}
+	// Keep upload bytes independently of the queue, whose obsolete files
+	// are deliberately removed after a successful edit.
+	file, err := os.ReadFile(filepath.Join(dir, "first.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	post := jx.M{"id": id, "status": "queued", "channel": "test-edit-channel", "publish_at": time.Now().Unix() + 3600, "text": "old", "media": media}
 	_, err = d.Pool.Exec(ctx, `INSERT INTO outbox(id,user_id,publish_at,status,data) VALUES($1,$2,$3,'queued',$4)`, id, uid, jx.Int(post, "publish_at"), jx.Marshal(post))
 	if err != nil {
@@ -107,6 +113,11 @@ func TestOutboxEditPostgres(t *testing.T) {
 	if _, err = os.Stat(jx.Str(files[0], "path")); err != nil {
 		t.Fatal(err)
 	}
+	for _, name := range []string{"first.png", "second.png"} {
+		if _, e := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(e) {
+			t.Fatalf("obsolete file %s was not removed: %v", name, e)
+		}
+	}
 	request = httptest.NewRequest("POST", "/", bytes.NewReader(body.Bytes()))
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	if _, err = saveOutboxEdit(&Ctx{A: a, U: u, W: httptest.NewRecorder(), R: request}); posta.StatusOf(err) != 409 {
@@ -120,10 +131,6 @@ func TestOutboxEditPostgres(t *testing.T) {
 		}
 	}
 	part, err := w.CreateFormFile("files[]", "new.png")
-	if err != nil {
-		t.Fatal(err)
-	}
-	file, err := os.ReadFile(filepath.Join(dir, "first.png"))
 	if err != nil {
 		t.Fatal(err)
 	}
