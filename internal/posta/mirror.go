@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"encoding/json"
 	"os"
 	"regexp"
 	"sort"
@@ -148,15 +149,13 @@ func (u *U) mirrorRows() []mirrorRow {
 		var m mirrorRow
 		var rules, seen []byte
 		if rows.Scan(&m.ID, &m.Platform, &m.SourceID, &m.Name, &m.ChannelID, &m.Mode, &rules, &seen, &m.LastChecked, &m.Created) == nil {
-			jsonInto(rules, &m.Rules)
-			jsonInto(seen, &m.Seen)
+			_ = json.Unmarshal(rules, &m.Rules)
+			_ = json.Unmarshal(seen, &m.Seen)
 			out = append(out, m)
 		}
 	}
 	return out
 }
-
-func jsonInto(b []byte, dest any) { _ = jsonUnmarshal(b, dest) }
 
 // MirrorList — зеркала для страницы.
 func (u *U) MirrorList() []jx.M {

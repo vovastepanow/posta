@@ -1,6 +1,7 @@
 package posta
 
 import (
+	"encoding/json"
 	"context"
 	"fmt"
 	"os"
@@ -558,7 +559,7 @@ func (a *App) RadarAPI(ctx context.Context, op string, in jx.M) (jx.M, error) {
 		}
 		if bl := jx.Map(in, "blocklist"); bl != nil {
 			var l UABlocklist
-			jsonInto(jx.Marshal(bl), &l)
+			_ = json.Unmarshal(jx.Marshal(bl), &l)
 			a.UABlocklistSave(ctx, l)
 		}
 		return a.uaFilterPublic(ctx), nil
