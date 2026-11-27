@@ -445,6 +445,11 @@ func (a *App) autopilotMarkPhase(ctx context.Context, job *autopilotJob, phase s
 	return saveAutopilotCheckpoint(ctx, a.DB, job)
 }
 
+// Both the scheduler and the public diagnostics use this readiness rule.
+// $3 is the observation timestamp in their source queue queries.
+const autopilotCandidateReadySQL = `state='candidate' AND (next_check_at <= $3 OR reason='probation_full' OR
+	(reason IN ('feed_unavailable','insufficient_fresh_samples') AND checked_at < $3-3600))`
+
 func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) error {
 	if !validAutopilotPublicJob(job) {
 		return errors.New("invalid public topic job")
@@ -523,8 +528,7 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	{
 		var dueCandidates, dueReaudit int
 		if err := a.DB.Pool.QueryRow(ctx, `SELECT
-			count(*) FILTER (WHERE state='candidate' AND (next_check_at <= $3 OR reason='probation_full' OR
-				(reason IN ('feed_unavailable','insufficient_fresh_samples') AND checked_at < $3-3600))),
+			count(*) FILTER (WHERE `+autopilotCandidateReadySQL+`),
 			count(*) FILTER (WHERE evidence ? 'review_policy_v3_scheduled' AND NOT (evidence ? 'review_policy_v3_checked') AND next_check_at <= $3)
 			FROM source_autopilot_sources
 			WHERE scope=$1 AND topic_key=$2
@@ -534,9 +538,10 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 			return err
 		}
 		lastSearch := jx.Int(jx.Unmarshal(job.Checkpoint), "last_search_at")
-		directOnly = autopilotBacklogDirectSearch(job.Scope, dueCandidates, lastSearch, time.Now().Unix())
+		at := time.Now().Unix()
+		directOnly = autopilotBacklogDirectSearch(job.Scope, dueCandidates, lastSearch, at)
 		if !directOnly && (autopilotShouldDrainCandidateBacklog(dueCandidates) ||
-			autopilotShouldDrainReaudit(dueReaudit, lastSearch, time.Now().Unix())) {
+			autopilotShouldDrainReaudit(dueReaudit, lastSearch, at)) {
 			if err := a.autopilotMarkPhase(ctx, job, "review"); err != nil {
 				return err
 			}
@@ -577,52 +582,12 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 		u.discoverySearchObservation = func(backend, _ string, result string) {
 			recordAutopilotBackendStatus(statuses, backend, result)
 		}
+		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
 		var backends []func() []DiscoveryCandidate
-		if a.TBool("search_telegram") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindPublicSocial(query, PlatformTelegram) })
-		}
-		if a.TBool("search_vk") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindPublicSocial(query, PlatformVK) })
-		}
-		if a.TBool("search_youtube") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindYouTube(query) })
-		}
-		if a.TBool("search_rutube") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindRutube(query) })
-		}
-		if a.TBool("autopilot_search_tiktok") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindPublicSocial(query, PlatformTikTok) })
-		}
-		if a.TBool("autopilot_search_ok") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindOK([]string{query}, job.Topic) })
-		}
-		if a.TBool("search_bluesky") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindBluesky([]string{query}) })
-		}
-		if a.TBool("search_lemmy") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindLemmy([]string{query}, job.Topic) })
-		}
-		if a.TBool("search_mastodon") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindMastodon(query) })
-		}
-		if a.TBool("search_reddit") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindReddit(query) })
-		}
-		if a.TBool("autopilot_search_habr") {
-			turn := int(jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn") % 11)
-			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindHabr(query, turn) })
-		}
-		if a.TBool("autopilot_search_tumblr") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.autopilotFindTumblr(query) })
-		}
-		if a.TBool("search_news") {
-			backends = append(backends, func() []DiscoveryCandidate { return u.discoveryFindNewsFeeds([]string{query}) })
-		}
-		if directOnly {
-			backends = nil
+		if !directOnly {
+			backends = u.autopilotSearchBackends(query, job.Topic, turn)
 		}
 		enabledBackends = len(backends)
-		turn := jx.Int(jx.Unmarshal(job.Checkpoint), "query_turn")
 		// Spend a bounded share of the existing search budget on finding
 		// actual publications before scanning publisher directories. Only
 		// independently admitted posts nominate their authors here. Broad
@@ -732,19 +697,8 @@ func (a *App) autopilotShadowSearch(ctx context.Context, job *autopilotJob) erro
 	if reviewErr := a.autopilotReviewShadowCandidates(ctx, job, 8); reviewErr != nil {
 		return reviewErr
 	}
-	if job.Scope == autopilotAutoScope {
-		if phaseErr := a.autopilotMarkPhase(ctx, job, "delivery_projection"); phaseErr != nil {
-			return phaseErr
-		}
-		if projectionErr := a.reconcileAutopilotProjections(ctx, job); projectionErr != nil {
-			return projectionErr
-		}
-		if phaseErr := a.autopilotMarkPhase(ctx, job, "delivery_content"); phaseErr != nil {
-			return phaseErr
-		}
-		if deliveryErr := a.deliverAutopilotTopicContent(ctx, job); deliveryErr != nil {
-			return deliveryErr
-		}
+	if deliveryErr := a.autopilotFinishBacklog(ctx, job); deliveryErr != nil {
+		return deliveryErr
 	}
 	if err != nil {
 		return err

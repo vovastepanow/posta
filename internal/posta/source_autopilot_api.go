@@ -246,9 +246,8 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		var ready, delayed, unchecked, recentChecks, aiPending int
 		var reauditTotal, reauditChecked, reauditReady int
 		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT
-			count(*) FILTER (WHERE state='candidate' AND (next_check_at <= $3 OR reason='probation_full' OR
-				(reason IN ('feed_unavailable','insufficient_fresh_samples') AND checked_at < $3-3600))),
-			count(*) FILTER (WHERE state='candidate' AND next_check_at > $3 AND reason<>'probation_full'),
+			count(*) FILTER (WHERE `+autopilotCandidateReadySQL+`),
+			count(*) FILTER (WHERE state='candidate' AND NOT (`+autopilotCandidateReadySQL+`)),
 			count(*) FILTER (WHERE state='candidate' AND checked_at=0),
 			count(*) FILTER (WHERE checked_at >= $4),
 			count(*) FILTER (WHERE reason='assessment_unavailable' AND checked_at >= $4),
