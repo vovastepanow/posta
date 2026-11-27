@@ -2773,3 +2773,6 @@ dialog::backdrop {
 /* Keep editing by keyboard/wheel available for long text without visible scrollbars. */
 .pe-window,.pe-window *{scrollbar-width:none}
 .pe-window::-webkit-scrollbar,.pe-window *::-webkit-scrollbar{display:none;width:0;height:0}
+
+/* Extreme viewport fallback: no visible scrollbars, but no clipped inputs. */
+.pe-window .pe-compose-column[data-overflow=true],.pe-window .pe-settings-column[data-overflow=true]{overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}

@@ -169,8 +169,8 @@ function buildUi() {
         el('label',{className:'pe-poll-duration'},el('span',{textContent:'Правильный ответ'}),u.correct),u.explanation);
     u.mediaSection.insertBefore(u.pollSection,u.note);
     u.extraPager=el('div',{className:'pe-pager',hidden:true});
-    u.settingsOpen=button('pe-btn pe-settings-open','Настройки публикации →',()=>{u.settingsColumn.dataset.view='settings';});
-    u.settingsBack=button('pe-chip-btn','← Назад',()=>{u.settingsColumn.dataset.view='main';});
+    u.settingsOpen=button('pe-btn pe-settings-open','Настройки публикации →',()=>{u.settingsColumn.dataset.view='settings';u.settingsColumn.scrollTop=0;queueComposerFit();});
+    u.settingsBack=button('pe-chip-btn','← Назад',()=>{u.settingsColumn.dataset.view='main';u.settingsColumn.scrollTop=0;queueComposerFit();});
     u.extraSection=el('section',{className:'pe-section pe-extra-section'},el('div',{className:'pe-section-head'},el('h3',{textContent:'Настройки публикации'}),u.settingsBack),u.extras,u.buttons,u.extraPager);
     u.leftNav=el('div',{className:'pe-pane-nav',hidden:true},
         button('pe-chip-btn','Текст',()=>{session.leftView='text';fitComposer();}),
@@ -181,7 +181,7 @@ function buildUi() {
     u.settingsColumn.dataset.view='main';
     u.mobileNav=el('div',{className:'pe-mobile-nav'},
         button('pe-chip-btn','Содержимое',()=>{u.form.dataset.mobile='compose';fitComposer();}),
-        button('pe-chip-btn','Куда и когда',()=>{u.form.dataset.mobile='settings';}));
+        button('pe-chip-btn','Куда и когда',()=>{u.form.dataset.mobile='settings';queueComposerFit();}));
     u.form = el('form', { className: 'pe-window', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'post-editor-title' },
         el('header', { className: 'pe-header' }, el('div', { className: 'pe-heading' }, el('span', { className: 'pe-icon', textContent: '🚀' }), u.title), u.close),
         u.mobileNav,
@@ -220,7 +220,8 @@ function buildUi() {
     });
     u.form.addEventListener('submit', submit);
     document.body.append(u.overlay);
-    new ResizeObserver(()=>queueComposerFit()).observe(u.composeColumn);
+    const fitObserver=new ResizeObserver(()=>queueComposerFit());
+    fitObserver.observe(u.composeColumn);fitObserver.observe(u.settingsColumn);
     u.styleBox.addEventListener('toggle',queueComposerFit);
     return u;
 }
@@ -402,12 +403,20 @@ function queueComposerFit(){
     if(!session||fitFrame)return;
     fitFrame=requestAnimationFrame(()=>{fitFrame=0;if(session)fitComposer();});
 }
+function fitPaneOverflow(pane){
+    if(!pane.clientHeight)return;
+    const overflow=pane.scrollHeight>pane.clientHeight+2;
+    pane.dataset.overflow=String(overflow);
+    if(!overflow)pane.scrollTop=0;
+}
 function fitComposer(){
-    if(!session||!ui.composeColumn.clientHeight)return;
+    if(!session)return;
+    fitPaneOverflow(ui.settingsColumn);
+    if(!ui.composeColumn.clientHeight)return;
     const col=ui.composeColumn,nav=ui.leftNav;
     // Measure the full layout; if it cannot fit, replace overflow with explicit section navigation.
     col.dataset.view='all';col.dataset.splitPoll='false';nav.hidden=true;
-    if(col.scrollHeight<=col.clientHeight+2){session.leftView='';return;}
+    if(col.scrollHeight<=col.clientHeight+2){session.leftView='';fitPaneOverflow(col);return;}
     const hasText=!ui.textSection.hidden,hasPoll=!ui.pollSection.hidden;
     const preferred=session.leftView||(!hasText||session.poll||ui.mediaSection.contains(document.activeElement)?'media':'text');
     nav.hidden=false;
@@ -423,6 +432,9 @@ function fitComposer(){
     if(hasPoll&&session.leftView==='media'&&col.dataset.splitPoll==='true')col.dataset.view='media';
     session.leftView=col.dataset.view;
     [...nav.children].forEach((b,i)=>b.classList.toggle('is-active',['text','media','poll'][i]===col.dataset.view));
+    // Keep the normal no-scroll layout. If even one selected section is
+    // taller than an unusually small viewport, allow access to every field.
+    fitPaneOverflow(col);
 }
 // Paging preserves actual inputs and handlers; hidden pages never modify payloads.
 function pageItems(items,key,size,nav,after){
@@ -435,6 +447,7 @@ function pageItems(items,key,size,nav,after){
         el('span',{textContent:`${page+1} / ${pages}`}),
         button('pe-chip-btn','›',()=>go(1),{disabled:page+1===pages,ariaLabel:'Следующая страница'}));
     after?.();
+    queueComposerFit();
 }
 function updateSettingsPages(){
     const fields=[...ui.extras.children].filter(n=>!n.hidden);
@@ -884,6 +897,7 @@ export function openPostEditor(options) {
     ui.overlay.hidden = false;
     ui.form.dataset.mobile='compose';
     ui.settingsColumn.dataset.view='main';
+    ui.composeColumn.scrollTop=ui.settingsColumn.scrollTop=0;
     document.body.classList.add('post-editor-open');
     render();
     renderStyle();

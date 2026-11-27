@@ -112,6 +112,21 @@ try{
     assert.equal(post.payloads['vk:2'].text,'VK text');
     assert.equal(post.payloads['vk:2'].poll.with_content,true);
     assert.deepEqual(post.payloads['vk:2'].poll.options,['Да','Нет']);
+    // A long poll in a short mobile viewport must not make the last
+    // option inaccessible. A selected pane can scroll only as a last resort.
+    await page.setViewportSize({width:390,height:500});
+    await page.evaluate(async()=>{
+        const {openPostEditor}=await import('/js/editor.js');
+        const tg={value:'tg:main',label:'Telegram'};
+        openPostEditor({key:'short-poll-test',targets:[tg],picked:[tg.value],media:[],original:'',poll:{question:'Long poll?',options:Array.from({length:10},(_,i)=>'Option '+(i+1)),multiple:false},onSubmit:async()=>{}});
+    });
+    const pane=page.locator('.pe-compose-column');
+    await page.waitForFunction(()=>document.querySelector('.pe-compose-column')?.dataset.overflow==='true');
+    assert.equal(await pane.evaluate(n=>getComputedStyle(n).overflowY),'auto');
+    const lastOption=page.getByPlaceholder('Вариант 10',{exact:true});
+    await lastOption.fill('Last reachable option');
+    assert.equal(await lastOption.inputValue(),'Last reachable option');
+    assert.ok(await lastOption.evaluate(n=>{const r=n.getBoundingClientRect(),p=n.closest('.pe-compose-column').getBoundingClientRect();return r.top>=p.top-2&&r.bottom<=p.bottom+2;}));
     assert.deepEqual(errors,[]);
     console.log('Editor browser: isolated variants, formatting, compound poll, mobile layout and submitted payloads passed');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
