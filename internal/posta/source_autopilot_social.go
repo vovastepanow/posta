@@ -45,7 +45,10 @@ func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandida
 		valid = autopilotTikTokSearchResponseValid(r)
 	}
 	if valid {
-		status = "empty"
+		status = autopilotPublisherSearchStatus(r, platform)
+		if platform == PlatformTikTok {
+			status = "empty" // the legacy normalized TikTok URL list is not RSS/HTML
+		}
 		for _, candidate := range autopilotSearchLinkedCandidates(r, platform) {
 			if candidate.Platform != platform {
 				continue

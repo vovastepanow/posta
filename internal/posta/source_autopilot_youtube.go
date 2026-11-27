@@ -275,7 +275,10 @@ func (u *U) autopilotFindYouTube(query string) []DiscoveryCandidate {
 	status := "unavailable"
 	var out []DiscoveryCandidate
 	if autopilotPublisherSearchResponseValid(r) {
-		status = "empty"
+		status = autopilotPublisherSearchStatus(r, PlatformRSS)
+		if status == "ok" {
+			status = "unavailable" // handles are not usable until resolved
+		}
 		seen := map[string]bool{}
 		handles := 0
 		for _, candidate := range autopilotSearchLinkedCandidates(r, PlatformRSS) {

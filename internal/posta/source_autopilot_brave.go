@@ -102,6 +102,28 @@ func autopilotPublisherSearchResponseValid(r FetchResultURL) bool {
 	}
 }
 
+// A syntactically valid search page is not necessarily a successful site
+// search. Providers can silently ignore site: and return unrelated links;
+// report that as a backend limitation rather than an empty topic.
+func autopilotPublisherSearchStatus(r FetchResultURL, platform string) string {
+	if !autopilotPublisherSearchResponseValid(r) {
+		return "unavailable"
+	}
+	if len(autopilotSearchLinkedCandidates(r, platform)) > 0 {
+		return "ok"
+	}
+	p, _ := url.Parse(r.URL)
+	if p.Host == "www.bing.com" {
+		if doc := rssLoad(r.Bytes); rssIsFeed(doc) && len(rssItems(doc)) > 0 {
+			return "unavailable"
+		}
+		if len(autopilotBingHTMLLinks(r.Bytes, p)) > 0 {
+			return "unavailable"
+		}
+	}
+	return "empty"
+}
+
 // Only result-title anchors within Bing's actual organic result rows count.
 // Decode Bing's known tracking wrapper locally, without following redirects.
 func autopilotBingHTMLLinks(body []byte, base *url.URL) []string {

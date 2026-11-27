@@ -194,3 +194,17 @@ func TestAutopilotPublisherSearchBingHTMLFallback(t *testing.T) {
 		t.Fatal("blocked provider retried")
 	}
 }
+
+func TestAutopilotPublisherSearchStatusDistinguishesOffsiteResults(t *testing.T) {
+	for _, tc := range []struct{ body, want string }{
+		{`<rss><channel><item><link>https://example.org/cats</link></item></channel></rss>`, "unavailable"},
+		{`<rss><channel></channel></rss>`, "empty"},
+		{`<rss><channel><item><link>https://t.me/real_channel</link></item></channel></rss>`, "ok"},
+		{`<html><li class="b_algo"><h2><a href="https://example.org/cats">Cats</a></h2></li></html>`, "unavailable"},
+	} {
+		r := FetchResultURL{URL: "https://www.bing.com/search", FetchResult: FetchResult{OK: true, Status: 200, Bytes: []byte(tc.body)}}
+		if got := autopilotPublisherSearchStatus(r, PlatformTelegram); got != tc.want {
+			t.Fatalf("status=%s want=%s body=%s", got, tc.want, tc.body)
+		}
+	}
+}
