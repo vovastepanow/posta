@@ -13,9 +13,6 @@ import { prepareOwnImage } from './image-prepare.js';
 
 const topicSources = { sources: [], topic: '', filter: 'all', loading: false };
 
-// Retain this exported hook for demo reset callers; manual source cards are gone.
-export function clearDiscoveredSource() {}
-
 let latestAutopilotDiagnostic = null;
 let autopilotSourceDialog = null;
 const autopilotSourceStates = { found: 'Найдено за цикл', candidate: 'Ожидают проверки', probation: 'На испытании', active: 'Подтверждено', cooldown: 'Повторная проверка позже', rejected: 'Отклонённые источники' };

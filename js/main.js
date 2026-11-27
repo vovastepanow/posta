@@ -2,7 +2,7 @@
 import { $, DEBUG_MODE, api, el, hide, initializeCore, log, show, startTabSession, switchTab, watchParser } from './core.js';
 import { initializeImageViewer } from './viewer.js';
 import { initializeContentTab, loadCurrentItem } from './content.js';
-import { clearDiscoveredSource, initializeSourceTab } from './sources.js?v=source-tools-11';
+import { initializeSourceTab } from './sources.js?v=source-tools-12';
 import { consumeReferralLink, consumeVkRedirectResult, initializeAccountTab, openAccountSection, openNewItemEditor } from './account.js';
 import { initializeTabs } from './tabs.js';
 import { showPlan, showProfile } from './profile.js';
@@ -72,7 +72,7 @@ function initializeDebugMode() {
     };
     if (!DEBUG_MODE) return;
     show('debug-banner');
-    $('debug-reset-button').onclick = () => api('debug_reset', { body: null }).then(() => { clearDiscoveredSource(); return loadCurrentItem(); }).catch(e => log(`Ошибка сброса демо: ${e.message}`));
+    $('debug-reset-button').onclick = () => api('debug_reset', { body: null }).then(() => loadCurrentItem()).catch(e => log(`Ошибка сброса демо: ${e.message}`));
 }
 
 initializeCore();
