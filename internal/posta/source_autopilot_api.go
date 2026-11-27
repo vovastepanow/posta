@@ -69,6 +69,26 @@ func autopilotModeRoute(mode string) (scope, kind, setting string) {
 	return autopilotShadowScope, autopilotShadowKind, "autopilot_shadow"
 }
 
+type autopilotJobSnapshot struct {
+	Next, Lease       int64
+	Attempts          int
+	Enabled, Eligible bool
+	LastError         string
+	Checkpoint        []byte
+}
+
+func readAutopilotJobSnapshot(ctx context.Context, q db.Querier, scope, key, kind string) (autopilotJobSnapshot, error) {
+	var job autopilotJobSnapshot
+	err := q.QueryRow(ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint,attempts
+		FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).
+		Scan(&job.Next, &job.Lease, &job.Enabled, &job.Eligible, &job.LastError, &job.Checkpoint, &job.Attempts)
+	return job, err
+}
+
+func (job autopilotJobSnapshot) running(at int64, enabled, paused, workerAlive bool) bool {
+	return enabled && job.Enabled && job.Eligible && !paused && workerAlive && job.Lease > at
+}
+
 type autopilotSourceTotals struct {
 	Candidates, Probation, Active, Cooldown, Rejected, Checked int
 }
@@ -175,13 +195,7 @@ func (u *U) SourcePipelinePublic(topic string) jx.M {
 	}
 	out["candidates"], out["probation"], out["active_sources"] = totals.Candidates, totals.Probation, totals.Active
 	out["cooldown"], out["rejected"], out["checked"] = totals.Cooldown, totals.Rejected, totals.Checked
-	var next, lease int64
-	var jobEnabled, eligible bool
-	var lastError string
-	var checkpoint []byte
-	err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint
-		FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).
-		Scan(&next, &lease, &jobEnabled, &eligible, &lastError, &checkpoint)
+	job, err := readAutopilotJobSnapshot(u.Ctx, u.DB.Pool, scope, key, kind)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out
 	}
@@ -189,11 +203,11 @@ func (u *U) SourcePipelinePublic(topic string) jx.M {
 		out["unavailable"] = true
 		return out
 	}
-	out["job_exists"], out["job_paused"], out["eligible"] = true, !jobEnabled, eligible
-	out["next_run_at"] = next
-	out["running"] = enabled && jobEnabled && eligible && !paused && workerAlive && lease > at
-	out["failure"] = autopilotFailureKind(lastError)
-	out["stage"] = jx.Str(jx.Unmarshal(checkpoint), "pipeline_phase")
+	out["job_exists"], out["job_paused"], out["eligible"] = true, !job.Enabled, job.Eligible && !paused
+	out["next_run_at"] = job.Next
+	out["running"] = job.running(at, enabled && jx.Bool(out, "background_enabled"), paused, workerAlive)
+	out["failure"] = autopilotFailureKind(job.LastError)
+	out["stage"] = jx.Str(jx.Unmarshal(job.Checkpoint), "pipeline_phase")
 	return out
 }
 
@@ -259,12 +273,8 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		row["budget_resets_at"] = time.Now().UTC().Truncate(24 * time.Hour).Add(24 * time.Hour).Unix()
 		row["server_fetch_remaining"], row["server_model_remaining"] = serverFetchRemaining, serverModelRemaining
 		row["server_fetch_limit"], row["server_model_limit"] = u.TInt("autopilot_fetch_server_daily"), u.TInt("autopilot_model_server_daily")
-		var next, lease int64
-		var attempts int
-		var enabled, eligible bool
-		var lastError string
-		var checkpoint []byte
 		scope, kind, setting := autopilotModeRoute(d.Mode)
+		modeEnabled := d.Mode != "off" && u.TBool(setting)
 		// Aggregate queue health for the selected worker only. Unlike the
 		// legacy discovery "found" counter these are persistent source rows,
 		// so operators can distinguish backlog from scheduled retry and AI stalls.
@@ -370,13 +380,14 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			row["auto_sources_cooldown"], row["auto_sources_rejected"] = totals.Cooldown, totals.Rejected
 			row["direct_qualified_recent"] = directRecent
 		}
-		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint,attempts FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&next, &lease, &enabled, &eligible, &lastError, &checkpoint, &attempts)
+		job, err := readAutopilotJobSnapshot(u.Ctx, u.DB.Pool, scope, key, kind)
 		if err == nil {
 			row["job_exists"] = true
-			failure := autopilotFailureKind(lastError)
-			row["next_run_at"], row["running"], row["job_paused"], row["eligible"], row["failure"] = next, lease > now() && !d.Paused, !enabled, eligible && !d.Paused, failure
-			row["attempts"] = attempts
-			stats := jx.Unmarshal(checkpoint)
+			failure := autopilotFailureKind(job.LastError)
+			running := job.running(now(), modeEnabled && backgroundEnabled, d.Paused, workerAlive)
+			row["next_run_at"], row["running"], row["job_paused"], row["eligible"], row["failure"] = job.Next, running, !job.Enabled, job.Eligible && !d.Paused, failure
+			row["attempts"] = job.Attempts
+			stats := jx.Unmarshal(job.Checkpoint)
 			// Pipeline telemetry is written in both auto and shadow modes.
 			for _, key := range []string{"pipeline_phase", "last_search_outcome"} {
 				row[key] = jx.Str(stats, key)
@@ -392,8 +403,8 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 				row["direct_accepted_total"] = jx.Int(stats, "direct_accepted_total")
 				row["direct_rejected_total"] = jx.Int(stats, "direct_rejected_total")
 				row["diagnosis"] = autopilotStatusReason(autopilotStatusInput{
-					Paused: d.Paused, Enabled: enabled, Eligible: eligible,
-					Running: lease > now(), Failure: failure,
+					Paused: d.Paused, Enabled: modeEnabled && job.Enabled, Eligible: job.Eligible,
+					Running: running, Failure: failure,
 					Available: available, Target: supply.Demand.Target,
 					Deficit: supply.Demand.Deficit, Candidates: totals.Candidates + totals.Probation,
 					ActiveSources: totals.Active, FetchRemaining: jx.Int(row, "fetch_remaining"),
@@ -409,7 +420,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		// Pauses and saved administrator OFF settings are intentional and
 		// must not be presented as crashes.
 		if d.Mode != "off" && !d.Paused {
-			if u.TBool(setting) {
+			if modeEnabled {
 				switch {
 				case !backgroundEnabled:
 					row["diagnosis"] = "worker_disabled_in_dev"
