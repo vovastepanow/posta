@@ -44,12 +44,12 @@ func TestTelegramPhotoFirstAlbumWithPlayableVideo(t *testing.T) {
 func TestPublishingConnectionAvailability(t *testing.T) {
 	a := &App{}
 	catalog := a.Networks()
-	for _, key := range []string{"telegram", "vk", "max", "facebook"} {
+	for _, key := range []string{"telegram", "vk", "max"} {
 		if !catalog[key].PublishingConnectionAvailable() {
 			t.Errorf("expected connectable: %s", key)
 		}
 	}
-	for _, key := range []string{"discord", "mastodon", "bluesky", "wordpress", "reddit", "tumblr", "linkedin", "viber", "dzen", "instagram", "threads", "tiktok", "rutube", "youtube", "pinterest", "x", "ok", "tenchat", "medium", "bitrix", "google_business"} {
+	for _, key := range []string{"facebook", "discord", "mastodon", "bluesky", "wordpress", "reddit", "tumblr", "linkedin", "viber", "dzen", "instagram", "threads", "tiktok", "rutube", "youtube", "pinterest", "x", "ok", "tenchat", "medium", "bitrix", "google_business"} {
 		if catalog[key].PublishingConnectionAvailable() {
 			t.Errorf("unexpected new connection: %s", key)
 		}
@@ -67,8 +67,8 @@ func TestPublishingConnectionAvailability(t *testing.T) {
 	}
 }
 
-func TestPublishingScopeMatchesSmmBox(t *testing.T) {
-	want := []string{"telegram", "vk", "ok", "max", "instagram", "facebook", "youtube", "tiktok", "rutube", "threads", "x", "pinterest", "tumblr", "dzen"}
+func TestPublishingScopeContainsOnlySelectedImplementedAdapters(t *testing.T) {
+	want := []string{"telegram", "vk", "ok", "max", "youtube", "x", "pinterest", "tumblr"}
 	a := &App{}
 	catalog := a.Networks()
 	for _, key := range want {
@@ -76,7 +76,11 @@ func TestPublishingScopeMatchesSmmBox(t *testing.T) {
 			t.Errorf("missing SmmBox platform: %s", key)
 		}
 	}
+	public := a.NetworksPublicFor(true)
 	for key := range catalog {
+		if (public[key] != nil) != contains(want, key) {
+			t.Errorf("unexpected public catalog entry: %s", key)
+		}
 		if publishingInScope(key) != contains(want, key) {
 			t.Errorf("unexpected scope: %s", key)
 		}

@@ -720,6 +720,9 @@ func publish(c *Ctx) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if ch.Platform != "" && !posta.PublishingInScope(ch.Platform) {
+		return nil, fail(422, "Публикация на этой площадке отключена.")
+	}
 	text := posta.PostCaptionClean(jx.Str(fields, "text"))
 	var rawItems []jx.M
 	if s, isStr := fields["media"].(string); isStr && s != "" {

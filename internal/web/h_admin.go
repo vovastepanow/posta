@@ -87,7 +87,7 @@ func init() {
 	})
 
 	get("networks_list", func(c *Ctx) (any, error) {
-		return ok(jx.M{"networks": c.A.NetworksPublicFor(c.A.IsOwner(c.R.Context(), c.U.ID)), "channels": c.U.NetworksChannelsPublic()}), nil
+		return ok(jx.M{"networks": c.A.NetworksPublicFor(c.A.IsOwner(c.R.Context(), c.U.ID)), "channels": c.U.NetworksChannelsPublic(), "inactive_channels": c.U.InactiveNetworksChannelsPublic()}), nil
 	})
 	post("network_connect", networkConnect)
 	post("network_remove", func(c *Ctx) (any, error) {
@@ -100,7 +100,7 @@ func init() {
 			return nil, fail(409, d)
 		}
 		c.U.ChannelDelete(id)
-		return ok(jx.M{"channels": c.U.NetworksChannelsPublic()}), nil
+		return ok(jx.M{"channels": c.U.NetworksChannelsPublic(), "inactive_channels": c.U.InactiveNetworksChannelsPublic()}), nil
 	})
 	get("network_oauth_start", networkOAuthStart)
 	routes["network_oauth_callback"] = handler{noUser: true, fn: networkOAuthCallback}
@@ -174,7 +174,7 @@ func networkConnect(c *Ctx) (any, error) {
 	if err := c.U.NetworkSaveResource(platform, n, res); err != nil {
 		return nil, err
 	}
-	return ok(jx.M{"channels": c.U.NetworksChannelsPublic()}), nil
+	return ok(jx.M{"channels": c.U.NetworksChannelsPublic(), "inactive_channels": c.U.InactiveNetworksChannelsPublic()}), nil
 }
 
 func networkBack(c *Ctx, params url.Values) (any, error) {

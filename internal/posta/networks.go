@@ -311,7 +311,7 @@ func (a *App) NetworkPreparedPreflight(platform, text string, media []Prepared) 
 // publishingInScope is the SmmBox product scope, independent of adapter readiness.
 func publishingInScope(key string) bool {
 	switch key {
-	case "telegram", "vk", "ok", "max", "instagram", "facebook", "youtube", "tiktok", "rutube", "threads", "x", "pinterest", "tumblr", "dzen":
+	case "telegram", "vk", "ok", "max", "youtube", "x", "pinterest", "tumblr":
 		return true
 	default:
 		return false
@@ -335,13 +335,20 @@ func (n *Network) PublishingConnectionAllowed(owner bool) bool {
 // NetworksPublicFor — реестр с учётом прав пользователя.
 func (a *App) NetworksPublicFor(owner bool) jx.M {
 	out := a.NetworksPublic()
-	for k,n := range a.Networks() {
-		if entry,ok:=out[k].(jx.M);ok {
-			entry["connect_available"]=n.PublishingConnectionAllowed(owner)
+	for k, n := range a.Networks() {
+		if !publishingInScope(k) {
+			delete(out, k)
+			continue
+		}
+		if entry, ok := out[k].(jx.M); ok {
+			entry["connect_available"] = n.PublishingConnectionAllowed(owner)
 		}
 	}
 	return out
 }
+
+// PublishingInScope gates new publication requests, not historical records.
+func PublishingInScope(platform string) bool { return publishingInScope(platform) }
 
 // NetworksPublic — реестр для интерфейса.
 func (a *App) NetworksPublic() jx.M {
@@ -1482,9 +1489,18 @@ func redditPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSent
 // ---- Ресурсы для интерфейса ----
 
 func (u *U) NetworksChannelsPublic() []jx.M {
+	return u.networkChannelsPublic(false)
+}
+
+// Inactive connections are available only for explicit removal, not as editor targets.
+func (u *U) InactiveNetworksChannelsPublic() []jx.M {
+	return u.networkChannelsPublic(true)
+}
+
+func (u *U) networkChannelsPublic(inactive bool) []jx.M {
 	out := []jx.M{}
 	for _, c := range u.Channels() {
-		if c.Platform != "telegram" {
+		if c.Platform != "telegram" && publishingInScope(c.Platform) != inactive {
 			out = append(out, jx.M{"id": c.ID, "platform": c.Platform, "title": c.ChatTitle, "ref": c.Ref, "screen_name": jx.Str(c.Meta, "screen_name"), "connected_at": c.ConnectedAt, "schedule": ChannelSchedule(c), "style": u.ChannelStylePublic(c), "hashtags": c.Hashtags, "poll_available":u.ChannelPollAvailable(c), "editor_extras":ChannelExtraKinds(c)})
 		}
 	}

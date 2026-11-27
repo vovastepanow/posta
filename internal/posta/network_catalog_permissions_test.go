@@ -17,7 +17,7 @@ func TestPublishingCatalogUserCapabilities(t *testing.T) {
 		m:=member[key].(jx.M)
 		if jx.Str(entry,"status")=="beta" && jx.Bool(m,"connect_available"){t.Fatalf("beta connection available to member: %s",key)}
 	}
-	if count!=14 {t.Fatalf("publishing scope: %d",count)}
+	if count!=8 {t.Fatalf("publishing scope: %d",count)}
 	if !jx.Bool(owner["vk"].(jx.M),"connect_available"){t.Fatal("owner cannot connect VK beta")}
 	if !jx.Bool(member["telegram"].(jx.M),"connect_available"){t.Fatal("Telegram unavailable")}
 }
