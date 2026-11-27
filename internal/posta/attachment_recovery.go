@@ -33,7 +33,7 @@ func (r *attachmentRecovery) resolveVideo(page string) string {
 	if st, ok := r.states[page]; ok {
 		return jx.Str(st, "local")
 	}
-	st := r.u.VideoPreviewStatus(r.u.Ctx, page)
+	st := r.u.VideoPreviewStatus(r.u.Ctx, page, r.u.ID)
 	if jx.Str(st, "status") == "done" {
 		r.states[page] = st
 		return jx.Str(st, "local")
@@ -50,7 +50,11 @@ func (r *attachmentRecovery) resolveVideo(page string) string {
 			return ""
 		}
 	}
-	if (jx.Str(st, "status") == "queued" || jx.Str(st, "status") == "running") && r.u.videoPreviewJobExists(r.u.Ctx, page, "") {
+	owner := ""
+	if via == "tgu" {
+		owner = r.u.ID
+	}
+	if (jx.Str(st, "status") == "queued" || jx.Str(st, "status") == "running") && r.u.videoPreviewJobExists(r.u.Ctx, page, owner) {
 		return ""
 	}
 	r.left--
@@ -102,7 +106,7 @@ func (r *attachmentRecovery) post(post jx.M) jx.M {
 		if board == nil || len(board.Frames) == 0 {
 			return ""
 		}
-		local := r.u.MediaStoreImage("attachment-poster:"+video, board.Frames[0])
+		local, _ := r.u.OwnStoreImage(board.Frames[0])
 		if local != "" {
 			mediaProtect.Store(filepath.Base(local), time.Now())
 		}

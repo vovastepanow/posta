@@ -1,6 +1,9 @@
 package posta
 
-import "context"
+import (
+	"context"
+	"os"
+)
 
 // A file can have several authorized users (legacy shared imports), but
 // a missing owner row never grants access when database lookup fails.
@@ -23,4 +26,26 @@ func (u *U) registerPrivateMedia(name string) error {
 		return Bad("Не удалось сохранить права доступа к файлу.")
 	}
 	return nil
+}
+
+// Account-native downloads must never use the public URL as a cache identity.
+// Register ownership before writing bytes and use the same playback conversion
+// as normal downloads.
+func (u *U) cachePrivateTelegramVideo(page, downloaded string) string {
+	if u.ID == "" || VideoPageVia(page) != "tgu" || !fileExists(downloaded) {
+		return ""
+	}
+	playable := u.BrowserPlayableVideo(downloaded)
+	if playable != downloaded {
+		defer os.Remove(playable)
+	}
+	ext := "mp4"
+	if sniffMime(playable) == "video/webm" {
+		ext = "webm"
+	}
+	name := MediaCacheName("account-video:"+u.ID+"\x00"+page, ext)
+	if err := u.registerPrivateMedia(name); err != nil {
+		return ""
+	}
+	return u.mediaCopyVideo(name, playable)
 }

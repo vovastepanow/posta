@@ -388,7 +388,7 @@ func videoStatus(c *Ctx) (any, error) {
 	if posta.VideoPageVia(link) == "" {
 		return nil, fail(400, "Нужен адрес поста Telegram, видео TikTok или ролика YouTube (watch или Shorts).")
 	}
-	st := c.A.VideoPreviewStatus(c.R.Context(), link)
+	st := c.A.VideoPreviewStatus(c.R.Context(), link, c.U.ID)
 	st["progress"] = c.A.VideoProgressPublic(c.R.Context(), c.U.ID, posta.VideoPreviewKey(link))
 	return st, nil
 }

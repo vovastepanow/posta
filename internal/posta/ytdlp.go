@@ -399,7 +399,15 @@ func hashKey(prefix, s string) string {
 }
 
 func VideoPreviewKey(u string) string      { return hashKey("preview:", u) }
-func videoPreviewStateKey(u string) string { return hashKey("video_preview:", u) }
+func videoPreviewStateKey(page, uid string) string {
+	if VideoPageVia(page) == "tgu" {
+		if uid == "" {
+			return ""
+		}
+		return hashKey("video_preview:account:", uid+"\x00"+page)
+	}
+	return hashKey("video_preview:", page)
+}
 
 // ---- Прогресс скачивания (в памяти) ----
 
@@ -580,7 +588,7 @@ func (a *App) runVideoJob(ctx context.Context, j VideoJob) {
 	}
 	u := a.User(ctx, j.UID, a.ParserLogger(j.UID))
 	if videoIsPreviewKey(j.Key) {
-		a.videoPreviewSave(ctx, j.Page, jx.M{"status": "running", "error": ""})
+		a.videoPreviewSave(ctx, j.Page, jx.M{"status": "running", "error": ""}, j.UID)
 	}
 	times := []string{}
 	stage := func(name string, fn func() error) error {
@@ -630,7 +638,9 @@ func (a *App) runVideoJob(ctx context.Context, j VideoJob) {
 				return err
 			}
 			// Ролик yt-dlp уже H.264 до 720p с moov в начале — в кэш как есть: тяжёлое перекодирование только задержало бы показ
-			if !tgu && Mp4HasFastStart(h) {
+			if tgu {
+				local = u.cachePrivateTelegramVideo(j.Page, h)
+			} else if Mp4HasFastStart(h) {
 				local = u.MediaStoreVideo(j.Page, h, true, nil)
 			} else {
 				local = u.CacheDownloadedVideo(j.Page, h)
@@ -653,7 +663,7 @@ func (a *App) runVideoJob(ctx context.Context, j VideoJob) {
 				return deferTelegramJobs(jobs, j.UID, next)
 			})
 			if videoIsPreviewKey(j.Key) {
-				a.videoPreviewSave(ctx, j.Page, jx.M{"status": "queued", "error": flood.Error(), "at": now()})
+				a.videoPreviewSave(ctx, j.Page, jx.M{"status": "queued", "error": flood.Error(), "at": now()}, j.UID)
 			}
 			u.Log("-> Telegram: скачивание отложено до окончания ограничения (%d с).", flood.Seconds)
 			return
@@ -747,7 +757,7 @@ func (u *U) videoUpdateRecords(j VideoJob, change func(jx.M) jx.M) error {
 
 func (a *App) videoAttach(ctx context.Context, j VideoJob, local string) error {
 	if videoIsPreviewKey(j.Key) {
-		a.videoPreviewSave(ctx, j.Page, jx.M{"status": "done", "local": local, "error": "", "at": now()})
+		a.videoPreviewSave(ctx, j.Page, jx.M{"status": "done", "local": local, "error": "", "at": now()}, j.UID)
 		return nil
 	}
 	u := a.User(ctx, j.UID, nil)
@@ -790,13 +800,13 @@ func (a *App) videoJobFailed(ctx context.Context, u *U, j VideoJob, reason strin
 	u.Log("-> Ролик не скачан (%d из %d): %s", tries, ytdlpTries, reason)
 	preview := videoIsPreviewKey(j.Key)
 	if preview && tries >= ytdlpTries {
-		a.videoPreviewSave(ctx, j.Page, jx.M{"status": "failed", "error": reason})
+		a.videoPreviewSave(ctx, j.Page, jx.M{"status": "failed", "error": reason}, j.UID)
 		a.videoDropJob(ctx, j)
 		return
 	}
 	if tries < ytdlpTries {
 		if preview {
-			a.videoPreviewSave(ctx, j.Page, jx.M{"status": "queued", "error": reason})
+			a.videoPreviewSave(ctx, j.Page, jx.M{"status": "queued", "error": reason}, j.UID)
 		}
 		a.videoQueueUpdate(ctx, func(jobs []VideoJob) []VideoJob {
 			for i := range jobs {
@@ -874,24 +884,35 @@ func (u *U) TelegramBigVideosViaAccount(posts []jx.M) []jx.M {
 }
 
 // VideoPreviewStatus — {status: none|queued|running|done|failed, local, error, at}.
-func (a *App) VideoPreviewStatus(ctx context.Context, u string) jx.M {
+func (a *App) VideoPreviewStatus(ctx context.Context, u, uid string) jx.M {
 	st := jx.M{"status": "none", "local": "", "error": "", "at": 0}
+	key := videoPreviewStateKey(u, uid)
+	if key == "" {
+		return st
+	}
 	var saved jx.M
-	if a.KVGet(ctx, videoPreviewStateKey(u), &saved) {
+	if a.KVGet(ctx, key, &saved) {
 		for k := range st {
 			if v, ok := saved[k]; ok {
 				st[k] = v
 			}
 		}
 	}
-	if jx.Str(st, "status") == "done" && a.MediaExisting(jx.Str(st, "local")) == "" {
-		return jx.M{"status": "none", "local": "", "error": "", "at": 0}
+	if jx.Str(st, "status") == "done" {
+		local := a.MediaExisting(jx.Str(st, "local"))
+		if local == "" || (VideoPageVia(u) == "tgu" && !a.CachedMediaAllowed(ctx, uid, filepath.Base(local))) {
+			return jx.M{"status": "none", "local": "", "error": "", "at": 0}
+		}
 	}
 	return st
 }
 
-func (a *App) videoPreviewSave(ctx context.Context, u string, fields jx.M) {
-	KVUpdate(a, ctx, videoPreviewStateKey(u), 2*24*time.Hour, func(old jx.M, _ bool) *jx.M {
+func (a *App) videoPreviewSave(ctx context.Context, u string, fields jx.M, uid string) {
+	key := videoPreviewStateKey(u, uid)
+	if key == "" {
+		return
+	}
+	KVUpdate(a, ctx, key, 2*24*time.Hour, func(old jx.M, _ bool) *jx.M {
 		if old == nil {
 			old = jx.M{}
 		}
@@ -928,7 +949,10 @@ func (a *App) videoPreviewJobExists(ctx context.Context, u, uid string) bool {
 
 // VideoFetchEnqueue — ролик адреса в очередь: одна задача на адрес, лимит на пользователя. limited — лимит исчерпан.
 func (a *App) VideoFetchEnqueue(ctx context.Context, u, via, uid string, front bool) (jx.M, bool) {
-	st := a.VideoPreviewStatus(ctx, u)
+	st := a.VideoPreviewStatus(ctx, u, uid)
+	if via == "tgu" && uid == "" {
+		return st, true
+	}
 	status := jx.Str(st, "status")
 	if status == "done" {
 		return st, false
@@ -942,16 +966,16 @@ func (a *App) VideoFetchEnqueue(ctx context.Context, u, via, uid string, front b
 	if a.videoPreviewJobsOf(ctx, uid, via) >= videoPreviewLimits[via] && !(front && a.videoPreviewEvictOne(ctx, uid, via)) {
 		return st, true
 	}
-	a.videoPreviewSave(ctx, u, jx.M{"status": "queued", "local": "", "error": "", "at": now()})
+	a.videoPreviewSave(ctx, u, jx.M{"status": "queued", "local": "", "error": "", "at": now()}, uid)
 	if !a.VideoEnqueue(ctx, uid, VideoPreviewKey(u), u, via, front) {
-		if a.videoPreviewJobExists(ctx, u, "") {
-			return a.VideoPreviewStatus(ctx, u), false
+		if via != "tgu" && a.videoPreviewJobExists(ctx, u, "") {
+			return a.VideoPreviewStatus(ctx, u, uid), false
 		}
 		// Do not advertise work that was rejected by a full or unavailable queue.
-		a.videoPreviewSave(ctx, u, jx.M{"status": "none", "error": "Очередь загрузок недоступна или заполнена.", "at": now()})
-		return a.VideoPreviewStatus(ctx, u), true
+		a.videoPreviewSave(ctx, u, jx.M{"status": "none", "error": "Очередь загрузок недоступна или заполнена.", "at": now()}, uid)
+		return a.VideoPreviewStatus(ctx, u, uid), true
 	}
-	return a.VideoPreviewStatus(ctx, u), false
+	return a.VideoPreviewStatus(ctx, u, uid), false
 }
 
 func (a *App) videoPreviewEvictOne(ctx context.Context, uid, via string) bool {
@@ -959,7 +983,7 @@ func (a *App) videoPreviewEvictOne(ctx context.Context, uid, via string) bool {
 	a.videoQueueUpdate(ctx, func(jobs []VideoJob) []VideoJob {
 		for i := len(jobs) - 1; i >= 0; i-- {
 			j := jobs[i]
-			if j.UID != uid || !videoIsPreviewKey(j.Key) || jobVia(j) != via || jx.Str(a.VideoPreviewStatus(ctx, j.Page), "status") != "queued" {
+			if j.UID != uid || !videoIsPreviewKey(j.Key) || jobVia(j) != via || jx.Str(a.VideoPreviewStatus(ctx, j.Page, j.UID), "status") != "queued" {
 				continue
 			}
 			evicted = &j
@@ -970,7 +994,7 @@ func (a *App) videoPreviewEvictOne(ctx context.Context, uid, via string) bool {
 	if evicted == nil {
 		return false
 	}
-	a.videoPreviewSave(ctx, evicted.Page, jx.M{"status": "none", "local": "", "error": "", "at": now()})
+	a.videoPreviewSave(ctx, evicted.Page, jx.M{"status": "none", "local": "", "error": "", "at": now()}, evicted.UID)
 	return true
 }
 
@@ -1015,8 +1039,8 @@ func applyVideoPreviewTargets(posts []jx.M, status func(string) jx.M) {
 }
 
 // VideoPreviewApply updates the source preview's individual video tiles.
-func (a *App) VideoPreviewApply(ctx context.Context, posts []jx.M) []jx.M {
-	applyVideoPreviewTargets(posts, func(page string) jx.M { return a.VideoPreviewStatus(ctx, page) })
+func (a *App) VideoPreviewApply(ctx context.Context, posts []jx.M, uid string) []jx.M {
+	applyVideoPreviewTargets(posts, func(page string) jx.M { return a.VideoPreviewStatus(ctx, page, uid) })
 	return posts
 }
 
@@ -1046,7 +1070,7 @@ func (a *App) VideoPreviewPrepare(ctx context.Context, posts []jx.M, uid string)
 				continue
 			}
 		}
-		if jx.Str(a.VideoPreviewStatus(ctx, page), "status") == "done" {
+		if jx.Str(a.VideoPreviewStatus(ctx, page, uid), "status") == "done" {
 			continue
 		}
 		wants = append(wants, want{page, via})
@@ -1054,7 +1078,7 @@ func (a *App) VideoPreviewPrepare(ctx context.Context, posts []jx.M, uid string)
 	for i := len(wants) - 1; i >= 0; i-- {
 		a.VideoFetchEnqueue(ctx, wants[i].page, wants[i].via, uid, true)
 	}
-	return a.VideoPreviewApply(ctx, posts)
+	return a.VideoPreviewApply(ctx, posts, uid)
 }
 
 // VideoPreviewKeepNames — файлы, скачанные по кнопке за сутки: очистка кэша их не трогает.

@@ -12,3 +12,15 @@ func TestVideoPreviewQueueRequiresRealPageJob(t *testing.T) {
 		t.Fatal("phantom job recognized")
 	}
 }
+
+func TestTelegramPreviewStateIsAccountScoped(t *testing.T) {
+	page := "https://t.me/example/12"
+	a, b := videoPreviewStateKey(page, "owner-a"), videoPreviewStateKey(page, "owner-b")
+	if a == "" || b == "" || a == b || videoPreviewStateKey(page, "") != "" {
+		t.Fatal("account-native preview shares state")
+	}
+	public := "https://www.youtube.com/shorts/abcdefghijk"
+	if videoPreviewStateKey(public, "owner-a") != videoPreviewStateKey(public, "owner-b") {
+		t.Fatal("public previews should keep their shared cache")
+	}
+}
