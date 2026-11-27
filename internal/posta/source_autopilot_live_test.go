@@ -1016,3 +1016,22 @@ func TestAutopilotLiveHistoricTelegramCohort(t *testing.T) {
 		t.Skip("no cohort preview available; no thematic verdict")
 	}
 }
+
+func TestAutopilotLiveVKDirectory(t *testing.T) {
+	if os.Getenv("POSTA_AUTOPILOT_LIVE") != "1" {
+		t.Skip("requires POSTA_AUTOPILOT_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	u := (&App{}).User(ctx, "", nil)
+	candidates, err := autopilotVKDirectoryCandidates("мемы", u.RSSGet)
+	t.Logf("VK DIRECTORY: candidates=%d error=%v", len(candidates), err)
+	if err != nil || len(candidates) == 0 {
+		t.Skip("public VK directory unavailable or no matched publishers")
+	}
+	for _, c := range candidates {
+		if _, ok := autopilotCandidateID(c); c.Platform != PlatformVK || !ok {
+			t.Fatalf("invalid public VK identity: %+v", c)
+		}
+	}
+}

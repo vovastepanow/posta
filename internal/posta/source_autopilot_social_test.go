@@ -272,3 +272,29 @@ func TestAutopilotPublicSocialSearchRejectsUnknownTikTokPage(t *testing.T) {
 		}
 	}
 }
+
+func TestAutopilotVKDirectoryFallbackBoundedAndValidated(t *testing.T) {
+	calls := 0
+	fetch := func(raw string, limit int64, _ time.Duration, _ string) FetchResultURL {
+		calls++
+		if limit != 3<<20 {
+			t.Fatal("unbounded directory request")
+		}
+		body := ""
+		switch raw {
+		case autopilotVKDirectoryBase + "/vk/":
+			body = `<a href="/vk/memy/">Мемы</a><a href="/vk/yumor/">Мемы и юмор</a><a href="/vk/extra/">Мемы ещё</a><a href="/vk/eda/">Еда</a>`
+		case autopilotVKDirectoryBase + "/vk/memy/":
+			body = `<a href="https://vk.com/navigation">nav</a><li class="row"><span>vk.com/actual_memes</span></li><li class="row"><span>vk.com/actual_memes</span></li>`
+		case autopilotVKDirectoryBase + "/vk/yumor/":
+			return FetchResultURL{URL: "https://evil.example/vk/yumor/", FetchResult: FetchResult{OK: true, Bytes: []byte(`<li class="row">vk.com/foreign_page</li>`)}}
+		default:
+			t.Fatalf("unexpected directory fetch: %s", raw)
+		}
+		return FetchResultURL{URL: raw, FetchResult: FetchResult{OK: true, Status: 200, Bytes: []byte(body)}}
+	}
+	got, err := autopilotVKDirectoryCandidates("мемы", fetch)
+	if err != nil || len(got) != 1 || got[0].ID != "actual_memes" || calls != 3 {
+		t.Fatalf("directory calls=%d candidates=%+v err=%v", calls, got, err)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/url"
 	"strings"
+	"time"
 
 	"posta/internal/jx"
 )
@@ -39,6 +40,14 @@ func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandida
 		r = u.autopilotPublisherSearch(search, platform)
 	}
 	out, status := autopilotPublicSocialSearchCandidates(r, query, platform)
+	// The existing public VK catalog is independent of the web search
+	// index. Use it only when the index supplied no valid publishers.
+	if platform == PlatformVK && len(out) == 0 && u.Ctx.Err() == nil &&
+		autopilotBudgetError(u.Ctx) == nil && !autopilotSearchFetchCapReached(u.Ctx) {
+		if found, err := autopilotVKDirectoryCandidates(query, u.RSSGet); err == nil && len(found) > 0 {
+			out, status = found, "ok"
+		}
+	}
 	if u.discoverySearchObservation != nil {
 		u.discoverySearchObservation(platform, query, status)
 	}
@@ -70,6 +79,59 @@ func autopilotPublicSocialSearchCandidates(r FetchResultURL, query, platform str
 		}
 	}
 	return out, status
+}
+
+const autopilotVKDirectoryBase = "https://ugcplatform.ru"
+
+// Reuse the public catalog parser without account-derived evidence. A
+// search only reads the catalog index and at most two matched categories;
+// every returned publisher must still pass the normal review pipeline.
+func autopilotVKDirectoryCandidates(query string, fetch func(string, int64, time.Duration, string) FetchResultURL) ([]DiscoveryCandidate, error) {
+	if strings.TrimSpace(query) == "" {
+		return nil, nil
+	}
+	read := func(path string) (string, bool) {
+		r := fetch(autopilotVKDirectoryBase+path, 3<<20, 12*time.Second, BrowserUA)
+		p, err := url.Parse(r.URL)
+		if !r.OK || r.Status == 206 || err != nil || p.Scheme != "https" ||
+			p.Host != "ugcplatform.ru" || p.User != nil || p.Path != path ||
+			p.RawQuery != "" || p.Fragment != "" {
+			return "", false
+		}
+		return string(r.Bytes), true
+	}
+	index, ok := read("/vk/")
+	if !ok {
+		return nil, errors.New("VK public catalog unavailable")
+	}
+	paths := vkDirectoryCategories(index, []string{query})
+	seen := map[string]bool{}
+	var out []DiscoveryCandidate
+	failed := false
+	for _, path := range paths[:min(2, len(paths))] {
+		page, ok := read(path)
+		if !ok {
+			failed = true
+			continue
+		}
+		for _, candidate := range vkDirectoryResults(page) {
+			id, ok := autopilotCandidateID(candidate)
+			if candidate.Platform != PlatformVK || !ok || seen[id] {
+				continue
+			}
+			seen[id] = true
+			candidate.Origin = "публичный каталог VK «" + query + "»"
+			candidate.OriginKind = "other"
+			out = append(out, candidate)
+			if len(out) >= 8 {
+				return out, nil
+			}
+		}
+	}
+	if len(out) == 0 && failed {
+		return nil, errors.New("VK public catalog category unavailable")
+	}
+	return out, nil
 }
 
 func autopilotPublicSocialPosts(platform, id string, res FetchResultURL) ([]jx.M, error) {
