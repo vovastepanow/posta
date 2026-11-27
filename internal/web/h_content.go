@@ -488,11 +488,11 @@ func studioLive(c *Ctx) (any, error) {
 	}
 	u.PruneUnavailablePoolVideos()
 	pool := u.PoolWithoutLostVideo(u.PoolForCurrentTopic())
-	poolCount := len(u.PoolTopicPositions(u.Pool()))
-	sorted := append([]jx.M{}, pool...)
-	sort.SliceStable(sorted, func(i, j int) bool { return jx.Int(sorted[i], "timestamp") > jx.Int(sorted[j], "timestamp") })
-	items := []jx.M{}
-	for _, it := range sorted[:min(30, len(sorted))] {
+	// The badge and recent feed describe the same visible pool snapshot.
+	poolCount := len(pool)
+	sort.SliceStable(pool, func(i, j int) bool { return jx.Int(pool[i], "timestamp") > jx.Int(pool[j], "timestamp") })
+	items := make([]jx.M, 0, min(30, poolCount))
+	for _, it := range pool[:min(30, poolCount)] {
 		img := u.MediaExisting(jx.Str(it, "image_local"))
 		if img == "" {
 			img = jx.Str(it, "image")

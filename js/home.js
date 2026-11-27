@@ -1,17 +1,8 @@
 // Главная страница: контент, источники и состояние подбора.
 // Данные — тот же API, что у приложения.
 import { showPlan, showProfile } from './profile.js';
-import { $, cleanCaption, el, formatAgo, log, onTabOpen, onTopicChange, switchTab } from './core.js';
+import { $, api, cleanCaption, el, formatAgo, log, onTabOpen, onTopicChange, switchTab } from './core.js';
 import { bindFutureDraftButton, applyRocketCheck, postItemToTelegram } from './content.js';
-
-/** Запрос к API приложения (POST — с заголовком X-Posta). */
-async function api(action, { body } = {}) {
-    const opts = body === undefined ? {} : { method: 'POST', headers: { 'X-Posta': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
-    const r = await fetch(`index.php?action=${action}`, opts);
-    const data = await r.json().catch(() => null);
-    if (!r.ok) throw Object.assign(new Error(data?.message || `HTTP ${r.status}`), { status: r.status });
-    return data;
-}
 
 const PLATFORMS = { YouTube: '▶', Telegram: '✈', 'ВКонтакте': 'VK', RSS: '◉', 'Двач': '2ch', '4chan': '4ch', 'Одноклассники': 'OK', TikTok: '♪' };
 const state = { items: [], filter: 'all', sort: 'new', q: '' };
@@ -169,7 +160,7 @@ function openPreview(i) {
 }
 
 // ---- Сводка подбора ----
-const live = { timer: 0, last: null, gen: 0 };
+const live = { timer: 0, controller: null, gen: 0 };
 
 // строка «Только что отобрано» в правой панели: миниатюра, первая строка текста, источник · балл
 function feedItem(i) {
@@ -317,10 +308,14 @@ function renderSourcePipe(d = {}) {
 }
 
 async function loadLive() {
-    const gen = ++live.gen;   // один активный опрос: ответ старого запроса не планирует новый таймер
+    const gen = ++live.gen;
     clearTimeout(live.timer);
+    live.controller?.abort();
+    const controller = new AbortController();
+    live.controller = controller;
     let r;
-    try { r = await api('studio_live'); } catch (error) {
+    try { r = await api('studio_live', { signal: controller.signal }); } catch (error) {
+        if (gen !== live.gen || controller.signal.aborted) return;
         renderPipe.sig = null;
         $('pipeNow').textContent = error.status === 401 ? 'Войдите, чтобы увидеть состояние' : 'Не удалось загрузить состояние';
         $('sourcePipeNow').textContent = error.status === 401 ? 'Войдите, чтобы увидеть состояние' : 'Не удалось загрузить состояние';
@@ -328,6 +323,8 @@ async function loadLive() {
         $('feed').replaceChildren(el('li', { className: 'muted', textContent: error.status === 401 ? 'Войдите, чтобы увидеть материалы.' : 'Не удалось загрузить материалы.' }));
         if (gen === live.gen && error.status !== 401) live.timer = setTimeout(loadLive, 15000);
         return;
+    } finally {
+        if (live.controller === controller) live.controller = null;
     }
     if (gen !== live.gen) return;
     if ($('rejected-tab').classList.contains('active')) loadRejected({ silent: true });
@@ -343,7 +340,6 @@ function renderLive(r) {
     $('nav-pool').textContent = poolCount ? poolCount.toLocaleString('ru-RU') : '';
     $('home-pool-count').textContent = poolCount ? `· ${poolCount.toLocaleString('ru-RU')}` : '';
 
-    live.last = r;
     renderPipe(r);
     renderSourcePipe(r.source_discovery);
     $('feed').replaceChildren(...(items.length ? items.slice(0, 5).map(feedItem)
