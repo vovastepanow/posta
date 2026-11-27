@@ -208,3 +208,44 @@ func TestSourceAutopilotPaidReserveRequiresGateAndSerializesCalls(t *testing.T) 
 		t.Fatalf("concurrent paid calls passed one-charge budget: %d",paidCalls.Load())
 	}
 }
+
+func TestSourceAutopilotPaidReserveHonorsClassificationBudget(t *testing.T) {
+	paidCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		var body struct{ Model string `json:"model"` }
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if body.Model == FreeVision.Model {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"error":{"message":"free-models-per-day limit reached"}}`))
+			return
+		}
+		paidCalls++
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}],"usage":{"cost":0.001}}`))
+	}))
+	defer server.Close()
+	r := NewRouter(NewOllama(""), NewOpenRouter(server.URL, "test", "", ""))
+	ctx := WithSourceAutopilotPaidNemotronFallback(context.Background())
+	ctx = WithCallGate(ctx, func(context.Context, Target) error { return nil })
+	reservations, settlements := 0, 0
+	reserveOK := false
+	req := &Request{Role: RoleSmart, Prompt: "Judge", ReservePaid: func() (func(float64), bool) {
+		reservations++
+		return func(cost float64) {
+			if cost != 0.001 {
+				t.Errorf("unexpected settled cost %v", cost)
+			}
+			settlements++
+		}, reserveOK
+	}}
+	if _, err := r.Generate(ctx, req); err == nil || paidCalls != 0 || reservations != 1 || settlements != 0 {
+		t.Fatalf("exhausted classification budget bypassed: err=%v paid=%d reservations=%d settlements=%d", err, paidCalls, reservations, settlements)
+	}
+	reserveOK = true
+	if _, err := r.Generate(ctx, req); err != nil || paidCalls != 1 || reservations != 2 || settlements != 1 {
+		t.Fatalf("authorized classification reserve failed: err=%v paid=%d reservations=%d settlements=%d", err, paidCalls, reservations, settlements)
+	}
+}

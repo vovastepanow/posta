@@ -505,19 +505,7 @@ func (r *Router) Generate(ctx context.Context, req *Request) (*Response, error) 
 		if i > 0 && lastErr != nil && !strings.HasPrefix(lastErr.Error(), "нет доступной модели") {
 			logf(fmt.Sprintf("-> пробую резерв %s.", t))
 		}
-		var settle func(float64)
-		if !t.Free() && req.ReservePaid != nil {
-			var ok bool
-			settle, ok = req.ReservePaid()
-			if !ok {
-				lastErr = errors.New("исчерпан бюджет классификации")
-				continue
-			}
-		}
 		resp, err := r.try(ctx, req, t, i > 0)
-		if err == nil && settle != nil {
-			settle(resp.CostUSD)
-		}
 		if err == nil {
 			if i == 0 {
 				r.noteSuccess(req.Role)
@@ -630,6 +618,17 @@ func (r *Router) tryWithPaidReserve(ctx context.Context, req *Request, t Target,
 	if err != nil {
 		return nil, err
 	}
+	// Both configured and scoped paid attempts must honor a caller's
+	// classification budget. Reserve inside the serialized provider boundary
+	// so blocked or unconfigured targets never reserve classification funds.
+	var settle func(float64)
+	if !t.Free() && req.ReservePaid != nil {
+		var ok bool
+		settle, ok = req.ReservePaid()
+		if !ok {
+			return nil, errors.New("исчерпан бюджет классификации")
+		}
+	}
 	if err := checkCallGate(ctx, t); err != nil {
 		return nil, err
 	}
@@ -654,6 +653,9 @@ func (r *Router) tryWithPaidReserve(ctx context.Context, req *Request, t Target,
 	}
 	if r.OnCall != nil {
 		r.OnCall(call)
+	}
+	if err == nil && settle != nil {
+		settle(resp.CostUSD)
 	}
 	if !req.Quiet && r.Log != nil {
 		reply := ""
