@@ -101,10 +101,10 @@ func TestAutopilotAPIIsUserScopedPostgres(t *testing.T) {
 	readyBefore, delayedBefore := jx.Int(topics[0], "queue_ready"), jx.Int(topics[0], "queue_delayed")
 	testPrefix := "rss:https://queue-" + randHex(8) + ".example.org/"
 	if _, err = d.Pool.Exec(ctx, `INSERT INTO source_autopilot_sources(scope,topic_key,source_id,state,reason,policy_version,first_seen_at,checked_at,next_check_at)
-		VALUES ('public',$1,$2||'retry','candidate','feed_unavailable',1,$3,$3-7200,$3+7200),
-		('public',$1,$2||'waiting','candidate','assessment_unavailable',1,$3,$3,$3+7200),
-		('public',$1,$2||'ready','candidate','discovered',1,$3,$3,$3-1),
-		('public',$1,$2||'probation','candidate','probation_full',1,$3,$3,$3+7200)`, key, testPrefix, at); err != nil {
+		VALUES ('public',$1,$2||'retry','candidate','feed_unavailable',1,$3::bigint,$3::bigint-7200,$3::bigint+7200),
+		('public',$1,$2||'waiting','candidate','assessment_unavailable',1,$3::bigint,$3::bigint,$3::bigint+7200),
+		('public',$1,$2||'ready','candidate','discovered',1,$3::bigint,$3::bigint,$3::bigint-1),
+		('public',$1,$2||'probation','candidate','probation_full',1,$3::bigint,$3::bigint,$3::bigint+7200)`, key, testPrefix, at); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
