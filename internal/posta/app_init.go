@@ -60,6 +60,9 @@ func New(ctx context.Context, cfg config.Server) (*App, error) {
 	if err := a.MigrateSourceRegistry(ctx); err != nil {
 		log.Printf("Реестр источников: перенос не выполнен, повторится при следующем запуске: %v", err)
 	}
+	if err := a.backfillAutopilotRegistry(ctx); err != nil {
+		log.Printf("Автопилот: пополнение реестра: %v", err)
+	}
 	if repaired, err := repairAutopilotYieldAdmission(ctx, d.Pool, "", time.Now()); err != nil {
 		log.Printf("Автопилот: восстановление статусов не выполнено: %v", err)
 	} else if repaired > 0 {
@@ -117,6 +120,9 @@ func (a *App) StartBackground() {
 	}
 	a.Every("cache-gc", time.Hour, func(ctx context.Context) {
 		a.CacheGC(ctx)
+		if err := a.backfillAutopilotRegistry(ctx); err != nil {
+			log.Printf("Автопилот: пополнение реестра: %v", err)
+		}
 		a.ThumbGC(ctx)
 		a.UsersGC(ctx)
 		a.DB.Pool.Exec(ctx, `DELETE FROM login_requests WHERE created_at < $1`, now()-86400)

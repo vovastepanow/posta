@@ -151,3 +151,51 @@ func (a *App) autopilotNominateIndexedSources(ctx context.Context, job *autopilo
 	}
 	return nil
 }
+
+// Repair identities that predate the unified registry in bounded batches.
+// This is metadata only; no fetch, model call, verdict or owner data changes.
+func (a *App) backfillAutopilotRegistry(ctx context.Context) error {
+	const cursorKey = "autopilot:registry_backfill_cursor:v1"
+	var cursor string
+	a.KVGet(ctx, cursorKey, &cursor)
+	rows, err := a.DB.Pool.Query(ctx, `SELECT s.source_id,min(s.first_seen_at)
+		FROM source_autopilot_sources s
+		WHERE s.scope='public' AND s.source_id>$1
+		AND NOT EXISTS (SELECT 1 FROM source_registry r WHERE r.source_id=s.source_id)
+		GROUP BY s.source_id ORDER BY s.source_id LIMIT 512`, cursor)
+	if err != nil {
+		return err
+	}
+	type identity struct {
+		source string
+		at     int64
+	}
+	var pending []identity
+	for rows.Next() {
+		var item identity
+		if err := rows.Scan(&item.source, &item.at); err != nil {
+			rows.Close()
+			return err
+		}
+		pending = append(pending, item)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if len(pending) == 0 {
+		return a.KVSet(ctx, cursorKey, "", 0)
+	}
+	if err := a.DB.Tx(ctx, func(tx pgx.Tx) error {
+		for _, item := range pending {
+			if err := rememberAutopilotIdentity(ctx, tx, item.source, item.at); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return a.KVSet(ctx, cursorKey, pending[len(pending)-1].source, 0)
+}

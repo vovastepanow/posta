@@ -168,7 +168,8 @@ func (u *U) RegistryVerdict(sid, topic string) (registryVerdict, string, *regist
 // registryKnown — источники, которые по теме пропускаются без запросов к сети (сэмпл-проверка в этот набор не входит).
 func (u *U) registryKnown(topic string) map[string]bool {
 	out := u.discoveryTopicKnown(u.Catalog(), topic)
-	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id, status, reason, check_count, fail_count, checked_at, topics, sample_at, sample IS NOT NULL FROM source_registry`)
+	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id, status, reason, check_count, fail_count, checked_at, topics, sample_at, sample IS NOT NULL FROM source_registry
+		WHERE status IN ('dead','failed','ukraine') OR (status='rejected' AND topics ? $1)`, TopicNorm(topic))
 	if err != nil {
 		u.Log("Реестр источников: не прочитан: %v", err)
 		return out

@@ -2196,13 +2196,14 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 			continue
 		}
-		if reason == "" && state == "candidate" && job.Scope == autopilotAutoScope && a.LLM != nil {
+		if reason == "" && state == "candidate" && job.Scope == autopilotAutoScope && a.LLM != nil &&
+			!verifiedAdmission && !row.reaudit && !row.freshRecheck && !row.embedDeferred &&
+			a.autopilotEmbeddingEligible(ctx, job.Topic, samples) {
 			score, status := a.autopilotEmbeddingPrescreen(ctx, job, sourceInfo, samples)
 			evidence["embedding_prescreen_status"] = status
 			if score != nil {
 				evidence["embedding_prescreen"] = score
-				if !verifiedAdmission && !row.reaudit && !row.freshRecheck && !row.embedDeferred &&
-					a.autopilotMayDeferEmbedding(job.Topic, samples, score) {
+				if sourceEmbeddingShouldDefer(score, a.TInt("autopilot_embed_defer_score"), true, min(10, len(samples))) {
 					evidence["embedding_deferred_at"] = at.Unix()
 					if err := recordAutopilotSourceCheck(ctx, a.DB, job, source, state,
 						"semantic_prescreen_deferred", jx.Marshal(evidence), at, at.Add(2*time.Hour)); err != nil &&

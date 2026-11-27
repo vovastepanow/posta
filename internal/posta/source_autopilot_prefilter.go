@@ -166,12 +166,16 @@ func (a *App) autopilotEmbeddingPrescreen(ctx context.Context, job *autopilotJob
 		return nil, "openrouter_embedding_disabled"
 	}
 	query, anchors, captions := a.sourceEmbeddingInputs(job.Topic, posts)
-	if len(captions) < 2 {
+	if len(captions) < 5 || len(captions)*3 < min(10, len(posts))*2 {
 		return nil, "insufficient_text"
 	}
 	// The publisher's metadata provides a safety veto, but cannot override
 	// the meaning of its actual posts or act as a quality score.
 	lexical := sourceEmbeddingLexicalMatch(anchors, append(append([]string(nil), captions...), jx.Str(info, "title"), jx.Str(info, "description")))
+	if lexical {
+		// A positive anchor already prevents deferral; no need to buy vectors.
+		return nil, "lexical_match"
+	}
 	texts := append([]string{query}, captions...)
 	vectors := make([][]float64, len(texts))
 	var missing []string
@@ -256,8 +260,11 @@ func sourceEmbeddingShouldDefer(score *sourceEmbeddingScore, threshold int, text
 		score.Max <= float64(threshold)/100
 }
 
-func (a *App) autopilotMayDeferEmbedding(topic string, posts []jx.M, score *sourceEmbeddingScore) bool {
-	u := a.User(context.Background(), "", nil)
+func (a *App) autopilotEmbeddingEligible(ctx context.Context, topic string, posts []jx.M) bool {
+	if len(posts) < 5 {
+		return false
+	}
+	u := a.User(ctx, "", nil)
 	format := u.TopicFormatOf(topic)
 	textOnly := format.Media == "optional" && format.Judge != "image" && !sourcePostsHaveImages(posts)
 	for _, post := range posts {
@@ -267,5 +274,5 @@ func (a *App) autopilotMayDeferEmbedding(topic string, posts []jx.M, score *sour
 			break
 		}
 	}
-	return sourceEmbeddingShouldDefer(score, a.TInt("autopilot_embed_defer_score"), textOnly, min(10, len(posts)))
+	return textOnly
 }
