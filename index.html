@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@700;800;900&display=swap">
 <link rel="stylesheet" href="css/shell.css?v=warm-paper-1">
-<link rel="stylesheet" href="css/app.css?v=connections-1">
+<link rel="stylesheet" href="css/app.css?v=connections-2">
 <link rel="stylesheet" href="css/studio.css?v=rejected-page-1">
 <script type="module" src="js/main.js?v=content-pool-2"></script>
 <script type="module" src="js/studio.js?v=rejected-page-1"></script>
@@ -689,6 +689,11 @@
 
   <section class="account-section social-settings" data-section="social" hidden>
     <header class="connections-heading"><h2>Соцсети и подключения</h2><p class="account-muted">Управляйте каналами для автопостинга и аккаунтами для доступа к контенту.</p></header>
+    <div class="account-card connections-card" id="max-bot-card">
+      <div class="social-head"><span class="connection-icon connection-icon-max" aria-hidden="true">MAX</span><div><h3>Бот Posta в MAX</h3><p class="account-muted">Свяжите профиль с ботом, чтобы видеть состояние контента и очереди публикаций прямо в мессенджере.</p></div></div>
+      <div id="max-bot-body"><p class="account-muted">Проверяю подключение…</p></div>
+      <p id="max-bot-status" class="account-muted" role="status"></p>
+    </div>
     <div class="account-card connections-card" id="networks-card">
       <div class="connections-title"><div><h3>Автопостинг</h3><p class="account-muted">Подключите каналы, сообщества и профили для публикации.</p></div><span class="connection-total" title="Ресурсы без Telegram"><strong id="networks-count">0</strong> ресурсов</span></div>
       <h4>Подключённые ресурсы</h4>

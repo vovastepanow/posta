@@ -126,6 +126,7 @@ func (a *App) StartBackground() {
 		a.ThumbGC(ctx)
 		a.UsersGC(ctx)
 		a.DB.Pool.Exec(ctx, `DELETE FROM login_requests WHERE created_at < $1`, now()-86400)
+		a.DB.Pool.Exec(ctx, `DELETE FROM max_bot_link_requests WHERE created_at < $1`, now()-86400)
 		a.DB.Pool.Exec(ctx, `DELETE FROM login_failures WHERE at < $1`, now()-86400)
 		a.DB.Pool.Exec(ctx, `DELETE FROM post_usage WHERE at < $1`, now()-2*86400)
 		a.DB.Pool.Exec(ctx, `DELETE FROM source_autopilot_admissions WHERE observed_at < $1`, now()-90*86400)

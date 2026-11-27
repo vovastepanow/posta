@@ -2815,3 +2815,11 @@ dialog::backdrop {
 .connection-instructions summary, #networks-inactive summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .social-settings .account-card, .social-settings .telegram-form { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .connections-title { align-items: start; } .connection-tile-head .connection-state { margin-left: auto; } .connection-row .account-secondary { margin-left: auto; } }
+
+.max-bot-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.max-bot-actions a { text-decoration: none; }
+.max-bot-link-steps { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.max-bot-link-steps p { margin: 0; }
+.max-bot-owner { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.max-bot-owner summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+.max-bot-owner form { margin-top: 12px; }

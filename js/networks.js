@@ -1,5 +1,6 @@
 // Social connections: actual destinations, connection state and on-demand setup.
 import { $, api, apiUrl, el, ask } from './core.js';
+import { loadMaxBot } from './max-bot.js';
 
 const ORDER = ['max', 'vk', 'ok', 'youtube', 'pinterest', 'tumblr', 'x'];
 const LABEL = {max:'MAX',vk:'VK',ok:'OK',youtube:'YT',pinterest:'P',tumblr:'t',x:'X'};
@@ -17,6 +18,7 @@ let loadVersion = 0;
 const status = text => { $('networks-status').textContent = text; };
 
 export async function loadNetworks() {
+    loadMaxBot();
     const version = ++loadVersion;
     try {
         const info = await api('networks_list');
