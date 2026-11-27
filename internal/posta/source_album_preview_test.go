@@ -52,3 +52,26 @@ func TestSourcePreviewDoesNotTruncateText(t *testing.T) {
 		t.Fatalf("preview lost text: %d of %d bytes", len(jx.Str(p, "text")), len(body))
 	}
 }
+
+func TestTelegramPublicWidgetDoesNotCollectServiceEvents(t *testing.T) {
+	page := `<script>var fake = '<div data-post="testchannel/999">';</script>
+<!-- <div data-post="testchannel/998"> -->
+<div class="tgme_widget_message" data-post="testchannel/1"><div class="tgme_widget_message_text">Original content</div></div>
+<div class="tgme_widget_message service_message" data-post="testchannel/2"><div class="tgme_widget_message_text">Channel created</div></div>
+<div data-post='testchannel/3' class="tgme_widget_message"><div class="tgme_widget_message_text">A post about how a file is pinned</div></div>`
+	got := TelegramPostsFromHTML(page, jx.M{"id": "testchannel"}, 20, true, 0)
+	if len(got) != 2 || jx.Str(got[0], "post_id") != "3" || jx.Str(got[1], "post_id") != "1" ||
+		jx.Str(got[1], "text") != "Original content" {
+		t.Fatalf("incorrect message boundaries: %+v", got)
+	}
+}
+
+func TestTelegramPublicWidgetMarksUnsupportedAttachmentsIncomplete(t *testing.T) {
+	page := `<div data-post="testchannel/1"><div class="tgme_widget_message_text">Read the attached guide</div><a class="tgme_widget_message_document_wrap">document</a></div>
+<div data-post="testchannel/2"><div class="tgme_widget_message_text">A complete text post</div></div>`
+	got := TelegramPostsFromHTML(page, jx.M{"id": "testchannel"}, 20, true, 0)
+	if len(got) != 2 || jx.Bool(got[0], "media_incomplete") || !jx.Bool(got[1], "media_incomplete") ||
+		!jx.Bool(got[1], "attachment_inventory_incomplete") || jx.Bool(got[1], "text_post") {
+		t.Fatalf("incomplete document treated as complete content: %+v", got)
+	}
+}

@@ -436,24 +436,96 @@ func (a *App) FetchTelegramChannelPage(channel string, before int64) string {
 
 type tgBlock struct{ Channel, ID, Content string }
 
-var dataPostRe = regexp.MustCompile(`data-post="([^"]+)"`)
-
-// TelegramPageBlocks — блоки постов страницы: [id поста, разметка до следующего поста].
+// Read actual HTML attributes instead of matching data-post inside scripts,
+// comments or arbitrary text. Service events delimit messages but are not
+// publications and must not contribute to source activity or review samples.
 func TelegramPageBlocks(page string) []tgBlock {
-	locs := dataPostRe.FindAllStringSubmatchIndex(page, -1)
+	type boundary struct {
+		start, end int
+		channel, id string
+		service bool
+	}
+	var boundaries []boundary
+	z := xhtml.NewTokenizer(strings.NewReader(page))
+	offset := 0
+	for {
+		kind := z.Next()
+		if kind == xhtml.ErrorToken {
+			break
+		}
+		start := offset
+		offset += len(z.Raw())
+		if kind != xhtml.StartTagToken {
+			continue
+		}
+		token := z.Token()
+		if token.Data != "div" {
+			continue
+		}
+		var post, classes string
+		for _, attr := range token.Attr {
+			switch attr.Key {
+			case "data-post":
+				post = attr.Val
+			case "class":
+				classes = attr.Val
+			}
+		}
+		parts := strings.SplitN(post, "/", 2)
+		if len(parts) != 2 || !dvachIDRe.MatchString(parts[1]) {
+			continue
+		}
+		service := false
+		for _, class := range strings.Fields(classes) {
+			switch class {
+			case "service_message", "tgme_widget_message_service", "tgme_widget_message_service_text":
+				service = true
+			}
+		}
+		boundaries = append(boundaries, boundary{start: start, end: offset, channel: parts[0], id: parts[1], service: service})
+	}
 	var out []tgBlock
-	for i, l := range locs {
-		full := page[l[2]:l[3]]
+	for i, b := range boundaries {
+		if b.service {
+			continue
+		}
 		end := len(page)
-		if i+1 < len(locs) {
-			end = locs[i+1][0]
+		if i+1 < len(boundaries) {
+			end = boundaries[i+1].start
 		}
-		parts := strings.SplitN(full, "/", 2)
-		if len(parts) == 2 && dvachIDRe.MatchString(parts[1]) {
-			out = append(out, tgBlock{parts[0], parts[1], page[l[1]:end]})
-		}
+		out = append(out, tgBlock{b.channel, b.id, page[b.end:end]})
 	}
 	return out
+}
+
+// The public widget does not expose downloadable equivalents of every
+// attachment. Preserve the incomplete flag rather than pretending its
+// visible caption is the entire original post.
+func telegramUnsupportedWidget(content string) bool {
+	z := xhtml.NewTokenizer(strings.NewReader(content))
+	for {
+		kind := z.Next()
+		if kind == xhtml.ErrorToken {
+			return false
+		}
+		if kind != xhtml.StartTagToken && kind != xhtml.SelfClosingTagToken {
+			continue
+		}
+		token := z.Token()
+		for _, attr := range token.Attr {
+			if attr.Key != "class" {
+				continue
+			}
+			for _, class := range strings.Fields(attr.Val) {
+				switch class {
+				case "tgme_widget_message_document_wrap", "tgme_widget_message_voice_player",
+					"tgme_widget_message_audio_player", "tgme_widget_message_sticker",
+					"tgme_widget_message_poll", "tgme_widget_message_location", "tgme_widget_message_contact":
+					return true
+				}
+			}
+		}
+	}
 }
 
 var counterRe = regexp.MustCompile(`([\d.,]+)\s*([KkMm]?)`)
@@ -755,6 +827,7 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 		b := blocks[i]
 		text, textHTML, forwardedFrom, forwardedURL := telegramPostTextFields(b.Content)
 		inventory := telegramMediaInventory(b.Content, 10, channel)
+		inventoryIncomplete := telegramUnsupportedWidget(b.Content) || len(tgMediaSplitRe.FindAllStringIndex(b.Content, 11)) > 10
 		var media []jx.M
 		var imgs []string
 		for _, m := range inventory {
@@ -785,12 +858,12 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 		}
 		hasVideo := playableVideos > 0
 		unavailable := !hasVideo && videoTiles > 0
-		mediaIncomplete := missingPhoto || (videoTiles > playableVideos && len(inventory) > 1)
+		mediaIncomplete := inventoryIncomplete || missingPhoto || (videoTiles > playableVideos && len(inventory) > 1)
 		if videoTiles == 1 && len(inventory) == 1 && jx.Str(inventory[0], "video_page") == "" {
 			inventory[0]["video_page"], inventory[0]["video_via"] = "https://t.me/"+channel+"/"+b.ID, "tgu"
 		}
-		textOnly := len(inventory) == 0 && withText && runeLen(text) >= minText && text != ""
-		if len(inventory) == 0 && !textOnly {
+		textOnly := !inventoryIncomplete && len(inventory) == 0 && withText && runeLen(text) >= minText && text != ""
+		if len(inventory) == 0 && !textOnly && !inventoryIncomplete {
 			continue
 		}
 		t := TelegramPostTime(b.Content)
@@ -817,7 +890,7 @@ func TelegramPostsFromHTML(page string, src jx.M, count int, withText bool, minT
 		posts = append(posts, jx.M{"image": main, "images": images[:min(10, len(images))], "link_image": linkImage, "gallery": gallery, "video": video,
 			"text": text, "text_html": textHTML, "forwarded": forwardedFrom != "", "forwarded_from": forwardedFrom, "forwarded_url": forwardedURL,
 			"text_post": textOnly, "source": name, "post_id": b.ID, "posted_at": t, "url": "https://t.me/" + url.PathEscape(channel) + "/" + b.ID,
-			"video_unavailable": unavailable, "media_incomplete": mediaIncomplete, "source_attachments": inventory, "expected_video_count": videoTiles, "engagement": telegramEngagementSnapshot(eng, b.ID, t)})
+			"video_unavailable": unavailable, "media_incomplete": mediaIncomplete, "attachment_inventory_incomplete": inventoryIncomplete, "source_attachments": inventory, "expected_video_count": videoTiles, "engagement": telegramEngagementSnapshot(eng, b.ID, t)})
 	}
 	return posts
 }
