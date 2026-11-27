@@ -80,7 +80,7 @@ func publicClassificationInput(post jx.M) (caption, image string, ok bool) {
 }
 
 func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, description, imageURL string, item jx.M) {
-	result, err := a.DB.Pool.Exec(ctx, `UPDATE public_posts SET classification_at=$3 WHERE source_key=$1 AND post_key=$2 AND classification_at < $3-3600 AND data=$4::jsonb AND NOT EXISTS (SELECT 1 FROM public_post_topics t WHERE t.source_key=$1 AND t.post_key=$2)`, source, key, now(), jx.Marshal(item))
+	result, err := a.DB.Pool.Exec(ctx, `UPDATE public_posts SET classification_at=$3 WHERE source_key=$1 AND post_key=$2 AND classification_at < $3-3600 AND posta_public_revision(data)=posta_public_revision($4::jsonb) AND NOT EXISTS (SELECT 1 FROM public_post_topics t WHERE t.source_key=$1 AND t.post_key=$2)`, source, key, now(), jx.Marshal(item))
 	if err != nil || result.RowsAffected() != 1 {
 		return
 	}
@@ -99,7 +99,7 @@ func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, descrip
 	defer tx.Rollback(ctx)
 	// Do not apply a result to a post that changed while media was fetched.
 	var unchanged bool
-	if err = tx.QueryRow(ctx, `SELECT data=$3::jsonb AND NOT EXISTS (SELECT 1 FROM public_post_topics t WHERE t.source_key=$1 AND t.post_key=$2) FROM public_posts WHERE source_key=$1 AND post_key=$2 FOR UPDATE`, source, key, jx.Marshal(item)).Scan(&unchanged); err != nil || !unchanged {
+	if err = tx.QueryRow(ctx, `SELECT posta_public_revision(data)=posta_public_revision($3::jsonb) AND NOT EXISTS (SELECT 1 FROM public_post_topics t WHERE t.source_key=$1 AND t.post_key=$2) FROM public_posts WHERE source_key=$1 AND post_key=$2 FOR UPDATE`, source, key, jx.Marshal(item)).Scan(&unchanged); err != nil || !unchanged {
 		return
 	}
 	for _, tag := range tags {
@@ -299,6 +299,7 @@ WHERE p.last_seen >= $1 AND p.classification_at < $2
 AND (coalesce(p.data->>'image','') <> '' OR coalesce(p.data->>'video','') <> '' OR length(coalesce(p.data->>'text','')) >= 4)
 AND coalesce(p.data->>'source_sensitive','false') <> 'true'
 AND coalesce(p.data->>'nsfw','false') <> 'true'
+AND NOT (p.data @> '{"text_incomplete":true}' OR p.data @> '{"media_incomplete":true}' OR p.data @> '{"video_unavailable":true}')
 AND NOT EXISTS (SELECT 1 FROM public_post_topics t WHERE t.source_key=p.source_key AND t.post_key=p.post_key)
 ORDER BY p.last_seen DESC LIMIT 100`, now()-7*86400, now()-3600)
 	if err != nil {

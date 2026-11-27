@@ -50,7 +50,7 @@ export function plainStyledText(text){
 // The article reader returns ordered blocks, not just the RSS lead.
 export function articleEditorContent(article, fallbackTitle=''){
     const parts=[],media=[];
-    let styled=false,bodyFound=false;
+    let styled=false,bodyFound=false,unsupported=false;
     const urlOf=value=>{
         try{const u=new URL(String(value||''));return ['https:','http:'].includes(u.protocol)&&!u.username&&!u.password&&u.href.length<=2048?u.href.replace(/\(/g,'%28').replace(/\)/g,'%29'):'';}catch{return '';}
     };
@@ -71,7 +71,7 @@ export function articleEditorContent(article, fallbackTitle=''){
     heading(article?.title||fallbackTitle);
     for(const block of article?.blocks||[]){
         switch(block.type){
-        case 'h': if(block.text){heading(block.text);bodyFound=true;}break;
+        case 'h': if(block.text){if(block.links?.length)parts.push(links(block.text,block.links));else heading(block.text);bodyFound=true;}break;
         case 'p':case 'quote':
             if(block.text){parts.push(links(block.text,block.links));bodyFound=true;}break;
         case 'list':{
@@ -79,7 +79,7 @@ export function articleEditorContent(article, fallbackTitle=''){
             if(items.length){parts.push(items.join('\n'));bodyFound=true;}break;
         }
         case 'image':{
-            const src=urlOf(block.src);if(src&&!media.some(m=>m.src===src))media.push({kind:'image',src,thumb:src,name:'Изображение статьи'});
+            const src=urlOf(block.src);if(!src)unsupported=true;else if(!media.some(m=>m.src===src))media.push({kind:'image',src,thumb:src,name:'Изображение статьи'});
             if(block.caption)parts.push(String(block.caption));break;
         }
         case 'video':{
@@ -88,11 +88,12 @@ export function articleEditorContent(article, fallbackTitle=''){
         case 'embed':{
             const value=[block.title,block.description].filter(Boolean).join('\n');if(value)parts.push(value);break;
         }
+        default: unsupported=true;break;
         }
     }
     const cover=urlOf(article?.cover?.src);
     if(cover&&!media.some(m=>m.src===cover))media.unshift({kind:'image',src:cover,thumb:cover,name:'Обложка статьи'});
-    return {text:parts.join('\n\n'),styled,media,bodyFound};
+    return {text:parts.join('\n\n'),styled,media,bodyFound,unsupported};
 }
 
 // Identify the record, never its thumbnail alone. A source post identity

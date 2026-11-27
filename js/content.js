@@ -698,6 +698,7 @@ async function editorContent(item,shown){
         const data=await api('article_read',{params:{url}});
         imported=articleEditorContent(data.article,item.article?.title);
         if(!imported.bodyFound)throw new Error('Текст статьи не найден.');
+        if(imported.unsupported)throw new Error('В оригинале есть неподдерживаемые блоки. Откройте статью на исходном сайте.');
     }catch(error){
         // A saved RSS summary or legacy article_text may be only a lead.
         // Never silently present it as a complete article.

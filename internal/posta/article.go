@@ -552,9 +552,7 @@ var osnovaHosts = map[string]string{"vc.ru": "api.vc.ru", "dtf.ru": "api.dtf.ru"
 var (
 	osnovaIDRe     = regexp.MustCompile(`/(\d{5,12})(?:-|/|$)`)
 	osnovaWWWRe    = regexp.MustCompile(`^(?:www|m)\.`)
-	osnovaLinkRe   = regexp.MustCompile(`(?is)<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>`)
 	osnovaRedirRe  = regexp.MustCompile(`redirect\?(?:[^"]*&)?to=([^&]+)`)
-	osnovaHashOnly = regexp.MustCompile(`^(?:#\S+\s*)+$`)
 	uuidRe         = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 	pCloseRe       = regexp.MustCompile(`(?i)</p>`)
 	nbspRe         = regexp.MustCompile("[ \t\r\f\v ]+")
@@ -567,18 +565,44 @@ func osnovaText(h string) string {
 
 func osnovaLinks(h string) []any {
 	out := []any{}
-	for _, m := range osnovaLinkRe.FindAllStringSubmatch(h, -1) {
-		href := html.UnescapeString(m[1])
-		if r := osnovaRedirRe.FindStringSubmatch(href); r != nil {
-			if d, err := url.QueryUnescape(r[1]); err == nil {
-				href = d
+	doc, err := xhtml.Parse(strings.NewReader(h))
+	if err != nil {
+		return out
+	}
+	var walk func(*xhtml.Node)
+	walk = func(n *xhtml.Node) {
+		if n.Type == xhtml.ElementNode && n.Data == "a" {
+			for _, attr := range n.Attr {
+				if attr.Key != "href" {
+					continue
+				}
+				href := attr.Val
+				if r := osnovaRedirRe.FindStringSubmatch(href); r != nil {
+					if d, err := url.QueryUnescape(r[1]); err == nil {
+						href = d
+					}
+				}
+				u, err := url.Parse(href)
+				if err != nil || u.Hostname() == "" || u.User != nil ||
+					(u.Scheme != "https" && u.Scheme != "http") || len(href) > 2048 {
+					break
+				}
+				var labelHTML strings.Builder
+				for c := n.FirstChild; c != nil; c = c.NextSibling {
+					_ = xhtml.Render(&labelHTML, c)
+				}
+				if label := osnovaText(labelHTML.String()); label != "" {
+					out = append(out, []any{label, u.String()})
+				}
+				break
 			}
+			return
 		}
-		label := osnovaText(m[2])
-		if label != "" && strings.HasPrefix(href, "https://") {
-			out = append(out, []any{label, href})
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
 		}
 	}
+	walk(doc)
 	return out
 }
 
@@ -586,7 +610,7 @@ func osnovaParagraphs(h string) []jx.M {
 	var out []jx.M
 	for _, c := range pCloseRe.Split(h, -1) {
 		t := osnovaText(c)
-		if t == "" || osnovaHashOnly.MatchString(t) {
+		if t == "" {
 			continue
 		}
 		out = append(out, jx.M{"type": "p", "text": t, "links": osnovaLinks(c)})
@@ -628,7 +652,7 @@ func osnovaBlocks(raw []jx.M, link string) []jx.M {
 			out = append(out, osnovaParagraphs(jx.Str(d, "text"))...)
 		case "header":
 			if t := osnovaText(jx.Str(d, "text")); t != "" {
-				out = append(out, jx.M{"type": "h", "text": t})
+				out = append(out, jx.M{"type": "h", "text": t, "links": osnovaLinks(jx.Str(d, "text"))})
 			}
 		case "list":
 			items := []any{}
@@ -640,13 +664,19 @@ func osnovaBlocks(raw []jx.M, link string) []jx.M {
 			out = append(out, jx.M{"type": "list", "items": items})
 		case "quote":
 			if t := osnovaText(jx.Str(d, "text")); t != "" {
-				out = append(out, jx.M{"type": "quote", "text": t})
+				out = append(out, jx.M{"type": "quote", "text": t, "links": osnovaLinks(jx.Str(d, "text"))})
 			}
 		case "media":
-			for _, it := range jx.Maps(d, "items") {
-				if img := osnovaImage(jx.Map(it, "image")); img != nil {
+			items := jx.Maps(d, "items")
+			if len(items) == 0 {
+				out = append(out, jx.M{"type": "unsupported"})
+			}
+			for _, it := range items {
+				if img := osnovaImage(jx.Map(it, "image")); img != nil && jx.Str(it, "type") != "video" && !jx.Has(it, "video") {
 					img["type"], img["caption"] = "image", osnovaText(jx.Str(it, "title"))
 					out = append(out, img)
+				} else {
+					out = append(out, jx.M{"type": "unsupported"})
 				}
 			}
 		case "video":
@@ -655,7 +685,13 @@ func osnovaBlocks(raw []jx.M, link string) []jx.M {
 			e := jx.Map(jx.Map(d, "osnovaEmbed"), "data")
 			if t := osnovaText(jx.Str(e, "title")); t != "" {
 				out = append(out, jx.M{"type": "embed", "title": t, "description": osnovaText(jx.Str(e, "description"))})
+			} else {
+				out = append(out, jx.M{"type": "unsupported"})
 			}
+		case "delimiter":
+			// A visual separator carries no original text or attachment.
+		default:
+			out = append(out, jx.M{"type": "unsupported"})
 		}
 	}
 	return out
@@ -745,7 +781,7 @@ func (a *App) OsnovaArticle(link string, force bool) jx.M {
 	if m == nil {
 		return nil
 	}
-	key := "osnova:" + m[1]
+	key := "osnova:v2:" + host + ":" + m[1]
 	var cached struct {
 		Data jx.M `json:"data"`
 	}
@@ -756,7 +792,7 @@ func (a *App) OsnovaArticle(link string, force bool) jx.M {
 	r, err := a.FetchPublic("https://"+api+"/v2.10/content?id="+m[1], FetchOpts{MaxBytes: articleMaxBytes, Timeout: 10 * time.Second})
 	var data jx.M
 	ttl := time.Hour
-	if err == nil && r.OK {
+	if err == nil && r.OK && r.Status != 206 {
 		if data = OsnovaFromAPI(r.Bytes, link); data != nil {
 			ttl = articleCacheTTL
 		}

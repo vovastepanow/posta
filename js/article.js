@@ -13,7 +13,7 @@ function withLinks(text, links = []) {
     let rest = String(text || '');
     for (const [label, href] of links) {
         const at = rest.indexOf(label);
-        if (at < 0 || !String(href).startsWith('https://')) continue;
+        if (at < 0 || !/^https?:\/\//i.test(String(href))) continue;
         if (at > 0) out.push(rest.slice(0, at));
         out.push(el('a', { href, target: '_blank', rel: 'noopener noreferrer', textContent: label }));
         rest = rest.slice(at + label.length);
@@ -34,13 +34,14 @@ function imageNode(block, images) {
 /** Один блок статьи. Незнакомые типы пропускаются. */
 export function blockNode(block, images) {
     switch (block.type) {
-        case 'h': return el('h3', { className: 'ar-h', textContent: block.text });
+        case 'h': return el('h3', { className: 'ar-h' }, ...withLinks(block.text, block.links));
         case 'p': return el('p', { className: 'ar-p' }, ...withLinks(block.text, block.links));
         case 'list': return el('ul', { className: 'ar-list' }, ...block.items.map(i => el('li', {}, ...withLinks(i.text, i.links))));
-        case 'quote': return el('blockquote', { className: 'ar-quote', textContent: block.text });
+        case 'quote': return el('blockquote', { className: 'ar-quote' }, ...withLinks(block.text, block.links));
         case 'image': return imageNode(block, images);
         case 'video': return el('a', { className: 'ar-embed', href: block.url, target: '_blank', rel: 'noopener noreferrer', textContent: '▶ Видео в статье — смотреть на сайте ↗' });
         case 'embed': return el('div', { className: 'ar-embed is-card' }, el('b', { textContent: block.title }), block.description ? el('span', { textContent: block.description }) : null);
+        case 'unsupported': return el('p', { className: 'ar-note', textContent: 'Неподдерживаемый блок. Его можно посмотреть в оригинале статьи.' });
         default: return null;
     }
 }
