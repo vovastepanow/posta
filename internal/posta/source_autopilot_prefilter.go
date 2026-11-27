@@ -105,17 +105,32 @@ func sourceEmbeddingWords(text string) []string {
 // Lexical overlap is a safety veto against deferral, not an admission gate.
 // A missing keyword never independently proves that a source is irrelevant.
 func sourceEmbeddingLexicalMatch(anchors []string, captions []string) bool {
-	words := map[string]bool{}
+	// Keep phrases together. Generic single words extracted from a query
+	// such as "реклама", "канал" or "контент" must not bypass the filter.
+	// An explicit single-word topic/alias is still a valid safety veto.
+	var phrases []string
 	for _, anchor := range anchors {
+		var useful []string
 		for _, word := range sourceEmbeddingWords(anchor) {
 			if len([]rune(word)) >= 3 && word != "для" && word != "the" && word != "and" {
-				words[word] = true
+				useful = append(useful, word)
 			}
+		}
+		if len(useful) > 0 {
+			phrases = append(phrases, " "+strings.Join(useful, " ")+" ")
 		}
 	}
 	for _, caption := range captions {
-		for _, word := range sourceEmbeddingWords(caption) {
-			if words[word] {
+		words := sourceEmbeddingWords(caption)
+		var useful []string
+		for _, word := range words {
+			if len([]rune(word)) >= 3 && word != "для" && word != "the" && word != "and" {
+				useful = append(useful, word)
+			}
+		}
+		text := " " + strings.Join(useful, " ") + " "
+		for _, phrase := range phrases {
+			if strings.Contains(text, phrase) {
 				return true
 			}
 		}
@@ -258,7 +273,8 @@ func (a *App) autopilotEmbeddingEligible(ctx context.Context, topic string, post
 	format := u.TopicFormatOf(topic)
 	textOnly := format.Media == "optional" && format.Judge != "image" && !sourcePostsHaveImages(posts)
 	for _, post := range posts {
-		if PostItemHasVideo(post) || jx.Str(post, "audio") != "" || len(jx.List(post, "source_attachments")) > 0 ||
+		if jx.Bool(post, "text_incomplete") || jx.Bool(post, "media_incomplete") || jx.Bool(post, "video_unavailable") ||
+			PostItemHasVideo(post) || jx.Str(post, "video_via") != "" || jx.Str(post, "audio") != "" || len(jx.List(post, "source_attachments")) > 0 ||
 			len(jx.List(post, "gallery")) > 0 || len(jx.List(post, "media")) > 0 {
 			textOnly = false
 			break

@@ -48,3 +48,13 @@ func TestSourceEmbeddingPrescreenNeverDiscardsMixedOrUncertain(t *testing.T) {
 		t.Fatal("a good post must prevent deferral even if the others are irrelevant")
 	}
 }
+
+func TestSourceEmbeddingLexicalAnchorsKeepContext(t *testing.T) {
+	anchors := []string{"таргетированная реклама", "контент стратегия", "smm"}
+	if sourceEmbeddingLexicalMatch(anchors, []string{"Реклама магазина пряжи и новый свитер", "Контент для любителей вязания"}) {
+		t.Fatal("a generic word bypassed semantic screening")
+	}
+	if !sourceEmbeddingLexicalMatch(anchors, []string{"Разбор: таргетированная реклама для магазина пряжи"}) {
+		t.Fatal("a real marketing case lost its positive anchor")
+	}
+}

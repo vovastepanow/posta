@@ -377,3 +377,15 @@ func TestCombinedSourceReviewRejectsMalformedScores(t *testing.T) {
 		t.Fatal("valid negative source verdict was lost")
 	}
 }
+
+func TestAutopilotSourceCaptionRejectsIncompleteEvidence(t *testing.T) {
+	posts := []jx.M{
+		{"text": "Short SMM teaser", "text_incomplete": true},
+		{"text": "Full source post"},
+		{"text": "Another incomplete sample", "source_sensitive": true},
+	}
+	captions, readable := autopilotSourceCaptionSample(posts)
+	if readable != 1 || captions[0] != "" || captions[2] != "" {
+		t.Fatalf("partial or restricted text was treated as evidence: %q", captions)
+	}
+}

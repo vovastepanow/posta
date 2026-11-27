@@ -1478,6 +1478,9 @@ func autopilotSourceCaptionSample(posts []jx.M) ([]string, int) {
 	readable := 0
 	for _, post := range posts[:min(len(posts), config.SourceReviewCaptions)] {
 		caption := strings.TrimSpace(jx.Str(post, "text"))
+		if jx.Bool(post, "text_incomplete") || jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") {
+			caption = ""
+		}
 		if caption == EmptyPostText {
 			caption = ""
 		}
@@ -2219,7 +2222,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		}
 		if reason == "" && (state == "candidate" || (!policy.YieldEnabled && row.reaudit && (state == "probation" || state == "active"))) {
 			autopilotResetAssessmentCause(ctx)
-			evaluation := evaluate(sourceInfo, samples, job.Topic)
+			evaluation := a.autopilotReuseTextReview(ctx, job, sourceInfo, samples, reuse && !verifiedAdmission, evaluate)
 			if err := autopilotBudgetError(ctx); err != nil {
 				return err
 			}

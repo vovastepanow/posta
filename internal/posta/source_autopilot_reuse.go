@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"posta/internal/jx"
+	"posta/internal/llm"
 )
 
 // A neutral registry row records identity, not a thematic or technical verdict.
@@ -198,4 +199,68 @@ func (a *App) backfillAutopilotRegistry(ctx context.Context) error {
 		return err
 	}
 	return a.KVSet(ctx, cursorKey, pending[len(pending)-1].source, 0)
+}
+
+// Cache only completed, sufficiently covered text reviews for initial
+// public candidates. Identical sample, topic profile and resolved model
+// configuration are required; explicit rechecks bypass this cache.
+func sourceTextReviewKey(topic, context, hint, title string, captions []string, models []string) string {
+	return "source_text_review:v1:" + repeatDigest(string(jx.Marshal([]any{
+		TopicProfileVersion, topic, context, hint, title, captions, models,
+	})))
+}
+
+func validCachedSourceTextReview(ev *sourceEvaluation, sampleCount int) bool {
+	if ev == nil || !ev.TextOnly || ev.Text == nil || *ev.Text != ev.Score ||
+		ev.Score < 0 || ev.Score > 100 || len(ev.Images) > 0 ||
+		ev.ReviewedSamples < 2 || ev.ReviewedSamples > sampleCount ||
+		ev.ReviewedSamples*3 < sampleCount*2 || ev.Quality == nil {
+		return false
+	}
+	var total int64
+	for _, field := range []string{"topic_relevant", "topic_adjacent", "topic_off_topic"} {
+		if ev.Quality[field] == nil || jx.Int(ev.Quality, field) < 0 {
+			return false
+		}
+		total += jx.Int(ev.Quality, field)
+	}
+	return total == int64(ev.ReviewedSamples) && jx.Int(ev.Quality, "topic_unknown") == int64(sampleCount)-total
+}
+
+func (a *App) autopilotReuseTextReview(ctx context.Context, job *autopilotJob, info jx.M, posts []jx.M, reuse bool,
+	evaluate func(jx.M, []jx.M, string) *sourceEvaluation) *sourceEvaluation {
+	if !reuse || a.LLM == nil || a.DB == nil || job.Scope != autopilotAutoScope {
+		return evaluate(info, posts, job.Topic)
+	}
+	u := a.User(ctx, "", nil)
+	format := u.TopicFormatOf(job.Topic)
+	if format.Media != "optional" || format.Judge == "image" || sourcePostsHaveImages(posts) {
+		return evaluate(info, posts, job.Topic)
+	}
+	for _, post := range posts {
+		if PostItemHasVideo(post) || jx.Str(post, "video_via") != "" || jx.Str(post, "audio") != "" ||
+			jx.Bool(post, "text_incomplete") || jx.Bool(post, "media_incomplete") || jx.Bool(post, "video_unavailable") ||
+			len(jx.List(post, "source_attachments")) > 0 || len(jx.List(post, "gallery")) > 0 {
+			return evaluate(info, posts, job.Topic)
+		}
+	}
+	captions, readable := autopilotSourceCaptionSample(posts)
+	if readable < 2 || readable*3 < len(captions)*2 {
+		return evaluate(info, posts, job.Topic)
+	}
+	primary, fallback, _ := a.LLM.Resolve(ctx, llm.RoleSmart)
+	if primary.Empty() {
+		return evaluate(info, posts, job.Topic)
+	}
+	key := sourceTextReviewKey(job.Topic, u.TopicPromptContext(job.Topic), u.TopicProfileHint(job.Topic),
+		trimRunes(jx.Str(info, "title"), 180), captions, []string{primary.String(), fallback.String()})
+	var cached sourceEvaluation
+	if a.CacheGet(ctx, key, &cached) && validCachedSourceTextReview(&cached, len(captions)) {
+		return &cached
+	}
+	ev := evaluate(info, posts, job.Topic)
+	if autopilotBudgetError(ctx) == nil && ctx.Err() == nil && validCachedSourceTextReview(ev, len(captions)) {
+		a.CacheSet(ctx, key, ev, 24*time.Hour)
+	}
+	return ev
 }
