@@ -1,25 +1,8 @@
 // Главная страница: контент, источники и состояние подбора.
 // Данные — тот же API, что у приложения.
 import { showPlan, showProfile } from './profile.js';
-import { cleanCaption, log, onTabOpen, onTopicChange, switchTab } from './core.js';
+import { $, cleanCaption, el, formatAgo, log, onTabOpen, onTopicChange, switchTab } from './core.js';
 import { bindFutureDraftButton, applyRocketCheck, postItemToTelegram } from './content.js';
-
-const $ = id => document.getElementById(id);
-
-function el(tag, props = {}, ...children) {
-    const node = Object.assign(document.createElement(tag), props);
-    node.append(...children.filter(c => c !== null && c !== undefined && c !== false));
-    return node;
-}
-
-/** «5 мин назад» по unix-времени. */
-function formatAgo(ts) {
-    const minutes = Math.max(0, Math.round((Date.now() / 1000 - ts) / 60));
-    if (minutes < 1) return 'только что';
-    if (minutes < 60) return `${minutes} мин назад`;
-    const hours = Math.round(minutes / 60);
-    return hours < 48 ? `${hours} ч назад` : `${Math.round(hours / 24)} дн назад`;
-}
 
 /** Запрос к API приложения (POST — с заголовком X-Posta). */
 async function api(action, { body } = {}) {
@@ -28,12 +11,6 @@ async function api(action, { body } = {}) {
     const data = await r.json().catch(() => null);
     if (!r.ok) throw Object.assign(new Error(data?.message || `HTTP ${r.status}`), { status: r.status });
     return data;
-}
-
-/** Запрос к API; без входа — на страницу входа приложения. */
-async function apiOrLogin(action, opts) {
-    try { return await api(action, opts); }
-    catch (e) { throw e; }
 }
 
 const PLATFORMS = { YouTube: '▶', Telegram: '✈', 'ВКонтакте': 'VK', RSS: '◉', 'Двач': '2ch', '4chan': '4ch', 'Одноклассники': 'OK', TikTok: '♪' };
@@ -314,7 +291,7 @@ async function loadLive() {
     const gen = ++live.gen;   // один активный опрос: ответ старого запроса не планирует новый таймер
     clearTimeout(live.timer);
     let r;
-    try { r = await apiOrLogin('studio_live'); } catch (error) {
+    try { r = await api('studio_live'); } catch (error) {
         renderPipe.sig = null;
         $('pipeNow').textContent = error.status === 401 ? 'Войдите, чтобы увидеть состояние' : 'Не удалось загрузить состояние';
         $('sourcePipeNow').textContent = error.status === 401 ? 'Войдите, чтобы увидеть состояние' : 'Не удалось загрузить состояние';
@@ -357,7 +334,7 @@ function render() {
 }
 
 async function loadContent() {
-    const [proposals, info] = await Promise.all([apiOrLogin('proposals'), api('account_info')]);
+    const [proposals, info] = await Promise.all([api('proposals'), api('account_info')]);
     state.items = proposals.items || [];
     showProfile(info);
     render();

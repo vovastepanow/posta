@@ -1,11 +1,10 @@
 // post-view.js — единый просмотрщик постов: медиа-пост, текстовый пост и статья в одной карточке.
 // Принимает нормализованный пост (post-adapters.js); кнопки действий даёт место вызова. Текст — только textContent.
-import { $, COUNT, VIDEO_ICON, el, formatAgo } from './core.js';
+import { $, COUNT, VIDEO_ICON, api, el, formatAgo } from './core.js';
 import { openViewerGallery, videoPageFor } from './viewer.js';
 import { loadImage, pageCheck, videoProgress, watchVideo } from './video-pending.js';
 import { articleCover, articleMeta, siteBadge } from './card.js';
 import { blockNode } from './article.js';
-import { api } from './core.js';
 import { analyzePost, needsFetch } from './post-adapters.js';
 import { openTelegramAuth } from './account.js';
 
