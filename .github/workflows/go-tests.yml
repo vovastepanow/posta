@@ -129,3 +129,39 @@ jobs:
         run: go test ./internal/posta -run '^TestAutopilotReconsiderHistoricOKRejectsOnlyOncePostgres$' -count=1 -timeout=3m
       - name: Verify model failure recovery and text-only feeds
         run: go test ./internal/posta -run '^(TestAutopilotQueryUsesObservedYieldAndExploresPostgres|TestAutopilotQueryGenerationRetriesAfterProviderFailure|TestAutopilotGeneratesQueriesThroughModelGate|TestSourcePostsHaveImages|TestEvaluateTextOnlySourceWithoutImage|TestAutopilotPreliminaryPass|TestAutopilotSourceReviewInterval)$' -count=1 -timeout=5m
+      - name: Verify isolated catalog, budget, identity and source controls
+        env:
+          PGPASSWORD: posta_test
+        run: |
+          test_dir=$(mktemp -d)
+          trap 'rm -rf "$test_dir"' EXIT
+          go test -c -o "$test_dir/posta.test" ./internal/posta
+          cd internal/posta
+          cases=(
+            TestCatalogRejectsStaleProcessPostgres
+            TestAutopilotBudgetPostgres
+            TestAutopilotModelBudgetPostgres
+            TestAutopilotNetworkBudgetAtomicPostgres
+            TestAutopilotCandidateOverridesPostgres
+            TestAutopilotQueuePostgres
+            TestAutopilotPublicFetchPostgres
+            TestAutopilotAdmissionPostgres
+            TestPersonalSourceOverridePersistsAndIsIsolatedPostgres
+            TestAutopilotMastodonReviewAndProjectionPostgres
+            TestAutopilotScheduleFullContextRechecksPostgres
+            TestYouTubeLegacySettingsAndRegistryPostgres
+            TestAutopilotYouTubeUnavailableReleasesTrialPostgres
+            TestAutopilotSocialProjectionAndPersonalControlPostgres
+            TestSharedCollectionQueuePostgres
+            TestSharedSourceLockAcrossAppsPostgres
+            TestPromptSaveResetReachesModel
+          )
+          for i in "${!cases[@]}"; do
+            database="posta_isolated_$i"
+            createdb -h localhost -U posta "$database"
+            dsn="postgres://posta:posta_test@localhost:5432/$database?sslmode=disable"
+            POSTA_AUTOPILOT_TEST_DSN="$dsn" POSTA_TEST_PG="$dsn" \
+              "$test_dir/posta.test" -test.run "^${cases[$i]}$" -test.v -test.timeout=2m
+            dropdb -h localhost -U posta "$database"
+          done
+
