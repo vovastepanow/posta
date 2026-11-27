@@ -48,7 +48,7 @@ export async function planPanel(ctx) {
 /** Заменить пост строки следующим подходящим из Предложки, которого нет в плане. */
 function replaceRow(row, rows, pool) {
     const used = new Set(rows.map(r => r.item_key || r.image));
-    const next = pool.find(item => (item.item_key || item.image) && !used.has(item.item_key || item.image) && !(item.video_via && !item.video && !item.display_video));
+    const next = pool.find(item => (item.item_key || item.image) && !used.has(item.item_key || item.image) && !(item.video_via && !item.video && !item.display_video) && !item.text_incomplete && !item.media_incomplete && !item.video_unavailable);
     if (!next) return false;
     Object.assign(row, { item_key: next.item_key || next.image, image: next.image || '', display: next.display_image || next.image || '', text: next.text, article: next.article });
     return true;

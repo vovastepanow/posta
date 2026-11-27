@@ -45,3 +45,30 @@ func TestCalendarFindTextRecord(t *testing.T) {
 		t.Fatal("empty key selected an arbitrary text record")
 	}
 }
+
+func TestCalendarRichOriginal(t *testing.T) {
+	raw := `<b>Bold <a href="https://example.org/a">link</a></b><br><i>Italic</i><script>hidden</script>`
+	if got := calendarHTMLText(raw, true); got != "**Bold** [link](https://example.org/a)\n__Italic__" {
+		t.Fatalf("formatted original: %q", got)
+	}
+	if got := calendarHTMLText(raw, false); got != "Bold link (https://example.org/a)\nItalic" {
+		t.Fatalf("plain original: %q", got)
+	}
+	article := jx.M{"title": "Title", "blocks": []jx.M{
+		{"type": "p", "text": "Full first paragraph", "links": []any{[]any{"first", "https://example.org"}}},
+		{"type": "image", "src": "https://example.org/photo.jpg"},
+		{"type": "p", "text": "Last paragraph"},
+	}}
+	text, media, err := calendarStructuredArticle(article, "", nil, true)
+	if err != nil || len(media) != 1 || text != "**Title**\n\nFull [first](https://example.org) paragraph\n\nLast paragraph" {
+		t.Fatalf("article: %q media=%v err=%v", text, media, err)
+	}
+	article["blocks"] = []jx.M{{"type": "video", "url": "https://example.org/video"}}
+	if _, _, err := calendarStructuredArticle(article, "", nil, true); err == nil {
+		t.Fatal("unsupported article silently scheduled")
+	}
+	if calendarRequiresEditor(jx.M{"text_html": raw}) || !calendarRequiresEditor(jx.M{"article_source": true, "url": "https://example.org/news"}) ||
+		calendarRequiresEditor(jx.M{"article_source": true, "url": "https://vc.ru/123456"}) {
+		t.Fatal("incorrect rich post routing")
+	}
+}

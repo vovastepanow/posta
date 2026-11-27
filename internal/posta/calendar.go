@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -642,12 +643,14 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 	if u.UARecordHidden(record) || (!u.AdultAllowed() && u.ContentIsAdult(record)) {
 		return "", Bad("Публикация этого материала недоступна.")
 	}
-	if calendarRequiresEditor(record) {
-		return "", Bad("Статья или форматированный текст: откройте пост в редакторе, чтобы сохранить всё содержимое.")
-	}
-	items, err := u.calendarRecordMedia(record)
+	text, items, extras, err := u.calendarPrepareOriginal(record, item, c)
 	if err != nil {
 		return "", err
+	}
+	for _, media := range items {
+		if path := u.MediaPath(media.Src); path != "" && !u.CachedMediaAllowed(u.Ctx, u.ID, filepath.Base(path)) {
+			return "", Bad("Файл недоступен для этого аккаунта.")
+		}
 	}
 	if d := u.BillingPostDenied(true); d != "" {
 		return "", Bad("%s", d)
@@ -667,7 +670,7 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 		}
 		limit = NetworkTextLimit(n, len(items) > 0)
 	}
-	text := TextWithHashtags(strings.TrimSpace(jx.Str(item, "text")), u.ChannelHashtags(c, u.PostHashtags(record)), limit)
+	text = TextWithHashtags(text, u.ChannelHashtags(c, u.PostHashtags(record)), limit)
 	if platform == "telegram" {
 		if err := TelegramCheckText(text, len(items)); err != nil {
 			return "", err
@@ -690,11 +693,11 @@ func (u *U) fillOne(item jx.M, cid string, at int64, group string, pool []jx.M, 
 		return "", err
 	}
 	defer os.RemoveAll(work)
-	prepared, err := u.DeliveryPrepareMedia(platform,items, nil, work, "bot", nil)
+	prepared, err := u.DeliveryPrepareMedia(platform,items, nil, work, "bot", nil, extras)
 	if err != nil {
 		return "", err
 	}
-	r, err := u.OutboxQueuePost(c, text, prepared, at, &at, work, nil, PublishArticleInput(record["article"]), group, key, jx.M{"source_key": ContentSourceKey(record), "topic": jx.Str(record, "topic")})
+	r, err := u.OutboxQueuePost(c, text, prepared, at, &at, work, nil, PublishArticleInput(record["article"]), group, key, jx.M{"source_key": ContentSourceKey(record), "topic": jx.Str(record, "topic")}, extras)
 	if err != nil {
 		return "", err
 	}
@@ -752,8 +755,8 @@ func (a *App) calendarRecordMedia(record jx.M) ([]MediaItem, error) {
 	return items, nil
 }
 
-// calendarRequiresEditor protects rich originals until the quick scheduler
-// can carry the same complete structured payload as the editor.
+// Generic article extraction currently returns plain paragraphs without
+// embedded media or links. Do not schedule those articles unattended.
 func calendarRequiresEditor(record jx.M) bool {
-	return len(jx.Map(record, "article")) > 0 || jx.Bool(record, "article_source") || strings.TrimSpace(jx.Str(record, "text_html")) != ""
+	return calendarIsArticle(record) && calendarStructuredArticleURL(record) == ""
 }
