@@ -257,34 +257,63 @@ function renderSourcePipe(d = {}) {
     const sig = JSON.stringify(d);
     if (sig === renderSourcePipe.sig) return;
     renderSourcePipe.sig = sig;
-    const running = Boolean(d.running), active = Boolean(d.active), hasBatch = Number(d.target) > 0;
-    const stage = d.stage || '';
-    $('sourcePipeNow').textContent = running ? (d.paused ? 'Останавливается…' : 'Идёт подбор') : d.paused ? 'Поиск остановлен' : !d.enabled ? 'Автоподбор выключен' : active ? 'Ожидает продолжения' : hasBatch ? 'Цель достигнута' : 'Ещё не запускался';
-    $('sourcePipeDetail').textContent = running ? (d.detail || 'Готовим поиск') : d.paused ? 'Запустите подбор источников в админке, чтобы продолжить.' : active && d.enabled ? 'Следующий фоновый проход продолжит эту партию.' : !d.enabled && active ? 'Включите автоподбор, чтобы продолжить.' : '';
-    const health = `Источников темы: ${Number(d.own_sources) || 0}. Порог релевантности: ${Number(d.accepted_posts) || 0} из ${Number(d.analyzed_posts) || 0} проверенных постов.`;
-    $('sourcePipeInsight').textContent = [health, hasBatch ? d.insight : '', hasBatch ? d.last_search : '', d.retry_count ? `Ожидают повтора: ${d.retry_count}.` : ''].filter(Boolean).join(' ');
-    const errors = Array.isArray(d.errors) ? d.errors : [];
-    $('sourcePipeErrors').hidden = errors.length === 0;
-    $('sourcePipeErrors').replaceChildren(...(errors.length ? [el('b', { textContent: 'Ошибки поиска' }), ...errors.map(message => el('div', { textContent: message }))] : []));
-    $('sourcePipeProgress').hidden = !hasBatch;
-    if (hasBatch) {
-        const found = Number(d.found) || 0, target = Number(d.target) || 0;
-        const percent = Math.min(100, Math.round(found * 100 / target));
-        $('sourcePipeGoal').textContent = `${found} из ${target}`;
-        $('sourcePipeBar').setAttribute('aria-valuenow', String(percent));
-        $('sourcePipeBar').querySelector('i').style.width = `${percent}%`;
-    }
+    const state = d.unavailable ? 'Статус недоступен'
+        : !d.configured ? 'Тема не настроена'
+        : !d.enabled ? 'Автоподбор выключен'
+        : d.paused || d.job_paused ? 'Автоподбор на паузе'
+        : d.needs_demand ? 'Не задан объём подбора'
+        : !d.background_enabled ? 'Фоновый запуск выключен'
+        : !d.worker_alive ? 'Обработчик не запущен'
+        : d.scheduler_error ? 'Ошибка планировщика'
+        : d.running ? 'Идёт автоподбор'
+        : !d.job_exists ? 'Ожидает запуска'
+        : !d.eligible ? 'Нет активного задания'
+        : 'Ожидает следующего прохода';
+    $('sourcePipeNow').textContent = state;
+    const phase = {
+        prepare: 'Подготовка', prepare_legacy: 'Перенос прежних кандидатов',
+        prepare_hints: 'Подготовка поиска', prepare_projection: 'Обновление каталога',
+        prepare_delivery: 'Подготовка публикаций', search: 'Поиск источников',
+        review: 'Проверка источников', delivery_projection: 'Обновление каталога',
+        delivery_content: 'Подбор публикаций'
+    }[d.stage];
+    const next = d.enabled && !d.paused && !d.job_paused && d.eligible && d.next_run_at > 0
+        ? 'Следующий запуск: ' + new Date(d.next_run_at * 1000).toLocaleString('ru-RU', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : '';
+    $('sourcePipeDetail').textContent = !d.configured && !d.unavailable ? 'Настройте тему в разделе «Источники».'
+        : [d.mode === 'shadow' ? 'Проверочный режим' : '', d.running ? phase : next].filter(Boolean).join(' · ');
+    const hasCounts = !d.unavailable && Number.isFinite(d.candidates);
+    const count = n => Number.isFinite(n) ? n.toLocaleString('ru-RU') : '—';
+    $('sourcePipeInsight').textContent = [
+        'Источников в каталоге темы: ' + count(d.own_sources),
+        hasCounts ? 'Проверено источников: ' + count(d.checked) : '',
+        'Порог релевантности: ' + count(d.accepted_posts) + ' из ' + count(d.analyzed_posts) + ' постов'
+    ].filter(Boolean).join('. ') + '.';
+    const failure = {
+        budget_exhausted: 'Достигнут лимит автоподбора.',
+        news_search_disabled: 'Поиск новостей выключен.',
+        news_search_unavailable: 'Поиск новостей недоступен.',
+        search_unavailable: 'Поисковые сервисы недоступны.',
+        topic_busy: 'Тема занята другим заданием.',
+        supply_unavailable: 'Не удалось получить данные о запасе публикаций.',
+        classifier_unavailable: 'Модель оценки недоступна.',
+        restricted_profile: 'Тема ограничена.',
+        other_error: 'Последний проход завершился ошибкой.'
+    }[d.failure];
+    $('sourcePipeErrors').hidden = !failure || d.running || d.unavailable;
+    $('sourcePipeErrors').textContent = failure || '';
     const steps = [
-        { name: 'Поиск кандидатов', value: d.pending, state: running && ['prepare', 'search', 'queue'].includes(stage) ? 'run' : hasBatch ? 'ok' : 'wait', note: 'в очереди' },
-        { name: 'Проверено', value: d.checked, state: running && stage === 'check' ? 'run' : hasBatch ? 'ok' : 'wait', note: d.failed ? `ошибок ${d.failed}` : '' },
-        { name: 'Отклонено', value: d.rejected, state: hasBatch ? 'ok' : 'wait' },
-        { name: 'На одобрение', value: d.suggested, state: hasBatch ? 'ok' : 'wait' },
-        { name: 'Добавлено автоматически', value: d.added, state: hasBatch ? 'ok' : 'wait' },
+        ['Кандидаты', d.candidates, d.running && d.stage === 'search'],
+        ['На испытании', d.probation, d.running && d.stage === 'review'],
+        ['Активные', d.active_sources, false],
+        ['Временно недоступны', d.cooldown, false],
+        ['Отклонены', d.rejected, false]
     ];
-    $('sourcePipe').replaceChildren(...steps.map(step => el('div', { className: `job ${step.state}` },
-        el('span', { className: `dot ${step.state}`, textContent: step.state === 'ok' ? '✓' : '' }),
-        el('span', {}, step.name, step.note ? el('span', { className: 't', textContent: step.note }) : null),
-        el('span', { className: 'n', textContent: hasBatch ? (Number(step.value) || 0).toLocaleString('ru-RU') : '—' }))));
+    $('sourcePipe').replaceChildren(...steps.map(([name, value, running]) => {
+        const status = running ? 'run' : hasCounts ? 'ok' : 'wait';
+        return el('div', { className: 'job ' + status },
+            el('span', { className: 'dot ' + status, textContent: status === 'ok' ? '✓' : '' }),
+            el('span', { textContent: name }), el('span', { className: 'n', textContent: hasCounts ? count(value) : '—' }));
+    }));
 }
 
 async function loadLive() {

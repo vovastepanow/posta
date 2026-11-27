@@ -84,6 +84,10 @@ func TestAutopilotCandidateOverridesPostgres(t *testing.T) {
 	if err = transitionAutopilotSource(ctx, d, job, "rss:one", "cooldown", "active", "recovered", evidence, at, time.Time{}); err != nil {
 		t.Fatal(err)
 	}
+	totals, err := readAutopilotSourceTotals(ctx, d.Pool, "test-source", "topic")
+	if err != nil || totals != (autopilotSourceTotals{Active: 1, Checked: 1}) {
+		t.Fatalf("shared source totals: %+v, %v", totals, err)
+	}
 	if err = d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_decisions WHERE scope='test-source'`).Scan(&count); err != nil || count != 5 {
 		t.Fatalf("decision count=%d err=%v", count, err)
 	}

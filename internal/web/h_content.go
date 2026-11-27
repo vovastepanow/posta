@@ -522,7 +522,7 @@ func studioLive(c *Ctx) (any, error) {
 		st["last_pass"] = c.A.ParserLastPass(c.U.ID)
 	}
 	st["items"], st["pool"], st["topic"] = items, poolCount, u.CurrentTopic()
-	st["source_discovery"] = u.DiscoveryPipelinePublic(u.CurrentTopic())
+	st["source_discovery"] = u.SourcePipelinePublic(u.CurrentTopic())
 	return st, nil
 }
 

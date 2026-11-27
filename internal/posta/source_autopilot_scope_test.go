@@ -14,9 +14,6 @@ func TestAutopilotDiscoveryKeysSeparateScopesAndProfiles(t *testing.T) {
 		return &U{Ctx: contextWithAutopilotLease(context.Background(), &autopilotJob{Scope: scope})}
 	}
 	a, b := makeUser("user:a"), makeUser("user:b")
-	if a.discoveryProgressKey("C++") == b.discoveryProgressKey("C++") || a.discoveryProgressKey("C++") == a.discoveryProgressKey("C") {
-		t.Fatal("progress keys merged scopes or profiles")
-	}
 	if a.discoveryScopedKey("discovery_deferred") == b.discoveryScopedKey("discovery_deferred") || a.discoveryScopedTopic("C++") == a.discoveryScopedTopic("C") {
 		t.Fatal("deferred candidates merged scopes or profiles")
 	}

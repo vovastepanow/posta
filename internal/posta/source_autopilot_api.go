@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"posta/internal/config"
+	"posta/internal/db"
 	"posta/internal/jx"
 )
 
@@ -61,6 +62,112 @@ func autopilotStatusReason(in autopilotStatusInput) string {
 	}
 }
 
+type autopilotSourceTotals struct {
+	Candidates, Probation, Active, Cooldown, Rejected, Checked int
+}
+
+// Use the same state counts in the dashboard and the full source status API.
+func readAutopilotSourceTotals(ctx context.Context, q db.Querier, scope, key string) (autopilotSourceTotals, error) {
+	var t autopilotSourceTotals
+	err := q.QueryRow(ctx, `SELECT
+		count(*) FILTER(WHERE state='candidate'),
+		count(*) FILTER(WHERE state='probation'),
+		count(*) FILTER(WHERE state='active'),
+		count(*) FILTER(WHERE state='cooldown'),
+		count(*) FILTER(WHERE state='rejected'),
+		count(*) FILTER(WHERE checked_at>0)
+		FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`, scope, key).
+		Scan(&t.Candidates, &t.Probation, &t.Active, &t.Cooldown, &t.Rejected, &t.Checked)
+	return t, err
+}
+
+func autopilotFailureKind(lastError string) string {
+	switch {
+	case strings.Contains(lastError, errAutopilotBudgetExhausted.Error()):
+		return "budget_exhausted"
+	case lastError == "news_search_disabled", lastError == "news_search_unavailable",
+		lastError == "search_unavailable", lastError == "topic_busy",
+		lastError == "supply_unavailable", lastError == "classifier_unavailable",
+		lastError == "restricted_profile":
+		return lastError
+	case lastError != "":
+		return "other_error"
+	default:
+		return ""
+	}
+}
+
+// SourcePipelinePublic is a lightweight snapshot for the current topic.
+// It never loads another user's demand, nor the expensive full audit.
+func (u *U) SourcePipelinePublic(topic string) jx.M {
+	verdicts := u.TopicVerdictStats(topic)
+	passed, analyzed := 0, 0
+	for _, counts := range verdicts {
+		passed += counts[0]
+		analyzed += counts[1]
+	}
+	ownSources := 0
+	if e := u.TopicLookup(topic); e != nil {
+		ownSources = u.TopicOwnSourceCount(e, nil)
+	}
+	out := jx.M{"own_sources": ownSources, "analyzed_posts": analyzed, "accepted_posts": passed, "configured": false}
+	key := autopilotTopicKey(topic)
+	var mode string
+	var paused bool
+	var rate float64
+	err := u.DB.Pool.QueryRow(u.Ctx, `SELECT mode,paused,posts_per_day FROM source_autopilot_demands
+		WHERE user_id=$1 AND topic_key=$2`, u.ID, key).Scan(&mode, &paused, &rate)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return out
+	}
+	if err != nil {
+		out["unavailable"] = true
+		return out
+	}
+	out["configured"], out["mode"], out["paused"] = true, mode, paused
+	if mode != "auto" && mode != "shadow" {
+		return out
+	}
+	scope, kind, setting := autopilotShadowScope, autopilotShadowKind, "autopilot_shadow"
+	if mode == "auto" {
+		scope, kind, setting = autopilotAutoScope, autopilotAutoKind, "autopilot_auto"
+	}
+	enabled := u.TBool(setting)
+	worker := u.App.autopilotWorkerHealth(mode)
+	at := now()
+	workerAlive := autopilotWorkerAlive(worker, at)
+	out["enabled"], out["worker_alive"], out["scheduler_error"] = enabled, workerAlive, worker.ReconcileError
+	out["background_enabled"] = !u.Cfg.Dev || os.Getenv("POSTA_DEV_PARSERS") == "1"
+	out["needs_demand"] = mode == "auto" && rate <= 0
+	totals, err := readAutopilotSourceTotals(u.Ctx, u.DB.Pool, scope, key)
+	if err != nil {
+		out["unavailable"] = true
+		return out
+	}
+	out["candidates"], out["probation"], out["active_sources"] = totals.Candidates, totals.Probation, totals.Active
+	out["cooldown"], out["rejected"], out["checked"] = totals.Cooldown, totals.Rejected, totals.Checked
+	var next, lease int64
+	var jobEnabled, eligible bool
+	var lastError string
+	var checkpoint []byte
+	err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint
+		FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).
+		Scan(&next, &lease, &jobEnabled, &eligible, &lastError, &checkpoint)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return out
+	}
+	if err != nil {
+		out["unavailable"] = true
+		return out
+	}
+	out["job_exists"], out["job_paused"], out["eligible"] = true, !jobEnabled, eligible
+	out["next_run_at"] = next
+	out["running"] = enabled && jobEnabled && eligible && !paused && workerAlive && lease > at
+	out["failure"] = autopilotFailureKind(lastError)
+	out["stage"] = jx.Str(jx.Unmarshal(checkpoint), "pipeline_phase")
+	return out
+}
+
 // SourceAutopilotStatus returns only this user's demands and public shadow
 // aggregates. It does not expose other owners or private source metadata.
 func (u *U) SourceAutopilotStatus() (jx.M, error) {
@@ -81,15 +188,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 	topics := make([]jx.M, 0, len(demands))
 	for _, d := range demands {
 		key := autopilotTopicKey(d.Topic)
-		var candidates, probation, confirmed, suspended, rejected int
-		err := u.DB.Pool.QueryRow(u.Ctx, `SELECT
-			count(*) FILTER(WHERE state='candidate'),
-			count(*) FILTER(WHERE state='probation'),
-			count(*) FILTER(WHERE state='active'),
-			count(*) FILTER(WHERE state='cooldown'),
-			count(*) FILTER(WHERE state='rejected')
-			FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`, autopilotShadowScope, key).
-			Scan(&candidates, &probation, &confirmed, &suspended, &rejected)
+		shadow, err := readAutopilotSourceTotals(u.Ctx, u.DB.Pool, autopilotShadowScope, key)
 		if err != nil {
 			return nil, err
 		}
@@ -102,8 +201,8 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 			return nil, err
 		}
 		supply := decideAutopilotSupply(autopilotSupplyInput{Rate: d.PostsPerDay, Horizon: d.HorizonDays, Available: available, Capacity: u.TInt("pool_target"), ConfirmedSources: active, Now: time.Now()})
-		row := jx.M{"topic": d.Topic, "mode": d.Mode, "posts_per_day": d.PostsPerDay, "horizon_days": d.HorizonDays, "personal_blog_mode": u.personalBlogMode(d.Topic), "shadow_candidates": candidates, "shadow_probation": probation, "shadow_confirmed": confirmed,
-			"shadow_cooldown": suspended, "shadow_rejected": rejected}
+		row := jx.M{"topic": d.Topic, "mode": d.Mode, "posts_per_day": d.PostsPerDay, "horizon_days": d.HorizonDays, "personal_blog_mode": u.personalBlogMode(d.Topic), "shadow_candidates": shadow.Candidates, "shadow_probation": shadow.Probation, "shadow_confirmed": shadow.Active,
+			"shadow_cooldown": shadow.Cooldown, "shadow_rejected": shadow.Rejected}
 		// The mode switch and the PostgreSQL job are not proof that the
 		// background goroutine exists. Expose liveness from the serving
 		// process so an idle queue cannot mask a dead worker.
@@ -286,27 +385,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 		err = u.DB.Pool.QueryRow(u.Ctx, `SELECT next_run_at,lease_until,enabled,demand_active,last_error,checkpoint,attempts FROM source_autopilot_jobs WHERE scope=$1 AND topic_key=$2 AND kind=$3`, scope, key, kind).Scan(&next, &lease, &enabled, &eligible, &lastError, &checkpoint, &attempts)
 		if err == nil {
 			row["job_exists"] = true
-			failure := ""
-			switch {
-			case strings.Contains(lastError, errAutopilotBudgetExhausted.Error()):
-				failure = "budget_exhausted"
-			case lastError == "news_search_disabled":
-				failure = "news_search_disabled"
-			case lastError == "news_search_unavailable":
-				failure = "news_search_unavailable"
-			case lastError == "search_unavailable":
-				failure = "search_unavailable"
-			case lastError == "topic_busy":
-				failure = "topic_busy"
-			case lastError == "supply_unavailable":
-				failure = "supply_unavailable"
-			case lastError == "classifier_unavailable":
-				failure = "classifier_unavailable"
-			case lastError == "restricted_profile":
-				failure = "restricted_profile"
-			case lastError != "":
-				failure = "other_error"
-			}
+			failure := autopilotFailureKind(lastError)
 			row["next_run_at"], row["running"], row["job_paused"], row["eligible"], row["failure"] = next, lease > now() && !d.Paused, !enabled, eligible && !d.Paused, failure
 			row["attempts"] = attempts
 			stats := jx.Unmarshal(checkpoint)
@@ -335,27 +414,20 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 					return nil, err
 				}
 				row["direct_qualified_recent"] = recent
-				var autoCandidates, autoProbation, autoActive, autoCooldown, autoRejected int
-				if err := u.DB.Pool.QueryRow(u.Ctx, `SELECT
-					count(*) FILTER(WHERE state='candidate'),
-					count(*) FILTER(WHERE state='probation'),
-					count(*) FILTER(WHERE state='active'),
-					count(*) FILTER(WHERE state='cooldown'),
-					count(*) FILTER(WHERE state='rejected')
-					FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2`,
-					autopilotAutoScope, key).Scan(&autoCandidates, &autoProbation, &autoActive, &autoCooldown, &autoRejected); err != nil {
+				totals, err := readAutopilotSourceTotals(u.Ctx, u.DB.Pool, autopilotAutoScope, key)
+				if err != nil {
 					return nil, err
 				}
-				row["auto_candidates"] = autoCandidates
-				row["auto_sources_probation"] = autoProbation
-				row["auto_sources_active"] = autoActive
-				row["auto_sources_cooldown"], row["auto_sources_rejected"] = autoCooldown, autoRejected
+				row["auto_candidates"] = totals.Candidates
+				row["auto_sources_probation"] = totals.Probation
+				row["auto_sources_active"] = totals.Active
+				row["auto_sources_cooldown"], row["auto_sources_rejected"] = totals.Cooldown, totals.Rejected
 				row["diagnosis"] = autopilotStatusReason(autopilotStatusInput{
 					Paused: d.Paused, Enabled: enabled, Eligible: eligible,
 					Running: lease > now(), Failure: failure,
 					Available: available, Target: supply.Demand.Target,
-					Deficit: supply.Demand.Deficit, Candidates: autoCandidates + autoProbation,
-					ActiveSources: autoActive, FetchRemaining: jx.Int(row, "fetch_remaining"),
+					Deficit: supply.Demand.Deficit, Candidates: totals.Candidates + totals.Probation,
+					ActiveSources: totals.Active, FetchRemaining: jx.Int(row, "fetch_remaining"),
 					ModelRemaining:       jx.Int(row, "model_remaining"),
 					ServerFetchRemaining: serverFetchRemaining, ServerModelRemaining: serverModelRemaining,
 					ModelFailures: aiPending, Promoted24h: promoted24h,

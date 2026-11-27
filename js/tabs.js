@@ -628,13 +628,13 @@ async function loadTopicHealth(id) {
 		const box = $('tree-detail').querySelector('.tree-health');
 		if (!box) return;
 		const values = [
-			['Источники', health.sources], ['Кандидаты в последнем поиске', health.candidates],
+			['Источники', health.sources], ['Кандидаты автоподбора', health.candidates],
 			['Проверено источников', health.sources_checked], ['Проанализировано постов', health.analyzed],
 			['Достигли порога темы', health.relevant], ['Сейчас в подборе', health.pool],
 			['Понравились', health.liked], ['Не понравились', health.disliked], ['Опубликованы', health.published],
 		];
 		box.replaceChildren(el('h4', { className: 'tree-block-title', textContent: 'Как работает тема' }),
-			el('dl', { className: 'tree-facts' }, ...values.map(([label, value]) => treeRow(label, String(value ?? 0)))));
+			el('dl', { className: 'tree-facts' }, ...values.map(([label, value]) => treeRow(label, String(value ?? '—')))));
 	} catch {
 		if (tree.selected === id) $('tree-detail').querySelector('.tree-health')?.replaceChildren(el('p', { className: 'tree-detail-empty', textContent: 'Показатели сейчас недоступны.' }));
 	}

@@ -106,13 +106,6 @@ type discoveryProgress struct {
 	Errors       []string                       `json:"errors,omitempty"`
 }
 
-func (u *U) discoveryProgressKey(topic string) string {
-	if job, ok := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); ok && job != nil {
-		return "discovery_progress:v2:" + repeatDigest(job.Scope+"\x00"+autopilotTopicKey(topic))
-	}
-	return "discovery_progress:" + sha1Short(TopicNorm(topic), 40)
-}
-
 func (u *U) discoveryScopedKey(key string) string {
 	if job, ok := u.Ctx.Value(autopilotLeaseContextKey{}).(*autopilotJob); ok && job != nil {
 		return key + ":v2:" + repeatDigest(job.Scope)
@@ -127,31 +120,11 @@ func (u *U) discoveryScopedTopic(topic string) string {
 	return TopicNorm(topic)
 }
 
-// DiscoveryPipelinePublic combines persistent batch progress with the live state for this topic.
-func (u *U) DiscoveryPipelinePublic(topic string) jx.M {
-	p := KV(u.App, u.Ctx, u.discoveryProgressKey(topic), discoveryProgress{})
-	verdicts := u.TopicVerdictStats(topic)
-	passed, analyzed := 0, 0
-	for _, counts := range verdicts {
-		passed += counts[0]
-		analyzed += counts[1]
-	}
-	ownSources := 0
-	if e := u.TopicLookup(topic); e != nil {
-		ownSources = u.TopicOwnSourceCount(e, nil)
-	}
-	out := jx.M{"platform": p.Platform, "enabled": u.TBool("discovery"), "active": p.Active, "found": p.Found, "target": p.Target,
-		"pending": len(p.Pending), "checked": p.Checked, "rejected": p.Rejected, "failed": p.Failed,
-		"added": p.Added, "suggested": p.Suggested, "running": false, "paused": false, "errors": p.Errors, "retry_count": len(p.Retries), "last_search": discoveryLastSearch(p.Queries), "insight": discoveryQueryInsight(p.Queries),
-		"own_sources": ownSources, "analyzed_posts": analyzed, "accepted_posts": passed, "analyzed_sources": len(verdicts)}
-	return out
-}
-
 // TopicHealthPublic is the observable funnel for one topic. Discovery and
 // analysis counts are shared; pool and outcome counts belong to this user.
 func (u *U) TopicHealthPublic(topic string) jx.M {
-	d := u.DiscoveryPipelinePublic(topic)
-	out := jx.M{"sources": d["own_sources"], "candidates": d["found"], "sources_checked": d["checked"],
+	d := u.SourcePipelinePublic(topic)
+	out := jx.M{"sources": d["own_sources"], "candidates": d["candidates"], "sources_checked": d["checked"],
 		"analyzed": d["analyzed_posts"], "relevant": d["accepted_posts"], "pool": u.PoolTopicCount(topic),
 		"liked": 0, "disliked": 0, "published": 0}
 	if u.ID == "" {

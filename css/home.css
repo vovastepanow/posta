@@ -7,9 +7,6 @@
 .pipe-explainer { margin: 0 0 8px; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .pbar { height: 5px; border-radius: 5px; background: var(--panel3); overflow: hidden; margin: 6px 0 10px; }
 .pbar i { display: block; height: 100%; background: var(--grad); transition: width .6s ease; }
-.source-pipe-progress-label { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; }
-.source-pipe-progress-label b { color: var(--text); font: 600 11px var(--mono); }
-.source-pipe-progress .pbar { margin: 5px 0 8px; }
 #sourcePipeDetail, #sourcePipeInsight { overflow-wrap: anywhere; }
 .source-pipe-insight { margin: 8px 8px 0; }
 #sourcePipe .job { cursor: default; }
