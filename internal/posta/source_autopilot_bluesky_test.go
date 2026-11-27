@@ -121,3 +121,25 @@ func TestAutopilotBlueskyFallbackExpandsOnlyWhenFirstAuthorsEmpty(t *testing.T) 
 		t.Fatalf("rate limit must stop author fallback: calls=%d err=%v",calls,err)
 	}
 }
+
+func TestAutopilotBlueskyFallbackDoesNotMaskPartialFailureAsEmpty(t *testing.T) {
+	at := time.Now()
+	actors := []jx.M{
+		{"did": "did:plc:abcdefghijklmnopqrstuvwx"},
+		{"did": "did:plc:zyxwvutsrqponmlkjihgfedc"},
+	}
+	calls := 0
+	posts, err := autopilotBlueskyAuthorFallback("astronomy", at.Unix(), func(raw string) ([]byte, error) {
+		calls++
+		if strings.Contains(raw, "searchActors") {
+			return json.Marshal(jx.M{"actors": actors})
+		}
+		if calls == 2 {
+			return []byte(`{"feed":[]}`), nil
+		}
+		return nil, errAutopilotBlueskyFeedRateLimited
+	})
+	if err != errAutopilotBlueskyFeedRateLimited || len(posts) != 0 || calls != 3 {
+		t.Fatalf("partial failure masked: posts=%d calls=%d err=%v", len(posts), calls, err)
+	}
+}

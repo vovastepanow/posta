@@ -213,7 +213,7 @@ func autopilotBlueskyAuthorFallback(query string, at int64, fetch func(string)([
 	seen := map[string]bool{}
 	var out []jx.M
 	var lastErr error
-	attempted, successful, usefulAuthors := 0, 0, 0
+	attempted, usefulAuthors := 0, 0
 	for _, actor:=range actors {
 		did:=autopilotBlueskyProfileDID(strings.TrimSuffix(actor.ID,"/rss"))
 		if did=="" || seen[did] {
@@ -241,14 +241,16 @@ func autopilotBlueskyAuthorFallback(query string, at int64, fetch func(string)([
 			lastErr=err
 			continue
 		}
-		successful++
 		if len(posts) > 0 {
 			usefulAuthors++
 		}
 		out=append(out,posts...)
 	}
-	if successful==0 && lastErr!=nil {
-		return nil,lastErr
+	// An empty result from a subset of authors cannot establish that the
+	// search was empty when another author failed or the provider blocked us.
+	// Keep already collected valid posts when there is useful partial output.
+	if len(out) == 0 && lastErr != nil {
+		return nil, lastErr
 	}
 	return out,nil
 }
