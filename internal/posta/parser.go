@@ -435,6 +435,9 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	}
 	blogAllowed := func(source string) bool { return personalBlogAllowed(blogMode, blogKinds[source]) }
 	overrides := u.sourceOverridesForTopic(topic)
+	sourceAllowed := func(source string) bool {
+		return !sourceExcludedByOverride(overrides, source) && blogAllowed(source)
+	}
 	stats := map[string]int{}
 	updates := map[string]jx.M{}
 	rep := map[string]*platReport{}
@@ -443,7 +446,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	}
 	// Boards are discovery locations; only explicitly approved threads are collected.
 	for _, thread := range u.approvedImageboardThreads(u.Catalog(), topic) {
-		if sourceExcludedByOverride(overrides, jx.Str(thread, "source_id")) || !blogAllowed(jx.Str(thread, "source_id")) {
+		if !sourceAllowed(jx.Str(thread, "source_id")) {
 			continue
 		}
 		if !u.Alive() {
@@ -451,25 +454,22 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 		}
 		platform, board, id := jx.Str(thread, "platform"), jx.Str(thread, "board"), jx.Str(thread, "thread_id")
 		var found []jx.M
+		label := "fourchan"
 		if platform == PlatformDvach {
+			label = "dvach"
 			found = u.ParseDvachThread(board, id, jx.Str(thread, "name"))
-			rep["dvach"].Sources++
-			if len(found) > 0 {
-				rep["dvach"].With++
-			}
-			rep["dvach"].Posts += len(found)
 		} else {
 			found = u.FourchanThreadMedia(board, jx.M{"no": jx.ToInt(id)}, 200, nil)
-			rep["fourchan"].Sources++
-			if len(found) > 0 {
-				rep["fourchan"].With++
-			}
-			rep["fourchan"].Posts += len(found)
 		}
+		report := rep[label]
+		report.Sources++
+		if len(found) > 0 {
+			report.With++
+		}
+		report.Posts += len(found)
 		by[platform] = append(by[platform], found...)
 	}
 
-	vk := true
 	activeOnly := jx.Bool(u.ContentFilterValues(), "active_sources_only")
 	d := u.catalogWithPersonalPins(topic)
 	t := now()
@@ -477,22 +477,20 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	sharedCache := map[string]sharedPosts{}
 	telegramFallback := newAttachmentRecovery(u)
 	for _, c := range CatalogKinds {
-		if c.Platform == PlatformVK && !vk {
-			continue
-		}
 		for _, e := range *d.List(c.Kind) {
-			if sourceExcludedByOverride(overrides, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) ||
-				!blogAllowed(SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) {
+			rawID := jx.Str(e, "id")
+			id := strings.TrimLeft(strings.TrimSpace(rawID), "@")
+			if !sourceAllowed(SourceIDFor(c.Platform, id)) {
 				continue
 			}
 			if u.CatalogEntryMatchesTopic(e, topic, false) && !IsSourceFrozen(e, 0) {
-				id := strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@")
 				var shared sharedPosts
+				pkey := sourcePollMapKey(c.Platform, rawID)
 				if sharedSourceEligible(c.Platform, e) && u.CacheGet(u.Ctx, sharedSourceKey(c.Platform, id), &shared) {
-					sharedCache[sourcePollMapKey(c.Platform, jx.Str(e, "id"))] = shared
+					sharedCache[pkey] = shared
 					continue // готовый общий источник не занимает бюджет сетевых запросов
 				}
-				poll[sourcePollMapKey(c.Platform, jx.Str(e, "id"))] = e
+				poll[pkey] = e
 			}
 		}
 	}
@@ -516,9 +514,6 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	fetched, fromCache := 0, 0
 	var nextMin *int64
 	for _, c := range CatalogKinds {
-		if c.Platform == PlatformVK && !vk {
-			continue
-		}
 		for _, e := range *d.List(c.Kind) {
 			if !u.Alive() {
 				return by
@@ -527,17 +522,18 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 				stats["other_topic"]++
 				continue
 			}
-			if sourceExcludedByOverride(overrides, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) ||
-				!blogAllowed(SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@"))) {
+			rawID := jx.Str(e, "id")
+			sourceID := SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(rawID), "@"))
+			if !sourceAllowed(sourceID) {
 				continue
 			}
-			if u.UASourceBlocked(SourceIDFor(c.Platform, jx.Str(e, "id")), jx.M{"title": jx.Str(e, "name")}) != "" {
+			if u.UASourceBlocked(SourceIDFor(c.Platform, rawID), jx.M{"title": jx.Str(e, "name")}) != "" {
 				stats["ukraine_source"]++
 				continue
 			}
 			label := platformLabel(c.Platform, e)
 			rep[label].Sources++
-			pkey := sourcePollMapKey(c.Platform, jx.Str(e, "id"))
+			pkey := sourcePollMapKey(c.Platform, rawID)
 			var posts []jx.M
 			var updated jx.M
 			event := ""
@@ -554,31 +550,32 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 				}
 				posts = cache[pkey].Posts
 				fromCache++
-				left := SourcePollInterval(jx.Map(e, "activity")) - (t - jx.Int(jx.Map(e, "activity"), "checked_at"))
+				activity := jx.Map(e, "activity")
+				left := SourcePollInterval(activity) - (t - jx.Int(activity, "checked_at"))
 				if nextMin == nil || left < *nextMin {
 					nextMin = &left
 				}
 			} else {
 				posts, updated, event = u.collectCatalogSource(c.Platform, e, activeOnly)
 				if len(posts) > 0 {
-					u.CacheSet(u.Ctx, personalSourcePollKey(u.ID, c.Platform, jx.Str(e, "id")), cachedPosts{now(), posts}, config.SourcePollMax*2*time.Second)
+					u.CacheSet(u.Ctx, personalSourcePollKey(u.ID, c.Platform, rawID), cachedPosts{now(), posts}, config.SourcePollMax*2*time.Second)
 				}
 				if _, inPoll := poll[pkey]; inPoll {
 					fetched++
 				}
 			}
 			if useShared && c.Platform == PlatformTelegram && len(posts) == 0 {
-				posts = telegramFallback.telegramSnapshot(strings.TrimLeft(jx.Str(e, "id"), "@"), SourceDisplayName(c.Platform, jx.Str(e, "name")))
+				posts = telegramFallback.telegramSnapshot(strings.TrimLeft(rawID, "@"), SourceDisplayName(c.Platform, jx.Str(e, "name")))
 			}
 			if sharedSourceEligible(c.Platform, e) {
-				stored := u.publicSourcePosts(u.Ctx, SourceIDFor(c.Platform, strings.TrimLeft(strings.TrimSpace(jx.Str(e, "id")), "@")), t-7*config.DaySeconds, 100)
+				stored := u.publicSourcePosts(u.Ctx, sourceID, t-7*config.DaySeconds, 100)
 				posts = mergePublicPosts(posts, stored)
 			}
 			if event != "" {
 				stats[event]++
 			}
 			if updated != nil {
-				updates[catalogSourceUpdateKey(c.Kind, c.Platform, jx.Str(e, "id"))] = updated
+				updates[catalogSourceUpdateKey(c.Kind, c.Platform, rawID)] = updated
 			}
 			if len(posts) > 0 {
 				rep[label].With++
@@ -595,56 +592,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 		}
 		u.Log("Опрошено %d из %d источников, остальные из кэша%s.", fetched, len(poll), next)
 	}
-	// Находки автоподбора подмешиваются всегда: с каждой берём один лучший по горячести пост (поровну по площадкам, предел — suggestion_sources_per_run)
-	byPlat := map[string][]jx.M{}
-	for _, s := range u.Catalog().Suggestions {
-		p := jx.Str(s, "platform")
-		sid := jx.Str(s, "source_id")
-		if sid == "" {
-			sid = SourceIDFor(p, jx.Str(s, "id"))
-		}
-		if sourceExcludedByOverride(overrides, sid) || !blogAllowed(sid) {
-			continue
-		}
-		if CatalogKind(p) == "" || (p == PlatformVK && !vk) || !u.TopicSame(jx.Str(s, "topic"), topic) || int(jx.Int(s, "score")) < u.TInt("suggest_score") {
-			continue
-		}
-		byPlat[p] = append(byPlat[p], s)
-	}
-	var lists [][]jx.M
-	for _, c := range CatalogKinds {
-		l := byPlat[c.Platform]
-		if len(l) == 0 {
-			continue
-		}
-		sort.SliceStable(l, func(i, j int) bool { return jx.Int(l[i], "score") > jx.Int(l[j], "score") })
-		lists = append(lists, l)
-	}
-	picked := DiscoveryBalance(lists, u.TInt("suggestion_sources_per_run"), 2)
-	byLabel := map[string]int{}
-	for _, s := range picked {
-		p := jx.Str(s, "platform")
-		name := regexp.MustCompile(`^(Telegram|ВКонтакте|RSS|Одноклассники|TikTok) \| `).ReplaceAllString(jx.Str(s, "name"), "")
-		if name == "" {
-			name = jx.Str(s, "id")
-		}
-		posts, _, _ := u.collectCatalogSource(p, jx.M{"id": jx.Str(s, "id"), "name": name, "topics": []any{topic}}, activeOnly)
-		label := platformLabel(p, jx.M{"id": jx.Str(s, "id")})
-		rep[label].Posts += len(posts)
-		byLabel[label]++
-		if best := bestHeatPost(posts); best != nil {
-			rep[label].With++
-			by[p] = append(by[p], best)
-		}
-	}
-	if len(picked) > 0 {
-		var names []string
-		for l, n := range byLabel {
-			names = append(names, fmt.Sprintf("%s %d", platformNames[l], n))
-		}
-		sort.Strings(names)
-		u.Log("Из находок автоподбора взято по одному посту с каждой: %d (%s; решение по ним — на вкладке «Источники»).", len(picked), strings.Join(names, ", "))
-	}
+	u.collectSuggestedPosts(topic, activeOnly, sourceAllowed, by, rep)
 	if u.TBool("post_search") && u.CurrentQuery() == "" {
 		search := u.PostSearchCollect(topic)
 		for _, p := range []string{PlatformRSS, PlatformTelegram, PlatformVK} {
@@ -667,7 +615,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	if len(notes) > 0 {
 		u.Log("Источники: %s.", strings.Join(notes, ", "))
 	}
-	u.Log("%s", platformSummaryLine(rep, vk))
+	u.Log("%s", platformSummaryLine(rep, true))
 	if u.TBool("post_search") && u.CurrentQuery() == "" && u.Alive() {
 		// These search platforms were previously used only with an explicit query.
 		plan := u.QuerySearchPlan(topic, topic)
@@ -693,6 +641,61 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 		}
 	}
 	return by
+}
+
+var collectorSuggestionPrefixRe = regexp.MustCompile(`^(Telegram|ВКонтакте|RSS|Одноклассники|TikTok) \| `)
+
+func (u *U) collectSuggestedPosts(topic string, activeOnly bool, sourceAllowed func(string) bool, by map[string][]jx.M, rep map[string]*platReport) {
+	// Находки автоподбора подмешиваются всегда: с каждой берём один лучший по горячести пост (поровну по площадкам, предел — suggestion_sources_per_run)
+	byPlat := map[string][]jx.M{}
+	for _, s := range u.Catalog().Suggestions {
+		p := jx.Str(s, "platform")
+		sid := jx.Str(s, "source_id")
+		if sid == "" {
+			sid = SourceIDFor(p, jx.Str(s, "id"))
+		}
+		if !sourceAllowed(sid) {
+			continue
+		}
+		if CatalogKind(p) == "" || !u.TopicSame(jx.Str(s, "topic"), topic) || int(jx.Int(s, "score")) < u.TInt("suggest_score") {
+			continue
+		}
+		byPlat[p] = append(byPlat[p], s)
+	}
+	var lists [][]jx.M
+	for _, c := range CatalogKinds {
+		l := byPlat[c.Platform]
+		if len(l) == 0 {
+			continue
+		}
+		sort.SliceStable(l, func(i, j int) bool { return jx.Int(l[i], "score") > jx.Int(l[j], "score") })
+		lists = append(lists, l)
+	}
+	picked := DiscoveryBalance(lists, u.TInt("suggestion_sources_per_run"), 2)
+	byLabel := map[string]int{}
+	for _, s := range picked {
+		p := jx.Str(s, "platform")
+		name := collectorSuggestionPrefixRe.ReplaceAllString(jx.Str(s, "name"), "")
+		if name == "" {
+			name = jx.Str(s, "id")
+		}
+		posts, _, _ := u.collectCatalogSource(p, jx.M{"id": jx.Str(s, "id"), "name": name, "topics": []any{topic}}, activeOnly)
+		label := platformLabel(p, jx.M{"id": jx.Str(s, "id")})
+		rep[label].Posts += len(posts)
+		byLabel[label]++
+		if best := bestHeatPost(posts); best != nil {
+			rep[label].With++
+			by[p] = append(by[p], best)
+		}
+	}
+	if len(picked) > 0 {
+		var names []string
+		for l, n := range byLabel {
+			names = append(names, fmt.Sprintf("%s %d", platformNames[l], n))
+		}
+		sort.Strings(names)
+		u.Log("Из находок автоподбора взято по одному посту с каждой: %d (%s; решение по ним — на вкладке «Источники»).", len(picked), strings.Join(names, ", "))
+	}
 }
 
 // bestHeatPost — пост с наибольшей горячестью; без данных о горячести — первый; пустой список — nil.

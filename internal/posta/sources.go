@@ -681,6 +681,8 @@ func telegramInnerHTML(n *xhtml.Node) string {
 	return b.String()
 }
 
+var telegramBlankLinesRe = regexp.MustCompile(`\n{3,}`)
+
 func telegramPlainText(n *xhtml.Node) string {
 	var b strings.Builder
 	var walk func(*xhtml.Node)
@@ -705,7 +707,7 @@ func telegramPlainText(n *xhtml.Node) string {
 	for i := range lines {
 		lines[i] = strings.TrimSpace(lines[i])
 	}
-	return strings.TrimSpace(regexp.MustCompile(`\n{3,}`).ReplaceAllString(strings.Join(lines, "\n"), "\n\n"))
+	return strings.TrimSpace(telegramBlankLinesRe.ReplaceAllString(strings.Join(lines, "\n"), "\n\n"))
 }
 
 func telegramPostTextFields(content string) (text, markup, forwardedFrom, forwardedURL string) {
