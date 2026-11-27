@@ -441,9 +441,9 @@ type tgBlock struct{ Channel, ID, Content string }
 // publications and must not contribute to source activity or review samples.
 func TelegramPageBlocks(page string) []tgBlock {
 	type boundary struct {
-		start, end int
+		start, end  int
 		channel, id string
-		service bool
+		service     bool
 	}
 	var boundaries []boundary
 	z := xhtml.NewTokenizer(strings.NewReader(page))
