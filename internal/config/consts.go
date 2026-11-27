@@ -115,10 +115,6 @@ const (
 
 	// ---- Автоподбор источников ----
 	SourceDiscoveryEnabled      = true
-	SourceDiscoveryInterval     = 12 * 3600
-	SourceDiscoveryMaxSeconds   = 900
-	SourceDiscoveryMaxChecks    = 40
-	SourceAutoAddScore          = 101 // >100: автодобавление выключено, всё решает пользователь
 	SourceSuggestScore          = 55
 	SourceReviewCaptions        = 10
 	DvachBoardsPerTopic         = 4

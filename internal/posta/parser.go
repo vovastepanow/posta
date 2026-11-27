@@ -177,13 +177,14 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 	if name == "" {
 		name = id
 	}
-	src := jx.M{"id": id, "name": SourceDisplayName(platform, name)}
+	name = SourceDisplayName(platform, name)
+	src := jx.M{"id": id, "name": name}
+	key := SourceIDFor(platform, id)
 	u.Log("Парсинг %s %s...", platform, label)
 	var posts []jx.M
 	var times []int64
 	var subs int64
 	var rate *float64
-	gone := ""
 	page := ""
 	var err error
 	acceptText := u.TopicsAcceptText(jx.Strs(entry, "topics"))
@@ -193,7 +194,7 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 		if page == "" || !strings.Contains(page, `data-post="`) {
 			// A personal MTProto read is not a shared catalog activity verdict.
 			if u.ID != "" && u.TelegramUserConnected() {
-				if native, err := u.telegramUserHistoryPosts(id, jx.Str(src, "name"), config.TelegramPostsPerChannel); err == nil {
+				if native, err := u.telegramUserHistoryPosts(id, name, config.TelegramPostsPerChannel); err == nil {
 					var ready []jx.M
 					for _, post := range native {
 						if NewsPostOutdated(post, entry) {
@@ -222,19 +223,19 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 		}
 	case PlatformRSS:
 		withText := acceptText && !jx.Bool(entry, "news")
-		posts, err = u.RSSFetchPosts(id, config.RSSPostsPerFeed, jx.Str(src, "name"), true, withText)
+		posts, err = u.RSSFetchPosts(id, config.RSSPostsPerFeed, name, true, withText)
 		if err == nil {
 			posts = u.NewsEnrichPosts(posts, entry)
 		}
 	case PlatformOK:
-		posts, err = u.OKFetchPosts(id, OKPostsPerGroup, jx.Str(src, "name"))
+		posts, err = u.OKFetchPosts(id, OKPostsPerGroup, name)
 	case PlatformTikTok:
-		posts, err = u.TikTokFetchPosts(u.Ctx, id, TikTokPostsPerAccount, jx.Str(src, "name"))
+		posts, err = u.TikTokFetchPosts(u.Ctx, id, TikTokPostsPerAccount, name)
 	default:
 		if u.VKCanRead(u.Ctx) {
 			posts = u.BuildVKPreviewPosts(u.Ctx, src, config.VKPostsPerPublic, acceptText, 120)
 		} else {
-			posts, err = u.vkPublicPosts(id, jx.Str(src, "name"), config.VKPostsPerPublic, acceptText, 120)
+			posts, err = u.vkPublicPosts(id, name, config.VKPostsPerPublic, acceptText, 120)
 		}
 	}
 	if err != nil {
@@ -242,16 +243,13 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 		return nil, nil, ""
 	}
 	if platform != PlatformTelegram {
+		times = make([]int64, 0, len(posts))
 		for _, p := range posts {
 			times = append(times, jx.Int(p, "posted_at"))
 		}
 	}
 	activity := SourceActivity(times, 0)
-	reason := gone
-	if reason == "" {
-		reason = SourceDeadAudienceReason(subs, rate)
-	}
-	updated, event := ApplySourceActivity(entry, activity, 0, reason)
+	updated, event := ApplySourceActivity(entry, activity, 0, SourceDeadAudienceReason(subs, rate))
 	if subs > 0 {
 		aud := jx.M{"subscribers": subs, "view_rate": nil, "checked_at": now()}
 		if rate != nil {
@@ -267,13 +265,14 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 	if prev := SourcePreviewImages(posts); len(prev) > 0 {
 		updated["preview"] = prev
 	}
-	if event == "frozen" || event == "revived" {
-		status := map[string]string{"frozen": RegStatusDead, "revived": RegStatusCatalog}[event]
-		u.registryUpsert(registryWrite{SourceID: SourceIDFor(platform, jx.Str(entry, "id")), Platform: platform, Status: status,
-			Reason: map[string]string{"frozen": "заморожен: " + jx.Str(updated, "frozen_reason"), "revived": "в каталоге"}[event]})
+	switch event {
+	case "frozen":
+		u.registryUpsert(registryWrite{SourceID: key, Platform: platform, Status: RegStatusDead, Reason: "заморожен: " + jx.Str(updated, "frozen_reason")})
+	case "revived":
+		u.registryUpsert(registryWrite{SourceID: key, Platform: platform, Status: RegStatusCatalog, Reason: "в каталоге"})
 	}
 	if event == "frozen" || event == "still_frozen" {
-		skip := activeOnly || gone != ""
+		skip := activeOnly
 		what := "всё ещё не активен"
 		if event == "frozen" {
 			what = "заморожен"
@@ -299,13 +298,14 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 	if platform == PlatformTelegram {
 		fresh = u.TelegramBigVideosViaAccount(fresh)
 	}
-	var playable []jx.M
+	freshCount := len(fresh)
+	playable := fresh[:0]
 	for _, p := range fresh {
 		if (!jx.Bool(p, "video_unavailable") && !jx.Bool(p, "media_incomplete")) || len(jx.Maps(p, "source_attachments")) > 0 {
 			playable = append(playable, p)
 		}
 	}
-	old, hidden := len(posts)-len(fresh), len(fresh)-len(playable)
+	old, hidden := len(posts)-freshCount, freshCount-len(playable)
 	line := fmt.Sprintf("-> %s %s: найдено медиа-постов: %d", platform, label, len(playable))
 	if old > 0 {
 		line += fmt.Sprintf(", устаревших пропущено: %d", old)
@@ -318,7 +318,6 @@ func (u *U) collectCatalogSource(platform string, entry jx.M, activeOnly bool) (
 		line += "; " + DescribeSourceAudience(subs, rate, nil)
 	}
 	u.Log("%s).", line)
-	key := SourceIDFor(platform, id)
 	out := make([]jx.M, 0, len(playable))
 	for _, p := range playable {
 		q := jx.Copy(p)
@@ -2736,7 +2735,7 @@ outer:
 		u.Log("%s", stop)
 	}
 	u.ParserStage("pool")
-	u.KVSet(u.Ctx, parserLastPassKey(u.ID), jx.M{"at": now(), "funnel": funnel()}, 0) // воронка — для конвейера студии вне работы
+	u.KVSet(u.Ctx, parserLastPassKey(u.ID), jx.M{"at": now(), "funnel": funnel()}, 0) // воронка последнего прохода для главной панели
 	u.Log("")
 	u.Log("✅ Подбор завершён за %.1f мин: добавлено %d, проанализировано %d, отсеяно быстрой оценкой %d, повторов %d.", time.Since(started).Minutes(), added, analyzed,
 		pc.stats["rejected"], pc.stats["duplicates"])
