@@ -1560,7 +1560,7 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .cal-day.is-narrow .cal-mon { display: none; }
 .cal-day.is-narrow .cal-dow { font-size: 11px; }
 .cal-day.is-narrow .cal-dnum { font-size: 22px; }
-.cal-day.is-weekend .cal-dnum { color: var(--muted); }
+.cal-day.is-weekend .cal-dnum,
 .cal-day.is-past .cal-day-head { color: var(--muted); }
 .cal-day.is-today .cal-dnum { font-size: 26px; font-weight: 600; color: var(--accent-text); }   /* число сегодня — без кружка, 26 px */
 .cal-col { position: absolute; top: var(--cal-head); bottom: 0; left: 0; right: 0; overflow: hidden; }
@@ -1757,8 +1757,7 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .topic-mode-judge select { margin-left: 4px; }
 .topic-children { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .topic-children-label, .topic-children-more { color: var(--muted); font-size: 13px; }
-.tag-chip.is-topic-chip { cursor: pointer; }
-.tag-chip.is-hashtag { cursor: pointer; }
+.tag-chip.is-topic-chip, .tag-chip.is-hashtag { cursor: pointer; }
 .topic-mode-box > .topic-link { justify-self: start; }
 .tag-chip.is-topic-chip::before { content: none; }
 
@@ -2580,7 +2579,7 @@ dialog::backdrop {
 #content-pool-count { color: var(--muted); font-size: 13px; font-weight: 500; }
 .content-pool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 12px; }
 .content-pool-card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; padding: 0; text-align: left; border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); background: var(--bg); cursor: pointer; }
-.content-pool-card:hover, .content-pool-card:focus-visible { border-color: var(--accent); }
+.content-pool-card:hover, .content-pool-card:focus-visible,
 .content-pool-card[aria-current="true"] { border-color: var(--accent); }
 .content-pool-thumb { display: block; position: relative; width: 100%; aspect-ratio: 16 / 10; background: var(--surface-2); overflow: hidden; }
 .content-pool-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -2713,9 +2712,11 @@ dialog::backdrop {
 .pe-pane-nav,.pe-mobile-nav{display:flex;flex:none;gap:5px}
 .pe-pane-nav .is-active{border-color:var(--accent);color:var(--text)}
 .pe-mobile-nav{display:none}
-.pe-compose-column[data-view=text]>.pe-attachment-section,.pe-compose-column[data-view=media]>.pe-section:not(.pe-attachment-section),.pe-compose-column[data-view=poll]>.pe-section:not(.pe-attachment-section){display:none!important}
-.pe-compose-column[data-view=poll] .pe-attachment-section>:not(.pe-attachment-detail):not(.pe-section-head):not(.pe-attachment-toolbar){display:none!important}
-.pe-compose-column[data-view=media][data-split-poll=true] .pe-attachment-detail{display:none!important}
+.pe-compose-column[data-view=text]>.pe-attachment-section,
+.pe-compose-column[data-view=media]>.pe-section:not(.pe-attachment-section),
+.pe-compose-column[data-view=poll]>.pe-section:not(.pe-attachment-section),
+.pe-compose-column[data-view=poll] .pe-attachment-section>:not(.pe-attachment-detail):not(.pe-section-head):not(.pe-attachment-toolbar),
+.pe-compose-column[data-view=media][data-split-poll=true] .pe-attachment-detail { display: none !important; }
 .pe-window .pe-poll-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .pe-window .pe-poll-row .pe-input{padding:6px 8px}
 .pe-window .pe-attachment-detail{gap:6px}

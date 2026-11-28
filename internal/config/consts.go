@@ -90,8 +90,6 @@ const (
 	PrescreenJunkP                = 0.8 // быстрая оценка отбрасывает только «мусор» с такой уверенностью
 	TopicQueryMaxLen              = 80
 	TopicQueryMinSources          = 3
-	TopicQueryDiscoveryPerDay     = 10
-	TopicQueryChannelsPerRun      = 12
 	ScreenedCacheVersion          = 6
 	PrescreenBatch                = 10
 	AnalyzeBlock                  = 8 // прошедшие быструю оценку уходят на полный анализ блоком: меньше смен модели
@@ -99,7 +97,6 @@ const (
 
 	// ---- Горячие посты первыми ----
 	ContentMinSources        = 8
-	DiscoveryBlockingSeconds = 600
 	QueuePerSource           = 2 // в очереди проверки — лучший кандидат источника и запасной
 	HotShortlist             = 60
 	HotPlatformShare         = 0.4
@@ -114,28 +111,14 @@ const (
 	PhashSameDistance = 20 // из 256 бит: ближе — та же картинка
 
 	// ---- Автоподбор источников ----
-	SourceDiscoveryEnabled      = true
-	SourceSuggestScore          = 55
-	SourceReviewCaptions        = 10
-	DvachBoardsPerTopic         = 4
-	DvachBoardsPerRun           = 20
-	DiscoverySnowballSeeds      = 8
-	DiscoverySimilarSeeds       = 6
-	DiscoveryDeepExtraScore     = 10
-	DiscoveryDeferMax           = 20
-	DiscoveryDeferDays          = 3
-	DiscoverySnowballMaxDepth   = 2
-	DiscoveryKeywordRecent      = 8
-	DiscoveryKeywordMinTexts    = 2
-	DiscoveryTextRejectScore    = 20
-	DiscoveryMinSubscribers     = 30
-	DiscoveryMinOwnSources      = 3
-	DiscoveryShortageInterval   = 1800
-	DiscoveryNamesPerRun        = 0 // названия каналов от модели выключены: дают бренды и несуществующие адреса
-	DiscoveryNamesIfSearchBelow = 15
-	DiscoveryNamesRebuildStep   = 5
-	DiscoveryNamesMaxDays       = 14
-	DiscoveryRefsMax            = 10
+	SourceDiscoveryEnabled   = true
+	SourceSuggestScore       = 55
+	SourceReviewCaptions     = 10
+	DvachBoardsPerTopic      = 4
+	DvachBoardsPerRun        = 20
+	DiscoveryTextRejectScore = 20
+	DiscoveryMinSubscribers  = 30
+	DiscoveryMinOwnSources   = 3
 
 	// ---- Свежесть, активность и качество источников ----
 	ContentMaxAgeDays           = 30
