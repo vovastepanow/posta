@@ -11,47 +11,6 @@ import (
 	"posta/internal/jx"
 )
 
-func TestAutopilotSMMCanonicalKeyKeepsLegacySources(t *testing.T) {
-	legacy := fmt.Sprintf("v%d:%s", TopicProfileVersion, repeatDigest("smm"))
-	for _, title := range []string{"smm", "SMM", "смм", "SMM и блогинг", "  smm  "} {
-		if got := autopilotTopicKey(title); got != legacy {
-			t.Errorf("%q got topic key %q, want existing %q", title, got, legacy)
-		}
-		if got := autopilotCanonicalTopic(title); got != "SMM и блогинг" {
-			t.Errorf("%q canonical title = %q", title, got)
-		}
-	}
-	if autopilotTopicKey("Маркетинг и реклама") == legacy {
-		t.Fatal("separate marketing topic was merged into SMM")
-	}
-	if autopilotTopicKey("Блог врача") == legacy {
-		t.Fatal("unrelated blog was merged into SMM")
-	}
-}
-
-func TestAutopilotGeneralTaxonomyAliases(t *testing.T) {
-	for _, tc := range []struct{ input, expected string }{
-		{"маркетинг", "Маркетинг и реклама"},
-		{"реклама", "Маркетинг и реклама"},
-		{"Маркетинг и реклама", "Маркетинг и реклама"},
-		{"smm", "SMM и блогинг"},
-		{"блогинг", "SMM и блогинг"},
-		{"Криптовалюта", "Криптовалюта"},
-		{"крипта", "Криптовалюта"},
-		{"Совершенно новая пользовательская тема", "Совершенно новая пользовательская тема"},
-	} {
-		if got := autopilotCanonicalTopic(tc.input); got != tc.expected {
-			t.Errorf("%q canonicalized to %q, want %q", tc.input, got, tc.expected)
-		}
-		if autopilotTopicKey(tc.input) != autopilotTopicKey(tc.expected) {
-			t.Errorf("different autopilot identity for %q and %q", tc.input, tc.expected)
-		}
-	}
-	if autopilotTopicKey("SMM и блогинг") == autopilotTopicKey("Маркетинг и реклама") {
-		t.Fatal("distinct tree categories were merged")
-	}
-}
-
 func TestOKDiscoveryRequiresProfessionalIdentity(t *testing.T) {
 	for _, tc := range []struct {
 		title string

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"sync"
 
 	"posta/internal/db"
 )
@@ -19,58 +18,14 @@ type autopilotDemandSettings struct {
 
 var errAutopilotInvalidDemand = errors.New("invalid autopilot demand")
 
-// The taxonomy is static. Index exact titles and unambiguous aliases once
-// instead of normalizing every title for every candidate, job and status read.
-var autopilotTopicIndex = sync.OnceValue(func() map[string]string {
-	return buildAutopilotTopicIndex(TopicTree)
-})
-
-func buildAutopilotTopicIndex(tree []TreeBranch) map[string]string {
-	titles, aliases := map[string]string{}, map[string]string{}
-	add := func(title string, names []string) {
-		key := TopicNorm(title)
-		if _, exists := titles[key]; !exists {
-			titles[key] = title
-		}
-		for _, name := range names {
-			key := TopicNorm(name)
-			if old, exists := aliases[key]; exists && old != title {
-				aliases[key] = "" // ambiguous; never select an arbitrary topic
-			} else {
-				aliases[key] = title
-			}
-		}
-	}
-	for _, branch := range tree {
-		add(branch.Title, branch.Aliases)
-		for _, leaf := range branch.Children {
-			add(leaf.Title, leaf.Aliases)
-		}
-	}
-	for key, title := range aliases {
-		if _, exact := titles[key]; !exact && title != "" && key != "" {
-			titles[key] = title
-		}
-	}
-	return titles
-}
-
+// Search jobs use the literal request. Synonyms may be useful for retrieval,
+// but never merge two users' different requirements or their verdicts.
 func autopilotCanonicalTopic(topic string) string {
-	if key := TopicNorm(topic); key != "" {
-		if canonical := autopilotTopicIndex()[key]; canonical != "" {
-			return canonical
-		}
-	}
-	return strings.TrimSpace(topic)
+	return collapseSpaces(strings.TrimSpace(topic))
 }
 
 func autopilotTopicKey(topic string) string {
-	canonical := autopilotCanonicalTopic(topic)
-	normalized := strings.ToLower(collapseSpaces(strings.TrimSpace(canonical)))
-	if canonical == "SMM и блогинг" {
-		normalized = "smm" // historical key; existing Posta data stays reachable
-	}
-	return fmt.Sprintf("v%d:%s", TopicProfileVersion, repeatDigest(normalized))
+	return fmt.Sprintf("v%d:%s", TopicProfileVersion, repeatDigest(strings.ToLower(autopilotCanonicalTopic(topic))))
 }
 
 func saveAutopilotDemand(ctx context.Context, q db.Querier, userID string, demand autopilotDemandSettings, updatedAt int64) error {
