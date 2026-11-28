@@ -159,5 +159,6 @@ func (u *U) classifyPublicVideoFile(path, caption string) ([]string, bool) {
 	if transcript != "" {
 		description += "\nПолная локальная расшифровка звука:\n" + transcript
 	}
+	u.recordPublicMediaDescription(description)
 	return u.classifyMediaDescription(description, caption, jx.Bool(answer, "is_meme")), false
 }

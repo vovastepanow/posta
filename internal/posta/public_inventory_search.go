@@ -74,6 +74,7 @@ func (u *U) searchPublicInventory(query string, sourceAllowed func(string) bool,
 	lists := make([][]publicInventoryCandidate, 0, len(terms)+1)
 	for _, term := range terms {
 		lists = append(lists, u.searchPublicLexical(ctx, term, allowed))
+		lists = append(lists, u.searchPublicMedia(ctx, term, allowed))
 		if ctx.Err() != nil {
 			break
 		}
