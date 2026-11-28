@@ -1791,6 +1791,50 @@ func autopilotStreamUnavailableReason(err error) string {
 	return ""
 }
 
+// Technical failures never establish thematic relevance. New candidates
+// cool down on transient failures; a confirmed missing feed is rejected.
+// Previously admitted sources get a reversible cooldown instead.
+func autopilotReviewFetchFailure(state, reason string, at, nextCheck time.Time) (string, time.Time) {
+	if reason == "source_not_found" {
+		switch state {
+		case "candidate":
+			return "rejected", at.Add(30 * 24 * time.Hour)
+		case "probation", "active":
+			return "cooldown", at.Add(24 * time.Hour)
+		}
+	}
+	if state == "candidate" {
+		switch reason {
+		case "feed_unavailable", "rate_limited", "feed_access_restricted", "feed_too_large":
+			return "cooldown", nextCheck
+		case "unrecognized_feed", "feed_parse_failed":
+			return "cooldown", at.Add(7 * 24 * time.Hour)
+		}
+	}
+	return "", time.Time{}
+}
+
+// Both strict admission and yield admission share the same trial-capacity
+// handling. A passed review waiting for a place remains a verified candidate.
+func (a *App) autopilotBeginReviewTrial(ctx context.Context, job *autopilotJob, source, reason string, evidence jx.M, at time.Time) (bool, error) {
+	data := jx.Marshal(evidence)
+	err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate", "probation", reason, data, at, at.Add(autopilotSourceReviewInterval(job, "probation")))
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, errAutopilotProbationLimit):
+		err = recordAutopilotSourceCheck(ctx, a.DB, job, source, "candidate", "preliminary_pass_waiting_trial", data, at, at.Add(30*time.Minute))
+		if errors.Is(err, errAutopilotSourceChanged) {
+			err = nil
+		}
+		return false, err
+	case autopilotSourceSuperseded(err):
+		return false, nil
+	default:
+		return false, err
+	}
+}
+
 func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *autopilotJob, limit, threshold int, fetch func(string) FetchResultURL, evaluate func(jx.M, []jx.M, string) *sourceEvaluation, assess func(context.Context, string, []jx.M) error, policy sourcePolicy) error {
 	if !validAutopilotPublicJob(job) || limit < 1 {
 		return errors.New("invalid shadow review")
@@ -1880,43 +1924,12 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 			continue
 		}
-		// A temporary network/format problem is not a judgement on
-		// content quality. Move unreachable candidates to cooldown, retaining
-		// their history and a scheduled retry instead of clogging the review
-		// queue. Confirmed missing sources are rejected separately below.
-		if state == "candidate" && (reason == "feed_unavailable" || reason == "rate_limited" ||
-			reason == "unrecognized_feed" || reason == "feed_parse_failed" || reason == "feed_access_restricted" || reason == "feed_too_large") {
-			retry := nextCheck
-			if reason == "unrecognized_feed" || reason == "feed_parse_failed" {
-				retry = at.Add(7 * 24 * time.Hour)
+		if next, retry := autopilotReviewFetchFailure(state, reason, at, nextCheck); next != "" {
+			evidence := jx.M{"http_status": res.Status}
+			if reason != "source_not_found" {
+				evidence["retry_reason"] = reason
 			}
-			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
-				"cooldown", reason, jx.Marshal(jx.M{"http_status": res.Status, "retry_reason": reason}),
-				at, retry); err != nil &&
-				!autopilotSourceSuperseded(err) {
-				return err
-			}
-			continue
-		}
-		// A confirmed 404/410 is not an inconclusive fetch: reject the
-		// missing source and keep an auditable decision, rather than leaving
-		// a dead feed in the candidate queue forever.
-		if state == "candidate" && reason == "source_not_found" {
-			if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate",
-				"rejected", reason, jx.Marshal(jx.M{"http_status": res.Status}), at,
-				at.Add(30*24*time.Hour)); err != nil &&
-				!autopilotSourceSuperseded(err) {
-				return err
-			}
-			continue
-		}
-		// Technical disappearance of an admitted source is reversible, not
-		// a thematic rejection. The catalog will stop collecting it until
-		// it can be verified again.
-		if (state == "probation" || state == "active") && reason == "source_not_found" {
-			if err := transitionAutopilotSource(ctx, a.DB, job, source, state,
-				"cooldown", reason, jx.Marshal(jx.M{"http_status": res.Status}),
-				at, at.Add(24*time.Hour)); err != nil &&
+			if err := transitionAutopilotSource(ctx, a.DB, job, source, state, next, reason, jx.Marshal(evidence), at, retry); err != nil &&
 				!autopilotSourceSuperseded(err) {
 				return err
 			}
@@ -1985,7 +1998,8 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 			}
 			continue
 		}
-		evidence := jx.M{"quality_samples": len(samples), "fresh_samples": len(autopilotFreshRSSSamples(samples, at.Unix())), "sample_limit": 20, "quality_window_days": autopilotSourceQualityDays, "review_samples": auditSamples}
+		freshSamples := autopilotFreshRSSSamples(samples, at.Unix())
+		evidence := jx.M{"quality_samples": len(samples), "fresh_samples": len(freshSamples), "sample_limit": 20, "quality_window_days": autopilotSourceQualityDays, "review_samples": auditSamples}
 		for key, value := range displayEvidence {
 			evidence[key] = value
 		}
@@ -2008,7 +2022,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		if policy.YieldEnabled && row.reaudit && (state == "probation" || state == "active") {
 			evidence["review_policy_v3_checked"] = true
 		}
-		if reason == "" && policy.YieldEnabled && state == "candidate" && len(autopilotFreshRSSSamples(samples, at.Unix())) == 0 {
+		if reason == "" && policy.YieldEnabled && state == "candidate" && len(freshSamples) == 0 {
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "cooldown", "insufficient_fresh_samples", jx.Marshal(evidence), at, at.Add(7*24*time.Hour)); err != nil &&
 				!autopilotSourceSuperseded(err) {
 				return err
@@ -2108,21 +2122,12 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 					// A borderline new sample is not sufficient to revoke
 					// an existing decision. Continue post-level observation.
 				} else if pass {
-					if err := transitionAutopilotSource(ctx, a.DB, job, source, "candidate", "probation", "shadow_preliminary_pass", jx.Marshal(evidence), at, at.Add(autopilotSourceReviewInterval(job, "probation"))); err != nil {
-						if errors.Is(err, errAutopilotProbationLimit) {
-							// Actual source evaluation passed. Keep a record of the
-							// successful prescreen instead of marking it unverified.
-							if saveErr := recordAutopilotSourceCheck(ctx, a.DB, job, source, "candidate",
-								"preliminary_pass_waiting_trial", jx.Marshal(evidence), at, at.Add(30*time.Minute)); saveErr != nil &&
-								!errors.Is(saveErr, errAutopilotSourceChanged) {
-								return saveErr
-							}
-							continue
-						}
-						if autopilotSourceSuperseded(err) {
-							continue
-						}
+					started, err := a.autopilotBeginReviewTrial(ctx, job, source, "shadow_preliminary_pass", evidence, at)
+					if err != nil {
 						return err
+					}
+					if !started {
+						continue
 					}
 					state = "probation"
 					nextCheck = at.Add(autopilotSourceReviewInterval(job, state))
@@ -2169,18 +2174,12 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 				evidence["yield_pilot"] = true
 				evidence["source_decision_policy"] = "yield_pilot"
 			}
-			if err := transitionAutopilotSource(ctx, a.DB, job, source, state, "probation", "yield_verified_trial", jx.Marshal(evidence), at, at.Add(autopilotSourceReviewInterval(job, "probation"))); err != nil {
-				if errors.Is(err, errAutopilotProbationLimit) {
-					if saveErr := recordAutopilotSourceCheck(ctx, a.DB, job, source, state, "preliminary_pass_waiting_trial", jx.Marshal(evidence), at, at.Add(30*time.Minute)); saveErr != nil &&
-						!errors.Is(saveErr, errAutopilotSourceChanged) {
-						return saveErr
-					}
-					continue
-				}
-				if autopilotSourceSuperseded(err) {
-					continue
-				}
+			started, err := a.autopilotBeginReviewTrial(ctx, job, source, "yield_verified_trial", evidence, at)
+			if err != nil {
 				return err
+			}
+			if !started {
+				continue
 			}
 			state = "probation"
 			nextCheck = at.Add(autopilotSourceReviewInterval(job, state))

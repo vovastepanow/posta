@@ -389,3 +389,33 @@ func TestAutopilotSourceCaptionRejectsIncompleteEvidence(t *testing.T) {
 		t.Fatalf("partial or restricted text was treated as evidence: %q", captions)
 	}
 }
+
+func TestAutopilotReviewFetchFailure(t *testing.T) {
+	at := time.Unix(100000, 0)
+	next := at.Add(48 * time.Hour)
+	for _, tt := range []struct {
+		state, reason, want string
+		delay               time.Duration
+	}{
+		{"candidate", "feed_unavailable", "cooldown", 48 * time.Hour},
+		{"candidate", "rate_limited", "cooldown", 48 * time.Hour},
+		{"candidate", "feed_access_restricted", "cooldown", 48 * time.Hour},
+		{"candidate", "feed_too_large", "cooldown", 48 * time.Hour},
+		{"candidate", "unrecognized_feed", "cooldown", 7 * 24 * time.Hour},
+		{"candidate", "feed_parse_failed", "cooldown", 7 * 24 * time.Hour},
+		{"candidate", "source_not_found", "rejected", 30 * 24 * time.Hour},
+		{"probation", "source_not_found", "cooldown", 24 * time.Hour},
+		{"active", "source_not_found", "cooldown", 24 * time.Hour},
+		{"active", "feed_unavailable", "", 0},
+		{"probation", "feed_parse_failed", "", 0},
+		{"candidate", "assessment_unavailable", "", 0},
+		{"candidate", "", "", 0},
+	} {
+		t.Run(tt.state+"/"+tt.reason, func(t *testing.T) {
+			got, retry := autopilotReviewFetchFailure(tt.state, tt.reason, at, next)
+			if got != tt.want || (got == "" && !retry.IsZero()) || (got != "" && !retry.Equal(at.Add(tt.delay))) {
+				t.Fatalf("got %q at %v; want %q after %v", got, retry, tt.want, tt.delay)
+			}
+		})
+	}
+}
