@@ -192,7 +192,7 @@ try{
         await import('/js/home.js');
     });
     await homePage.waitForFunction(()=>document.querySelectorAll('#grid .tile').length===3);
-    await homePage.locator('#side-sources li').filter({hasText:'Telegram'}).waitFor();
+    await homePage.locator('#side-sources li').filter({hasText:'Telegram'}).waitFor({state:'attached'});
     assert.equal(await homePage.locator('#side-sources li').filter({hasText:'Telegram'}).locator('em').textContent(),'3');
     assert.equal(await homePage.locator('#grid .rejected-reason').count(),0);
     assert.equal(await homePage.getByRole('button',{name:'Убрать из отобранных',exact:true}).count(),3);
@@ -212,7 +212,8 @@ try{
     // Refreshing source status must preserve an opened, already loaded history.
     const sourcesPage=await browser.newPage({viewport:{width:1440,height:900}});
     sourcesPage.on('pageerror',e=>errors.push(e.message));
-    let statusReads=0, historyReads=0;
+    let statusReads=0, historyReads=0, sourceTopic='SMM и блогинг';
+    const sourceWrites=[];
     await sourcesPage.route('**/*',route=>{
         const url=new URL(route.request().url());
         if(url.hostname!=='127.0.0.1')return route.abort();
@@ -220,18 +221,24 @@ try{
         const action=url.searchParams.get('action');
         if(action==='source_autopilot_status')statusReads++;
         if(action==='source_autopilot_history')historyReads++;
+        if(['source_mute','source_personal_pin','remove_topic_source'].includes(action)) sourceWrites.push({action, body:route.request().postDataJSON()});
         const fixtures={
             topics:{topics:[{title:'SMM и блогинг',path:'SMM и блогинг'}]},
             source_autopilot_status:{server_revision:'test',auto_enabled:true,topics:[{topic:'SMM и блогинг',mode:'auto',posts_per_day:10,horizon_days:3,attempts:statusReads}]},
             source_autopilot_history:{decisions:[{source_id:'rss:example.org',new_state:'candidate',reason:'discovered',at:1}]},
-            topic_sources:{sources:[]},mirror_list:{mirrors:[]},telegram_queue:{connected:false}
+            topic_sources:{topic:sourceTopic,sources:[{
+                source_id:'rss:https://example.org/feed',platform:'RSS',id:'https://example.org/feed',
+                name:'Источник '+sourceTopic,url:'https://example.org',handle:'example.org',
+                preview:[],topics:[sourceTopic],own:true
+            }]},mirror_list:{mirrors:[]},telegram_queue:{connected:false}
         };
         return route.fulfill({json:fixtures[action]||{}});
     });
     await sourcesPage.goto('http://127.0.0.1:'+server.address().port+'/home-test');
     await sourcesPage.evaluate(async()=>{
-        const {initializeCore,switchTab}=await import('/js/core.js');
+        const {initializeCore,switchTab,setCurrentTopic}=await import('/js/core.js');
         initializeCore();
+        setCurrentTopic('SMM и блогинг');
         const {initializeSourceTab}=await import('/js/sources.js');
         initializeSourceTab();
         switchTab('source-tab');
@@ -243,6 +250,19 @@ try{
     await sourcesPage.waitForFunction(()=>document.querySelector('#autopilot-topics')?.textContent.includes('Запусков задания: 2'));
     assert.equal(await history.evaluate(e=>e.open),true);
     assert.equal(historyReads,1);
+    await sourcesPage.locator('#topic-sources-section').evaluate(node => { node.open = true; });
+    await sourcesPage.locator('#topic-sources-grid').getByText('Источник SMM и блогинг',{exact:true}).waitFor({state:'attached'});
+    await sourcesPage.locator('#topic-sources-grid button').filter({hasText:'✕ Убрать'}).click();
+    sourceTopic='Другая тема';
+    await sourcesPage.evaluate(async()=>{const {setCurrentTopic}=await import('/js/core.js');setCurrentTopic('Другая тема');});
+    await sourcesPage.locator('#topic-sources-grid').getByText('Источник Другая тема',{exact:true}).waitFor({state:'attached'});
+    await sourcesPage.locator('.ask-ok').click();
+    assert.equal(sourceWrites.length,0);
+    await Promise.all([
+        sourcesPage.waitForResponse(response=>new URL(response.url()).searchParams.get('action')==='source_mute'),
+        sourcesPage.locator('#topic-sources-grid button').filter({hasText:'Исключить для меня'}).click()
+    ]);
+    assert.deepEqual(sourceWrites,[{action:'source_mute',body:{source_id:'rss:https://example.org/feed',on:false,expected_topic:'Другая тема'}}]);
     await sourcesPage.close();
     // A refresh while an edit/confirmation is open must never redirect a write
     // to the new record at the same row index.
