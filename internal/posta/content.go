@@ -927,17 +927,38 @@ func (a *App) MediaReleaseRemoved(ctx context.Context, before, after []jx.M) {
 }
 
 // PruneOldPool removes collected posts after a week, including archived fallback items.
+func poolPruneTimestamp(item jx.M) int64 {
+	at := jx.Int(item, "pooled_at")
+	if at <= 0 {
+		at = jx.Int(item, "timestamp")
+	}
+	return at
+}
+
 func (u *U) PruneOldPool() error {
-	var before []jx.M
 	cutoff := now() - 7*24*60*60
+	// Status polling should not acquire the content write lock when no
+	// record needs maintenance. Recheck inside the transaction if necessary.
+	snapshot, err := u.poolLoadChecked(u.Ctx, u.DB.Pool, u.ID)
+	if err != nil {
+		return err
+	}
+	needed := false
+	for _, item := range snapshot {
+		if at := poolPruneTimestamp(item); at <= 0 || at < cutoff {
+			needed = true
+			break
+		}
+	}
+	if !needed {
+		return nil
+	}
+	var before []jx.M
 	after, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
 		kept := make([]jx.M, 0, len(pool))
 		changed := false
 		for _, item := range pool {
-			at := jx.Int(item, "pooled_at")
-			if at <= 0 {
-				at = jx.Int(item, "timestamp")
-			}
+			at := poolPruneTimestamp(item)
 			if at <= 0 {
 				item["pooled_at"] = now()
 				changed = true

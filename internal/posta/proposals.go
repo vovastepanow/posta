@@ -65,24 +65,47 @@ func (u *U) ProposalItems(h History) []jx.M {
 
 // pruneSelectedHistory оставляет в выбранной теме последние 100 видимых лайков.
 // Данные оценки остаются, чтобы удаление содержимого не меняло качество источника и предпочтения.
+func selectedPostExpired(r jx.M, at int64) bool {
+	return !jx.Bool(r, "content_deleted") && jx.Int(r, "timestamp") < at-selectedPostMaxAge
+}
+
+func selectedPostCandidate(r jx.M, topic string, same func(string, string) bool) bool {
+	t := jx.Str(r, "topic")
+	return !jx.Bool(r, "proposal_hidden") && ContentItemKey(r) != "" && (t == "" || same(t, topic))
+}
+
+func selectedHistoryNeedsPrune(records []jx.M, topic string, same func(string, string) bool, at int64) bool {
+	count := 0
+	for _, r := range records {
+		if selectedPostExpired(r, at) {
+			return true
+		}
+		if selectedPostCandidate(r, topic, same) {
+			count++
+			if count > proposalsLimit {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func pruneSelectedHistory(h History, topic string, same func(string, string) bool, at int64) []jx.M {
 	var candidates []int
 	var expired []int
 	for i, r := range h["liked"] {
-		if !jx.Bool(r, "content_deleted") && jx.Int(r, "timestamp") < at-selectedPostMaxAge {
+		if selectedPostExpired(r, at) {
 			expired = append(expired, i)
 			continue
 		}
-		t := jx.Str(r, "topic")
-		if jx.Bool(r, "proposal_hidden") || ContentItemKey(r) == "" || (t != "" && !same(t, topic)) {
-			continue
+		if selectedPostCandidate(r, topic, same) {
+			candidates = append(candidates, i)
 		}
-		candidates = append(candidates, i)
 	}
-	sort.SliceStable(candidates, func(i, j int) bool {
-		return jx.Int(h["liked"][candidates[i]], "timestamp") > jx.Int(h["liked"][candidates[j]], "timestamp")
-	})
 	if len(candidates) > proposalsLimit {
+		sort.SliceStable(candidates, func(i, j int) bool {
+			return jx.Int(h["liked"][candidates[i]], "timestamp") > jx.Int(h["liked"][candidates[j]], "timestamp")
+		})
 		expired = append(expired, candidates[proposalsLimit:]...)
 	}
 	removed := make([]jx.M, 0, len(expired))
@@ -104,10 +127,23 @@ func pruneSelectedHistory(h History, topic string, same func(string, string) boo
 
 // PruneSelectedPosts удаляет старое содержимое, сохраняя оценки. Общие файлы остаются, пока на них кто-то ссылается.
 func (u *U) PruneSelectedPosts() error {
-	topic := u.CurrentTopic()
+	topic, at := u.CurrentTopic(), now()
+	// Inspect only liked records on the common read-only path. The full
+	// history transaction is needed only when there is something to compact.
+	rows, err := u.DB.Pool.Query(u.Ctx, "SELECT data FROM history_items WHERE user_id = $1 AND collection = 'liked' ORDER BY position", u.ID)
+	if err != nil {
+		return err
+	}
+	records, err := decodeRows(rows)
+	if err != nil {
+		return err
+	}
+	if !selectedHistoryNeedsPrune(records, topic, u.TopicSame, at) {
+		return nil
+	}
 	var removed []jx.M
-	_, err := u.HistoryUpdate(func(h History) History {
-		removed = pruneSelectedHistory(h, topic, u.TopicSame, now())
+	_, err = u.HistoryUpdate(func(h History) History {
+		removed = pruneSelectedHistory(h, topic, u.TopicSame, at)
 		if len(removed) == 0 {
 			return nil
 		}
