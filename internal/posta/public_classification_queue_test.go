@@ -130,3 +130,50 @@ func TestPublicMediaSafetyRevisionPostgres(t *testing.T) {
 		t.Fatal("old safety verdict applied to a different media revision")
 	}
 }
+
+func TestOpenMediaQueueDoesNotClassifyTextPostgres(t *testing.T) {
+	dsn := os.Getenv("POSTA_TEST_PG")
+	if dsn == "" {
+		t.Skip("POSTA_TEST_PG not set")
+	}
+	ctx := context.Background()
+	d, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{DB: d}
+	source := "open-media-queue-" + randHex(8)
+	defer d.Pool.Exec(ctx, "DELETE FROM public_posts WHERE source_key=$1", source)
+	image := jx.M{"url": "https://example.org/open/image", "image": "https://example.org/image.jpg"}
+	body := jx.M{"url": "https://example.org/open/text", "text": "Unclassified but searchable text"}
+	a.storePublicPosts(ctx, PlatformRSS, source, []jx.M{image, body})
+	rows, err := d.Pool.Query(ctx, publicMediaBackfillSQL, now()-86400, now()-3600, []string{source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []string
+	for rows.Next() {
+		var sid, key string
+		var raw []byte
+		if err := rows.Scan(&sid, &key, &raw); err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, key)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil || len(keys) != 1 || keys[0] != CandidatePostKey(image) {
+		t.Fatalf("unexpected open media queue: %v %v", keys, err)
+	}
+	var labels bool
+	if err := d.Pool.QueryRow(ctx, publicMediaClaimSQL, source, CandidatePostKey(image), now(), jx.Marshal(image)).Scan(&labels); err != nil || labels {
+		t.Fatalf("untagged image must not require topic labels: %v %v", labels, err)
+	}
+	if err := d.Pool.QueryRow(ctx, publicMediaClaimSQL, source, CandidatePostKey(body), now(), jx.Marshal(body)).Scan(&labels); err == nil {
+		t.Fatal("text was sent to media-only classifier")
+	}
+}

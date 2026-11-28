@@ -83,8 +83,12 @@ func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, descrip
 	if _, _, ok := publicClassificationInput(item); !ok {
 		return
 	}
+	claimSQL := publicClassificationClaimSQL
+	if a.TBool("public_open_search") {
+		claimSQL = publicMediaClaimSQL
+	}
 	var needsLabels bool
-	err := a.DB.Pool.QueryRow(ctx, publicClassificationClaimSQL, source, key, now(), jx.Marshal(item)).Scan(&needsLabels)
+	err := a.DB.Pool.QueryRow(ctx, claimSQL, source, key, now(), jx.Marshal(item)).Scan(&needsLabels)
 	if err != nil {
 		return
 	}
@@ -161,6 +165,9 @@ func (u *U) classifyPublicItem(item jx.M, caption, imageURL string) ([]string, b
 			}
 		}
 		return u.classifyPublicVideo(video, caption)
+	}
+	if imageURL == "" {
+		imageURL = u.MediaExisting(jx.Str(item, "image_local"))
 	}
 	if imageURL != "" {
 		// A caption alone cannot rule out subjects introduced by its image.
@@ -327,7 +334,11 @@ func (a *App) backfillPublicClassifications(ctx context.Context) {
 	if len(allowed) == 0 {
 		return
 	}
-	rows, err := a.DB.Pool.Query(ctx, publicClassificationBackfillSQL, now()-7*86400, now()-3600, allowed)
+	backfillSQL := publicClassificationBackfillSQL
+	if a.TBool("public_open_search") {
+		backfillSQL = publicMediaBackfillSQL
+	}
+	rows, err := a.DB.Pool.Query(ctx, backfillSQL, now()-7*86400, now()-3600, allowed)
 	if err != nil {
 		return
 	}
@@ -368,7 +379,7 @@ func (u *U) classifyPublicPost(item, analysis jx.M, topic string, h History) {
 	}
 	description := jx.Str(analysis, "description")
 	caption := PostCaptionForAI(item)
-	if source == "" || key == "" || description == "" {
+	if source == "" || key == "" || description == "" || (u.TBool("public_open_search") && !PostItemHasMedia(item)) {
 		return
 	}
 	select {
