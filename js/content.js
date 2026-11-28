@@ -679,7 +679,7 @@ const scheduleOptions = () => ({
 /** Подключённые каналы и личный аккаунт: нужны редактору поста (куда постить, слоты, «Отложенные»). */
 async function refreshPublishTargets() {
     if (DEBUG_MODE) return;
-    const [tg, other] = await Promise.allSettled([api('telegram_queue'), api('networks_list')]);
+    const [tg, other] = await Promise.allSettled([api('telegram_queue', { params: { summary: '1' } }), api('networks_list')]);
     if (tg.status === 'fulfilled') { state.channels = tg.value.connected ? tg.value.channels || [] : []; state.nativeAccount = Boolean(tg.value.native_account); }
     if (other.status === 'fulfilled') { state.networkChannels = other.value.channels || []; state.networks = other.value.networks || {}; }
     if (tg.status === 'rejected' || other.status === 'rejected') throw new Error('Не удалось загрузить подключённые ресурсы. Попробуйте ещё раз.');

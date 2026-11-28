@@ -321,10 +321,10 @@ async function saveMirror(event) {
 /** Каналы для очереди — из очереди Telegram; без подключённого Telegram список пуст. */
 async function loadMirrorChannels() {
     try {
-        const data = await api('telegram_queue');
+        const data = await api('telegram_queue', { params: { summary: '1' } });
         mirrorState.channels = data.connected ? data.channels || [] : [];
     } catch { mirrorState.channels = []; }
-    $('mirror-channel').replaceChildren(...mirrorState.channels.map(c => el('option', { value: c.id, textContent: c.chat_title || c.id })));
+    $('mirror-channel').replaceChildren(...mirrorState.channels.map(c => el('option', { value: c.id, textContent: c.title || c.chat_title || c.id })));
     updateMirrorMode();
 }
 

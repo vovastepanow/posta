@@ -189,7 +189,7 @@ function renderTopicSources() {
 }
 
 async function loadTopicSources() {
-    if (!$('topic-sources-section').open) return;
+    if (!$('topic-sources-section').open || !$('source-tools-dialog').open) return;
     topicSources.controller?.abort();
     const controller = new AbortController();
     topicSources.controller = controller;
@@ -233,7 +233,13 @@ async function addSource(event) {
 
 export function initializeSourceTab() {
     const toolsDialog = $('source-tools-dialog');
-    const openTools = () => { if (!toolsDialog.open) toolsDialog.showModal(); };
+    const openTools = () => {
+        if (toolsDialog.open) return;
+        toolsDialog.showModal();
+        loadSourceTools();
+        loadTopicSources();
+        if ($('registry-section').open) loadRegistry();
+    };
     $('source-tools-open').addEventListener('click', openTools);
     $('source-tools-close').addEventListener('click', () => toolsDialog.close());
     initializeSourceTools();
@@ -244,7 +250,14 @@ export function initializeSourceTab() {
     initRegistry();
     $('topic-sources-section').addEventListener('toggle', () => { if ($('topic-sources-section').open) loadTopicSources(); });
     $('registry-section').addEventListener('toggle', () => { if ($('registry-section').open) loadRegistry(); });
-    onTabOpen('source-tab', () => { loadAutopilot(true); loadTopicSources(); if ($('registry-section').open) loadRegistry(); loadSourceTools(); });
+    onTabOpen('source-tab', () => {
+        loadAutopilot(true);
+        if (toolsDialog.open) {
+            loadTopicSources();
+            if ($('registry-section').open) loadRegistry();
+            loadSourceTools();
+        }
+    });
     onTopicChange(invalidateTopicSources);
     onParserStateChange(running => {
         if (!running && isTabActive('source-tab')) loadTopicSources();

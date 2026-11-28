@@ -103,7 +103,7 @@ async function loadSideResources() {
     const version = ++resourceLoadVersion;
     const list = $('side-resources-list');
     try {
-        const [telegram, other] = await Promise.all([api('telegram_queue'), api('networks_list')]);
+        const [telegram, other] = await Promise.all([api('telegram_queue', { params: { summary: '1' } }), api('networks_list')]);
         if (version !== resourceLoadVersion) return;
         const resources = [ ...(telegram.channels || []).map(c => ({ badge: 'TG', name: c.title || c.username || c.id, url: resourceUrl('telegram', '', c.username) })),
             ...(other.channels || []).map(c => ({ badge: (c.platform === 'vk' ? 'VK' : c.platform.slice(0, 2)).toUpperCase(), name: c.title || c.ref, url: resourceUrl(c.platform, c.ref, c.platform === 'vk' ? c.screen_name : c.title) })) ];

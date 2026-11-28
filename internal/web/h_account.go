@@ -478,8 +478,12 @@ func telegramPublic(c *Ctx) any {
 
 // channelsPublic — каналы Telegram без токенов; первый — канал по умолчанию.
 func channelsPublic(c *Ctx) []jx.M {
+	return telegramChannelsPublic(c, c.U.TelegramChannels())
+}
+
+func telegramChannelsPublic(c *Ctx, channels []*posta.Channel) []jx.M {
 	out := []jx.M{}
-	for i, ch := range c.U.TelegramChannels() {
+	for i, ch := range channels {
 		out = append(out, jx.M{"id": ch.ID, "title": ch.ChatTitle, "username": ch.ChatUsername, "bot_username": ch.BotUsername, "type": ch.ChatType,
 			"connected_at": ch.ConnectedAt, "default": i == 0, "schedule": posta.ChannelSchedule(ch), "style": c.U.ChannelStylePublic(ch), "hashtags": ch.Hashtags})
 	}
@@ -1083,7 +1087,11 @@ func telegramReschedule(c *Ctx) (any, error) {
 
 func telegramQueue(c *Ctx) (any, error) {
 	u := c.U
-	bot := u.TelegramConnection("")
+	channels := u.TelegramChannels()
+	connected := len(channels) > 0 && channels[0].Token != ""
+	if c.Q("summary") == "1" {
+		return jx.M{"connected": connected, "native_account": u.TelegramUserConnected(), "channels": telegramChannelsPublic(c, channels)}, nil
+	}
 	u.TelegramSettleNativePosts()
 	scheduled := []jx.M{}
 	for _, e := range u.Outbox() {
@@ -1092,10 +1100,10 @@ func telegramQueue(c *Ctx) (any, error) {
 	}
 	sort.SliceStable(scheduled, func(i, j int) bool { return jx.Int(scheduled[i], "publish_at") < jx.Int(scheduled[j], "publish_at") })
 	var channel any
-	if bot != nil {
-		channel = jx.M{"title": bot.ChatTitle, "username": bot.ChatUsername}
+	if connected {
+		channel = jx.M{"title": channels[0].ChatTitle, "username": channels[0].ChatUsername}
 	}
-	return jx.M{"connected": bot != nil, "native_account": u.TelegramUserConnected(), "channel": channel, "channels": channelsPublic(c), "scheduled": scheduled,
+	return jx.M{"connected": connected, "native_account": u.TelegramUserConnected(), "channel": channel, "channels": telegramChannelsPublic(c, channels), "scheduled": scheduled,
 		"published": orMaps(u.Published(10))}, nil
 }
 
@@ -1126,7 +1134,7 @@ func calendar(c *Ctx) (any, error) {
 	var channels []jx.M
 	byID := map[string]jx.M{}
 	chans := u.TelegramChannels()
-	for i, ch := range channelsPublic(c) {
+	for i, ch := range telegramChannelsPublic(c, chans) {
 		ch["reach"] = c.A.ChannelReachCached(chans[i])
 		channels = append(channels, ch)
 		byID[jx.Str(ch, "id")] = ch
