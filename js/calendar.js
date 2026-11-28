@@ -1062,7 +1062,7 @@ function phoneCtx() {
         openPost: (post, from) => openPanel(post, from),
         openSlot: (row, from) => openPicker(row, from),
         openFill: openFillPanel,
-        openPool: async () => { try { showPanel('Предложка', await poolPanel(poolContext())); } catch (error) { setStatus(error.message, true); } },
+        openPool: () => showAsyncPanel('Предложка', () => poolPanel(poolContext())),
         laneOf: channelId => laneOf(channelId),
         statusOf: post => STATUS_SHORT[post.status] || post.status,
         // тот же язык карточек, что в сетке (CALENDAR_CARDS_PROMPT.md)
@@ -1074,8 +1074,7 @@ function phoneCtx() {
 // ---- Панель подробностей ----
 
 function openPanel(post, from) {
-    state.panelPost = post;
-    showPanel(whenLabel(post.at * 1000), postChildren(post), from);   // заголовок — день и время, как в макете
+    showPanel(whenLabel(post.at * 1000), postChildren(post), from, post);   // заголовок — день и время, как в макете
 }
 
 /** Рамка выбора у карточки открытого поста; снимается при закрытии панели. */
@@ -1087,15 +1086,32 @@ function markSelected(node) {
 }
 
 /** Панель справа (на телефоне — снизу): заголовок, содержимое, ✕; закрытие возвращает фокус на from. */
-function showPanel(heading, children, from = null) {
+function showPanel(heading, children, from = null, post = null) {
     ++panelRequest;
     state.panel = { from };
+    state.panelPost = post;
+    if (state.ghosts) { state.ghosts = null; scheduleRender(); }
     markSelected(from);
     panel.classList.add('is-sheet');   // на телефоне панель появляется только по выбору
-    panel.replaceChildren(el('div', { className: 'cal-panel-head' }, el('b', { textContent: heading }),
-        el('button', { type: 'button', className: 'cal-pop-close', textContent: '✕', ariaLabel: 'Закрыть', onclick: closePanel })), ...children);
+    renderPanelContents(heading, children);
     panel.hidden = false;
     panel.focus();
+}
+
+function renderPanelContents(heading, children) {
+    panel.replaceChildren(el('div', { className: 'cal-panel-head' }, el('b', { textContent: heading }),
+        el('button', { type: 'button', className: 'cal-pop-close', textContent: '✕', ariaLabel: 'Закрыть', onclick: closePanel })), ...children);
+}
+
+async function showAsyncPanel(heading, loadChildren, from = null) {
+    showPanel(heading, [el('p', { className: 'cal-muted', textContent: 'Загружаю…' })], from);
+    const opened = state.panel;
+    try {
+        const children = await loadChildren(() => state.panel === opened);
+        if (state.panel === opened) renderPanelContents(heading, children);
+    } catch (error) {
+        if (state.panel === opened) { setStatus(error.message, true); closePanel(); }
+    }
 }
 
 // ---- «+» в свободном слоте: пост из «Предложки» в редактор с этим временем и каналом ----
@@ -1104,22 +1120,13 @@ function showPanel(heading, children, from = null) {
 async function openPicker(row, from) {
     const lane = laneOf(row.channel.id);
     const heading = `Пост на ${dayName(row.at)}, ${hhmm(row.at)} · ${lane.title}`;
-    showPanel(heading, [el('p', { className: 'cal-muted', textContent: 'Загружаю «Предложку»…' })], from);
-    state.panelPost = null;
-    const opened = state.panel;
-    try {
+    return showAsyncPanel(heading, async () => {
         const items = (await api('proposals')).items || [];
-        const children = items.length
+        return items.length
             ? [el('div', { className: 'cal-picks' }, ...items.map(item => pickerItem(item, row)))]
             : [el('p', { className: 'cal-muted', textContent: 'В Предложке пусто: лайкните посты на вкладке «Предложка»' }),
                 el('button', { type: 'button', className: 'cal-act', textContent: 'Перейти на «Предложку»', onclick: () => { closePanel(); switchTab('content-tab'); } })];
-        if (state.panel === opened) showPanel(heading, children, from);
-    } catch (error) {
-        if (state.panel === opened) {
-            setStatus(error.message, true);
-            closePanel();
-        }
-    }
+    }, from);
 }
 
 function pickerItem(item, row) {
@@ -1327,33 +1334,20 @@ async function removeFromPool(item) {
     } catch (error) { setStatus(error.message, true); }
 }
 
-async function openFillPanel() {
-    const heading = 'Заполнить дыры';
-    state.panelPost = null;
-    showPanel(heading, [el('p', { className: 'cal-muted', textContent: 'Загружаю план…' })]);
-    let opened = state.panel;
-    const ctx = poolContext();
-    const showGhosts = ctx.showGhosts;
-    ctx.showGhosts = rows => { if (state.panel === opened) showGhosts(rows); };
-    try {
-        const children = await planPanel(ctx);
-        if (state.panel === opened) {
-            showPanel(heading, children);
-            opened = state.panel;
-        }
-    } catch (error) {
-        if (state.panel === opened) { setStatus(error.message, true); closePanel(); }
-    }
+function openFillPanel() {
+    return showAsyncPanel('Заполнить дыры', isCurrent => {
+        const ctx = poolContext();
+        const showGhosts = ctx.showGhosts;
+        ctx.showGhosts = rows => { if (isCurrent()) showGhosts(rows); };
+        return planPanel(ctx);
+    });
 }
 
-
 /** Черновик из Предложки: канал — первый включённый; «В лучшее время» открывает редактор с ближайшим лучшим слотом. */
-async function openDraft(item) {
+function openDraft(item) {
     const channel = state.channels.find(c => !state.disabled.has(c.id)) ?? state.channels[0];
-    try {
-        showPanel('Черновик из Предложки', await draftChildren(item, channel, (picked, slot, channelId) =>
-            composePostFromItem(picked, { scheduledTs: slot, channel: channelId, onDone: () => loadCalendar() })), $('cal-pool'));
-    } catch (error) { setStatus(error.message, true); }
+    return showAsyncPanel('Черновик из Предложки', () => draftChildren(item, channel, (picked, slot, channelId) =>
+        composePostFromItem(picked, { scheduledTs: slot, channel: channelId, onDone: () => loadCalendar() })), $('cal-pool'));
 }
 
 /** Телефон: свободные слоты выбранного дня, лучшие сверху; выбор слота — редактор поста с этим временем. */

@@ -299,6 +299,49 @@ try{
         expected_topic: 'SMM', index: 0, expected: { image: 'https://example.com/image.jpg', text: 'Record 3' }
     }});
     await dbPage.close();
+
+    const poolPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    poolPage.on('pageerror', e => errors.push(e.message));
+    let poolReads = 0, planReads = 0;
+    await poolPage.route('**/*', route => {
+        const url = new URL(route.request().url());
+        if (url.hostname !== '127.0.0.1') return route.abort();
+        if (url.pathname !== '/index.php') return route.continue();
+        const action = url.searchParams.get('action');
+        if (action === 'proposals') {
+            poolReads++;
+            return route.fulfill({ json: { items: [
+                { item_key: 'one', text: 'First post', format: 'text' },
+                { item_key: 'two', text: 'Video post', format: 'video' }
+            ] } });
+        }
+        if (action === 'calendar_fill_plan') {
+            planReads++;
+            return route.fulfill({ json: { plan: [] } });
+        }
+        return route.fulfill({ json: {} });
+    });
+    await poolPage.goto('http://127.0.0.1:' + server.address().port);
+    await poolPage.evaluate(async () => {
+        const { renderPoolColumn, holesChildren, fetchPlan } = await import('/js/calendar-pool.js');
+        const root = document.createElement('section');
+        root.id = 'pool-test';
+        document.body.append(root);
+        const ctx = { targets: () => ['channel'], openFill: () => {} };
+        const plan = fetchPlan(ctx.targets());
+        await Promise.all([renderPoolColumn(ctx, root, plan), holesChildren(ctx, { queued: 0, free: 0 }, plan)]);
+    });
+    assert.equal(poolReads, 1);
+    assert.equal(planReads, 1);
+    assert.equal(await poolPage.locator('#pool-test .cal-pool-item').count(), 2);
+    await poolPage.locator('#pool-test .cal-pool-filters button').filter({ hasText: 'Видео' }).click();
+    assert.equal(await poolPage.locator('#pool-test .cal-pool-item').count(), 1);
+    assert.equal(await poolPage.locator('#pool-test .cal-pool-filters button').filter({ hasText: 'Видео' }).getAttribute('aria-pressed'), 'true');
+    await poolPage.locator('#pool-test .cal-pool-toggle').click();
+    await poolPage.locator('#pool-test .cal-pool-toggle').click();
+    assert.equal(poolReads, 1);
+    assert.equal(planReads, 1);
+    await poolPage.close();
     assert.deepEqual(errors,[]);
     console.log('Editor browser: isolated variants, formatting, compound poll, mobile layout and submitted payloads passed');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
