@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -33,10 +32,7 @@ func autopilotTikTokUnwrapBing(raw string) string {
 	return string(decoded)
 }
 
-var autopilotTikTokBingPause struct {
-	sync.Mutex
-	until time.Time
-}
+var autopilotTikTokBingPause = searchProviderPause{key: "autopilot_tiktok_bing_pause_until"}
 
 // Bing's RSS entries can be unrelated even when site: was requested. Only
 // direct, canonical TikTok links are accepted; an empty result is unknown.
@@ -81,31 +77,9 @@ func (u *U) autopilotTikTokSearch(query string) FetchResultURL {
 }
 
 func (u *U) autopilotTikTokBingFetch(raw string, maxBytes int64, timeout time.Duration, ua string) FetchResultURL {
-	autopilotTikTokBingPause.Lock()
-	until := autopilotTikTokBingPause.until
-	autopilotTikTokBingPause.Unlock()
-	if u.DB != nil {
-		if saved := KV(u.App, u.Ctx, "autopilot_tiktok_bing_pause_until", int64(0)); saved > until.Unix() {
-			until = time.Unix(saved, 0)
-		}
-	}
-	if time.Now().Before(until) {
-		return FetchResultURL{FetchResult: FetchResult{Status: 429, Error: "search cooldown"}}
-	}
-	r := u.RSSGet(raw, maxBytes, timeout, ua)
-	if r.Status == 429 {
-		until = autopilotBraveRetryAt(time.Now(), r.RetryAfter)
-		autopilotTikTokBingPause.Lock()
-		if until.After(autopilotTikTokBingPause.until) {
-			autopilotTikTokBingPause.until = until
-		}
-		autopilotTikTokBingPause.Unlock()
-		if u.DB != nil {
-			_ = u.KVSet(u.Ctx, "autopilot_tiktok_bing_pause_until", until.Unix(), time.Until(until))
-		}
-	}
-	return r
+	return u.autopilotSearchFetch(&autopilotTikTokBingPause, raw, maxBytes, timeout, ua, u.RSSGet)
 }
+
 func autopilotTikTokSearchWith(query string, brave func(string) FetchResultURL, fetch func(string, int64, time.Duration, string) FetchResultURL) FetchResultURL {
 	r := brave(query)
 	if autopilotTikTokSearchResponseValid(r) {

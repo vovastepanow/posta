@@ -10,9 +10,42 @@ import (
 	"time"
 )
 
-var bravePause struct {
+type searchProviderPause struct {
 	sync.Mutex
 	until time.Time
+	key   string
+}
+
+var bravePause = searchProviderPause{key: "brave_search_pause_until"}
+
+func (p *searchProviderPause) untilLocked(u *U) time.Time {
+	until := p.until
+	if u.DB != nil {
+		if saved := KV(u.App, u.Ctx, p.key, int64(0)); saved > until.Unix() {
+			until = time.Unix(saved, 0)
+		}
+	}
+	return until
+}
+
+func (p *searchProviderPause) deadline(u *U) time.Time {
+	p.Lock()
+	defer p.Unlock()
+	return p.untilLocked(u)
+}
+
+// Never shorten an existing provider cooldown, including a longer Retry-After.
+func (p *searchProviderPause) extend(u *U, until time.Time) time.Time {
+	p.Lock()
+	defer p.Unlock()
+	if previous := p.untilLocked(u); previous.After(until) {
+		until = previous
+	}
+	p.until = until
+	if u.DB != nil {
+		_ = u.KVSet(u.Ctx, p.key, until.Unix(), time.Until(until))
+	}
+	return until
 }
 
 func braveAPISearchHTML(data []byte) (string, error) {
@@ -46,16 +79,7 @@ func (u *U) braveSearchPage(query string) (string, error) {
 	if u.DB != nil && u.CacheGet(u.Ctx, key, &cached) {
 		return cached, nil
 	}
-	bravePause.Lock()
-	until := bravePause.until
-	bravePause.Unlock()
-	if u.DB != nil {
-		if saved := KV(u.App, u.Ctx, "brave_search_pause_until", int64(0)); saved > until.Unix() {
-			until = time.Unix(saved, 0)
-		}
-	}
-	paused := time.Now().Before(until)
-	if paused {
+	if until := bravePause.deadline(u); time.Now().Before(until) {
 		return "", Bad("Brave ограничил веб-поиск; повтор не раньше %s.", until.Format("02.01 15:04"))
 	}
 	var data []byte
@@ -82,14 +106,8 @@ func (u *U) braveSearchPage(query string) (string, error) {
 		}
 	}
 	if status == 429 {
-		bravePause.Lock()
-		bravePause.until = time.Now().Add(30 * time.Minute)
-		until := bravePause.until
-		bravePause.Unlock()
-		if u.DB != nil {
-			_ = u.KVSet(u.Ctx, "brave_search_pause_until", until.Unix(), 30*time.Minute)
-		}
-		return "", Bad("Brave ограничил запросы (HTTP 429); пауза на 30 минут.")
+		until := bravePause.extend(u, time.Now().Add(30*time.Minute))
+		return "", Bad("Brave ограничил запросы (HTTP 429); повтор не раньше %s.", until.Format("02.01 15:04"))
 	}
 	if data == nil {
 		return "", fmt.Errorf("веб-поиск недоступен (HTTP %d)", status)

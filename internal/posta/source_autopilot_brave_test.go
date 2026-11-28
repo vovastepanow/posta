@@ -257,3 +257,17 @@ func TestAutopilotPublisherSearchPrefersConfirmedEmpty(t *testing.T) {
 		t.Fatal("confirmed empty result replaced by off-site results")
 	}
 }
+
+func TestSearchProviderPauseNeverShortens(t *testing.T) {
+	u := (&App{}).User(context.Background(), "", nil)
+	var first, second searchProviderPause
+	later := time.Now().Add(2 * time.Hour)
+	first.extend(u, later)
+	first.extend(u, later.Add(-time.Hour))
+	if got := first.deadline(u); !got.Equal(later) {
+		t.Fatalf("cooldown shortened: %v", got)
+	}
+	if got := second.deadline(u); !got.IsZero() {
+		t.Fatalf("independent provider paused: %v", got)
+	}
+}
