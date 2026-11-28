@@ -168,10 +168,12 @@ try{
     // Load the actual home module with the real markup and a deterministic API.
     const homePage=await browser.newPage({viewport:{width:1440,height:900}});
     homePage.on('pageerror',e=>errors.push(e.message));
+    const profileRequests=[];
     await homePage.route('**/*',route=>{
         const url=new URL(route.request().url());
         if(url.hostname!=='127.0.0.1')return route.abort();
         if(url.pathname!=='/index.php')return route.continue();
+        if(url.searchParams.get('action')==='account_info')profileRequests.push(url.searchParams.get('summary'));
         const fixtures={
             proposals:{items:[
                 {item_key:'text',text:'Текстовый пост',text_post:true,timestamp:3,source:'Telegram | Example',why_relevant:'Соответствует теме'},
@@ -192,6 +194,12 @@ try{
         await import('/js/home.js');
     });
     await homePage.waitForFunction(()=>document.querySelectorAll('#grid .tile').length===3);
+    assert.deepEqual(profileRequests,['1']);
+    await homePage.evaluate(async()=>{
+        const {loadProfileSummary}=await import('/js/profile.js');
+        await Promise.all([loadProfileSummary(),loadProfileSummary(),loadProfileSummary()]);
+    });
+    assert.deepEqual(profileRequests,['1','1']);
     await homePage.locator('#side-sources li').filter({hasText:'Telegram'}).waitFor({state:'attached'});
     assert.equal(await homePage.locator('#side-sources li').filter({hasText:'Telegram'}).locator('em').textContent(),'3');
     assert.equal(await homePage.locator('#grid .rejected-reason').count(),0);
@@ -214,6 +222,7 @@ try{
     sourcesPage.on('pageerror',e=>errors.push(e.message));
     let statusReads=0, historyReads=0, sourceTopic='SMM и блогинг';
     const sourceWrites=[];
+    const toolReads=[];
     await sourcesPage.route('**/*',route=>{
         const url=new URL(route.request().url());
         if(url.hostname!=='127.0.0.1')return route.abort();
@@ -221,6 +230,7 @@ try{
         const action=url.searchParams.get('action');
         if(action==='source_autopilot_status')statusReads++;
         if(action==='source_autopilot_history')historyReads++;
+        if(['mirror_list','telegram_queue'].includes(action))toolReads.push({action,summary:url.searchParams.get('summary')});
         if(['source_mute','source_personal_pin','remove_topic_source'].includes(action)) sourceWrites.push({action, body:route.request().postDataJSON()});
         const fixtures={
             topics:{topics:[{title:'SMM и блогинг',path:'SMM и блогинг'}]},
@@ -250,7 +260,12 @@ try{
     await sourcesPage.waitForFunction(()=>document.querySelector('#autopilot-topics')?.textContent.includes('Запусков задания: 2'));
     assert.equal(await history.evaluate(e=>e.open),true);
     assert.equal(historyReads,1);
-    await sourcesPage.locator('#source-tools-open').click();
+    assert.deepEqual(toolReads,[]);
+    await Promise.all([
+        sourcesPage.waitForResponse(response=>new URL(response.url()).searchParams.get('action')==='telegram_queue'),
+        sourcesPage.locator('#source-tools-open').click()
+    ]);
+    assert.ok(toolReads.some(r=>r.action==='telegram_queue'&&r.summary==='1'));
     await sourcesPage.locator('#topic-sources-section summary').click();
     await sourcesPage.locator('#topic-sources-grid').getByText('Источник SMM и блогинг',{exact:true}).waitFor({state:'attached'});
     await sourcesPage.locator('#topic-sources-grid button').filter({hasText:'✕ Убрать'}).click();

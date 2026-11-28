@@ -413,9 +413,12 @@ function syncTokenRow() {
 }
 
 /** Строка «Каналов: N из M по тарифу»; сверх тарифа — предупреждение (лимиты пока не проверяются). */
+let channelLimitRequest = 0;
 async function renderChannelLimit(count) {
+    const request = ++channelLimitRequest;
     const box = $('telegram-channels-limit');
     const plan = await api('billing_info').then(b => b.plan, () => null);
+    if (request !== channelLimitRequest) return;
     box.hidden = !plan;
     if (!plan) return;
     const over = count > plan.channels;
@@ -423,8 +426,11 @@ async function renderChannelLimit(count) {
     box.classList.toggle('is-warning', over);
 }
 
+let telegramQueueRequest = 0;
 async function loadTelegramQueue() {
+    const request = ++telegramQueueRequest;
     const data = await api('telegram_queue').catch(() => null);
+    if (request !== telegramQueueRequest) return;
     const box = $('telegram-queue');
     const [scheduled, published] = [data?.scheduled || [], data?.published || []];
     box.hidden = !data?.connected || (!scheduled.length && !published.length);
@@ -453,7 +459,9 @@ async function loadTelegramQueue() {
 }
 
 /** Блок «Отложенные посты средствами Telegram»: ключи (если не сохранены), телефон, код, пароль, QR. */
+let telegramUserRevision = 0;
 function renderTelegramUser(info) {
+    ++telegramUserRevision;
     telegramAccountLoaded = true;
     telegramUserConnected = Boolean(info?.connected);
     const keys = Boolean(info?.app_keys);
@@ -618,27 +626,37 @@ function renderStorage() {
     $('privacy-storage').replaceChildren(table(['Где', 'Ключ', 'Значение', 'Размер', ''], rows, 'Пусто: сайт ничего не хранит в localStorage и sessionStorage.'));
 }
 
+let accountRequest = 0;
 async function loadAccount() {
+    const request = ++accountRequest;
+    const telegramRevision = telegramUserRevision;
     if (DEBUG_MODE) return void ($('account-profile-body').textContent = 'В демо-режиме личного кабинета нет: данные живут только в сессии демо.');
     try {
         const info = await api('account_info');
+        if (request !== accountRequest) return;
         renderProfile(info);
         renderTelegram(info.channels);
         renderChannelLimit(info.channels.length);
-        renderTelegramUser(info.telegram_user);
+        if (telegramRevision === telegramUserRevision) renderTelegramUser(info.telegram_user);
         renderExposure(info);
         if (info.telegram) loadTelegramQueue();
+        else {
+            ++telegramQueueRequest;
+            $('telegram-queue').hidden = true;
+        }
         renderPrivacy(info);
     } catch (error) {
+        if (request !== accountRequest) return;
         $('account-profile-body').classList.remove('is-loading', 'status-msg');
         if (error.status === 401) {
             try {
                 const auth = await api('auth_status');
+                if (request !== accountRequest) return;
                 $('account-profile-body').replaceChildren(renderAuth({ ...auth, no_profile: true }));
                 return;
             } catch (_) { /* Show the original error. */ }
         }
-        $('account-profile-body').textContent = `Не удалось загрузить кабинет: ${error.message}`;
+        if (request === accountRequest) $('account-profile-body').textContent = `Не удалось загрузить кабинет: ${error.message}`;
     }
 }
 
