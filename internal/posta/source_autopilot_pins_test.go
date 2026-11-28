@@ -103,7 +103,18 @@ func TestAutopilotPersonalPinSurvivesPublicRemovalPostgres(t *testing.T) {
 			t.Fatalf("summary disagrees with detailed cards: %v != %v", counts, want)
 		}
 	}
-	if err = first.SourcePersonalPin("rss:"+feed, false); err != nil {
+	// Explicit topic snapshots must remain isolated even after another
+	// topic becomes current during a browser confirmation.
+	if err = first.SaveSettings(jx.M{"topic": topic + " другая"}); err != nil {
+		t.Fatal(err)
+	}
+	if err = first.SourceOverrideSetFor(topic, "rss:"+feed, false); err != nil {
+		t.Fatal(err)
+	}
+	if !sourceExcludedByOverride(first.sourceOverridesForTopic(topic), "rss:"+feed) || sourceExcludedByOverride(first.sourceOverridesForTopic(topic+" другая"), "rss:"+feed) {
+		t.Fatal("explicit topic override redirected to the current topic")
+	}
+	if err = first.SourcePersonalPinFor(topic, "rss:"+feed, false); err != nil {
 		t.Fatal(err)
 	}
 	if has(first, topic) {

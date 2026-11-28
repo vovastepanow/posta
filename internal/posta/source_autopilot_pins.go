@@ -23,7 +23,10 @@ func autopilotPinnablePublicRSS(entry jx.M) bool {
 }
 
 func (u *U) SourcePersonalPin(sid string, pinned bool) error {
-	topic := u.CurrentTopic()
+	return u.SourcePersonalPinFor(u.CurrentTopic(), sid, pinned)
+}
+
+func (u *U) SourcePersonalPinFor(topic, sid string, pinned bool) error {
 	platform, _, kind, ok := autopilotSourceParts(sid)
 	if topic == "" || !ok {
 		return Bad("Закрепить можно публичный источник текущей темы.")

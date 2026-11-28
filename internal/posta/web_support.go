@@ -138,7 +138,11 @@ func (u *U) sourceOverridesForTopic(topic string) jx.M {
 }
 
 func (u *U) SourceOverrideSet(sid string, on bool) error {
-	topic := autopilotTopicKey(u.CurrentTopic())
+	return u.SourceOverrideSetFor(u.CurrentTopic(), sid, on)
+}
+
+func (u *U) SourceOverrideSetFor(topic, sid string, on bool) error {
+	topic = autopilotTopicKey(topic)
 	return u.DB.Tx(u.Ctx, func(tx pgx.Tx) error {
 		if err := ensureUser(u.Ctx, tx, u.ID); err != nil {
 			return err

@@ -258,7 +258,10 @@ func (u *U) rejectTopicSource(source jx.M, topic string, thread bool) error {
 
 // RemoveTopicSource — убрать источник из темы; решение запоминается, автоподбор его не вернёт.
 func (u *U) RemoveTopicSource(platform, id, name string) error {
-	topic := u.CurrentTopic()
+	return u.RemoveTopicSourceFor(u.CurrentTopic(), platform, id, name)
+}
+
+func (u *U) RemoveTopicSourceFor(topic, platform, id, name string) error {
 	id = strings.TrimLeft(strings.TrimSpace(id), "@")
 	if (platform == PlatformDvach || platform == Platform4chan) && strings.Count(id, ":") == 2 {
 		parts := strings.Split(id, ":")
@@ -301,7 +304,7 @@ func (u *U) RemoveTopicSource(platform, id, name string) error {
 	if kind := CatalogKind(platform); kind != "" {
 		for _, entry := range *u.catalogWithPersonalPins(topic).List(kind) {
 			if SourceIDFor(platform, jx.Str(entry, "id")) == SourceIDFor(platform, id) && jx.Bool(entry, "autopilot_managed") {
-				return u.SourceOverrideSet(SourceIDFor(platform, id), false)
+				return u.SourceOverrideSetFor(topic, SourceIDFor(platform, id), false)
 			}
 		}
 	}

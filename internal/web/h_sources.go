@@ -98,15 +98,23 @@ func init() {
 		if !muteSID.MatchString(sid) {
 			return nil, fail(400, "Некорректный источник.")
 		}
+		topic, err := sourceMutationTopic(c)
+		if err != nil {
+			return nil, err
+		}
 		on := jx.Bool(c.In, "on")
-		return ok(jx.M{"source_id": sid, "on": on}), c.U.SourceOverrideSet(sid, on)
+		return ok(jx.M{"source_id": sid, "on": on}), c.U.SourceOverrideSetFor(topic, sid, on)
 	})
 	post("source_personal_pin", func(c *Ctx) (any, error) {
 		sid := c.Str("source_id")
 		if !registrySID.MatchString(sid) {
 			return nil, fail(400, "Некорректный источник.")
 		}
-		return ok(nil), c.U.SourcePersonalPin(sid, jx.Bool(c.In, "pinned"))
+		topic, err := sourceMutationTopic(c)
+		if err != nil {
+			return nil, err
+		}
+		return ok(nil), c.U.SourcePersonalPinFor(topic, sid, jx.Bool(c.In, "pinned"))
 	})
 	get("topic_sources", func(c *Ctx) (any, error) {
 		topic := c.U.CurrentTopic()
@@ -120,19 +128,27 @@ func init() {
 		return jx.M{"topic": topic, "topic_info": info, "sources": c.U.TopicSourcesFor(topic)}, nil
 	})
 	post("remove_topic_source", func(c *Ctx) (any, error) {
-		return ok(nil), c.U.RemoveTopicSource(c.Str("platform"), c.Str("id"), c.Str("name"))
+		topic, err := sourceMutationTopic(c)
+		if err != nil {
+			return nil, err
+		}
+		return ok(nil), c.U.RemoveTopicSourceFor(topic, c.Str("platform"), c.Str("id"), c.Str("name"))
 	})
 	post("add_topic_source", func(c *Ctx) (any, error) {
 		link := c.Str("link")
 		if len([]rune(link)) > posta.SourceAddMaxLink {
 			return nil, fail(400, "Ссылка слишком длинная.")
 		}
-		if err := topicAvailable(c); err != nil {
+		topic, err := sourceMutationTopic(c)
+		if err != nil {
 			return nil, err
+		}
+		if c.U.TopicSaveDenied(topic) != "" {
+			return nil, fail(400, "Тема недоступна: выберите другую тему.")
 		}
 		u, cancel := c.userDetached(3 * time.Minute)
 		defer cancel()
-		r, err := u.SourceAddManual(link, u.CurrentTopic())
+		r, err := u.SourceAddManual(link, topic)
 		if err != nil {
 			return nil, err
 		}
@@ -251,6 +267,16 @@ func init() {
 		}
 		return videoStatus(c)
 	})
+}
+
+// Bind every write to the same topic snapshot that was checked at request
+// entry. A stale browser card cannot silently operate on a different topic.
+func sourceMutationTopic(c *Ctx) (string, error) {
+	topic := c.U.CurrentTopic()
+	if expected, supplied := c.In["expected_topic"]; supplied && jx.ToStr(expected) != topic {
+		return "", fail(409, "Тема изменилась. Обновите список источников.")
+	}
+	return topic, nil
 }
 
 func topicAvailable(c *Ctx) error {

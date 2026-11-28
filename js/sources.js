@@ -1,11 +1,11 @@
 // Источники: автопилот, каталог, добавление и исключение выбранных источников.
-import { $, ask, COUNT, DEBUG_MODE, api, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, safeSourcePostUrl } from './core.js';
+import { $, ask, COUNT, DEBUG_MODE, api, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, onTopicChange, currentTopic, safeSourcePostUrl } from './core.js';
 
 import { initRegistry, loadRegistry } from './registry.js';
 import { initializeSourceTools, loadSourceTools } from './source-tools.js';
 import { collectSourcePages } from './source-pages.js';
 
-const topicSources = { sources: [], topic: '', filter: 'all', loading: false };
+const topicSources = { sources: [], topic: '', filter: 'all', controller: null, generation: 0 };
 
 let latestAutopilotDiagnostic = null;
 let autopilotStatusLoading = false;
@@ -867,15 +867,17 @@ function openSourcePreview(source, index, anchorOf) {
 const topicTitles = { observer: null, queue: [], active: 0, generation: 0 };
 function queueTopicTitle(card, source, generation) {
     topicTitles.queue.push({ card, source, generation });
+    drainTopicTitles();
+}
+function drainTopicTitles() {
     while (topicTitles.active < 2 && topicTitles.queue.length) {
         const job = topicTitles.queue.shift();
         if (job.generation !== topicTitles.generation || !job.card.isConnected) continue;
         topicTitles.active++;
         let timer;
-        Promise.race([
-            api('rss_source_title', { body: { source_id: job.source.source_id } }),
-            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Источнику нужно больше времени')), 35000); })
-        ]).then(data => {
+        const controller = new AbortController();
+        timer = setTimeout(() => controller.abort(), 35000);
+        api('rss_source_title', { body: { source_id: job.source.source_id }, signal: controller.signal }).then(data => {
             if (job.generation !== topicTitles.generation || !job.card.isConnected || !data.name) return;
             job.source.name = data.name;
             job.source.needs_title = false;
@@ -884,13 +886,8 @@ function queueTopicTitle(card, source, generation) {
         }).catch(() => {}).finally(() => { clearTimeout(timer); topicTitles.active--; drainTopicTitles(); });
     }
 }
-function drainTopicTitles() {
-    if (!topicTitles.queue.length || topicTitles.active >= 2) return;
-    const job = topicTitles.queue.shift();
-    queueTopicTitle(job.card, job.source, job.generation);
-}
 
-function topicSourceCard(source) {
+function topicSourceCard(source, topic) {
     const cover = () => el('div', { className: 'source-cover' }, avatar(source));
     const slides = source.preview.map(src => ({ kind: 'image', src, poster: src, sourceUrl: source.url, alt: source.name }));
     let media = cover();
@@ -920,49 +917,47 @@ function topicSourceCard(source) {
             : source.frozen ? `заморожен: ${source.frozen_reason || 'не активен'}` : source.activity || 'активен' }),
         notes.length ? el('p', { className: 'source-note', textContent: notes.join(' · ') }) : null);
     const actions = el('div', { className: 'proposal-actions' }, el('a', { className: 'proposal-action', href: source.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Открыть ↗' }));
-    if (!DEBUG_MODE && ['RSS', 'Telegram', 'ВКонтакте', 'Одноклассники', 'TikTok'].includes(source.platform)) actions.append(el('button', { className: 'proposal-action', type: 'button', textContent: source.pinned ? 'Открепить' : 'Закрепить для меня', onclick: async () => {
-        try {
-            await api('source_personal_pin', { body: { source_id: source.source_id, pinned: !source.pinned } });
-            source.pinned = !source.pinned;
-            if (!source.pinned) await loadTopicSources();
-            else renderTopicSources();
-        } catch (error) { log(`Не удалось изменить закрепление: ${error.message}`); }
-    } }));
-    if (source.muted) {   // выключен по оценкам пользователя (TOPICS_SEARCH_PROMPT.md, часть F)
+    const action = (label, run, extra = {}) => el('button', {
+        className: 'proposal-action', type: 'button', textContent: label, ...extra,
+        onclick: async event => {
+            const button = event.currentTarget;
+            if (button.disabled || topicSources.topic !== topic || !topicSources.sources.includes(source)) return;
+            button.disabled = true;
+            try { await run(); }
+            catch (error) { log(`Не удалось изменить источник: ${error.message}`); }
+            finally { button.disabled = false; }
+        }
+    });
+    const mutate = async (endpoint, body) => {
+        if (topicSources.topic !== topic || !topicSources.sources.includes(source)) throw new Error('Тема изменилась. Обновите список источников.');
+        await api(endpoint, { body: { ...body, expected_topic: topic } });
+        if (topicSources.topic === topic) await loadTopicSources();
+    };
+    if (!DEBUG_MODE && ['RSS', 'Telegram', 'ВКонтакте', 'Одноклассники', 'TikTok'].includes(source.platform)) {
+        actions.append(action(source.pinned ? 'Открепить' : 'Закрепить для меня',
+            () => mutate('source_personal_pin', { source_id: source.source_id, pinned: !source.pinned })));
+    }
+    if (source.muted) {
         card.classList.add('is-frozen');
         card.querySelector('.source-status')?.replaceChildren(document.createTextNode('выключен по вашим оценкам'));
-        actions.append(el('button', { className: 'proposal-action', type: 'button', textContent: 'Включить', onclick: async () => {
-            try {
-                await api('source_mute', { body: { source_id: source.source_id, on: true } });
-                source.muted = false;
-                log(`Источник «${source.name}» снова в подборе этой темы.`);
-                renderTopicSources();
-            } catch (error) { log(`Не удалось включить источник: ${error.message}`); }
-        } }));
-    } else if (!DEBUG_MODE) {
-        actions.append(el('button', { className: 'proposal-action', type: 'button', textContent: 'Исключить для меня', onclick: async () => {
-            try {
-                await api('source_mute', { body: { source_id: source.source_id, on: false } });
-                source.muted = true;
-                renderTopicSources();
-            } catch (error) { log(`Не удалось исключить источник: ${error.message}`); }
-        } }));
     }
-    if (!DEBUG_MODE && source.own && !source.autopilot_managed) actions.append(el('button', { className: 'proposal-action proposal-hide', type: 'button', textContent: '✕ Убрать', title: `Убрать из темы «${topicSources.topic}»`, onclick: async () => {
-        if (!(await ask('Посты из него перестанут попадать в подбор по этой теме.', { title: `Убрать «${source.name}» из темы «${topicSources.topic}»?`, ok: 'Убрать', danger: true }))) return;
-        card.classList.add('is-removing');
-        try {
-            await api('remove_topic_source', { body: { platform: source.platform, id: source.id, name: source.name } });
-            topicSources.sources = topicSources.sources.filter(o => o !== source);
-            log(`Источник «${source.name}» убран из темы «${topicSources.topic}».`);
-            renderTopicSources();
-        } catch (error) { card.classList.remove('is-removing'); log(`Не удалось убрать источник: ${error.message}`); }
-    } }));
+    if (source.muted || !DEBUG_MODE) {
+        actions.append(action(source.muted ? 'Включить' : 'Исключить для меня',
+            () => mutate('source_mute', { source_id: source.source_id, on: Boolean(source.muted) })));
+    }
+    if (!DEBUG_MODE && source.own && !source.autopilot_managed) {
+        actions.append(action('✕ Убрать', async () => {
+            if (!(await ask('Посты из него перестанут попадать в подбор по этой теме.', { title: `Убрать «${source.name}» из темы «${topic}»?`, ok: 'Убрать', danger: true }))) return;
+            card.classList.add('is-removing');
+            try { await mutate('remove_topic_source', { platform: source.platform, id: source.id, name: source.name }); }
+            finally { card.classList.remove('is-removing'); }
+        }, { className: 'proposal-action proposal-hide', title: `Убрать из темы «${topic}»` }));
+    }
     card.append(actions);
     if (source.needs_title) {
         card._titleSource = source;
         if (topicTitles.observer) topicTitles.observer.observe(card);
-        else requestAnimationFrame(() => queueTopicTitle(card, source, topicTitles.generation));
+        else { const generation = topicTitles.generation; requestAnimationFrame(() => queueTopicTitle(card, source, generation)); }
     }
     return card;
 }
@@ -972,7 +967,7 @@ function renderTopicSources() {
     const visible = sources.filter(s => filter === 'all' || s.platform === filter);
     $('topic-sources-title').textContent = topic ? `Источники темы «${topic}»` : 'Источники темы';
     $('topic-sources-count').textContent = sources.length ? `${visible.length} из ${sources.length}` : '';
-    $('topic-sources-status').textContent = visible.length ? '' : sources.length ? 'На этой площадке источников темы нет.' : 'У темы пока нет источников: нажмите «Подобрать источники» или одобряйте предложенные выше.';
+    $('topic-sources-status').textContent = visible.length ? '' : sources.length ? 'На этой площадке источников темы нет.' : 'У темы пока нет источников. Автопилот добавит подходящие источники автоматически.';
     const generation = ++topicTitles.generation;
     topicTitles.observer?.disconnect();
     topicTitles.queue = [];
@@ -982,19 +977,33 @@ function renderTopicSources() {
             queueTopicTitle(entry.target, entry.target._titleSource, generation);
         }
     }, { rootMargin: '250px' }) : null;
-    $('topic-sources-grid').replaceChildren(...visible.map(topicSourceCard));
+    $('topic-sources-grid').replaceChildren(...visible.map(source => topicSourceCard(source, topic)));
     document.querySelectorAll('[data-topic-source-filter]').forEach(b => b.classList.toggle('active', b.dataset.topicSourceFilter === filter));
 }
 
 async function loadTopicSources() {
-    if (!$('topic-sources-section').open || topicSources.loading) return;
-    topicSources.loading = true;
+    if (!$('topic-sources-section').open) return;
+    topicSources.controller?.abort();
+    const controller = new AbortController();
+    topicSources.controller = controller;
+    const generation = ++topicSources.generation;
     try {
-        const data = await api('topic_sources');
+        const data = await api('topic_sources', { signal: controller.signal });
+        if (generation !== topicSources.generation) return;
         Object.assign(topicSources, { sources: data.sources || [], topic: data.topic || '' });
         renderTopicSources();
-    } catch (error) { $('topic-sources-status').textContent = `Не удалось загрузить источники: ${error.message}`; }
-    finally { topicSources.loading = false; }
+    } catch (error) {
+        if (generation === topicSources.generation && !controller.signal.aborted) $('topic-sources-status').textContent = `Не удалось загрузить источники: ${error.message}`;
+    } finally { if (topicSources.controller === controller) topicSources.controller = null; }
+}
+
+function invalidateTopicSources() {
+    topicSources.controller?.abort();
+    ++topicSources.generation;
+    Object.assign(topicSources, { topic: '', sources: [] });
+    closeSourcePreview();
+    renderTopicSources();
+    if (isTabActive('source-tab')) loadTopicSources();
 }
 
 /** «Добавить источник»: ссылка → проверка на сервере → источник темы; список обновляется. */
@@ -1006,7 +1015,8 @@ async function addSource(event) {
     button.disabled = true;
     status.textContent = 'Проверяю источник…';
     try {
-        const result = await api('add_topic_source', { body: { link } });
+        const topic = currentTopic().topic;
+        const result = await api('add_topic_source', { body: { link, ...(topic ? { expected_topic: topic } : {}) } });
         status.textContent = result.added ? `Добавлен: ${result.name} (свежих постов с картинками: ${result.posts})` : `Уже в теме: ${result.name}`;
         input.value = '';
         await loadTopicSources();
@@ -1031,6 +1041,7 @@ export function initializeSourceTab() {
     $('topic-sources-section').addEventListener('toggle', () => { if ($('topic-sources-section').open) loadTopicSources(); });
     $('registry-section').addEventListener('toggle', () => { if ($('registry-section').open) loadRegistry(); });
     onTabOpen('source-tab', () => { loadAutopilot(true); loadTopicSources(); if ($('registry-section').open) loadRegistry(); loadSourceTools(); });
+    onTopicChange(invalidateTopicSources);
     onParserStateChange(running => {
         if (!running && isTabActive('source-tab')) loadTopicSources();
     });
