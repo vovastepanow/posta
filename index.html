@@ -232,7 +232,7 @@
   <section class="autopilot-panel" aria-labelledby="autopilot-title">
     <div><strong id="autopilot-title">Автопилот источников</strong><p>Новые источники проверяет автопилот. Теневой режим только оценивает; автоматический подключает прошедшие испытание источники. Ручного одобрения нет.</p></div>
     <form id="autopilot-form" class="autopilot-form">
-      <label>Тема <select id="autopilot-topic" required><option value="">Загрузка дерева тем…</option></select></label>
+      <label>Поисковый запрос <input id="autopilot-topic" type="text" list="autopilot-query-suggestions" placeholder="Например, мемы про электромобили" maxlength="160" required><datalist id="autopilot-query-suggestions"></datalist></label>
       <label>Режим <select id="autopilot-mode"><option value="shadow">Теневой</option><option value="auto">Автоматический</option><option value="off">Выключен</option></select></label>
       <label>Постов в день <input id="autopilot-rate" type="number" min="0" max="1000" step="0.1" value="5" required></label>
       <label>Запас, дней <input id="autopilot-horizon" type="number" min="0.1" max="365" step="0.1" value="3" required></label>
@@ -241,6 +241,7 @@
     <p id="autopilot-status" role="status">Загружаю сведения…</p>
     <button id="autopilot-copy-diagnostic" class="secondary-button" type="button">Скопировать диагностику автопилота</button>
     <button id="autopilot-copy-sources" class="secondary-button" type="button">Скопировать список источников</button>
+    <details id="autopilot-warmup" hidden><summary id="autopilot-warmup-summary">Общая заготовка контента</summary><p>Проверенный общий запас по популярным запросам. Личные фильтры и история публикаций учитываются отдельно.</p><div id="autopilot-warmup-rows" class="autopilot-topics"></div></details>
     <div id="autopilot-topics" class="autopilot-topics"></div>
   </section>
   <button id="source-tools-open" class="secondary-button source-tools-trigger" type="button" aria-haspopup="dialog">Инструменты источников <span aria-hidden="true">↗</span></button>

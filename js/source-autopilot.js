@@ -229,6 +229,7 @@ function openAutopilotSourceDialog(topic, state, count) {
 
 function renderAutopilot(data) {
     latestAutopilotDiagnostic = data;
+    renderAutopilotWarmup(data);
     const container = $('autopilot-topics');
     const histories = new Map([...container.querySelectorAll('details[data-autopilot-history]')]
         .map(node => [node.dataset.autopilotHistory, node]));
@@ -541,24 +542,37 @@ function createAutopilotHistory(topic, key) {
     return history;
 }
 
-async function loadAutopilotTopicOptions() {
-    const select = $('autopilot-topic');
-    const data = await api('topics');
-    const current = select.value;
-    const topics = data.topics || [];
-    const options = [el('option', { value: '', textContent: 'Выберите тему из дерева' })];
+function renderAutopilotWarmup(data) {
+    const suggestions = $('autopilot-query-suggestions');
+    const profiles = data.public_warmup || [];
     const unique = new Set();
-    for (const item of topics) {
-        const title = String(item.title || '').trim();
-        if (!title || unique.has(title.toLocaleLowerCase('ru-RU'))) continue;
-        unique.add(title.toLocaleLowerCase('ru-RU'));
-        options.push(el('option', {
-            value: title,
-            textContent: item.path && item.path !== title ? item.path : title
-        }));
+    const options = [];
+    for (const title of [...profiles.map(p => p.query), ...(data.topics || []).map(p => p.topic)]) {
+        const name = String(title || '').trim();
+        if (!name || unique.has(name.toLocaleLowerCase('ru-RU'))) continue;
+        unique.add(name.toLocaleLowerCase('ru-RU'));
+        options.push(el('option', { value: name }));
     }
-    select.replaceChildren(...options);
-    if (topics.some(item => item.title === current)) select.value = current;
+    suggestions.replaceChildren(...options);
+    const details = $('autopilot-warmup');
+    details.hidden = profiles.length === 0;
+    const complete = profiles.filter(p => p.checked_at && Number(p.ready_count) >= Number(p.target)).length;
+    $('autopilot-warmup-summary').textContent = data.public_warmup_enabled && data.auto_enabled
+        ? `Общая заготовка: ${complete} из ${profiles.length} запросов обеспечены запасом`
+        : 'Общая заготовка выключена';
+    const labels = {
+        ready: 'Запас сформирован', missing_media: 'Не хватает загруженных медиа',
+        duplicates: 'Много повторов', needs_review: 'Источники проверяются',
+        no_sources: 'Не хватает источников', needs_content: 'Не хватает подходящих публикаций',
+        not_checked: 'Ещё не проверялся'
+    };
+    $('autopilot-warmup-rows').replaceChildren(...profiles.map(p => {
+        const count = Number(p.ready_count || 0);
+        const description = !p.checked_at ? 'Ещё не проверялся' : (labels[p.diagnosis] || 'Проверка');
+        return el('div', { className: 'autopilot-topic-row' },
+            el('div', {}, el('strong', { textContent: p.query }),
+                el('div', { textContent: `${count} / ${Number(p.target || 100)} · ${description}` })));
+    }));
 }
 
 function autopilotDiagnosticReport(data) {
@@ -570,6 +584,8 @@ function autopilotDiagnosticReport(data) {
         auto_enabled: data.auto_enabled,
         shadow_enabled: data.shadow_enabled,
         background_content_enabled: data.background_content_enabled,
+        public_warmup_enabled: data.public_warmup_enabled,
+        public_warmup: data.public_warmup || [],
         topics: (data.topics || []).map(topic => ({
             topic: topic.topic, mode: topic.mode, paused: topic.paused,
             diagnosis: topic.diagnosis, failure: topic.failure,
@@ -773,7 +789,6 @@ export async function loadAutopilot(reloadTopics = false) {
     autopilotStatusLoading = true;
     const revision = autopilotStatusRevision;
     try {
-        if (reloadTopics || $('autopilot-topic').options.length < 2) await loadAutopilotTopicOptions();
         const data = await api('source_autopilot_status');
         if (revision === autopilotStatusRevision && !autopilotPendingMutations) renderAutopilot(data);
     } catch (error) {
@@ -786,11 +801,9 @@ async function saveAutopilot(event) {
     const button = event.currentTarget.querySelector('button');
     button.disabled = true;
     try {
-        const selected = $('autopilot-topic');
-        if (!selected.value || !selected.selectedOptions[0] || selected.selectedOptions[0].value !== selected.value) {
-            throw new Error('Выберите тему из дерева.');
-        }
-        await mutateAutopilot('source_autopilot_demand', { topic: selected.value, mode: $('autopilot-mode').value, posts_per_day: Number($('autopilot-rate').value), horizon_days: Number($('autopilot-horizon').value) });
+        const query = $('autopilot-topic').value.trim();
+        if (!query) throw new Error('Введите поисковый запрос.');
+        await mutateAutopilot('source_autopilot_demand', { topic: query, mode: $('autopilot-mode').value, posts_per_day: Number($('autopilot-rate').value), horizon_days: Number($('autopilot-horizon').value) });
     } catch (error) { $('autopilot-status').textContent = `Настройки не сохранены: ${error.message}`; }
     finally { button.disabled = false; }
 }
