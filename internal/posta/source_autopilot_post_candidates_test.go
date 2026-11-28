@@ -1,6 +1,8 @@
 package posta
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -121,5 +123,43 @@ func TestAutopilotPostSearchNominationsDoNotBypassDirectAssessment(t *testing.T)
 	}
 	if len(autopilotPostSearchNominations(posts, "social media marketing", at, 0, direct)) != 0 {
 		t.Fatal("nomination limit ignored")
+	}
+}
+
+func TestVisitInterleavedPreservesInputAndStopsEarly(t *testing.T) {
+	groups := [][]int{{1, 2, 3, 4}, nil, {5}, {6, 7}}
+	var got []int
+	visitInterleaved(groups, func(n int) bool {
+		got = append(got, n)
+		return len(got) < 5
+	})
+	if want := []int{1, 5, 6, 2, 7}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if want := [][]int{{1, 2, 3, 4}, nil, {5}, {6, 7}}; !reflect.DeepEqual(groups, want) {
+		t.Fatalf("input changed: %v", groups)
+	}
+}
+
+func TestAutopilotAssessablePostCandidatesHintCap(t *testing.T) {
+	at := time.Now().Unix()
+	var posts []jx.M
+	for i := 1; i <= 8; i++ {
+		post := jx.M{"source_url": "https://t.me/first_digest", "url": fmt.Sprintf("https://t.me/first_digest/%d", i), "posted_at": at, "text": "Photography tutorial"}
+		posts = append(posts, post, post)
+	}
+	posts = append(posts, jx.M{"source_url": "https://t.me/second_digest", "url": "https://t.me/second_digest/1", "posted_at": at, "text": "A second tutorial"})
+	candidates, hints := autopilotAssessablePostCandidates(map[string][]jx.M{PlatformTelegram: posts}, at, 2, 0)
+	if len(candidates) != 2 || len(hints["telegram:first_digest"]) != autopilotPostHintLimit || len(hints["telegram:second_digest"]) != 1 {
+		t.Fatalf("unexpected nominations or hint counts: %+v %+v", candidates, hints)
+	}
+	for i, post := range hints["telegram:first_digest"] {
+		if jx.Str(post, "url") != fmt.Sprintf("https://t.me/first_digest/%d", i+1) {
+			t.Fatalf("hint order changed: %+v", hints)
+		}
+	}
+	hints["telegram:first_digest"][0]["text"] = "changed"
+	if jx.Str(posts[0], "text") != "Photography tutorial" {
+		t.Fatal("hint aliases the original post")
 	}
 }

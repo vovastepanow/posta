@@ -879,25 +879,14 @@ func autopilotRunSearchBackendsAdaptiveKnown(ctx context.Context, turn int64, ba
 func autopilotInterleaveSearchResults(groups [][]DiscoveryCandidate) []DiscoveryCandidate {
 	var out []DiscoveryCandidate
 	seen := map[string]bool{}
-	for rank := 0; ; rank++ {
-		more := false
-		for _, group := range groups {
-			if rank >= len(group) {
-				continue
-			}
-			more = true
-			candidate := group[rank]
-			id, ok := autopilotCandidateID(candidate)
-			if !ok || seen[id] {
-				continue
-			}
+	visitInterleaved(groups, func(candidate DiscoveryCandidate) bool {
+		if id, ok := autopilotCandidateID(candidate); ok && !seen[id] {
 			seen[id] = true
 			out = append(out, candidate)
 		}
-		if !more {
-			return out
-		}
-	}
+		return true
+	})
+	return out
 }
 
 func autopilotRunSearchBackends(ctx context.Context, turn int64, backends []func() []DiscoveryCandidate) []DiscoveryCandidate {
@@ -928,42 +917,33 @@ func autopilotCandidatesFromPosts(by map[string][]jx.M, at int64, limit int) []D
 	}
 	var out []DiscoveryCandidate
 	seen := map[string]bool{}
-	platforms := sortedKeys(by)
-	maxRows := 0
-	for _, platform := range platforms {
-		maxRows = max(maxRows, len(by[platform]))
+	groups := make([][]jx.M, 0, len(by))
+	for _, platform := range sortedKeys(by) {
+		groups = append(groups, by[platform])
 	}
 	// Round-robin prevents the first platform alphabetically from consuming
 	// every nomination slot. Source IDs are still deduplicated globally.
-	for row := 0; row < maxRows; row++ {
-		for _, platform := range platforms {
-			if row >= len(by[platform]) {
-				continue
-			}
-			post := by[platform][row]
-			published := jx.Int(post, "posted_at")
-			if !autopilotPublicPostURL(jx.Str(post, "url"), false) ||
-				published <= 0 || published > at+300 || IsPostOutdated(published, at, config.ContentMaxAgeDays) ||
-				jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 ||
-				jx.Bool(post, "advertising") || PostIsAdvertisement(post) || PostSearchIsAd(post) {
-				continue
-			}
-			candidate := PostSearchAuthor(post)
-			if candidate == nil {
-				continue
-			}
-			id, ok := autopilotCandidateID(*candidate)
-			if !ok || seen[id] || !autopilotPostMatchesSource(id, post) {
-				continue
-			}
-			seen[id] = true
-			candidate.Origin = "public_post:" + jx.Str(post, "url")
-			out = append(out, *candidate)
-			if len(out) == limit {
-				return out
-			}
+	visitInterleaved(groups, func(post jx.M) bool {
+		published := jx.Int(post, "posted_at")
+		if !autopilotPublicPostURL(jx.Str(post, "url"), false) ||
+			published <= 0 || published > at+300 || IsPostOutdated(published, at, config.ContentMaxAgeDays) ||
+			jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 ||
+			jx.Bool(post, "advertising") || PostIsAdvertisement(post) || PostSearchIsAd(post) {
+			return true
 		}
-	}
+		candidate := PostSearchAuthor(post)
+		if candidate == nil {
+			return true
+		}
+		id, ok := autopilotCandidateID(*candidate)
+		if !ok || seen[id] || !autopilotPostMatchesSource(id, post) {
+			return true
+		}
+		seen[id] = true
+		candidate.Origin = "public_post:" + jx.Str(post, "url")
+		out = append(out, *candidate)
+		return len(out) < limit
+	})
 	return out
 }
 
@@ -994,6 +974,7 @@ func autopilotAssessablePostCandidates(by map[string][]jx.M, at int64, limit int
 	}
 	filtered := map[string][]jx.M{}
 	bySource := map[string][]jx.M{}
+	seenBySource := map[string]map[string]bool{}
 	total := 0
 	for _, platform := range sortedKeys(by) {
 		for _, post := range by[platform] {
@@ -1010,9 +991,20 @@ func autopilotAssessablePostCandidates(by map[string][]jx.M, at int64, limit int
 				continue
 			}
 			filtered[platform] = append(filtered[platform], safe[0])
-			// Deduplicate before capping so repeated search hits cannot
-			// displace a different post from the same author.
-			bySource[source] = autopilotSafePostHints(source, append(bySource[source], safe[0]), at)
+			// Every item has already passed the same safety checks. Retain
+			// the first unique hints without revalidating the whole prefix.
+			if len(bySource[source]) < autopilotPostHintLimit {
+				key := CandidatePostKey(safe[0])
+				seen := seenBySource[source]
+				if seen == nil {
+					seen = map[string]bool{}
+					seenBySource[source] = seen
+				}
+				if !seen[key] {
+					seen[key] = true
+					bySource[source] = append(bySource[source], jx.Copy(safe[0]))
+				}
+			}
 			total++
 		}
 	}

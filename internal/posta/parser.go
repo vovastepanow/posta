@@ -1366,17 +1366,34 @@ func interleaveByKey[T any](items []T, key func(T) string) []T {
 		groups[i] = append(groups[i], item)
 	}
 	out := make([]T, 0, len(items))
-	for len(groups) > 0 {
-		remaining := groups[:0]
-		for _, group := range groups {
-			out = append(out, group[0])
+	visitInterleaved(groups, func(item T) bool {
+		out = append(out, item)
+		return true
+	})
+	return out
+}
+
+// Visit one item per group per round, without mutating the caller's slices.
+// Exhausted groups are removed; false ends traversal early.
+func visitInterleaved[T any](groups [][]T, visit func(T) bool) {
+	active := make([][]T, 0, len(groups))
+	for _, group := range groups {
+		if len(group) > 0 {
+			active = append(active, group)
+		}
+	}
+	for len(active) > 0 {
+		remaining := active[:0]
+		for _, group := range active {
+			if !visit(group[0]) {
+				return
+			}
 			if len(group) > 1 {
 				remaining = append(remaining, group[1:])
 			}
 		}
-		groups = remaining
+		active = remaining
 	}
-	return out
 }
 
 // HotPlatform — площадка поста для горячих.
