@@ -12,8 +12,6 @@ import (
 
 // Вкладка «Источники»: превью, каталог темы и сохранённые решения.
 
-var SourceRejectReasons = []string{"off_topic", "dead", "other"}
-
 const SourceAddMaxLink = 500
 
 func NewsSiteKind(feed string) string {
@@ -317,7 +315,7 @@ func recommendationExcluded(excluded map[string]bool, id string) bool {
 
 var votePlatforms = []string{PlatformDvach, Platform4chan, PlatformTelegram, PlatformVK, PlatformRSS, PlatformOK, PlatformTikTok}
 
-func sourceVoteRecord(s jx.M, vote string) (jx.M, error) {
+func sourceRejectionRecord(s jx.M) (jx.M, error) {
 	id := strings.TrimSpace(jx.Str(s, "source_id"))
 	if id == "" || len(id) > 600 {
 		return nil, Bad("Некорректный источник.")
@@ -330,7 +328,7 @@ func sourceVoteRecord(s jx.M, vote string) (jx.M, error) {
 	if name == "" {
 		name = "Источник"
 	}
-	r := jx.M{"source_id": id, "platform": platform, "name": name, "vote": vote, "timestamp": now()}
+	r := jx.M{"source_id": id, "platform": platform, "name": name, "vote": "reject", "timestamp": now()}
 	if b := jx.Str(s, "board"); IsValidDvachBoard(b) {
 		r["board"] = b
 	}
@@ -371,27 +369,23 @@ func sameCatalogSource(platform, a, b string) bool {
 	return strings.EqualFold(a, b)
 }
 
-func (u *U) addApprovedSource(d *SourceDB, s jx.M, topic string) {
-	id := strings.TrimLeft(strings.TrimSpace(jx.Str(s, "id")), "@")
-	if jx.Str(s, "platform") == PlatformDvach || jx.Str(s, "platform") == Platform4chan {
-		return
-	}
-
-	platform := jx.Str(s, "platform")
+// Adding an explicit source also reverses an earlier topic-local removal.
+func (u *U) addManualCatalogSource(d *SourceDB, platform, id, name, topic string, preview []string) bool {
 	list := d.List(CatalogKind(platform))
-	if list == nil || !IsValidSourceID(platform, id) {
-		return
+	if list == nil {
+		return false
 	}
+	found, added := false, false
 	for _, e := range *list {
-		if !sameCatalogSource(platform, jx.Str(e, "id"), id) {
+		if !sameCatalogSource(platform, strings.TrimLeft(jx.Str(e, "id"), "@"), id) {
 			continue
 		}
-		if jx.Bool(e, "autopilot_managed") {
-			e["autopilot_manual"] = true
-		}
+		found = true
 		var excluded []any
 		for _, t := range jx.List(e, "excluded_topics") {
-			if !u.TopicSame(jx.ToStr(t), topic) {
+			if u.TopicSame(jx.ToStr(t), topic) {
+				added = true
+			} else {
 				excluded = append(excluded, t)
 			}
 		}
@@ -405,18 +399,19 @@ func (u *U) addApprovedSource(d *SourceDB, s jx.M, topic string) {
 		for _, t := range topics {
 			if u.TopicSame(jx.ToStr(t), topic) {
 				has = true
+				break
 			}
 		}
 		if len(topics) > 0 && !has {
 			e["topics"] = append(topics, topic)
+			added = true
 		}
-		return
 	}
-	name := strings.TrimSpace(strings.TrimPrefix(jx.Str(s, "name"), SourceNamePrefixes[platform]))
-	if name == "" {
-		name = id
+	if !found {
+		*list = append(*list, jx.M{"id": id, "name": name, "topics": []any{topic}, "manual": true, "preview": preview})
+		added = true
 	}
-	*list = append(*list, jx.M{"id": id, "name": trimRunes(name, 200), "topics": []any{topic}})
+	return added
 }
 
 func (u *U) removeRejectedSource(d *SourceDB, s jx.M, topic string) {
@@ -469,101 +464,48 @@ func (u *U) removeRejectedSource(d *SourceDB, s jx.M, topic string) {
 	*list = orMaps(kept)
 }
 
-// SourceVote — решение по кандидату: approve — в каталог темы, reject — убрать из темы, maybe — только запомнить.
-func (u *U) SourceVote(vote string, source jx.M, reason string) error {
-	if !contains([]string{"approve", "reject", "maybe"}, vote) || source == nil {
-		return Bad("Некорректное решение")
-	}
-	topic := u.CurrentTopic()
-	record, err := sourceVoteRecord(source, vote)
-	if err != nil {
-		return err
-	}
-	record["topic"] = topic
-	if kind := CatalogKind(jx.Str(record, "platform")); kind != "" {
-		sid := jx.Str(record, "source_id")
-		for _, entry := range *u.catalogWithPersonalPins(topic).List(kind) {
-			if jx.Bool(entry, "autopilot_managed") && SourceIDFor(jx.Str(record, "platform"), jx.Str(entry, "id")) == sid && u.CatalogEntryMatchesTopic(entry, topic, false) {
-				switch vote {
-				case "reject":
-					return u.SourceOverrideSet(sid, false)
-				case "approve":
-					return u.SourcePersonalPin(sid, true)
-				default:
-					return nil
-				}
-			}
-		}
-	}
-	if jx.Str(record, "platform") == PlatformDvach || jx.Str(record, "platform") == Platform4chan {
-		board, thread := jx.Str(record, "board"), jx.Str(record, "thread_id")
-		prefix := "dvach:"
-		if jx.Str(record, "platform") == Platform4chan {
-			prefix = "4chan:"
-		}
-		if !IsValidDvachBoard(board) || !IsValidDvachID(thread) || jx.Str(record, "source_id") != prefix+board+":"+thread {
-			return Bad("Некорректный тред.")
-		}
-		record["scope"] = "thread"
-	}
-	if vote == "reject" && contains(SourceRejectReasons, reason) {
-		record["reason"] = reason
-	}
+// Persist a topic-local removal without reviving the retired approval queue.
+// Historical suggestions remain available to the importer/audit; a rejection
+// prevents them from being nominated again.
+func (u *U) applyTopicSourceRejection(d *SourceDB, record, source jx.M, topic string) {
 	sid := jx.Str(record, "source_id")
-	_, err = u.UpdateCatalog(u.Ctx, func(d *SourceDB) bool {
+	if jx.Str(record, "scope") == "thread" {
 		var found jx.M
 		for _, s := range d.Suggestions {
 			st := jx.Str(s, "topic")
-			if st == "" {
-				st = topic
-			}
-			if jx.Str(s, "source_id") == sid && u.TopicSame(st, topic) && found == nil {
+			if jx.Str(s, "source_id") == sid && (st == "" || u.TopicSame(st, topic)) {
 				found = s
+				break
 			}
 		}
-		rec := jx.Merge(record, SourceVoteOrigin(found))
-		var remaining []jx.M
-		for _, o := range d.Votes {
-			if jx.Str(o, "source_id") != sid || !u.TopicSame(jx.Str(o, "topic"), topic) {
-				remaining = append(remaining, o)
-			}
+		record = jx.Merge(record, SourceVoteOrigin(found))
+	} else {
+		u.removeRejectedSource(d, source, topic)
+	}
+	var votes []jx.M
+	for _, old := range d.Votes {
+		if jx.Str(old, "source_id") != sid || !u.TopicSame(jx.Str(old, "topic"), topic) {
+			votes = append(votes, old)
 		}
-		d.Votes = append(remaining, rec)
+	}
+	d.Votes = append(votes, record)
+}
 
-		src, srcTopic := source, topic
-		var keep []jx.M
-		for _, s := range d.Suggestions {
-			st := jx.Str(s, "topic")
-			if st == "" {
-				st = topic
-			}
-			if jx.Str(s, "source_id") == sid && u.TopicSame(st, topic) {
-				src, srcTopic = jx.M{"platform": s["platform"], "id": s["id"], "name": s["name"]}, st
-				if jx.Str(s, "platform") == PlatformRSS {
-					if _, missing := pendingRSSName(jx.Str(s, "name"), "", jx.Str(s, "id")); missing && strings.TrimSpace(jx.Str(source, "name")) != "" {
-						src["name"] = jx.Str(source, "name")
-					}
-				}
-				continue
-			}
-			keep = append(keep, s)
-		}
-		d.Suggestions = orMaps(keep)
-		switch vote {
-		case "approve":
-			u.addApprovedSource(d, src, srcTopic)
-		case "reject":
-			u.removeRejectedSource(d, src, srcTopic)
-		}
+func (u *U) rejectTopicSource(source jx.M, topic string, thread bool) error {
+	record, err := sourceRejectionRecord(source)
+	if err != nil {
+		return err
+	}
+	record["topic"], record["reason"] = topic, "other"
+	if thread {
+		record["scope"] = "thread"
+	}
+	_, err = u.UpdateCatalog(u.Ctx, func(d *SourceDB) bool {
+		u.applyTopicSourceRejection(d, record, source, topic)
 		return true
 	})
 	if err == nil {
-		_, err = u.DB.Pool.Exec(u.Ctx, `UPDATE source_impressions SET decision=$4, available_after=0 WHERE user_id=$1 AND topic_key=$2 AND source_id=$3`, u.ID, TopicNorm(topic), sid, vote)
-		if err != nil {
-			return err
-		}
-		status := map[string]string{"approve": RegStatusOwnerYes, "reject": RegStatusOwnerNo, "maybe": RegStatusOwnerMaybe}[vote]
-		u.registrySetOwner(sid, jx.Str(record, "platform"), jx.Str(record, "name"), status, topic)
+		u.registrySetOwner(jx.Str(record, "source_id"), jx.Str(record, "platform"), jx.Str(record, "name"), RegStatusOwnerNo, topic)
 	}
 	return err
 }
@@ -581,7 +523,7 @@ func (u *U) RemoveTopicSource(platform, id, name string) error {
 		if parts[0] != prefix || !IsValidDvachBoard(parts[1]) || !IsValidDvachID(parts[2]) {
 			return Bad("Некорректный тред.")
 		}
-		return u.SourceVote("reject", jx.M{"platform": platform, "source_id": id, "board": parts[1], "thread_id": parts[2], "name": name}, "other")
+		return u.rejectTopicSource(jx.M{"platform": platform, "source_id": id, "board": parts[1], "thread_id": parts[2], "name": name}, topic, true)
 	}
 	if platform == PlatformDvach {
 		if !IsValidDvachBoard(id) {
@@ -621,23 +563,7 @@ func (u *U) RemoveTopicSource(platform, id, name string) error {
 		name = id
 	}
 	source := jx.M{"platform": platform, "id": id, "name": name, "source_id": SourceIDFor(platform, id)}
-	record, _ := sourceVoteRecord(source, "reject")
-	record["topic"], record["reason"] = topic, "other"
-	_, err := u.UpdateCatalog(u.Ctx, func(d *SourceDB) bool {
-		var votes []jx.M
-		for _, o := range d.Votes {
-			if !(jx.Str(o, "source_id") == jx.Str(record, "source_id") && u.TopicSame(jx.Str(o, "topic"), topic)) {
-				votes = append(votes, o)
-			}
-		}
-		d.Votes = append(votes, record)
-		u.removeRejectedSource(d, source, topic)
-		return true
-	})
-	if err == nil {
-		u.registrySetOwner(jx.Str(source, "source_id"), platform, name, RegStatusOwnerNo, topic)
-	}
-	return err
+	return u.rejectTopicSource(source, topic, false)
 }
 
 // TopicSources — источники текущей темы для вкладки.

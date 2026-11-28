@@ -304,32 +304,9 @@ func (u *U) SourceAddManual(input, topic string) (jx.M, error) {
 		u.registryUpsert(registryWrite{SourceID: sid, Platform: platform, Name: name, Status: RegStatusUkraine, Reason: "украинский источник"})
 		return nil, Bad("Украинские источники в Posta недоступны.")
 	}
-	kind := CatalogKind(platform)
 	added := false
 	_, err = u.UpdateCatalog(u.Ctx, func(d *SourceDB) bool {
-		list := d.List(kind)
-		found := false
-		for _, e := range *list {
-			if !sameCatalogSource(platform, strings.TrimLeft(jx.Str(e, "id"), "@"), id) {
-				continue
-			}
-			found = true
-			topics := jx.Strs(e, "topics")
-			has := false
-			for _, t := range topics {
-				if u.TopicSame(t, topic) {
-					has = true
-				}
-			}
-			if len(topics) > 0 && !has {
-				e["topics"] = append(jx.List(e, "topics"), topic)
-				added = true
-			}
-		}
-		if !found {
-			*list = append(*list, jx.M{"id": id, "name": name, "topics": []any{topic}, "manual": true, "preview": SourcePreviewImages(posts)})
-			added = true
-		}
+		added = u.addManualCatalogSource(d, platform, id, name, topic, SourcePreviewImages(posts))
 		var votes []jx.M
 		for _, v := range d.Votes {
 			if !(jx.Str(v, "source_id") == sid && jx.Str(v, "vote") == "reject" && u.TopicSame(jx.Str(v, "topic"), topic)) {

@@ -31,7 +31,7 @@ func TestYouTubeCatalogActionsPreserveChannelIDCase(t *testing.T) {
 	}
 	u := taxonomyTestUser()
 	d := &SourceDB{RSS: []jx.M{{"id": a, "name": "A", "topics": []any{"Новости"}}}}
-	u.addApprovedSource(d, jx.M{"platform": PlatformRSS, "id": b, "name": "B"}, "Новости")
+	u.addManualCatalogSource(d, PlatformRSS, b, "B", "Новости", nil)
 	if len(d.RSS) != 2 {
 		t.Fatalf("distinct channel was not added: %#v", d.RSS)
 	}

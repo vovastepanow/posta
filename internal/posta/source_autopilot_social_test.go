@@ -225,7 +225,7 @@ func TestAutopilotSocialProjectionAndPersonalControlPostgres(t *testing.T) {
 		if err = u.SourcePersonalPin(source, true); err != nil {
 			t.Fatalf("pin %s: %v", source, err)
 		}
-		if err = u.SourceVote("reject", jx.M{"platform": tc.platform, "id": tc.id, "source_id": source, "name": tc.id}, "other"); err != nil {
+		if err = u.RemoveTopicSource(tc.platform, tc.id, tc.id); err != nil {
 			t.Fatal(err)
 		}
 		if !sourceExcludedByOverride(u.sourceOverridesForTopic(topic), source) {

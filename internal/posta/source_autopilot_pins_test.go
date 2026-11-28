@@ -66,11 +66,11 @@ func TestAutopilotPersonalPinSurvivesPublicRemovalPostgres(t *testing.T) {
 	if err = first.SourceOverrideSet("rss:"+feed, true); err != nil {
 		t.Fatal(err)
 	}
-	if err = first.SourceVote("reject", jx.M{"platform": PlatformRSS, "id": feed, "source_id": "rss:" + feed, "name": "test"}, "other"); err != nil {
+	if err = first.RemoveTopicSource(PlatformRSS, feed, "test"); err != nil {
 		t.Fatal(err)
 	}
 	if !sourceExcludedByOverride(first.sourceOverridesForTopic(topic), "rss:"+feed) || sourceExcludedByOverride(second.sourceOverridesForTopic(topic), "rss:"+feed) {
-		t.Fatal("vote was not confined to its owner")
+		t.Fatal("repeated removal was not confined to its owner")
 	}
 	if err = first.SourceOverrideSet("rss:"+feed, true); err != nil {
 		t.Fatal(err)

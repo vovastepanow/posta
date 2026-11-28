@@ -127,8 +127,33 @@ func TestSourceRejectionIsTopicScoped(t *testing.T) {
 	if !u.discoveryTopicKnown(d, "Мемы")["telegram:other"] || u.discoveryTopicKnown(d, "Новости")["telegram:other"] {
 		t.Fatal("голос должен учитываться только в своей теме")
 	}
-	u.addApprovedSource(d, source, "Мемы")
+	if !u.addManualCatalogSource(d, PlatformTelegram, "example", "Example", "Мемы", nil) {
+		t.Fatal("explicit re-add did not restore excluded topic")
+	}
 	if !u.CatalogEntryMatchesTopic(d.Telegram[0], "Мемы", true) || !u.CatalogEntryMatchesTopic(d.Telegram[0], "Новости", true) {
-		t.Fatal("повторное одобрение должно вернуть источник в тему")
+		t.Fatal("повторное добавление должно вернуть источник в тему")
+	}
+}
+
+func TestThreadRemovalPreservesHistoryAndOtherTopics(t *testing.T) {
+	u := taxonomyTestUser()
+	const sid = "4chan:g:123"
+	d := &SourceDB{
+		Suggestions: []jx.M{{"source_id": sid, "topic": "Мемы", "origin": jx.M{"kind": "mentioned"}}},
+		Votes: []jx.M{
+			{"source_id": sid, "topic": "Мемы", "vote": "approve", "scope": "thread"},
+			{"source_id": sid, "topic": "Новости", "vote": "approve", "scope": "thread"},
+		},
+	}
+	source := jx.M{"source_id": sid, "platform": Platform4chan, "board": "g", "thread_id": "123"}
+	record, err := sourceRejectionRecord(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record["topic"], record["scope"], record["reason"] = "Мемы", "thread", "other"
+	u.applyTopicSourceRejection(d, record, source, "Мемы")
+	if len(d.Suggestions) != 1 || len(d.Votes) != 2 || jx.Str(d.Votes[0], "topic") != "Новости" || jx.Str(d.Votes[0], "vote") != "approve" ||
+		jx.Str(d.Votes[1], "vote") != "reject" || jx.Str(d.Votes[1], "origin_kind") != "mentioned" {
+		t.Fatalf("thread removal damaged source history: %#v %#v", d.Suggestions, d.Votes)
 	}
 }
