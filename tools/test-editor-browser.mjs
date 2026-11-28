@@ -250,7 +250,8 @@ try{
     await sourcesPage.waitForFunction(()=>document.querySelector('#autopilot-topics')?.textContent.includes('Запусков задания: 2'));
     assert.equal(await history.evaluate(e=>e.open),true);
     assert.equal(historyReads,1);
-    await sourcesPage.locator('#topic-sources-section').evaluate(node => { node.open = true; });
+    await sourcesPage.locator('#source-tools-open').click();
+    await sourcesPage.locator('#topic-sources-section summary').click();
     await sourcesPage.locator('#topic-sources-grid').getByText('Источник SMM и блогинг',{exact:true}).waitFor({state:'attached'});
     await sourcesPage.locator('#topic-sources-grid button').filter({hasText:'✕ Убрать'}).click();
     sourceTopic='Другая тема';
