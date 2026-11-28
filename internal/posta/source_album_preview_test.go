@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"posta/internal/config"
 	"posta/internal/jx"
 )
 
@@ -14,42 +13,50 @@ func TestTelegramAlbumPreviewTracksIndividualVideoPages(t *testing.T) {
 	if len(posts) != 1 || !jx.Bool(posts[0], "media_incomplete") {
 		t.Fatalf("partial album not retained: %v", posts)
 	}
-	targets := videoPreviewTargets(posts)
-	if len(targets) != 2 || jx.Str(targets[0], "video_page") != "https://t.me/testchannel/11" || jx.Str(targets[1], "video_page") != "https://t.me/testchannel/12" {
-		t.Fatalf("wrong download targets: %v", targets)
+	inventory := jx.Maps(posts[0], "source_attachments")
+	if len(inventory) != 3 || jx.Str(inventory[0], "kind") != "photo" || jx.Str(inventory[1], "video_page") != "https://t.me/testchannel/11" || jx.Str(inventory[2], "video_page") != "https://t.me/testchannel/12" {
+		t.Fatalf("wrong attachment inventory: %v", inventory)
 	}
-	applyVideoPreviewTargets(posts, func(page string) jx.M {
+	var requested []string
+	resolve := func(page string) string {
+		requested = append(requested, page)
 		if strings.HasSuffix(page, "/11") {
-			return jx.M{"status": "done", "local": "https://example.com/11.mp4"}
+			return "/media/11.mp4"
 		}
-		return jx.M{"status": "running"}
-	})
-	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
-	media := u.sourcePreviewMedia(posts[0])
-	if len(media) != 3 || jx.Str(media[0], "kind") != "image" || jx.Str(media[1], "src") != "https://example.com/11.mp4" || jx.Str(media[2], "page") != "https://t.me/testchannel/12" || !jx.Bool(media[2], "pending") {
-		t.Fatalf("incorrect media order or state: %v", media)
+		return ""
+	}
+	partial := restoreAttachmentInventory(posts[0], resolve, func(s string) string { return s }, func(s string) string { return s + ".jpg" })
+	if !jx.Bool(partial, "media_incomplete") || len(requested) != 2 || requested[0] != "https://t.me/testchannel/11" || requested[1] != "https://t.me/testchannel/12" {
+		t.Fatalf("partial album accepted or wrong downloads: %v %v", partial, requested)
+	}
+	ready := restoreAttachmentInventory(posts[0], func(page string) string {
+		if strings.HasSuffix(page, "/11") {
+			return "/media/11.mp4"
+		}
+		return "/media/12.mp4"
+	}, func(s string) string { return s }, func(s string) string { return s + ".jpg" })
+	gallery := ContentGallery(ready)
+	if jx.Bool(ready, "media_incomplete") || len(gallery) != 3 || jx.Str(gallery[0], "image") != "https://example.com/photo.jpg" || jx.Str(gallery[1], "video") != "/media/11.mp4" || jx.Str(gallery[2], "video") != "/media/12.mp4" {
+		t.Fatalf("incorrect recovered media order: %v", gallery)
 	}
 }
 
 func TestTelegramInventoryRejectsForeignTileLink(t *testing.T) {
 	page := `<div data-post="testchannel/10"><a class="tgme_widget_message_video_player" href="https://t.me/foreignchannel/11?single"></a><a class="tgme_widget_message_photo_wrap" style="background-image:url(https://example.com/photo.jpg)"></a></div>`
 	p := TelegramPostsFromHTML(page, jx.M{"id": "testchannel"}, 10, false, 0)
-	if len(p) != 1 || len(videoPreviewTargets(p)) != 0 {
+	if len(p) != 1 || !jx.Bool(p[0], "media_incomplete") {
 		t.Fatalf("foreign album video was accepted: %v", p)
 	}
-	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
-	media := u.sourcePreviewMedia(p[0])
-	if len(media) != 2 || jx.Str(media[0], "page") != "" || !jx.Bool(media[0], "unavailable") {
-		t.Fatalf("unknown tile must not fall back to album ID: %v", media)
+	inventory := jx.Maps(p[0], "source_attachments")
+	if len(inventory) != 2 || jx.Str(inventory[0], "kind") != "video" || jx.Str(inventory[0], "video_page") != "" || jx.Str(p[0], "video_page") != "" {
+		t.Fatalf("unknown tile must not fall back to album ID: %v", inventory)
 	}
 }
 
-func TestSourcePreviewDoesNotTruncateText(t *testing.T) {
-	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
+func TestPostDisplayDoesNotTruncateText(t *testing.T) {
 	body := strings.Repeat("Long text. ", 400) + "End."
-	p := u.SourcePreviewPost(jx.M{"text": body})
-	if jx.Str(p, "text") != body {
-		t.Fatalf("preview lost text: %d of %d bytes", len(jx.Str(p, "text")), len(body))
+	if got := CleanPostDisplayText(body, jx.M{"text": body}); got != body {
+		t.Fatalf("display lost text: %d of %d bytes", len(got), len(body))
 	}
 }
 

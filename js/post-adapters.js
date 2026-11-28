@@ -40,31 +40,8 @@ function media(kind, fields = {}) {
 /** Текст поста: переносы сохраняются; пустой текст и заглушки («Пост без текста», NO_TEXT) — пустая строка. */
 const plainText = value => { const text = String(value || '').replace(/\r\n?/g, '\n').trim(); return PLACEHOLDERS.includes(text) ? '' : text; };
 
-/** Пост источника (лента кандидата) → нормализованный пост. */
 /** Ролик с адресом, но без файла и без докачки: скачивание ставит просмотрщик, когда пост показан (watchPending). */
 export const needsFetch = (m, watchPending) => m.kind === 'video' && !m.src && !m.pending && !m.unavailable && Boolean(videoPageFor(m.page)) && watchPending;
-
-export function fromSourcePost(post, source = {}) {
-    const url = safeSourcePostUrl({ source_url: post.url });
-    const items = (post.media || []).map(m => media(m.kind === 'video' ? 'video' : 'image', {
-        src: m.src || '', fallback: m.fallback || '', poster: m.poster || '', page: m.page || '', pending: Boolean(m.pending), unavailable: Boolean(m.unavailable),
-        width: Number(m.width) || 0, height: Number(m.height) || 0, duration: Number(m.duration) || 0 }));
-    return {
-        key: `source:${post.url || post.posted_at || ''}`,
-        source: { name: source.name || '', url: safeSourcePostUrl({ source_url: source.url }), badge: '' },
-        date: post.posted_at || null,
-        url,
-        text: plainText(post.text),
-        media: items,
-        mediaIncomplete: Boolean(post.media_incomplete),
-        textIncomplete: Boolean(post.text_incomplete),
-        article: null,
-        poll: null,
-        stats: { views: post.views ?? null, comments: post.comments ?? null, reactions: post.reactions ?? null },
-        badge: null,
-        insight: insightOf(source),
-    };
-}
 
 /** Контекст канала для оценки поста: подписчики, доля подписчиков, видящих пост, постов в неделю, медиана просмотров. Нет данных — null. */
 function insightOf({ subscribers, viewRate, perWeek, medianViews } = {}) {

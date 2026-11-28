@@ -1,7 +1,6 @@
 package posta
 
 import (
-	"posta/internal/config"
 	"posta/internal/jx"
 	"testing"
 	"time"
@@ -10,13 +9,11 @@ import (
 func TestVKRegistrySamplePreservesAlbum(t *testing.T) {
 	post := jx.M{"image": "https://example.com/1.jpg", "images": []string{"https://example.com/1.jpg", "https://example.com/2.jpg"}, "text": "Пост"}
 	sample := registrySample([]jx.M{post})
-	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
 	if len(sample) != 1 {
 		t.Fatalf("album lost in registry sample: %#v", sample)
 	}
-	preview := u.SourcePreviewPost(sample[0])
-	if len(jx.Maps(preview, "media")) != 2 {
-		t.Fatalf("album lost in saved preview: %#v", preview)
+	if images := jx.Strs(sample[0], "images"); len(images) != 2 || images[0] != "https://example.com/1.jpg" || images[1] != "https://example.com/2.jpg" {
+		t.Fatalf("album lost in saved registry sample: %#v", sample)
 	}
 }
 
@@ -55,10 +52,9 @@ func TestCanonicalYouTubeSamplePage(t *testing.T) {
 }
 
 func TestYouTubeGalleryPosterRemainsVideo(t *testing.T) {
-	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
-	media := u.sourcePreviewMedia(jx.M{"video_page": "https://www.youtube.com/shorts/abcdefghijk", "gallery": []jx.M{{"image": "https://example.com/poster.jpg"}}})
-	if len(media) != 1 || jx.Str(media[0], "kind") != "video" || jx.Str(media[0], "poster") == "" {
-		t.Fatalf("gallery poster lost its video: %#v", media)
+	post := jx.M{"video_page": "https://www.youtube.com/shorts/abcdefghijk", "video_via": "ytdlp", "gallery": []jx.M{{"image": "https://example.com/poster.jpg"}}}
+	if !PostItemHasVideo(post) || !PostItemHasMedia(post) {
+		t.Fatalf("pending video was treated as a photo: %#v", post)
 	}
 }
 

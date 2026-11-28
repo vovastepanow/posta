@@ -843,8 +843,6 @@ func (a *App) videoJobFailed(ctx context.Context, u *U, j VideoJob, reason strin
 
 var videoPreviewLimits = map[string]int{"tgu": 2, "ytdlp": 12}
 
-const videoPreviewFirst = 12
-
 var (
 	tmePostURLRe  = regexp.MustCompile(`^https://t\.me/[A-Za-z0-9_]{4,32}/\d+$`)
 	tiktokVideoRe = regexp.MustCompile(`^https://www\.tiktok\.com/@([^/]+)/video/\d{5,25}$`)
@@ -996,89 +994,6 @@ func (a *App) videoPreviewEvictOne(ctx context.Context, uid, via string) bool {
 	}
 	a.videoPreviewSave(ctx, evicted.Page, jx.M{"status": "none", "local": "", "error": "", "at": now()}, evicted.UID)
 	return true
-}
-
-// videoPreviewTargets includes independent album videos. Retain the legacy
-// top-level video for older posts, but do not invent extra album downloads.
-func videoPreviewTargets(posts []jx.M) []jx.M {
-	var targets []jx.M
-	for _, post := range posts {
-		for _, attachment := range jx.Maps(post, "source_attachments") {
-			if jx.Str(attachment, "kind") == "video" && VideoPageVia(jx.Str(attachment, "video_page")) != "" {
-				targets = append(targets, attachment)
-			}
-		}
-		if VideoPageVia(jx.Str(post, "video_page")) != "" {
-			targets = append(targets, post)
-		}
-	}
-	return targets
-}
-
-func applyVideoPreviewTargets(posts []jx.M, status func(string) jx.M) {
-	states := map[string]jx.M{}
-	for _, p := range videoPreviewTargets(posts) {
-		page := jx.Str(p, "video_page")
-		if jx.Str(p, "video") != "" {
-			continue
-		}
-		st, ok := states[page]
-		if !ok {
-			st = status(page)
-			states[page] = st
-		}
-		switch jx.Str(st, "status") {
-		case "done":
-			p["video"], p["video_local"], p["video_pending"], p["video_unavailable"] = st["local"], st["local"], false, false
-		case "queued", "running":
-			p["video_pending"] = true
-		default:
-			p["video_pending"] = false
-		}
-	}
-}
-
-// VideoPreviewApply updates the source preview's individual video tiles.
-func (a *App) VideoPreviewApply(ctx context.Context, posts []jx.M, uid string) []jx.M {
-	applyVideoPreviewTargets(posts, func(page string) jx.M { return a.VideoPreviewStatus(ctx, page, uid) })
-	return posts
-}
-
-// VideoPreviewPrepare — первые ролики превью кандидата ставятся в очередь сами, впереди роликов прежних превью:
-// с конца и каждый в начало очереди, чтобы первый пост качался первым; лимит вытесняет ещё не начатые ролики прежних превью.
-func (a *App) VideoPreviewPrepare(ctx context.Context, posts []jx.M, uid string) []jx.M {
-	type want struct{ page, via string }
-	var wants []want
-	seen := map[string]bool{}
-	tguChecked, tguConnected := false, false
-	for _, p := range videoPreviewTargets(posts) {
-		if len(wants) >= videoPreviewFirst {
-			break
-		}
-		page := jx.Str(p, "video_page")
-		via := VideoPageVia(page)
-		if jx.Str(p, "video") != "" || via == "" || seen[page] {
-			continue
-		}
-		seen[page] = true
-		if via == "tgu" {
-			if !tguChecked {
-				tguChecked = true
-				tguConnected = uid != "" && a.User(ctx, uid, nil).TelegramUserConnected()
-			}
-			if !tguConnected {
-				continue
-			}
-		}
-		if jx.Str(a.VideoPreviewStatus(ctx, page, uid), "status") == "done" {
-			continue
-		}
-		wants = append(wants, want{page, via})
-	}
-	for i := len(wants) - 1; i >= 0; i-- {
-		a.VideoFetchEnqueue(ctx, wants[i].page, wants[i].via, uid, true)
-	}
-	return a.VideoPreviewApply(ctx, posts, uid)
 }
 
 // VideoPreviewKeepNames — файлы, скачанные по кнопке за сутки: очистка кэша их не трогает.

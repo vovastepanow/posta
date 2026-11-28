@@ -9,7 +9,7 @@ import (
 	"posta/internal/jx"
 )
 
-// Вкладка «Источники»: превью, каталог темы и сохранённые решения.
+// Вкладка «Источники»: каталог темы и сохранённые решения.
 
 const SourceAddMaxLink = 500
 
@@ -20,127 +20,6 @@ func NewsSiteKind(feed string) string {
 		host = strings.TrimPrefix(u.Hostname(), "www.")
 	}
 	return "Сайт · " + host
-}
-
-// SourcePreviewPost — пост превью в одном виде для всех площадок.
-func (u *U) SourcePreviewPost(p jx.M) jx.M {
-	eng := jx.Map(p, "engagement")
-	text := CleanPostDisplayText(jx.Str(p, "text"), p)
-	if text == EmptyPostText {
-		text = ""
-	}
-	var views, reactions, comments any
-	if jx.Has(p, "views") && p["views"] != nil {
-		views = jx.Int(p, "views")
-	} else if eng != nil && eng["views"] != nil {
-		views = jx.Int(eng, "views")
-	}
-	if jx.Has(p, "likes") && p["likes"] != nil {
-		reactions = jx.Int(p, "likes")
-	} else if eng != nil && eng["reactions"] != nil {
-		reactions = sumReactions(eng["reactions"])
-	}
-	if jx.Has(p, "comments") && p["comments"] != nil {
-		comments = jx.Int(p, "comments")
-	}
-	return jx.M{"text": strings.TrimSpace(text), "url": jx.Str(p, "url"), "posted_at": jx.Int(p, "posted_at"),
-		"text_post": jx.Bool(p, "text_post"), "media": u.sourcePreviewMedia(p), "views": views, "reactions": reactions, "comments": comments,
-		"media_incomplete": jx.Bool(p, "media_incomplete"), "fetched_via": jx.Str(p, "fetched_via"), "text_incomplete": jx.Bool(p, "text_incomplete")}
-}
-
-func (u *U) sourcePreviewMedia(p jx.M) []jx.M {
-	https := func(s string) string {
-		if strings.HasPrefix(s, "https://") {
-			return s
-		}
-		return u.MediaExisting(s)
-	}
-	item := func(kind, src, poster, page string, pending, unavailable bool) jx.M {
-		return jx.M{"kind": kind, "src": src, "poster": poster, "page": page, "pending": pending, "unavailable": unavailable}
-	}
-	page := jx.Str(p, "url")
-	out := []jx.M{}
-	if attachments := jx.Maps(p, "source_attachments"); len(attachments) > 0 {
-		for _, a := range attachments {
-			poster := https(jx.Str(a, "image"))
-			if poster == "" {
-				poster = https(jx.Str(a, "image_local"))
-			}
-			switch jx.Str(a, "kind") {
-			case "photo":
-				if poster != "" {
-					out = append(out, item("image", poster, "", "", false, false))
-				}
-			case "video":
-				video := https(jx.Str(a, "video"))
-				if video == "" {
-					video = https(jx.Str(a, "video_local"))
-				}
-				target := jx.Str(a, "video_page")
-				if target == "" && (len(attachments) == 1 || video != "") {
-					target = page
-				}
-				out = append(out, item("video", video, poster, target, jx.Bool(a, "video_pending"), video == "" && VideoPageVia(target) == ""))
-			}
-		}
-		return out
-	}
-	if g := jx.Maps(p, "gallery"); len(g) > 0 {
-		videoPage := jx.Str(p, "video_page")
-		for i, x := range g {
-			poster, video := https(jx.Str(x, "image")), https(jx.Str(x, "video"))
-			if i == 0 && video == "" && videoPage != "" {
-				video = https(jx.Str(p, "video"))
-				if video == "" {
-					video = u.MediaExisting(jx.Str(p, "video_local"))
-				}
-			}
-			if i == 0 && video == "" && videoPage != "" {
-				out = append(out, item("video", "", poster, videoPage, jx.Bool(p, "video_pending"), jx.Bool(p, "video_unavailable")))
-			} else if video != "" {
-				out = append(out, item("video", video, poster, page, false, false))
-			} else if poster != "" {
-				out = append(out, item("image", poster, "", "", false, false))
-			}
-		}
-		return out
-	}
-	var images []string
-	for _, s := range append([]string{jx.Str(p, "image")}, jx.Strs(p, "images")...) {
-		if https(s) != "" && !contains(images, s) {
-			images = append(images, s)
-		}
-	}
-	poster := ""
-	if len(images) > 0 {
-		poster = images[0]
-	}
-	video := https(jx.Str(p, "video"))
-	if video == "" {
-		video = u.MediaExisting(jx.Str(p, "video_local"))
-	}
-	videoPage := jx.Str(p, "video_page")
-	unavailable := jx.Bool(p, "video_unavailable")
-	switch {
-	case video != "":
-		out = append(out, item("video", video, poster, page, false, false))
-	case unavailable:
-		out = append(out, item("video", "", poster, page, false, true))
-	case videoPage != "":
-		out = append(out, item("video", "", poster, videoPage, jx.Bool(p, "video_pending"), false))
-	}
-	start := 0
-	if video != "" || unavailable || videoPage != "" {
-		start = 1
-	}
-	for _, img := range images[min(start, len(images)):] {
-		media := item("image", img, "", "", false, false)
-		if img == poster {
-			media["fallback"] = https(jx.Str(p, "image_fallback"))
-		}
-		out = append(out, media)
-	}
-	return out
 }
 
 // Recommendation identity joins a YouTube channel's videos and Shorts feeds

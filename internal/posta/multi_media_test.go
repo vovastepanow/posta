@@ -170,9 +170,7 @@ func TestLemmyRSSExternalOriginalHasPreviewFallback(t *testing.T) {
 	if images := jx.Strs(posts[0], "images"); len(images) != 1 || images[0] != "https://media.example/a/original.png" {
 		t.Fatalf("images=%v", images)
 	}
-	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
-	media := u.sourcePreviewMedia(posts[0])
-	if len(media) != 1 || jx.Str(media[0], "fallback") != "https://lemmy.example/pictrs/image/copy.webp" {
-		t.Fatalf("media=%v", media)
+	if fallback := jx.Str(posts[0], "image_fallback"); fallback != "https://lemmy.example/pictrs/image/copy.webp" {
+		t.Fatalf("image fallback=%q", fallback)
 	}
 }
