@@ -115,6 +115,12 @@ func saveTopic(c *Ctx) (any, error) {
 	previous, previousKey := u.CurrentTopic(), u.SearchTopicKey()
 	stopped := !u.TopicSame(typed, previous) && c.A.StopParser(u.ID)
 	res := u.TopicResolve(typed, jx.Bool(c.In, "force_new"))
+	if res.Topic == nil {
+		if stopped {
+			u.StartParser(true)
+		}
+		return nil, fail(500, "Не удалось сохранить поисковый профиль.")
+	}
 	if d := u.TopicSaveDenied(res.Topic.Title); d != "" {
 		if stopped {
 			u.StartParser(true)
@@ -159,7 +165,11 @@ func saveSecondTopic(c *Ctx) (any, error) {
 	}
 	topic2 := ""
 	if typed != "" {
-		topic2 = u.TopicResolve(typed, false).Topic.Title
+		res := u.TopicResolve(typed, false)
+		if res.Topic == nil {
+			return nil, fail(500, "Не удалось сохранить поисковый профиль.")
+		}
+		topic2 = res.Topic.Title
 	}
 	if d := u.TopicSaveDenied(topic2); d != "" {
 		return nil, fail(409, d)
@@ -244,7 +254,7 @@ func topicInfo(c *Ctx) (any, error) {
 	children := []jx.M{}
 	total := 0
 	var parent any
-	if e != nil {
+	if e != nil && !u.TBool("public_open_search") {
 		kids := u.TopicChildren(e)
 		total = len(kids)
 		for _, k := range kids[:min(12, len(kids))] {

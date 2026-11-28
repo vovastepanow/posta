@@ -168,10 +168,12 @@ func serve(ctx context.Context, cfg config.Server) error {
 		return err
 	}
 	defer a.Close()
-	if res, err := a.TopicTreeSeed(ctx, nil); err != nil {
-		log.Printf("дерево тем: %v", err)
-	} else if res["added"]+res["updated"] > 0 {
-		log.Printf("дерево тем: %v", res)
+	if !a.TBool("public_open_search") {
+		if res, err := a.TopicTreeSeed(ctx, nil); err != nil {
+			log.Printf("дерево тем: %v", err)
+		} else if res["added"]+res["updated"] > 0 {
+			log.Printf("дерево тем: %v", res)
+		}
 	}
 	if added, err := a.EnsureThematicRSS(ctx); err != nil {
 		log.Printf("тематические RSS: %v", err)

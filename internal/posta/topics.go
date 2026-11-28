@@ -18,7 +18,7 @@ import (
 
 const (
 	topicParentFallbackMin    = 3
-	topicTitleMax             = 40
+	topicTitleMax             = config.TopicMaxLength
 	topicSameSimilarity       = 0.85 // «мемы и приколы» ↔ «Мемы и юмор» ≈ 0.91, «котики» ↔ «Кошки» ≈ 0.76
 	TopicProfileVersion       = 7    // уточнённые границы и расширенное дерево тем
 	topicProfileFallbackRetry = 3600
@@ -241,6 +241,15 @@ func (u *U) TopicFormatOf(topic string) TopicFormat {
 		topic = parts[0]
 	}
 	base := TopicFormatDefault
+	if u.openProfilesEnabled() {
+		base.Media = "optional"
+		if u.ID != "" {
+			if own := u.topicFormatOverride(topic); own != nil {
+				return mergeFormat(base, own)
+			}
+		}
+		return base
+	}
 	for e := u.TopicLookup(topic); e != nil; e = u.TopicParent(e) {
 		f := cleanFormat(e.Format)
 		if f == nil {
@@ -428,6 +437,9 @@ func (a *App) TopicByID(id string) *Topic { return a.topicIdx().byID[id] }
 
 // TopicLookup — тема по названию или синониму, иначе nil.
 func (a *App) TopicLookup(text string) *Topic {
+	if exact := a.exactSearchProfile(text); exact != nil {
+		return exact
+	}
 	n := TopicNorm(text)
 	if n == "" {
 		return nil
@@ -459,6 +471,10 @@ func (a *App) TopicSave(ctx context.Context, e *Topic) (*Topic, error) {
 
 // TopicEnsure — тема из реестра; нет — регистрируется как есть (уточнит модель при запуске сборщика).
 func (a *App) TopicEnsure(ctx context.Context, text string) *Topic {
+	if a.openProfilesEnabled() {
+		e, _ := a.ensureOpenSearchProfile(ctx, text)
+		return e
+	}
 	if e := a.TopicLookup(text); e != nil {
 		return e
 	}
@@ -529,6 +545,9 @@ func (a *App) topicResolvedNames(e *Topic) []string {
 // TopicRelatedNorms — нормальные формы тем, источники которых годятся для topic.
 func (a *App) TopicRelatedNorms(topic string) map[string]bool {
 	key := TopicNorm(topic)
+	if a.openProfilesEnabled() {
+		return map[string]bool{key: true}
+	}
 	e := a.TopicLookup(topic)
 	if e == nil {
 		return map[string]bool{key: true}
@@ -566,6 +585,9 @@ func (a *App) TopicsAreEquivalent(entryTopic, topic string) bool {
 }
 
 func (a *App) TopicSame(x, y string) bool {
+	if a.openProfilesEnabled() {
+		return openSearchProfileKey(x) == openSearchProfileKey(y)
+	}
 	if TopicNorm(x) == TopicNorm(y) {
 		return true
 	}
@@ -640,6 +662,9 @@ func QueryTextHit(text, query string) bool {
 
 // TopicPromptContext — тема для промптов: название, что в неё входит, общая тема, другие названия, примеры.
 func (a *App) TopicPromptContext(topic string) string {
+	if a.openProfilesEnabled() {
+		return "«" + TopicBase(topic) + "»"
+	}
 	if parts := TopicParts(topic); len(parts) > 1 {
 		var out []string
 		for _, p := range parts {
@@ -1132,6 +1157,13 @@ type TopicResolution struct {
 // или смысл почти тот же по эмбеддингам (малые модели почти на всё отвечают «совпадает с Мемы»).
 func (u *U) TopicResolve(text string, forceNew bool) TopicResolution {
 	text = NormalizeTopic(text)
+	if u.openProfilesEnabled() {
+		if e := u.exactSearchProfile(text); e != nil {
+			return TopicResolution{Topic: e}
+		}
+		e, _ := u.ensureOpenSearchProfile(u.Ctx, text)
+		return TopicResolution{Topic: e, Created: e != nil}
+	}
 	if !forceNew {
 		if f := u.TopicLookup(text); f != nil {
 			return TopicResolution{Topic: f, Matched: TopicNorm(f.Title) != TopicNorm(text)}
@@ -1176,6 +1208,9 @@ func (u *U) TopicResolve(text string, forceNew bool) TopicResolution {
 
 // TopicClassifyPending — темы без описания от умной модели получают его (и место, если пользователь не правил).
 func (u *U) TopicClassifyPending(limit int, first string) int {
+	if u.openProfilesEnabled() {
+		return 0
+	}
 	done := 0
 	entries := u.TopicRegistry()
 	if first != "" {
@@ -1221,6 +1256,9 @@ func (u *U) TopicClassifyPending(limit int, first string) int {
 
 // TopicSetParent — пользователь поправил место темы: parent — id, название новой общей темы или "" (тема сама общая).
 func (u *U) TopicSetParent(id, parent string) (*Topic, error) {
+	if u.openProfilesEnabled() {
+		return nil, Bad("Поисковые профили независимы и не имеют родительских тем.")
+	}
 	e := u.TopicByID(id)
 	if e == nil {
 		return nil, Bad("Такой темы нет.")
@@ -1402,7 +1440,10 @@ func (u *U) topicProfileBuild(e *Topic) *TopicProfile {
 	// The stored profile is shared; personal format overrides belong to the
 	// user's own selection, not to the definition used by everyone.
 	format := (&U{App: u.App}).TopicFormatOf(e.Title)
-	neighbors := u.topicNeighborsHint(e)
+	neighbors := ""
+	if !u.openProfilesEnabled() {
+		neighbors = u.topicNeighborsHint(e)
+	}
 	byText := format.Judge == "text"
 	formatHint := "картинки и видео"
 	if byText {
