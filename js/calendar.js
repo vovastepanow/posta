@@ -5,6 +5,7 @@ import { $, api, apiUrl, ask, cleanCaption, el, isTabActive, onTabOpen, PHOTO_IC
 import { addDays, centeredHourShift, calendarAgenda, easeView, freeSlots, hourSpan, hourWindow, layoutDay, layoutRow, shiftHourWindow, slotTimes, snapGestureDays, snapView, summary, viewGapPx, weekStart, wheelFactor, wheelPixels, zoomAround, zoomHoursAround, zoomLimitReached, ZOOM_DAYS_MAX, ZOOM_DAYS_MIN, DAY, HOUR, MIN } from './calendar-model.js';
 import { composePostFromItem } from './content.js';
 import { appendEditorMedia } from './editor-variants.js';
+import { formatWhen, pickDateTime } from './date-picker.js';
 import { isPhone, phoneView } from './calendar-phone.js';
 import { draftChildren, flashPoolItem, holesChildren, planPanel, poolPanel, renderPoolColumn, UNDO_SECONDS, undoable } from './calendar-pool.js';
 import { bindGestures, isDragging, startDrag, startPoolDrag } from './calendar-drag.js';
@@ -1415,7 +1416,7 @@ async function openQueuePost(post) {
     if (['queued', 'failed'].includes(post.status)) {
         try {
             const data = await api('outbox_edit_get', { params: { id: post.id } });
-            const { openPostEditor, formatWhen } = await import('./editor.js');
+            const { openPostEditor } = await import('./editor.js');
             const lane = laneOf(post.channel);
             closePanel();
             const network = data.capabilities;
@@ -1492,7 +1493,6 @@ function postActions(post) {
 
 /** Выбор времени; null — окно закрыли. «Сразу» для переноса не годится. */
 async function pickTime(post) {
-    const { pickDateTime } = await import('./editor.js');   // editor.js трогает document при загрузке — грузим, когда нужен
     const chosen = await pickDateTime({ value: new Date(post.at * 1000) });
     if (chosen === null) throw new Error('Выберите конкретное время: «сразу» здесь не подходит.');
     return chosen ? new Date(chosen) : null;

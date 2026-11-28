@@ -2,7 +2,7 @@
 import { initializeNetworks, loadNetworks } from './networks.js';
 import { $, ask, DEBUG_MODE, api, apiUrl, el, log, onTabOpen, onTopicChange, pluralRu, switchTab, watchParser, safeSourcePostUrl } from './core.js';
 import { openViewerGallery, videoFields } from './viewer.js';
-import { pickDateTime } from './editor.js';
+import { pickDateTime } from './date-picker.js';
 
 const VK_MESSAGES = { signed_in: 'Вход через VK выполнен.', connected: 'VK подключён.', misconfigured: 'Настройте VK_CLIENT_ID и адрес сайта на сервере.', error: 'Не удалось подключить VK. Проверьте настройки OAuth и журнал приложения.' };
 const COLLECTIONS = { liked: 'Нравится', disliked: 'Не нравится', undecided: 'Не знаю', complaints: 'Жалобы' };

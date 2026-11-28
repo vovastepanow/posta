@@ -5,7 +5,7 @@ import { $, api, cleanCaption, el, formatAgo, log, onTabOpen, onTopicChange, saf
 import { bindFutureDraftButton, applyRocketCheck, composePostFromItem, toggleFutureDraft } from './content.js';
 import { fromRecord, recordSlides } from './post-adapters.js';
 import { closePostView, openPostView } from './post-view.js';
-import { pickDateTime } from './editor.js';
+import { pickDateTime } from './date-picker.js';
 
 const PLATFORMS = { YouTube: '▶', Telegram: '✈', 'ВКонтакте': 'VK', RSS: '◉', 'Двач': '2ch', '4chan': '4ch', 'Одноклассники': 'OK', TikTok: '♪' };
 const state = { items: [], filter: 'all', sort: 'new', q: '' };

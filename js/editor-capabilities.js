@@ -7,6 +7,10 @@ export function targetCapabilities(target) {
     if (target.capabilities) return target.capabilities;
     return target.value?.startsWith('tg:') ? TG : null;
 }
+export function targetTextLimit(target, mediaCount) {
+    return targetCapabilities(target)?.textLimit?.[mediaCount ? 0 : 1] || 4096;
+}
+
 export function commonCapabilities(targets) {
     const caps = targets.map(targetCapabilities);
     const known = caps.length > 0 && caps.every(Boolean);
@@ -52,7 +56,7 @@ export function validateTarget(target, media, text, poll) {
     const kinds = media.map(mediaKind);
     // Telegram converts GIFs in albums to video; other adapters validate the original format.
     const effective = c.platform === 'telegram' && kinds.length > 1 ? kinds.map(k => k === 'animation' ? 'video' : k) : kinds;
-    const limit = c.textLimit?.[media.length ? 0 : 1] || 4096;
+    const limit = targetTextLimit(target, media.length);
     if ([...text].length > limit) return 'Текст превышает лимит ' + limit + ' символов.';
     if (media.length > (c.mediaMax || 0)) return 'Допустимо файлов: ' + (c.mediaMax || 0) + '.';
     if (effective.some(k => !c.kinds?.includes(k))) return 'Не поддерживается формат одного или нескольких вложений.';

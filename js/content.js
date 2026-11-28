@@ -3,7 +3,8 @@ import { readFutureDraft, saveFutureDraft, clearFutureDraft } from './future-dra
 // публикация в подключённые ресурсы (панель 🚀 и редактор поста).
 import { $, ask, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, qualityText, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
 import { registerViewerGallery, registerViewerPoster, videoFields } from './viewer.js';
-import { formatWhen, openPostEditor } from './editor.js';
+import { openPostEditor } from './editor.js';
+import { formatWhen } from './date-picker.js';
 import { appendEditorMedia, draftHasContent, payloadAllowsSourceLink } from './editor-variants.js';
 import { openAccountSection } from './account.js';
 import { itemCheck, videoProgress, watchVideo } from './video-pending.js';

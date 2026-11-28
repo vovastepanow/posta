@@ -1,90 +1,21 @@
-// editor.js — окно выбора даты и времени и модальный редактор поста (порядок медиа, текст, отправка через onSubmit).
+// editor.js — модальный редактор поста: медиа, текст, версии и отправка.
 import { VIDEO_ICON, api, el, pluralRu } from './core.js';
+import { formatWhen, pickDateTime } from './date-picker.js';
 import { cloneDraft,draftFor,draftPayload,draftProblem,draftNeedsQueue } from './editor-variants.js';
-import { targetCapabilities, commonCapabilities, commonPollLimits, mediaKind, attachmentError, extraActive, extraAvailability, EXTRA_KEYS, standaloneExtra } from './editor-capabilities.js';
+import { targetCapabilities, commonCapabilities, commonPollLimits, targetTextLimit, mediaKind, attachmentError, extraActive, extraAvailability, EXTRA_KEYS, standaloneExtra } from './editor-capabilities.js';
 
-// ---- Дата и время ----
-
-const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-const MIN_LEAD_MS = 60000;   // как на сервере: минимум минута вперёд
-const pad = n => String(n).padStart(2, '0');
-const sameDay = (a, b) => a.toDateString() === b.toDateString();
 const button = (className, textContent, onclick, extra = {}) => el('button', { type: 'button', className, textContent, onclick, ...extra });
-
-/** «Сегодня, 20:30», «Завтра, 10:00», «25 октября, 10:00». */
-export function formatWhen(date) {
-    const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-    const today = new Date();
-    if (sameDay(date, today)) return `Сегодня, ${time}`;
-    if (sameDay(date, new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1))) return `Завтра, ${time}`;
-    return `${date.getDate()} ${MONTHS[date.getMonth()].toLowerCase().replace(/[ьй]$/, 'я').replace(/т$/, 'та')}, ${time}`;
-}
-
-/** → Promise: Date — выбрано время, null — «Сразу», undefined — закрыто без выбора. */
-export function pickDateTime({ value = null } = {}) {
-    return new Promise(resolve => {
-        const now = new Date();
-        const roundHour = () => new Date(Math.ceil((now.getTime() + 3600000) / 300000) * 300000);
-        const selected = new Date(value && value > now ? value : roundHour());
-        const view = new Date(selected.getFullYear(), selected.getMonth(), 1);
-        const focus = document.activeElement;
-        const [title, grid, summary] = [el('span', { className: 'dtp-title' }), el('div', { className: 'dtp-grid' }), el('div', { className: 'dtp-summary' })];
-        const select = (label, n) => el('select', { className: 'dtp-select', ariaLabel: label }, ...Array.from({ length: n }, (_, i) => el('option', { value: i, textContent: pad(i) })));
-        const [hours, minutes] = [select('Часы', 24), select('Минуты', 60)];
-        const ok = () => selected.getTime() >= Date.now() + MIN_LEAD_MS;
-        const close = result => { document.removeEventListener('keydown', onKey, true); root.remove(); focus?.focus?.(); resolve(result); };
-        const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(undefined); } };
-        const done = button('dtp-done', 'Готово', () => ok() && close(new Date(selected)));
-        const refresh = () => {
-            title.textContent = `${MONTHS[view.getMonth()]} ${view.getFullYear()}`;
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const days = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
-            grid.replaceChildren(...['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => el('span', { className: 'dtp-weekday', textContent: d })),
-                ...Array.from({ length: (view.getDay() + 6) % 7 }, () => el('span')),
-                ...Array.from({ length: days }, (_, i) => {
-                    const date = new Date(view.getFullYear(), view.getMonth(), i + 1);
-                    return button(`dtp-day${sameDay(date, today) ? ' is-today' : ''}${sameDay(date, selected) ? ' is-selected' : ''}`, String(i + 1),
-                        () => { selected.setFullYear(date.getFullYear(), date.getMonth(), date.getDate()); refresh(); }, { disabled: date < today });
-                }));
-            hours.value = String(selected.getHours());
-            minutes.value = String(selected.getMinutes());
-            summary.textContent = ok() ? formatWhen(selected) : 'Выберите время хотя бы на минуту вперёд';
-            summary.classList.toggle('is-error', !ok());
-            done.disabled = !ok();
-        };
-        const month = delta => { view.setMonth(view.getMonth() + delta); refresh(); };
-        const at = (days, hour) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, hour, 0);
-        const presets = [['Через час', roundHour()], ['Сегодня 20:00', at(0, 20)], ['Завтра 10:00', at(1, 10)], ['Завтра 20:00', at(1, 20)]].filter(([, d]) => d.getTime() >= now.getTime() + MIN_LEAD_MS);
-        hours.onchange = () => { selected.setHours(Number(hours.value)); refresh(); };
-        minutes.onchange = () => { selected.setMinutes(Number(minutes.value)); refresh(); };
-        const root = el('div', { className: 'dtp-overlay', role: 'dialog', ariaModal: 'true', ariaLabel: 'Выбор даты и времени' }, el('div', { className: 'dtp-window' },
-            el('div', { className: 'dtp-head' }, button('dtp-nav', '‹', () => month(-1), { ariaLabel: 'Предыдущий месяц' }), title, button('dtp-nav', '›', () => month(1), { ariaLabel: 'Следующий месяц' })),
-            grid,
-            presets.length ? el('div', { className: 'dtp-presets' }, ...presets.map(([label, d]) => button('dtp-chip', label, () => { selected.setTime(d.getTime()); view.setFullYear(d.getFullYear(), d.getMonth(), 1); refresh(); }))) : null,
-            el('div', { className: 'dtp-time' }, el('span', { textContent: 'Время' }), hours, el('b', { textContent: ':' }), minutes),
-            summary,
-            el('div', { className: 'dtp-actions' }, button('dtp-now', 'Сразу', () => close(null)), button('dtp-cancel', 'Отмена', () => close(undefined)), done)));
-        root.addEventListener('click', e => { e.stopPropagation(); if (e.target === root) close(undefined); });   // окно внутри панели публикации: клик её не закрывает
-        document.addEventListener('keydown', onKey, true);
-        document.body.append(root);
-        refresh();
-        done.focus();
-    });
-}
 
 // ---- Редактор поста ----
 
-const TEXT_LIMITS = { tg: [1024, 4096], vk: [16384, 16384] };   // [подпись к медиа, пост без медиа]
 const POLL_MAX_OPTIONS = 10;   // как в Telegram: от двух до десяти вариантов
 const drafts = new Map();   // черновики правок по записи, пока страница открыта
 let ui = null;
 let session = null;
 document.addEventListener('click', () => { if (ui?.targetMenu) ui.targetMenu.hidden = true; });   // меню «Куда» закрывается кликом в стороне
 
-const textLimit = (target, mediaCount) => (session.options.targets.find(t => t.value === target)?.textLimit || TEXT_LIMITS[String(target).split(':')[0]] || TEXT_LIMITS.tg)[mediaCount ? 0 : 1];
 const allSelectedTargets = () => session.options.picked.map(v => session.options.targets.find(t => t.value === v)).filter(Boolean);
-const selectedTargets = () => {
-    const all=allSelectedTargets();
+const selectedTargets = (all = allSelectedTargets()) => {
     if(session.editTarget)return all.filter(t=>t.value===session.editTarget);
     const shared=all.filter(t=>!Object.hasOwn(session.variants,t.value));
     return shared.length?shared:all;
@@ -96,8 +27,7 @@ function syncEditorDraft(){
     else session.base=d;
     return d;
 }
-const chosenDrafts=()=>allSelectedTargets().map(t=>draftFor(session.base,session.variants,t.value));
-const anyQueueOnly=()=>chosenDrafts().some(draftNeedsQueue);
+const anyQueueOnly = (all = allSelectedTargets()) => all.some(t => draftNeedsQueue(draftFor(session.base, session.variants, t.value)));
 const currentCapabilities = () => commonCapabilities(selectedTargets());
 const clonePoll = p => p ? {question:p.question || '',options:[...(p.options || [])],multiple:Boolean(p.multiple),duration_minutes:p.duration_minutes || 1440,quiz:!!p.quiz,correct_answer:p.correct_answer||'',explanation:p.explanation||'',close_minutes:p.close_minutes||0,public:!!p.public,with_content:!!p.with_content} : null;
 const fileKind = f => /\.tgs$/i.test(f.name) ? 'sticker' : /\.(pdf|txt|csv|zip|docx|xlsx|pptx)$/i.test(f.name) || f.type==='application/pdf' ? 'document' : /\.(ogg|opus)$/i.test(f.name) ? 'voice' : /^(audio\/mpeg|audio\/mp4|audio\/x-m4a)$/i.test(f.type) || /\.(mp3|m4a)$/i.test(f.name) ? 'audio' : f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : '';
@@ -372,7 +302,7 @@ function move(from, to) {
     render();
 }
 
-function mediaCard(item, i, total) {
+function mediaCard(item, i, total, coverAllowed) {
     const preview = ['audio','voice'].includes(item.kind) ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:item.kind==='voice'?'Голосовое':'Аудио'}), el('span',{textContent:item.name || 'Аудиофайл'}), el('audio',{src:item.src, controls:true, preload:'none'})) :
         item.kind === 'sticker' && /\.tgs$/i.test(item.name || '') ? el('div',{className:'pe-file-preview'},el('strong',{textContent:'TGS'}),el('span',{textContent:item.name || 'Анимированный стикер'})) :
         item.kind === 'document' ? el('div',{className:'pe-file-preview'}, el('strong',{textContent:(item.name?.split('.').pop() || 'Файл').toUpperCase()}), el('span',{textContent:item.name || 'Документ'})) :
@@ -383,10 +313,9 @@ function mediaCard(item, i, total) {
             button('pe-tool pe-tool-danger', '✕', () => { session.media.splice(i, 1); render(); }, { ariaLabel: 'Убрать из поста' }),
             button('pe-tool', '›', () => move(i, i + 1), { ariaLabel: 'Сдвинуть вправо', disabled: i === total - 1 })));
     if(item.kind==='video'){
-        const supported=selectedTargets().length&&selectedTargets().every(t=>{const c=targetCapabilities(t);return c?.extras?.includes('video_cover')&&(c.platform==='telegram'||total===1)})&&!session.extras.ig_story&&!session.extras.ig_cover_seconds;
-        if(supported||item.cover){
+        if (coverAllowed || item.cover) {
             const coverInput=el('input',{type:'file',accept:'image/jpeg,image/png,image/webp',hidden:true,onchange:()=>{const file=coverInput.files?.[0];if(!file)return;if(file.size>10_000_000||!['image/jpeg','image/png','image/webp'].includes(file.type)){ui.note.textContent='Обложка: JPEG/PNG/WEBP до 10 МБ.';return;}session.media[i]={...item,cover:{file,src:URL.createObjectURL(file),name:file.name}};render();}});
-            card.append(coverInput,el('div',{className:'pe-cover-tools'},button('pe-btn pe-cover-pick',item.cover?'Заменить обложку':'Обложка',()=>coverInput.click(),{disabled:!supported}),item.cover?button('pe-btn pe-cover-remove','✕',()=>{const copy={...item};delete copy.cover;session.media[i]=copy;render();},{ariaLabel:'Удалить обложку'}):null));
+            card.append(coverInput,el('div',{className:'pe-cover-tools'},button('pe-btn pe-cover-pick',item.cover?'Заменить обложку':'Обложка',()=>coverInput.click(),{disabled:!coverAllowed}),item.cover?button('pe-btn pe-cover-remove','✕',()=>{const copy={...item};delete copy.cover;session.media[i]=copy;render();},{ariaLabel:'Удалить обложку'}):null));
         }
     }
     card.addEventListener('dragstart', e => { session.dragFrom = i; card.classList.add('is-dragging'); e.dataTransfer.effectAllowed = 'move'; });
@@ -475,16 +404,26 @@ function render() {
     queueComposerFit();
     const { media, poll, options } = session;
     syncEditorDraft();
-    renderVariantBar();
-    const pollLimits = commonPollLimits(selectedTargets());
-    const caps = currentCapabilities();
-    if (options.mode === 'native' && anyQueueOnly()) { options.mode = 'queue'; renderWhen(); }
+    const all = allSelectedTargets();
+    const targets = selectedTargets(all);
+    renderVariantBar(all);
+    const pollLimits = commonPollLimits(targets);
+    const caps = commonCapabilities(targets);
+    if (options.mode === 'native' && anyQueueOnly(all)) { options.mode = 'queue'; renderWhen(); }
     const maxMedia=poll?.with_content?Math.min(caps.mediaMax,pollLimits?.media_max||0):caps.mediaMax;
-    const allowed = caps.kinds.filter(kind => media.length<maxMedia && !attachmentError(selectedTargets(), media, {kind}));
-    const accept = allowed.map(k => fileAccept[k]).filter(Boolean);
-    ui.file.accept = accept.join(',');
-    const isExclusive=Boolean(poll&&!poll.with_content)||(!poll&&standaloneExtra(session.extras));
-    const mediaChanged = session.renderedExclusive!==isExclusive || session.renderedMedia?.length !== media.length || media.some((m,i) => m !== session.renderedMedia?.[i]) || session.renderedAllowed !== accept.join(',') || session.renderedCoverAllowed!==JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story,session.extras.ig_cover_seconds]);
+    const allowed = caps.kinds.filter(kind => media.length<maxMedia && !attachmentError(targets, media, {kind}));
+    const accept = allowed.map(k => fileAccept[k]).filter(Boolean).join(',');
+    ui.file.accept = accept;
+    const standalone = !poll && standaloneExtra(session.extras);
+    const exclusive = Boolean(poll && !poll.with_content) || standalone;
+    const coverAllowed = targets.length > 0 && targets.every(t => {
+        const c = targetCapabilities(t);
+        return c?.extras?.includes('video_cover') && (c.platform === 'telegram' || media.length === 1);
+    }) && !session.extras.ig_story && !session.extras.ig_cover_seconds;
+    const allowedKey = allowed.join(',');
+    const mediaChanged = session.renderedExclusive !== exclusive ||
+        session.renderedMedia?.length !== media.length || media.some((m, i) => m !== session.renderedMedia?.[i]) ||
+        session.renderedAllowed !== allowedKey || session.renderedCoverAllowed !== coverAllowed;
     if (mediaChanged) ui.attachments.replaceChildren(...Object.entries(KIND_LABELS).map(([kind,label]) => {
         const enabled = allowed.includes(kind) && media.length < caps.mediaMax;
         return button('pe-btn pe-attachment', '+ ' + label, () => { ui.file.dataset.kind=kind;ui.file.accept = fileAccept[kind]; ui.file.click(); }, {disabled:!enabled,title:enabled ? 'Добавить: ' + label : 'Недоступно для выбранных ресурсов или состава поста'});
@@ -492,8 +431,6 @@ function render() {
     const canAdd = allowed.length > 0 && media.length < caps.mediaMax;
     ui.url.disabled = !canAdd;
     ui.mediaSection.querySelector('.pe-url-row button').disabled = !canAdd;
-    const standalone=!poll&&standaloneExtra(session.extras);
-    const exclusive=Boolean(poll&&!poll.with_content)||standalone;
     ui.pollToggle.disabled=!poll&&(!caps.poll||standalone);
     ui.pollToggle.textContent=poll?'Опрос ×':'+ Опрос';
     ui.pollToggle.classList.toggle('is-on',!!poll);
@@ -504,7 +441,7 @@ function render() {
     ui.count.hidden=exclusive;
     ui.attachmentHelp.hidden=!exclusive;
     ui.attachmentHelp.textContent=exclusive?'Текст и файлы сохранены в черновике. Уберите отдельное вложение, чтобы вернуться к ним.':'';
-    const problems = allSelectedTargets().map(t=>({label:t.label,value:t.value,custom:Object.hasOwn(session.variants,t.value),error:draftProblem(t,draftFor(session.base,session.variants,t.value))}));
+    const problems = all.map(t=>({label:t.label,value:t.value,custom:Object.hasOwn(session.variants,t.value),error:draftProblem(t,draftFor(session.base,session.variants,t.value))}));
     const errors=problems.filter(p=>p.error);
     ui.checks.hidden=!errors.length&&problems.length>0;
     ui.checks.replaceChildren(...(problems.length?errors.map(p=>el('div',{className:'pe-check is-error'},
@@ -515,22 +452,26 @@ function render() {
     const checkPager=el('div',{className:'pe-pager',hidden:true});
     const checkItems=[...ui.checks.children];ui.checks.append(checkPager);
     pageItems(checkItems,'errorPage',1,checkPager);
-    updateExtraAvailability();
+    updateExtraAvailability(targets);
     updateSettingsPages();
-    renderFormatting();
+    renderFormatting(targets);
     const blocked = problems.some(p => p.error) || !problems.length;
     const snapshot = {...cloneDraft(session.base),variants:Object.fromEntries(Object.entries(session.variants).map(([v,d])=>[v,cloneDraft(d)])),picked:[...options.picked]};
     drafts.set(options.key, snapshot);
     options.onDraftChange?.(snapshot);
-    if (mediaChanged) { ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length)),
-        el('button', { type: 'button', className: 'pe-add'+(!media.length?' pe-add-empty':''), ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { delete ui.file.dataset.kind;ui.file.accept = accept.join(','); ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: media.length?'Файл':'Добавить или перетащить файлы сюда' })));
-        session.renderedExclusive=isExclusive;session.renderedMedia = [...media]; session.renderedAllowed = accept.join(',');session.renderedCoverAllowed=JSON.stringify([selectedTargets().map(t=>targetCapabilities(t)?.extras?.includes('video_cover')),session.extras.ig_story,session.extras.ig_cover_seconds]);
+    if (mediaChanged) { ui.grid.replaceChildren(...media.map((m, i) => mediaCard(m, i, media.length, coverAllowed)),
+        el('button', { type: 'button', className: 'pe-add'+(!media.length?' pe-add-empty':''), ariaLabel: 'Добавить файл', disabled: !canAdd, onclick: () => { delete ui.file.dataset.kind;ui.file.accept = accept; ui.file.click(); } }, el('span', { className: 'pe-add-plus', textContent: '+' }), el('span', { textContent: media.length?'Файл':'Добавить или перетащить файлы сюда' })));
+        session.renderedExclusive = exclusive;
+        session.renderedMedia = [...media];
+        session.renderedAllowed = allowedKey;
+        session.renderedCoverAllowed = coverAllowed;
     }
     ui.count.textContent = `${media.length} / ${maxMedia}`;
     ui.textSection.hidden = exclusive;
-    ui.extraSection.hidden = Boolean(poll)||(!selectedTargets().some(t=>targetCapabilities(t)?.extras?.some(k=>!ATTACHMENT_EXTRA_KEYS.has(k)))&&!EXTRA_KEYS.some(k=>!ATTACHMENT_EXTRA_KEYS.has(k)&&extraActive(session.extras,k)));
+    ui.extraSection.hidden = Boolean(poll)||(!targets.some(t=>targetCapabilities(t)?.extras?.some(k=>!ATTACHMENT_EXTRA_KEYS.has(k)))&&!EXTRA_KEYS.some(k=>!ATTACHMENT_EXTRA_KEYS.has(k)&&extraActive(session.extras,k)));
     ui.settingsOpen.hidden=ui.extraSection.hidden;
     if(ui.extraSection.hidden)ui.settingsColumn.dataset.view='main';
+    const limit = targets.length ? Math.min(...targets.map(t => targetTextLimit(t, media.length))) : 0;
     if (poll) {
         ui.withContent.disabled=!poll.with_content&&!pollLimits?.with_content;
         ui.addOption.disabled = !pollLimits || poll.options.length >= pollLimits.options_max;
@@ -546,23 +487,22 @@ function render() {
             if(session.correctKey!==key){ui.correct.replaceChildren(el('option',{value:'',textContent:'Выберите ответ'}),...choices.map(o=>el('option',{value:o,textContent:o})));session.correctKey=key;}
             ui.correct.value=poll.correct_answer||'';
         }
-        if(poll.with_content){const limit=Math.min(...selectedTargets().map(t=>textLimit(t.value,media.length)));ui.counter.textContent=`${[...ui.text.value].length} / ${limit}`;}
+        if (poll.with_content) ui.counter.textContent = `${[...ui.text.value].length} / ${limit}`;
         return renderPollState(poll, blocked);
     }
     const text = ui.text.value;
-    const limit = Math.min(...selectedTargets().map(t=>textLimit(t.value,media.length)));   // лимит — самый строгий из выбранных ресурсов
     const length = [...text].length;
-    const [empty, over] = [!standalone&&!media.length&&!text.trim(), !standalone&&length>limit];
+    const over = !standalone && length > limit;
     ui.counter.textContent = `${length} / ${limit}`;
     ui.counter.classList.toggle('is-over', over);
     ui.submit.disabled = blocked || session.busy || ui.aiBusy;
     ui.warning.hidden = true;
     ui.warning.textContent = '';
     if(standalone){ui.summary.textContent=session.extras.location?'Геолокация':session.extras.max_sticker?'Стикер MAX':'Карточка контакта';return;}
-    ui.summary.textContent = `${media.length} медиа · ${text.length} ${pluralRu(text.length, 'символ', 'символа', 'символов')} · ${options.picked.length} ${pluralRu(options.picked.length, 'ресурс', 'ресурса', 'ресурсов')}`;
+    ui.summary.textContent = `${media.length} медиа · ${length} ${pluralRu(length, 'символ', 'символа', 'символов')} · ${options.picked.length} ${pluralRu(options.picked.length, 'ресурс', 'ресурса', 'ресурсов')}`;
     ui.original.disabled = !options.original;
     ui.description.disabled = !options.description;
-    renderTags();
+    renderTags(targets);
 }
 
 function renderExtras(){
@@ -616,11 +556,11 @@ function renderExtraButtons(){
             return el('div',{className:'pe-button-row'},text,url,button('pe-chip-btn','✕',()=>{session.extras.buttons.splice(i,1);renderExtraButtons();render();},{ariaLabel:'Удалить кнопку'}));
         }));
 }
-function updateExtraAvailability(){
-    if(!session)return;
+function updateExtraAvailability(targets) {
     const card=standaloneExtra(session.extras);
-    const availability=key=>card&&['buttons','spoiler','preview','styled_text','first_comment'].includes(key)?'Недоступно для отдельной карточки.':extraAvailability(selectedTargets(),card?[]:session.media,card?'':ui.text.value,session.poll,key);
-    const supported=key=>selectedTargets().some(t=>targetCapabilities(t)?.extras?.includes(key));
+    const availability=key=>card&&['buttons','spoiler','preview','styled_text','first_comment'].includes(key)?'Недоступно для отдельной карточки.':extraAvailability(targets,card?[]:session.media,card?'':ui.text.value,session.poll,key);
+    const supportedKeys = new Set(targets.flatMap(t => targetCapabilities(t)?.extras || []));
+    const supported = key => supportedKeys.has(key);
     const inputs=[...ui.extras.querySelectorAll('input[type=checkbox]')];
     Object.keys(EXTRA_LABELS).forEach((key,i)=>{const reason=availability(key);inputs[i].disabled=!!reason&&!session.extras[key];inputs[i].closest('label').title=reason;inputs[i].closest('label').hidden=!supported(key)&&!session.extras[key];});
     for(const input of ui.extras.querySelectorAll('[data-extra-text]')){
@@ -643,12 +583,12 @@ function updateExtraAvailability(){
 const HASHTAG_MODE_NOTE = { rubric: 'только рубрика', full: 'рубрика, имя и формат' };
 
 /** Режим хэштегов выбранных каналов: самый полный из них; off — строки нет. */
-const tagMode = o => (o.targets.some(t => o.picked.includes(t.value) && t.hashtags === 'full') ? 'full'
-    : o.targets.some(t => o.picked.includes(t.value) && t.hashtags === 'rubric') ? 'rubric' : 'off');
+const tagMode = targets => targets.some(t => t.hashtags === 'full') ? 'full'
+    : targets.some(t => t.hashtags === 'rubric') ? 'rubric' : 'off';
 
 /** Строка хэштегов под текстом: чипы с ✕ и поле «+ тег» с подсказками словаря. Теги допишет сервер последней строкой. */
-function renderTags() {
-    const mode = tagMode({...session.options,picked:selectedTargets().map(t=>t.value)});
+function renderTags(targets) {
+    const mode = tagMode(targets);
     ui.tags.hidden = mode === 'off' || Boolean(session.poll)||session.media.some(m=>['sticker','video_note'].includes(mediaKind(m)));
     if (ui.tags.hidden) return;
     const tagKey = JSON.stringify([mode, session.tags]);
@@ -765,7 +705,6 @@ function addPollOption() {
 /** Кнопка отправки для опроса: вопрос и минимум два заполненных варианта. */
 function renderPollState(poll, blocked) {
     const filled = poll.options.map(v => v.trim()).filter(Boolean);
-    const ready = poll.question.trim() !== '' && filled.length >= 2;
     ui.submit.disabled = blocked || session.busy || ui.aiBusy;
     ui.warning.hidden = true;
     ui.warning.textContent = '';
@@ -932,8 +871,8 @@ function insertTextLink(){
     session.extras.styled_text=true;t.focus();render();
 }
 const FORMAT_TOKEN=/\*\*[^*\n]+\*\*|__[^_\n]+__|\+\+[^+\n]+\+\+|~~[^~\n]+~~|\x60[^\x60\n]+\x60|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)/g;
-function renderFormatting(){
-    const supported=selectedTargets().length&&selectedTargets().every(t=>t?.capabilities?.extras?.includes('styled_text')||(!t?.capabilities&&t?.value?.startsWith('tg:')&&!t.unconnected));
+function renderFormatting(targets) {
+    const supported = targets.length > 0 && targets.every(t => targetCapabilities(t)?.extras?.includes('styled_text'));
     const active=!!session.extras.styled_text;
     ui.formatToggle.checked=active;
     ui.formatToggle.disabled=!active&&(!supported||!!session.poll);
@@ -983,8 +922,7 @@ function clearVariant(){
     delete session.variants[target];
     loadEditorDraft('',session.base);renderWhen();render();renderStyle();
 }
-function renderVariantBar(){
-    const all=allSelectedTargets();
+function renderVariantBar(all) {
     const shown=!session.options.editing&&(all.length>1||session.editTarget||all.some(t=>Object.hasOwn(session.variants,t.value)));
     ui.variantBar.hidden=!shown;
     if(!shown)return;

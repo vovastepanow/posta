@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { commonCapabilities, commonPollLimits, validateTarget, mediaKind, attachmentError, extraError } from '../js/editor-capabilities.js';
+import { commonCapabilities, commonPollLimits, targetTextLimit, validateTarget, mediaKind, attachmentError, extraError } from '../js/editor-capabilities.js';
 const tg={value:'tg:main'}, yt={value:'youtube:1',capabilities:{platform:'youtube',kinds:['video'],mediaMax:1,textLimit:[5000,5000],poll:false}};
 const x={value:'x:1',capabilities:{platform:'x',kinds:['photo','video','animation'],mediaMax:4,textLimit:[280,280],poll:false}};
 assert.deepEqual(commonCapabilities([tg,yt]),{kinds:['video'],mediaMax:1,poll:false});
@@ -51,3 +51,8 @@ assert.notEqual(extraError([tg],[],'',null,{location:{latitude:'',longitude:'0'}
 assert.notEqual(extraError([tg],[],'',null,{contact:{first_name:'A',phone:'123'}}),'');
 
 assert.equal(extraError([tg],[],'',null,{contact:{first_name:'A',phone:'+3581234567'}}),'');
+
+assert.equal(targetTextLimit(tg, 1), 1024);
+assert.equal(targetTextLimit(tg, 0), 4096);
+assert.equal(targetTextLimit(yt, 1), 5000);
+assert.equal(targetTextLimit(x, 0), 280);
