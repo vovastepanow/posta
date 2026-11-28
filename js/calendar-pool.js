@@ -15,8 +15,7 @@ const planWhen = sec => { const d = new Date(sec * 1000); const day = `${PLAN_WE
 
 /** Панель плана «Заполнить дыры»: строки «время · канал · текст», у каждой — «Убрать»; внизу — «Поставить в очередь». */
 export async function planPanel(ctx) {
-    const rows = await fetchPlan(ctx.targets?.());
-    const { items: pool = [] } = await api('proposals').catch(() => ({ items: [] }));
+    const [rows, { items: pool = [] }] = await Promise.all([fetchPlan(ctx.targets?.()), api('proposals').catch(() => ({ items: [] }))]);
     const list = el('ul', { className: 'cal-plan' });
     const redraw = () => {
         ctx.showGhosts?.(rows);
@@ -143,7 +142,8 @@ export async function fetchPlan(channels = null) {
 
 const holeWord = n => (n % 10 === 1 && n % 100 !== 11 ? 'дыру' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'дыры' : 'дыр');
 const COLLAPSED_KEY = 'postaPoolCollapsed';
-let poolFilter = 'all';
+let poolFilter = 'all', poolCollapsed;
+const poolRequests = new WeakMap();
 const POOL_FILTERS = [['all', 'Все', () => true], ['video', 'Видео', p => p.format === 'video'], ['content', 'Мемы', p => p.format === 'content'], ['text', 'Текст', p => p.format === 'text']];
 
 /** Колонка «Предложка» слева: заголовок, сворачивание (localStorage; по умолчанию свёрнута под 1200 px), красная кнопка, фильтры, список. */
@@ -158,17 +158,30 @@ export function flashPoolItem(image) {
     return true;
 }
 
-export async function renderPoolColumn(ctx, root) {
-    const stored = (() => { try { return localStorage.getItem(COLLAPSED_KEY); } catch (e) { return null; } })();
-    const collapsed = stored === null ? window.innerWidth < 1200 : stored === '1';
-    const [{ items = [] }, plan] = await Promise.all([api('proposals').catch(() => ({ items: [] })), fetchPlan(ctx.targets?.())]);
+export async function renderPoolColumn(ctx, root, planPromise = fetchPlan(ctx.targets?.())) {
+    const request = Symbol();
+    poolRequests.set(root, request);
+    const [{ items = [] }, plan] = await Promise.all([api('proposals').catch(() => ({ items: [] })), planPromise]);
+    if (poolRequests.get(root) !== request) return;
+    if (poolCollapsed === undefined) {
+        const stored = (() => { try { return localStorage.getItem(COLLAPSED_KEY); } catch { return null; } })();
+        poolCollapsed = stored === null ? window.innerWidth < 1200 : stored === '1';
+    }
+    const redraw = () => {
+        if (poolRequests.get(root) === request) drawPoolColumn(ctx, root, items, plan, redraw);
+    };
+    redraw();
+}
+
+function drawPoolColumn(ctx, root, items, plan, redraw) {
+    const collapsed = poolCollapsed;
     const toggle = el('button', { type: 'button', className: 'cal-pool-toggle', textContent: collapsed ? '›' : '‹', ariaLabel: collapsed ? 'Развернуть Предложку' : 'Свернуть Предложку',
-        onclick: () => { try { localStorage.setItem(COLLAPSED_KEY, collapsed ? '0' : '1'); } catch (e) { /* без хранилища состояние на сессию */ } renderPoolColumn(ctx, root); } });
+        onclick: () => { poolCollapsed = !collapsed; try { localStorage.setItem(COLLAPSED_KEY, poolCollapsed ? '1' : '0'); } catch {} redraw(); } });
     const head = el('div', { className: 'cal-pool-head' }, el('h2', { textContent: 'Предложка' }), el('span', { className: 'cal-pool-count', textContent: `${items.length} постов` }), toggle);
     const fill = el('button', { type: 'button', className: 'cal-pool-fill', disabled: !plan.length, textContent: plan.length ? `Заполнить ${plan.length} ${holeWord(plan.length)} недели` : 'Дыр недели нет',
         onclick: () => ctx.openFill() });
     const filters = el('div', { className: 'cal-pool-filters', role: 'group', ariaLabel: 'Фильтр Предложки' }, ...POOL_FILTERS.map(([key, label]) =>
-        el('button', { type: 'button', textContent: label, 'aria-pressed': String(poolFilter === key), onclick: () => { poolFilter = key; renderPoolColumn(ctx, root); } })));
+        el('button', { type: 'button', textContent: label, ariaPressed: String(poolFilter === key), onclick: () => { poolFilter = key; redraw(); } })));
     const pass = POOL_FILTERS.find(([key]) => key === poolFilter)[2];
     const visible = items.filter(pass).slice(0, 40);
     const list = el('ul', { className: 'cal-pool-list' }, ...visible.map(item => el('li', {}, poolItemNode(item, ctx, visible))));
@@ -177,8 +190,8 @@ export async function renderPoolColumn(ctx, root) {
 }
 
 /** Пустое состояние панели: «Дыры недели» — сводка и первые строки плана; «Заполнить» открывает план в этой панели. */
-export async function holesChildren(ctx, summary) {
-    const plan = await fetchPlan(ctx.targets?.());
+export async function holesChildren(ctx, summary, planPromise = fetchPlan(ctx.targets?.())) {
+    const plan = await planPromise;
     const rows = plan.slice(0, 5).map(row => el('li', {}, el('span', { textContent: `${new Date(row.slot_at * 1000).toLocaleString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${row.channel_title || ''}` }),
         el('span', { className: 'cal-plan-text', textContent: cleanCaption(row.text).slice(0, 40) })));
     return [el('h3', { className: 'cal-panel-empty-title', textContent: 'Дыры недели' }),

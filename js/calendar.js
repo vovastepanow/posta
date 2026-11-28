@@ -7,7 +7,7 @@ import { composePostFromItem } from './content.js';
 import { appendEditorMedia } from './editor-variants.js';
 import { formatWhen, pickDateTime } from './date-picker.js';
 import { isPhone, phoneView } from './calendar-phone.js';
-import { draftChildren, flashPoolItem, holesChildren, planPanel, poolPanel, renderPoolColumn, UNDO_SECONDS, undoable } from './calendar-pool.js';
+import { draftChildren, fetchPlan, flashPoolItem, holesChildren, planPanel, poolPanel, renderPoolColumn, UNDO_SECONDS, undoable } from './calendar-pool.js';
 import { bindGestures, isDragging, startDrag, startPoolDrag } from './calendar-drag.js';
 import { closePostView, openPostView } from './post-view.js';
 import { fromQueuePost, fromRecord } from './post-adapters.js';
@@ -121,11 +121,13 @@ function laneOf(channelId) {
 
 const enabledChannels = () => state.channels.filter(c => !state.disabled.has(c.id));
 
-let historyTimer = 0;
+let historyTimer = 0, calendarRequest = 0, panelRequest = 0;
 
 async function loadCalendar() {
+    const request = ++calendarRequest;
     try {
         const data = await api('calendar');
+        if (request !== calendarRequest) return;
         state.connected = data.connected !== false;
         state.channels = data.channels || [];
         state.posts = (data.posts || []).filter(p => !state.pendingCancel.has(p.id));   // снятые с расписания до возврата не показываем
@@ -139,12 +141,11 @@ async function loadCalendar() {
         if (!usable) return;
         state.disabled = new Set(readStore(CHIP_KEY, []).filter(id => state.channels.some(c => c.id === id)));
         renderAll();
-        if (!state.panel) renderEmptyPanel();
         if (!state.hintsSeen && !readStore(HINT_KEY, false)) showHint();
-        await renderPoolColumn(poolContext(), poolCol);   // телефон берёт число Предложки отсюда
-        if (isPhone()) scheduleRender();
+        await refreshPool();   // телефон берёт число Предложки отсюда
+        if (request === calendarRequest && isPhone()) scheduleRender();
     } catch (error) {
-        setStatus(error.message, true);
+        if (request === calendarRequest) setStatus(error.message, true);
     }
 }
 
@@ -223,7 +224,8 @@ function toggleChannel(id, on = !state.disabled.has(id)) {
     state.disabled = next;
     writeStore(CHIP_KEY, [...next]);
     renderAll();
-    refreshPanel();
+    if (state.panelPost) refreshPanel();
+    refreshPool();
 }
 
 // ---- Масштаб и движение по времени ----
@@ -1086,6 +1088,7 @@ function markSelected(node) {
 
 /** Панель справа (на телефоне — снизу): заголовок, содержимое, ✕; закрытие возвращает фокус на from. */
 function showPanel(heading, children, from = null) {
+    ++panelRequest;
     state.panel = { from };
     markSelected(from);
     panel.classList.add('is-sheet');   // на телефоне панель появляется только по выбору
@@ -1103,16 +1106,19 @@ async function openPicker(row, from) {
     const heading = `Пост на ${dayName(row.at)}, ${hhmm(row.at)} · ${lane.title}`;
     showPanel(heading, [el('p', { className: 'cal-muted', textContent: 'Загружаю «Предложку»…' })], from);
     state.panelPost = null;
+    const opened = state.panel;
     try {
         const items = (await api('proposals')).items || [];
         const children = items.length
             ? [el('div', { className: 'cal-picks' }, ...items.map(item => pickerItem(item, row)))]
             : [el('p', { className: 'cal-muted', textContent: 'В Предложке пусто: лайкните посты на вкладке «Предложка»' }),
                 el('button', { type: 'button', className: 'cal-act', textContent: 'Перейти на «Предложку»', onclick: () => { closePanel(); switchTab('content-tab'); } })];
-        if (state.panel?.from === from) showPanel(heading, children, from);
+        if (state.panel === opened) showPanel(heading, children, from);
     } catch (error) {
-        setStatus(error.message, true);
-        closePanel();
+        if (state.panel === opened) {
+            setStatus(error.message, true);
+            closePanel();
+        }
     }
 }
 
@@ -1143,11 +1149,20 @@ function closePanel() {
 }
 
 /** Панель без выбора: «Куда публиковать» (ресурсы с чекбоксами), ниже — «Дыры недели»: сводка и первые строки плана. */
-async function renderEmptyPanel() {
-    const enabled = enabledChannels();
-    const sum = summary(state.posts, enabled, weekStart(Date.now()), Date.now());
-    panel.replaceChildren(resourcesBlock(), ...(await holesChildren(poolContext(), { queued: sum.queued, free: sum.freeThisWeek })));
+async function renderEmptyPanel(planPromise) {
+    const request = ++panelRequest;
+    const now = Date.now();
+    const sum = summary(state.posts, enabledChannels(), weekStart(now), now);
+    const children = await holesChildren(poolContext(), { queued: sum.queued, free: sum.freeThisWeek }, planPromise);
+    if (request !== panelRequest || state.panel) return;
+    panel.replaceChildren(resourcesBlock(), ...children);
     panel.hidden = false;
+}
+
+async function refreshPool() {
+    const ctx = poolContext();
+    const plan = fetchPlan(ctx.targets());
+    await Promise.all([state.panel ? null : renderEmptyPanel(plan), renderPoolColumn(ctx, poolCol, plan)]);
 }
 
 /** Перерисовать панель: открытый пост — его подробности, иначе — ресурсы и дыры. */
@@ -1211,7 +1226,6 @@ async function finishUnschedule(id) {
         setStatus('Пост снят с расписания и остался в Предложке.');
     } catch (error) { setStatus(error.message, true); }
     await loadCalendar();
-    renderPoolColumn(poolContext(), poolCol);
 }
 
 function restoreUnschedule(id) {
@@ -1272,7 +1286,6 @@ async function commitPoolItem(item, at) {
             undoable(posted, statusEl, poolContext());
         } else setStatus(failed.join('; ') || 'Пост не поставлен.', true);
         await loadCalendar();
-        renderPoolColumn(poolContext(), poolCol);
         return posted[0] ?? null;
     } catch (error) { setStatus(error.message, true); return null; }
 }
@@ -1315,7 +1328,22 @@ async function removeFromPool(item) {
 }
 
 async function openFillPanel() {
-    try { showPanel('Заполнить дыры', await planPanel(poolContext())); } catch (error) { setStatus(error.message, true); }
+    const heading = 'Заполнить дыры';
+    state.panelPost = null;
+    showPanel(heading, [el('p', { className: 'cal-muted', textContent: 'Загружаю план…' })]);
+    let opened = state.panel;
+    const ctx = poolContext();
+    const showGhosts = ctx.showGhosts;
+    ctx.showGhosts = rows => { if (state.panel === opened) showGhosts(rows); };
+    try {
+        const children = await planPanel(ctx);
+        if (state.panel === opened) {
+            showPanel(heading, children);
+            opened = state.panel;
+        }
+    } catch (error) {
+        if (state.panel === opened) { setStatus(error.message, true); closePanel(); }
+    }
 }
 
 
