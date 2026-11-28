@@ -3,6 +3,7 @@ import { initializeNetworks, loadNetworks } from './networks.js';
 import { $, ask, DEBUG_MODE, api, apiUrl, el, log, onTabOpen, pluralRu, switchTab } from './core.js';
 import { initializeDatabases, loadDatabaseOptions, openPoolRecordEditor } from './account-database.js';
 import { pickDateTime } from './date-picker.js';
+import { createPoller } from './account-poll.js';
 
 const VK_MESSAGES = { signed_in: 'Вход через VK выполнен.', connected: 'VK подключён.', misconfigured: 'Настройте VK_CLIENT_ID и адрес сайта на сервере.', error: 'Не удалось подключить VK. Проверьте настройки OAuth и журнал приложения.' };
 const COLLECTIONS = { liked: 'Нравится', disliked: 'Не нравится', undecided: 'Не знаю', complaints: 'Жалобы' };
@@ -11,8 +12,8 @@ export const adminSections = {};   // загрузчики разделов ад
 let current = 'profile';
 let adminCurrent = 'control';
 let vkMessage = '';
-let qrTimer = 0;
-let loginTimer = 0;
+const qrPoll = createPoller();
+const loginPoll = createPoller();
 let telegramUserConnected = false;
 let telegramAccountLoaded = false;
 let telegramAuthDone = null;
@@ -154,25 +155,24 @@ function passwordLoginForm() {
 function telegramLoginButton(label) {
     const button = el('button', { type: 'button', className: 'account-secondary', textContent: label });
     button.onclick = () => busy(button, 'auth-status', async () => {
+        const attempt = loginPoll.begin();
         const { url, token } = await api('login_start', { body: null });
+        if (!attempt.current()) return;
         const opened = window.open(url, '_blank', 'noopener');
         const cancel = el('button', { type: 'button', className: 'account-secondary', textContent: 'Отмена' });
         $('auth-status').replaceChildren(opened ? 'Откройте бота, нажмите «Старт», затем «Подтвердить вход». Жду подтверждения… '
             : el('span', {}, 'Откройте бота: ', el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', textContent: url }), '. Жду подтверждения… '), cancel);
         const deadline = Date.now() + 600000;
-        let polling = false;
-        const stop = text => { clearInterval(loginTimer); button.hidden = false; authStatus(text); };
+        const stop = text => { if (!attempt.current()) return; loginPoll.stop(); button.hidden = false; authStatus(text); };
         cancel.onclick = () => stop('');
         button.hidden = true;
-        clearInterval(loginTimer);
-        loginTimer = setInterval(async () => {
-            if (polling) return;
+        attempt.run(async current => {
             if (Date.now() > deadline) return stop('Время на вход вышло, попробуйте ещё раз.');
-            polling = true;
-            const d = await api('login_status', { params: { token } }).catch(() => null).finally(() => { polling = false; });
-            if (d?.status === 'done') { clearInterval(loginTimer); location.reload(); }
+            const d = await api('login_status', { params: { token } }).catch(() => null);
+            if (!current()) return;
+            if (d?.status === 'done') { loginPoll.stop(); location.reload(); }
             else if (d?.status === 'expired') stop('Время на вход вышло, попробуйте ещё раз.');
-        }, 2000);
+        });
     });
     return button;
 }
@@ -207,7 +207,7 @@ function vkLoginWidget() {
 
 /** Блок «Вход» в карточке профиля. Не вошёл — создать вход или войти; вошёл — способы входа, смена пароля, выход. */
 function renderAuth(auth) {
-    clearInterval(loginTimer);
+    loginPoll.stop();
     const status = el('p', { id: 'auth-status', className: 'account-muted', role: 'status' });
     if (!auth.logged_in && auth.no_profile) {
         return el('div', { className: 'auth-box' }, el('h4', { textContent: 'Вход' }),
@@ -461,6 +461,7 @@ function renderTelegramUser(info) {
     $('tgu-api-id').required = $('tgu-api-hash').required = !keys;
     if (keys) $('tgu-api-id').value = $('tgu-api-hash').value = '';   // скрытые поля мог заполнить менеджер паролей браузера
     const [connected, awaiting] = [Boolean(info?.connected), !info?.connected && Boolean(info?.awaiting_code)];
+    if (connected) stopQr();
     $('tgu-connected').hidden = !connected;
     $('tgu-start').hidden = connected || awaiting || !$('tgu-qr').hidden;
     $('tgu-confirm').hidden = !awaiting;
@@ -490,7 +491,11 @@ export function normalizePhone(value) {
     return n ? `+7 ${n.slice(0, 3)} ${n.slice(3, 6)}-${n.slice(6, 8)}-${n.slice(8)}` : raw.startsWith('+') ? `+${d}` : raw;
 }
 
-function stopQr() { clearInterval(qrTimer); $('tgu-qr').hidden = true; }
+function stopQr() {
+    qrPoll.stop();
+    $('tgu-qr').hidden = true;
+    $('tgu-qr-image').replaceChildren();
+}
 
 /** QR-вход: код на экране, раз в 2 с спрашиваем сервер, отсканировали ли его. */
 /** api_id и api_hash — только если поля видны (ключей на сайте ещё нет). Иначе менеджер паролей Chrome подставляет в эту
@@ -498,29 +503,39 @@ function stopQr() { clearInterval(qrTimer); $('tgu-qr').hidden = true; }
 const appKeysInput = () => ($('tgu-keys').hidden ? {} : { api_id: $('tgu-api-id').value.trim(), api_hash: $('tgu-api-hash').value.trim() });
 
 async function startQr() {
+    const attempt = qrPoll.begin();
+    const button = $('tgu-qr-button');
+    button.disabled = true;
     status('tgu-status', 'Готовлю QR-код…');
-    try { await api('telegram_user_qr_start', { body: appKeysInput() }); } catch (error) { return status('tgu-status', error.message); }
-    $('tgu-start').hidden = true;
-    $('tgu-qr').hidden = false;
-    $('tgu-qr-image').replaceChildren();
-    status('tgu-status', 'Жду, пока вы отсканируете код в приложении Telegram…');
-    let polling = false;
-    clearInterval(qrTimer);
-    qrTimer = setInterval(async () => {
-        if (polling) return;
-        polling = true;
-        const d = await api('telegram_user_qr_status').catch(() => null).finally(() => { polling = false; });
-        if (!d || d.status === 'busy') return;
-        if (d.status === 'waiting') return d.svg && $('tgu-qr-image').replaceChildren(el('img', { src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(d.svg)}`, alt: 'QR-код', width: 220, height: 220 }));
-        stopQr();
-        if (d.status === 'success' || d.status === 'ok') { status('tgu-status', ''); renderTelegramUser(d.telegram_user); log('Telegram: личный аккаунт подключён.'); }
-        else if (d.status === 'needs_password') loadAccount();
-        else {
-            $('tgu-start').hidden = false;
-            status('tgu-status', { expired: 'QR-код устарел: запросите новый.', none: 'Вход по QR прервался: запросите код ещё раз.' }[d.status] || d.error || 'Не удалось войти по QR-коду.');
-            log(`Telegram, вход по QR: ${d.status === 'error' ? d.error : d.status}`);
-        }
-    }, 2000);
+    try {
+        await api('telegram_user_qr_start', { body: appKeysInput() });
+        if (!attempt.current()) return;
+        $('tgu-start').hidden = true;
+        $('tgu-qr').hidden = false;
+        $('tgu-qr-image').replaceChildren();
+        status('tgu-status', 'Жду, пока вы отсканируете код в приложении Telegram…');
+        attempt.run(async current => {
+            const d = await api('telegram_user_qr_status').catch(() => null);
+            if (!current() || !d || d.status === 'busy') return;
+            if (d.status === 'waiting') {
+                if (d.svg) $('tgu-qr-image').replaceChildren(el('img', { src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(d.svg)}`, alt: 'QR-код', width: 220, height: 220 }));
+                return;
+            }
+            stopQr();
+            if (d.status === 'success' || d.status === 'ok') {
+                status('tgu-status', '');
+                renderTelegramUser(d.telegram_user);
+                log('Telegram: личный аккаунт подключён.');
+            } else if (d.status === 'needs_password') loadAccount();
+            else {
+                $('tgu-start').hidden = false;
+                status('tgu-status', { expired: 'QR-код устарел: запросите новый.', none: 'Вход по QR прервался: запросите код ещё раз.' }[d.status] || d.error || 'Не удалось войти по QR-коду.');
+                log(`Telegram, вход по QR: ${d.status === 'error' ? d.error : d.status}`);
+            }
+        });
+    } catch (error) {
+        if (attempt.current()) status('tgu-status', error.message);
+    } finally { button.disabled = false; }
 }
 
 function initializeTelegram() {
@@ -543,6 +558,7 @@ function initializeTelegram() {
     phone.addEventListener('blur', () => { phone.value = normalizePhone(phone.value); });
     phone.addEventListener('paste', () => setTimeout(() => { phone.value = normalizePhone(phone.value); }));
     $('tgu-start').addEventListener('submit', e => { e.preventDefault(); phone.value = normalizePhone(phone.value); busy(e.submitter, 'tgu-status', async () => {
+        stopQr();
         status('tgu-status', 'Запрашиваю код у Telegram…');
         const d = await api('telegram_user_start', { body: { ...appKeysInput(), phone: phone.value } });
         $('tgu-api-id').value = $('tgu-api-hash').value = '';
@@ -563,11 +579,12 @@ function initializeTelegram() {
         renderTelegramUser((await api('telegram_user_resend', { body: null })).telegram_user);
     }));
     $('tgu-disconnect').addEventListener('click', () => busy(null, 'tgu-status', async () => {
+        stopQr();
         renderTelegramUser((await api('telegram_user_disconnect', { body: null })).telegram_user);
         status('tgu-status', 'Отключено. Чтобы завершить вход совсем, закройте сессию «Postä» в Telegram → Настройки → Устройства.');
         log('Аккаунт Telegram отключён.');
     }));
-    $('tgu-restart').addEventListener('click', () => busy(null, 'tgu-status', async () => { renderTelegramUser((await api('telegram_user_disconnect', { body: null })).telegram_user); status('tgu-status', ''); }));
+    $('tgu-restart').addEventListener('click', () => busy(null, 'tgu-status', async () => { stopQr(); renderTelegramUser((await api('telegram_user_disconnect', { body: null })).telegram_user); status('tgu-status', ''); }));
     $('tgu-qr-button').addEventListener('click', startQr);
     $('tgu-qr-cancel').addEventListener('click', () => { stopQr(); $('tgu-start').hidden = false; status('tgu-status', ''); });
 }

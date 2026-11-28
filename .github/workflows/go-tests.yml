@@ -58,20 +58,21 @@ jobs:
       - name: Unit-test independent source audit helper (Python stdlib)
         run: python3 -m unittest discover -s research/source_audit/tests -v
       - name: Check autopilot interface JavaScript
-        run: node --check js/networks.js && node --check js/max-bot.js && node --check js/sources.js && node --check js/source-pages.js && node --check js/main.js && node --check js/content.js && node --check js/post-view.js && node --check js/video-pending.js && node --check js/post-adapters.js && node --check js/editor.js && node --check js/date-picker.js && node --check js/calendar.js && node --check js/calendar-model.js && node --check js/account.js && node --check js/account-database.js && node --check js/editor-capabilities.js && node --check js/editor-variants.js
+        run: node --check js/networks.js && node --check js/max-bot.js && node --check js/sources.js && node --check js/source-pages.js && node --check js/main.js && node --check js/content.js && node --check js/post-view.js && node --check js/video-pending.js && node --check js/post-adapters.js && node --check js/editor.js && node --check js/date-picker.js && node --check js/calendar.js && node --check js/calendar-model.js && node --check js/account.js && node --check js/account-poll.js && node --check js/account-database.js && node --check js/editor-capabilities.js && node --check js/editor-variants.js
       - name: Verify post adapters
         run: |
           test_dir=$(mktemp -d)
           trap 'rm -rf "$test_dir"' EXIT
           mkdir -p "$test_dir/tools"
           cp -r js "$test_dir/js"
-          cp tools/test-post-adapters.mjs tools/test-editor-capabilities.mjs tools/test-editor-variants.mjs tools/test-source-pages.mjs tools/test-calendar-model.mjs "$test_dir/tools/"
+          cp tools/test-post-adapters.mjs tools/test-editor-capabilities.mjs tools/test-editor-variants.mjs tools/test-source-pages.mjs tools/test-calendar-model.mjs tools/test-account-poll.mjs "$test_dir/tools/"
           printf '%s\n' '{"type":"module"}' > "$test_dir/package.json"
           node "$test_dir/tools/test-post-adapters.mjs"
           node "$test_dir/tools/test-editor-capabilities.mjs"
           node "$test_dir/tools/test-editor-variants.mjs"
           node "$test_dir/tools/test-source-pages.mjs"
           node "$test_dir/tools/test-calendar-model.mjs"
+          node "$test_dir/tools/test-account-poll.mjs"
       - name: Unit tests
         run: go test ./...
 
