@@ -211,7 +211,9 @@ try{
     assert.equal(await homePage.locator('#grid .rejected-reason').count(),0);
     assert.equal(await homePage.getByRole('button',{name:'Убрать из отобранных',exact:true}).count(),3);
     await homePage.locator('#grid .tile').filter({hasText:'Видео поста'}).evaluate(node => { window.savedVideoCard = node; });
+    await homePage.locator('#chips button').filter({hasText:'Видео'}).evaluate(node=>{window.savedFilter=node;});
     await homePage.locator('#chips button').filter({hasText:'Видео'}).click();
+    assert.equal(await homePage.locator('#chips button').filter({hasText:'Видео'}).evaluate(node=>node===window.savedFilter),true);
     assert.equal(await homePage.locator('#grid .tile').evaluate(node => node === window.savedVideoCard), true);
     assert.equal(await homePage.locator('#grid .tile').count(),1);
     assert.ok((await homePage.locator('#grid').textContent()).includes('Видео поста'));

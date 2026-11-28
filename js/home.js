@@ -150,7 +150,7 @@ function openPreview(item) {
 }
 
 // ---- Сводка подбора ----
-const live = { timer: 0, controller: null, gen: 0 };
+const live = { timer: 0, controller: null, gen: 0, feedSignature: null };
 
 // строка «Только что отобрано» в правой панели: миниатюра, первая строка текста, источник · балл
 function feedItem(i) {
@@ -309,6 +309,7 @@ async function loadLive() {
         $('pipeNow').textContent = error.status === 401 ? 'Войдите, чтобы увидеть состояние' : 'Не удалось загрузить состояние';
         $('sourcePipeNow').textContent = error.status === 401 ? 'Войдите, чтобы увидеть состояние' : 'Не удалось загрузить состояние';
         renderSourcePipe.sig = null;
+        live.feedSignature = null;
         $('feed').replaceChildren(el('li', { className: 'muted', textContent: error.status === 401 ? 'Войдите, чтобы увидеть материалы.' : 'Не удалось загрузить материалы.' }));
         if (gen === live.gen && error.status !== 401) live.timer = setTimeout(loadLive, 15000);
         return;
@@ -323,7 +324,7 @@ async function loadLive() {
 }
 
 function renderLive(r) {
-    const items = r.items || [];
+    const items = (r.items || []).slice(0, 5);
 
     const poolCount = Number.isFinite(Number(r.pool)) ? Math.max(0, Math.trunc(Number(r.pool))) : 0;
     $('nav-pool').textContent = poolCount ? poolCount.toLocaleString('ru-RU') : '';
@@ -331,17 +332,36 @@ function renderLive(r) {
 
     renderPipe(r);
     renderSourcePipe(r.source_discovery);
-    $('feed').replaceChildren(...(items.length ? items.slice(0, 5).map(feedItem)
-        : [el('li', { className: 'muted', textContent: 'Пока ничего: подборка пуста.' })]));
+    const signature = JSON.stringify([r.topic, items]);
+    if (signature !== live.feedSignature) {
+        $('feed').replaceChildren(...(items.length ? items.map(feedItem)
+            : [el('li', { className: 'muted', textContent: 'Пока ничего: подборка пуста.' })]));
+        live.feedSignature = signature;
+    }
+}
+
+function renderFilters() {
+    const filters = state.index.filters;
+    const signature = JSON.stringify(filters);
+    if (signature !== renderFilters.signature) {
+        const node = (tag, id, label, count) => {
+            const button = el(tag, { onclick: () => { state.filter = id; render(); } }, tag === 'li' ? el('span', { textContent: label }) : label, el('em', { textContent: String(count) }));
+            if (tag === 'button') button.type = 'button';
+            button.dataset.filter = id;
+            return button;
+        };
+        $('chips').replaceChildren(...filters.map(({ id, label, count }) => node('button', id, label, count)));
+        $('side-filters').replaceChildren(...filters.slice(0, 4).map(({ id, label, count }) => node('li', id, label, count)));
+        renderFilters.signature = signature;
+    }
+    for (const button of [...$('chips').children, ...$('side-filters').children]) {
+        button.classList.toggle('is-active', button.dataset.filter === state.filter);
+    }
 }
 
 function render() {
     reconcileFeed(state.index.visible(state.filter, state.sort, state.q));
-    const filters = state.index.filters;
-    const props = id => ({ className: state.filter === id ? 'is-active' : '', onclick: () => { state.filter = id; render(); } });
-    const countNode = count => el('em', { textContent: String(count) });
-    $('chips').replaceChildren(...filters.map(({ id, label, count }) => el('button', { type: 'button', ...props(id) }, label, countNode(count))));
-    $('side-filters').replaceChildren(...filters.slice(0, 4).map(({ id, label, count }) => el('li', props(id), el('span', { textContent: label }), countNode(count))));
+    renderFilters();
 }
 
 async function loadContent() {
