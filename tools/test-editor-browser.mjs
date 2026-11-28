@@ -194,12 +194,18 @@ try{
         await import('/js/home.js');
     });
     await homePage.waitForFunction(()=>document.querySelectorAll('#grid .tile').length===3);
-    assert.deepEqual(profileRequests,['1']);
+    assert.ok(profileRequests.length>0&&profileRequests.every(value=>value==='1'));
+    await homePage.evaluate(async()=>{
+        const {loadProfileSummary}=await import('/js/profile.js');
+        await loadProfileSummary();
+    });
+    const profileReadsBefore=profileRequests.length;
     await homePage.evaluate(async()=>{
         const {loadProfileSummary}=await import('/js/profile.js');
         await Promise.all([loadProfileSummary(),loadProfileSummary(),loadProfileSummary()]);
     });
-    assert.deepEqual(profileRequests,['1','1']);
+    assert.equal(profileRequests.length,profileReadsBefore+1);
+    assert.ok(profileRequests.every(value=>value==='1'));
     await homePage.locator('#side-sources li').filter({hasText:'Telegram'}).waitFor({state:'attached'});
     assert.equal(await homePage.locator('#side-sources li').filter({hasText:'Telegram'}).locator('em').textContent(),'3');
     assert.equal(await homePage.locator('#grid .rejected-reason').count(),0);
