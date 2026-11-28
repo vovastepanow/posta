@@ -5,6 +5,7 @@ on:
     paths:
       - 'js/**'
       - 'css/**'
+      - 'index.html'
       - 'tools/test-editor-browser.mjs'
       - '.github/workflows/editor-browser.yml'
   workflow_dispatch:

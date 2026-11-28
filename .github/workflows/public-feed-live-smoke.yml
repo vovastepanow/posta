@@ -6,6 +6,7 @@ on:
     paths:
       - 'internal/posta/rss*.go'
       - 'internal/posta/json_feed*.go'
+      - 'internal/posta/source_autopilot_feed_reader.go'
       - 'internal/posta/public_feed_live_test.go'
       - '.github/workflows/public-feed-live-smoke.yml'
 permissions:
