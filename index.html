@@ -35,7 +35,7 @@
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="content-tab"><i>✦</i>Предложка<em id="nav-pool"></em></button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="calendar-tab"><i>▦</i>Календарь</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="source-tab"><i>⟲</i>Источники</button>
-      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab"><i>❖</i>Дерево</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="tree-tab"><i>❖</i>Запросы</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="test-tab"><i>◎</i>Тест ИИ</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="account-tab"><i>⚙</i>Личный кабинет</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="admin-tab" hidden><i>★</i>Админка</button>
@@ -381,28 +381,26 @@
   </dialog>
 </div>
 
-<!-- ДЕРЕВО ТЕМ -->
-<div id="tree-tab" class="view-panel wide-panel" data-width="narrow">
+<!-- ПОИСКОВЫЕ ЗАПРОСЫ -->
+<div id="tree-tab" class="view-panel wide-panel" data-width="profiles">
   <div class="tree-head">
-    <div class="tree-head-text"><h2 class="section-title">Темы поиска</h2><p class="tree-current">Сейчас: <strong id="tree-current-name">—</strong></p></div>
-    <button id="tree-refresh" class="refresh-button" type="button" aria-label="Обновить дерево">↻</button>
+    <div class="tree-head-text"><h2 class="section-title">Поисковые запросы</h2><p class="tree-current">Сейчас: <strong id="tree-current-name">—</strong></p></div>
+    <button id="tree-refresh" class="refresh-button" type="button" aria-label="Обновить запросы">↻</button>
   </div>
   <form id="tree-form" class="topic-form">
-    <label for="tree-input">Поиск по дереву, #хэштег или новая тема</label>
+    <label for="tree-input">Что вы хотите находить?</label>
     <div class="topic-row">
-      <input id="tree-input" type="search" maxlength="200" list="tree-options" placeholder="сюр, #cursed, котики — или новая тема" autocomplete="off">
+      <input id="tree-input" type="search" maxlength="200" list="tree-options" placeholder="Например, мемы про электромобили без мата" autocomplete="off">
       <datalist id="tree-options"></datalist>
-      <button id="tree-save" type="submit" title="Enter: перейти к теме или создать новую">Выбрать</button>
+      <button id="tree-save" type="submit">Выбрать</button>
     </div>
-    <div id="tree-notice" class="topic-notice" role="status" hidden><span id="tree-notice-text"></span><button id="tree-force-new" class="topic-link" type="button">Нет, это другая тема</button></div>
+    <div id="tree-notice" class="topic-notice" role="status" hidden><span id="tree-notice-text"></span><button id="tree-force-new" class="topic-link" type="button" hidden>Другой запрос</button></div>
   </form>
   <div id="tree-status" class="proposals-status" role="status"></div>
-  <div id="tree-layout" class="tree-layout">
-    <nav id="tree-rubrics" class="tree-rubrics" aria-label="Рубрики"></nav>
-    <section id="tree-cards" class="tree-cards" aria-label="Темы рубрики"></section>
+  <div class="profile-layout">
+    <section id="tree-cards" class="tree-grid" aria-label="Запросы"></section>
     <aside id="tree-detail" class="tree-detail" aria-live="polite"></aside>
   </div>
-  <div id="tree-backdrop" class="tree-backdrop" hidden></div>
 </div>
 
 <!-- ТЕСТ ИИ -->
