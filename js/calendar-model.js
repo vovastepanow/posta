@@ -6,10 +6,29 @@ export const DAY = 86400000;
 const SLOT_TOLERANCE = 60000;                       // слот занят, если пост той же канала в пределах минуты
 const OPEN_STATUSES = ['queued', 'sending', 'telegram'];
 
+// Intl formatters are expensive to construct. Keep a small, bounded cache;
+// offsets themselves must still be calculated for each instant (DST).
+const zoneFormatters = new Map();
+function zoneFormatter(timeZone) {
+    if (!zoneFormatters.has(timeZone)) {
+        const formatter = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+        if (zoneFormatters.size >= 32) zoneFormatters.delete(zoneFormatters.keys().next().value);
+        zoneFormatters.set(timeZone, formatter);
+    }
+    return zoneFormatters.get(timeZone);
+}
+
+function zonedParts(ms, timeZone) {
+    const parts = {};
+    for (const { type, value } of zoneFormatter(timeZone).formatToParts(ms)) {
+        if (type !== 'literal') parts[type] = Number(value);
+    }
+    return parts;
+}
+
 /** Смещение пояса в миллисекундах (Intl; одна поправка — для перехода на летнее время). */
 function zoneOffset(ms, timeZone) {
-    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
-        .formatToParts(ms).filter(p => p.type !== 'literal').map(p => [p.type, Number(p.value)]));
+    const parts = zonedParts(ms, timeZone);
     return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute) - Math.floor(ms / 60000) * 60000;
 }
 
@@ -24,8 +43,7 @@ function wallToInstant(year, month, day, hour, minute, timeZone) {
 
 /** Календарная дата момента в поясе: [год, месяц0, день]. */
 function dateParts(date, timeZone) {
-    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' })
-        .formatToParts(date).map(p => [p.type, Number(p.value)]));
+    const parts = zonedParts(date, timeZone);
     return [parts.year, parts.month - 1, parts.day];
 }
 
@@ -58,31 +76,78 @@ export function weekStart(ms) {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)).getTime();
 }
 
-/** Свободные будущие слоты канала в [fromMs, toMs): без занятых постами того же канала (±1 мин). */
-export function freeSlots(channel, posts, fromMs, toMs, nowMs) {
-    const taken = posts.filter(p => p.channel === channel.id).map(p => p.at * 1000);
+// Occupancy includes every post, even outside the requested day: a post
+// one minute before midnight can occupy the following day's first slot.
+function occupancy(posts) {
+    const byChannel = new Map();
+    for (const post of posts) {
+        const at = post.at * 1000;
+        if (!Number.isFinite(at)) continue;
+        if (!byChannel.has(post.channel)) byChannel.set(post.channel, []);
+        byChannel.get(post.channel).push(at);
+    }
+    for (const times of byChannel.values()) times.sort((a, b) => a - b);
+    return byChannel;
+}
+
+function isOccupied(times, at) {
+    let lo = 0, hi = times.length;
+    const earliest = at - SLOT_TOLERANCE;
+    while (lo < hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        if (times[mid] < earliest) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo < times.length && times[lo] <= at + SLOT_TOLERANCE;
+}
+
+function availableSlots(channel, taken, fromMs, toMs, nowMs) {
     return slotTimes(channel.schedule, fromMs, toMs - 1)
-        .filter(at => at > nowMs && !taken.some(t => Math.abs(t - at) <= SLOT_TOLERANCE))
+        .filter(at => at > nowMs && !isOccupied(taken, at))
         .map(at => ({ kind: 'slot', at, channel }));
 }
 
-/** Строки дня по времени: посты включённых каналов и свободные слоты тех же каналов. */
-export function dayAgenda(posts, channels, dayStartMs, nowMs) {
-    const dayEnd = addDays(dayStartMs, 1);
-    const ids = new Set(channels.map(c => c.id));
-    const rows = posts
-        .filter(p => ids.has(p.channel) && p.at * 1000 >= dayStartMs && p.at * 1000 < dayEnd)
-        .map(post => ({ kind: 'post', at: post.at * 1000, post }));
-    for (const channel of channels) rows.push(...freeSlots(channel, posts, dayStartMs, dayEnd, nowMs));
-    return rows.sort((a, b) => a.at - b.at);
+/** Свободные будущие слоты канала в [fromMs, toMs): без занятых постами того же канала (±1 мин). */
+export function freeSlots(channel, posts, fromMs, toMs, nowMs) {
+    const taken = occupancy(posts.filter(p => p.channel === channel.id)).get(channel.id) || [];
+    return availableSlots(channel, taken, fromMs, toMs, nowMs);
 }
 
-/** Сводка: сколько постов в очереди (queued, sending, telegram) и свободных слотов на неделе — по включённым каналам. */
+/** Snapshot for one render; reuse the indexes for every visible day. */
+export function calendarAgenda(posts, channels, nowMs) {
+    const taken = occupancy(posts);
+    const ids = new Set(channels.map(c => c.id));
+    const byDay = new Map();
+    for (const post of posts) {
+        const at = post.at * 1000;
+        if (!ids.has(post.channel) || !Number.isFinite(at)) continue;
+        const day = addDays(at, 0);
+        if (!byDay.has(day)) byDay.set(day, []);
+        byDay.get(day).push({ kind: 'post', at, post });
+    }
+    return dayStartMs => {
+        const dayEnd = addDays(dayStartMs, 1);
+        // Keep the original API's interval semantics for a non-midnight start.
+        const rows = dayStartMs === addDays(dayStartMs, 0)
+            ? [...(byDay.get(dayStartMs) || [])]
+            : posts.filter(p => ids.has(p.channel) && p.at * 1000 >= dayStartMs && p.at * 1000 < dayEnd)
+                .map(post => ({ kind: 'post', at: post.at * 1000, post }));
+        for (const channel of channels) rows.push(...availableSlots(channel, taken.get(channel.id) || [], dayStartMs, dayEnd, nowMs));
+        return rows.sort((a, b) => a.at - b.at);
+    };
+}
+
+export function dayAgenda(posts, channels, dayStartMs, nowMs) {
+    return calendarAgenda(posts, channels, nowMs)(dayStartMs);
+}
+
+/** Сводка: очередь и свободные слоты недели по включённым каналам. */
 export function summary(posts, channels, weekStartMs, nowMs) {
     const ids = new Set(channels.map(c => c.id));
     const queued = posts.filter(p => ids.has(p.channel) && OPEN_STATUSES.includes(p.status)).length;
+    const taken = occupancy(posts);
     const weekEnd = addDays(weekStartMs, 7);
-    const freeThisWeek = channels.reduce((sum, channel) => sum + freeSlots(channel, posts, weekStartMs, weekEnd, nowMs).length, 0);
+    const freeThisWeek = channels.reduce((sum, channel) => sum + availableSlots(channel, taken.get(channel.id) || [], weekStartMs, weekEnd, nowMs).length, 0);
     return { queued, freeThisWeek };
 }
 

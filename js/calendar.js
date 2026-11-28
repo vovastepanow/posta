@@ -2,7 +2,7 @@
 // с содержимым по ширине колонки, свободные слоты, список, панель подробностей, подсказка «один раз».
 // Перетаскивание и жесты фона — в calendar-drag.js, чистая модель — в calendar-model.js.
 import { $, api, apiUrl, ask, cleanCaption, el, isTabActive, onTabOpen, PHOTO_ICON, pluralRu, switchTab, VIDEO_ICON } from './core.js';
-import { addDays, centeredHourShift, dayAgenda, easeView, freeSlots, hourSpan, hourWindow, layoutDay, layoutRow, shiftHourWindow, slotTimes, snapGestureDays, snapView, summary, viewGapPx, weekStart, wheelFactor, wheelPixels, zoomAround, zoomHoursAround, zoomLimitReached, ZOOM_DAYS_MAX, ZOOM_DAYS_MIN, DAY, HOUR, MIN } from './calendar-model.js';
+import { addDays, centeredHourShift, calendarAgenda, easeView, freeSlots, hourSpan, hourWindow, layoutDay, layoutRow, shiftHourWindow, slotTimes, snapGestureDays, snapView, summary, viewGapPx, weekStart, wheelFactor, wheelPixels, zoomAround, zoomHoursAround, zoomLimitReached, ZOOM_DAYS_MAX, ZOOM_DAYS_MIN, DAY, HOUR, MIN } from './calendar-model.js';
 import { composePostFromItem } from './content.js';
 import { appendEditorMedia } from './editor-variants.js';
 import { isPhone, phoneView } from './calendar-phone.js';
@@ -515,8 +515,9 @@ function gridNodes(now) {
     body.classList.toggle('is-half', g.ppm * 60 >= 48);
     body.classList.toggle('is-tenth', g.ppm * 60 >= 120);
     const seen = new Set();
+    const agendaFor = calendarAgenda(state.posts, enabled, now);
     const days = [];
-    for (let day = midnight(g.startMs); day < g.startMs + g.days * DAY; day = addDays(day, 1)) days.push(dayTrack(day, enabled, now, seen));
+    for (let day = midnight(g.startMs); day < g.startMs + g.days * DAY; day = addDays(day, 1)) days.push(dayTrack(day, agendaFor(day), now, seen));
     for (const key of state.cards.keys()) if (!seen.has(key)) state.cards.delete(key);
     return [axisNode(g, now), el('div', { className: 'cal-days' }, ...days)];
 }
@@ -544,11 +545,10 @@ function axisNode(g, now) {
 }
 
 /** Один день: колонка (колонки) или строка (строки) с шапкой дня, постами, слотами и линией «сейчас». */
-function dayTrack(day, enabled, now, seen) {
+function dayTrack(day, agenda, now, seen) {
     const g = state.geo;
     const today = day === midnight(now);
     const weekend = [0, 6].includes(new Date(day).getDay());
-    const agenda = dayAgenda(state.posts, enabled, day, now);
     const best = bestHoursInfo()?.best ?? [];
     const hole = agenda.some(r => r.kind === 'slot' && best.includes(new Date(r.at).getHours()));   // свободный слот в лучший час
     const section = el('section', { className: `cal-day${today ? ' is-today' : ''}${isPastDay(day, now) ? ' is-past' : ''}${weekend ? ' is-weekend' : ''}` },
@@ -873,13 +873,16 @@ function listView() {
     const now = Date.now();
     const enabled = enabledChannels();
     const start = midnight(state.zoom.startMs);
-    const days = Array.from({ length: state.listDays }, (_, i) => listDay(addDays(start, i), enabled, now));
+    const agendaFor = calendarAgenda(state.posts, enabled, now);
+    const days = Array.from({ length: state.listDays }, (_, i) => {
+        const day = addDays(start, i);
+        return listDay(day, agendaFor(day), now);
+    });
     const more = el('button', { type: 'button', className: 'cal-more', textContent: 'Показать ещё 14 дней', onclick: () => { state.listDays += 14; renderAll(); } });
     return el('div', { className: 'cal-list' }, ...days, more);
 }
 
-function listDay(day, enabled, now) {
-    const rows = dayAgenda(state.posts, enabled, day, now);
+function listDay(day, rows, now) {
     const tomorrow = addDays(midnight(now), 1);
     const label = day === midnight(now) ? `Сегодня, ${dayName(day)}` : day === tomorrow ? `Завтра, ${dayName(day)}` : dayName(day);
     const section = el('section', { className: 'cal-lday' }, el('h4', { className: 'cal-lday-head', textContent: label.replace(/^(Сегодня|Завтра), /, '$1 · ') }),
