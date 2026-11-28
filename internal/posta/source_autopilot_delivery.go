@@ -98,11 +98,14 @@ func (a *App) saveAutopilotContentResult(ctx context.Context, job *autopilotJob,
 		if err := lockAutopilotSource(ctx, tx, job.Scope, job.TopicKey, source); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO source_autopilot_content_results(scope,topic_key,source_id,post_hash,post,analysis,published_at,assessed_at,policy_version)
+		result, err := tx.Exec(ctx, `INSERT INTO source_autopilot_content_results(scope,topic_key,source_id,post_hash,post,analysis,published_at,assessed_at,policy_version)
 			SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9 WHERE EXISTS(SELECT 1 FROM source_autopilot_sources WHERE scope=$1 AND topic_key=$2 AND source_id=$3 AND state IN ('probation','active'))
 			ON CONFLICT(scope,topic_key,source_id,post_hash) DO UPDATE SET post=EXCLUDED.post,analysis=EXCLUDED.analysis,assessed_at=EXCLUDED.assessed_at,policy_version=EXCLUDED.policy_version`,
 			job.Scope, job.TopicKey, source, repeatDigest(CandidatePostKey(post)), postJSON, analysisJSON, jx.Int(post, "posted_at"), time.Now().Unix(), TopicProfileVersion)
-		return err
+		if err != nil || result.RowsAffected() == 0 {
+			return err
+		}
+		return storeAssessedPublicPost(ctx, tx, source, post)
 	})
 }
 

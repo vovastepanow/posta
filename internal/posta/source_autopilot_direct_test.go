@@ -159,6 +159,7 @@ func TestAutopilotDirectDeliversWithoutApprovedSourcePostgres(t *testing.T) {
 		t.Fatalf("claim=%+v err=%v", job, err)
 	}
 	post := jx.M{"source_url": "https://t.me/marketing_digest", "url": "https://t.me/marketing_digest/1337", "posted_at": time.Now().Unix(), "text": "Подробное объяснение решения, конкретные результаты эксперимента и этапы работы. https://t.me/citation_digest/42 https://t.me/citation_blocked https://t.me/citation_digest"}
+	defer d.Pool.Exec(context.Background(), `DELETE FROM public_posts WHERE source_key=$1 AND post_key=$2`, source, CandidatePostKey(post))
 	analysis := jx.M{"advertising": false, "relevance": 95, "topic_match": true, "model": "test", "description": "Содержательная публикация", "why_relevant": "Соответствует теме", "tags": []any{}}
 	defer a.KVDelete(context.Background(), autopilotPostHintKey(key, source))
 	defer a.KVDelete(context.Background(), autopilotDirectSeenKey(key, source, repeatDigest(CandidatePostKey(post))))
@@ -177,6 +178,33 @@ func TestAutopilotDirectDeliversWithoutApprovedSourcePostgres(t *testing.T) {
 	if err := a.autopilotAssessDirectPostsWith(ctx, job, []DiscoveryCandidate{candidate}, assess); err != nil {
 		t.Fatal(err)
 	}
+	var indexed []byte
+	if err := d.Pool.QueryRow(ctx, `SELECT data FROM public_posts WHERE source_key=$1 AND post_key=$2`, source, CandidatePostKey(post)).Scan(&indexed); err != nil {
+		t.Fatalf("assessed public post missing from inventory: %v", err)
+	}
+	if raw := jx.Unmarshal(indexed); jx.Str(raw, "text") != jx.Str(post, "text") || raw["relevance"] != nil || raw["tags"] != nil {
+		t.Fatalf("inventory contains profile verdict instead of raw post: %s", indexed)
+	}
+	// A repeated assessment cannot resurrect an older public observation.
+	if _, err := d.Pool.Exec(ctx, `UPDATE public_posts SET data=data || '{"text_incomplete":true}'::jsonb WHERE source_key=$1 AND post_key=$2`, source, CandidatePostKey(post)); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := d.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = storeAssessedPublicPost(ctx, tx, source, post); err != nil {
+		_ = tx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var incomplete bool
+	if err := d.Pool.QueryRow(ctx, `SELECT data @> '{"text_incomplete":true}'::jsonb FROM public_posts WHERE source_key=$1 AND post_key=$2`, source, CandidatePostKey(post)).Scan(&incomplete); err != nil || !incomplete {
+		t.Fatalf("newer observation overwritten: %v %v", incomplete, err)
+	}
+
 	if err := a.autopilotAssessDirectPostsWith(ctx, job, []DiscoveryCandidate{candidate}, assess); err != nil {
 		t.Fatal(err)
 	}

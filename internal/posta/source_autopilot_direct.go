@@ -47,7 +47,7 @@ func (a *App) saveAutopilotDirectResult(ctx context.Context, job *autopilotJob, 
 		}
 		// No source promotion: this is a single accepted text item, not
 		// evidence that other content from the author may be delivered.
-		_, err := tx.Exec(ctx, `INSERT INTO source_autopilot_direct_results
+		result, err := tx.Exec(ctx, `INSERT INTO source_autopilot_direct_results
 			(scope,topic_key,source_id,post_hash,post,analysis,published_at,assessed_at,policy_version)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
 			ON CONFLICT(scope,topic_key,source_id,post_hash) DO UPDATE SET
@@ -57,7 +57,10 @@ func (a *App) saveAutopilotDirectResult(ctx context.Context, job *autopilotJob, 
 			   OR source_autopilot_direct_results.assessed_at < EXCLUDED.assessed_at - 172800`,
 			job.Scope, job.TopicKey, source, repeatDigest(CandidatePostKey(post)), jx.Marshal(post),
 			jx.Marshal(analysis), jx.Int(post, "posted_at"), time.Now().Unix(), TopicProfileVersion)
-		return err
+		if err != nil || result.RowsAffected() == 0 {
+			return err
+		}
+		return storeAssessedPublicPost(ctx, tx, source, post)
 	})
 }
 
