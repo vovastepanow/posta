@@ -298,6 +298,7 @@ func (u *U) TopicsAcceptText(topics []string) bool {
 type topicIndex struct {
 	byID   map[string]*Topic
 	byNorm map[string]*Topic
+	byLiteral map[string]*Topic
 	kids   map[string][]*Topic
 	order  []*Topic
 }
@@ -324,9 +325,13 @@ var topicAliasOwners = map[string]string{
 }
 
 func buildTopicIndex(list []*Topic) *topicIndex {
-	idx := &topicIndex{byID: map[string]*Topic{}, byNorm: map[string]*Topic{}, kids: map[string][]*Topic{}, order: list}
+	idx := &topicIndex{byID: map[string]*Topic{}, byNorm: map[string]*Topic{}, byLiteral: map[string]*Topic{}, kids: map[string][]*Topic{}, order: list}
 	for _, e := range list {
 		idx.byID[e.ID] = e
+		key := openSearchProfileKey(e.Title)
+		if _, ok := idx.byLiteral[key]; !ok {
+			idx.byLiteral[key] = e
+		}
 	}
 	// Exact titles take priority. An alias shared by multiple topics without
 	// an exact-title owner is ambiguous and must not depend on registry order.
@@ -437,7 +442,7 @@ func (a *App) TopicByID(id string) *Topic { return a.topicIdx().byID[id] }
 
 // TopicLookup — тема по названию или синониму, иначе nil.
 func (a *App) TopicLookup(text string) *Topic {
-	if exact := a.exactSearchProfile(text); exact != nil {
+	if exact := a.exactSearchProfile(text); exact != nil || a.openProfilesEnabled() {
 		return exact
 	}
 	n := TopicNorm(text)
@@ -707,6 +712,16 @@ func (a *App) TopicPromptContext(topic string) string {
 
 // TopicPublic — тема для интерфейса.
 func (u *U) TopicPublic(e *Topic, d *SourceDB) jx.M {
+	if u.openProfilesEnabled() {
+		out := jx.M{"id": e.ID, "title": e.Title, "path": e.Title, "scope":"narrow", "nsfw": u.TopicIsRestricted(e.Title), "parent":nil,
+			"children":[]string{}, "aliases":[]string{}, "key":"", "hint":"", "about":e.About, "own_sources":u.TopicOwnSourceCount(e,d),
+			"uses_parent_sources":false, "hashtags":jx.M{}, "criteria":"", "exclude":"", "question":"", "profile":nil}
+		if p := e.Profile; p != nil && p.V == TopicProfileVersion && e.Key == "" {
+			out["criteria"], out["exclude"], out["question"] = p.Criteria, p.Exclude, p.Question
+			out["profile"] = jx.M{"smart": p.Smart, "at": p.At}
+		}
+		return out
+	}
 	parent := u.TopicParent(e)
 	own := u.TopicOwnSourceCount(e, d)
 	var parentOut any
@@ -737,6 +752,9 @@ func (u *U) TopicPublic(e *Topic, d *SourceDB) jx.M {
 func (a *App) TopicIsNSFW(text string) bool {
 	for _, part := range TopicParts(text) {
 		e := a.TopicLookup(part)
+		if e == nil && a.catalog != nil {
+			e = a.topicIdx().byNorm[TopicNorm(part)]
+		}
 		if e == nil {
 			continue
 		}
@@ -1551,6 +1569,13 @@ func (u *U) TopicProfileEnsure(topic string) *TopicProfile {
 
 // TopicProfileForPrompts — профиль без обращения к модели (у составной темы — от первой).
 func (a *App) TopicProfileForPrompts(topic string) *TopicProfile {
+	if a.openProfilesEnabled() {
+		e := a.exactSearchProfile(topic)
+		if e != nil && e.Key == "" && e.Profile != nil && e.Profile.V == TopicProfileVersion {
+			return e.Profile
+		}
+		return nil
+	}
 	first := topic
 	if parts := TopicParts(topic); len(parts) > 0 {
 		first = parts[0]

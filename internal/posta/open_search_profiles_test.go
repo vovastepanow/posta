@@ -47,3 +47,11 @@ func TestOpenSettingsPreserveLiteralIntent(t *testing.T) {
 		t.Fatal("compound key was truncated")
 	}
 }
+
+func TestLiteralIndexKeepsPunctuationDistinct(t *testing.T) {
+	a,b := &Topic{ID:"first",Title:"C++"}, &Topic{ID:"second",Title:"C#"}
+	idx:=buildTopicIndex([]*Topic{a,b})
+	if idx.byLiteral["c++"]!=a || idx.byLiteral["c#"]!=b || idx.byLiteral["c"]!=nil {
+		t.Fatal("literal lookup inherited a taxonomy alias")
+	}
+}

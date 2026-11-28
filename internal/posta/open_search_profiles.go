@@ -32,12 +32,7 @@ func (a *App) exactSearchProfile(query string) *Topic {
 	if key == "" {
 		return nil
 	}
-	for _, entry := range a.TopicRegistry() {
-		if openSearchProfileKey(entry.Title) == key {
-			return entry
-		}
-	}
-	return nil
+	return a.topicIdx().byLiteral[key]
 }
 
 func (a *App) ensureOpenSearchProfile(ctx context.Context, query string) (*Topic, error) {
@@ -61,4 +56,14 @@ func literalIntentKey(query string) string {
 
 func NormalizeOpenQuery(query string) string {
 	return trimRunes(collapseSpaces(query), config.TopicQueryMaxLen)
+}
+
+// Existing taxonomy entries may be visible as historical titles, but their
+// predefined aliases and criteria are not the definition of a new request.
+func (a *App) discoveryIntentProfile(query string) *Topic {
+	e := a.TopicLookup(query)
+	if a.openProfilesEnabled() && e != nil && e.Key != "" {
+		return nil
+	}
+	return e
 }

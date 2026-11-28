@@ -35,7 +35,7 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 		// discovery cycle. Static topic queries remain available meanwhile.
 		checkpoint["query_attempted_at"] = time.Now().Unix()
 		schema := jx.M{"type": "object", "properties": jx.M{"queries": jx.M{"type": "array", "items": jx.M{"type": "string"}, "maxItems": 5}}, "required": []string{"queries"}}
-		response, err := a.LLM.Generate(ctx, &llm.Request{Role: llm.RoleSmart, FreeOnly: true, Prompt: autopilotQueryGenerationPrompt(job.Topic, a.User(ctx, "", nil).professionalValueTopic(job.Topic)) + autopilotQueryProfileContext(a.TopicLookup(job.Topic)), Schema: schema, MaxTokens: 300, Temperature: 0.2, Timeout: 30 * time.Second, Topic: job.Topic, Quiet: true})
+		response, err := a.LLM.Generate(ctx, &llm.Request{Role: llm.RoleSmart, FreeOnly: true, Prompt: autopilotQueryGenerationPrompt(job.Topic, a.User(ctx, "", nil).professionalValueTopic(job.Topic)) + autopilotQueryProfileContext(a.discoveryIntentProfile(job.Topic)), Schema: schema, MaxTokens: 300, Temperature: 0.2, Timeout: 30 * time.Second, Topic: job.Topic, Quiet: true})
 		if budgetErr := autopilotBudgetError(ctx); budgetErr != nil {
 			return "", budgetErr
 		}
@@ -63,7 +63,7 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 		}
 	}
 	choices := []string{job.Topic}
-	if topic := a.TopicLookup(job.Topic); topic != nil {
+	if topic := a.discoveryIntentProfile(job.Topic); topic != nil {
 		choices = append(choices, topic.Queries...)
 		if topic.Profile != nil {
 			choices = append(choices, topic.Profile.Queries...)
@@ -71,7 +71,7 @@ func (a *App) autopilotChooseQuery(ctx context.Context, job *autopilotJob) (stri
 	}
 	// Keep the model's specific intents ahead of potentially long alias lists.
 	choices = append(choices, jx.Strs(checkpoint, "generated_queries")...)
-	if topic := a.TopicLookup(job.Topic); topic != nil {
+	if topic := a.discoveryIntentProfile(job.Topic); topic != nil {
 		choices = append(choices, topic.Aliases...)
 	}
 	clean := autopilotCleanDiscoveryQueries(job.Topic, choices)
