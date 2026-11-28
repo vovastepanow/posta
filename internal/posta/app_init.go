@@ -104,6 +104,7 @@ func (a *App) StartBackground() {
 		a.Go("source-autopilot-auto", func(ctx context.Context) {
 			a.superviseAutopilotWorker(ctx, "auto", a.runAutopilotAutoWorker)
 		})
+		a.Every("public-embedding-backfill", 10*time.Minute, a.backfillPublicEmbeddings)
 		a.Go("public-classification-backfill", func(ctx context.Context) {
 			a.backfillPublicClassifications(ctx)
 			ticker := time.NewTicker(5 * time.Minute)
