@@ -1085,17 +1085,58 @@ func telegramReschedule(c *Ctx) (any, error) {
 	return ok(jx.M{"publish_at": plan[id].at, "slot": plan[id].slot != nil, "moved": moved}), nil
 }
 
+// Keep all publication destinations in one owner-scoped snapshot. Legacy
+// posts without a channel ID use the first Telegram channel.
+type publicationChannels struct {
+	telegram []*posta.Channel
+	byID     map[string]*posta.Channel
+}
+
+func newPublicationChannels(channels []*posta.Channel) publicationChannels {
+	out := publicationChannels{byID: make(map[string]*posta.Channel, len(channels))}
+	for _, ch := range channels {
+		if ch == nil {
+			continue
+		}
+		out.byID[ch.ID] = ch
+		if ch.Platform == "telegram" {
+			out.telegram = append(out.telegram, ch)
+		}
+	}
+	return out
+}
+
+func (s publicationChannels) connected() bool {
+	return len(s.telegram) > 0 && s.telegram[0].Token != ""
+}
+
+func (s publicationChannels) fields(id string) jx.M {
+	ch := s.byID[id]
+	if id == "" && len(s.telegram) > 0 {
+		ch = s.telegram[0]
+	}
+	if ch == nil {
+		return jx.M{"channel": "", "channel_title": ""}
+	}
+	return jx.M{"channel": ch.ID, "channel_title": ch.ChatTitle}
+}
+
+func publicationSummaryText(e jx.M) string {
+	return posta.PostExtrasSummary(posta.PollPreflightText(jx.Str(e, "text"), jx.Map(e, "poll")), jx.Map(e, "extras"))
+}
+
 func telegramQueue(c *Ctx) (any, error) {
 	u := c.U
-	channels := u.TelegramChannels()
-	connected := len(channels) > 0 && channels[0].Token != ""
+	resources := newPublicationChannels(u.Channels())
+	channels := resources.telegram
+	connected := resources.connected()
 	if c.Q("summary") == "1" {
 		return jx.M{"connected": connected, "native_account": u.TelegramUserConnected(), "channels": telegramChannelsPublic(c, channels)}, nil
 	}
 	u.TelegramSettleNativePosts()
 	scheduled := []jx.M{}
 	for _, e := range u.Outbox() {
-		scheduled = append(scheduled, jx.Merge(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(posta.PollPreflightText(jx.Str(e,"text"),jx.Map(e,"poll")),jx.Map(e,"extras")), len(jx.List(e, "media"))), u.TelegramChannelFields(jx.Str(e, "channel"))),
+		scheduled = append(scheduled, jx.Merge(jx.Merge(posta.TelegramPostSummary(publicationSummaryText(e), len(jx.List(e, "media"))), resources.fields(jx.Str(e, "channel"))),
 			jx.M{"id": e["id"], "publish_at": jx.Int(e, "publish_at"), "status": e["status"], "attempts": jx.Int(e, "attempts"), "error": jx.Str(e, "error")}))
 	}
 	sort.SliceStable(scheduled, func(i, j int) bool { return jx.Int(scheduled[i], "publish_at") < jx.Int(scheduled[j], "publish_at") })
@@ -1127,13 +1168,13 @@ func thumbFields(e jx.M) jx.M {
 
 func calendar(c *Ctx) (any, error) {
 	u := c.U
-	bot := u.TelegramConnection("")
 	u.TelegramSettleNativePosts()
+	resources := newPublicationChannels(u.Channels())
 	published := u.CalendarPublishedRecent()
 	hashes := map[string]string{}
 	var channels []jx.M
 	byID := map[string]jx.M{}
-	chans := u.TelegramChannels()
+	chans := resources.telegram
 	for i, ch := range telegramChannelsPublic(c, chans) {
 		ch["reach"] = c.A.ChannelReachCached(chans[i])
 		channels = append(channels, ch)
@@ -1154,8 +1195,9 @@ func calendar(c *Ctx) (any, error) {
 				}
 			}
 		}
-		p := jx.Merge(jx.Merge(posta.TelegramPostSummary(posta.PostExtrasSummary(posta.PollPreflightText(jx.Str(e,"text"),jx.Map(e,"poll")),jx.Map(e,"extras")), len(media)), u.TelegramChannelFields(jx.Str(e, "channel"))), jx.M{"id": e["id"],
-			"status": e["status"], "error": jx.Str(e, "error"), "full_text": trimRunes(strings.TrimSpace(posta.PostExtrasSummary(posta.PollPreflightText(jx.Str(e,"text"),jx.Map(e,"poll")),jx.Map(e,"extras"))), 600), "article": e["article"],
+		text := publicationSummaryText(e)
+		p := jx.Merge(jx.Merge(posta.TelegramPostSummary(text, len(media)), resources.fields(jx.Str(e, "channel"))), jx.M{"id": e["id"],
+			"status": e["status"], "error": jx.Str(e, "error"), "full_text": trimRunes(strings.TrimSpace(text), 600), "article": e["article"],
 			"group": jx.Str(e, "group"), "kind": kind, "duration": dur, "poll": jx.Has(e, "poll") && e["poll"] != nil, "at": jx.Int(e, "publish_at"), "forecast": forecast,
 			"item_key": jx.Str(e, "record"), "image_key": src, "duplicate": c.A.CalendarDuplicateOf(jx.M{"image": src, "text": jx.Str(e, "text")}, jx.Str(e, "channel"), published, hashes)})
 		posts = append(posts, jx.Merge(p, thumbFields(e)))
@@ -1185,8 +1227,7 @@ func calendar(c *Ctx) (any, error) {
 	if channels == nil {
 		channels = []jx.M{}
 	}
-	_ = bot
-	return jx.M{"connected": bot != nil, "now": now(), "channels": channels, "posts": orMaps(all), "history_pending": pending, "hints_seen": hint}, nil
+	return jx.M{"connected": resources.connected(), "now": now(), "channels": channels, "posts": orMaps(all), "history_pending": pending, "hints_seen": hint}, nil
 }
 
 func trimRunes(s string, n int) string {
