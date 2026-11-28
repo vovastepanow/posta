@@ -48,3 +48,28 @@ func TestPruneSelectedHistoryExpiresAcrossTopics(t *testing.T) {
 		t.Fatalf("unexpected expiration: %#v", h["liked"])
 	}
 }
+
+func TestSelectedHistoryPrunePreflightMatchesCompaction(t *testing.T) {
+	same := func(a, b string) bool { return a == b }
+	at := int64(2000000)
+	for _, count := range []int{0, proposalsLimit, proposalsLimit + 1} {
+		h := EmptyHistory()
+		for i := 0; i < count; i++ {
+			h["liked"] = append(h["liked"], jx.M{"image": fmt.Sprint(i), "topic": "cats", "timestamp": at})
+		}
+		h["liked"] = append(h["liked"], jx.M{"image": "hidden", "topic": "cats", "timestamp": at, "proposal_hidden": true})
+		h["liked"] = append(h["liked"], jx.M{"image": "other", "topic": "dogs", "timestamp": at})
+		needed := selectedHistoryNeedsPrune(h["liked"], "cats", same, at)
+		if removed := pruneSelectedHistory(h, "cats", same, at); needed != (len(removed) != 0) {
+			t.Fatalf("count %d: preflight=%t removed=%d", count, needed, len(removed))
+		}
+	}
+	h := EmptyHistory()
+	h["liked"] = []jx.M{{"image": "old-hidden", "topic": "dogs", "timestamp": at - selectedPostMaxAge - 1, "proposal_hidden": true}}
+	if !selectedHistoryNeedsPrune(h["liked"], "cats", same, at) || len(pruneSelectedHistory(h, "cats", same, at)) != 1 {
+		t.Fatal("expired hidden records must still be compacted")
+	}
+	if selectedHistoryNeedsPrune(h["liked"], "cats", same, at) {
+		t.Fatal("already compacted records must not trigger another write")
+	}
+}

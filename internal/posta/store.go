@@ -263,11 +263,7 @@ func (u *U) poolUpdate(fn func(pgx.Tx, []jx.M) ([]jx.M, error)) ([]jx.M, error) 
 		}
 		// Reuse the canonical JSON already captured under the row locks.
 		// Only decode the old records if the callback actually writes.
-		before := make([]jx.M, 0, len(snapshot))
-		for _, data := range snapshot {
-			before = append(before, jx.Unmarshal([]byte(data)))
-		}
-		if err := syncRepeatRecords(u.Ctx, tx, u.ID, before, next, false); err != nil {
+		if err := syncRepeatRecords(u.Ctx, tx, u.ID, decodeRepeatSnapshot(snapshot), next, false); err != nil {
 			return err
 		}
 		result = next
@@ -445,11 +441,10 @@ func (a *App) historyUpdateTx(ctx context.Context, uid string, fn func(pgx.Tx, H
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "posta:content:"+uid); err != nil {
 			return err
 		}
-		cur, stored, err := historyLoadForUpdate(ctx, tx, uid)
+		cur, stored, snapshot, err := historyLoadForUpdate(ctx, tx, uid)
 		if err != nil {
 			return err
 		}
-		before := repeatSnapshot(cur.All())
 		next, err := fn(tx, cur)
 		if err != nil {
 			return err
@@ -458,7 +453,7 @@ func (a *App) historyUpdateTx(ctx context.Context, uid string, fn func(pgx.Tx, H
 			result = cur
 			return nil
 		}
-		if err := syncRepeatRecords(ctx, tx, uid, before, next.All(), true); err != nil {
+		if err := syncRepeatRecords(ctx, tx, uid, decodeRepeatSnapshot(snapshot), next.All(), true); err != nil {
 			return err
 		}
 		result = next
@@ -472,12 +467,13 @@ type storedHistoryKey struct {
 	hidden                  bool
 }
 
-func historyLoadForUpdate(ctx context.Context, tx pgx.Tx, uid string) (History, map[storedHistoryKey][]storedPoolRow, error) {
+func historyLoadForUpdate(ctx context.Context, tx pgx.Tx, uid string) (History, map[storedHistoryKey][]storedPoolRow, []string, error) {
 	h := EmptyHistory()
 	stored := map[storedHistoryKey][]storedPoolRow{}
+	byCollection := map[string][]string{}
 	rows, err := tx.Query(ctx, `SELECT id, collection, position, image_key, proposal_hidden, data FROM history_items WHERE user_id=$1 ORDER BY collection,position,id FOR UPDATE`, uid)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -485,17 +481,22 @@ func historyLoadForUpdate(ctx context.Context, tx pgx.Tx, uid string) (History, 
 		var key storedHistoryKey
 		var raw []byte
 		if err := rows.Scan(&r.id, &key.collection, &r.position, &key.image, &key.hidden, &raw); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		item := jx.Unmarshal(raw)
 		if item == nil || !contains(config.HistoryCollections, key.collection) {
-			return nil, nil, fmt.Errorf("invalid history record in collection %q", key.collection)
+			return nil, nil, nil, fmt.Errorf("invalid history record in collection %q", key.collection)
 		}
 		key.data = string(jx.Marshal(item))
+		byCollection[key.collection] = append(byCollection[key.collection], key.data)
 		stored[key] = append(stored[key], r)
 		h[key.collection] = append(h[key.collection], item)
 	}
-	return h, stored, rows.Err()
+	var snapshot []string
+	for _, coll := range config.HistoryCollections {
+		snapshot = append(snapshot, byCollection[coll]...)
+	}
+	return h, stored, snapshot, rows.Err()
 }
 
 func historyWriteChanges(ctx context.Context, tx pgx.Tx, uid string, stored map[storedHistoryKey][]storedPoolRow, next History) error {

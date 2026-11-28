@@ -202,10 +202,10 @@ func repeatMatches(item jx.M, known *knownKeys, hashes map[string]string) bool {
 }
 
 // Snapshot before callbacks: several existing callbacks mutate maps in place.
-func repeatSnapshot(records []jx.M) []jx.M {
+func decodeRepeatSnapshot(records []string) []jx.M {
 	out := make([]jx.M, 0, len(records))
-	for _, r := range records {
-		out = append(out, jx.Unmarshal(jx.Marshal(r)))
+	for _, data := range records {
+		out = append(out, jx.Unmarshal([]byte(data)))
 	}
 	return out
 }
