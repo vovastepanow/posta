@@ -240,6 +240,65 @@ try{
     assert.equal(await history.evaluate(e=>e.open),true);
     assert.equal(historyReads,1);
     await sourcesPage.close();
+    // A refresh while an edit/confirmation is open must never redirect a write
+    // to the new record at the same row index.
+    const dbPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    dbPage.on('pageerror', e => errors.push(e.message));
+    let dbReads = 0;
+    const writes = [];
+    await dbPage.route('**/*', route => {
+        const url = new URL(route.request().url());
+        if (url.hostname !== '127.0.0.1') return route.abort();
+        if (url.pathname !== '/index.php') return route.continue();
+        const action = url.searchParams.get('action');
+        if (action === 'database_options') return route.fulfill({ json: {
+            databases: [{ id: 'content_pool', label: 'Пул', by_topic: true, collections: [{ id: 'items', label: 'Записи' }] }]
+        }});
+        if (action === 'database_read') return route.fulfill({ json: {
+            database_label: 'Пул', collection_label: 'Записи', topic: 'SMM',
+            items: [{ image: 'https://example.com/image.jpg', text: 'Record ' + (++dbReads) }]
+        }});
+        if (['database_update', 'database_delete', 'database_add'].includes(action)) {
+            writes.push({ action, body: route.request().postDataJSON() });
+        }
+        return route.fulfill({ json: {} });
+    });
+    await dbPage.goto('http://127.0.0.1:' + server.address().port + '/home-test');
+    await dbPage.evaluate(async () => {
+        const { initializeCore } = await import('/js/core.js');
+        initializeCore();
+        const { initializeDatabases, loadDatabaseOptions } = await import('/js/account-database.js');
+        const tab = document.getElementById('admin-tab');
+        tab.hidden = false;
+        tab.classList.add('active');
+        tab.querySelector('[data-admin-section=databases]').hidden = false;
+        initializeDatabases();
+        await loadDatabaseOptions();
+    });
+    await dbPage.locator('#database-list').getByText('Record 1').waitFor();
+    await dbPage.locator('#database-edit').click();
+    await dbPage.locator('#database-refresh').evaluate(button => button.click());
+    await dbPage.locator('#database-list').getByText('Record 2').waitFor({ state: 'attached' });
+    await dbPage.locator('#database-edit-form [type=submit]').click();
+    await dbPage.locator('#database-dialog-status').getByText('Список изменился.', { exact: false }).waitFor();
+    assert.equal(writes.length, 0);
+    await dbPage.locator('#database-cancel').click();
+    await dbPage.locator('#database-delete').click();
+    await dbPage.locator('#database-refresh').evaluate(button => button.click());
+    await dbPage.locator('#database-list').getByText('Record 3').waitFor({ state: 'attached' });
+    await dbPage.locator('.ask-ok').click();
+    await dbPage.locator('#database-status').getByText('Список изменился.', { exact: false }).waitFor();
+    assert.equal(writes.length, 0);
+    await dbPage.locator('#database-edit').click();
+    await dbPage.locator('#database-record-json').fill(JSON.stringify({ image: 'https://example.com/image.jpg', text: 'Edited' }));
+    await dbPage.locator('#database-edit-form [type=submit]').click();
+    await dbPage.locator('#database-edit-dialog').waitFor({ state: 'hidden' });
+    assert.equal(writes.length, 1);
+    assert.deepEqual(writes[0], { action: 'database_update', body: {
+        database: 'content_pool', collection: 'items', record: { image: 'https://example.com/image.jpg', text: 'Edited' },
+        expected_topic: 'SMM', index: 0, expected: { image: 'https://example.com/image.jpg', text: 'Record 3' }
+    }});
+    await dbPage.close();
     assert.deepEqual(errors,[]);
     console.log('Editor browser: isolated variants, formatting, compound poll, mobile layout and submitted payloads passed');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

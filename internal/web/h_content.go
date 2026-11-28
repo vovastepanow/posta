@@ -826,19 +826,28 @@ func collLabel(d dbDef, coll string) (string, bool) {
 	return "", false
 }
 
-// databaseOpen — записи коллекции: пул и история — только темы, выбранной во вкладках; SQL-таблицы — только свои строки.
-func databaseOpen(c *Ctx, database, coll string) (dbDef, []jx.M, error) {
+// Validate access and collection names without loading any records.
+func databaseDefinition(c *Ctx, database, coll string) (dbDef, error) {
 	d, known := dbDefinitions()[database]
 	if ownerDatabase(database) {
 		if err := ownerOnly(c); err != nil {
-			return d, nil, err
+			return d, err
 		}
 	}
 	if !known {
-		return d, nil, fail(400, "Неизвестная база данных.")
+		return d, fail(400, "Неизвестная база данных.")
 	}
 	if _, ok := collLabel(d, coll); !ok {
-		return d, nil, fail(400, "Неизвестная коллекция.")
+		return d, fail(400, "Неизвестная коллекция.")
+	}
+	return d, nil
+}
+
+// databaseOpen — записи коллекции: пул и история — только выбранной темы.
+func databaseOpen(c *Ctx, database, coll string) (dbDef, []jx.M, error) {
+	d, err := databaseDefinition(c, database, coll)
+	if err != nil {
+		return d, nil, err
 	}
 	u := c.U
 	if database == "topic_sources" {
@@ -1000,6 +1009,9 @@ func databaseEdit(c *Ctx, all []jx.M, database, coll string) ([]jx.M, error) {
 	action := c.Action
 	var visible []int
 	if database == "content_pool" || database == "content_history" {
+		if expected, supplied := c.In["expected_topic"]; supplied && jx.ToStr(expected) != c.U.SearchTopicKey() {
+			return nil, fail(409, "Тема изменилась с момента загрузки списка. Обновите список и повторите.")
+		}
 		visible = c.U.PoolTopicPositions(all)
 	} else {
 		for i := range all {
@@ -1041,7 +1053,7 @@ func databaseEdit(c *Ctx, all []jx.M, database, coll string) ([]jx.M, error) {
 
 func databaseChange(c *Ctx) (any, error) {
 	database, coll := c.Str("database"), c.Str("collection")
-	d, _, err := databaseOpen(c, database, coll)
+	d, err := databaseDefinition(c, database, coll)
 	if err != nil {
 		return nil, err
 	}
