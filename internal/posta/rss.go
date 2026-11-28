@@ -149,7 +149,10 @@ func rssLoad(data []byte) *xnode {
 	if !ok {
 		return nil
 	}
-	d := xml.NewDecoder(bytes.NewReader(data))
+	// All raw markup slices share one immutable string, rather than copying
+	// the same nested markup for every ancestor node.
+	raw := string(data)
+	d := xml.NewDecoder(strings.NewReader(raw))
 	d.Strict = false
 	// HTMLAutoClose здесь не нужен: он закрывал <link> сразу после открытия, и лента RSS 2.0 обрывалась на первом же <link>
 	d.Entity = xml.HTMLEntity
@@ -186,7 +189,7 @@ func rssLoad(data []byte) *xnode {
 			if len(stack) > 1 {
 				s := starts[len(starts)-1]
 				if off >= s && int(off) <= len(data) {
-					top.Raw = string(data[s:off])
+					top.Raw = raw[s:off]
 				}
 				stack = stack[:len(stack)-1]
 				starts = starts[:len(starts)-1]
@@ -219,8 +222,12 @@ func (n *xnode) kids(name string) []*xnode {
 }
 
 func (n *xnode) kid(name string) *xnode {
-	if k := n.kids(name); len(k) > 0 {
-		return k[0]
+	if n != nil {
+		for _, k := range n.K {
+			if k.N == name {
+				return k
+			}
+		}
 	}
 	return nil
 }
@@ -410,6 +417,8 @@ func rssParseLoadedDocument(doc *xnode, count int, name, feedURL string, keepNoI
 	kind := RSSFeedKind(feedURL)
 	youtube := kind == "YouTube" || kind == "YouTube Shorts"
 	shortsFeed := strings.Contains(feedURL, "playlist_id=UUSH")
+	feed, feedErr := url.Parse(feedURL)
+	lemmyFeed := feedErr == nil && strings.HasPrefix(feed.Path, "/feeds/c/")
 	items := rssItems(doc)
 	if len(items) > rssMaxItems {
 		items = items[:rssMaxItems]
@@ -439,7 +448,7 @@ func rssParseLoadedDocument(doc *xnode, count int, name, feedURL string, keepNoI
 		imageFallback := ""
 		// Lemmy RSS exposes the original as an enclosure and a resized copy as
 		// media:content. They are alternative representations, not an album.
-		if feed, err := url.Parse(feedURL); err == nil && strings.HasPrefix(feed.Path, "/feeds/c/") {
+		if lemmyFeed {
 			enclosures := item.kids("enclosure")
 			media := item.kids("media:content")
 			if len(enclosures) == 1 && len(media) == 1 && len(files) == 2 && rssIsImage(files[0]) && rssIsImage(files[1]) {
@@ -595,9 +604,6 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 		return nil, nil
 	}
 	if _, ok := autopilotMastodonFeed(feedURL); ok {
-		if count <= 0 {
-			return nil, nil
-		}
 		r := u.autopilotMastodonListing(feedURL)
 		if !r.OK {
 			return nil, Bad("Mastodon: публичная лента недоступна: %s", fetchFailure(r.FetchResult))
@@ -770,8 +776,8 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 	}
 	// Reuse the existing validated same-origin alternate-feed resolver and
 	// bounded size retry. No special API source is routed through this path.
-	r := autopilotReadRSS(feedURL, u.RSSGet)
-	if !r.OK || r.Status == 206 || !rssIsFeed(rssLoad(r.Bytes)) {
+	r, doc := autopilotReadRSSDocument(feedURL, u.RSSGet)
+	if !r.OK || r.Status == 206 || !rssIsFeed(doc) {
 		if cid, tab, ok := YouTubeFeedChannel(feedURL); ok && r.Status != 401 && r.Status != 403 && r.Status != 429 {
 			u.Log("YouTube: лента недоступна (%d), список роликов взят через yt-dlp", r.Status)
 			posts, err := u.YouTubeChannelPosts(cid, tab, count)
@@ -785,7 +791,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 		}
 		return nil, Bad("Лента не загрузилась: %s", fetchFailure(r.FetchResult))
 	}
-	return RSSParse(r.Bytes, count, name, r.URL, keepNoImage, withText, 120)
+	return rssParseLoadedDocument(doc, count, name, r.URL, keepNoImage, withText, 120)
 }
 
 // RSSFeedTitle — название ленты, иначе хост.

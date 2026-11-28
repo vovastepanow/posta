@@ -103,7 +103,7 @@ func autopilotControlNextPublisher(results jx.M, at time.Time) int {
 func (a *App) autopilotControlPublisher(ctx context.Context, job *autopilotJob, feed string, at time.Time) (jx.M, error) {
 	ctx = withAutopilotAssessmentProbe(ctx)
 	u := a.User(ctx, "", nil)
-	res := autopilotReadRSS(feed, u.RSSGet)
+	res, doc := autopilotReadRSSDocument(feed, u.RSSGet)
 	if err := autopilotBudgetError(ctx); err != nil {
 		return nil, err
 	}
@@ -111,10 +111,10 @@ func (a *App) autopilotControlPublisher(ctx context.Context, job *autopilotJob, 
 		return nil, err
 	}
 	result := jx.M{"at": at.Unix(), "http_status": res.Status, "status": "not_readable"}
-	if !res.OK || !rssIsFeed(rssLoad(res.Bytes)) {
+	if !res.OK || !rssIsFeed(doc) {
 		return result, nil
 	}
-	posts, err := RSSParse(res.Bytes, 20, "", res.URL, true, true, 0)
+	posts, err := rssParseLoadedDocument(doc, 20, "", res.URL, true, true, 0)
 	if err != nil {
 		result["status"] = "parse_failed"
 		return result, nil

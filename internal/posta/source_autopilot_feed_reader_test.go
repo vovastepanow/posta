@@ -8,7 +8,7 @@ import (
 func TestAutopilotReadRSSUsesBoundedSamePublisherAlternate(t *testing.T) {
 	const feed = "https://example.org/news"
 	calls := 0
-	got := autopilotReadRSS(feed, func(raw string, limit int64, _ time.Duration, _ string) FetchResultURL {
+	got, doc := autopilotReadRSSDocument(feed, func(raw string, limit int64, _ time.Duration, _ string) FetchResultURL {
 		calls++
 		switch calls {
 		case 1:
@@ -31,7 +31,7 @@ func TestAutopilotReadRSSUsesBoundedSamePublisherAlternate(t *testing.T) {
 			return FetchResultURL{}
 		}
 	})
-	if !got.OK || calls != 3 || !rssIsFeed(rssLoad(got.Bytes)) {
+	if !got.OK || calls != 3 || !rssIsFeed(doc) || doc.kid("title").text() != "Example" {
 		t.Fatalf("alternate not recovered: %+v, calls=%d", got, calls)
 	}
 }

@@ -24,7 +24,11 @@ func autopilotReadListing(raw string, ua string, fetch func(string, int64, time.
 // Follow only an explicit HTML alternate link from the publisher, never
 // guessed paths or links to login/challenge pages or another publisher.
 func autopilotRSSAlternate(r FetchResultURL) string {
-	if !r.OK || rssIsFeed(rssLoad(r.Bytes)) || len(r.Bytes) == 0 {
+	return autopilotRSSAlternateDocument(r, rssLoad(r.Bytes))
+}
+
+func autopilotRSSAlternateDocument(r FetchResultURL, doc *xnode) string {
+	if !r.OK || rssIsFeed(doc) || len(r.Bytes) == 0 {
 		return ""
 	}
 	base, err := url.Parse(r.URL)
@@ -50,24 +54,37 @@ func autopilotRSSAlternate(r FetchResultURL) string {
 }
 
 func autopilotReadRSS(feed string, fetch func(string, int64, time.Duration, string) FetchResultURL) FetchResultURL {
+	r, _ := autopilotReadRSSDocument(feed, fetch)
+	return r
+}
+
+// Return the validated document with the response so callers can reuse the
+// parse tree rather than decoding the same feed again.
+func autopilotReadRSSDocument(feed string, fetch func(string, int64, time.Duration, string) FetchResultURL) (FetchResultURL, *xnode) {
 	r := autopilotReadListing(feed, HTTPUA, fetch)
+	if !r.OK {
+		return r, nil
+	}
+	doc := rssLoad(r.Bytes)
 	if _, youtube := canonicalYouTubeFeed(feed); youtube {
-		return r
+		return r, doc
 	}
 	// The initial final URL must still belong to the nominated publisher.
 	original, err := url.Parse(feed)
 	final, finalErr := url.Parse(r.URL)
 	if err != nil || finalErr != nil || !strings.EqualFold(original.Hostname(), final.Hostname()) {
-		return r
+		return r, doc
 	}
-	if alternate := autopilotRSSAlternate(r); alternate != "" {
+	if alternate := autopilotRSSAlternateDocument(r, doc); alternate != "" {
 		replacement := autopilotReadListing(alternate, HTTPUA, fetch)
 		p, err := url.Parse(replacement.URL)
-		if err == nil && strings.EqualFold(p.Hostname(), original.Hostname()) && replacement.OK && rssIsFeed(rssLoad(replacement.Bytes)) {
-			return replacement
+		if err == nil && strings.EqualFold(p.Hostname(), original.Hostname()) && replacement.OK {
+			if replacementDoc := rssLoad(replacement.Bytes); rssIsFeed(replacementDoc) {
+				return replacement, replacementDoc
+			}
 		}
 	}
-	return r
+	return r, doc
 }
 
 func autopilotFeedReadReason(r FetchResultURL) string {
