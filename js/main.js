@@ -1,5 +1,5 @@
 // main.js — точка входа (ES-модуль, без сборки): вкладки, панель модели, демо-режим.
-import { $, DEBUG_MODE, api, el, hide, initializeCore, log, show, startTabSession, switchTab, watchParser } from './core.js';
+import { $, DEBUG_MODE, api, el, initializeCore, log, show, startTabSession, switchTab, watchParser } from './core.js';
 import { initializeImageViewer } from './viewer.js';
 import { initializeContentTab, loadCurrentItem } from './content.js';
 import { initializeSourceTab } from './sources.js?v=source-tools-13';

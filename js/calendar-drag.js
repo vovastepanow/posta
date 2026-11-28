@@ -1,7 +1,7 @@
 // calendar-drag.js — жесты календаря: перенос и копия поста (мышь — сразу, палец — после удержания), траектория,
 // плашка сдвига, прилипающие отметки; фон: сдвиг по дням и часам одновременно, щипок. Геометрию и запросы даёт host из calendar.js.
 import { el } from './core.js';
-import { addDays, panAxis, shiftLabel, snapTarget, MIN } from './calendar-model.js';
+import { panAxis, shiftLabel, snapTarget, MIN } from './calendar-model.js';
 
 const MOUSE_START_PX = 5;      // мышь: перенос начинается после сдвига на столько пикселей
 const TOUCH_HOLD_MS = 350;     // палец: удержание без сдвига до переноса

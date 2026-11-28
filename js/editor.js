@@ -1,7 +1,7 @@
 // editor.js — окно выбора даты и времени и модальный редактор поста (порядок медиа, текст, отправка через onSubmit).
 import { VIDEO_ICON, api, el, pluralRu } from './core.js';
 import { cloneDraft,draftFor,draftPayload,draftProblem,draftNeedsQueue } from './editor-variants.js';
-import { targetCapabilities, commonCapabilities, commonPollLimits, mediaKind, validateTarget, attachmentError, extraActive, extraAvailability, extraError, EXTRA_KEYS, standaloneExtra } from './editor-capabilities.js';
+import { targetCapabilities, commonCapabilities, commonPollLimits, mediaKind, attachmentError, extraActive, extraAvailability, EXTRA_KEYS, standaloneExtra } from './editor-capabilities.js';
 
 // ---- Дата и время ----
 
@@ -917,7 +917,6 @@ export function openPostEditor(options) {
     else { ui.text.focus(); ui.text.setSelectionRange(ui.text.value.length, ui.text.value.length); }
 }
 
-
 // Preserve the textarea's selection and undo stack using setRangeText.
 function wrapSelection(marker){
     if(!session)return;
@@ -959,7 +958,6 @@ function renderFormatting(){
     nodes.push(document.createTextNode(value.slice(pos)));
     ui.formatPreview.replaceChildren(el('small',{className:'pe-preview-label',textContent:'Предпросмотр форматирования'}),el('div',{className:'pe-preview-copy'},...nodes));
 }
-
 
 function loadEditorDraft(target,d){
     session.editTarget=target;

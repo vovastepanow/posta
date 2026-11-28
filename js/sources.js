@@ -1,13 +1,8 @@
 // Источники: автопилот, каталог, добавление и исключение выбранных источников.
-import { $, ask, COUNT, DEBUG_MODE, VIDEO_ICON, cleanCaption, api, bindMenu, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, onTopicChange, pluralRu, qualityText, safeSourcePostUrl, setMessage, show, watchParser } from './core.js';
-import { BIG_VIDEO_NOTE, closePostView, openPostView, shownText } from './post-view.js';
-import { fromSourcePost } from './post-adapters.js';
-import { videoPageFor } from './viewer.js';
-import { bindFutureDraftButton, toggleFutureDraft, loadCurrentItem } from './content.js';
-import { openAccountSection } from './account.js';
-import { mediaFileKey } from './media-dedupe.js';
-import { loadImage, pageCheck, videoProgress, watchVideo } from './video-pending.js';
-import { shortText } from './card.js';
+import { $, ask, COUNT, DEBUG_MODE, api, chip, el, formatAgo, hide, isTabActive, log, onParserStateChange, onTabOpen, safeSourcePostUrl } from './core.js';
+
+import { loadCurrentItem } from './content.js';
+
 import { initRegistry, loadRegistry } from './registry.js';
 import { prepareOwnImage } from './image-prepare.js';
 import { collectSourcePages } from './source-pages.js';
@@ -643,7 +638,6 @@ async function copyAutopilotDiagnostic() {
         button.disabled = false;
     }
 }
-
 
 const autopilotExportStates = ['candidate', 'probation', 'active', 'cooldown', 'rejected'];
 
