@@ -1273,39 +1273,47 @@ func (u *U) buildCandidateQueue(byPlatform map[string][]jx.M, seen *knownKeys, r
 	for _, k := range order {
 		all = append(all, unique[k])
 	}
-	query := u.CurrentQuery()
-	named := func(it jx.M) int {
-		if !ImageboardItem(it) && query != "" && QueryTextHit(jx.Str(it, "text"), query) {
-			return 1
-		}
-		return 0
-	}
-	chance := func(it jx.M) (bool, float64) {
-		r := rates[ContentSourceKey(it)]
-		rate := float64(r[0]+1) / float64(r[1]+2)
-		return r[1] >= config.SourceVerdictMin && rate < config.SourceVerdictLow, rate
-	}
-	sort.SliceStable(all, func(i, j int) bool {
-		a, b := all[i], all[j]
-		if x, y := named(a), named(b); x != y {
-			return x > y
-		}
-		ca, ra := chance(a)
-		cb, rb := chance(b)
-		if ca != cb {
-			return !ca
-		}
-		// The optional text match is a bounded priority adjustment. Neither
-		// a weak caption nor absence of a score rejects the candidate.
-		ra *= queryRerankMultiplier(a, query)
-		rb *= queryRerankMultiplier(b, query)
-		if ra != rb {
-			return ra > rb
-		}
-		return jx.Int(a, "posted_at") > jx.Int(b, "posted_at")
-	})
+	collectorSortCandidates(all, rates, u.CurrentQuery())
 	short := u.hotShortlist(all, rates, topic)
 	return short[:min(len(short), 500)], skipped
+}
+
+// Calculate lexical matches and quality hints once, not on every comparison.
+func collectorSortCandidates(items []jx.M, rates map[string][2]int, query string) {
+	type rank struct {
+		item        jx.M
+		named, cold bool
+		score       float64
+		postedAt    int64
+	}
+	ranked := make([]rank, len(items))
+	for i, item := range items {
+		r := rates[ContentSourceKey(item)]
+		rate := float64(r[0]+1) / float64(r[1]+2)
+		ranked[i] = rank{
+			item:     item,
+			named:    !ImageboardItem(item) && query != "" && QueryTextHit(jx.Str(item, "text"), query),
+			cold:     r[1] >= config.SourceVerdictMin && rate < config.SourceVerdictLow,
+			score:    rate * queryRerankMultiplier(item, query),
+			postedAt: jx.Int(item, "posted_at"),
+		}
+	}
+	sort.SliceStable(ranked, func(i, j int) bool {
+		a, b := ranked[i], ranked[j]
+		if a.named != b.named {
+			return a.named
+		}
+		if a.cold != b.cold {
+			return !a.cold
+		}
+		if a.score != b.score {
+			return a.score > b.score
+		}
+		return a.postedAt > b.postedAt
+	})
+	for i, r := range ranked {
+		items[i] = r.item
+	}
 }
 
 // Restore exactly the identities used when building the unique map. Image
@@ -1336,22 +1344,37 @@ func collectorDeferredKeys(unique map[string]jx.M, deferred []string, limit int)
 
 // InterleaveBySource — по одному с каждого источника по очереди.
 func InterleaveBySource(items []jx.M) []jx.M {
-	bySrc := map[string][]jx.M{}
-	var order []string
-	for _, it := range items {
-		k := ContentSourceKey(it)
-		if bySrc[k] == nil {
-			order = append(order, k)
-		}
-		bySrc[k] = append(bySrc[k], it)
+	return interleaveByKey(items, ContentSourceKey)
+}
+
+// Preserve first-seen source order and item order within each source.
+// Removing exhausted groups keeps total work linear even for skewed inputs.
+func interleaveByKey[T any](items []T, key func(T) string) []T {
+	if len(items) == 0 {
+		return nil
 	}
-	var out []jx.M
-	for round := 0; len(out) < len(items); round++ {
-		for _, k := range order {
-			if round < len(bySrc[k]) {
-				out = append(out, bySrc[k][round])
+	var groups [][]T
+	byKey := make(map[string]int)
+	for _, item := range items {
+		k := key(item)
+		i, exists := byKey[k]
+		if !exists {
+			i = len(groups)
+			byKey[k] = i
+			groups = append(groups, nil)
+		}
+		groups[i] = append(groups[i], item)
+	}
+	out := make([]T, 0, len(items))
+	for len(groups) > 0 {
+		remaining := groups[:0]
+		for _, group := range groups {
+			out = append(out, group[0])
+			if len(group) > 1 {
+				remaining = append(remaining, group[1:])
 			}
 		}
+		groups = remaining
 	}
 	return out
 }
@@ -1425,31 +1448,40 @@ func PostHeat(item jx.M) *float64 {
 }
 
 func hotRelativeHeat(items []jx.M) []float64 {
-	heat := make([]*float64, len(items))
+	type sample struct {
+		heat             *float64
+		source, platform string
+	}
+	samples := make([]sample, len(items))
 	bySrc, byPlat := map[string][]float64{}, map[string][]float64{}
-	for i, it := range items {
-		heat[i] = PostHeat(it)
-		if heat[i] != nil {
-			bySrc[ContentSourceKey(it)] = append(bySrc[ContentSourceKey(it)], *heat[i])
-			byPlat[HotPlatform(it)] = append(byPlat[HotPlatform(it)], *heat[i])
+	for i, item := range items {
+		if heat := PostHeat(item); heat != nil {
+			source, platform := ContentSourceKey(item), HotPlatform(item)
+			samples[i] = sample{heat, source, platform}
+			bySrc[source] = append(bySrc[source], *heat)
+			byPlat[platform] = append(byPlat[platform], *heat)
 		}
 	}
+	// Median sorts a copy of the input. Reuse each median throughout
+	// this batch rather than sorting the same group for every post.
+	sourceMedian, platformMedian := map[string]*float64{}, map[string]*float64{}
 	out := make([]float64, len(items))
-	for i, it := range items {
-		if heat[i] == nil {
-			out[i] = 1
+	for i, s := range samples {
+		out[i] = 1
+		if s.heat == nil {
 			continue
 		}
-		var base *float64
-		if s := bySrc[ContentSourceKey(it)]; len(s) >= 3 {
-			base = Median(s)
-		} else {
-			base = Median(byPlat[HotPlatform(it)])
+		cache, key, values := platformMedian, s.platform, byPlat[s.platform]
+		if source := bySrc[s.source]; len(source) >= 3 {
+			cache, key, values = sourceMedian, s.source, source
+		}
+		base, ok := cache[key]
+		if !ok {
+			base = Median(values)
+			cache[key] = base
 		}
 		if base != nil && *base > 0 {
-			out[i] = *heat[i] / *base
-		} else {
-			out[i] = 1
+			out[i] = *s.heat / *base
 		}
 	}
 	return out
@@ -1534,8 +1566,7 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 		rest = append(rest, it)
 	}
 	heat := hotRelativeHeat(rest)
-	score := map[int]float64{}
-	tail := 0
+	score := make([]float64, len(rest))
 	for i, it := range rest {
 		text := jx.Str(it, "text")
 		if ImageboardItem(it) {
@@ -1557,9 +1588,6 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 	bySrc := map[string][]int{}
 	var srcOrder []string
 	for i := range rest {
-		if _, ok := score[i]; !ok {
-			continue
-		}
 		k := ContentSourceKey(rest[i])
 		if bySrc[k] == nil {
 			srcOrder = append(srcOrder, k)
@@ -1600,7 +1628,7 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 		}
 	}
 	if u.run != nil {
-		hs := jx.M{"total": len(all), "short": len(picked) + len(first), "per": per, "excluded": 0, "keyword_demoted": len(softTail), "trusted": trusted, "imageboard_tail": tail, "top": nil,
+		hs := jx.M{"total": len(all), "short": len(picked) + len(first), "per": per, "excluded": 0, "keyword_demoted": len(softTail), "trusted": trusted, "imageboard_tail": 0, "top": nil,
 			"per_source_cut": perSourceCut, "shortlist_cut": len(pool) - len(picked)}
 		if top >= 0 {
 			hs["top"] = jx.M{"source": jx.Str(rest[top], "source"), "times": math.Round(heat[top]*10) / 10}

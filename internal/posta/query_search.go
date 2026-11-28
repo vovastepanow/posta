@@ -600,24 +600,7 @@ func rankQuerySearch(by map[string][]jx.M, plan QueryPlan, maxAge int, skip func
 	})
 	// First offer each source a candidate, then its remaining posts. The
 	// collector can discard an already-seen first post and still use another.
-	bySource := map[string][]int{}
-	var sources []string
-	for _, i := range one {
-		src := ContentSourceKey(kept[i].item)
-		if len(bySource[src]) == 0 {
-			sources = append(sources, src)
-		}
-		bySource[src] = append(bySource[src], i)
-	}
-	balanced := make([]int, 0, len(one))
-	for round := 0; len(balanced) < len(one); round++ {
-		for _, src := range sources {
-			if round < len(bySource[src]) {
-				balanced = append(balanced, bySource[src][round])
-			}
-		}
-	}
-	one = balanced
+	one = interleaveByKey(one, func(i int) string { return ContentSourceKey(kept[i].item) })
 	limitPlat := int(querySearchPlatformCap * querySearchQueueMax)
 	per := map[string]int{}
 	out := map[string][]jx.M{}
