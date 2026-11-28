@@ -235,7 +235,6 @@ func OKParseFeed(page, id string, count int, name string) []jx.M {
 	return posts[:min(len(posts), max(0, count))]
 }
 
-
 func (a *App) OKFetchPosts(id string, count int, name string) ([]jx.M, error) {
 	if !IsValidOKGroup(id) {
 		return []jx.M{}, nil
@@ -371,7 +370,6 @@ func (a *App) TikTokFetchPosts(ctx context.Context, user string, count int, name
 	}
 	return posts, nil
 }
-
 
 // ---- Поиск аккаунтов TikTok: страница поиска через headless Chrome (без Node), разбор ссылок «/@имя» ----
 

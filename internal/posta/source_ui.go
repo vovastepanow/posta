@@ -22,11 +22,6 @@ func NewsSiteKind(feed string) string {
 	return "Сайт · " + host
 }
 
-
-
-
-
-
 // SourcePreviewPost — пост превью в одном виде для всех площадок.
 func (u *U) SourcePreviewPost(p jx.M) jx.M {
 	eng := jx.Map(p, "engagement")

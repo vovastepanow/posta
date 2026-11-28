@@ -231,7 +231,6 @@ func DvachThreadTitle(subject, thread string) string {
 	return t
 }
 
-
 // DvachThreadState — alive | gone (только 404) | unknown; posts — посты живого треда.
 func (a *App) DvachThreadState(board, thread string) (string, []jx.M) {
 	if !IsValidDvachBoard(board) || !IsValidDvachID(thread) {
@@ -927,7 +926,6 @@ func (a *App) TelegramChannelPageCached(channel string, before int64) string {
 	return page
 }
 
-
 var (
 	channelTitleRe = regexp.MustCompile(`(?is)class="tgme_channel_info_header_title"[^>]*>(.*?)</div>`)
 	channelDescRe  = regexp.MustCompile(`(?is)class="tgme_channel_info_description"[^>]*>(.*?)</div>`)
@@ -1379,7 +1377,6 @@ func (a *App) VKSearchGroups(ctx context.Context, query string, count int) ([]jx
 	sort.SliceStable(groups, func(i, j int) bool { return jx.Int(groups[i], "subscribers") > jx.Int(groups[j], "subscribers") })
 	return groups, nil
 }
-
 
 // ---- Активность: свежесть постов, частота, заморозка ----
 

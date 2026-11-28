@@ -1046,7 +1046,6 @@ func RSSFeedKind(feedURL string) string {
 	return "RSS"
 }
 
-
 // RSSPostURLTrusted — ссылка записи RSS-источника безопасна: https, хост совпадает с хостом ленты или их поддомены.
 func RSSPostURLTrusted(item jx.M) bool {
 	key, link := jx.Str(item, "source_key"), jx.Str(item, "source_url")
