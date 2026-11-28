@@ -1,6 +1,7 @@
 // Дерево тем и отдельный тест оценки изображения.
 import { $, ask, DEBUG_MODE, api, el, hide, isTabActive, log, onTabOpen, onTopicChange, renderTags, setMessage, show } from './core.js';
 import { TOPIC_CONFIRM, loadCurrentItem, refreshTopicLabel, saveTopic } from './content.js';
+import { buildTopicTree, topicTags, treeNorm } from './topic-tree-model.js';
 
 // ---- «Дерево»: рубрики (общие темы) слева, карточки частных тем по центру, паспорт выбранной темы справа ----
 // Раскладку выбирает ширина самой вкладки (data-width на #tree-tab): консоль занимает левую колонку, поэтому по окну не угадать.
@@ -9,39 +10,14 @@ const tree = { topics: [], current: null, selected: null, rubric: null, query: '
 const RUBRIC_KEY = 'postaTreeRubric';
 const RUBRIC_ICONS = { adult: '🔞', shock: '💥', humor: '😂', internet: '🌐', animals: '🐾', people: '👥', games: '🎮', screen: '🎬', music: '🎵', celebs: '⭐', news: '📰', tech: '💻', money: '💰', business: '💼', finance: '💰', self: '🧠', home: '🏡', health: '🩺', culture: '🎭', design: '✏️', environment: '🌱', memes: '😄', expert: '🎓', science: '🔬', food: '🍔', travel: '✈️', style: '👗', cars: '🚗', transport: '🚗', hobby: '🎨', sport: '⚽', other: '📁' };
 
-/** Поиск: строчные, ё → е, без «#», пробелы и дефисы → «_» — как hashtag_norm на сервере. */
-const treeNorm = s => String(s ?? '').toLowerCase().replace(/ё/g, 'е').replace(/#/g, '').trim().replace(/[\s-]+/g, '_');
-
-/** Дерево как индексы: ветки-рубрики, их частные темы, рубрика любой темы. */
+// Rebuild the immutable index only when the server replaces the topic list.
+let indexedTopics, index;
 function treeModel() {
-    const ids = new Map(tree.topics.map(t => [t.id, t]));
-    const children = new Map();
-    const rubrics = [];
-    for (const t of tree.topics) {
-        if (t.parent?.id && ids.has(t.parent.id)) children.set(t.parent.id, [...(children.get(t.parent.id) || []), t]);
-        else rubrics.push(t);
+    if (indexedTopics !== tree.topics) {
+        indexedTopics = tree.topics;
+        index = buildTopicTree(indexedTopics);
     }
-    const byTitle = (a, b) => a.title.localeCompare(b.title, 'ru');
-    rubrics.sort((a, b) => (b.scope === 'broad') - (a.scope === 'broad') || byTitle(a, b));
-    for (const list of children.values()) list.sort(byTitle);
-    const rubricOf = t => {
-        const seen = new Set();
-        while (t.parent?.id && ids.has(t.parent.id) && !seen.has(t.id)) {
-            seen.add(t.id);
-            t = ids.get(t.parent.id);
-        }
-        return t;
-    };
-    const descendants = t => [t, ...(children.get(t.id) || []).flatMap(descendants)];
-    return { ids, children, rubrics, rubricOf, descendants };
-}
-
-/** Хэштеги темы для показа: рубрика первой, потом имена. */
-const topicTags = t => [t.hashtags?.rubric, ...(t.hashtags?.entities || [])].filter(Boolean);
-
-/** Совпадение с запросом: название, синонимы, описание, хэштеги и их синонимы. Пустой запрос совпадает со всем. */
-function treeMatches(t, q) {
-    return !q || [t.title, ...(t.aliases || []), t.about, ...topicTags(t).map(h => `#${h}`), ...(t.hashtags?.synonyms || [])].some(text => treeNorm(text).includes(q));
+    return index;
 }
 
 /** Текст с подсветкой найденного: массив узлов и строк для el(). Совпадение ищем по строке без замен длины. */
@@ -92,8 +68,8 @@ function pickRubric(id) {
 
 function renderRubrics(model, q, rubricId, liveRubricId) {
     const rubrics = model.rubrics.map(r => {
-        const kids = model.descendants(r).slice(1);
-        const found = q ? model.descendants(r).filter(t => treeMatches(t, q)) : kids;
+        const members = model.descendants(r);
+        const found = q ? members.filter(t => model.matches(t, q)) : members.slice(1);
         return { r, found };
     }).filter(({ found }) => !q || found.length);
     $('tree-rubrics').replaceChildren(...rubrics.map(({ r, found }) => {
@@ -131,7 +107,7 @@ function treeCard(t, model, q) {
 function renderCards(model, q, rubricId) {
     const grid = (items) => el('div', { className: 'tree-grid' }, ...items.map(t => treeCard(t, model, q)));
     if (q) {
-        const blocks = model.rubrics.map(r => [r, model.descendants(r).filter(t => treeMatches(t, q))])
+        const blocks = model.rubrics.map(r => [r, model.descendants(r).filter(t => model.matches(t, q))])
             .filter(([, hits]) => hits.length)
             .map(([r, hits]) => el('section', { className: 'tree-block-cards' }, el('h3', { className: 'tree-cards-group', textContent: `${r.title} · найдено ${hits.length}` }), grid(hits)));
         $('tree-cards').replaceChildren(...blocks);
@@ -165,9 +141,11 @@ const treeRow = (label, value) => value ? el('div', { className: 'tree-row' }, e
 
 function renderDetail() {
     const close = el('button', { type: 'button', className: 'tree-sheet-close', textContent: '✕', title: 'Закрыть', 'aria-label': 'Закрыть паспорт темы', onclick: closeTreeSheet });
-    const t = tree.topics.find(x => x.id === tree.selected);
-    if (!t) return $('tree-detail').replaceChildren(close, el('p', { className: 'tree-detail-empty', textContent: 'Выберите тему: здесь её описание, хэштеги и действия.' }));
     const model = treeModel();
+    const t = model.ids.get(tree.selected);
+    if (!t) return $('tree-detail').replaceChildren(close, el('p', { className: 'tree-detail-empty', textContent: 'Выберите тему: здесь её описание, хэштеги и действия.' }));
+    const detail = { record: null };
+    const getRecord = () => detail.record ??= api('topic_record', { params: { id: t.id } }).catch(error => { detail.record = null; throw error; });
     const rubric = model.rubricOf(t);
     const isCurrent = tree.current === t.id;
     const children = model.children.get(t.id) || [];
@@ -205,18 +183,16 @@ function renderDetail() {
                 catch (error) { setMessage('tree-status', `Профиль не сброшен: ${error.message}`); }
             }, 'Критерии и план поиска напишутся заново')),
         parentEditor(t),
-        el('details', { className: 'tree-debug', ontoggle: e => { if (e.currentTarget.open) loadTopicRecord(t.id); } },
+        el('details', { className: 'tree-debug', ontoggle: e => { if (e.currentTarget.open) loadTopicRecord(e.currentTarget.querySelector('.tree-record'), getRecord); } },
             el('summary', { textContent: 'Для отладки: полная запись из базы' }),
             el('div', { className: 'tree-record' }, el('p', { className: 'tree-detail-empty', textContent: 'Раскройте, чтобы загрузить запись.' })))].filter(Boolean));
-	loadTopicHealth(t.id);
+    loadTopicHealth($('tree-detail').querySelector('.tree-health'), getRecord);
 }
 
-async function loadTopicHealth(id) {
+async function loadTopicHealth(box, getRecord) {
 	try {
-		const { health } = await api('topic_record', { params: { id } });
-		if (tree.selected !== id) return;
-		const box = $('tree-detail').querySelector('.tree-health');
-		if (!box) return;
+		const { health } = await getRecord();
+		if (!box?.isConnected) return;
 		const values = [
 			['Источники', health.sources], ['Кандидаты автоподбора', health.candidates],
 			['Проверено источников', health.sources_checked], ['Проанализировано постов', health.analyzed],
@@ -226,7 +202,7 @@ async function loadTopicHealth(id) {
 		box.replaceChildren(el('h4', { className: 'tree-block-title', textContent: 'Как работает тема' }),
 			el('dl', { className: 'tree-facts' }, ...values.map(([label, value]) => treeRow(label, String(value ?? '—')))));
 	} catch {
-		if (tree.selected === id) $('tree-detail').querySelector('.tree-health')?.replaceChildren(el('p', { className: 'tree-detail-empty', textContent: 'Показатели сейчас недоступны.' }));
+		if (box?.isConnected) box.replaceChildren(el('p', { className: 'tree-detail-empty', textContent: 'Показатели сейчас недоступны.' }));
 	}
 }
 
@@ -295,15 +271,16 @@ function recordRows(topic) {
     return rows;
 }
 
-async function loadTopicRecord(id) {
-    const box = () => $('tree-detail').querySelector('.tree-record');
-    box()?.replaceChildren(el('p', { className: 'tree-detail-empty', textContent: 'Загружаю полную запись…' }));
+async function loadTopicRecord(box, getRecord) {
+    if (!box || box.dataset.loaded) return;
+    box.replaceChildren(el('p', { className: 'tree-detail-empty', textContent: 'Загружаю полную запись…' }));
     try {
-        const { topic } = await api('topic_record', { params: { id } });
-        if (tree.selected !== id) return;   // пока грузилось, выбрали другую тему
-        box()?.replaceChildren(el('h4', { className: 'tree-record-title', textContent: 'Полная запись из базы' }), el('dl', { className: 'tree-facts' }, ...recordRows(topic)));
+        const { topic } = await getRecord();
+        if (!box.isConnected) return;
+        box.replaceChildren(el('h4', { className: 'tree-record-title', textContent: 'Полная запись из базы' }), el('dl', { className: 'tree-facts' }, ...recordRows(topic)));
+        box.dataset.loaded = '1';
     } catch (error) {
-        if (tree.selected === id) box()?.replaceChildren(el('p', { className: 'tree-detail-empty', textContent: `Запись не загрузилась: ${error.message}` }));
+        if (box.isConnected) box.replaceChildren(el('p', { className: 'tree-detail-empty', textContent: `Запись не загрузилась: ${error.message}` }));
     }
 }
 
@@ -354,10 +331,13 @@ async function choose(text, forceNew = false) {
 }
 
 /** reveal: открыли вкладку или сменили тему — показываем текущую тему и её рубрику; иначе сохраняем выбор. */
+let treeRequest = 0;
 async function loadTree({ reveal = false } = {}) {
     if (DEBUG_MODE) return setMessage('tree-status', 'В демо-режиме дерево тем не показывается.');
+    const request = ++treeRequest;
     try {
         const data = await api('topics');
+        if (request !== treeRequest) return;
         Object.assign(tree, { topics: data.topics || [], current: data.current ?? null });
         if (reveal) {
             const model = treeModel();
@@ -368,7 +348,7 @@ async function loadTree({ reveal = false } = {}) {
         $('tree-options').replaceChildren(...tree.topics.map(t => el('option', { value: t.title, label: t.path })));
         renderTree();
         renderDetail();
-    } catch (error) { setMessage('tree-status', `Не удалось загрузить темы: ${error.message}`); }
+    } catch (error) { if (request === treeRequest) setMessage('tree-status', `Не удалось загрузить темы: ${error.message}`); }
 }
 
 // ---- «Тест ИИ» ----
