@@ -57,7 +57,7 @@ func TestPublicWarmupDemandPostgres(t *testing.T) {
 	if err=saveAutopilotDemand(ctx,d.Pool,owner,autopilotDemandSettings{Topic:ownerTopic,Mode:"auto",PostsPerDay:2,HorizonDays:3},now());err!=nil{t.Fatal(err)}
 	if err=a.reconcileAutopilotMode(ctx,true,"auto",autopilotAutoScope,autopilotAutoKind);err!=nil{t.Fatal(err)}
 	at:=time.Now()
-	if _,err=d.Pool.Exec(ctx,`UPDATE source_autopilot_jobs SET next_run_at=CASE WHEN topic_key=$1 THEN $3 ELSE $4 END
+	if _,err=d.Pool.Exec(ctx,`UPDATE source_autopilot_jobs SET next_run_at=CASE WHEN topic_key=$1 THEN $3::bigint ELSE $4::bigint END
 		WHERE scope='public' AND topic_key=ANY($2::text[])`,warmKey,[]string{warmKey,ownerKey},at.Add(-1000*time.Hour).Unix(),at.Add(-900*time.Hour).Unix());err!=nil{t.Fatal(err)}
 	job,err:=claimAutopilotJobKind(ctx,d.Pool,at,time.Minute,autopilotAutoKind)
 	if err!=nil||job==nil||job.TopicKey!=ownerKey{t.Fatalf("warmup starved user: %+v %v",job,err)}
