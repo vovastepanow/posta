@@ -21,3 +21,16 @@ func TestLemmyParseEmbeddedVideo(t *testing.T) {
 		t.Fatalf("ordinary link treated as attachment: %q", got)
 	}
 }
+
+func TestLemmyBodyVideoUsesSharedURLValidation(t *testing.T) {
+	for _, tc := range []struct{ body, want string }{
+		{"![](https://example.org/image.png) ![](https://example.org/clip.WEBM?x=1)", "https://example.org/clip.WEBM?x=1"},
+		{"![](https:///clip.mp4)", ""},
+		{"![](https://example.org/image.jpg?video=clip.mp4)", ""},
+		{"![](http://example.org/clip.mp4)", ""},
+	} {
+		if got := lemmyBodyVideo(tc.body); got != tc.want {
+			t.Errorf("body=%q got=%q want=%q", tc.body, got, tc.want)
+		}
+	}
+}

@@ -227,3 +227,33 @@ func TestAutopilotPublisherSearchDoesNotLearnFromUnknownBravePage(t *testing.T) 
 		t.Fatal("site filter failure masked by unknown primary document")
 	}
 }
+
+func TestAutopilotSearchDocumentRejectsInvalidResponses(t *testing.T) {
+	body := []byte(`<a href="https://t.me/real_channel">Real channel</a>`)
+	for _, tc := range []struct {
+		url    string
+		status int
+		body   []byte
+	}{
+		{"https://search.brave.com/search", 206, body},
+		{"https://search.brave.com/other", 200, body},
+		{"https://search.brave.com/search", 200, append([]byte("challenge_required "), body...)},
+	} {
+		r := FetchResultURL{URL: tc.url, FetchResult: FetchResult{OK: true, Status: tc.status, Bytes: tc.body}}
+		candidates, status := autopilotReadSearchDocument(r, PlatformTelegram).assess(PlatformTelegram)
+		if status != "unavailable" || len(candidates) != 0 || len(autopilotSearchLinkedCandidates(r, PlatformTelegram)) != 0 {
+			t.Fatalf("invalid response accepted: %s %d %v %s", tc.url, tc.status, candidates, status)
+		}
+	}
+}
+
+func TestAutopilotPublisherSearchPrefersConfirmedEmpty(t *testing.T) {
+	primary := FetchResultURL{URL: "https://search.brave.com/search", FetchResult: FetchResult{OK: true, Status: 200, Bytes: []byte("No results found for your query")}}
+	bing := func(raw string, _ int64, _ time.Duration, _ string) FetchResultURL {
+		return FetchResultURL{URL: raw, FetchResult: FetchResult{OK: true, Status: 200, Bytes: []byte("<rss><channel><item><link>https://example.org/cats</link></item></channel></rss>")}}
+	}
+	got := autopilotPublisherSearchWith("site:t.me cats", PlatformTelegram, func(string) FetchResultURL { return primary }, bing)
+	if got.URL != primary.URL || autopilotPublisherSearchStatus(got, PlatformTelegram) != "empty" {
+		t.Fatal("confirmed empty result replaced by off-site results")
+	}
+}

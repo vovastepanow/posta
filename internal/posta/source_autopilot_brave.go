@@ -62,76 +62,119 @@ func (u *U) autopilotPublisherSearch(query, platform string) FetchResultURL {
 
 func autopilotPublisherSearchWith(query, platform string, brave func(string) FetchResultURL, bing func(string, int64, time.Duration, string) FetchResultURL) FetchResultURL {
 	primary := brave(query)
-	if autopilotPublisherSearchResponseValid(primary) && len(autopilotSearchLinkedCandidates(primary, platform)) > 0 {
+	_, primaryStatus := autopilotReadSearchDocument(primary, platform).assess(platform)
+	if primaryStatus == "ok" {
 		return primary
 	}
 	endpoint := "https://www.bing.com/search?q=" + url.QueryEscape(query)
 	secondary := bing(endpoint+"&format=rss", rssMaxBytes, 15*time.Second, BrowserUA)
-	if autopilotPublisherSearchResponseValid(secondary) {
-		if len(autopilotSearchLinkedCandidates(secondary, platform)) > 0 {
-			return secondary
+	doc := autopilotReadSearchDocument(secondary, platform)
+	if !doc.valid {
+		return primary
+	}
+	_, secondaryStatus := doc.assess(platform)
+	if secondaryStatus == "ok" {
+		return secondary
+	}
+	// Bing RSS can ignore site:. Try the ordinary results once, but never
+	// retry a blocked or incomplete response.
+	if doc.feed {
+		page := bing(endpoint, 3<<20, 15*time.Second, BrowserUA)
+		if _, status := autopilotReadSearchDocument(page, platform).assess(platform); status == "ok" {
+			return page
 		}
-		// Bing RSS can return unrelated sites even for a site: query.
-		// Try its ordinary result page once, but never retry a blocked request.
-		if secondary.Status != 206 && rssIsFeed(rssLoad(secondary.Bytes)) {
-			page := bing(endpoint, 3<<20, 15*time.Second, BrowserUA)
-			if autopilotPublisherSearchResponseValid(page) && len(autopilotSearchLinkedCandidates(page, platform)) > 0 {
-				return page
-			}
-		}
-		// Prefer a confirmed empty result over an unavailable provider.
-		// A syntactically valid Brave page alone is not proof of no matches.
-		if autopilotPublisherSearchStatus(secondary, platform) == "empty" ||
-			autopilotPublisherSearchStatus(primary, platform) != "empty" {
-			return secondary
-		}
+	}
+	// Prefer a confirmed empty result over an unavailable provider.
+	if secondaryStatus == "empty" || primaryStatus != "empty" {
+		return secondary
 	}
 	return primary
 }
 
-func autopilotPublisherSearchResponseValid(r FetchResultURL) bool {
-	p, err := url.Parse(r.URL)
-	if !r.OK || r.Status == 206 || err != nil || p.Scheme != "https" || p.User != nil || p.Port() != "" || p.Path != "/search" {
-		return false
-	}
-	switch p.Host {
-	case "search.brave.com":
-		lower := strings.ToLower(string(r.Bytes))
-		return !strings.Contains(lower, "captcha") && !strings.Contains(lower, "challenge_required")
-	case "www.bing.com":
-		return r.Status != 206 && (rssIsFeed(rssLoad(r.Bytes)) || len(autopilotBingHTMLLinks(r.Bytes, p)) > 0)
-	default:
-		return false
-	}
+// Parse each search document once per assessment. Off-site links are not
+// evidence of an empty topic, and a partial or blocked response is unusable.
+type autopilotSearchDocument struct {
+	links []string
+	valid bool
+	feed  bool
+	empty bool
 }
 
-// A syntactically valid search page is not necessarily a successful site
-// search. Providers can silently ignore site: and return unrelated links;
-// report that as a backend limitation rather than an empty topic.
+func (d autopilotSearchDocument) assess(platform string) ([]DiscoveryCandidate, string) {
+	if !d.valid {
+		return nil, "unavailable"
+	}
+	if candidates := autopilotCandidatesFromSearchLinks(d.links, platform); len(candidates) > 0 {
+		return candidates, "ok"
+	}
+	if d.empty {
+		return nil, "empty"
+	}
+	return nil, "unavailable"
+}
+
+func autopilotPublisherSearchResponseValid(r FetchResultURL) bool {
+	return autopilotReadSearchDocument(r, "").valid
+}
+
 func autopilotPublisherSearchStatus(r FetchResultURL, platform string) string {
-	if !autopilotPublisherSearchResponseValid(r) {
-		return "unavailable"
+	_, status := autopilotReadSearchDocument(r, platform).assess(platform)
+	return status
+}
+
+func autopilotReadSearchDocument(r FetchResultURL, platform string) autopilotSearchDocument {
+	final, err := url.Parse(r.URL)
+	if !r.OK || r.Status == 206 || err != nil || final.Scheme != "https" || final.User != nil || final.Port() != "" || final.Path != "/search" {
+		return autopilotSearchDocument{}
 	}
-	if len(autopilotSearchLinkedCandidates(r, platform)) > 0 {
-		return "ok"
-	}
-	p, _ := url.Parse(r.URL)
-	if p.Host == "www.bing.com" {
-		if doc := rssLoad(r.Bytes); rssIsFeed(doc) {
-			if len(rssItems(doc)) == 0 {
-				return "empty"
-			}
-			return "unavailable"
+	switch final.Host {
+	case "search.brave.com":
+		lower := strings.ToLower(string(r.Bytes))
+		if strings.Contains(lower, "captcha") || strings.Contains(lower, "challenge_required") {
+			return autopilotSearchDocument{}
 		}
-		return "unavailable"
+		d := autopilotSearchDocument{valid: true, empty: strings.Contains(lower, "no results found for")}
+		z := html.NewTokenizer(strings.NewReader(string(r.Bytes)))
+		for {
+			t := z.Next()
+			if t == html.ErrorToken {
+				break
+			}
+			if t != html.StartTagToken && t != html.SelfClosingTagToken {
+				continue
+			}
+			token := z.Token()
+			if token.Data != "a" {
+				continue
+			}
+			for _, attr := range token.Attr {
+				if attr.Key == "href" {
+					d.links = append(d.links, attr.Val)
+					break
+				}
+			}
+		}
+		return d
+	case "www.bing.com":
+		doc := rssLoad(r.Bytes)
+		if rssIsFeed(doc) {
+			items := rssItems(doc)
+			d := autopilotSearchDocument{valid: true, feed: true, empty: len(items) == 0}
+			for _, item := range items {
+				d.links = append(d.links, autopilotTikTokUnwrapBing(rssItemLink(item, r.URL)))
+			}
+			return d
+		}
+		if links := autopilotBingHTMLLinks(r.Bytes, final); len(links) > 0 {
+			return autopilotSearchDocument{links: links, valid: true}
+		}
+		if platform == PlatformTikTok && !strings.Contains(string(r.Bytes), "<") {
+			// The TikTok adapter returns already validated URLs, not a
+			// search document. Its separate validity check is retained.
+			return autopilotSearchDocument{links: strings.Fields(string(r.Bytes))}
+		}
 	}
-	// A consent page, changed markup, or off-site results are not a
-	// successful negative search. Only an explicit no-results marker is.
-	lower := strings.ToLower(string(r.Bytes))
-	if strings.Contains(lower, "no results found for") || strings.Contains(lower, "no results found for your query") {
-		return "empty"
-	}
-	return "unavailable"
+	return autopilotSearchDocument{}
 }
 
 // Only result-title anchors within Bing's actual organic result rows count.
@@ -194,50 +237,10 @@ func autopilotBingHTMLLinks(body []byte, base *url.URL) []string {
 // publisher. Accept only actual result hyperlinks (or the already validated
 // plain URL list from the TikTok Bing RSS adapter).
 func autopilotSearchLinkedCandidates(r FetchResultURL, platform string) []DiscoveryCandidate {
-	final, err := url.Parse(r.URL)
-	if !r.OK || err != nil || final.Scheme != "https" || final.User != nil || final.Port() != "" {
-		return nil
-	}
-	var links []string
-	switch final.Hostname() {
-	case "search.brave.com":
-		z := html.NewTokenizer(strings.NewReader(string(r.Bytes)))
-		for {
-			t := z.Next()
-			if t == html.ErrorToken {
-				break
-			}
-			if t != html.StartTagToken && t != html.SelfClosingTagToken {
-				continue
-			}
-			token := z.Token()
-			if token.Data != "a" {
-				continue
-			}
-			for _, attr := range token.Attr {
-				if attr.Key == "href" {
-					links = append(links, attr.Val)
-					break
-				}
-			}
-		}
-	case "www.bing.com":
-		doc := rssLoad(r.Bytes)
-		if rssIsFeed(doc) {
-			for _, item := range rssItems(doc) {
-				links = append(links, autopilotTikTokUnwrapBing(rssItemLink(item, r.URL)))
-			}
-		} else if parsed := autopilotBingHTMLLinks(r.Bytes, final); len(parsed) > 0 {
-			links = parsed
-		} else if platform == PlatformTikTok && !strings.Contains(string(r.Bytes), "<") {
-			// The older TikTok adapter returns a normalized URL list.
-			links = strings.Fields(string(r.Bytes))
-		} else {
-			return nil
-		}
-	default:
-		return nil
-	}
+	return autopilotCandidatesFromSearchLinks(autopilotReadSearchDocument(r, platform).links, platform)
+}
+
+func autopilotCandidatesFromSearchLinks(links []string, platform string) []DiscoveryCandidate {
 	seen := map[string]bool{}
 	var out []DiscoveryCandidate
 	for _, raw := range links {

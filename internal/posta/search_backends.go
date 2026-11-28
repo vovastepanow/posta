@@ -195,13 +195,8 @@ var lemmyBodyVideoRE = regexp.MustCompile(`!\[[^\]]*\]\((https://[^\s)]+)\)`)
 
 func lemmyBodyVideo(body string) string {
 	for _, match := range lemmyBodyVideoRE.FindAllStringSubmatch(body, -1) {
-		parsed, err := url.Parse(match[1])
-		if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" {
-			continue
-		}
-		path := strings.ToLower(parsed.Path)
-		if strings.HasSuffix(path, ".mp4") || strings.HasSuffix(path, ".webm") || strings.HasSuffix(path, ".m4v") {
-			return match[1]
+		if video := lemmyVideoURL(match[1]); video != "" {
+			return video
 		}
 	}
 	return ""

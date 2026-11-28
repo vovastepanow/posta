@@ -56,27 +56,26 @@ func (u *U) autopilotFindPublicSocial(query, platform string) []DiscoveryCandida
 
 // Treat unavailable or unrecognized search documents as failures, not topic evidence.
 func autopilotPublicSocialSearchCandidates(r FetchResultURL, query, platform string) ([]DiscoveryCandidate, string) {
-	status := "unavailable"
-	var out []DiscoveryCandidate
-	valid := autopilotPublisherSearchResponseValid(r)
+	doc := autopilotReadSearchDocument(r, platform)
+	candidates, status := doc.assess(platform)
 	if platform == PlatformTikTok {
-		valid = autopilotTikTokSearchResponseValid(r)
+		if !autopilotTikTokSearchResponseValid(r) {
+			return nil, "unavailable"
+		}
+		if !doc.valid {
+			candidates = autopilotCandidatesFromSearchLinks(doc.links, platform)
+		}
 	}
-	if valid {
-		status = autopilotPublisherSearchStatus(r, platform)
-		for _, candidate := range autopilotSearchLinkedCandidates(r, platform) {
-			if candidate.Platform != platform {
-				continue
-			}
-			if _, ok := autopilotCandidateID(candidate); !ok {
-				continue
-			}
-			candidate.Origin, candidate.OriginKind = "публичный веб-поиск «"+query+"»", "other"
-			out = append(out, candidate)
+	var out []DiscoveryCandidate
+	for _, candidate := range candidates {
+		if _, ok := autopilotCandidateID(candidate); !ok {
+			continue
 		}
-		if len(out) > 0 {
-			status = "ok"
-		}
+		candidate.Origin, candidate.OriginKind = "публичный веб-поиск «"+query+"»", "other"
+		out = append(out, candidate)
+	}
+	if len(out) > 0 {
+		status = "ok"
 	}
 	return out, status
 }
