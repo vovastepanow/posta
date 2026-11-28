@@ -245,6 +245,7 @@ type autopilotJob struct {
 	Checkpoint                          json.RawMessage
 	MaxProbation                        int
 	SearchQuery                         string
+	WarmOnly, WarmReady                 bool
 }
 
 // Legacy discovery writes into a shared catalog. It may only be used for a
@@ -313,7 +314,11 @@ func claimAutopilotJobKind(ctx context.Context, q *pgxpool.Pool, at time.Time, d
 		-- Workers claim one kind at a time. An older job of another kind
 		-- cannot gate this claim: that job may already be processed by its own
 		-- worker. Cross-kind gating starved auto behind a shadow backlog.
-		ORDER BY j.next_run_at, j.requested_at, j.priority DESC, j.scope, j.topic_key, j.kind
+		ORDER BY CASE WHEN j.scope='public' AND j.kind='auto_discovery'
+		 AND EXISTS (SELECT 1 FROM public_warm_profiles p WHERE p.topic_key=j.topic_key AND p.enabled)
+		 AND NOT EXISTS (SELECT 1 FROM source_autopilot_demands d WHERE d.topic_key=j.topic_key AND d.mode='auto' AND NOT d.paused AND d.posts_per_day>0)
+		 THEN 1 ELSE 0 END,
+		 j.next_run_at, j.requested_at, j.priority DESC, j.scope, j.topic_key, j.kind
 		FOR UPDATE SKIP LOCKED LIMIT 1)
 		RETURNING scope,topic_key,kind,topic,generation,checkpoint`, job.Token, int64(duration/time.Second), at.Unix(), kind).
 		Scan(&job.Scope, &job.TopicKey, &job.Kind, &job.Topic, &job.Generation, &job.Checkpoint)

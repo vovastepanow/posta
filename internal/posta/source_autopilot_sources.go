@@ -55,6 +55,10 @@ func ensureAutopilotShadowDemand(ctx context.Context, tx pgx.Tx, job *autopilotJ
 	}
 	var owner string
 	err := tx.QueryRow(ctx, `SELECT user_id FROM source_autopilot_demands WHERE topic_key=$1 AND mode=$2 AND NOT paused AND ($2<>'auto' OR posts_per_day>0) ORDER BY user_id LIMIT 1 FOR SHARE`, job.TopicKey, mode).Scan(&owner)
+	if errors.Is(err, pgx.ErrNoRows) && job.Kind == autopilotAutoKind && job.Scope == autopilotAutoScope {
+		// Ownerless warm jobs have an explicit public demand row, never a fake user.
+		err = tx.QueryRow(ctx,`SELECT topic_key FROM public_warm_profiles WHERE topic_key=$1 AND enabled FOR SHARE`,job.TopicKey).Scan(&owner)
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return errAutopilotLeaseLost
 	}

@@ -149,6 +149,7 @@ func (a *App) reconcileAutopilotShadowEnabled(ctx context.Context, enabled bool)
 }
 
 func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, scope, kind string) error {
+	warmEnabled := enabled && mode == "auto" && scope == autopilotAutoScope && a.TBool("public_warmup_enabled")
 	return a.DB.Tx(ctx, func(tx pgx.Tx) error {
 		if enabled {
 			_, err := tx.Exec(ctx, `INSERT INTO source_autopilot_jobs(scope,topic_key,kind,topic,reason,next_run_at,requested_at)
@@ -158,6 +159,13 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 			if err != nil {
 				return err
 			}
+		}
+		if warmEnabled {
+			_, err := tx.Exec(ctx, `INSERT INTO source_autopilot_jobs(scope,topic_key,kind,topic,reason,priority,next_run_at,requested_at)
+				SELECT $1,topic_key,$2,query,'public_warmup',0,GREATEST(start_after,$3),$3
+				FROM public_warm_profiles WHERE enabled
+				ON CONFLICT(scope,topic_key,kind) DO UPDATE SET demand_active=true`,scope,kind,time.Now().Unix())
+			if err != nil { return err }
 		}
 		if enabled {
 			if err := autopilotScheduleIdleFullRechecks(ctx, tx, scope, kind, mode); err != nil {
@@ -256,7 +264,8 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 		}
 		_, err := tx.Exec(ctx, `UPDATE source_autopilot_jobs j SET demand_active=false,lease_token='',lease_until=0,generation=generation+1
 			WHERE j.scope=$3 AND j.kind=$1 AND j.demand_active AND
-			(NOT $2 OR NOT EXISTS (SELECT 1 FROM source_autopilot_demands d WHERE d.topic_key=j.topic_key AND d.mode=$4 AND NOT d.paused AND ($4<>'auto' OR d.posts_per_day>0)))`, kind, enabled, scope, mode)
+			(NOT $2 OR (NOT EXISTS (SELECT 1 FROM source_autopilot_demands d WHERE d.topic_key=j.topic_key AND d.mode=$4 AND NOT d.paused AND ($4<>'auto' OR d.posts_per_day>0))
+			 AND NOT ($5 AND EXISTS (SELECT 1 FROM public_warm_profiles p WHERE p.topic_key=j.topic_key AND p.enabled))))`, kind, enabled, scope, mode, warmEnabled)
 		return err
 	})
 }
@@ -278,8 +287,14 @@ func (a *App) runAutopilotWorker(ctx context.Context, mode, scope, kind, setting
 			<-done
 		}
 	}()
+	warmSeeded := false
 	for {
 		enabled := a.TBool(setting)
+		if enabled && mode == "auto" && a.TBool("public_warmup_enabled") && !warmSeeded {
+			if err := a.seedPublicWarmProfiles(ctx); err != nil {
+				if ctx.Err() == nil { log.Printf("public warmup seeds: %v",err) }
+			} else { warmSeeded = true }
+		}
 		err := a.reconcileAutopilotMode(ctx, enabled, mode, scope, kind)
 		a.recordAutopilotWorkerTick(mode, err)
 		if err != nil && ctx.Err() == nil {
@@ -372,17 +387,36 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 		}
 		nextInterval = interval
 	}
+	if job.WarmOnly && job.WarmReady {
+		if err := finishAutopilotJob(ctx,a.DB,job,time.Now().Add(nextInterval),job.Checkpoint,""); err != nil && !errors.Is(err,errAutopilotLeaseLost) {
+			log.Printf("public warmup finish: %v",err)
+		}
+		return
+	}
 	// Keep an additional conservative cap on the source autopilot paid reserve.
 	// The existing paid ledger still blocks requests once recorded spend reaches it.
-	ctx = withAutopilotPaidLimit(ctx, min(0.10, a.TFloat("autopilot_paid_daily_usd")))
+	paidLimit := min(0.10, a.TFloat("autopilot_paid_daily_usd"))
+	sm,tm,sf,tf := a.TInt("autopilot_model_server_daily"),a.TInt("autopilot_model_topic_daily"),a.TInt("autopilot_fetch_server_daily"),a.TInt("autopilot_fetch_topic_daily")
+	if job.WarmOnly {
+		paidLimit = 0
+		sm,tm,sf,tf = publicWarmBudget(sm,tm,sf,tf,a.LLM.Settings().FreeDailyLimit)
+	} else {
+		ctx = llm.WithSourceAutopilotPaidNemotronFallback(ctx)
+	}
+	ctx = withAutopilotPaidLimit(ctx, paidLimit)
 	ctx = llm.WithSourceAutopilotFreeFallback(ctx)
-	ctx = llm.WithSourceAutopilotPaidNemotronFallback(ctx)
 	err = runAutopilotLeased(ctx, a.DB, job, 10*time.Minute, 2*time.Minute,
-		int64(a.TInt("autopilot_model_server_daily")), int64(a.TInt("autopilot_model_topic_daily")),
-		int64(a.TInt("autopilot_fetch_server_daily")), int64(a.TInt("autopilot_fetch_topic_daily")),
+		int64(sm),int64(tm),int64(sf),int64(tf),
 		func(workCtx context.Context) error { return a.autopilotShadowSearch(workCtx, job) })
 	if ctx.Err() != nil || errors.Is(err, errAutopilotLeaseLost) {
 		return
+	}
+	if job.WarmOnly {
+		if supply, supplyErr := a.refreshPublicWarmSupply(ctx,job); supplyErr == nil {
+			nextInterval = publicWarmInterval(supply.Ready,supply.Target)
+		} else if !errors.Is(supplyErr,errAutopilotLeaseLost) && ctx.Err()==nil {
+			log.Printf("public warmup supply: %v",supplyErr)
+		}
 	}
 	reason := ""
 	if err != nil {
@@ -406,7 +440,7 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 	// their requested 3-hour checks silently waited for the 24-hour search
 	// cadence. A due backlog gets a 2-minute retry; future 429/cooldown and
 	// rejection dates are never pulled forward.
-	if err == nil {
+	if err == nil && !job.WarmOnly {
 		var earliest int64
 		checkErr := a.DB.Pool.QueryRow(ctx, `SELECT COALESCE(MIN(
 			CASE WHEN next_check_at <= $3 THEN $3+120 ELSE next_check_at END),0)

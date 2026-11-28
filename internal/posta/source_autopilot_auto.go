@@ -33,7 +33,11 @@ func (a *App) autopilotAutoInterval(ctx context.Context, job *autopilotJob) (tim
 		return 0, err
 	}
 	if len(demands) == 0 {
-		return 0, errAutopilotLeaseLost
+		job.WarmOnly = true
+		supply,err := a.refreshPublicWarmSupply(ctx,job)
+		if err != nil { return 0,err }
+		job.WarmReady = supply.Ready >= supply.Target
+		return publicWarmInterval(supply.Ready,supply.Target),nil
 	}
 	active, _, err := a.autopilotProjectedCounts(ctx, job.Topic)
 	if err != nil {
