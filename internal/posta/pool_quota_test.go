@@ -85,3 +85,15 @@ func TestVisiblePoolQuotaPostgres(t *testing.T) {
 		t.Fatal("filtering removed stored records")
 	}
 }
+
+func TestPoolQuotaStateCountsOnce(t *testing.T) {
+	pool := []jx.M{{"topic": "a", "pooled_at": 5}, {"topic": "a", "pooled_at": 2}, {"topic": "b"}, {"topic": "a", "pooled_at": 2}}
+	calls := 0
+	available, remove, allowed := poolQuotaState(pool, 2, func(it jx.M) bool {
+		calls++
+		return jx.Str(it, "topic") == "a"
+	}, func(jx.M) bool { return true }, func(it jx.M) bool { return jx.Int(it, "pooled_at") >= 5 })
+	if calls != len(pool) || available != 1 || remove != 1 || !allowed {
+		t.Fatalf("unexpected quota state: calls=%d available=%d remove=%d allowed=%t", calls, available, remove, allowed)
+	}
+}

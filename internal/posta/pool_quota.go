@@ -6,10 +6,12 @@ import "posta/internal/jx"
 // hidden records. Never discard a fresh post merely because filters changed.
 // Expired records can be replaced as before; this bounds per-profile storage.
 func poolQuotaInsertion(pool []jx.M, target int, same, visible, fresh func(jx.M) bool) (remove int, allowed bool) {
-	if target <= 0 {
-		return -1, false
-	}
-	total, available, oldest := 0, 0, -1
+	_, remove, allowed = poolQuotaState(pool, target, same, visible, fresh)
+	return
+}
+
+func poolQuotaState(pool []jx.M, target int, same, visible, fresh func(jx.M) bool) (available, remove int, allowed bool) {
+	total, oldest := 0, -1
 	for i, item := range pool {
 		if !same(item) {
 			continue
@@ -24,15 +26,15 @@ func poolQuotaInsertion(pool []jx.M, target int, same, visible, fresh func(jx.M)
 		}
 	}
 	if available >= target {
-		return -1, false
+		return available, -1, false
 	}
 	if total < target {
-		return -1, true
+		return available, -1, true
 	}
 	if oldest >= 0 {
-		return oldest, true
+		return available, oldest, true
 	}
-	return -1, total < 2*target
+	return available, -1, total < 2*target
 }
 
 // poolRefillState is shared by the background launch condition and the
@@ -43,12 +45,7 @@ func (u *U) poolRefillState(key string, target int) (available int, allowed bool
 	if err != nil {
 		return 0, false, err
 	}
-	pool := u.Pool()
-	available = len(u.visibleFreshPool(pool, key, visible))
-	if available >= target {
-		return available, false, nil
-	}
-	_, allowed = poolQuotaInsertion(pool, target, func(record jx.M) bool {
+	available, _, allowed = poolQuotaState(u.Pool(), target, func(record jx.M) bool {
 		return u.poolProfileMatches(jx.Str(record, "topic"), key)
 	}, visible, u.poolItemFresh)
 	return available, allowed, nil

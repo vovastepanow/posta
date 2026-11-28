@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"net/url"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -244,6 +243,7 @@ func (u *U) prunePoolAlreadyRated() int {
 func (u *U) AddItemToPoolSafely(item jx.M) bool {
 	added := false
 	topicKey := jx.Str(item, "topic")
+	sourceKey := ContentSourceKey(item)
 	_, autopilotDelivery := u.Ctx.Value(autopilotDeliveryContextKey{}).(autopilotDeliveryGuard)
 	var visible func(jx.M) bool
 	if !autopilotDelivery {
@@ -296,28 +296,31 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 			return nil, nil
 		}
 		topic := TopicNorm(topicKey)
-		fresh := u.freshPoolItems(pool)
+		var fresh []jx.M
 		if visible != nil {
 			fresh = u.visibleFreshPool(pool, topicKey, visible)
+		} else {
+			fresh = u.freshPoolItems(pool)
 		}
 		if candidateIsKnown(item, recordKnownKeys(pool)) {
 			autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_duplicate", 1)
 			return nil, nil
 		}
-		sourceCount, freshCount := sourcePoolCount(fresh, topic, ContentSourceKey(item)), topicPoolCount(fresh, topic)
-		if visible != nil {
-			sourceCount, freshCount = 0, len(fresh)
-			for _, record := range fresh {
-				if ContentSourceKey(record) == ContentSourceKey(item) {
-					sourceCount++
-				}
+		sourceCount, freshCount := 0, 0
+		for _, record := range fresh {
+			if visible == nil && TopicNorm(jx.Str(record, "topic")) != topic {
+				continue
+			}
+			freshCount++
+			if ContentSourceKey(record) == sourceKey {
+				sourceCount++
 			}
 		}
 		if sourceCount >= sourcePoolLimit(u.TInt("per_source_pool"), target, freshCount) {
 			autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_source_limit", 1)
 			return nil, nil
 		}
-		if _, _, _, valid := autopilotSourceParts(ContentSourceKey(item)); valid {
+		if _, _, _, valid := autopilotSourceParts(sourceKey); valid {
 			rows, err := tx.Query(u.Ctx, `SELECT source_id FROM source_autopilot_sources WHERE scope='public' AND topic_key=$1 AND state='probation'`, autopilotTopicKey(topicKey))
 			if err != nil {
 				return nil, err
@@ -336,7 +339,7 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 			if err != nil {
 				return nil, err
 			}
-			if !autopilotProbationPoolAllowed(fresh, topicKey, ContentSourceKey(item), probation, target, u.TInt("autopilot_probation_pool_percent")) {
+			if !autopilotProbationPoolAllowed(fresh, topicKey, sourceKey, probation, target, u.TInt("autopilot_probation_pool_percent")) {
 				autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_probation_limit", 1)
 				return nil, nil
 			}
@@ -353,27 +356,22 @@ func (u *U) AddItemToPoolSafely(item jx.M) bool {
 				pool = append(pool[:remove], pool[remove+1:]...)
 			}
 		} else {
-			var same []int
+			count, oldest := 0, -1
 			for i, it := range pool {
-				if TopicNorm(jx.Str(it, "topic")) == topic {
-					same = append(same, i)
+				if TopicNorm(jx.Str(it, "topic")) != topic {
+					continue
+				}
+				count++
+				if !u.poolItemFresh(it) && (oldest < 0 || jx.Int(it, "pooled_at") < jx.Int(pool[oldest], "pooled_at")) {
+					oldest = i
 				}
 			}
-			if len(same) >= target {
-				var expired []int
-				for _, i := range same {
-					if !u.poolItemFresh(pool[i]) {
-						expired = append(expired, i)
-					}
-				}
-				if len(expired) == 0 {
+			if count >= target {
+				if oldest < 0 {
 					autopilotDeliveryAuditCount(u.Ctx, u.ID, "pool_full", 1)
 					return nil, nil
 				}
-				sort.SliceStable(expired, func(a, b int) bool {
-					return jx.Int(pool[expired[a]], "pooled_at") < jx.Int(pool[expired[b]], "pooled_at")
-				})
-				pool = append(pool[:expired[0]], pool[expired[0]+1:]...)
+				pool = append(pool[:oldest], pool[oldest+1:]...)
 			}
 		}
 		if guard, ok := u.Ctx.Value(autopilotDeliveryContextKey{}).(autopilotDeliveryGuard); ok {
