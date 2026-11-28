@@ -13,12 +13,10 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"mime/multipart"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -394,11 +392,12 @@ func (a *App) NetworksPublic() jx.M {
 
 func (a *App) networksPublic(owner, scoped bool) jx.M {
 	out := jx.M{}
-	for k, n := range a.Networks() {
+	for k := range networkTemplates() {
 		inScope := publishingInScope(k)
 		if scoped && !inScope {
 			continue
 		}
+		n := a.network(k)
 		available := n.PublishingConnectionAvailable()
 		if scoped {
 			available = n.PublishingConnectionAllowed(owner)
@@ -636,30 +635,6 @@ type silentErr struct{ e error }
 
 func (s *silentErr) Error() string { return "" }
 func (s *silentErr) Unwrap() error { return s.e }
-
-func multipartBody(fields map[string]string, files map[string]string) (io.Reader, string, error) {
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	for k, v := range fields {
-		mw.WriteField(k, v)
-	}
-	names := make([]string, 0, len(files))
-	for k := range files {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		f, err := os.Open(files[name])
-		if err != nil {
-			return nil, "", Bad("Файл поста не найден.")
-		}
-		part, _ := mw.CreateFormFile(name, filepath.Base(files[name]))
-		io.Copy(part, f)
-		f.Close()
-	}
-	mw.Close()
-	return &buf, mw.FormDataContentType(), nil
-}
 
 // ---- OAuth ----
 
@@ -1072,11 +1047,12 @@ func mastodonPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSe
 	}
 	form := url.Values{"status": {p.Text}, "visibility": {"public"}}
 	for _, f := range p.Media {
-		body, ct, err := multipartBody(nil, map[string]string{"file": f.Path})
+		body, ct, cleanup, err := networkMultipartFile(nil, nil, map[string]string{"file": f.Path})
 		if err != nil {
 			return nil, err
 		}
 		r, err := networkHTTP(ctx, "POST", inst+"/api/v2/media", withCT(auth, ct), body)
+		cleanup()
 		d, err := networkExpect(r, err, []int{200, 202}, "Файл не загружен")
 		if err != nil {
 			return nil, err
@@ -1139,10 +1115,11 @@ func discordPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSen
 	for i, f := range p.Media {
 		files[fmt.Sprintf("files[%d]", i)] = f.Path
 	}
-	body, ct, err := multipartBody(map[string]string{"payload_json": string(jx.Marshal(jx.M{"content": p.Text}))}, files)
+	body, ct, cleanup, err := networkMultipartFile(map[string]string{"payload_json": string(jx.Marshal(jx.M{"content": p.Text}))}, nil, files)
 	if err != nil {
 		return nil, err
 	}
+	defer cleanup()
 	hook := c.Secrets["webhook"]
 	sep := "?"
 	if strings.Contains(hook, "?") {
