@@ -5,7 +5,7 @@ import { initializeContentTab, loadCurrentItem } from './content.js';
 import { initializeSourceTab } from './sources.js?v=source-tools-13';
 import { consumeReferralLink, consumeVkRedirectResult, initializeAccountTab, openAccountSection, openNewItemEditor } from './account.js';
 import { initializeTabs } from './tabs.js';
-import { showPlan, showProfile } from './profile.js';
+import { loadProfileSummary, showPlan, showProfile } from './profile.js';
 import { initializeRadarTab } from './radar.js';
 import { initializeCalendarTab } from './calendar.js';
 import { setImageCacheUser } from './image-cache.js';
@@ -113,7 +113,7 @@ async function loadSideResources() {
 $('side-resources-manage').addEventListener('click', () => openAccountSection('social'));
 addEventListener('posta:resources-changed', loadSideResources);
 loadSideResources();
-api('account_info').then(info => { setImageCacheUser(info.user_id); showProfile(info); }).catch(() => {});
+loadProfileSummary().then(info => { setImageCacheUser(info.user_id); showProfile(info); }).catch(() => {});
 api('billing_info').then(showPlan).catch(() => {});
 initializeRadarTab();
 try { initializeCalendarTab(); } catch (error) { log(`Календарь не запущен: ${error.message}`); }   // вкладка не должна ронять запуск всего приложения

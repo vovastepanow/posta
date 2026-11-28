@@ -1,5 +1,5 @@
 // Имя, аватар и тариф владельца в боковом меню.
-import { $ } from './core.js';
+import { $, api } from './core.js';
 
 /** Имя владельца: имя из Telegram, логин, название канала или «Владелец». */
 function profileName(info) {
@@ -20,4 +20,12 @@ export function showProfile(info) {
 export function showPlan(billing) {
     const planEl = $('profile-plan');
     if (planEl) planEl.textContent = `Тариф «${billing.plan?.title || '—'}»`;
+}
+
+// Coalesce concurrent header/home loads without caching session data across
+// later requests. The server omits history, files and cookie diagnostics.
+let profileRequest = null;
+export function loadProfileSummary() {
+    if (!profileRequest) profileRequest = api('account_info', { params: { summary: '1' } }).finally(() => { profileRequest = null; });
+    return profileRequest;
 }

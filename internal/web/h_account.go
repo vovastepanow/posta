@@ -415,6 +415,13 @@ func logout(c *Ctx, all bool) (any, error) {
 
 func accountInfo(c *Ctx) (any, error) {
 	u := c.U
+	if c.Q("summary") == "1" {
+		channels := []jx.M{}
+		if list := u.TelegramChannels(); len(list) > 0 {
+			channels = append(channels, jx.M{"title": list[0].ChatTitle})
+		}
+		return jx.M{"user_id": u.ID, "auth": c.A.AuthPublic(c.R.Context(), u.ID), "channels": channels}, nil
+	}
 	h := u.History()
 	counts := jx.M{}
 	for _, coll := range config.HistoryCollections {
@@ -432,22 +439,29 @@ func accountInfo(c *Ctx) (any, error) {
 		}
 	}
 	sort.Slice(files, func(i, j int) bool { return jx.Int(files[i], "size") > jx.Int(files[j], "size") })
-	cookies := []jx.M{}
-	info := map[string][2]string{config.SessionCookie: {"Ваша сессия: случайный ключ, по нему сайт узнаёт ваш профиль. ID профиля в ней нет.",
-		strconv.Itoa(config.UserCookieDays) + " дней, продлевается при каждом заходе"}}
-	for _, ck := range c.R.Cookies() {
-		i, known := info[ck.Name]
-		purpose, life := i[0], i[1]
-		if !known {
-			purpose, life = "Неизвестная кука: этот сайт её не ставит (её прислал браузер для этого адреса).", "—"
-		}
-		cookies = append(cookies, jx.M{"name": ck.Name, "value": ck.Value, "known": known, "lifetime": life, "purpose": purpose, "http_only": ck.Name == config.SessionCookie})
-	}
+	cookies := accountCookieDetails(c.R.Cookies())
 	var lastSeen int64
 	c.A.DB.Pool.QueryRow(c.R.Context(), `SELECT last_seen FROM users WHERE id = $1`, u.ID).Scan(&lastSeen)
 	return jx.M{"user_id": u.ID, "topic": u.CurrentTopic(), "last_seen": lastSeen, "pool": len(u.PoolTopicPositions(u.Pool())), "counts": counts, "files": files,
 		"cookies": cookies, "session_keys": []string{}, "retention_days": 0, "exposed": []string{}, "fix_command": "", "telegram": telegramPublic(c),
 		"channels": channelsPublic(c), "telegram_user": u.TelegramUserPublic(), "auth": c.A.AuthPublic(c.R.Context(), u.ID), "owner": c.A.IsOwner(c.R.Context(), u.ID)}, nil
+}
+
+// Never reflect cookie values into JavaScript, including unknown cookies
+// that may also be HttpOnly. The browser can read its own visible values.
+func accountCookieDetails(requestCookies []*http.Cookie) []jx.M {
+	cookies := []jx.M{}
+	info := map[string][2]string{config.SessionCookie: {"Ваша сессия: случайный ключ, по нему сайт узнаёт ваш профиль. ID профиля в ней нет.",
+		strconv.Itoa(config.UserCookieDays) + " дней, продлевается при каждом заходе"}}
+	for _, ck := range requestCookies {
+		i, known := info[ck.Name]
+		purpose, life := i[0], i[1]
+		if !known {
+			purpose, life = "Неизвестная кука: этот сайт её не ставит (её прислал браузер для этого адреса).", "—"
+		}
+		cookies = append(cookies, jx.M{"name": ck.Name, "known": known, "lifetime": life, "purpose": purpose, "http_only": ck.Name == config.SessionCookie})
+	}
+	return cookies
 }
 
 func telegramPublic(c *Ctx) any {

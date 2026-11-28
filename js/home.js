@@ -1,6 +1,6 @@
 // Главная страница: контент, источники и состояние подбора.
 // Данные — тот же API, что у приложения.
-import { showPlan, showProfile } from './profile.js';
+import { loadProfileSummary, showPlan, showProfile } from './profile.js';
 import { $, api, cleanCaption, el, formatAgo, log, onTabOpen, onTopicChange, safeSourcePostUrl, switchTab } from './core.js';
 import { bindFutureDraftButton, applyRocketCheck, composePostFromItem, toggleFutureDraft } from './content.js';
 import { fromRecord } from './post-adapters.js';
@@ -347,7 +347,7 @@ function render() {
 async function loadContent() {
     const request = ++loadContent.request;
     try {
-        const [proposals, info] = await Promise.all([api('proposals'), api('account_info')]);
+        const [proposals, info] = await Promise.all([api('proposals'), loadProfileSummary()]);
         if (request !== loadContent.request) return;
         state.items = reuseFeedItems(state.items, proposals.items || []);
         state.index = buildHomeFeed(state.items);

@@ -723,7 +723,7 @@ let futureDraftOps = Promise.resolve();
 let futureDraftProfile;
 async function futureDraftKey() {
     if (DEBUG_MODE) return 'demo';
-    if (!futureDraftProfile) futureDraftProfile = api('account_info').then(info => { if (!info.user_id) throw new Error('Не удалось определить профиль.'); return String(info.user_id); }).catch(error => { futureDraftProfile = null; throw error; });
+    if (!futureDraftProfile) futureDraftProfile = api('account_info', { params: { summary: '1' } }).then(info => { if (!info.user_id) throw new Error('Не удалось определить профиль.'); return String(info.user_id); }).catch(error => { futureDraftProfile = null; throw error; });
     return futureDraftProfile;
 }
 // Ключ опирается на исходный адрес, а для текстовых записей — на сам текст.

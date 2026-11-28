@@ -593,8 +593,8 @@ function initializeTelegram() {
 
 function renderPrivacy(info) {
     const visible = Object.fromEntries(document.cookie.split(';').map(p => p.trim()).filter(Boolean).map(p => { const i = p.indexOf('='); return [decodeURIComponent(p.slice(0, i)), decodeURIComponent(p.slice(i + 1))]; }));
-    const cookies = info.cookies.map(c => [el('code', { textContent: c.name }), revealable(c.value), c.lifetime,
-        c.http_only ? el('span', { className: 'privacy-badge', textContent: 'HttpOnly', title: 'Скрипты страницы её не видят — только сервер' }) : 'видна скриптам', c.purpose]);
+    const cookies = info.cookies.map(c => [el('code', { textContent: c.name }), c.http_only ? el('span', { className: 'account-muted', textContent: 'Скрыто: HttpOnly' }) : Object.hasOwn(visible, c.name) ? revealable(visible[c.name]) : 'Недоступно скриптам', c.lifetime,
+        c.http_only ? el('span', { className: 'privacy-badge', textContent: 'HttpOnly', title: 'Скрипты страницы её не видят — только сервер' }) : Object.hasOwn(visible, c.name) ? 'видна скриптам' : 'недоступна скриптам', c.purpose]);
     for (const [name, value] of Object.entries(visible)) if (!info.cookies.some(c => c.name === name)) cookies.push([el('code', { textContent: name }), revealable(value), '—', 'видна скриптам', 'Есть в браузере, но сервер её не получает.']);
     $('privacy-cookies').replaceChildren(table(['Кука', 'Значение', 'Срок', 'Доступ', 'Зачем'], cookies, 'Браузер не отправляет этому сайту ни одной куки.'));
     renderStorage();
