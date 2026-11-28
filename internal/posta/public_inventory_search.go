@@ -92,7 +92,11 @@ func (u *U) searchPublicInventory(query string, sourceAllowed func(string) bool,
 	}
 	cancel()
 	lists = append(lists, u.searchPublicEmbeddings(query, allowed))
-	return fusePublicInventory(lists...)
+	out := map[string][]jx.M{}
+	for i, candidate := range rankPublicInventory(lists...) {
+		out[candidate.platform] = append(out[candidate.platform], withInventoryRank(candidate.post, query, i+1))
+	}
+	return out
 }
 
 func publicInventoryTerms(query string, variants []string) []string {

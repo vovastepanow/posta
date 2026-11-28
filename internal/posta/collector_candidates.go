@@ -196,7 +196,7 @@ func collectorSortCandidates(items []jx.M, rates map[string][2]int, query string
 		rate := float64(r[0]+1) / float64(r[1]+2)
 		ranked[i] = rank{
 			item:     item,
-			named:    !ImageboardItem(item) && query != "" && QueryTextHit(jx.Str(item, "text"), query),
+			named:    !ImageboardItem(item) && query != "" && (QueryTextHit(jx.Str(item, "text"), query) || inventoryPriority(item, query)),
 			cold:     r[1] >= config.SourceVerdictMin && rate < config.SourceVerdictLow,
 			score:    rate * queryRerankMultiplier(item, query),
 			postedAt: jx.Int(item, "posted_at"),
@@ -460,7 +460,7 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 		keywords, exclude = p.Keywords, hotWords(p.Exclude)
 	}
 	shortN := u.TInt("hot_shortlist")
-	var first, rest, softTail []jx.M
+	var first, indexed, rest, softTail []jx.M
 	var boost []float64
 	for _, it := range all {
 		text := jx.Str(it, "text")
@@ -475,6 +475,10 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 			continue
 		}
 		named := query != "" && QueryTextHit(text, query)
+		if inventoryPriority(it, query) && len(indexed) < shortN/4 {
+			indexed = append(indexed, it)
+			continue
+		}
 		if named && len(first) < shortN/2 {
 			first = append(first, it)
 			continue
@@ -486,6 +490,9 @@ func (u *U) hotShortlist(all []jx.M, rates map[string][2]int, topic string) []jx
 		boost = append(boost, b)
 		rest = append(rest, it)
 	}
+	// Indexed candidates have passed the same source, media and safety filters.
+	// Do not let popularity or literal word matches consume their entire budget.
+	first = append(InterleaveBySource(indexed), first...)
 	heat := hotRelativeHeat(rest)
 	score := make([]float64, len(rest))
 	for i, it := range rest {

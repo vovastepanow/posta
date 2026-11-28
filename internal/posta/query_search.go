@@ -38,7 +38,7 @@ type QueryPlan struct {
 func (u *U) QuerySearchPlan(query, topic string) QueryPlan {
 	prompt := u.prompt("query_plan", map[string]string{"query": query, "topic": topic})
 	settings := u.LLM.Settings()
-	private := u.TopicIsRestricted(topic)
+	private := u.TopicIsRestricted(topic) || u.TopicIsRestricted(query)
 	key := queryScoreCacheKey("plan", u.ID, prompt, string(jx.Marshal([]any{settings.Roles[llm.RoleSmart], settings.FastOnly, private})), "", "")
 	var cached QueryPlan
 	if u.CacheGet(u.Ctx, key, &cached) && len(cached.RU) > 0 {
@@ -60,7 +60,7 @@ func (u *U) querySearchPlanModel(query, topic string) (QueryPlan, bool) {
 	schema := jx.M{"type": "object", "properties": jx.M{"ru": list, "en": list, "hashtags": list, "must": list},
 		"required": []string{"ru", "en", "hashtags", "must"}}
 	prompt := u.prompt("query_plan", map[string]string{"query": query, "topic": topic})
-	resp, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Schema: schema, MaxTokens: 300, Temperature: 0, UserID: u.ID, Quiet: true, Private: u.TopicIsRestricted(topic)})
+	resp, err := u.LLM.Generate(u.Ctx, &llm.Request{Role: llm.RoleSmart, Prompt: prompt, Schema: schema, MaxTokens: 300, Temperature: 0, UserID: u.ID, Quiet: true, Private: u.TopicIsRestricted(topic) || u.TopicIsRestricted(query)})
 	if err != nil {
 		return QueryPlan{}, false
 	}
@@ -714,13 +714,13 @@ func queryRerankMultiplier(item jx.M, query string) float64 {
 func queryRerankProtected(item jx.M) bool {
 	source := ContentSourceKey(item)
 	return strings.HasPrefix(source, "own:") || strings.HasPrefix(source, "source:") ||
-		jx.Bool(item, "source_sensitive") || jx.Bool(item, "nsfw") || len(jx.ToStrs(item["safety"])) > 0
+		sourceReviewSensitive(item)
 }
 
 // queryRerank — текстовый реранк верхних queryRerankN записей (query_match 0–100).
 // Без ответа модели список не меняется: отбор по словам уже сделан.
 func (u *U) queryRerank(query, topic string, plan QueryPlan, ranked map[string][]jx.M) map[string][]jx.M {
-	if u.TopicIsRestricted(topic) {
+	if u.TopicIsRestricted(topic) || u.TopicIsRestricted(query) {
 		return ranked
 	}
 	type ref struct {
@@ -736,20 +736,37 @@ func (u *U) queryRerank(query, topic string, plan QueryPlan, ranked map[string][
 				protected[p] = append(protected[p], ImageboardMediaOnly(it))
 				continue
 			}
-			if queryRerankProtected(it) || u.analysisPrivate(topic, it) {
+			if queryRerankProtected(it) || u.analysisPrivate(topic, it) ||
+				(inventoryPriority(it, query) && PostItemHasMedia(it)) {
 				protected[p] = append(protected[p], it)
 				continue
 			}
 			refs = append(refs, ref{p, it, queryLex(it, plan)})
 		}
 	}
-	// верхние — по всем площадкам вместе: сначала совпадение слов, потом свежесть
+	// Reserve part of the text rerank batch for indexed matches, even when
+	// the wording differs. The final judgment still uses the normal collector.
 	sort.SliceStable(refs, func(a, b int) bool {
 		if refs[a].lex != refs[b].lex {
 			return refs[a].lex > refs[b].lex
 		}
 		return jx.Int(refs[a].item, "posted_at") > jx.Int(refs[b].item, "posted_at")
 	})
+	// Keep the strongest indexed matches in the finite model batch.
+	// Preserve lexical order for all other candidates.
+	var indexed, other []ref
+	for _, r := range refs {
+		if inventoryPriority(r.item, query) {
+			indexed = append(indexed, r)
+		} else {
+			other = append(other, r)
+		}
+	}
+	sort.SliceStable(indexed, func(i, j int) bool {
+		return inventoryRank(indexed[i].item, query) < inventoryRank(indexed[j].item, query)
+	})
+	reserved := min(len(indexed), queryRerankN/3)
+	refs = append(append(append([]ref(nil), indexed[:reserved]...), other...), indexed[reserved:]...)
 	n := min(len(refs), queryRerankN)
 	if n == 0 {
 		return ranked

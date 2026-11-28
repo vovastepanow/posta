@@ -192,6 +192,8 @@ func TestQueryRerankProtectedContentIsNotSentToOptionalCloudModel(t *testing.T) 
 		{"source_key": "source:123", "text": "owner source"},
 		{"source_key": "rss:public", "source_sensitive": true},
 		{"nsfw": true},
+		{"fetched_via": "telegram_mtproto"},
+		{"attachment_recovered": true},
 		{"safety": []string{"adult"}},
 	} {
 		if !queryRerankProtected(item) {
@@ -220,5 +222,20 @@ func TestQueryRerankHintIsBoundedAndNotPersisted(t *testing.T) {
 	record := analysisRecord(jx.M{}, low, "SMM", "text")
 	if record["_query_rank_for"] != nil || record["_query_rank_score"] != nil {
 		t.Fatal("transient search score was persisted in the record")
+	}
+}
+
+func TestInventoryRankIsTransientAndQueryScoped(t *testing.T) {
+	item := jx.M{"text": "Продвижение соцсетей"}
+	ranked := withInventoryRank(item, "SMM", 1)
+	if !inventoryPriority(ranked, "smm") || inventoryPriority(ranked, "other") || inventoryPriority(item, "smm") {
+		t.Fatal("index rank leaked outside its query")
+	}
+	if inventoryPriority(withInventoryRank(item, "SMM", 61), "smm") || inventoryRank(withInventoryRank(item, "SMM", 241), "smm") != 0 {
+		t.Fatal("unbounded rank")
+	}
+	record := analysisRecord(jx.M{}, ranked, "SMM", "text")
+	if record["_inventory_rank"] != nil || record["_inventory_rank_for"] != nil {
+		t.Fatal("retrieval rank persisted in editorial record")
 	}
 }
