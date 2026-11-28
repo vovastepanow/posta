@@ -147,6 +147,10 @@ func AnalysisCacheKey(item jx.M, topic string) string {
 // reused for another user or after those examples change.
 func (u *U) analysisCacheKey(item jx.M, topic string, h History) string {
 	base := AnalysisCacheKey(item, topic)
+	if u.openProfilesEnabled() {
+		sum := sha256.Sum256([]byte("open-editorial-v1|" + base))
+		base = hex.EncodeToString(sum[:])
+	}
 	if h == nil {
 		h = EmptyHistory()
 	}

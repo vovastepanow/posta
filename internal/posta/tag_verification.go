@@ -82,6 +82,10 @@ func (u *U) contentSafetyTags(raw any) []string {
 // provider outage must not erase a valid relevance analysis or its safety flags.
 func (u *U) applyContentClassification(result jx.M, description, caption string, private bool) {
 	raw := result["tags"]
+	if u.openProfilesEnabled() {
+		finishOpenContentLabels(result, u.contentSafetyTags(raw))
+		return
+	}
 	tags := u.verifyContentTags(raw, description, caption, private)
 	pending := tags == nil && !private
 	if pending {
@@ -111,6 +115,13 @@ func (u *U) applyVideoClassification(result jx.M, item jx.M, localVideo, caption
 		return
 	}
 	u.classificationMediaSafety = nil
+	// The full-video/audio check is still mandatory. Only its extra
+	// taxonomy call is removed in open-search mode.
+	previous := u.publicObservationOnly
+	if u.openProfilesEnabled() {
+		u.publicObservationOnly = true
+	}
+	defer func() { u.publicObservationOnly = previous }()
 	var tags []string
 	var unsafe bool
 	if len(ContentGallery(item)) > 1 {
@@ -137,4 +148,12 @@ func (u *U) applyVideoClassification(result jx.M, item jx.M, localVideo, caption
 	} else {
 		delete(result, "tags_classification_reason")
 	}
+}
+
+// Keep safety flags separate from editorial relevance; no topic labels
+// are needed to complete the analysis of a text or image.
+func finishOpenContentLabels(result jx.M, safety []string) {
+	result["tags"] = safety
+	result["tags_classification_pending"] = false
+	delete(result, "tags_classification_reason")
 }

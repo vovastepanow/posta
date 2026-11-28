@@ -173,6 +173,9 @@ func (u *U) analysisTags(topic string, safety any) []string {
 // The model labels the content; safety labels remain mandatory even if omitted.
 func (u *U) contentAnalysisTags(topic string, classified, safety any) []string {
 	tags := u.ContentTagsClean(classified)
+	if u.openProfilesEnabled() {
+		tags = u.contentSafetyTags(classified)
+	}
 	var mandatory []string
 	for _, flag := range jx.ToStrs(safety) {
 		switch flag {
@@ -238,8 +241,10 @@ func (u *U) ContentAnalysisPrompt(topic, caption string, h History, video *Story
 		b.WriteString("Подборка, нарезка или компиляция нескольких отдельных мемов не подходит: relevance не выше 30. Нужен один самостоятельный мем.\n")
 	}
 	b.WriteString(contentSafetyPrompt)
-	b.WriteString("tags: пустой массив; тематические метки определяет отдельный классификатор.\n")
-	b.WriteString("quote (boolean): true, если запись в основном представляет собой цитату или афоризм; смысл цитаты определяй отдельными tags.\n")
+	if !u.openProfilesEnabled() {
+		b.WriteString("tags: пустой массив; тематические метки определяет отдельный классификатор.\n")
+	}
+	b.WriteString("quote (boolean): true, если запись в основном представляет собой цитату или афоризм.\n")
 	b.WriteString(fmt.Sprintf("description: законченное описание по-русски, желательно до %d символов: что изображено или происходит и о чём надписи. Только то, что видно. Не обрывай предложение.\n", config.AnalysisDescriptionMax))
 	b.WriteString("format: форма поста, одно из: " + contentFormatsLine() + ". Для одной картинки не выбирай video.\n")
 	b.WriteString(ContentEntityRule())
@@ -301,6 +306,9 @@ func VideoStoryboardDescription(v *Storyboard) string {
 
 // relevanceRule is shared by text and vision, including leaf-topic constraints.
 func (u *U) relevanceRule(topic string) string {
+	if u.openProfilesEnabled() {
+		return openEditorialRule
+	}
 	rule := u.subtopicRelevanceRule(topic)
 	if rule == "" {
 		rule = "relevance (0–100): 0–30 — не по теме; 31–59 — связь слабая или неясная; 60–79 — частичное соответствие; 80–94 — явно по теме; 95–100 — яркий пример.\n"
@@ -335,6 +343,9 @@ func (u *U) subtopicRelevanceRule(topic string) string {
 // hasSpecificTopic identifies a leaf for relevance anchors. Sibling leaves
 // may overlap and are never treated as mutually exclusive.
 func (a *App) hasSpecificTopic(topic string) bool {
+	if a.openProfilesEnabled() {
+		return false
+	}
 	parts := TopicParts(topic)
 	if len(parts) != 1 {
 		return false
