@@ -5,11 +5,11 @@ import { cachedVideoUrl, releaseVideoSource, storeVideo } from './video-cache.js
 import { openViewerGallery } from './viewer.js';
 import { articleCover, cardKind, shortText } from './card.js';
 import { openArticleReader } from './article.js';
-import { TOPIC_CONFIRM, applyRocketCheck, loadCurrentItem, postItemToTelegram, recordGallery, refreshTopicLabel, saveTopic, textPostBlock } from './content.js';
+import { TOPIC_CONFIRM, applyRocketCheck, loadCurrentItem, composePostFromItem, recordGallery, refreshTopicLabel, saveTopic, textPostBlock } from './content.js';
 
 /** Публикация из «Предложки»: успех отмечает запись лайком, и карточка уходит из списка сразу (как после «Убрать»). */
 function postFromProposal(item) {
-    return postItemToTelegram(item, { onDone: result => {
+    return composePostFromItem(item, { onDone: result => {
         if (!result?.marked) return;
         proposals.items = proposals.items.filter(o => o !== item);
         renderProposals();

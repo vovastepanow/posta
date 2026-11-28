@@ -3,7 +3,8 @@
 // Перетаскивание и жесты фона — в calendar-drag.js, чистая модель — в calendar-model.js.
 import { $, api, apiUrl, ask, cleanCaption, el, isTabActive, onTabOpen, PHOTO_ICON, pluralRu, switchTab, VIDEO_ICON } from './core.js';
 import { addDays, centeredHourShift, dayAgenda, easeView, freeSlots, hourSpan, hourWindow, layoutDay, layoutRow, shiftHourWindow, slotTimes, snapGestureDays, snapView, summary, viewGapPx, weekStart, wheelFactor, wheelPixels, zoomAround, zoomHoursAround, zoomLimitReached, ZOOM_DAYS_MAX, ZOOM_DAYS_MIN, DAY, HOUR, MIN } from './calendar-model.js';
-import { postItemToTelegram } from './content.js';
+import { composePostFromItem } from './content.js';
+import { appendEditorMedia } from './editor-variants.js';
 import { isPhone, phoneView } from './calendar-phone.js';
 import { draftChildren, flashPoolItem, holesChildren, planPanel, poolPanel, renderPoolColumn, UNDO_SECONDS, undoable } from './calendar-pool.js';
 import { bindGestures, isDragging, startDrag, startPoolDrag } from './calendar-drag.js';
@@ -1123,7 +1124,7 @@ function pickerItem(item, row) {
 /** Редактор поста с временем слота и каналом; после постановки в очередь календарь перечитывается. */
 async function pickItem(item, row) {
     closePanel();
-    await postItemToTelegram(item, { scheduledTs: unix(row.at), channel: row.channel.id, onDone: () => loadCalendar() });
+    await composePostFromItem(item, { scheduledTs: unix(row.at), channel: row.channel.id, onDone: () => loadCalendar() });
 }
 
 function closePanel() {
@@ -1253,7 +1254,7 @@ async function commitPoolItem(item, at) {
     if (!targets.length) { setStatus('Отметьте хотя бы один ресурс.', true); return null; }
     const image = item.image || item.display_image || '';
     if (item.format === 'video' || !image || item.article || item.article_source || item.text_html) {
-        postItemToTelegram(item, { scheduledTs: Math.floor(at / 1000), channels: targets, onDone: () => loadCalendar() }).catch(error => setStatus(error.message, true));
+        composePostFromItem(item, { scheduledTs: Math.floor(at / 1000), channels: targets, onDone: () => loadCalendar() }).catch(error => setStatus(error.message, true));
         return null;
     }
     setStatus('Ставлю пост из Предложки в очередь…');
@@ -1282,7 +1283,7 @@ function openPoolView(items, index) {
 function poolViewActions(item) {
     return [
         { label: 'Поставить в календарь', icon: '📅', primary: true, run: () => placeNearest(item) },
-        { label: 'Редактировать', icon: '✎', run: () => { closePostView(); return postItemToTelegram(item, { channel: enabledChannels()[0]?.id, onDone: () => loadCalendar() }); } },
+        { label: 'Редактировать', icon: '✎', run: () => { closePostView(); return composePostFromItem(item, { channel: enabledChannels()[0]?.id, onDone: () => loadCalendar() }); } },
         { label: 'Убрать из Предложки', icon: '✕', run: () => removeFromPool(item) },
     ];
 }
@@ -1319,7 +1320,7 @@ async function openDraft(item) {
     const channel = state.channels.find(c => !state.disabled.has(c.id)) ?? state.channels[0];
     try {
         showPanel('Черновик из Предложки', await draftChildren(item, channel, (picked, slot, channelId) =>
-            postItemToTelegram(picked, { scheduledTs: slot, channel: channelId, onDone: () => loadCalendar() })), $('cal-pool'));
+            composePostFromItem(picked, { scheduledTs: slot, channel: channelId, onDone: () => loadCalendar() })), $('cal-pool'));
     } catch (error) { setStatus(error.message, true); }
 }
 
@@ -1331,7 +1332,7 @@ async function pickSlotForItem(item) {
     const isBest = at => best.includes(new Date(at).getHours());
     const slots = enabledChannels().flatMap(c => freeSlots(c, state.posts, day, day + DAY, now)).sort((a, b) => (isBest(b.at) - isBest(a.at)) || a.at - b.at);
     const list = el('ul', { className: 'cal-holes' }, ...(slots.length ? slots.map(row => el('li', {},
-        el('button', { type: 'button', className: 'cal-pick-slot', onclick: () => postItemToTelegram(item, { scheduledTs: unix(row.at), channel: row.channel.id, onDone: () => loadCalendar() }) },
+        el('button', { type: 'button', className: 'cal-pick-slot', onclick: () => composePostFromItem(item, { scheduledTs: unix(row.at), channel: row.channel.id, onDone: () => loadCalendar() }) },
             `${hhmm(row.at)} · ${row.channel.title}${isBest(row.at) ? ' · лучшее время' : ''}`)))
         : [el('li', { textContent: 'В этот день свободных слотов нет.' })]));
     showPanel('Свободные слоты', [el('p', { className: 'cal-pop-text', textContent: cleanCaption(item.text) }), list]);
@@ -1423,15 +1424,12 @@ async function openQueuePost(post) {
                 original: data.text || '', description: '', media: data.media || [], poll: data.poll || null, extras:data.extras || null,
                 onSubmit: async edited => {
                     const form = new FormData();
-                    const files = [];
-                    const media = edited.media.map(m => {
-                        const item=m.file?{kind:m.kind,name:m.name,upload:files.push(m.file)-1}:m.existing!==undefined?{kind:m.kind,name:m.name,existing:m.existing}:{kind:m.kind,name:m.name,src:m.src};if(m.cover?.file)item.cover_upload=files.push(m.cover.file)-1;else if(m.cover?.existing)item.cover_existing=true;return item;
-                    });
-                    form.append('id', data.id); form.append('revision', data.revision);
-                    form.append('text', edited.text || ''); form.append('media', JSON.stringify(media));
+                    form.append('id', data.id);
+                    form.append('revision', data.revision);
+                    form.append('text', edited.text || '');
                     if (edited.poll) form.append('poll', JSON.stringify(edited.poll));
-                    if (edited.extras) form.append('extras',JSON.stringify(edited.extras));
-                    files.forEach(f => form.append('files[]', f));
+                    if (edited.extras) form.append('extras', JSON.stringify(edited.extras));
+                    appendEditorMedia(form, edited.media, { allowExisting: true });
                     await api('outbox_edit_save', { body: form });
                     setStatus('Изменения сохранены.');
                     await loadCalendar();

@@ -35,3 +35,21 @@ export function draftHasContent(d) {
 export function payloadAllowsSourceLink(p) {
     return !(p.poll&&!p.poll.with_content)&&!standaloneExtra(p.extras)&&!p.extras?.ig_story&&!(p.media||[]).some(m=>['sticker','video_note'].includes(mediaKind(m)));
 }
+
+/** Shared multipart contract for a new post and editing an existing queue item.
+ * Only queue edits may refer to already stored attachments or covers. */
+export function appendEditorMedia(form, media, { allowExisting = false } = {}) {
+    const files = [];
+    const manifest = media.map(({kind, name, file, existing, src, cover}) => {
+        const item = { kind, name };
+        if (file) item.upload = files.push(file) - 1;
+        else if (allowExisting && existing !== undefined) item.existing = existing;
+        else item.src = src;
+        if (cover?.file) item.cover_upload = files.push(cover.file) - 1;
+        else if (allowExisting && cover?.existing) item.cover_existing = true;
+        return item;
+    });
+    form.append('media', JSON.stringify(manifest));
+    for (const file of files) form.append('files[]', file);
+    return files.length;
+}

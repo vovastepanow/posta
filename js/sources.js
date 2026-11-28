@@ -3,7 +3,7 @@ import { $, ask, COUNT, DEBUG_MODE, VIDEO_ICON, cleanCaption, api, bindMenu, chi
 import { BIG_VIDEO_NOTE, closePostView, openPostView, shownText } from './post-view.js';
 import { fromSourcePost } from './post-adapters.js';
 import { videoPageFor } from './viewer.js';
-import { bindFutureDraftButton, toggleFutureDraft, loadCurrentItem, postItemToTelegram } from './content.js';
+import { bindFutureDraftButton, toggleFutureDraft, loadCurrentItem } from './content.js';
 import { openAccountSection } from './account.js';
 import { mediaFileKey } from './media-dedupe.js';
 import { loadImage, pageCheck, videoProgress, watchVideo } from './video-pending.js';

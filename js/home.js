@@ -2,7 +2,7 @@
 // Данные — тот же API, что у приложения.
 import { showPlan, showProfile } from './profile.js';
 import { $, api, cleanCaption, el, formatAgo, log, onTabOpen, onTopicChange, safeSourcePostUrl, switchTab } from './core.js';
-import { bindFutureDraftButton, applyRocketCheck, postItemToTelegram, toggleFutureDraft } from './content.js';
+import { bindFutureDraftButton, applyRocketCheck, composePostFromItem, toggleFutureDraft } from './content.js';
 import { fromRecord, recordSlides } from './post-adapters.js';
 import { closePostView, openPostView } from './post-view.js';
 import { pickDateTime } from './editor.js';
@@ -85,7 +85,7 @@ function card(i, rejection = null) {
     const title = firstLine(i);
     const rocket = el('button', { type: 'button', className: 'home-card-action', textContent: '🚀', ariaLabel: 'Подготовить пост', onclick: async e => {
         e.stopPropagation();
-        try { await postItemToTelegram(i, { onDone: () => loadContent().catch(() => {}) }); } catch (error) { log(`Не удалось открыть редактор: ${error.message}`); }
+        try { await composePostFromItem(i, { onDone: () => loadContent().catch(() => {}) }); } catch (error) { log(`Не удалось открыть редактор: ${error.message}`); }
     } });
     applyRocketCheck(rocket, i.post_check, 'Подготовить пост');
     const add = bindFutureDraftButton(el('button', { type: 'button', className: 'home-card-action', textContent: '+🚀', ariaLabel: 'Добавить в будущий пост' }), () => i);
@@ -119,7 +119,7 @@ function openPreview(item) {
             scheduledTs = Math.floor(date.getTime() / 1000);
         } else closePostView();
         try {
-            await postItemToTelegram(item, { scheduledTs, onDone: () => loadContent().catch(() => {}) });
+            await composePostFromItem(item, { scheduledTs, onDone: () => loadContent().catch(() => {}) });
         } catch (error) {
             log('Не удалось открыть редактор: ' + error.message);
             openPreview(item);

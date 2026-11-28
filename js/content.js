@@ -1,10 +1,10 @@
 import { readFutureDraft, saveFutureDraft, clearFutureDraft } from './future-draft.js';
 // content.js — вкладка «Подбор»: тема и вторая тема, фильтры, карточка записи (карусель, видео, активность), голоса, жалобы,
-// публикация в Telegram (панель 🚀 и редактор поста).
+// публикация в подключённые ресурсы (панель 🚀 и редактор поста).
 import { $, ask, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, qualityText, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
 import { registerViewerGallery, registerViewerPoster, videoFields } from './viewer.js';
 import { formatWhen, openPostEditor } from './editor.js';
-import { draftHasContent, payloadAllowsSourceLink } from './editor-variants.js';
+import { appendEditorMedia, draftHasContent, payloadAllowsSourceLink } from './editor-variants.js';
 import { openAccountSection } from './account.js';
 import { itemCheck, videoProgress, watchVideo } from './video-pending.js';
 import { articleBrief, cardKind, clampText } from './card.js';
@@ -61,7 +61,7 @@ export function recordGallery(item, index = 0) {
     if (!items.length && (item?.video_via || item?.video_unavailable)) {
         items.push({ kind: 'video', src: '', poster: '', sourceUrl, alt: 'Видео', ...videoFields(item, sourceUrl) });
     }
-    return { index, onPost: item ? () => postItemToTelegram(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) : null, postCheck: item?.post_check || null, items };
+    return { index, onPost: item ? () => composePostFromItem(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) : null, postCheck: item?.post_check || null, items };
 }
 
 // Старые функции больше не используются, но оставляем для совместимости
@@ -84,7 +84,7 @@ function initializeCardAi() {
  *  Кнопки подбора (голоса, жалоба, 🚀) и блоки оценки стоят в карточке под листом, как раньше. */
 function renderPostView(item) {
     renderPostSheet($('item-post'), fromRecord({ ...item, text: state.shownText ?? item.text }), {
-        zoom: { onPost: item ? () => postItemToTelegram(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) : null, postCheck: item.post_check || null },
+        zoom: { onPost: item ? () => composePostFromItem(item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)) : null, postCheck: item.post_check || null },
         watchPending: false, link: false, stats: false,
         onVideoRetry: async () => {
             const key = item.item_key || item.image;
@@ -661,7 +661,7 @@ const scheduleOptions = () => ({
 });
 
 /** Подключённые каналы и личный аккаунт: нужны редактору поста (куда постить, слоты, «Отложенные»). */
-async function refreshTelegramTarget() {
+async function refreshPublishTargets() {
     if (DEBUG_MODE) return;
     const [tg, other] = await Promise.allSettled([api('telegram_queue'), api('networks_list')]);
     if (tg.status === 'fulfilled') { state.channels = tg.value.connected ? tg.value.channels || [] : []; state.nativeAccount = Boolean(tg.value.native_account); }
@@ -807,7 +807,7 @@ export async function openFutureDraft() {
         const key = await futureDraftKey();
         const saved = await readFutureDraft(key);
         if (!saved || (!draftHasContent(saved)&&!Object.values(saved.variants||{}).some(draftHasContent))) return void log('Черновик пока пуст. Добавьте пост кнопкой +🚀.');
-        await refreshTelegramTarget();
+        await refreshPublishTargets();
         const restoreMedia=d=>{d.media=(d.media||[]).map(m=>{const next={...m};if(m.file){next.src=URL.createObjectURL(m.file);next.thumb=m.kind==='image'?next.src:'';}if(m.cover?.file)next.cover={...m.cover,src:URL.createObjectURL(m.cover.file)};return next;});};
         restoreMedia(saved);Object.values(saved.variants||{}).forEach(restoreMedia);
         const picked=(saved.picked||[]).filter(v=>allTargets().some(t=>t.value===v));
@@ -845,7 +845,7 @@ function postFormWithUpload(action, form, onUpload) {
  * Файлы из редактора уходят загрузкой, остальные медиа — адресом (кэш сайта или ссылка).
  * onProgress({stage, percent}): пока файлы идут на сервер — «Загрузка на сервер», дальше — этапы сервера из опроса (percent null — без процентов).
  */
-async function publishToTelegram(post, onProgress = null) {
+async function publishToResource(post, onProgress = null) {
     const form = new FormData();
     form.append('text', post.text);
     if (post.article) form.append('article', JSON.stringify(post.article));   // статья: признак уйдёт в очередь, календарь покажет заголовок
@@ -856,13 +856,11 @@ async function publishToTelegram(post, onProgress = null) {
     if (post.extras) form.append('extras',JSON.stringify(post.extras));
     if (post.hashtags?.length) form.append('hashtags', JSON.stringify(post.hashtags));   // сервер оставит те, что разрешены каналу
     if (post.record) form.append('record', JSON.stringify(post.record));   // поля записи: сервер отметит её лайком после публикации
-    const files = [];
-    form.append('media', JSON.stringify(post.media.map(m => {const item=m.file?{kind:m.kind,name:m.name,upload:files.push(m.file)-1}:{kind:m.kind,src:m.src,name:m.name};if(m.cover?.file)item.cover_upload=files.push(m.cover.file)-1;return item;})));
-    files.forEach(f => form.append('files[]', f, f.name));
+    const fileCount = appendEditorMedia(form, post.media);
     // Сервер пишет этап и процент в файл по этому id, а мы опрашиваем его, пока идёт отправка
     const id = crypto.randomUUID().replaceAll('-', '');
     form.append('progress_id', id);
-    let [uploading, done] = [files.length > 0 && !!onProgress, false];
+    let [uploading, done] = [fileCount > 0 && !!onProgress, false];
     const report = p => { if (!done) onProgress(p); };
     const poll = onProgress && setInterval(() => {
         if (!uploading) api('telegram_publish_progress', { params: { id } }).then(p => p?.stage && report({ stage: p.stage, percent: p.percent ?? null })).catch(() => {});
@@ -895,7 +893,7 @@ async function publishToTargets(post, onProgress = null) {
     let marked = null;   // 'liked', если хоть один канал отметил запись сейчас; иначе 'already' при повторе
     for (const target of post.targets) {
         try {
-            const result = await publishToTelegram({ ...post, ...(post.payloads?.[target]||{}),target }, onProgress);
+            const result = await publishToResource({ ...post, ...(post.payloads?.[target]||{}),target }, onProgress);
             if (result?.warning) log(result.warning);
             if (result?.marked === 'liked' || (result?.marked === 'already' && !marked)) marked = result.marked;
         } catch (e) {
@@ -917,10 +915,10 @@ const recordOf = item => ({ item_key: item.item_key || '', image: item.image || 
 const newsSourceUrl = item => (String(item.source_key || '').startsWith('rss:') && String(item.source_url || '').startsWith('https://') ? item.source_url : '');
 
 /** Редактор поста. Необязательно: scheduledTs и channel (id канала) — время и канал уже выбраны (календарь, слот); onDone — после постановки/публикации. */
-export async function postItemToTelegram(item, { scheduledTs = 0, channel = '', channels = [], onDone = null } = {}) {
+export async function composePostFromItem(item, { scheduledTs = 0, channel = '', channels = [], onDone = null } = {}) {
     logPostCheck(item.post_check);
     if (recordMediaIncomplete(item)) throw new Error('Сначала восстановите все вложения и текст записи.');
-    await refreshTelegramTarget();
+    await refreshPublishTargets();
     if (!allTargets().length) {
         log('Подключите ресурс в «Личном кабинете» → «Соцсети».');
         return openAccountSection('social');
@@ -972,11 +970,11 @@ export function initializeContentTab({ onAddItem }) {
         const item = kind === 'video'
             ? { image: poster || src, display_image: poster || src, video: src, display_video: src, text: '', post_check: null }
             : { image: src, display_image: src, text: '', post_check: null };
-        return postItemToTelegram(item).catch(e => log(`Ошибка при публикации: ${e.message}`));
+        return composePostFromItem(item).catch(e => log(`Ошибка при публикации: ${e.message}`));
     });
     $('future-draft-open').addEventListener('click', openFutureDraft);
     bindFutureDraftButton($('item-draft-add'), () => state.item);
-    $('item-rocket').addEventListener('click', () => state.item && postItemToTelegram(state.item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)));
+    $('item-rocket').addEventListener('click', () => state.item && composePostFromItem(state.item).catch(e => log(`Не удалось открыть редактор: ${e.message}`)));
     document.querySelectorAll('#content-tab [data-vote]').forEach(b => b.addEventListener('click', () => vote(b.dataset.vote)));
     $('item-search-button').addEventListener('click', searchForContent);
     $('item-add-button').addEventListener('click', onAddItem);

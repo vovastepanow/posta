@@ -28,7 +28,22 @@ try{
         const {sourceEditorText,articleEditorContent}=await import('/js/source-format.js');
         const full=articleEditorContent({title:'Полная статья',lead:'Короткий анонс',blocks:[{type:'p',text:'Первый абзац'},{type:'h',text:'Раздел'},{type:'list',items:[{text:'Ссылка',links:[['Ссылка','https://example.com/a']]}]},{type:'image',src:'https://example.com/image.jpg',caption:'Подпись'},{type:'p',text:'Последний абзац'}]});
         if(!full.bodyFound||!full.text.endsWith('Последний абзац')||!full.text.includes('[Ссылка](https://example.com/a)')||full.text.includes('Короткий анонс')||full.media.length!==1)throw Error('Full article import failed');
-        const {draftPayload}=await import('/js/editor-variants.js');
+        const {draftPayload,appendEditorMedia}=await import('/js/editor-variants.js');
+        const photo=new File(['photo'],'photo.jpg',{type:'image/jpeg'});
+        const cover=new File(['cover'],'cover.jpg',{type:'image/jpeg'});
+        const attachments=[
+            {kind:'image',name:'photo.jpg',file:photo,existing:3},
+            {kind:'video',name:'remote.mp4',src:'https://example.com/remote.mp4',cover:{file:cover}},
+            {kind:'video',name:'saved.mp4',src:'https://example.com/saved.mp4',existing:0,cover:{existing:true}}
+        ];
+        const editForm=new FormData();
+        if(appendEditorMedia(editForm,attachments,{allowExisting:true})!==2)throw Error('Incorrect multipart file count');
+        const expectedEdit=[{kind:'image',name:'photo.jpg',upload:0},{kind:'video',name:'remote.mp4',src:'https://example.com/remote.mp4',cover_upload:1},{kind:'video',name:'saved.mp4',existing:0,cover_existing:true}];
+        if(JSON.stringify(JSON.parse(editForm.get('media')))!==JSON.stringify(expectedEdit)||editForm.getAll('files[]').map(f=>f.name).join(',')!=='photo.jpg,cover.jpg')throw Error('Queue attachment manifest or upload order lost');
+        const newForm=new FormData();
+        appendEditorMedia(newForm,attachments);
+        const expectedNew=[expectedEdit[0],expectedEdit[1],{kind:'video',name:'saved.mp4',src:'https://example.com/saved.mp4'}];
+        if(JSON.stringify(JSON.parse(newForm.get('media')))!==JSON.stringify(expectedNew))throw Error('Queue-only reference leaked to a new publication');
         const imported=sourceEditorText({text:'Bold\nRead',text_html:'<b>Bold</b><br><a href="https://example.com/a">Read</a>'},'Bold\nRead');
         if(imported.text!=='**Bold**\n[Read](https://example.com/a)'||!imported.styled)throw Error('Rich source import failed');
         const nested=sourceEditorText({text:'Read now',text_html:'<b><a href="https://example.com/a">Read</a> now</b>'},'Read now');

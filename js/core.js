@@ -237,7 +237,7 @@ function initializeConsole() {
 // ---- API ----
 
 const ACTION_LABELS = {
-    telegram_publish: 'Отправка поста в Telegram…', refresh_content: 'Запущен поиск контента', save_topic: 'Сохранение темы поиска', save_filters: 'Сохранение фильтров подбора',
+    telegram_publish: 'Отправка поста…', refresh_content: 'Запущен поиск контента', save_topic: 'Сохранение темы поиска', save_filters: 'Сохранение фильтров подбора',
     topic_parent: 'Сохранение общей темы', topic_reprofile: 'Пересоставление профиля темы', control_search: 'Поиск контента', control_sources: 'Обновление базы источников',
     app_stop: 'Остановка приложения', analyze_image: 'Запущен анализ изображения', suggest_sources: 'Поиск нового источника', vote: 'Сохранение оценки',
     source_vote: 'Сохранение решения по источнику', database_add: 'Добавление записи в базу', database_update: 'Обновление записи в базе', database_delete: 'Удаление записи из базы',
