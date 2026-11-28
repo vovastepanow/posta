@@ -66,7 +66,7 @@ jobs:
           trap 'rm -rf "$test_dir"' EXIT
           mkdir -p "$test_dir/tools"
           cp -r js "$test_dir/js"
-          cp tools/test-post-adapters.mjs tools/test-editor-capabilities.mjs tools/test-editor-variants.mjs tools/test-source-pages.mjs tools/test-calendar-model.mjs tools/test-account-poll.mjs tools/test-topic-tree-model.mjs "$test_dir/tools/"
+          cp tools/test-post-adapters.mjs tools/test-editor-capabilities.mjs tools/test-editor-variants.mjs tools/test-source-pages.mjs tools/test-calendar-model.mjs tools/test-account-poll.mjs tools/test-topic-tree-model.mjs tools/test-home-feed-model.mjs "$test_dir/tools/"
           printf '%s\n' '{"type":"module"}' > "$test_dir/package.json"
           node "$test_dir/tools/test-post-adapters.mjs"
           node "$test_dir/tools/test-editor-capabilities.mjs"
@@ -75,6 +75,7 @@ jobs:
           node "$test_dir/tools/test-calendar-model.mjs"
           node "$test_dir/tools/test-account-poll.mjs"
           node "$test_dir/tools/test-topic-tree-model.mjs"
+          node "$test_dir/tools/test-home-feed-model.mjs"
       - name: Unit tests
         run: go test ./...
 

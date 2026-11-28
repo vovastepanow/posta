@@ -3,43 +3,15 @@
 import { showPlan, showProfile } from './profile.js';
 import { $, api, cleanCaption, el, formatAgo, log, onTabOpen, onTopicChange, safeSourcePostUrl, switchTab } from './core.js';
 import { bindFutureDraftButton, applyRocketCheck, composePostFromItem, toggleFutureDraft } from './content.js';
-import { fromRecord, recordSlides } from './post-adapters.js';
+import { fromRecord } from './post-adapters.js';
+import { PLATFORMS, buildHomeFeed, describeFeedItem, reuseFeedItems } from './home-feed-model.js';
 import { closePostView, openPostView } from './post-view.js';
 import { pickDateTime } from './date-picker.js';
 
-const PLATFORMS = { YouTube: '▶', Telegram: '✈', 'ВКонтакте': 'VK', RSS: '◉', 'Двач': '2ch', '4chan': '4ch', 'Одноклассники': 'OK', TikTok: '♪' };
-const state = { items: [], filter: 'all', sort: 'new', q: '' };
-
-const platformOf = item => {
-    const s = String(item.source || '');
-    if (/youtu\.?be/.test(String(item.source_url || item.image || ''))) return 'YouTube';
-    if (item.board && /^[a-z0-9]+$/.test(item.board)) return item.source_key?.startsWith('fourchan') ? '4chan' : 'Двач';
-    const p = s.split(' | ')[0];
-    return PLATFORMS[p] ? p : (s.includes('Двач') ? 'Двач' : 'Сайт');
-};
+const state = { items: [], index: buildHomeFeed([]), filter: 'all', sort: 'new', q: '' };
+const homeCards = new Map();
 
 const firstLine = i => cleanCaption(i.text).split('\n')[0].replace(/#\S+/g, '').trim().slice(0, 90);
-
-const FILTERS = [
-    ['all', 'Всё', () => true],
-    ['images', 'Картинки', i => postMedia(i).some(file => file.image) && !hasVideo(i)],
-    ['videos', 'Видео', i => hasVideo(i)],
-    ['text', 'Текст', i => !postMedia(i).length && !hasVideo(i)],
-    ['telegram', 'Из Telegram', i => platformOf(i) === 'Telegram'],
-    ['boards', 'С имиджбордов', i => ['Двач', '4chan'].includes(platformOf(i))],
-];
-
-function visible() {
-    const f = FILTERS.find(x => x[0] === state.filter)[2];
-    const q = state.q.toLowerCase();
-    const list = state.items.filter(i => f(i) && (!q || [i.text, i.source, ...(i.hashtags || [])].join(' ').toLowerCase().includes(q)));
-    return list.sort(state.sort === 'rel' ? (a, b) => (b.relevance || 0) - (a.relevance || 0) : (a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-}
-
-const postMedia = item => recordSlides(item).filter(file => !file.textPost);
-function hasVideo(item, files = postMedia(item)) {
-    return files.some(file => file.video) || Boolean(item.video_via || item.video_pending || item.video_unavailable);
-}
 
 const videoObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
     for (const entry of entries) {
@@ -57,16 +29,58 @@ document.addEventListener('visibilitychange', () => {
     else videos.forEach(video => { videoObserver.unobserve(video); videoObserver.observe(video); });
 });
 
-// Unobserve and release old decoders before replacing either grid.
-function replaceGrid(grid, ...children) {
-    for (const video of grid.querySelectorAll('video')) {
+// Unobserve and release decoders only when a card actually leaves a grid.
+function releaseCardMedia(node) {
+    for (const video of node.querySelectorAll('video')) {
         videoObserver?.unobserve(video);
         video.pause();
         video.removeAttribute('src');
         video.load();
     }
+}
+
+function observeCardMedia(node) {
+    if (videoObserver) node.querySelectorAll('video').forEach(video => videoObserver.observe(video));
+}
+
+function replaceGrid(grid, ...children) {
+    releaseCardMedia(grid);
     grid.replaceChildren(...children);
-    if (videoObserver) grid.querySelectorAll('video').forEach(video => videoObserver.observe(video));
+    observeCardMedia(grid);
+}
+
+function reconcileFeed(rows) {
+    const grid = $('grid');
+    const keep = new Set(rows.map(row => row.item));
+    for (const [item, node] of homeCards) {
+        if (keep.has(item) && node.parentNode === grid) continue;
+        releaseCardMedia(node);
+        node.remove();
+        homeCards.delete(item);
+    }
+    const nodes = rows.map(row => {
+        let node = homeCards.get(row.item);
+        if (!node) {
+            node = card(row.item, null, row);
+            homeCards.set(row.item, node);
+        }
+        return node;
+    });
+    if (!nodes.length) {
+        grid.replaceChildren(el('p', { className: 'muted', textContent: 'Здесь пока пусто: лайкните посты в «Предложке» — они появятся здесь.' }));
+        return;
+    }
+    const expected = new Set(nodes);
+    for (const node of [...grid.children]) if (!expected.has(node)) node.remove();
+    let next = grid.firstChild;
+    for (const node of nodes) {
+        if (node === next) next = next.nextSibling;
+        else {
+            const fresh = node.parentNode !== grid;
+            grid.insertBefore(node, next);
+            if (fresh) observeCardMedia(node);
+        }
+    }
 }
 
 function makeVideo(src, poster) {
@@ -76,10 +90,10 @@ function makeVideo(src, poster) {
     return video;
 }
 
-function card(i, rejection = null) {
-    const files = postMedia(i), first = files[0];
+function card(i, rejection = null, row = describeFeedItem(i)) {
+    const { files, video, platform } = row;
+    const first = files[0];
     const media = first?.video ? makeVideo(first.video, first.image) : first?.image ? el('img', { src: first.image, alt: '', loading: 'lazy' }) : el('div', { className: 'text-only', textContent: (i.text || '').slice(0, 220) });
-    const video = hasVideo(i, files);
     const sourceUrl = safeSourcePostUrl(i);
     const ago = i.timestamp ? formatAgo(i.timestamp) : '';
     const title = firstLine(i);
@@ -100,7 +114,7 @@ function card(i, rejection = null) {
             files.length > 1 ? el('span', { className: 'tile-media-count', ariaLabel: `Медиафайлов: ${files.length}`, textContent: `▣ ${files.length}` }) : null),
         el('div', { className: 'tile-body' },
             el('b', { textContent: title }),
-            el('small', { textContent: [platformOf(i), ago].filter(Boolean).join(' · ') }),
+            el('small', { textContent: [platform, ago].filter(Boolean).join(' · ') }),
             rejection ? el('p', { className: 'rejected-reason', textContent: `Причина: ${rejection.reason || (rejection.stage === 'prescreen' ? 'Вероятный мусор' : 'Не прошёл оценку')}` }) : null,
             rejection ? el('small', { className: 'rejected-stage', textContent: [({ filter: 'Фильтры', prescreen: 'Быстрая оценка' })[rejection.stage] || 'Глубокая оценка', rejection.score != null ? `${rejection.score}%` : '', rejection.at ? formatAgo(rejection.at) : ''].filter(Boolean).join(' · ') }) : null,
             sourceUrl ? el('a', { href: sourceUrl, target: '_blank', rel: 'noopener', textContent: '↗', title: 'Открыть у источника' }) : null,
@@ -322,9 +336,8 @@ function renderLive(r) {
 }
 
 function render() {
-    const list = visible();
-    replaceGrid($('grid'), ...(list.length ? list.map(item => card(item)) : [el('p', { className: 'muted', textContent: 'Здесь пока пусто: лайкните посты в «Предложке» — они появятся здесь.' })]));
-    const filters = FILTERS.map(([id, label, f]) => ({ id, label, count: state.items.filter(f).length }));
+    reconcileFeed(state.index.visible(state.filter, state.sort, state.q));
+    const filters = state.index.filters;
     const props = id => ({ className: state.filter === id ? 'is-active' : '', onclick: () => { state.filter = id; render(); } });
     const countNode = count => el('em', { textContent: String(count) });
     $('chips').replaceChildren(...filters.map(({ id, label, count }) => el('button', { type: 'button', ...props(id) }, label, countNode(count))));
@@ -336,7 +349,8 @@ async function loadContent() {
     try {
         const [proposals, info] = await Promise.all([api('proposals'), api('account_info')]);
         if (request !== loadContent.request) return;
-        state.items = proposals.items || [];
+        state.items = reuseFeedItems(state.items, proposals.items || []);
+        state.index = buildHomeFeed(state.items);
         showProfile(info);
         render();
     } catch (error) {
@@ -363,7 +377,7 @@ function init() {
     $('sort').onchange = e => { state.sort = e.target.value; render(); };
     $('search').oninput = e => { state.q = e.target.value; render(); };
     document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== $('search')) { e.preventDefault(); $('search').focus(); } });
-    const fail = e => { replaceGrid($('grid'), el('p', { className: 'muted', textContent: e.status === 401 ? 'Войдите в приложение, чтобы увидеть материалы.' : `Ошибка: ${e.message}` })); };
+    const fail = e => { homeCards.clear(); replaceGrid($('grid'), el('p', { className: 'muted', textContent: e.status === 401 ? 'Войдите в приложение, чтобы увидеть материалы.' : `Ошибка: ${e.message}` })); };
     loadContent().catch(fail);
     const panel = $('live-panel');
     const placePanel = tab => {
