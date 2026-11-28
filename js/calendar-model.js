@@ -200,109 +200,102 @@ function dayWord(n) {
     return 'дней';
 }
 
-/**
- * Карточки одного дня: позиция по времени, колонки внутри пересекающихся групп, стопка вместо узких колонок.
- * rows — объекты с at (мс); возвращает {type: 'card', item, left, width, top}, {type: 'stack', items, from, to, left, width, top}
- * и {type: 'cover', items, more, left, width, top} (первый пост целиком, остальные — за бейджем «+N»).
- */
-export function layoutDay(rows, { originMs, pxPerMinute, colWidth, cardHeight, minWidth = 60, colHeight }) {
-    const items = rows.map(item => { const top = (item.at - originMs) / MIN * pxPerMinute; return { item, at: item.at, top, timeTop: top }; });   // timeTop — где карточка по настоящему времени
-    if (colHeight !== undefined) raiseAtBottom(items, cardHeight, colHeight);   // карточка у низа колонки поднимается, время — на риске
-    items.sort((a, b) => a.top - b.top);
-    const out = [];
-    let group = [];
-    let bottom = -Infinity;
-    const flush = () => {
-        if (!group.length) return;
-        const laneEnds = [];
-        for (const item of group) {
-            let lane = laneEnds.findIndex(end => end <= item.top);
-            if (lane < 0) lane = laneEnds.push(0) - 1;
-            laneEnds[lane] = item.top + cardHeight;
-            item.lane = lane;
-        }
-        const lanes = laneEnds.length;
-        const width = colWidth / lanes;
-        if (lanes > 1 && ((lanes >= 3 && group.length >= 4) || colWidth < minWidth)) {   // стопка — от четырёх постов в трёх и более дорожках (цепочка в две дорожки остаётся карточками) или когда вся колонка уже minWidth (месяц)
-            const ats = group.map(i => i.at);
-            out.push({ type: 'stack', items: group.map(i => i.item), from: Math.min(...ats), to: Math.max(...ats), left: 0, width: colWidth, top: group[0].top, timeTop: Math.min(...group.map(i => i.timeTop)) });
-        } else if (lanes > 1 && width < minWidth && group.every(i => i.item.kind !== 'slot')) {   // два-три поста в одно время в узкой колонке: первая карточка целиком и бейдж «+N»; слоты не прячем
-            out.push({ type: 'cover', items: group.map(i => i.item), more: group.length - 1, left: 0, width: colWidth, top: group[0].top, timeTop: Math.min(...group.map(i => i.timeTop)) });
-        } else {
-            for (const item of group) out.push({ type: 'card', item: item.item, left: item.lane * width, width, top: item.top, timeTop: item.timeTop });
-        }
-        group = [];
-    };
-    for (const item of items) {
-        if (item.top >= bottom) flush();
-        group.push(item);
-        bottom = Math.max(bottom, item.top + cardHeight);
+// Move overflowing cards toward the start of the visible time axis, without
+// touching cards outside the viewport. The original position remains available
+// for the time marker.
+function raiseAtEdge(items, axis, size, extent) {
+    let edge = extent;
+    for (const item of [...items].sort((a, b) => b[axis] - a[axis])) {
+        const pos = item[axis];
+        if (pos < 0 || pos >= extent || pos + size <= edge) continue;
+        const adjusted = Math.max(0, Math.min(pos, edge - size));
+        if (adjusted !== pos) item.raisedFrom = pos;
+        item[axis] = adjusted;
+        edge = adjusted;
     }
-    flush();
+}
+
+export function raiseAtBottom(items, cardHeight, colHeight) {
+    raiseAtEdge(items, 'top', cardHeight, colHeight);
+}
+
+export function raiseAtEnd(items, cardWidth, rowWidth) {
+    raiseAtEdge(items, 'left', cardWidth, rowWidth);
+}
+
+// The two calendar orientations use the same interval packing. The first
+// available lane wins, and equal positions retain their original order.
+function* collisionGroups(items, axis, size) {
+    items.sort((a, b) => a[axis] - b[axis]);
+    let group = [], laneEnds = [], edge = -Infinity;
+    for (const item of items) {
+        const pos = item[axis];
+        if (group.length && pos >= edge) {
+            yield { group, lanes: laneEnds.length };
+            group = [];
+            laneEnds = [];
+        }
+        let lane = laneEnds.findIndex(end => end <= pos);
+        if (lane < 0) lane = laneEnds.length;
+        laneEnds[lane] = pos + size;
+        item.lane = lane;
+        group.push(item);
+        edge = Math.max(edge, pos + size);
+    }
+    if (group.length) yield { group, lanes: laneEnds.length };
+}
+
+function groupRange(group) {
+    const times = group.map(item => item.at);
+    return { from: Math.min(...times), to: Math.max(...times) };
+}
+
+/** Вертикальная раскладка дня: карточки, стопка или первая карточка с бейджем «+N». */
+export function layoutDay(rows, { originMs, pxPerMinute, colWidth, cardHeight, minWidth = 60, colHeight }) {
+    const items = rows.map(item => {
+        const top = (item.at - originMs) / MIN * pxPerMinute;
+        return { item, at: item.at, top, timeTop: top };
+    });
+    if (colHeight !== undefined) raiseAtBottom(items, cardHeight, colHeight);
+    const out = [];
+    for (const { group, lanes } of collisionGroups(items, 'top', cardHeight)) {
+        const width = colWidth / lanes;
+        const stack = lanes > 1 && ((lanes >= 3 && group.length >= 4) || colWidth < minWidth);
+        // Keep free slots visible; only a group of posts can become a cover.
+        const cover = lanes > 1 && width < minWidth && group.every(i => i.item.kind !== 'slot');
+        if (stack || cover) {
+            out.push({
+                type: stack ? 'stack' : 'cover',
+                items: group.map(i => i.item),
+                ...(stack ? groupRange(group) : { more: group.length - 1 }),
+                left: 0, width: colWidth, top: group[0].top, timeTop: Math.min(...group.map(i => i.timeTop))
+            });
+        } else {
+            for (const i of group) out.push({ type: 'card', item: i.item, left: i.lane * width, width, top: i.top, timeTop: i.timeTop });
+        }
+    }
     return out;
 }
 
-/** Карточки, которые не помещаются до низа колонки, поднимаются: снизу вверх, одна над другой. Их настоящее время — в raisedFrom.
- *  Карточка ниже видимого окна (top >= colHeight) не трогается; время внутри окна не уезжает выше 0. */
-export function raiseAtBottom(items, cardHeight, colHeight) {
-    let ceil = colHeight;   // верхний край уже поднятой карточки: следующая (более ранняя) должна уместиться над ней
-    for (const it of [...items].sort((a, b) => b.top - a.top)) {
-        if (it.top < 0 || it.top >= colHeight || it.top + cardHeight <= colHeight && it.top + cardHeight <= ceil) continue;   // вне окна часов не трогаем
-        const top = Math.max(0, Math.min(it.top, ceil - cardHeight));
-        if (top !== it.top) it.raisedFrom = it.top;
-        it.top = top;
-        ceil = top;
-    }
-}
-
-/** Карточки у правого края строки поднимаются влево, одна за другой (как raiseAtBottom для колонок). Настоящее время — в raisedFrom. */
-export function raiseAtEnd(items, cardWidth, rowWidth) {
-    let ceil = rowWidth;
-    for (const it of [...items].sort((a, b) => b.left - a.left)) {
-        if (it.left < 0 || it.left >= rowWidth || it.left + cardWidth <= rowWidth && it.left + cardWidth <= ceil) continue;
-        const left = Math.max(0, Math.min(it.left, ceil - cardWidth));
-        if (left !== it.left) it.raisedFrom = it.left;
-        it.left = left;
-        ceil = left;
-    }
-}
-
-/** Раскладка строки дня (вид «дни строками»): время — по горизонтали, пересекающиеся посты складываются вертикально.
- *  rows — объекты с at (мс). Карточка: {type:'card', item, left, top, width, height, timeLeft}; стопка: {type:'stack', items, from, to, left, top, width, height, timeLeft}.
- *  Ряды делят высоту строки; ниже minLaneH ряд не делаем — стопка. */
+/** Горизонтальная раскладка дня: время слева направо, дорожки делят высоту строки. */
 export function layoutRow(rows, { originMs, pxPerMinute, rowHeight, rowWidth, cardWidth, cardHeight, minLaneH = 22 }) {
-    const items = rows.map(item => { const left = (item.at - originMs) / MIN * pxPerMinute; return { item, at: item.at, left, timeLeft: left }; });
+    const items = rows.map(item => {
+        const left = (item.at - originMs) / MIN * pxPerMinute;
+        return { item, at: item.at, left, timeLeft: left };
+    });
     raiseAtEnd(items, cardWidth, rowWidth);
-    items.sort((a, b) => a.left - b.left);
     const out = [];
-    let group = [];
-    let right = -Infinity;
-    const flush = () => {
-        if (!group.length) return;
-        const laneEnds = [];
-        for (const item of group) {
-            let lane = laneEnds.findIndex(end => end <= item.left);
-            if (lane < 0) lane = laneEnds.push(0) - 1;
-            laneEnds[lane] = item.left + cardWidth;
-            item.lane = lane;
-        }
-        const lanes = laneEnds.length;
-        const laneH = Math.min(cardHeight, Math.floor(rowHeight / lanes));   // рядов несколько — каждый ниже, но не ниже minLaneH
-        const timeLeft = Math.min(...group.map(i => i.timeLeft));
+    for (const { group, lanes } of collisionGroups(items, 'left', cardWidth)) {
+        const laneH = Math.min(cardHeight, Math.floor(rowHeight / lanes));
         if (lanes > 1 && (group.length >= 4 || laneH < minLaneH)) {
-            const ats = group.map(i => i.at);
-            out.push({ type: 'stack', items: group.map(i => i.item), from: Math.min(...ats), to: Math.max(...ats), left: group[0].left, top: 0, width: cardWidth, height: rowHeight, timeLeft });
+            out.push({
+                type: 'stack', items: group.map(i => i.item), ...groupRange(group),
+                left: group[0].left, top: 0, width: cardWidth, height: rowHeight, timeLeft: Math.min(...group.map(i => i.timeLeft))
+            });
         } else {
-            for (const item of group) out.push({ type: 'card', item: item.item, left: item.left, top: item.lane * laneH, width: cardWidth, height: laneH, timeLeft: item.timeLeft });
+            for (const i of group) out.push({ type: 'card', item: i.item, left: i.left, top: i.lane * laneH, width: cardWidth, height: laneH, timeLeft: i.timeLeft });
         }
-        group = [];
-    };
-    for (const item of items) {
-        if (item.left >= right) flush();
-        group.push(item);
-        right = Math.max(right, item.left + cardWidth);
     }
-    flush();
     return out;
 }
 

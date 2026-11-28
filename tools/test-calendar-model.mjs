@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { addDays, calendarAgenda, dayAgenda, freeSlots, slotTimes, summary } from '../js/calendar-model.js';
+import { addDays, calendarAgenda, dayAgenda, freeSlots, slotTimes, summary, layoutDay, layoutRow, raiseAtBottom, raiseAtEnd } from '../js/calendar-model.js';
 
 const start = new Date(2026, 10, 23).getTime();
 const end = addDays(start, 7);
@@ -42,3 +42,35 @@ assert.deepEqual(spring, [Date.UTC(2026, 2, 28, 8), Date.UTC(2026, 2, 29, 7)]);
 const autumn = slotTimes({ tz: 'Europe/Helsinki', slots: { 6: ['10:00'], 7: ['10:00'] } }, Date.UTC(2026, 9, 24), Date.UTC(2026, 9, 26));
 assert.deepEqual(autumn, [Date.UTC(2026, 9, 24, 7), Date.UTC(2026, 9, 25, 8)]);
 console.log('Calendar agenda, occupancy boundaries, order and DST checks passed.');
+
+const row = (minute, kind = 'post') => ({ at: minute * 60000, kind });
+const wide = { originMs: 0, pxPerMinute: 1, colWidth: 240, cardHeight: 40 };
+const horizontal = { originMs: 0, pxPerMinute: 1, rowHeight: 100, rowWidth: 500, cardWidth: 40, cardHeight: 50 };
+const events = [row(0), row(20), row(40), row(120)];
+assert.deepEqual(layoutDay(events, wide).map(({ type, left, top, width }) => ({ type, left, top, width })), [
+    { type: 'card', left: 0, top: 0, width: 120 },
+    { type: 'card', left: 120, top: 20, width: 120 },
+    { type: 'card', left: 0, top: 40, width: 120 },
+    { type: 'card', left: 0, top: 120, width: 240 },
+]);
+assert.deepEqual(layoutRow(events, horizontal).map(({ type, left, top, height }) => ({ type, left, top, height })), [
+    { type: 'card', left: 0, top: 0, height: 50 },
+    { type: 'card', left: 20, top: 50, height: 50 },
+    { type: 'card', left: 40, top: 0, height: 50 },
+    { type: 'card', left: 120, top: 0, height: 50 },
+]);
+const overlap = [row(12), row(12), row(12), row(12)];
+const stack = layoutDay(overlap, wide)[0];
+assert.deepEqual([stack.type, stack.items, stack.from, stack.to], ['stack', overlap, 720000, 720000]);
+assert.equal(layoutRow(overlap, horizontal)[0].type, 'stack');
+assert.equal(layoutDay(overlap.slice(0, 2), { ...wide, colWidth: 100 })[0].type, 'cover');
+assert.deepEqual(layoutDay([row(10), row(10, 'slot')], { ...wide, colWidth: 100 }).map(i => i.type), ['card', 'card']);
+const verticalEdge = [{ top: -1 }, { top: 60 }, { top: 85 }, { top: 110 }];
+const horizontalEdge = verticalEdge.map(({ top }) => ({ left: top }));
+raiseAtBottom(verticalEdge, 30, 100);
+raiseAtEnd(horizontalEdge, 30, 100);
+assert.deepEqual(verticalEdge, [{ top: -1 }, { top: 40, raisedFrom: 60 }, { top: 70, raisedFrom: 85 }, { top: 110 }]);
+assert.deepEqual(horizontalEdge, verticalEdge.map(({ top, ...rest }) => ({ left: top, ...rest })));
+assert.deepEqual(layoutDay([], wide), []);
+assert.deepEqual(layoutRow([], horizontal), []);
+console.log('Calendar collision lanes, stacks, slots and edge positioning checks passed.');
