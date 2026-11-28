@@ -58,3 +58,14 @@ func listAutopilotDemands(ctx context.Context, q db.Querier, userID string) ([]a
 	}
 	return result, rows.Err()
 }
+
+// Historical precision guards for the ambiguous short search SMM.
+// This predicate affects discovery hints only, never profile identity.
+func isSMMDiscoveryIntent(query string) bool {
+	switch strings.ToLower(autopilotCanonicalTopic(query)) {
+	case "smm", "смм", "smm и блогинг", "смм и блогинг":
+		return true
+	default:
+		return false
+	}
+}

@@ -396,7 +396,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 				row[key] = jx.Int(stats, key)
 			}
 			if d.Mode == "auto" {
-				if autopilotCanonicalTopic(d.Topic) == "SMM и блогинг" {
+				if isSMMDiscoveryIntent(d.Topic) {
 					row["control_audit"] = autopilotControlPanelSummary(stats)
 				}
 				row["direct_reviewed_total"] = jx.Int(stats, "direct_reviewed_total")

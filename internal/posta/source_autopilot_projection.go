@@ -210,7 +210,7 @@ func (a *App) unprojectAutopilotSourceState(ctx context.Context, job *autopilotJ
 // during due-source selection; this grants no source an approval.
 func (a *App) autopilotRescheduleOldOKRejections(ctx context.Context, job *autopilotJob) error {
 	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope ||
-		autopilotCanonicalTopic(job.Topic) != "SMM и блогинг" {
+		!isSMMDiscoveryIntent(job.Topic) {
 		return nil
 	}
 	_, err := a.DB.Pool.Exec(ctx, `UPDATE source_autopilot_sources

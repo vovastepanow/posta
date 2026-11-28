@@ -27,7 +27,7 @@ const autopilotControlPanelKey = "smm_control_audit_v1"
 // media, direct result, projection, or subscriber pool is created.
 func (a *App) autopilotRunControlAudit(ctx context.Context, job *autopilotJob) error {
 	if !validAutopilotPublicJob(job) || job.Scope != autopilotAutoScope ||
-		autopilotCanonicalTopic(job.Topic) != "SMM и блогинг" ||
+		!isSMMDiscoveryIntent(job.Topic) ||
 		a.LLM == nil || !a.TBool("autopilot_control_audit") {
 		return nil
 	}

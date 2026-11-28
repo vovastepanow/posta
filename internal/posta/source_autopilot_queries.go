@@ -170,7 +170,7 @@ func autopilotCleanQuery(raw string) string {
 // Explicit SMM search intents resolve the ambiguous acronym and seek
 // publishers who cover social media as a practice, not celebrity news.
 func autopilotCleanDiscoveryQueries(topic string, choices []string) []string {
-	smm := autopilotCanonicalTopic(topic) == "SMM и блогинг"
+	smm := isSMMDiscoveryIntent(topic)
 	if smm {
 		choices = append([]string{
 			"продвижение в социальных сетях", "SMM кейсы", "контент стратегия соцсетей",

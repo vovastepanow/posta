@@ -250,7 +250,7 @@ func sourceReviewCaption(text string) string {
 // to every corporate marketing publication while preserving useful social
 // media advertising and content strategy publishers.
 func sourceReviewTopicGuidance(topic string) string {
-	if autopilotCanonicalTopic(topic) != "SMM и блогинг" {
+	if !isSMMDiscoveryIntent(topic) {
 		return ""
 	}
 	return `Дополнительные правила для темы «SMM и блогинг».

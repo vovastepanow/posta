@@ -318,7 +318,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		// Recheck the published community and posts before paying for AI.
 		if reason == "" && res.OK && platform == PlatformRSS &&
 			(state == "candidate" || state == "probation") &&
-			autopilotCanonicalTopic(job.Topic) == "SMM и блогинг" &&
+			isSMMDiscoveryIntent(job.Topic) &&
 			lemmySMMFeedOffTopic(feed, res.Bytes, posts) {
 			if err := transitionAutopilotSource(ctx, a.DB, job, source, state,
 				"rejected", "off_topic_group", jx.Marshal(jx.M{
@@ -362,7 +362,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		// that the group is about another topic. Look at multiple published
 		// captions before rejecting a group with a generic title.
 		if reason == "" && (state == "candidate" || state == "probation") &&
-			platform == PlatformOK && autopilotCanonicalTopic(job.Topic) == "SMM и блогинг" {
+			platform == PlatformOK && isSMMDiscoveryIntent(job.Topic) {
 			groupTitle := OKTitleFromHTML(string(res.Bytes), id)
 			topicReason := autopilotOKSMMTopicReason(groupTitle, id, samples)
 			if topicReason != "" {

@@ -28,3 +28,16 @@ func BenchmarkAutopilotTopicKey(b *testing.B) {
 		_ = autopilotTopicKey("SMM и блогинг")
 	}
 }
+
+func TestSMMDiscoveryGuidanceDoesNotMergeProfiles(t *testing.T) {
+	for _, query := range []string{"smm", "смм", "SMM и блогинг", "SMM"} {
+		if !isSMMDiscoveryIntent(query) {
+			t.Fatalf("lost precision guard: %q", query)
+		}
+	}
+	for _, query := range []string{"Блог врача", "Маркетинг и реклама", "мемы про SMM", "SMM без рекламы"} {
+		if isSMMDiscoveryIntent(query) {
+			t.Fatalf("special guard overrides explicit request: %q", query)
+		}
+	}
+}

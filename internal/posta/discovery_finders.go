@@ -206,7 +206,7 @@ func discoveryLemmyCommunities(data []byte) ([]DiscoveryCandidate, error) {
 // to the SMM taxonomy topic. Do not trust raw search results as evidence of
 // topical relevance, especially for short ambiguous terms.
 func discoveryLemmyMatchesTopic(c DiscoveryCandidate, topic string) bool {
-	if autopilotCanonicalTopic(topic) != "SMM и блогинг" {
+	if !isSMMDiscoveryIntent(topic) {
 		return true
 	}
 	meta := strings.Join([]string{
@@ -866,7 +866,7 @@ var okGroupLinkRe = regexp.MustCompile(`ok\.ru/group/(\d{10,20})`)
 var okSMMProfessionRe = regexp.MustCompile(`(?i)(^|[^\p{L}\p{N}])(smm|смм|таргетинг[\p{L}]*|таргетолог[\p{L}]*|интернет-маркетинг[\p{L}]*|контент-маркетинг[\p{L}]*|продвижени[\p{L}]*|маркетинг[\p{L}]*|соцсет[\p{L}]*|social media|контент-стратеги[\p{L}]*)([^\p{L}\p{N}]|$)`)
 
 func okDiscoveryTopicTextMatches(text, topic string, queries []string) bool {
-	if autopilotCanonicalTopic(topic) == "SMM и блогинг" {
+	if isSMMDiscoveryIntent(topic) {
 		return okSMMProfessionRe.MatchString(text)
 	}
 	for _, query := range append([]string{topic}, queries...) {
@@ -880,7 +880,7 @@ func okDiscoveryTopicTextMatches(text, topic string, queries []string) bool {
 }
 
 func okDiscoveryGroupTitleMatches(title, topic string, queries []string) bool {
-	if autopilotCanonicalTopic(topic) == "SMM и блогинг" {
+	if isSMMDiscoveryIntent(topic) {
 		return okSMMProfessionRe.MatchString(title)
 	}
 	return okDiscoveryTopicTextMatches(title, topic, queries)
