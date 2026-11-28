@@ -80,15 +80,19 @@ func TestPersonalBlogPreferencePersistsByTopicPostgres(t *testing.T) {
 	if err := u.SavePersonalBlogMode("Единоборства", personalBlogExclude); err != nil {
 		t.Fatal(err)
 	}
-	if u.personalBlogMode("smm") != personalBlogOnly || u.personalBlogMode("Единоборства") != personalBlogExclude {
-		t.Fatal("personal blog preferences were not stored independently by topic")
+	if u.personalBlogMode("smm") != personalBlogAny || u.personalBlogMode("SMM и блогинг") != personalBlogOnly ||
+		u.personalBlogMode("Единоборства") != personalBlogExclude {
+		t.Fatal("personal blog preferences were not stored independently by request")
 	}
-	if err := u.SavePersonalBlogMode("smm", personalBlogAny); err != nil {
+	if err := u.SavePersonalBlogMode("smm", personalBlogExclude); err != nil {
 		t.Fatal(err)
 	}
-	if u.personalBlogMode("SMM и блогинг") != personalBlogAny ||
+	if err := u.SavePersonalBlogMode("SMM и блогинг", personalBlogAny); err != nil {
+		t.Fatal(err)
+	}
+	if u.personalBlogMode("smm") != personalBlogExclude || u.personalBlogMode("SMM и блогинг") != personalBlogAny ||
 		u.personalBlogMode("Единоборства") != personalBlogExclude {
-		t.Fatal("removing one topic's restriction changed another topic")
+		t.Fatal("removing one request's restriction changed another request")
 	}
 	// Existing saved items use exactly the same filter as new admissions.
 	key := autopilotTopicKey("Единоборства")
