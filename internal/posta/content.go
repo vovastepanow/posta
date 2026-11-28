@@ -367,9 +367,12 @@ func SourcePostURL(item jx.M) string {
 		if link == "" {
 			continue
 		}
+		if IsTrustedSourceURL(link) {
+			return link
+		}
 		probe := jx.Copy(item)
 		probe["source_url"] = link
-		if IsTrustedSourceURL(link) || RSSPostURLTrusted(probe) || federatedPostURLTrusted(probe) {
+		if RSSPostURLTrusted(probe) || federatedPostURLTrusted(probe) {
 			return link
 		}
 	}
@@ -411,8 +414,22 @@ func PostItemHasVideo(item jx.M) bool {
 		(jx.Str(item, "video_via") != "" && jx.Str(item, "video_page") != "" && !jx.Bool(item, "video_unavailable")) {
 		return true
 	}
-	for _, f := range ContentGallery(item) {
-		if strings.TrimSpace(jx.Str(f, "video")) != "" {
+	return galleryHasMedia(item, true)
+}
+
+// Match ContentGallery's normalization without constructing new attachment maps.
+// A single valid entry is not a separate gallery.
+func galleryHasMedia(item jx.M, videoOnly bool) bool {
+	count := 0
+	hasVideo := false
+	for _, f := range jx.Maps(item, "gallery") {
+		img, video := jx.Str(f, "image"), jx.Str(f, "video")
+		if img == "" && video == "" {
+			continue
+		}
+		count++
+		hasVideo = hasVideo || strings.TrimSpace(video) != ""
+		if count > 1 && (!videoOnly || hasVideo) {
 			return true
 		}
 	}
@@ -431,7 +448,7 @@ func PostItemHasMedia(item jx.M) bool {
 			return true
 		}
 	}
-	return len(ContentGallery(item)) > 0
+	return galleryHasMedia(item, false)
 }
 
 var (
@@ -487,30 +504,30 @@ func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M
 	// Older Lemmy records may have retained the video only in the Markdown body.
 	if strings.HasPrefix(jx.Str(item, "source_key"), "lemmy:") && jx.Str(item, "video") == "" {
 		if video := lemmyBodyVideo(rawText); video != "" {
-			item = jx.Copy(item)
 			item["video"] = video
 		}
 	}
 	main := ContentImageKey(item)
+	// Both the normalized gallery and the main attachment are owned by this
+	// request. Update their display fields without copying them again.
 	display := func(f jx.M) jx.M {
-		out := jx.Copy(f)
 		img := u.MediaExisting(jx.Str(f, "image_local"))
 		if img == "" {
 			img = jx.Str(f, "image")
 		}
-		out["display_image"] = img
+		f["display_image"] = img
 		vid := ""
 		if jx.Str(f, "video") != "" {
 			if vid = u.MediaExisting(jx.Str(f, "video_local")); vid == "" {
 				vid = jx.Str(f, "video")
 			}
 		}
-		out["display_video"] = vid
-		return out
+		f["display_video"] = vid
+		return f
 	}
 	own := jx.M{"image": main, "video": jx.Str(item, "video"), "image_local": jx.Str(item, "image_local"), "video_local": jx.Str(item, "video_local")}
-	gallery := []jx.M{}
 	files := ContentGallery(item)
+	gallery := make([]jx.M, 0, len(files)+1)
 	mainIndex := galleryRecordMainIndex(files, item)
 	for i, f := range files {
 		if i == mainIndex {
@@ -522,10 +539,12 @@ func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M
 		}
 		gallery = append(gallery, display(f))
 	}
-	if len(gallery) > 0 && mainIndex < 0 {
-		gallery = append([]jx.M{display(own)}, gallery...)
-	}
 	shown := display(own)
+	if len(gallery) > 0 && mainIndex < 0 {
+		gallery = append(gallery, nil)
+		copy(gallery[1:], gallery[:len(gallery)-1])
+		gallery[0] = shown
+	}
 	caption := jx.Str(item, "text")
 	if caps := jx.List(item, "captions"); len(caps) > 0 {
 		caption = jx.ToStr(caps[0])
@@ -534,7 +553,7 @@ func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M
 	if PostItemHasVideo(item) || jx.Bool(item, "media_incomplete") || jx.Bool(item, "text_incomplete") || jx.Bool(item, "video_unavailable") || len(gallery) > 0 {
 		check = u.TelegramPreflightItem(item, remoteCheck)
 	}
-	preload := []string{}
+	preload := make([]string, 0, len(upcoming))
 	for _, it := range upcoming {
 		p := u.MediaExisting(jx.Str(it, "image_local"))
 		if p == "" {
@@ -544,7 +563,6 @@ func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M
 			preload = append(preload, p)
 		}
 	}
-	out := jx.Copy(item)
 	qualityKey := ContentSourceKey(item)
 	if jx.Str(item, "thread_id") != "" && (strings.HasPrefix(qualityKey, "dvach:") || strings.HasPrefix(qualityKey, "4chan:")) {
 		qualityKey = SourceQualityKey(qualityKey) + ":" + jx.Str(item, "thread_id")
@@ -552,9 +570,9 @@ func (u *U) ContentForDisplay(item jx.M, upcoming []jx.M, remoteCheck bool) jx.M
 	for k, v := range (jx.M{"item_key": itemKey, "images": []string{main}, "captions": []string{caption}, "source_url": SourcePostURL(item),
 		"found_by": jx.Str(item, "found_by"), "gallery": gallery, "post_check": check, "display_image": shown["display_image"],
 		"display_video": shown["display_video"], "source_quality": u.SourceQualityOf(u.Ctx, qualityKey, jx.Str(item, "topic")), "board_quality": u.BoardQualityOf(u.Ctx, qualityKey, jx.Str(item, "topic")), "tags_info": u.ContentTagsPublic(item["tags"]), "hashtags": u.PostHashtags(item), "preload": preload}) {
-		out[k] = v
+		item[k] = v
 	}
-	return out
+	return item
 }
 
 // ---- Кэш медиа: имя файла — хэш исходного адреса ----
