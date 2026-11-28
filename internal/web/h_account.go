@@ -422,10 +422,9 @@ func accountInfo(c *Ctx) (any, error) {
 		}
 		return jx.M{"user_id": u.ID, "auth": c.A.AuthPublic(c.R.Context(), u.ID), "channels": channels}, nil
 	}
-	h := u.History()
-	counts := jx.M{}
-	for _, coll := range config.HistoryCollections {
-		counts[coll] = len(h[coll])
+	counts, err := accountHistoryCounts(c)
+	if err != nil {
+		return nil, err
 	}
 	files := []jx.M{}
 	entries, _ := os.ReadDir(c.A.UserDir(u.ID))
@@ -440,11 +439,16 @@ func accountInfo(c *Ctx) (any, error) {
 	}
 	sort.Slice(files, func(i, j int) bool { return jx.Int(files[i], "size") > jx.Int(files[j], "size") })
 	cookies := accountCookieDetails(c.R.Cookies())
+	resources := newPublicationChannels(u.Channels())
+	var telegram any
+	if resources.connected() {
+		telegram = telegramPublicChannel(resources.telegram[0])
+	}
 	var lastSeen int64
 	c.A.DB.Pool.QueryRow(c.R.Context(), `SELECT last_seen FROM users WHERE id = $1`, u.ID).Scan(&lastSeen)
 	return jx.M{"user_id": u.ID, "topic": u.CurrentTopic(), "last_seen": lastSeen, "pool": len(u.PoolTopicPositions(u.Pool())), "counts": counts, "files": files,
-		"cookies": cookies, "session_keys": []string{}, "retention_days": 0, "exposed": []string{}, "fix_command": "", "telegram": telegramPublic(c),
-		"channels": channelsPublic(c), "telegram_user": u.TelegramUserPublic(), "auth": c.A.AuthPublic(c.R.Context(), u.ID), "owner": c.A.IsOwner(c.R.Context(), u.ID)}, nil
+		"cookies": cookies, "session_keys": []string{}, "retention_days": 0, "exposed": []string{}, "fix_command": "", "telegram": telegram,
+		"channels": telegramChannelsPublic(c, resources.telegram), "telegram_user": u.TelegramUserPublic(), "auth": c.A.AuthPublic(c.R.Context(), u.ID), "owner": c.A.IsOwner(c.R.Context(), u.ID)}, nil
 }
 
 // Never reflect cookie values into JavaScript, including unknown cookies
@@ -464,8 +468,34 @@ func accountCookieDetails(requestCookies []*http.Cookie) []jx.M {
 	return cookies
 }
 
+func accountHistoryCounts(c *Ctx) (jx.M, error) {
+	counts := jx.M{}
+	for _, coll := range config.HistoryCollections {
+		counts[coll] = 0
+	}
+	rows, err := c.A.DB.Pool.Query(c.R.Context(), "SELECT collection, count(*) FROM history_items WHERE user_id = $1 GROUP BY collection", c.U.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var collection string
+		var count int64
+		if err := rows.Scan(&collection, &count); err != nil {
+			return nil, err
+		}
+		if _, known := counts[collection]; known {
+			counts[collection] = count
+		}
+	}
+	return counts, rows.Err()
+}
+
 func telegramPublic(c *Ctx) any {
-	t := c.U.TelegramConnection("")
+	return telegramPublicChannel(c.U.TelegramConnection(""))
+}
+
+func telegramPublicChannel(t *posta.Channel) any {
 	if t == nil {
 		return nil
 	}
