@@ -170,3 +170,32 @@ jobs:
             dropdb -h localhost -U posta "$database"
           done
 
+
+  public-inventory-pgvector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: posta_test
+          POSTGRES_USER: posta
+          POSTGRES_PASSWORD: posta_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U posta -d posta_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTA_TEST_PG: postgres://posta:posta_test@localhost:5432/posta_test?sslmode=disable
+      POSTA_TEST_REQUIRE_PGVECTOR: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify vector index, media revisions and lexical fallback
+        run: go test ./internal/posta -run '^(TestPublicInventorySearchPostgres|TestPublicEmbeddingRetrievalPostgres|TestPublicMediaObservationSearchPostgres)$' -count=1 -timeout=5m

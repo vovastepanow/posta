@@ -79,6 +79,9 @@ func TestPublicEmbeddingRetrievalPostgres(t *testing.T) {
 	assertOrder(publicEmbeddingExactSQL)
 	var indexed bool
 	if err:=d.Pool.QueryRow(ctx,"SELECT to_regclass('public_post_embeddings_hnsw') IS NOT NULL").Scan(&indexed);err!=nil { t.Fatal(err) }
+	if os.Getenv("POSTA_TEST_REQUIRE_PGVECTOR") == "1" && !indexed {
+		t.Fatal("pgvector test environment must exercise the actual HNSW index")
+	}
 	if indexed { assertOrder(publicEmbeddingVectorSQL) }
 	changed:=jx.Copy(first)
 	changed["views"]=100

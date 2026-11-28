@@ -247,11 +247,24 @@ func (u *U) searchPublicEmbeddings(query string, allowed []string) []publicInven
 	if err := u.DB.Pool.QueryRow(ctx, "SELECT to_regclass('public_post_embeddings_hnsw') IS NOT NULL").Scan(&indexed); err != nil {
 		return nil
 	}
-	sql := publicEmbeddingExactSQL
+	const limit = 120
 	if indexed {
-		sql = publicEmbeddingVectorSQL
+		candidates := u.readPublicVectorCandidates(ctx, publicEmbeddingVectorSQL, model, allowed, vector, limit)
+		if len(candidates) >= limit || ctx.Err() != nil {
+			return candidates
+		}
+		// Approximate indexes apply source/model filters after candidate
+		// retrieval. Recover sparse filtered matches with an exact query.
+		if exact := u.readPublicVectorCandidates(ctx, publicEmbeddingExactSQL, model, allowed, vector, limit); len(exact) > len(candidates) {
+			return exact
+		}
+		return candidates
 	}
-	rows, err := u.DB.Pool.Query(ctx, sql, model, allowed, vector, 120)
+	return u.readPublicVectorCandidates(ctx, publicEmbeddingExactSQL, model, allowed, vector, limit)
+}
+
+func (u *U) readPublicVectorCandidates(ctx context.Context, sql, model string, allowed []string, vector []float32, limit int) []publicInventoryCandidate {
+	rows, err := u.DB.Pool.Query(ctx, sql, model, allowed, vector, limit)
 	if err != nil {
 		return nil
 	}
