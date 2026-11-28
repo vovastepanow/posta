@@ -23,3 +23,9 @@ const publicClassificationBackfillSQL = `SELECT p.source_key,p.post_key,p.data F
  OR length(coalesce(p.data->>'title','')) >= 4)
  AND ` + publicEmbeddingSafeSQL + ` AND ` + publicClassificationNeedsWorkSQL + `
  ORDER BY p.classification_at ASC,p.last_seen DESC,p.source_key,p.post_key LIMIT 30`
+
+// Only the validated observation of the exact current revision can block it.
+const publicMediaSafetySaveSQL = `UPDATE public_posts SET media_safety_review=$4::jsonb
+ WHERE source_key=$1 AND post_key=$2
+ AND posta_public_revision(data)=posta_public_revision($3::jsonb)
+ AND media_safety_review = '[]'::jsonb`

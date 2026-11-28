@@ -51,7 +51,8 @@ const publicEmbeddingSafeSQL = `NOT (p.data @> '{"text_incomplete":true}' OR p.d
  OR p.data @> '{"video_unavailable":true}' OR p.data @> '{"source_sensitive":true}'
  OR p.data @> '{"nsfw":true}' OR p.data @> '{"attachment_recovered":true}')
  AND coalesce(p.data->>'fetched_via','') <> 'telegram_mtproto'
- AND coalesce(p.data->'safety','[]'::jsonb) IN ('[]'::jsonb,'null'::jsonb)`
+ AND coalesce(p.data->'safety','[]'::jsonb) IN ('[]'::jsonb,'null'::jsonb)
+ AND p.media_safety_review = '[]'::jsonb`
 
 const publicEmbeddingBackfillSQL = `SELECT p.source_key,p.post_key,p.data,coalesce(m.description,''),p.media_observation_revision
 FROM public_posts p LEFT JOIN public_post_media_observations m USING(source_key,post_key)
@@ -65,7 +66,7 @@ ORDER BY p.last_seen DESC,p.source_key,p.post_key LIMIT 10`
 // inserted after a new revision has invalidated the previous result.
 const publicEmbeddingSaveSQL = `WITH current_post AS (
  SELECT source_key,post_key FROM public_posts
- WHERE source_key=$1 AND post_key=$2
+ WHERE source_key=$1 AND post_key=$2 AND media_safety_review = '[]'::jsonb
  AND posta_public_revision(data)=posta_public_revision($3::jsonb) FOR UPDATE
 )
 INSERT INTO public_post_embeddings(source_key,post_key,model,embedding,indexed_at)
@@ -75,7 +76,7 @@ ON CONFLICT(source_key,post_key,model) DO UPDATE SET embedding=EXCLUDED.embeddin
 // Fence against both the original post revision and a new media observation.
 const publicEmbeddingSaveWithObservationSQL = `WITH current_post AS (
  SELECT source_key,post_key FROM public_posts
- WHERE source_key=$1 AND post_key=$2
+ WHERE source_key=$1 AND post_key=$2 AND media_safety_review = '[]'::jsonb
  AND posta_public_revision(data)=posta_public_revision($3::jsonb)
  AND media_observation_revision=$7 FOR UPDATE
 )

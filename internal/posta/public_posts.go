@@ -95,6 +95,11 @@ func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, descrip
 	description = PostCaptionForAI(item)
 	tags, imageUnsafe := worker.classifyPublicItem(item, description, imageURL)
 	if imageUnsafe {
+		if len(worker.classificationMediaSafety) > 0 {
+			if _, err := a.DB.Pool.Exec(ctx, publicMediaSafetySaveSQL, source, key, jx.Marshal(item), jx.Marshal(worker.classificationMediaSafety)); err != nil && ctx.Err() == nil {
+				log.Printf("public media safety: %v", err)
+			}
+		}
 		return
 	}
 	observation := worker.completePublicMediaObservation(item)
@@ -108,7 +113,7 @@ func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, descrip
 	defer tx.Rollback(ctx)
 	// Do not apply a result to a post that changed while media was fetched.
 	var unchanged bool
-	if err = tx.QueryRow(ctx, `SELECT posta_public_revision(data)=posta_public_revision($3::jsonb) FROM public_posts WHERE source_key=$1 AND post_key=$2 FOR UPDATE`, source, key, jx.Marshal(item)).Scan(&unchanged); err != nil || !unchanged {
+	if err = tx.QueryRow(ctx, `SELECT posta_public_revision(data)=posta_public_revision($3::jsonb) AND media_safety_review = '[]'::jsonb FROM public_posts WHERE source_key=$1 AND post_key=$2 FOR UPDATE`, source, key, jx.Marshal(item)).Scan(&unchanged); err != nil || !unchanged {
 		return
 	}
 	if observation != "" {
@@ -259,7 +264,7 @@ func (u *U) classifyMediaDescription(description, caption string, isMeme bool) [
 
 // publicSourcePosts returns recently seen public posts for one approved source.
 func (a *App) publicSourcePosts(ctx context.Context, sourceKey string, since int64, limit int) []jx.M {
-	rows, err := a.DB.Pool.Query(ctx, `SELECT data FROM public_posts WHERE source_key=$1 AND last_seen >= $2 ORDER BY last_seen DESC, post_key LIMIT $3`, sourceKey, since, limit)
+	rows, err := a.DB.Pool.Query(ctx, `SELECT data FROM public_posts WHERE source_key=$1 AND last_seen >= $2 AND media_safety_review = '[]'::jsonb ORDER BY last_seen DESC, post_key LIMIT $3`, sourceKey, since, limit)
 	if err != nil {
 		if ctx.Err() == nil {
 			log.Printf("чтение общего каталога: %v", err)
@@ -386,7 +391,7 @@ func (u *U) classifiedPublicPosts(topic string) map[string][]jx.M {
 		return out
 	}
 	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT p.platform,p.source_key,p.data FROM public_posts p JOIN public_post_topics t USING(source_key,post_key) WHERE t.topic_key=$1 AND p.last_seen >= $2
-		AND NOT (p.data @> '{"text_incomplete":true}' OR p.data @> '{"media_incomplete":true}' OR p.data @> '{"video_unavailable":true}' OR p.data @> '{"source_sensitive":true}' OR p.data @> '{"nsfw":true}')
+		AND `+publicEmbeddingSafeSQL+`
 		ORDER BY p.last_seen DESC LIMIT 100`, t.Key, now()-7*86400)
 	if err != nil {
 		return out
