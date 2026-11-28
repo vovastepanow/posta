@@ -45,6 +45,8 @@ const usage = `posta — сервер и служебные команды Posta
   ua-filter on|off                   фильтр украинского контента
   autopilot-health [тема]            read-only состояние публичного автопилота (без AI и изменений БД)
   autopilot-audit [тема]             JSON-диагностика воронки публичного автопилота (read-only)
+  inventory-benchmark <запрос> <старый ключ> <каталог> [вектор.json]  слепой снимок поиска (read-only)
+  inventory-benchmark-score <ranks.json> <labels.json>  оценка независимой разметки
   search-test <запрос> [тема]        проверка поиска по площадкам без записи в пул
   discovery-origins [тема]           откуда берутся предложения источников и как их решают
   leads-scan [id]                    проход радара лидов
@@ -78,6 +80,10 @@ func main() {
 		err = autopilotHealth(ctx, cfg, args[1:])
 	case "autopilot-audit":
 		err = autopilotAudit(ctx, cfg, args[1:])
+	case "inventory-benchmark":
+		err = inventoryBenchmark(ctx, cfg, args[1:])
+	case "inventory-benchmark-score":
+		err = scoreInventoryBenchmark(args[1:])
 	case "import-sqlite":
 		err = importSQLite(ctx, cfg, args[1:])
 	default:

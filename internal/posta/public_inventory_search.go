@@ -16,7 +16,7 @@ type publicInventoryCandidate struct {
 
 // Reciprocal rank fusion combines lexical and semantic ranks without assuming
 // their scores share a scale. Candidates are never accepted by this score.
-func fusePublicInventory(lists ...[]publicInventoryCandidate) map[string][]jx.M {
+func rankPublicInventory(lists ...[]publicInventoryCandidate) []publicInventoryCandidate {
 	type scored struct {
 		c publicInventoryCandidate
 		score float64
@@ -44,9 +44,17 @@ func fusePublicInventory(lists ...[]publicInventoryCandidate) map[string][]jx.M 
 		}
 	}
 	sort.SliceStable(all, func(i,j int) bool { return all[i].score > all[j].score })
+	out := make([]publicInventoryCandidate, 0, min(len(all), 240))
+	for _, r := range all[:min(len(all), 240)] {
+		out = append(out, r.c)
+	}
+	return out
+}
+
+func fusePublicInventory(lists ...[]publicInventoryCandidate) map[string][]jx.M {
 	out := map[string][]jx.M{}
-	for _, r := range all[:min(len(all),240)] {
-		out[r.c.platform] = append(out[r.c.platform], r.c.post)
+	for _, r := range rankPublicInventory(lists...) {
+		out[r.platform] = append(out[r.platform], r.post)
 	}
 	return out
 }
