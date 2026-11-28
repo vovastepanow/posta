@@ -10,6 +10,9 @@ import (
 // Aggregate only eligible shared catalog data, never private user queries or
 // content. Cache this bounded diagnostic independently of the feed path.
 func (a *App) publicInventoryStatus(ctx context.Context) jx.M {
+	if a.catalog == nil || a.DB == nil {
+		return jx.M{"available": false}
+	}
 	const cacheKey = "public_inventory_status:v1"
 	if a.Mem != nil {
 		if cached, ok := a.Mem.Get(cacheKey); ok {
@@ -43,7 +46,7 @@ func (a *App) publicInventoryStatus(ctx context.Context) jx.M {
 	if err != nil {
 		return jx.M{"available": false}
 	}
-	result := jx.M{"available": true, "checked_at": now(), "eligible_posts": posts,
+	result := jx.M{"available": true, "open_search_enabled": a.TBool("public_open_search"), "checked_at": now(), "eligible_posts": posts,
 		"eligible_sources": sources, "current_embeddings": embeddings, "media_descriptions": media,
 		"media_without_description": pendingMedia, "embedding_configured": model != "", "pgvector_index": hnsw}
 	if a.Mem != nil {

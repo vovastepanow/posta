@@ -43,7 +43,7 @@ func rankPublicInventory(lists ...[]publicInventoryCandidate) []publicInventoryC
 			all[i].score += 1 / float64(60+rank+1)
 		}
 	}
-	sort.SliceStable(all, func(i,j int) bool { return all[i].score > all[j].score })
+	sort.SliceStable(all, func(i, j int) bool { return all[i].score > all[j].score })
 	out := make([]publicInventoryCandidate, 0, min(len(all), 240))
 	for _, r := range all[:min(len(all), 240)] {
 		out = append(out, r.c)
@@ -61,6 +61,9 @@ func fusePublicInventory(lists ...[]publicInventoryCandidate) map[string][]jx.M 
 
 // Search eligible public sources without requiring legacy topic labels.
 func (u *U) searchPublicInventory(query string, sourceAllowed func(string) bool, variants ...string) map[string][]jx.M {
+	if !u.TBool("public_open_search") {
+		return nil
+	}
 	query = trimRunes(strings.TrimSpace(query), 300)
 	if query == "" {
 		return nil
