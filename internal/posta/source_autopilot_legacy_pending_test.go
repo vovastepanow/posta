@@ -10,10 +10,10 @@ import (
 	"posta/internal/jx"
 )
 
-// The real manual "waiting for approval" shelf must stop displaying a source
-// after it has safely entered the topic's autopilot queue. Re-running the
-// transfer must not reset source state or duplicate history.
-func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
+// Historical suggestions must enter the topic's autopilot queue without
+// deleting the original records. Re-running the transfer must not reset
+// source state or duplicate history.
+func TestLegacyPendingTransferPreservesHistoryPostgres(t *testing.T) {
 	dsn := os.Getenv("POSTA_AUTOPILOT_TEST_DSN")
 	if dsn == "" {
 		t.Skip("requires isolated autopilot PostgreSQL")
@@ -121,12 +121,18 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 	}()
 
 	u := a.User(ctx, owner, nil)
-	before, _, _, err := u.PendingSourcesPage("any", nil, 0, "")
-	if err != nil {
-		t.Fatal(err)
+	countHistory := func() int {
+		count := 0
+		for _, item := range u.Catalog().Suggestions {
+			if jx.Str(item, "source_id") == source && jx.Str(item, "topic") == topic {
+				count++
+			}
+		}
+		return count
 	}
-	if len(before) == 0 {
-		t.Fatal("fixture must be visible on manual pending shelf before transfer")
+	before := countHistory()
+	if before == 0 {
+		t.Fatal("fixture must retain the historical suggestion")
 	}
 	if got := a.User(ctx, "", nil).autopilotLegacyPendingCandidates(&autopilotJob{
 		Scope: autopilotShadowScope, TopicKey: key, Topic: topic, Kind: autopilotShadowKind,
@@ -170,15 +176,14 @@ func TestLegacyPendingTransferredOutOfManualShelfPostgres(t *testing.T) {
 		autopilotShadowScope, key, source).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("transfer decision count=%d err=%v", count, err)
 	}
-	after, _, _, err := u.PendingSourcesPage("any", nil, 0, "")
-	if err != nil {
-		t.Fatal(err)
+	if after := countHistory(); after != before {
+		t.Fatalf("historical suggestions changed: before=%d after=%d", before, after)
 	}
-	for _, item := range after {
-		id := jx.Str(item, "source_id")
-		if id == source || id == unsupported || id == invalidIdentity {
-			t.Fatalf("source %s still appears in manual approvals after autopilot transfer", id)
-		}
+	var excludedCount int
+	if err := d.Pool.QueryRow(ctx, `SELECT count(*) FROM source_autopilot_sources
+		WHERE scope=$1 AND topic_key=$2 AND source_id=ANY($3)`,
+		autopilotShadowScope, key, []string{manualVote, alreadyApproved, differentTopic}).Scan(&excludedCount); err != nil || excludedCount != 0 {
+		t.Fatalf("ineligible suggestions transferred: count=%d err=%v", excludedCount, err)
 	}
 	for _, tc := range []struct{ id, wantState, wantReason string }{
 		{source, "candidate", "legacy_pending_import"},

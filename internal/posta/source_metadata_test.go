@@ -11,24 +11,25 @@ func TestVKRegistrySamplePreservesAlbum(t *testing.T) {
 	post := jx.M{"image": "https://example.com/1.jpg", "images": []string{"https://example.com/1.jpg", "https://example.com/2.jpg"}, "text": "Пост"}
 	sample := registrySample([]jx.M{post})
 	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
-	preview := u.pendingPreviewPosts(sample)
-	if len(preview) != 1 || len(jx.Maps(preview[0], "media")) != 2 {
+	if len(sample) != 1 {
+		t.Fatalf("album lost in registry sample: %#v", sample)
+	}
+	preview := u.SourcePreviewPost(sample[0])
+	if len(jx.Maps(preview, "media")) != 2 {
 		t.Fatalf("album lost in saved preview: %#v", preview)
 	}
 }
 
-func TestPendingSourcesExcludeDecidedVariants(t *testing.T) {
+func TestLegacyDecisionsExcludeVariants(t *testing.T) {
 	videos := "rss:https://www.youtube.com/feeds/videos.xml?channel_id=UC1234567890123456789012"
 	shorts := "rss:https://www.youtube.com/feeds/videos.xml?playlist_id=UUSH1234567890123456789012"
-	candidates := []jx.M{{"source_id": shorts}, {"source_id": "telegram:Example"}, {"source_id": "telegram:other"}}
 	decided := map[string]bool{recommendationSourceKey(videos): true, recommendationSourceKey("telegram:example"): true}
-	got := excludeDecidedSourceCandidates(candidates, decided)
-	if len(got) != 1 || jx.Str(got[0], "source_id") != "telegram:other" {
-		t.Fatalf("decided sources returned: %#v", got)
+	if !recommendationExcluded(decided, shorts) || !recommendationExcluded(decided, "telegram:Example") || recommendationExcluded(decided, "telegram:other") {
+		t.Fatal("legacy recommendation identity lost")
 	}
 }
 
-func TestPendingSourcesExcludeDecisionsFromRelatedTopics(t *testing.T) {
+func TestLegacyDecisionsRespectRelatedTopics(t *testing.T) {
 	u := taxonomyTestUser()
 	votes := []jx.M{
 		{"source_id": "telegram:Approved", "topic": "предпринимательство", "vote": "approve"},
@@ -36,85 +37,20 @@ func TestPendingSourcesExcludeDecisionsFromRelatedTopics(t *testing.T) {
 		{"source_id": "telegram:Legacy", "vote": "approve"},
 	}
 	decided := u.decidedSourceKeys(votes, "Бизнес")
-	got := excludeDecidedSourceCandidates([]jx.M{{"source_id": "telegram:approved"}, {"source_id": "telegram:other"}, {"source_id": "telegram:legacy"}}, decided)
-	if len(got) != 1 || jx.Str(got[0], "source_id") != "telegram:other" {
-		t.Fatalf("unexpected candidates: %#v", got)
+	if !recommendationExcluded(decided, "telegram:approved") || !recommendationExcluded(decided, "telegram:legacy") || recommendationExcluded(decided, "telegram:other") {
+		t.Fatalf("unexpected decisions: %#v", decided)
 	}
 }
 
-func TestSortPendingSources(t *testing.T) {
-	for _, tc := range []struct{ order, first, last string }{
-		{"rank", "b", "c"}, {"newest", "a", "c"}, {"oldest", "b", "c"},
-		{"score_high", "b", "c"}, {"score_low", "a", "c"}, {"name", "a", "c"},
+func TestCanonicalYouTubeSamplePage(t *testing.T) {
+	for _, tc := range []struct{ raw, want string }{
+		{"https://www.youtube.com/shorts/abcdefghijk", "https://www.youtube.com/shorts/abcdefghijk"},
+		{"https://youtu.be/abcdefghijk", "https://www.youtube.com/watch?v=abcdefghijk"},
+		{"https://evil.example/shorts/abcdefghijk", ""},
 	} {
-		list := []jx.M{{"source_id": "b", "name": "Б", "timestamp": 10, "score": 80}, {"source_id": "a", "name": "А", "timestamp": 20, "score": 60}, {"source_id": "c", "name": "В"}}
-		if err := sortPendingSources(list, tc.order); err != nil || jx.Str(list[0], "source_id") != tc.first || jx.Str(list[2], "source_id") != tc.last {
-			t.Errorf("order %s: %v, %v", tc.order, list, err)
+		if got := canonicalYouTubeSamplePage(tc.raw); got != tc.want {
+			t.Fatalf("sample page %q = %q, want %q", tc.raw, got, tc.want)
 		}
-	}
-	if sortPendingSources(nil, "invalid") == nil {
-		t.Error("invalid sort accepted")
-	}
-}
-
-func TestSourceMatchesKind(t *testing.T) {
-	for _, tc := range []struct {
-		id, kind string
-		want     bool
-	}{
-		{"https://dzen.ru/id/123", "Дзен", true},
-		{"https://zen.yandex.ru/rss/channel/123", "Дзен", true},
-		{"https://dzen.ru.evil.example/feed", "Дзен", false},
-		{"https://reddit.com/r/example/.rss", "Reddit", true},
-		{"https://youtube.com/feeds/videos.xml?channel_id=abc", "YouTube Shorts", false},
-	} {
-		c := jx.M{"platform": PlatformRSS, "id": tc.id, "kind": RSSFeedKind(tc.id)}
-		if got := sourceMatchesKind(c, tc.kind); got != tc.want {
-			t.Errorf("sourceMatchesKind(%q, %q) = %v, want %v", tc.id, tc.kind, got, tc.want)
-		}
-	}
-}
-
-func TestPendingPreviewPostsRankAndLimit(t *testing.T) {
-	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
-	posts := []jx.M{}
-	for i := 1; i <= 9; i++ {
-		posts = append(posts, jx.M{"text": "пример", "url": "https://example.com/post", "views": i})
-	}
-	out := u.pendingPreviewPosts(posts)
-	if len(out) != 6 {
-		t.Fatalf("expected six examples, got %d", len(out))
-	}
-	if jx.Int(out[0], "views") != 9 || jx.Int(out[5], "views") != 4 {
-		t.Fatalf("posts not ranked by views: %v", out)
-	}
-}
-
-func TestPendingPreviewPostsKeepsSampleOrderWithoutMetrics(t *testing.T) {
-	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
-	out := u.pendingPreviewPosts([]jx.M{{"text": "первый"}, {"text": "второй"}, {"text": ""}})
-	if len(out) != 2 || jx.Str(out[0], "text") != "первый" || jx.Str(out[1], "text") != "второй" {
-		t.Fatalf("unexpected examples: %v", out)
-	}
-}
-
-func TestRestoreSavedYouTubeVideo(t *testing.T) {
-	u := &U{App: &App{Cfg: config.Server{MediaURL: "/media"}}}
-	input := []jx.M{{"image": "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg", "url": "https://www.youtube.com/shorts/abcdefghijk", "text": "short"}}
-	repaired := restoreYouTubeSamples(input)
-	if jx.Str(input[0], "video_page") != "" {
-		t.Fatal("changed the saved sample")
-	}
-	posts := u.pendingPreviewPosts(repaired)
-	if len(posts) != 1 {
-		t.Fatalf("missing post: %#v", posts)
-	}
-	media := jx.Maps(posts[0], "media")
-	if len(media) != 1 || jx.Str(media[0], "kind") != "video" || jx.Str(media[0], "page") != "https://www.youtube.com/shorts/abcdefghijk" {
-		t.Fatalf("short was not restored as video: %#v", media)
-	}
-	if got := canonicalYouTubeSamplePage("https://evil.example/shorts/abcdefghijk"); got != "" {
-		t.Fatalf("untrusted URL accepted: %s", got)
 	}
 }
 

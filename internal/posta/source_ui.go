@@ -10,31 +10,11 @@ import (
 	"posta/internal/jx"
 )
 
-// Вкладка «Источники»: кандидаты по одному, превью, решения, источники темы.
-
-var SourcePlatformFilters = map[string]string{"any": "", "telegram": PlatformTelegram, "vk": PlatformVK, "tiktok": PlatformTikTok, "youtube": PlatformRSS,
-	"shorts": PlatformRSS, "ok": PlatformOK, "pinterest": PlatformRSS, "tumblr": PlatformRSS, "rss": PlatformRSS, "fourchan": Platform4chan, "dvach": PlatformDvach,
-	"dzen": PlatformRSS, "reddit": PlatformRSS, "bluesky": PlatformRSS, "pikabu": PlatformRSS, "habr": PlatformRSS, "joyreactor": PlatformRSS,
-	"rutube": PlatformRSS, "medium": PlatformRSS, "substack": PlatformRSS, "livejournal": PlatformRSS, "threads": PlatformRSS, "instagram": PlatformRSS, "x": PlatformRSS}
-
-var sourceKindFilters = map[string]string{"youtube": "YouTube", "shorts": "YouTube Shorts", "pinterest": "Pinterest", "tumblr": "Tumblr", "rss": "RSS",
-	"dzen": "Дзен", "reddit": "Reddit", "bluesky": "Bluesky", "pikabu": "Пикабу", "habr": "Хабр", "joyreactor": "JoyReactor",
-	"rutube": "Rutube", "medium": "Medium", "substack": "Substack", "livejournal": "LiveJournal", "threads": "Threads", "instagram": "Instagram", "x": "X"}
-
-func sourceMatchesKind(c jx.M, kind string) bool {
-	k := jx.Str(c, "kind")
-	if kind == "" || k == kind || (kind == "RSS" && strings.HasPrefix(k, "Сайт · ")) {
-		return true
-	}
-	return kind != "RSS" && jx.Str(c, "platform") == PlatformRSS && RSSPlatformLabel(jx.Str(c, "id")) == kind
-}
+// Вкладка «Источники»: превью, каталог темы и сохранённые решения.
 
 var SourceRejectReasons = []string{"off_topic", "dead", "other"}
 
-const (
-	sourcePreviewPosts     = 20
-	SourceAddMaxLink       = 500
-)
+const SourceAddMaxLink = 500
 
 func NewsSiteKind(feed string) string {
 	u, _ := url.Parse(feed)
@@ -43,44 +23,6 @@ func NewsSiteKind(feed string) string {
 		host = strings.TrimPrefix(u.Hostname(), "www.")
 	}
 	return "Сайт · " + host
-}
-
-func sourceCandidate(sid, platform, name, reason string, extra jx.M) jx.M {
-	return jx.Merge(jx.M{"source_id": sid, "platform": platform, "name": name, "reason": reason}, extra)
-}
-
-func (u *U) suggestionSourceCandidates(d *SourceDB, platform string, voted map[string]bool, topic string) []jx.M {
-	var list []jx.M
-	for _, s := range d.Suggestions {
-		p := jx.Str(s, "platform")
-		if !u.TopicsAreEquivalent(jx.Str(s, "topic"), topic) || (platform != "" && p != platform) || voted[jx.Str(s, "source_id")] ||
-			u.UASourceBlocked(jx.Str(s, "source_id"), jx.M{"title": jx.Str(s, "name")}) != "" {
-			continue
-		}
-		list = append(list, s)
-	}
-	bonus := map[string]float64{}
-	rank := func(s jx.M) float64 {
-		kind := jx.Str(jx.Map(s, "origin"), "kind")
-		if kind == "" {
-			kind = "unknown"
-		}
-		if _, ok := bonus[kind]; !ok {
-			bonus[kind] = u.DiscoveryOriginBonus(d.Votes, topic, kind)
-		}
-		return SuggestionRank(s, bonus[kind])
-	}
-	sort.SliceStable(list, func(i, j int) bool { return rank(list[i]) > rank(list[j]) })
-	out := []jx.M{}
-	for _, s := range list {
-		extra := jx.M{"id": s["id"], "suggested": true, "score": s["score"], "timestamp": s["timestamp"], "suggestion_topic": jx.Str(s, "topic")}
-		if jx.Str(s, "platform") == PlatformRSS {
-			extra["kind"] = RSSFeedKind(jx.Str(s, "id"))
-			extra["platform_label"] = RSSPlatformLabel(jx.Str(s, "id"))
-		}
-		out = append(out, sourceCandidate(jx.Str(s, "source_id"), jx.Str(s, "platform"), jx.Str(s, "name"), DiscoveryReasonWithRefs(jx.Str(s, "reason"), jx.Strs(s, "refs")), extra))
-	}
-	return out
 }
 
 func postedTimes(posts []jx.M) []int64 {

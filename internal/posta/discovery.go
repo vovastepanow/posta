@@ -748,53 +748,6 @@ func SourceVoteOrigin(s jx.M) jx.M {
 	return jx.M{"origin_kind": kind, "origin_detail": jx.Str(o, "detail"), "discovery_score": jx.Int(s, "score")}
 }
 
-// DiscoveryOriginBonus — поправка к баллу предложения по виду находки: (доля «да» − 0,3) × 30, ±10.
-func (a *App) DiscoveryOriginBonus(votes []jx.M, topic, kind string) float64 {
-	if kind == "unknown" || kind == "other" {
-		return 0
-	}
-	ofKind := func(list []jx.M) []jx.M {
-		var out []jx.M
-		for _, v := range list {
-			if jx.Str(v, "origin_kind") == kind {
-				out = append(out, v)
-			}
-		}
-		return out
-	}
-	var own []jx.M
-	for _, v := range votes {
-		if a.TopicSame(jx.Str(v, "topic"), topic) {
-			own = append(own, v)
-		}
-	}
-	rows := ofKind(own)
-	if len(rows) < config.DiscoveryOriginMinVotes {
-		rows = ofKind(votes)
-	}
-	if len(rows) < config.DiscoveryOriginMinVotes {
-		return 0
-	}
-	yes := 0
-	for _, v := range rows {
-		if jx.Str(v, "vote") == "approve" {
-			yes++
-		}
-	}
-	return math.Max(-10, math.Min(10, (float64(yes)/float64(len(rows))-0.3)*30))
-}
-
-func SuggestionRank(s jx.M, bonus float64) float64 {
-	return jx.Float(s, "score") + float64(config.DiscoveryRefBonus*min(len(jx.List(s, "refs")), 4)) + bonus
-}
-
-func DiscoveryReasonWithRefs(reason string, refs []string) string {
-	if len(refs) == 0 {
-		return reason
-	}
-	return fmt.Sprintf("%s Ещё %d раз найден через %s.", reason, len(refs), strings.Join(refs[:min(3, len(refs))], ", "))
-}
-
 var DiscoveryOriginLabels = map[string]string{"tg_search": "поиск Telegram", "tg_name": "название от модели", "model_handle": "адрес от модели",
 	"similar": "похожие", "mentioned": "упомянут в", "vk_search": "поиск VK", "youtube": "YouTube", "tiktok": "TikTok", "ok": "Одноклассники",
 	"deferred": "отложенные", "catalog": "каталог", "other": "прочее", "unknown": "до учёта", "before": "до учёта", "post_search": "нашёлся по постам", "tg_posts": "поиск постов Telegram"}

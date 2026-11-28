@@ -17,7 +17,17 @@ type autopilotLegacyPendingRoute struct {
  reason string // empty means eligible for the normal candidate worker
 }
 
-// Use the same topic equivalence as the manual shelf. User votes, existing
+func (u *U) decidedSourceKeys(votes []jx.M, topic string) map[string]bool {
+	decided := map[string]bool{}
+	for _, v := range votes {
+		if t := jx.Str(v, "topic"); t == "" || u.TopicsAreEquivalent(t, topic) {
+			decided[recommendationSourceKey(jx.Str(v, "source_id"))] = true
+		}
+	}
+	return decided
+}
+
+// Use the saved topic equivalence when importing historical suggestions. User votes, existing
 // approvals and source blocks remain final. Never mutate the catalog here.
 func (u *U) autopilotLegacyPendingRoutes(job *autopilotJob) []autopilotLegacyPendingRoute {
  if job == nil || !validAutopilotPublicJob(job) {
@@ -54,7 +64,7 @@ func (u *U) autopilotLegacyPendingRoutes(job *autopilotJob) []autopilotLegacyPen
    continue
   }
   // An untrusted catalog identity must not be accepted as a valid source.
-  // Keep its original ID for the audit record and manual-shelf handoff.
+  // Keep its original ID for the audit record.
   candidate := DiscoveryCandidate{Platform: jx.Str(item, "platform"), ID: jx.Str(item, "id")}
   sid, valid := autopilotCandidateID(candidate)
   reason := ""
@@ -81,8 +91,8 @@ func (u *U) autopilotLegacyPendingCandidates(job *autopilotJob) []string {
 }
 
 // Transfer up to limit new suggestions per run. Previously imported sources
-// are never reset, and unavailable/invalid/unsupported sources remain on the
-// old shelf rather than disappearing without an auditable decision.
+// are never reset. The scheduler records invalid or unsupported suggestions
+// as auditable rejections.
 func (a *App) autopilotImportLegacyPending(ctx context.Context, job *autopilotJob, limit int) (int, error) {
 	if limit < 1 || !validAutopilotPublicJob(job) {
 		return 0, nil
@@ -125,81 +135,6 @@ func (a *App) autopilotImportLegacyPending(ctx context.Context, job *autopilotJo
 		}
 	}
 	return added, nil
-}
-
-// Explain any remaining item directly in the manual queue, rather than
-// silently leaving it there when migration prerequisites are unmet.
-// This method only reads the user's own configuration; it never starts work.
-func (u *U) pendingSourceAutopilotStatus(topic string, item jx.M, mode string, paused bool) string {
-	if mode != "shadow" && mode != "auto" {
-		return "autopilot_off"
-	}
-	if paused {
-		return "autopilot_paused"
-	}
-	if mode == "shadow" && !u.TBool("autopilot_shadow") ||
-		mode == "auto" && !u.TBool("autopilot_auto") {
-		return "autopilot_server_disabled"
-	}
-	source, ok := autopilotCandidateID(DiscoveryCandidate{
-		Platform: jx.Str(item, "platform"), ID: jx.Str(item, "id"),
-	})
-	if !ok {
-		return "unsupported_source_format"
-	}
-	if jx.Str(item, "source_id") == "" ||
-		recommendationSourceKey(source) != recommendationSourceKey(jx.Str(item, "source_id")) {
-		return "invalid_source_identity"
-	}
-	if !u.TopicsAreEquivalent(jx.Str(item, "suggestion_topic"), topic) {
-		return "topic_mismatch"
-	}
-	return "awaiting_transfer"
-}
-
-// excludeAutopilotTransferredPending keeps the historical suggestion rows
-// intact for audit, while the original manual approval shelf displays only
-// sources not already handed over to a public autopilot topic queue.
-func (u *U) excludeAutopilotTransferredPending(candidates []jx.M, topic string) ([]jx.M, error) {
-	if len(candidates) == 0 {
-		return candidates, nil
-	}
-	ids := make([]string, 0, len(candidates))
-	for _, item := range candidates {
-		if id := jx.Str(item, "source_id"); id != "" {
-			ids = append(ids, id)
-		}
-	}
-	if len(ids) == 0 {
-		return candidates, nil
-	}
-	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT DISTINCT source_id FROM source_autopilot_sources
-		WHERE topic_key=$1 AND scope IN ('public','public:shadow') AND source_id=ANY($2)`,
-		autopilotTopicKey(topic), ids)
-	if err != nil {
-		return nil, err
-	}
-	transferred := map[string]bool{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		transferred[id] = true
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]jx.M, 0, len(candidates))
-	for _, item := range candidates {
-		if !transferred[jx.Str(item, "source_id")] {
-			out = append(out, item)
-		}
-	}
-	return out, nil
 }
 
 // reconcileLegacyPendingWithoutLease runs during source-autopilot scheduling,
