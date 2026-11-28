@@ -14,23 +14,48 @@ const DESCRIPTIONS = {
     x:'Профили · текст, фото, видео, опросы'
 };
 let networks = {}, channels = [], inactive = [];
-let loadVersion = 0;
+let loadVersion = 0, formVersion = 0, mutationPending = false;
 const status = text => { $('networks-status').textContent = text; };
 
 export async function loadNetworks() {
     loadMaxBot();
+    if (mutationPending) return;
     const version = ++loadVersion;
     try {
         const info = await api('networks_list');
         if (version !== loadVersion) return;
         networks = info.networks || {};
-        channels = info.channels || [];
-        inactive = info.inactive_channels || [];
-        renderNetworks();
+        applyChannels(info);
     } catch (error) {
         if (version === loadVersion) status('Не удалось загрузить соцсети: '+error.message);
     }
 }
+function applyChannels(info) {
+    channels = info.channels || [];
+    inactive = info.inactive_channels || [];
+    renderNetworks();
+}
+
+// Mutations are serialized and supersede any older list response. The
+// server returns the authoritative list after each completed write.
+async function mutateChannels(action, body, message) {
+    if (mutationPending) return false;
+    mutationPending = true;
+    ++loadVersion;
+    try {
+        const info = await api(action, {body});
+        applyChannels(info);
+        window.dispatchEvent(new Event('posta:resources-changed'));
+        status(message);
+        return true;
+    } catch (error) {
+        status(error.message);
+        return false;
+    } finally {
+        mutationPending = false;
+    }
+}
+
 const logo = key => el('span', {className:'connection-icon connection-icon-'+key, ariaHidden:'true',textContent:LABEL[key] || key.slice(0,2).toUpperCase()});
 const pill = (text, connected=false) => el('span',{className:'connection-state'+(connected?' is-connected':''),textContent:text});
 
@@ -59,9 +84,14 @@ function renderNetworks() {
 function openForm(key) {
     const n=networks[key];
     if (!n?.connect_available) return;
+    const version = ++formVersion;
     const form=$('networks-form');
     const inputs=(n.fields || []).map(f=>el('label',{},el('span',{textContent:f.label}),el('input',{name:f.name,type:f.secret?'password':'text',autocomplete:'off',required:true})));
-    const close=()=>{form.reset();form.hidden=true;form.replaceChildren();};
+    const close=()=>{
+        if (version !== formVersion) return;
+        ++formVersion;
+        form.reset();form.hidden=true;form.replaceChildren();
+    };
     form.replaceChildren(el('div',{className:'connection-form-head'},el('h4',{textContent:'Подключение · '+n.title}),el('button',{type:'button',className:'account-secondary',textContent:'Закрыть',onclick:close})),
         el('p',{className:'account-muted',textContent:n.note}),...inputs,el('button',{type:'submit',className:'primary-button',textContent:'Проверить и подключить'}));
     form.hidden=false;
@@ -69,28 +99,24 @@ function openForm(key) {
     form.querySelector('input')?.focus({preventScroll:true});
     form.onsubmit=async event=>{
         event.preventDefault();
-        const button=event.submitter; if(button?.disabled)return;
+        const button=event.submitter;
+        if (version !== formVersion || button?.disabled || mutationPending) return;
         if(button)button.disabled=true;
         const fields=Object.fromEntries([...form.querySelectorAll('input')].map(input=>[input.name,input.value]));
         status('Проверяю доступ…');
         try {
-            const info=await api('network_connect',{body:{platform:key,fields}});
-            channels=info.channels || []; inactive=info.inactive_channels || [];
-            window.dispatchEvent(new Event('posta:resources-changed'));
-            close();status(n.title+' подключён.');renderNetworks();
-        } catch(error){status(error.message);}
-        finally{form.querySelectorAll('input[type=password]').forEach(i=>i.value='');if(button)button.disabled=false;}
+            if (await mutateChannels('network_connect',{platform:key,fields},n.title+' подключён.')) close();
+        } finally {
+            // An earlier request must never clear a newly opened form.
+            if (version === formVersion) form.querySelectorAll('input[type=password]').forEach(i=>i.value='');
+            if(button)button.disabled=false;
+        }
     };
 }
 
 async function removeChannel(id) {
-    if (!await ask('Отключить ресурс? История публикаций сохранится.')) return;
-    try {
-        const info=await api('network_remove',{body:{id}});
-        channels=info.channels || [];inactive=info.inactive_channels || [];
-        window.dispatchEvent(new Event('posta:resources-changed'));
-        status('Ресурс отключён.');renderNetworks();
-    } catch(error){status(error.message);}
+    if (mutationPending || !await ask('Отключить ресурс? История публикаций сохранится.')) return;
+    await mutateChannels('network_remove',{id},'Ресурс отключён.');
 }
 
 export function initializeNetworks() {

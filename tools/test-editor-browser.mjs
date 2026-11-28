@@ -342,6 +342,45 @@ try{
     assert.equal(poolReads, 1);
     assert.equal(planReads, 1);
     await poolPage.close();
+    // Older network list responses and completed connection attempts must not
+    // replace an authoritative resource list or clear the next setup form.
+    const networkPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    networkPage.on('pageerror', e => errors.push(e.message));
+    await networkPage.goto('http://127.0.0.1:' + server.address().port + '/home-test');
+    await networkPage.evaluate(async () => {
+        const { loadNetworks } = await import('/js/networks.js');
+        const networks = Object.fromEntries(['vk', 'ok'].map(key => [key, {
+            title: key, publishing_in_scope: true, connect_available: true, status: 'ready',
+            fields: [{name:'token', label:'Токен', secret:true}]
+        }]));
+        const old = {networks, channels:[], inactive_channels:[]};
+        let reads = 0, completeRead, completeWrite;
+        window.fetch = async (raw) => {
+            const action = new URL(raw, location.href).searchParams.get('action');
+            let data = {};
+            if (action === 'networks_list') {
+                data = ++reads === 1 ? old : await new Promise(resolve => { completeRead = resolve; });
+            }
+            if (action === 'network_connect') data = await new Promise(resolve => { completeWrite = resolve; });
+            return new Response(JSON.stringify(data), {status:200, headers:{'Content-Type':'application/json'}});
+        };
+        await loadNetworks();
+        const stale = loadNetworks();
+        const buttons = [...document.querySelectorAll('#networks-list button')];
+        buttons[0].click();
+        const form = document.getElementById('networks-form');
+        form.querySelector('input').value = 'fixture-first';
+        const pending = form.onsubmit({preventDefault(){}, submitter:form.querySelector('[type=submit]')});
+        buttons[1].click();
+        form.querySelector('input').value = 'fixture-second';
+        completeWrite({channels:[{id:1, platform:'vk', title:'New resource'}], inactive_channels:[]});
+        await pending;
+        completeRead(old);
+        await stale;
+        if (document.getElementById('networks-count').textContent !== '1') throw Error('Stale network list replaced connected resources');
+        if (form.hidden || form.querySelector('input').value !== 'fixture-second') throw Error('Old mutation cleared the new setup form');
+    });
+    await networkPage.close();
     assert.deepEqual(errors,[]);
     console.log('Editor browser: isolated variants, formatting, compound poll, mobile layout and submitted payloads passed');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
