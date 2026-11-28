@@ -584,7 +584,6 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .proposals-status { padding: 24px 0; color: var(--muted); font-size: 14px; }
 .proposals-status:empty { display: none; }
 /* Фоновое достраивание: закреплена внизу экрана, в вёрстку не входит */
-.progress.proposals-progress { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 50; width: min(90vw, 360px); padding: 6px 12px; background: var(--surface-2); }
 
 /* ---- Универсальная полоса прогресса (js/progress.js): createProgress() ---- */
 .progress { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
@@ -598,9 +597,6 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .tree-record pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 12px; color: var(--muted); }
 /* Полоса загрузки вкладки «Предложка»: тонкая, без скруглений, по центру над карточками */
 .proposals-grid { position: relative; }   /* полоса загрузки накладывается поверх карточек */
-.progress.proposals-loader { position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 5; width: min(100%, 360px); transition: opacity 0.3s; }
-.progress.proposals-loader.is-fading { opacity: 0; }
-.progress.proposals-loader .progress-bar, .progress.proposals-loader .progress-fill { height: 2px; border-radius: 0; }
 .progress.is-busy .progress-fill { opacity: 0.35; animation: progress-pulse 1.2s ease-in-out infinite; }
 @keyframes progress-pulse { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.8; } }
 .proposals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; align-items: start; }
@@ -620,10 +616,6 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .proposal-broken-text { color: #fff; font-size: 11px; text-align: center; }
 .proposal-refetch { background: var(--accent); color: var(--accent-text); font-weight: 700; border: 0; border-radius: 4px; padding: 6px 10px; font-size: 10px; cursor: pointer; }
 .proposal-refetch:disabled { opacity: 0.5; cursor: not-allowed; }
-.proposal-repair-notice { grid-column: 1 / -1; padding: 12px; background: color-mix(in srgb, var(--accent) 22%, transparent); border: var(--border) solid var(--line-strong); border-radius: 6px; text-align: center; }
-.proposal-repair-notice p { margin: 0 0 8px; color: var(--text); font-size: 14px; }
-.proposal-repair { background: var(--accent); color: #fff; border: 0; border-radius: 4px; padding: 8px 16px; font-size: 12px; cursor: pointer; }
-.proposal-repair:disabled { opacity: 0.5; cursor: not-allowed; }
 .proposal-more { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 22px; font-weight: 600; pointer-events: none; }
 .proposal-count { position: absolute; right: 8px; bottom: 8px; z-index: 3; padding: 2px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 12px; pointer-events: none; }
 /* Раскладка по числу файлов: 2 — рядом, 3 — большая слева, 4 — 2×2, 5 — 2 + 3, 6 — 3×2 */
@@ -638,7 +630,6 @@ body.tab-inactive .app-main { opacity: 0.45; pointer-events: none; }
 .proposal-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 .proposal-meta a { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .proposal-vote { color: var(--text); font-size: 12px; }
-.proposal-text { margin: 0; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
 .proposal-actions { display: flex; gap: 6px; }
 .proposal-action { flex: 1; padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--text); font-size: 13px; text-align: center; text-decoration: none; }
 .proposal-action:hover { border-color: var(--line-strong); background: var(--surface-3); }
@@ -1709,11 +1700,10 @@ button.pe-chip-poll.is-on { border-color: var(--accent); color: var(--text); }
 .vp.is-compact { left: 5px; right: 5px; bottom: 5px; gap: 3px; padding: 4px 5px; border-radius: 6px; }
 .vp.is-compact .vp-head { justify-content: center; font-size: 10px; }
 .vp.is-compact.is-indeterminate .vp-head { justify-content: center; }
-.has-vp > .pv-cell-plate, .has-vp > .sp-plate, .has-vp > .proposal-pending { visibility: hidden; }   /* подпись «Видео загружается…» заменила полоса */
+.has-vp > .pv-cell-plate, .has-vp > .sp-plate { visibility: hidden; }   /* подпись «Видео загружается…» заменила полоса */
 @media (prefers-reduced-motion: reduce) { .vp-fill, .vp-spinner, .search-progress-fill, .pe-progress-fill { animation: none; } }
 
 /* ---- Ролик TikTok/Shorts ещё загружается (js/tabs.js) ---- */
-.proposal-pending { position: absolute; left: 6px; bottom: 6px; padding: 2px 8px; border: 1.5px solid var(--line-strong); border-radius: 999px; background: var(--accent); color: var(--accent-text); font-size: 11px; font-weight: 700; pointer-events: none; }
 .own-x { align-items: stretch; }
 .own-x textarea { flex: 1 1 320px; min-width: 0; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-2); color: var(--text); font: inherit; resize: vertical; }
 
