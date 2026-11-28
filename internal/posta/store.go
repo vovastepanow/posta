@@ -249,11 +249,10 @@ func (u *U) poolUpdate(fn func(pgx.Tx, []jx.M) ([]jx.M, error)) ([]jx.M, error) 
 		if _, err := tx.Exec(u.Ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "posta:content:"+u.ID); err != nil {
 			return err
 		}
-		cur, stored, err := u.poolLoadForUpdate(tx)
+		cur, stored, snapshot, err := u.poolLoadForUpdate(tx)
 		if err != nil {
 			return err
 		}
-		before := repeatSnapshot(cur)
 		next, err := fn(tx, cur)
 		if err != nil {
 			return err
@@ -261,6 +260,12 @@ func (u *U) poolUpdate(fn func(pgx.Tx, []jx.M) ([]jx.M, error)) ([]jx.M, error) 
 		if next == nil {
 			result = cur
 			return nil
+		}
+		// Reuse the canonical JSON already captured under the row locks.
+		// Only decode the old records if the callback actually writes.
+		before := make([]jx.M, 0, len(snapshot))
+		for _, data := range snapshot {
+			before = append(before, jx.Unmarshal([]byte(data)))
 		}
 		if err := syncRepeatRecords(u.Ctx, tx, u.ID, before, next, false); err != nil {
 			return err
@@ -287,33 +292,35 @@ func poolRowKey(item jx.M) storedPoolKey {
 	return storedPoolKey{data: string(jx.Marshal(item)), image: ContentImageKey(item), topic: jx.Str(item, "topic")}
 }
 
-func (u *U) poolLoadForUpdate(tx pgx.Tx) ([]jx.M, map[storedPoolKey][]storedPoolRow, error) {
+func (u *U) poolLoadForUpdate(tx pgx.Tx) ([]jx.M, map[storedPoolKey][]storedPoolRow, []string, error) {
 	rows, err := tx.Query(u.Ctx, `SELECT id, position, image_key, topic, data FROM pool_items WHERE user_id=$1 ORDER BY position,id FOR UPDATE`, u.ID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer rows.Close()
 	stored := map[storedPoolKey][]storedPoolRow{}
 	var cur []jx.M
+	var snapshot []string
 	for rows.Next() {
 		var r storedPoolRow
 		var key storedPoolKey
 		var raw []byte
 		if err := rows.Scan(&r.id, &r.position, &key.image, &key.topic, &raw); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		item := jx.Unmarshal(raw)
 		if item == nil {
 			item = jx.M{}
 		}
 		key.data = string(jx.Marshal(item))
+		snapshot = append(snapshot, key.data)
 		stored[key] = append(stored[key], r)
 		cur = append(cur, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return cur, stored, nil
+	return cur, stored, snapshot, nil
 }
 
 func (u *U) poolWriteChanges(tx pgx.Tx, stored map[storedPoolKey][]storedPoolRow, next []jx.M) error {
