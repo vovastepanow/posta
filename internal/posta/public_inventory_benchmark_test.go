@@ -47,6 +47,10 @@ func TestInventoryBenchmarkPostgres(t *testing.T) {
 	if err!=nil{t.Fatal(err)}
 	want:=repeatDigest(key)
 	has:=func(ids []string)bool{for _,id:=range ids{if id==want{return true}};return false}
+	health:=a.publicInventoryStatus(ctx)
+	if !jx.Bool(health,"available") || jx.Int(health,"eligible_posts")<1 || jx.Int(health,"eligible_sources")<1 {
+		t.Fatalf("inventory status missing eligible records: %v",health)
+	}
 	if !has(r.Baseline)||!has(r.Open){t.Fatalf("fixture missing from one retrieval path: %+v",r)}
 	for _,sample:=range blind{if sample.ID==want{return}}
 	t.Fatal("ranked post missing from blind sample")

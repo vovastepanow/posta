@@ -448,7 +448,7 @@ func (u *U) SourceAutopilotStatus() (jx.M, error) {
 	// Only explicitly seeded public queries are shown to everyone. No
 	// private user query or demand is included in this shared summary.
 	warm := u.publicWarmStatus()
-	return jx.M{"topics": topics, "public_warmup": warm, "public_warmup_enabled": u.TBool("public_warmup_enabled"), "shadow_enabled": u.TBool("autopilot_shadow"), "auto_enabled": u.TBool("autopilot_auto"), "auto_available": true, "backends": backends, "server_revision": revision, "background_content_enabled": u.BackgroundContentEnabled()}, nil
+	return jx.M{"topics": topics, "public_warmup": warm, "public_inventory": u.App.publicInventoryStatus(u.Ctx), "public_warmup_enabled": u.TBool("public_warmup_enabled"), "shadow_enabled": u.TBool("autopilot_shadow"), "auto_enabled": u.TBool("autopilot_auto"), "auto_available": true, "backends": backends, "server_revision": revision, "background_content_enabled": u.BackgroundContentEnabled()}, nil
 }
 
 // Expose only known numeric evidence needed to audit source decisions.

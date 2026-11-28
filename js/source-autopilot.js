@@ -556,7 +556,7 @@ function renderAutopilotWarmup(data) {
     suggestions.replaceChildren(...options);
     const details = $('autopilot-warmup');
     details.hidden = profiles.length === 0;
-    const complete = profiles.filter(p => p.checked_at && Number(p.ready_count) >= Number(p.target)).length;
+    const complete = profiles.filter(p => p.checked_at && !p.stale && Number(p.ready_count) >= Number(p.target)).length;
     $('autopilot-warmup-summary').textContent = data.public_warmup_enabled && data.auto_enabled
         ? `Общая заготовка: ${complete} из ${profiles.length} запросов обеспечены запасом`
         : 'Общая заготовка выключена';
@@ -568,7 +568,14 @@ function renderAutopilotWarmup(data) {
     };
     $('autopilot-warmup-rows').replaceChildren(...profiles.map(p => {
         const count = Number(p.ready_count || 0);
-        const description = !p.checked_at ? 'Ещё не проверялся' : (labels[p.diagnosis] || 'Проверка');
+        const status = p.running ? 'Проверяется сейчас' : ({
+            warmup_budget_exhausted: 'Достигнут лимит фонового сбора',
+            budget_exhausted: 'Исчерпан общий бюджет',
+            classifier_unavailable: 'AI недоступен',
+            search_unavailable: 'Поиск недоступен',
+            supply_unavailable: 'Не удалось проверить запас'
+        })[p.failure];
+        const description = status || (p.stale ? 'Запас требует повторной проверки' : (!p.checked_at ? 'Ещё не проверялся' : (labels[p.diagnosis] || 'Проверка')));
         return el('div', { className: 'autopilot-topic-row' },
             el('div', {}, el('strong', { textContent: p.query }),
                 el('div', { textContent: `${count} / ${Number(p.target || 100)} · ${description}` })));
@@ -586,6 +593,7 @@ function autopilotDiagnosticReport(data) {
         background_content_enabled: data.background_content_enabled,
         public_warmup_enabled: data.public_warmup_enabled,
         public_warmup: data.public_warmup || [],
+        public_inventory: data.public_inventory || null,
         topics: (data.topics || []).map(topic => ({
             topic: topic.topic, mode: topic.mode, paused: topic.paused,
             diagnosis: topic.diagnosis, failure: topic.failure,

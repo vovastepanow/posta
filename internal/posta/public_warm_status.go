@@ -9,8 +9,11 @@ func (u *U) publicWarmStatus() []jx.M {
 	for i, query := range publicWarmSeedQueries {
 		keys[i] = autopilotTopicKey(query)
 	}
-	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT topic_key,target,enabled,checked_at,ready_count,duplicate_count,missing_media_count,diagnosis
-		FROM public_warm_profiles WHERE topic_key=ANY($1::text[])`, keys)
+	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT p.topic_key,p.target,p.enabled,p.checked_at,p.ready_count,p.duplicate_count,p.missing_media_count,p.diagnosis,
+		COALESCE(j.next_run_at,0),COALESCE(j.lease_until,0),COALESCE(j.enabled,false),COALESCE(j.demand_active,false),COALESCE(j.last_error,'')
+		FROM public_warm_profiles p LEFT JOIN source_autopilot_jobs j
+		ON j.scope='public' AND j.kind='auto_discovery' AND j.topic_key=p.topic_key
+		WHERE p.topic_key=ANY($1::text[])`, keys)
 	if err != nil {
 		return nil
 	}
@@ -20,8 +23,10 @@ func (u *U) publicWarmStatus() []jx.M {
 		var key, diagnosis string
 		var enabled bool
 		var target, ready, duplicates, media int
-		var checked int64
-		if err := rows.Scan(&key, &target, &enabled, &checked, &ready, &duplicates, &media, &diagnosis); err != nil {
+		var checked, next, lease int64
+		var jobEnabled, eligible bool
+		var failure string
+		if err := rows.Scan(&key, &target, &enabled, &checked, &ready, &duplicates, &media, &diagnosis, &next, &lease, &jobEnabled, &eligible, &failure); err != nil {
 			return nil
 		}
 		switch diagnosis {
@@ -29,8 +34,13 @@ func (u *U) publicWarmStatus() []jx.M {
 		default:
 			diagnosis = "not_checked"
 		}
+		if failure != "warmup_budget_exhausted" {
+			failure = autopilotFailureKind(failure)
+		}
 		byKey[key] = jx.M{"target": target, "enabled": enabled, "checked_at": checked, "ready_count": ready,
-			"duplicate_count": duplicates, "missing_media_count": media, "diagnosis": diagnosis}
+			"duplicate_count": duplicates, "missing_media_count": media, "diagnosis": diagnosis,
+			"next_run_at": next, "running": jobEnabled && eligible && lease > now() && autopilotWorkerAlive(u.App.autopilotWorkerHealth("auto"), now()),
+			"failure": failure, "stale": checked > 0 && now()-checked > 12*3600}
 	}
 	if rows.Err() != nil {
 		return nil

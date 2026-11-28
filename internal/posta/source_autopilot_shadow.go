@@ -430,9 +430,11 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 	if ctx.Err() != nil || errors.Is(err, errAutopilotLeaseLost) {
 		return
 	}
-	if job.WarmOnly {
+	if job.WarmOnly || (kind == autopilotAutoKind && a.TBool("public_warmup_enabled")) {
 		if supply, supplyErr := a.refreshPublicWarmSupply(ctx, job); supplyErr == nil {
-			nextInterval = publicWarmInterval(supply.Ready, supply.Target)
+			if job.WarmOnly {
+				nextInterval = publicWarmInterval(supply.Ready, supply.Target)
+			}
 		} else if !errors.Is(supplyErr, errAutopilotLeaseLost) && ctx.Err() == nil {
 			log.Printf("public warmup supply: %v", supplyErr)
 		}
