@@ -4,6 +4,7 @@ import { readFutureDraft, saveFutureDraft, clearFutureDraft } from './future-dra
 import { $, ask, COUNT, DEBUG_MODE, NO_TEXT, api, apiUrl, bindMenu, chip, currentTopic, el, hide, log, onParserStateChange, onParserStatus, pluralRu, qualityText, renderTags, safeSourcePostUrl, setCurrentTopic, setMessage, show, watchParser } from './core.js';
 import { registerViewerGallery, registerViewerPoster, videoFields } from './viewer.js';
 import { openPostEditor } from './editor.js';
+import { networkCapabilities } from './editor-capabilities.js';
 import { formatWhen } from './date-picker.js';
 import { appendEditorMedia, draftHasContent, payloadAllowsSourceLink } from './editor-variants.js';
 import { openAccountSection } from './account.js';
@@ -621,17 +622,31 @@ function logPostCheck(check) {
 function channelTarget(channel, index) {
     const name = channel.title || (channel.username ? '@' + channel.username : channel.id);
     const network = state.networks.telegram;
-    return { value: index === 0 ? 'tg:main' : `tg:${channel.id}`, capabilities: network ? {platform:'telegram',kinds:network.kinds,mediaMax:network.media_max,textLimit:network.text_limit,poll:network.poll,pollLimits:network.poll_limits,extras:network.extras,maxBytes:network.max_bytes} : null, label: `Канал «${name}»` + (index === 0 && state.channels.length > 1 ? ' (по умолчанию)' : ''), hashtags: channel.hashtags || 'off' };
+    return {
+        value: index === 0 ? 'tg:main' : `tg:${channel.id}`,
+        capabilities: networkCapabilities('telegram', network, channel),
+        label: `Канал «${name}»` + (index === 0 && state.channels.length > 1 ? ' (по умолчанию)' : ''),
+        hashtags: channel.hashtags || 'off'
+    };
 }
 const telegramTargets = () => state.channels.map(channelTarget);
-const networkTargets = () => state.networkChannels.map(c => ({ value: `${c.platform}:${c.id}`, label: `${state.networks[c.platform]?.title || c.platform} «${c.title || c.ref}»`, hashtags: c.hashtags || 'off', textLimit: state.networks[c.platform]?.text_limit, capabilities: state.networks[c.platform] ? {
-    platform: c.platform, kinds: state.networks[c.platform].kinds, mediaMax: state.networks[c.platform].media_max,
-    textLimit: state.networks[c.platform].text_limit, poll: c.poll_available ?? state.networks[c.platform].poll, pollLimits: state.networks[c.platform].poll_limits, extras:c.editor_extras ?? state.networks[c.platform].extras, maxBytes: state.networks[c.platform].max_bytes
-} : null }));
+const networkTargets = () => state.networkChannels.map(c => ({
+    value: `${c.platform}:${c.id}`,
+    label: `${state.networks[c.platform]?.title || c.platform} «${c.title || c.ref}»`,
+    hashtags: c.hashtags || 'off',
+    capabilities: networkCapabilities(c.platform, state.networks[c.platform], c)
+}));
 const allTargets = () => [...telegramTargets(), ...networkTargets()];
 
 /** Канал по цели поста: tg:main — первый, tg:<id> — конкретный. */
-const channelOfTarget = value => (value === 'tg:main' ? state.channels[0] : [...state.channels, ...state.networkChannels].find(c => c.id === value.slice(value.indexOf(':') + 1)));
+function channelOfTarget(value) {
+    if (value === 'tg:main') return state.channels[0];
+    const separator = value.indexOf(':');
+    if (separator < 0) return undefined;
+    const platform = value.slice(0, separator), id = value.slice(separator + 1);
+    return platform === 'tg' ? state.channels.find(c => c.id === id)
+        : state.networkChannels.find(c => c.platform === platform && c.id === id);
+}
 
 /** ИИ-подпись и стиль канала для редактора: цель поста → запросы к серверу; стиль канала кэшируется в state.channels. */
 const channelParam = value => (value === 'tg:main' ? '' : value.slice(value.indexOf(':') + 1));
@@ -658,7 +673,7 @@ const captionTools = () => ({
 const scheduleOptions = () => ({
     native: state.nativeAccount,
     slots: value => Object.keys(channelOfTarget(value)?.schedule?.slots || {}).length > 0,
-    nextSlot: value => api('telegram_next_slot', { params: { channel: value === 'tg:main' ? '' : value.slice(value.indexOf(':') + 1) } }),
+    nextSlot: value => api('telegram_next_slot', { params: { channel: channelParam(value) } }),
 });
 
 /** Подключённые каналы и личный аккаунт: нужны редактору поста (куда постить, слоты, «Отложенные»). */
@@ -811,8 +826,12 @@ export async function openFutureDraft() {
         await refreshPublishTargets();
         const restoreMedia=d=>{d.media=(d.media||[]).map(m=>{const next={...m};if(m.file){next.src=URL.createObjectURL(m.file);next.thumb=m.kind==='image'?next.src:'';}if(m.cover?.file)next.cover={...m.cover,src:URL.createObjectURL(m.cover.file)};return next;});};
         restoreMedia(saved);Object.values(saved.variants||{}).forEach(restoreMedia);
-        const picked=(saved.picked||[]).filter(v=>allTargets().some(t=>t.value===v));
-        openPostEditor({ key: 'future-draft', savedDraft: saved, picked:picked.length?picked:allTargets().length ? [allTargets()[0].value] : ['tg:main'], targets: allTargets().length ? allTargets() : [{ value: 'tg:main', label: 'Ресурс не подключён', hashtags: 'off', unconnected: true }], schedule: scheduleOptions(),
+        const targets = allTargets();
+        const picked = (saved.picked || []).filter(v => targets.some(t => t.value === v));
+        openPostEditor({ key: 'future-draft', savedDraft: saved,
+            picked: picked.length ? picked : [targets[0]?.value || 'tg:main'],
+            targets: targets.length ? targets : [{ value: 'tg:main', label: 'Ресурс не подключён', hashtags: 'off', unconnected: true }],
+            schedule: scheduleOptions(),
             media: saved.media, original: saved.text, extras:saved.extras, poll:saved.poll, hashtags: saved.tags || [], ai: captionTools(),
             onDraftChange: draft => saveFutureDraft(key, { ...draft, items: (draftHasContent(draft)||Object.values(draft.variants||{}).some(draftHasContent)) ? (saved.items || []) : [] }).catch(error => log(`Не удалось сохранить черновик: ${error.message}`)),
             onClose: refreshFutureDraftButtons,
@@ -850,7 +869,7 @@ async function publishToResource(post, onProgress = null) {
     const form = new FormData();
     form.append('text', post.text);
     if (post.article) form.append('article', JSON.stringify(post.article));   // статья: признак уйдёт в очередь, календарь покажет заголовок
-    form.append('channel', post.target === 'tg:main' ? '' : post.target.slice(post.target.indexOf(':') + 1));   // пусто — канал по умолчанию
+    form.append('channel', channelParam(post.target));   // пусто — канал по умолчанию
     form.append('mode', post.mode || (post.scheduledTs ? 'native' : 'now'));
     if (post.scheduledTs) form.append('scheduled_ts', String(post.scheduledTs));
     if (post.poll) form.append('poll', JSON.stringify(post.poll));

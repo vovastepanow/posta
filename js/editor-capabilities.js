@@ -2,6 +2,17 @@
 const TG = {platform:'telegram', kinds:['photo','video','animation','audio','document','voice','sticker','video_note'], maxBytes:{audio:50_000_000,document:50_000_000,voice:50_000_000,sticker:524288,video_note:50_000_000}, mediaMax:10, textLimit:[1024,4096], extras:['buttons','silent','protect','spoiler','preview','location','contact','styled_text','video_cover'],poll:true,pollLimits:{question_max:300,options_max:10,option_max:100,multiple:true,quiz:true,close:true}};
 const REQUIRED = new Set(['youtube','pinterest','instagram']);
 export const mediaKind = m => m.kind === 'image' ? (/^image\/gif$/i.test(m.file?.type || '') || /\.gif(?:[?#]|$)/i.test(m.src || '') || /\.gif$/i.test(m.name || '') ? 'animation' : 'photo') : m.kind;
+// API capabilities use snake_case; normalize once for all editor entry points.
+export function networkCapabilities(platform, network, resource = {}) {
+    if (!network) return null;
+    return {
+        platform, kinds: network.kinds, mediaMax: network.media_max,
+        textLimit: network.text_limit, maxBytes: network.max_bytes,
+        poll: resource.poll_available ?? network.poll, pollLimits: network.poll_limits,
+        extras: resource.editor_extras ?? network.extras
+    };
+}
+
 export function targetCapabilities(target) {
     if (!target || target.unconnected) return null;
     if (target.capabilities) return target.capabilities;

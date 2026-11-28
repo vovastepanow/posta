@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { commonCapabilities, commonPollLimits, targetTextLimit, validateTarget, mediaKind, attachmentError, extraError } from '../js/editor-capabilities.js';
+import { networkCapabilities, commonCapabilities, commonPollLimits, targetTextLimit, validateTarget, mediaKind, attachmentError, extraError } from '../js/editor-capabilities.js';
 const tg={value:'tg:main'}, yt={value:'youtube:1',capabilities:{platform:'youtube',kinds:['video'],mediaMax:1,textLimit:[5000,5000],poll:false}};
 const x={value:'x:1',capabilities:{platform:'x',kinds:['photo','video','animation'],mediaMax:4,textLimit:[280,280],poll:false}};
 assert.deepEqual(commonCapabilities([tg,yt]),{kinds:['video'],mediaMax:1,poll:false});
@@ -56,3 +56,12 @@ assert.equal(targetTextLimit(tg, 1), 1024);
 assert.equal(targetTextLimit(tg, 0), 4096);
 assert.equal(targetTextLimit(yt, 1), 5000);
 assert.equal(targetTextLimit(x, 0), 280);
+
+// A resource may disable platform features; false and an empty array are intentional overrides.
+const network = { kinds: ['photo'], media_max: 4, text_limit: [100, 200], max_bytes: { photo: 1000 }, poll: true, poll_limits: { options_max: 4 }, extras: ['first_comment'] };
+assert.deepEqual(networkCapabilities('vk', network), { platform: 'vk', kinds: ['photo'], mediaMax: 4, textLimit: [100, 200], maxBytes: { photo: 1000 }, poll: true, pollLimits: { options_max: 4 }, extras: ['first_comment'] });
+const restricted = networkCapabilities('vk', network, { poll_available: false, editor_extras: [] });
+assert.equal(restricted.poll, false);
+assert.deepEqual(restricted.extras, []);
+assert.equal(networkCapabilities('vk', null), null);
+assert.equal(network.poll, true);

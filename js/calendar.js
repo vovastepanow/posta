@@ -5,6 +5,7 @@ import { $, api, apiUrl, ask, cleanCaption, el, isTabActive, onTabOpen, PHOTO_IC
 import { addDays, centeredHourShift, calendarAgenda, easeView, freeSlots, hourSpan, hourWindow, layoutDay, layoutRow, shiftHourWindow, slotTimes, snapGestureDays, snapView, summary, viewGapPx, weekStart, wheelFactor, wheelPixels, zoomAround, zoomHoursAround, zoomLimitReached, ZOOM_DAYS_MAX, ZOOM_DAYS_MIN, DAY, HOUR, MIN } from './calendar-model.js';
 import { composePostFromItem } from './content.js';
 import { appendEditorMedia } from './editor-variants.js';
+import { networkCapabilities } from './editor-capabilities.js';
 import { formatWhen, pickDateTime } from './date-picker.js';
 import { isPhone, phoneView } from './calendar-phone.js';
 import { draftChildren, fetchPlan, flashPoolItem, holesChildren, planPanel, poolPanel, renderPoolColumn, UNDO_SECONDS, undoable } from './calendar-pool.js';
@@ -1446,7 +1447,7 @@ async function openQueuePost(post) {
             openPostEditor({
                 key: `outbox:${post.id}`, editing: true, mode: 'queue', scheduledTs: data.publish_at,
                 scheduledAt: formatWhen(new Date(data.publish_at * 1000)),
-                targets: [{ value: target, label: lane.title, hashtags: 'off', textLimit: network?.text_limit, capabilities: network ? { platform: data.platform, kinds: network.kinds, mediaMax: network.media_max, textLimit: network.text_limit, poll: network.poll, pollLimits: network.poll_limits, extras:network.extras, maxBytes: network.max_bytes } : null }], picked: [target],
+                targets: [{ value: target, label: lane.title, hashtags: 'off', capabilities: networkCapabilities(data.platform, network) }], picked: [target],
                 original: data.text || '', description: '', media: data.media || [], poll: data.poll || null, extras:data.extras || null,
                 onSubmit: async edited => {
                     const form = new FormData();
