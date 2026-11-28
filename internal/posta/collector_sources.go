@@ -564,6 +564,21 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 	for platform, posts := range u.classifiedPublicPosts(topic) {
 		by[platform] = mergePublicPosts(by[platform], posts)
 	}
+	// Search across legacy topic boundaries; candidates still need admission.
+	if !u.TopicIsRestricted(topic) {
+		query := TopicQueryOf(topic)
+		if query == "" {
+			query = TopicBase(topic)
+		}
+		count := 0
+		for platform, posts := range u.searchPublicInventory(query, sourceAllowed) {
+			count += len(posts)
+			by[platform] = mergePublicPosts(by[platform], posts)
+		}
+		if count > 0 {
+			u.Log("Общий индекс: %d кандидатов по запросу «%s» без ограничения темой источника.", count, query)
+		}
+	}
 	labels := map[string]string{"other_topic": "другой темы", "skipped_frozen": "заморожено (ждут перепроверки)", "frozen": "заморожено сейчас", "revived": "ожило",
 		"ukraine_source": "украинских источников не собираем"}
 	var notes []string
