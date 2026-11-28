@@ -1046,25 +1046,6 @@ func RSSFeedKind(feedURL string) string {
 	return "RSS"
 }
 
-func (u *U) RSSPreviewPosts(src jx.M, count int) []jx.M {
-	acceptText := u.TopicsAcceptText([]string{u.CurrentTopic()})
-	posts, err := u.RSSFetchPosts(jx.Str(src, "id"), count, jx.Str(src, "name"), true, acceptText)
-	if err != nil {
-		return []jx.M{}
-	}
-	var out []jx.M
-	for _, p := range posts {
-		if jx.Bool(p, "article_source") {
-			p = u.ArticleEnrich(p, false)
-		}
-		hasMedia := PostItemHasMedia(p)
-		if hasMedia || (acceptText && runeLen(jx.Str(p, "text")) >= 120) {
-			p["text_post"] = !hasMedia
-			out = append(out, p)
-		}
-	}
-	return out
-}
 
 // RSSPostURLTrusted — ссылка записи RSS-источника безопасна: https, хост совпадает с хостом ленты или их поддомены.
 func RSSPostURLTrusted(item jx.M) bool {

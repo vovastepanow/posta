@@ -135,9 +135,7 @@ const (
 	DiscoveryNamesIfSearchBelow = 15
 	DiscoveryNamesRebuildStep   = 5
 	DiscoveryNamesMaxDays       = 14
-	DiscoveryRefBonus           = 5
 	DiscoveryRefsMax            = 10
-	DiscoveryOriginMinVotes     = 8
 
 	// ---- Свежесть, активность и качество источников ----
 	ContentMaxAgeDays           = 30

@@ -75,13 +75,13 @@ func TestPendingRSSName(t *testing.T) {
 	}
 }
 
-func TestTelegramSourcePreviewReadsPosts(t *testing.T) {
+func TestTelegramCachedPageReadsPosts(t *testing.T) {
 	page := `<div class="tgme_channel_info_header_title">Канал</div><div data-post="humor_channel/123"><a class="tgme_widget_message_photo_wrap" style="background-image:url('https://example.com/photo.jpg')"></a><div class="tgme_widget_message_text">Пост</div></div>`
 	a := &App{Mem: NewMemCache(10)}
 	a.Mem.Set("tgpage:humor_channel|0", page, time.Minute)
-	feed := a.telegramSourcePreviewFeed("humor_channel", 1)
-	if posts := jx.Maps(feed, "posts"); len(posts) != 1 {
-		t.Fatalf("Telegram preview failed to read post: %#v", feed)
+	posts := TelegramPostsFromHTML(a.TelegramChannelPageCached("humor_channel", 0), jx.M{"id": "humor_channel"}, 1, true, 0)
+	if len(posts) != 1 {
+		t.Fatalf("Telegram cached page failed to read post: %#v", posts)
 	}
 }
 

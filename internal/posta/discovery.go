@@ -281,27 +281,6 @@ func (u *U) sourceTextReview(title, desc, topic string, texts []string) *sourceR
 	return review
 }
 
-func (u *U) sourceImagesReview(title, topic string, posts []jx.M) *sourceReview {
-	var frames [][]byte
-	for _, p := range posts {
-		if len(frames) >= config.StoryboardFramesPerSheet {
-			break
-		}
-		if b := u.discoveryImageBytes(jx.Str(p, "image")); b != nil {
-			frames = append(frames, b)
-		}
-	}
-	if len(frames) == 0 {
-		return nil
-	}
-	prompt := u.prompt("source_images", map[string]string{"topic": u.TopicPromptContext(topic) + "." + u.TopicProfileHint(topic), "title": title, "query_rule": sourceQueryRule(topic), "shop_rule": notShop})
-	prompt += sourceReviewTopicGuidance(topic)
-	review := u.sourceReviewRequest(prompt, topic, StoryboardSheets(frames))
-	if review != nil {
-		review.Samples = len(frames)
-	}
-	return review
-}
 
 // A single multimodal request grades text and images independently and, when
 // examples exist, estimates owner taste without another model round trip.
@@ -747,10 +726,6 @@ func SourceVoteOrigin(s jx.M) jx.M {
 	}
 	return jx.M{"origin_kind": kind, "origin_detail": jx.Str(o, "detail"), "discovery_score": jx.Int(s, "score")}
 }
-
-var DiscoveryOriginLabels = map[string]string{"tg_search": "поиск Telegram", "tg_name": "название от модели", "model_handle": "адрес от модели",
-	"similar": "похожие", "mentioned": "упомянут в", "vk_search": "поиск VK", "youtube": "YouTube", "tiktok": "TikTok", "ok": "Одноклассники",
-	"deferred": "отложенные", "catalog": "каталог", "other": "прочее", "unknown": "до учёта", "before": "до учёта", "post_search": "нашёлся по постам", "tg_posts": "поиск постов Telegram"}
 
 // DiscoveryOriginReport — по виду находки: найдено, да / может быть / нет. Показывает, какой способ поиска работает.
 func (a *App) DiscoveryOriginReport(d *SourceDB, topic string) map[string]map[string]int {

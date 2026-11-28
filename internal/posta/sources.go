@@ -231,35 +231,6 @@ func DvachThreadTitle(subject, thread string) string {
 	return t
 }
 
-// BuildDvachPreviewPosts — превью треда: count файлов через равные промежутки.
-func (a *App) BuildDvachPreviewPosts(src jx.M, count int) []jx.M {
-	board, thread := jx.Str(src, "board"), jx.Str(src, "thread_id")
-	type pair struct{ post, media jx.M }
-	var items []pair
-	for _, p := range DvachThreadPosts(a.Fetch2chJSON(board, thread)) {
-		for _, m := range DvachPostMedia(board, p, true) {
-			items = append(items, pair{p, m})
-		}
-	}
-	picked := items
-	if len(items) > count {
-		picked = nil
-		for i := 0; i < count; i++ {
-			picked = append(picked, items[int(math.Floor((float64(i)+0.5)*float64(len(items))/float64(count)))])
-		}
-	}
-	out := []jx.M{}
-	for _, p := range picked {
-		text := DvachPostText(p.post)
-		if text == "" {
-			text = EmptyPostText
-		}
-		num := jx.Str(p.post, "num")
-		out = append(out, jx.M{"image": p.media["image"], "images": []any{p.media["image"]}, "video": p.media["video"], "text": text,
-			"source": jx.Str(src, "name"), "post_id": num, "posted_at": jx.Int(p.post, "timestamp"), "url": DvachPostURL(board, thread, num)})
-	}
-	return out
-}
 
 // DvachThreadState — alive | gone (только 404) | unknown; posts — посты живого треда.
 func (a *App) DvachThreadState(board, thread string) (string, []jx.M) {
@@ -941,13 +912,7 @@ func TelegramPageFacts(page string) TelegramFacts {
 	return f
 }
 
-const (
-	telegramPreviewPages     = 4
-	telegramPreviewBudget    = 10 * time.Second
-	telegramPageCacheSeconds = 600
-	telegramTextPostMin      = 80
-	telegramTextPostsMax     = 6
-)
+const telegramPageCacheSeconds = 600
 
 // TelegramChannelPageCached — страница канала из кэша (10 минут, в памяти) или из сети.
 func (a *App) TelegramChannelPageCached(channel string, before int64) string {
@@ -962,46 +927,6 @@ func (a *App) TelegramChannelPageCached(channel string, before int64) string {
 	return page
 }
 
-// TelegramChannelMediaPosts — посты с медиа и текстовые посты канала со страниц t.me/s/ (листание через ?before=).
-func (a *App) TelegramChannelMediaPosts(channel string, want, maxPages int) jx.M {
-	started := time.Now()
-	src := jx.M{"id": channel, "name": SourceDisplayName(PlatformTelegram, channel)}
-	posts, textPosts := []jx.M{}, []jx.M{}
-	pages, total := 0, 0
-	var before int64
-	for pages < maxPages && len(posts) < want {
-		if pages > 0 && time.Since(started) > telegramPreviewBudget {
-			break
-		}
-		page := a.TelegramChannelPageCached(channel, before)
-		blocks := TelegramPageBlocks(page)
-		if page == "" || len(blocks) == 0 {
-			break
-		}
-		pages++
-		total += len(blocks)
-		for _, p := range TelegramPostsFromHTML(page, src, math.MaxInt, true, telegramTextPostMin) {
-			if jx.Bool(p, "text_post") {
-				textPosts = append(textPosts, p)
-			} else {
-				posts = append(posts, p)
-			}
-		}
-		oldest := int64(math.MaxInt64)
-		for _, b := range blocks {
-			if n, _ := strconv.ParseInt(b.ID, 10, 64); n < oldest {
-				oldest = n
-			}
-		}
-		if before != 0 && oldest >= before {
-			break
-		}
-		before = oldest
-	}
-	mediaTotal, textTotal := len(posts), len(textPosts)
-	return jx.M{"posts": posts[:min(want, len(posts))], "text_posts": textPosts[:min(telegramTextPostsMax, len(textPosts))], "pages": pages,
-		"posts_total": total, "media_total": mediaTotal, "text_total": textTotal}
-}
 
 var (
 	channelTitleRe = regexp.MustCompile(`(?is)class="tgme_channel_info_header_title"[^>]*>(.*?)</div>`)
@@ -1455,26 +1380,6 @@ func (a *App) VKSearchGroups(ctx context.Context, query string, count int) ([]jx
 	return groups, nil
 }
 
-// BuildSourcePreviewPosts — превью источника любой площадки.
-func (u *U) BuildSourcePreviewPosts(src jx.M, count int) []jx.M {
-	switch jx.Str(src, "platform") {
-	case PlatformTelegram:
-		if page := u.FetchTelegramChannelPage(strings.TrimLeft(jx.Str(src, "id"), "@"), 0); page != "" {
-			return TelegramPostsFromHTML(page, src, count, false, 120)
-		}
-	case PlatformVK:
-		return u.BuildVKPreviewPosts(u.Ctx, src, count, false, 120)
-	case PlatformRSS:
-		return u.RSSPreviewPosts(src, count)
-	case PlatformOK:
-		return u.OKPreviewPosts(src, count)
-	case PlatformTikTok:
-		return u.TikTokPreviewPosts(src, count)
-	case PlatformDvach:
-		return u.BuildDvachPreviewPosts(src, count)
-	}
-	return []jx.M{}
-}
 
 // ---- Активность: свежесть постов, частота, заморозка ----
 

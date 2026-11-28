@@ -235,13 +235,6 @@ func OKParseFeed(page, id string, count int, name string) []jx.M {
 	return posts[:min(len(posts), max(0, count))]
 }
 
-func (u *U) OKPreviewPosts(src jx.M, count int) []jx.M {
-	p, err := u.OKFetchPosts(jx.Str(src, "id"), count, jx.Str(src, "name"))
-	if err != nil {
-		return []jx.M{}
-	}
-	return p
-}
 
 func (a *App) OKFetchPosts(id string, count int, name string) ([]jx.M, error) {
 	if !IsValidOKGroup(id) {
@@ -379,13 +372,6 @@ func (a *App) TikTokFetchPosts(ctx context.Context, user string, count int, name
 	return posts, nil
 }
 
-func (u *U) TikTokPreviewPosts(src jx.M, count int) []jx.M {
-	p, err := u.TikTokFetchPosts(u.Ctx, jx.Str(src, "id"), count, jx.Str(src, "name"))
-	if err != nil {
-		return []jx.M{}
-	}
-	return p
-}
 
 // ---- Поиск аккаунтов TikTok: страница поиска через headless Chrome (без Node), разбор ссылок «/@имя» ----
 

@@ -1,7 +1,6 @@
 package posta
 
 import (
-	"fmt"
 	"net/url"
 	"sort"
 	"strings"
@@ -23,137 +22,10 @@ func NewsSiteKind(feed string) string {
 	return "Сайт · " + host
 }
 
-func postedTimes(posts []jx.M) []int64 {
-	var out []int64
-	for _, p := range posts {
-		if t := jx.Int(p, "posted_at"); t > 0 {
-			out = append(out, t)
-		}
-	}
-	return out
-}
 
-// telegramSourcePreviewFeed requests posts and allows enough pages to fill a preview.
-func (a *App) telegramSourcePreviewFeed(channel string, count int) jx.M {
-	return a.TelegramChannelMediaPosts(channel, max(1, count), telegramPreviewPages)
-}
 
-// BuildSourcePreview — посты и сводка карточки кандидата: url, description, subscribers, view_rate, posts_per_week, last_post, dead.
-func (u *U) BuildSourcePreview(c jx.M, count int) jx.M {
-	stats := jx.M{"url": "", "description": "", "subscribers": 0, "view_rate": nil, "posts_per_week": nil, "last_post": nil, "thread_posts": nil, "thread_files": nil, "dead": nil}
-	platform := jx.Str(c, "platform")
-	var lastHit any
-	if h := jx.Int(c, "last_hit"); h > 0 {
-		lastHit = h
-	}
-	previewList := func(posts []jx.M) []jx.M {
-		out := []jx.M{}
-		for _, p := range posts {
-			post := jx.Copy(p)
-			if jx.Str(post, "source") == "" {
-				post["source"] = jx.Str(c, "name")
-			}
-			out = append(out, u.SourcePreviewPost(post))
-		}
-		return out
-	}
-	switch platform {
-	case Platform4chan:
-		var thread int64
-		fmt.Sscan(jx.Str(c, "thread_id"), &thread)
-		stats["url"], stats["thread_posts"], stats["last_post"] = fourchanPostURL(jx.Str(c, "board"), thread, thread), c["thread_posts"], lastHit
-		return jx.M{"posts": previewList(u.FourchanPreview(c, count)), "stats": stats}
-	case PlatformDvach:
-		stats["url"], stats["thread_posts"], stats["thread_files"], stats["last_post"] = DvachPostURL(jx.Str(c, "board"), jx.Str(c, "thread_id"), jx.Str(c, "thread_id")),
-			c["thread_posts"], c["thread_files"], lastHit
-		return jx.M{"posts": previewList(u.BuildDvachPreviewPosts(c, count)), "stats": stats}
-	}
-	var posts, textPosts []jx.M
-	var activity jx.M
-	switch platform {
-	case PlatformTelegram:
-		info := u.TelegramChannelInfo(jx.Str(c, "id"), 0)
-		if info == nil {
-			stats["url"] = "https://t.me/" + url.PathEscape(jx.Str(c, "id"))
-			if u.ID != "" && u.TelegramUserConnected() {
-				if native, err := u.telegramUserHistoryPosts(jx.Str(c, "id"), jx.Str(c, "name"), count); err == nil {
-					posts = native
-					activity = SourceActivity(postedTimes(posts), now())
-					stats["fetched_via"] = "telegram_mtproto"
-					break
-				}
-			}
-			// Failure to read the preview is not evidence of deletion.
-			stats["fetch_error"] = "Не удалось прочитать публичную историю Telegram."
-			return jx.M{"posts": []jx.M{}, "stats": stats}
-		}
-		feed := u.telegramSourcePreviewFeed(jx.Str(info, "id"), count)
-		posts = u.TelegramBigVideosViaAccount(jx.Maps(feed, "posts"))
-		textPosts = jx.Maps(feed, "text_posts")
-		var times []int64
-		for _, t := range jx.List(info, "post_times") {
-			times = append(times, jx.ToInt(t))
-		}
-		activity = SourceActivity(times, now())
-		subs := jx.Int(info, "subscribers")
-		var views []*int64
-		if v, ok := info["post_views"].([]*int64); ok {
-			views = v
-		}
-		rate := SourceViewRate(subs, views)
-		dead := SourceInactivityReason(activity, now())
-		if dead == "" {
-			dead = SourceDeadAudienceReason(subs, rate)
-		}
-		stats["url"], stats["description"], stats["subscribers"], stats["view_rate"] = "https://t.me/"+url.PathEscape(jx.Str(info, "id")), info["description"], subs, rate
-		stats["dead"] = nilIfEmpty(dead)
-		for _, k := range []string{"media_total", "text_total", "posts_total", "pages"} {
-			stats[k] = feed[k]
-		}
-	case PlatformRSS:
-		posts = u.RSSPreviewPosts(c, count)
-		activity = SourceActivity(postedTimes(posts), now())
-		stats["url"] = jx.Str(c, "id")
-		stats["dead"] = deadOr(posts, SourceInactivityReason(activity, now()), "лента не открывается или в ней нет картинок")
-	case PlatformOK:
-		posts = u.OKPreviewPosts(c, count)
-		activity = SourceActivity(postedTimes(posts), now())
-		stats["url"] = "https://ok.ru/group/" + url.PathEscape(jx.Str(c, "id"))
-		stats["dead"] = deadOr(posts, SourceInactivityReason(activity, now()), "группа не открывается или в ней нет картинок")
-	case PlatformTikTok:
-		posts = u.TikTokPreviewPosts(c, count)
-		activity = SourceActivity(postedTimes(posts), now())
-		stats["url"] = "https://www.tiktok.com/@" + url.PathEscape(jx.Str(c, "id"))
-		stats["dead"] = deadOr(posts, SourceInactivityReason(activity, now()), "аккаунт не открывается или в нём нет коротких видео")
-	default:
-		posts = u.BuildVKPreviewPosts(u.Ctx, c, count, true, 0)
-		activity = SourceActivity(postedTimes(posts), now())
-		stats["url"] = "https://vk.com/" + url.PathEscape(jx.Str(c, "id"))
-		if len(posts) > 0 {
-			stats["dead"] = nilIfEmpty(SourceInactivityReason(activity, now()))
-		}
-	}
-	posts = append(posts, textPosts...)
-	sort.SliceStable(posts, func(i, j int) bool { return jx.Int(posts[i], "posted_at") > jx.Int(posts[j], "posted_at") })
-	posts = posts[:min(len(posts), count)]
-	posts = u.VideoPreviewPrepare(u.Ctx, posts, u.ID)
-	stats["posts_per_week"], stats["last_post"] = activity["per_week"], activity["last_post"]
-	return jx.M{"posts": previewList(posts), "stats": stats}
-}
 
-func nilIfEmpty(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
-}
 
-func deadOr(posts []jx.M, reason, empty string) any {
-	if len(posts) == 0 {
-		return empty
-	}
-	return nilIfEmpty(reason)
-}
 
 // SourcePreviewPost — пост превью в одном виде для всех площадок.
 func (u *U) SourcePreviewPost(p jx.M) jx.M {

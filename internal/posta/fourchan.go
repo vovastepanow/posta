@@ -439,18 +439,4 @@ func (a *App) FourchanApproveBoard(topic, board string) {
 	})
 }
 
-// FourchanPreview — превью треда для карточки.
-func (u *U) FourchanPreview(c jx.M, count int) []jx.M {
-	thread := jx.M{"no": jx.Int(c, "thread_id"), "sub": ""}
-	var out []jx.M
-	for _, p := range u.FourchanThreadMedia(jx.Str(c, "board"), thread, count, nil) {
-		text := jx.Str(p, "text")
-		if text == "" {
-			text = EmptyPostText
-		}
-		out = append(out, jx.M{"image": p["image"], "images": p["images"], "video": p["video"], "text": text, "source": p["source"],
-			"post_id": p["post_id"], "posted_at": p["posted_at"], "url": p["source_url"]})
-	}
-	return out
-}
 
