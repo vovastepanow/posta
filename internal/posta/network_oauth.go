@@ -103,6 +103,14 @@ func (a *App) tokenRequest(ctx context.Context, tokenURL string, form url.Values
 	return map[string]string{"access_token": jx.Str(t, "access_token"), "refresh_token": jx.Str(t, "refresh_token"), "expires_at": expiresAt(t)}, nil
 }
 
+func (a *App) refreshTokenRequest(ctx context.Context, old map[string]string, tokenURL string, form url.Values, basicID, basicSecret, what string, extra map[string]string) (map[string]string, error) {
+	fresh, err := a.tokenRequest(ctx, tokenURL, form, basicID, basicSecret, what, extra)
+	if err != nil {
+		return nil, err
+	}
+	return keepRefresh(old, fresh), nil
+}
+
 func keepRefresh(old, fresh map[string]string) map[string]string {
 	if fresh["refresh_token"] == "" {
 		fresh["refresh_token"] = old["refresh_token"]

@@ -25,12 +25,8 @@ var youtubeOAuth = &OAuthFlow{
 			"client_id": {a.NetworkAppKey("YOUTUBE_CLIENT_ID")}, "client_secret": {a.NetworkAppKey("YOUTUBE_CLIENT_SECRET")}}, "", "", "Google не выдал токен", nil)
 	},
 	Refresh: func(a *App, ctx context.Context, s map[string]string) (map[string]string, error) {
-		f, err := a.tokenRequest(ctx, "https://oauth2.googleapis.com/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {s["refresh_token"]},
+		return a.refreshTokenRequest(ctx, s, "https://oauth2.googleapis.com/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {s["refresh_token"]},
 			"client_id": {a.NetworkAppKey("YOUTUBE_CLIENT_ID")}, "client_secret": {a.NetworkAppKey("YOUTUBE_CLIENT_SECRET")}}, "", "", "Google не выдал токен", nil)
-		if err != nil {
-			return nil, err
-		}
-		return keepRefresh(s, f), nil
 	},
 	Identify: func(a *App, ctx context.Context, s map[string]string) (*NetResource, error) {
 		r, err := networkHTTP(ctx, "GET", "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", bearer(s["access_token"]), nil)
@@ -66,12 +62,8 @@ var pinterestOAuth = &OAuthFlow{
 			"continuous_refresh": {"true"}}, "PINTEREST_CLIENT_ID", "PINTEREST_CLIENT_SECRET", "Pinterest не выдал токен", nil)
 	},
 	Refresh: func(a *App, ctx context.Context, s map[string]string) (map[string]string, error) {
-		f, err := a.tokenRequest(ctx, "https://api.pinterest.com/v5/oauth/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {s["refresh_token"]},
+		return a.refreshTokenRequest(ctx, s, "https://api.pinterest.com/v5/oauth/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {s["refresh_token"]},
 			"continuous_refresh": {"true"}}, "PINTEREST_CLIENT_ID", "PINTEREST_CLIENT_SECRET", "Pinterest не выдал токен", nil)
-		if err != nil {
-			return nil, err
-		}
-		return keepRefresh(s, f), nil
 	},
 	Identify: func(a *App, ctx context.Context, s map[string]string) (*NetResource, error) {
 		r, err := networkHTTP(ctx, "GET", "https://api.pinterest.com/v5/user_account", bearer(s["access_token"]), nil)
@@ -113,12 +105,8 @@ var tumblrOAuth = &OAuthFlow{
 			"client_id": {a.NetworkAppKey("TUMBLR_CLIENT_ID")}, "client_secret": {a.NetworkAppKey("TUMBLR_CLIENT_SECRET")}}, "", "", "Tumblr не выдал токен", nil)
 	},
 	Refresh: func(a *App, ctx context.Context, s map[string]string) (map[string]string, error) {
-		f, err := a.tokenRequest(ctx, "https://api.tumblr.com/v2/oauth2/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {s["refresh_token"]},
+		return a.refreshTokenRequest(ctx, s, "https://api.tumblr.com/v2/oauth2/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {s["refresh_token"]},
 			"client_id": {a.NetworkAppKey("TUMBLR_CLIENT_ID")}, "client_secret": {a.NetworkAppKey("TUMBLR_CLIENT_SECRET")}}, "", "", "Tumblr не выдал токен", nil)
-		if err != nil {
-			return nil, err
-		}
-		return keepRefresh(s, f), nil
 	},
 	Identify: func(a *App, ctx context.Context, s map[string]string) (*NetResource, error) {
 		r, err := networkHTTP(ctx, "GET", "https://api.tumblr.com/v2/user/info", bearer(s["access_token"]), nil)
@@ -219,12 +207,8 @@ var xOAuth = &OAuthFlow{
 			"code_verifier": {verifier}, "client_id": {a.NetworkAppKey("X_CLIENT_ID")}}, "X_CLIENT_ID", "X_CLIENT_SECRET", "X не выдал токен", nil)
 	},
 	Refresh: func(a *App, ctx context.Context, s map[string]string) (map[string]string, error) {
-		f, err := a.tokenRequest(ctx, "https://api.x.com/2/oauth2/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {s["refresh_token"]},
+		return a.refreshTokenRequest(ctx, s, "https://api.x.com/2/oauth2/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {s["refresh_token"]},
 			"client_id": {a.NetworkAppKey("X_CLIENT_ID")}}, "X_CLIENT_ID", "X_CLIENT_SECRET", "X не выдал токен", nil)
-		if err != nil {
-			return nil, err
-		}
-		return keepRefresh(s, f), nil
 	},
 	Identify: func(a *App, ctx context.Context, s map[string]string) (*NetResource, error) {
 		r, err := networkHTTP(ctx, "GET", "https://api.x.com/2/users/me", bearer(s["access_token"]), nil)
@@ -258,12 +242,8 @@ var redditOAuth = &OAuthFlow{
 			"REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "Reddit не выдал токен", map[string]string{"User-Agent": redditUA})
 	},
 	Refresh: func(a *App, ctx context.Context, s map[string]string) (map[string]string, error) {
-		f, err := a.tokenRequest(ctx, "https://www.reddit.com/api/v1/access_token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {s["refresh_token"]}},
+		return a.refreshTokenRequest(ctx, s, "https://www.reddit.com/api/v1/access_token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {s["refresh_token"]}},
 			"REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "Reddit не выдал токен", map[string]string{"User-Agent": redditUA})
-		if err != nil {
-			return nil, err
-		}
-		return keepRefresh(s, f), nil
 	},
 	Identify: func(a *App, ctx context.Context, s map[string]string) (*NetResource, error) {
 		r, err := networkHTTP(ctx, "GET", "https://oauth.reddit.com/api/v1/me", map[string]string{"Authorization": "bearer " + s["access_token"], "User-Agent": redditUA}, nil)

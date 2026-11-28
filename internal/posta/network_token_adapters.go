@@ -338,7 +338,9 @@ func mastodonPublish(a *App, ctx context.Context, c *Channel, p NetPost) (*NetSe
 		}
 		status := r.Status
 		for try := 0; status == 202 && try < 30; try++ {
-			time.Sleep(time.Second)
+			if err := waitNetworkContext(ctx, time.Second); err != nil {
+				return nil, err
+			}
 			if rr, err := networkHTTP(ctx, "GET", inst+"/api/v1/media/"+id, auth, nil); err == nil {
 				status = rr.Status
 			}
