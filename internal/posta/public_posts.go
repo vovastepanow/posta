@@ -71,25 +71,28 @@ func (a *App) storePublicPosts(ctx context.Context, platform, sourceKey string, 
 }
 
 func publicClassificationInput(post jx.M) (caption, image string, ok bool) {
-	if jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || jx.Bool(post, "text_incomplete") || jx.Bool(post, "media_incomplete") || jx.Bool(post, "video_unavailable") {
+	if sourceReviewSensitive(post) || jx.Bool(post, "text_incomplete") || jx.Bool(post, "media_incomplete") || jx.Bool(post, "video_unavailable") {
 		return "", "", false
 	}
 	caption = strings.TrimSpace(PostCaptionForAI(post))
 	image = strings.TrimSpace(jx.Str(post, "image"))
-	return caption, image, PostItemHasVideo(post) || image != "" || len([]rune(caption)) >= 4
+	return caption, image, PostItemHasVideo(post) || image != "" || len(ContentGallery(post)) > 1 || len([]rune(caption)) >= 4
 }
 
 func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, description, imageURL string, item jx.M) {
-	result, err := a.DB.Pool.Exec(ctx, `UPDATE public_posts SET classification_at=$3 WHERE source_key=$1 AND post_key=$2 AND classification_at < $3-3600 AND posta_public_revision(data)=posta_public_revision($4::jsonb) AND NOT EXISTS (SELECT 1 FROM public_post_topics t WHERE t.source_key=$1 AND t.post_key=$2)`, source, key, now(), jx.Marshal(item))
-	if err != nil || result.RowsAffected() != 1 {
+	if _, _, ok := publicClassificationInput(item); !ok {
+		return
+	}
+	var needsLabels bool
+	err := a.DB.Pool.QueryRow(ctx, publicClassificationClaimSQL, source, key, now(), jx.Marshal(item)).Scan(&needsLabels)
+	if err != nil {
 		return
 	}
 	worker := a.User(ctx, "", nil)
+	worker.publicObservationOnly = !needsLabels
 	// Shared observations describe the actual publication, not an earlier
 	// user's profile-conditioned analysis or editorial judgment.
-	if imageURL != "" || PostItemHasVideo(item) {
-		description = PostCaptionForAI(item)
-	}
+	description = PostCaptionForAI(item)
 	tags, imageUnsafe := worker.classifyPublicItem(item, description, imageURL)
 	if imageUnsafe {
 		return
@@ -105,13 +108,17 @@ func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, descrip
 	defer tx.Rollback(ctx)
 	// Do not apply a result to a post that changed while media was fetched.
 	var unchanged bool
-	if err = tx.QueryRow(ctx, `SELECT posta_public_revision(data)=posta_public_revision($3::jsonb) AND NOT EXISTS (SELECT 1 FROM public_post_topics t WHERE t.source_key=$1 AND t.post_key=$2) FROM public_posts WHERE source_key=$1 AND post_key=$2 FOR UPDATE`, source, key, jx.Marshal(item)).Scan(&unchanged); err != nil || !unchanged {
+	if err = tx.QueryRow(ctx, `SELECT posta_public_revision(data)=posta_public_revision($3::jsonb) FROM public_posts WHERE source_key=$1 AND post_key=$2 FOR UPDATE`, source, key, jx.Marshal(item)).Scan(&unchanged); err != nil || !unchanged {
 		return
 	}
 	if observation != "" {
 		if _, err = tx.Exec(ctx, publicMediaObservationSaveSQL, source, key, observation, now()); err != nil {
 			return
 		}
+	}
+	if !needsLabels {
+		_ = tx.Commit(ctx)
+		return
 	}
 	for _, tag := range tags {
 		if _, err = tx.Exec(ctx, `INSERT INTO public_post_topics(source_key,post_key,topic_key) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, source, key, tag); err != nil {
@@ -125,17 +132,18 @@ func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, descrip
 // manufacture a verdict from a video poster or a content-free caption.
 func (u *U) classifyPublicItem(item jx.M, caption, imageURL string) ([]string, bool) {
 	u.publicMediaDescriptions = nil
-	if u.publicContentExcluded(item) {
+	u.classificationMediaSafety = nil
+	if sourceReviewSensitive(item) || u.publicContentExcluded(item) {
 		return nil, true
 	}
 	if jx.Bool(item, "media_incomplete") || jx.Bool(item, "text_incomplete") || jx.Bool(item, "video_unavailable") {
 		u.classificationReason = "incomplete_source_post"
 		return nil, false
 	}
+	if len(ContentGallery(item)) > 1 {
+		return u.classifyPublicMixedAlbum(item, caption)
+	}
 	if PostItemHasVideo(item) {
-		if len(ContentGallery(item)) > 1 {
-			return u.classifyPublicMixedAlbum(item, caption)
-		}
 		if local := u.MediaPath(jx.Str(item, "video_local")); local != "" && fileExists(local) {
 			return u.classifyPublicVideoFile(local, caption)
 		}
@@ -230,6 +238,9 @@ func validPublicMediaObservation(data jx.M) (sufficient, unsafe, valid bool) {
 }
 
 func (u *U) classifyMediaDescription(description, caption string, isMeme bool) []string {
+	if u.publicObservationOnly {
+		return []string{} // validated observation, without a legacy taxonomy call
+	}
 	if isMeme {
 		description += "\nЭто самостоятельная визуальная шутка. Основная тема — подходящая конкретная подтема мемов. Вторую тему добавляй только если материал отдельно раскрывает её содержание; технология или профессия, упомянутая лишь как повод для шутки, не является самостоятельным разбором. Если конкретная подтема мема не подходит, оставь решение неопределённым."
 	}
@@ -307,14 +318,11 @@ func (a *App) backfillPublicClassifications(ctx context.Context) {
 	default:
 		return
 	}
-	rows, err := a.DB.Pool.Query(ctx, `SELECT p.source_key,p.post_key,p.data FROM public_posts p
-WHERE p.last_seen >= $1 AND p.classification_at < $2
-AND (coalesce(p.data->>'image','') <> '' OR coalesce(p.data->>'video','') <> '' OR length(coalesce(p.data->>'text','')) >= 4)
-AND coalesce(p.data->>'source_sensitive','false') <> 'true'
-AND coalesce(p.data->>'nsfw','false') <> 'true'
-AND NOT (p.data @> '{"text_incomplete":true}' OR p.data @> '{"media_incomplete":true}' OR p.data @> '{"video_unavailable":true}')
-AND NOT EXISTS (SELECT 1 FROM public_post_topics t WHERE t.source_key=p.source_key AND t.post_key=p.post_key)
-ORDER BY p.last_seen DESC LIMIT 100`, now()-7*86400, now()-3600)
+	allowed := a.publicEmbeddingSources()
+	if len(allowed) == 0 {
+		return
+	}
+	rows, err := a.DB.Pool.Query(ctx, publicClassificationBackfillSQL, now()-7*86400, now()-3600, allowed)
 	if err != nil {
 		return
 	}

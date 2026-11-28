@@ -23,6 +23,9 @@ func TestPublicClassificationInput(t *testing.T) {
 		{"long caption", jx.M{"text": "Подробное описание события, которого достаточно для определения темы записи."}, true},
 		{"sensitive image", jx.M{"image": "https://example.com/post.jpg", "source_sensitive": true}, false},
 		{"adult image", jx.M{"image": "https://example.com/post.jpg", "nsfw": true}, false},
+		{"account media", jx.M{"image": "https://example.com/post.jpg", "fetched_via": "telegram_mtproto"}, false},
+		{"recovered media", jx.M{"image": "https://example.com/post.jpg", "attachment_recovered": true}, false},
+		{"album", jx.M{"gallery": []any{jx.M{"image": "https://example.com/a.jpg"}, jx.M{"image": "https://example.com/b.jpg"}}}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, _, got := publicClassificationInput(tc.post)

@@ -91,6 +91,7 @@ type U struct {
 	classificationReason      string
 	classificationMediaSafety []string
 	publicMediaDescriptions   []string
+	publicObservationOnly     bool
 	classificationErr         error // last classifier transport/routing failure, not a semantic verdict
 	*App
 	ID  string
