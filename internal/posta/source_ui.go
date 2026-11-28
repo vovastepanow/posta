@@ -317,24 +317,9 @@ func (u *U) TopicSources() []jx.M {
 	return u.TopicSourcesFor(u.CurrentTopic())
 }
 
-// TopicSourcesFor uses the same catalog and inheritance rules as the current-topic view.
-func (u *U) TopicSourcesFor(topic string) []jx.M {
-	pins := u.personalSourcePins(topic)
-	d := u.catalogWithPins(topic, pins)
-	overrides := u.sourceOverridesForTopic(topic)
-	autopilot := map[string]jx.M{}
-	rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id,state,reason,evidence FROM source_autopilot_sources WHERE scope='public' AND topic_key=$1`, autopilotTopicKey(topic))
-	if err == nil {
-		for rows.Next() {
-			var source, state, reason string
-			var raw []byte
-			if rows.Scan(&source, &state, &reason, &raw) == nil {
-				autopilot[source] = jx.M{"state": state, "reason": reason, "evidence": jx.Unmarshal(raw)}
-			}
-		}
-		rows.Close()
-	}
-	cards := []jx.M{}
+// Walk only entries eligible for this topic. Counts and detailed cards use
+// exactly the same membership rules, including restored personal pins.
+func (u *U) visitTopicCatalogSources(d *SourceDB, topic string, visit func(platform, id, sid string, entry jx.M)) {
 	for _, ck := range CatalogKinds {
 		platform := ck.Platform
 		for _, e := range *d.List(ck.Kind) {
@@ -346,60 +331,107 @@ func (u *U) TopicSourcesFor(topic string) []jx.M {
 			if (platform == PlatformRSS && !IsValidRSSURL(id)) || (platform == PlatformOK && !IsValidOKGroup(id)) || (platform == PlatformTikTok && !IsValidTikTokUser(id)) {
 				continue
 			}
-			aud := jx.Map(e, "audience")
-			subs := jx.Int(aud, "subscribers")
-			var link, handle, kind string
-			switch platform {
-			case PlatformRSS:
-				link = SourceWebURL(platform, id)
-				if pu, err := url.Parse(link); err == nil {
-					handle = pu.Hostname() + pu.EscapedPath()
-				}
-				kind = RSSFeedKind(id)
-				if jx.Bool(e, "news") {
-					kind = NewsSiteKind(id)
-				}
-			case PlatformOK:
-				link, handle, kind = "https://ok.ru/group/"+id, "ok.ru/group/"+id, platform
-			case PlatformTikTok:
-				link, handle, kind = "https://www.tiktok.com/@"+url.PathEscape(id), "tiktok.com/@"+id, platform
-			case PlatformTelegram:
-				link, handle, kind = "https://t.me/"+url.PathEscape(id), "@"+id, platform
-			default:
-				link, handle, kind = "https://vk.com/"+url.PathEscape(id), "vk.com/"+id, platform
-			}
-			name := jx.Str(e, "name")
-			needsTitle := false
-			if platform == PlatformRSS {
-				name, needsTitle = pendingRSSName(name, "", id)
-			} else if name == "" {
-				name = id
-			}
-			var score, rate any
-			if jx.Has(e, "score") {
-				score = jx.Int(e, "score")
-			}
-			if aud != nil && aud["view_rate"] != nil {
-				rate = jx.Float(aud, "view_rate")
-			}
-			label, activity := "", ""
-			if subs > 0 {
-				label = FormatSubscribers(subs)
-			}
-			if a := jx.Map(e, "activity"); a != nil {
-				activity = DescribeSourceActivity(a)
-			}
-			preview := jx.List(e, "preview")
-			cards = append(cards, jx.M{"source_id": sid, "platform": platform, "id": id, "name": name, "url": link, "handle": handle, "autopilot": autopilot[sid],
-				"topics": orAny(jx.List(e, "topics")), "kind": kind, "needs_title": needsTitle, "platform_label": func() string {
-					if platform == PlatformRSS {
-						return RSSPlatformLabel(id)
-					}
-					return platform
-				}(), "own": len(jx.List(e, "topics")) > 0 && u.CatalogEntryMatchesTopic(e, topic, true),
-				"auto": jx.Bool(e, "auto"), "autopilot_managed": jx.Bool(e, "autopilot_managed"), "score": score, "muted": sourceExcludedByOverride(overrides, sid), "pinned": jx.Has(pins, sid), "subscribers": subs, "subscribers_label": label, "view_rate": rate, "activity": activity,
-				"frozen": jx.Has(e, "frozen_until"), "frozen_reason": jx.Str(e, "frozen_reason"), "avatar": jx.Str(e, "avatar"), "preview": orAny(preview[:min(4, len(preview))])})
+			visit(platform, id, sid, e)
 		}
+	}
+}
+
+func (u *U) TopicSourceCountsFor(topic string) map[string]int {
+	d := u.catalogWithPersonalPins(topic)
+	counts := map[string]int{}
+	u.visitTopicCatalogSources(d, topic, func(platform, _, _ string, _ jx.M) {
+		counts[platform]++
+	})
+	for _, t := range u.approvedImageboardThreads(d, topic) {
+		counts[jx.Str(t, "platform")]++
+	}
+	return counts
+}
+
+func (u *U) TopicSourcesFor(topic string) []jx.M {
+	pins := u.personalSourcePins(topic)
+	d := u.catalogWithPins(topic, pins)
+	overrides := u.sourceOverridesForTopic(topic)
+	type sourceEntry struct {
+		platform, id, sid string
+		entry             jx.M
+	}
+	var entries []sourceEntry
+	var sourceIDs []string
+	u.visitTopicCatalogSources(d, topic, func(platform, id, sid string, entry jx.M) {
+		entries = append(entries, sourceEntry{platform, id, sid, entry})
+		sourceIDs = append(sourceIDs, sid)
+	})
+	autopilot := map[string]jx.M{}
+	if len(sourceIDs) > 0 {
+		rows, err := u.DB.Pool.Query(u.Ctx, `SELECT source_id,state,reason,evidence FROM source_autopilot_sources WHERE scope='public' AND topic_key=$1 AND source_id=ANY($2)`, autopilotTopicKey(topic), sourceIDs)
+		if err == nil {
+			for rows.Next() {
+				var source, state, reason string
+				var raw []byte
+				if rows.Scan(&source, &state, &reason, &raw) == nil {
+					autopilot[source] = jx.M{"state": state, "reason": reason, "evidence": jx.Unmarshal(raw)}
+				}
+			}
+			rows.Close()
+		}
+	}
+	cards := []jx.M{}
+	for _, entry := range entries {
+		platform, id, sid, e := entry.platform, entry.id, entry.sid, entry.entry
+		aud := jx.Map(e, "audience")
+		subs := jx.Int(aud, "subscribers")
+		var link, handle, kind string
+		switch platform {
+		case PlatformRSS:
+			link = SourceWebURL(platform, id)
+			if pu, err := url.Parse(link); err == nil {
+				handle = pu.Hostname() + pu.EscapedPath()
+			}
+			kind = RSSFeedKind(id)
+			if jx.Bool(e, "news") {
+				kind = NewsSiteKind(id)
+			}
+		case PlatformOK:
+			link, handle, kind = "https://ok.ru/group/"+id, "ok.ru/group/"+id, platform
+		case PlatformTikTok:
+			link, handle, kind = "https://www.tiktok.com/@"+url.PathEscape(id), "tiktok.com/@"+id, platform
+		case PlatformTelegram:
+			link, handle, kind = "https://t.me/"+url.PathEscape(id), "@"+id, platform
+		default:
+			link, handle, kind = "https://vk.com/"+url.PathEscape(id), "vk.com/"+id, platform
+		}
+		name := jx.Str(e, "name")
+		needsTitle := false
+		if platform == PlatformRSS {
+			name, needsTitle = pendingRSSName(name, "", id)
+		} else if name == "" {
+			name = id
+		}
+		var score, rate any
+		if jx.Has(e, "score") {
+			score = jx.Int(e, "score")
+		}
+		if aud != nil && aud["view_rate"] != nil {
+			rate = jx.Float(aud, "view_rate")
+		}
+		label, activity := "", ""
+		if subs > 0 {
+			label = FormatSubscribers(subs)
+		}
+		if a := jx.Map(e, "activity"); a != nil {
+			activity = DescribeSourceActivity(a)
+		}
+		preview := jx.List(e, "preview")
+		cards = append(cards, jx.M{"source_id": sid, "platform": platform, "id": id, "name": name, "url": link, "handle": handle, "autopilot": autopilot[sid],
+			"topics": orAny(jx.List(e, "topics")), "kind": kind, "needs_title": needsTitle, "platform_label": func() string {
+				if platform == PlatformRSS {
+					return RSSPlatformLabel(id)
+				}
+				return platform
+			}(), "own": len(jx.List(e, "topics")) > 0 && u.CatalogEntryMatchesTopic(e, topic, true),
+			"auto": jx.Bool(e, "auto"), "autopilot_managed": jx.Bool(e, "autopilot_managed"), "score": score, "muted": sourceExcludedByOverride(overrides, sid), "pinned": jx.Has(pins, sid), "subscribers": subs, "subscribers_label": label, "view_rate": rate, "activity": activity,
+			"frozen": jx.Has(e, "frozen_until"), "frozen_reason": jx.Str(e, "frozen_reason"), "avatar": jx.Str(e, "avatar"), "preview": orAny(preview[:min(4, len(preview))])})
 	}
 	for _, t := range u.approvedImageboardThreads(d, topic) {
 		platform, board, thread, sid := jx.Str(t, "platform"), jx.Str(t, "board"), jx.Str(t, "thread_id"), jx.Str(t, "source_id")

@@ -179,7 +179,7 @@ try{
                 {item_key:'video',text:'Видео поста',video_via:'ytdlp',video_pending:true,timestamp:1}
             ]},
             account_info:{user_id:'test-home',auth:{login:'Test'}},
-            topic_sources:{sources:[]},
+            topic_sources:{counts:{Telegram:3,RSS:2}},
             studio_live:{items:[],pool:3,running:false},
             billing_info:{plan:{title:'Тест'}},
         };
@@ -192,6 +192,8 @@ try{
         await import('/js/home.js');
     });
     await homePage.waitForFunction(()=>document.querySelectorAll('#grid .tile').length===3);
+    await homePage.locator('#side-sources li').filter({hasText:'Telegram'}).waitFor();
+    assert.equal(await homePage.locator('#side-sources li').filter({hasText:'Telegram'}).locator('em').textContent(),'3');
     assert.equal(await homePage.locator('#grid .rejected-reason').count(),0);
     assert.equal(await homePage.getByRole('button',{name:'Убрать из отобранных',exact:true}).count(),3);
     await homePage.locator('#grid .tile').filter({hasText:'Видео поста'}).evaluate(node => { window.savedVideoCard = node; });

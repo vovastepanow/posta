@@ -3,6 +3,7 @@ package posta
 import (
 	"context"
 	"os"
+	"reflect"
 	"testing"
 
 	"posta/internal/db"
@@ -91,6 +92,16 @@ func TestAutopilotPersonalPinSurvivesPublicRemovalPostgres(t *testing.T) {
 	}
 	if !has(first, topic) || has(second, topic) || has(first, topic+" уточнение") {
 		t.Fatal("pin was not isolated to owner and topic")
+	}
+	for _, u := range []*U{first, second} {
+		cards := u.TopicSourcesFor(topic)
+		want := map[string]int{}
+		for _, card := range cards {
+			want[jx.Str(card, "platform")]++
+		}
+		if counts := u.TopicSourceCountsFor(topic); !reflect.DeepEqual(counts, want) {
+			t.Fatalf("summary disagrees with detailed cards: %v != %v", counts, want)
+		}
 	}
 	if err = first.SourcePersonalPin("rss:"+feed, false); err != nil {
 		t.Fatal(err)

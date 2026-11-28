@@ -110,11 +110,14 @@ func init() {
 	})
 	get("topic_sources", func(c *Ctx) (any, error) {
 		topic := c.U.CurrentTopic()
+		if c.Q("summary") == "1" {
+			return jx.M{"topic": topic, "counts": c.U.TopicSourceCountsFor(topic)}, nil
+		}
 		var info any
 		if e := c.U.TopicLookup(topic); e != nil {
 			info = c.U.TopicPublic(e, c.A.Catalog())
 		}
-		return jx.M{"topic": topic, "topic_info": info, "sources": c.U.TopicSources()}, nil
+		return jx.M{"topic": topic, "topic_info": info, "sources": c.U.TopicSourcesFor(topic)}, nil
 	})
 	post("remove_topic_source", func(c *Ctx) (any, error) {
 		return ok(nil), c.U.RemoveTopicSource(c.Str("platform"), c.Str("id"), c.Str("name"))

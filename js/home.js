@@ -362,10 +362,11 @@ loadContent.request = 0;
 
 async function loadSources() {
     const request = ++loadSources.request;
-    const r = await api('topic_sources');
+    const r = await api('topic_sources', { params: { summary: '1' } });
     if (request !== loadSources.request) return;
-    const counts = Object.create(null);
-    for (const s of r.sources || []) counts[s.platform] = (counts[s.platform] || 0) + 1;
+    const counts = r.counts || Object.create(null);
+    // Compatibility during a rolling update of the server.
+    if (!r.counts) for (const s of r.sources || []) counts[s.platform] = (counts[s.platform] || 0) + 1;
     $('side-sources').replaceChildren(...(Object.keys(counts).length ? Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([p, n]) =>
         el('li', {}, el('i', { textContent: PLATFORMS[p] || '◌' }), el('span', { textContent: p }), el('em', { textContent: String(n) })))
         : [el('li', { className: 'muted', textContent: 'Источников темы пока нет' })]));
