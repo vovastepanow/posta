@@ -160,6 +160,19 @@ func (a *App) reconcileAutopilotMode(ctx context.Context, enabled bool, mode, sc
 				return err
 			}
 		}
+		if enabled && mode == "auto" && scope == autopilotAutoScope {
+			// A warmup-specific allowance is smaller than the normal user
+			// budget. Its overnight backoff must not delay a real subscriber.
+			if _, err := tx.Exec(ctx, `UPDATE source_autopilot_jobs j
+				SET next_run_at=LEAST(next_run_at,$3),last_error=''
+				WHERE j.scope=$1 AND j.kind=$2 AND j.enabled AND j.demand_active
+				AND j.lease_until<=extract(epoch FROM clock_timestamp())::bigint
+				AND j.last_error='warmup_budget_exhausted'
+				AND EXISTS (SELECT 1 FROM source_autopilot_demands d WHERE d.topic_key=j.topic_key
+					AND d.mode='auto' AND NOT d.paused AND d.posts_per_day>0)`, scope, kind, now()); err != nil {
+				return err
+			}
+		}
 		if warmEnabled {
 			_, err := tx.Exec(ctx, `INSERT INTO source_autopilot_jobs(scope,topic_key,kind,topic,reason,priority,next_run_at,requested_at)
 				SELECT $1,topic_key,$2,query,'public_warmup',0,GREATEST(start_after,$3),$3
@@ -433,6 +446,9 @@ func (a *App) runNextAutopilotKind(ctx context.Context, kind string) {
 		// appear frozen even when there was ample daily budget left.
 		// A real daily quota exhaustion waits for the next UTC budget reset.
 		if errors.Is(err, errAutopilotBudgetExhausted) {
+			if job.WarmOnly {
+				reason = "warmup_budget_exhausted"
+			}
 			nextInterval = time.Until(time.Now().UTC().Truncate(24 * time.Hour).Add(24*time.Hour + 2*time.Minute))
 		} else {
 			// Network/model outages should be retried regularly, with budgets

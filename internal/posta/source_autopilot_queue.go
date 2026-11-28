@@ -423,6 +423,22 @@ func finishAutopilotJob(ctx context.Context, database *db.DB, job *autopilotJob,
 		return errors.New("invalid checkpoint")
 	}
 	return withAutopilotLease(ctx, database, job, func(tx pgx.Tx) error {
+		// If a subscriber arrived while an ownerless warmup held the lease,
+		// release it promptly for normal delivery. The worker's daily
+		// budget ledger is still enforced on the next claim.
+		if job.WarmOnly {
+			var subscribed bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM source_autopilot_demands
+				WHERE topic_key=$1 AND mode='auto' AND NOT paused AND posts_per_day>0)`, job.TopicKey).Scan(&subscribed); err != nil {
+				return err
+			}
+			if subscribed {
+				next = time.Now()
+				if lastError == "warmup_budget_exhausted" {
+					lastError = ""
+				}
+			}
+		}
 		_, err := tx.Exec(ctx, `UPDATE source_autopilot_jobs SET next_run_at=$4,requested_at=$4,
 			lease_until=0,lease_token='',priority=0,checkpoint=$5,last_error=$6
 			WHERE scope=$1 AND topic_key=$2 AND kind=$3`, job.Scope, job.TopicKey, job.Kind, next.Unix(), checkpoint, lastError)

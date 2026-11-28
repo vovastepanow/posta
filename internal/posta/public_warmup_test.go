@@ -65,6 +65,14 @@ func TestPublicWarmupDemandPostgres(t *testing.T) {
 	job,err=claimAutopilotJobKind(ctx,d.Pool,at,time.Minute,autopilotAutoKind)
 	if err!=nil||job==nil||job.TopicKey!=warmKey{t.Fatalf("ownerless warmup job missing: %+v %v",job,err)}
 	if err=withAutopilotLease(ctx,d,job,func(tx pgx.Tx)error{return ensureAutopilotShadowDemand(ctx,tx,job)});err!=nil{t.Fatalf("warmup demand rejected: %v",err)}
+	// An owner subscribing to an already running warmup can claim it
+	// immediately after that job finishes, without waiting for midnight.
+	job.WarmOnly = true
+	if err=saveAutopilotDemand(ctx,d.Pool,owner,autopilotDemandSettings{Topic:warmTopic,Mode:"auto",PostsPerDay:2,HorizonDays:3},now());err!=nil{t.Fatal(err)}
+	if err=finishAutopilotJob(ctx,d,job,at.Add(24*time.Hour),job.Checkpoint,"warmup_budget_exhausted");err!=nil{t.Fatal(err)}
+	job,err=claimAutopilotJobKind(ctx,d.Pool,time.Now().Add(time.Second),time.Minute,autopilotAutoKind)
+	if err!=nil||job==nil||job.TopicKey!=warmKey{t.Fatalf("subscriber waited for warmup quota reset: %+v %v",job,err)}
+	if _,err=d.Pool.Exec(ctx,`DELETE FROM source_autopilot_demands WHERE user_id=$1 AND topic_key=$2`,owner,warmKey);err!=nil{t.Fatal(err)}
 	if _,err=d.Pool.Exec(ctx,`UPDATE public_warm_profiles SET enabled=false WHERE topic_key=$1`,warmKey);err!=nil{t.Fatal(err)}
 	if err=a.reconcileAutopilotMode(ctx,true,"auto",autopilotAutoScope,autopilotAutoKind);err!=nil{t.Fatal(err)}
 	if err=withAutopilotLease(ctx,d,job,func(tx pgx.Tx)error{return ensureAutopilotShadowDemand(ctx,tx,job)});!errors.Is(err,errAutopilotLeaseLost){t.Fatalf("disabled warmup retains lease: %v",err)}
