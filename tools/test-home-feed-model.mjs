@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { buildHomeFeed, reuseFeedItems } from '../js/home-feed-model.js';
+globalThis.location = new URL('https://posta.example/posta/');
+globalThis.document = { addEventListener() {} };
+const { buildHomeFeed, reuseFeedItems } = await import('../js/home-feed-model.js');
 const items = [
     {item_key:'text',text:'Текст',text_post:true,timestamp:3,source:'Telegram | Example',relevance:20},
     {item_key:'photo',text:'Фото',display_image:'/fixture.png',timestamp:2,relevance:90,hashtags:['кот']},
