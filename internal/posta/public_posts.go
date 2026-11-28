@@ -113,7 +113,7 @@ func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, descrip
 // classifyPublicItem is shared with read-only audit. Media failures never
 // manufacture a verdict from a video poster or a content-free caption.
 func (u *U) classifyPublicItem(item jx.M, caption, imageURL string) ([]string, bool) {
-	if jx.Bool(item, "source_sensitive") || jx.Bool(item, "nsfw") || u.ContentIsAdult(item) || len(jx.ToStrs(item["safety"])) > 0 {
+	if u.publicContentExcluded(item) {
 		return nil, true
 	}
 	if jx.Bool(item, "media_incomplete") || jx.Bool(item, "text_incomplete") || jx.Bool(item, "video_unavailable") {

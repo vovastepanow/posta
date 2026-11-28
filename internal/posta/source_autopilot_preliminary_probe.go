@@ -59,7 +59,7 @@ func (a *App) autopilotProbeTextSample(ctx context.Context, job *autopilotJob, s
 		}
 		txt := AnalysisText(post)
 		if txt == "" || !autopilotPublicPostURL(jx.Str(post, "url"), false) ||
-			jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 || a.ContentIsAdult(post) ||
+			a.publicContentExcluded(post) ||
 			PostIsAdvertisement(post) || IsSpamContent(CleanPostAttribution(txt, post), "") {
 			localExcluded++
 			continue

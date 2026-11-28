@@ -1932,7 +1932,7 @@ func (a *App) autopilotReviewShadowCandidatesWith(ctx context.Context, job *auto
 		samples := autopilotSourceQualitySamples(posts, at.Unix())
 		safeSamples := samples[:0]
 		for _, post := range samples {
-			if !jx.Bool(post, "source_sensitive") && !jx.Bool(post, "nsfw") && len(jx.ToStrs(post["safety"])) == 0 && !a.ContentIsAdult(post) {
+			if !a.publicContentExcluded(post) {
 				safeSamples = append(safeSamples, post)
 			}
 		}

@@ -122,7 +122,7 @@ func (a *App) autopilotControlPublisher(ctx context.Context, job *autopilotJob, 
 	quality := autopilotSourceQualitySamples(posts, at.Unix())
 	safe := quality[:0]
 	for _, p := range quality {
-		if !jx.Bool(p, "source_sensitive") && !jx.Bool(p, "nsfw") && len(jx.ToStrs(p["safety"])) == 0 && !a.ContentIsAdult(p) {
+		if !a.publicContentExcluded(p) {
 			safe = append(safe, p)
 		}
 	}

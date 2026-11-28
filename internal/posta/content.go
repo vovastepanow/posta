@@ -1346,6 +1346,11 @@ func (a *App) ContentIsAdult(r jx.M) bool {
 	return jx.Str(r, "board") != "" && contains(DvachBoardTags(jx.Str(r, "board")), DvachAdultTag)
 }
 
+// Public content uses a stricter safety gate than an owner's private pool.
+func (a *App) publicContentExcluded(post jx.M) bool {
+	return len(jx.ToStrs(post["safety"])) > 0 || a.ContentIsAdult(post)
+}
+
 const ContentLewdHumorTag = "adult.lewd_humor"
 
 // ContentAdultBlocked — настройка 18+ действует одинаково во всех темах.

@@ -209,7 +209,7 @@ func (a *App) assessAutopilotPublicPosts(ctx context.Context, job *autopilotJob,
 			entry["outcome"] = "unsafe_or_missing_post_url"
 			continue
 		}
-		if jx.Bool(post, "source_sensitive") || jx.Bool(post, "nsfw") || len(jx.ToStrs(post["safety"])) > 0 || a.ContentIsAdult(post) {
+		if a.publicContentExcluded(post) {
 			entry["outcome"] = "public_content_excluded"
 			continue
 		}

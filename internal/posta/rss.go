@@ -599,6 +599,15 @@ func hostOf(raw string) string {
 }
 
 // RSSFetchPosts — свежие посты ленты по адресу (YouTube без ленты — через yt-dlp).
+func rssNamedPosts(posts []jx.M, name string) []jx.M {
+	if name != "" {
+		for _, post := range posts {
+			post["source"] = name
+		}
+	}
+	return posts
+}
+
 func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, withText bool) ([]jx.M, error) {
 	if count <= 0 {
 		return nil, nil
@@ -645,21 +654,11 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 	}
 	if username := instagramProfileName(feedURL); username != "" {
 		posts, err := u.instagramReadProfile(username, count, withText)
-		for _, p := range posts {
-			if name != "" {
-				p["source"] = name
-			}
-		}
-		return posts, err
+		return rssNamedPosts(posts, name), err
 	}
 	if id := facebookPageID(feedURL); id != "" {
 		posts, err := u.facebookReadPage(id, count, withText)
-		for _, p := range posts {
-			if name != "" {
-				p["source"] = name
-			}
-		}
-		return posts, err
+		return rssNamedPosts(posts, name), err
 	}
 	if username := threadsProfileName(feedURL); username != "" {
 		body, err := u.threadsRead("profile_posts", url.Values{"username": {username}, "fields": {threadsProfileFields}})
@@ -667,12 +666,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 			return nil, err
 		}
 		posts, err := threadsProfilePosts(body, username, count, withText)
-		for _, p := range posts {
-			if name != "" {
-				p["source"] = name
-			}
-		}
-		return posts, err
+		return rssNamedPosts(posts, name), err
 	}
 	if guild, channel := discordSource(feedURL); guild != "" {
 		body, err := u.discordRead("/channels/" + channel + "/messages?limit=50")
@@ -680,12 +674,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 			return nil, err
 		}
 		posts, err := discordMessages(body, guild, channel, count, withText)
-		for _, p := range posts {
-			if name != "" {
-				p["source"] = name
-			}
-		}
-		return posts, err
+		return rssNamedPosts(posts, name), err
 	}
 	if username := xProfileName(feedURL); username != "" {
 		r := u.RSSGet("https://x.com/"+username, 4<<20, 15*time.Second, BrowserUA)
@@ -696,12 +685,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 		if len(posts) == 0 {
 			return nil, Bad("X: публичная лента недоступна или в ней нет подходящих постов.")
 		}
-		for _, p := range posts {
-			if name != "" {
-				p["source"] = name
-			}
-		}
-		return posts, nil
+		return rssNamedPosts(posts, name), nil
 	}
 	if community := redditSourceName(feedURL); community != "" && u.NetworkAppKey("REDDIT_CLIENT_ID") != "" && u.NetworkAppKey("REDDIT_CLIENT_SECRET") != "" {
 		data, err := u.redditRead("/r/" + community + "/new?limit=50")
@@ -709,12 +693,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 			return nil, err
 		}
 		posts, err := redditListingPosts(data, community, count, withText)
-		for _, p := range posts {
-			if name != "" {
-				p["source"] = name
-			}
-		}
-		return posts, err
+		return rssNamedPosts(posts, name), err
 	}
 	if source := pikabuCommunityURL(feedURL); source != "" {
 		r := u.RSSGet(source, rssMaxBytes, 15*time.Second, BrowserUA)
@@ -767,12 +746,7 @@ func (u *U) RSSFetchPosts(feedURL string, count int, name string, keepNoImage, w
 		if len(posts) > count {
 			posts = posts[:count]
 		}
-		for _, p := range posts {
-			if name != "" {
-				p["source"] = name
-			}
-		}
-		return posts, nil
+		return rssNamedPosts(posts, name), nil
 	}
 	// Reuse the existing validated same-origin alternate-feed resolver and
 	// bounded size retry. No special API source is routed through this path.
