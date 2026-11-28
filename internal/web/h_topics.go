@@ -139,7 +139,7 @@ func saveTopic(c *Ctx) (any, error) {
 		after, err := u.PoolUpdate(func(pool []jx.M) []jx.M {
 			out := []jx.M{}
 			for _, i := range pool {
-				if posta.TopicNorm(jx.Str(i, "topic")) != posta.TopicNorm(previousKey) {
+				if !u.TopicSame(jx.Str(i, "topic"), previousKey) {
 					out = append(out, i)
 				}
 			}
@@ -177,7 +177,7 @@ func saveSecondTopic(c *Ctx) (any, error) {
 	if topic2 != "" && u.TopicSame(topic2, u.CurrentTopic()) {
 		return nil, fail(400, "Вторая тема совпадает с первой.")
 	}
-	if posta.TopicNorm(topic2) == posta.TopicNorm(u.CurrentTopic2()) {
+	if u.TopicSame(topic2, u.CurrentTopic2()) {
 		return ok(jx.M{"topic2": topic2, "parser": "unchanged"}), nil
 	}
 	if err := u.SaveSettings(jx.M{"topic2": topic2}); err != nil {
@@ -192,10 +192,13 @@ func saveSecondTopic(c *Ctx) (any, error) {
 func saveQuery(c *Ctx) (any, error) {
 	u := c.U
 	q := posta.NormalizeQuery(c.Str("query"))
+	if u.TBool("public_open_search") {
+		q = posta.NormalizeOpenQuery(c.Str("query"))
+	}
 	if d := u.TopicSaveDenied(q); d != "" {
 		return nil, fail(409, d)
 	}
-	if posta.TopicNorm(q) == posta.TopicNorm(u.CurrentQuery()) {
+	if u.TopicSame(q, u.CurrentQuery()) {
 		return ok(jx.M{"query": q, "parser": "unchanged"}), nil
 	}
 	if err := u.SaveSettings(jx.M{"query": q}); err != nil {

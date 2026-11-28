@@ -13,6 +13,9 @@ import (
 // conjunction of two topics. Compare the actual analyzed profile, allowing
 // aliases only for the topic components, not for an unrelated query.
 func (u *U) poolProfileMatches(record, key string) bool {
+	if u.openProfilesEnabled() {
+		return literalIntentKey(record) != "" && literalIntentKey(record) == literalIntentKey(key)
+	}
 	if !strings.EqualFold(NormalizeQuery(TopicQueryOf(record)), NormalizeQuery(TopicQueryOf(key))) {
 		return false
 	}
@@ -34,6 +37,9 @@ func (u *U) poolItemMatchesTopic(i jx.M, topic, key string) bool {
 	}
 	t := jx.Str(i, "topic")
 	if t == "" {
+		if u.openProfilesEnabled() {
+			return false
+		}
 		// Unstamped legacy records cannot satisfy a specific search.
 		return TopicQueryOf(key) == "" && len(TopicParts(key)) == 1
 	}

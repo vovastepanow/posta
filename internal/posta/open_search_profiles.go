@@ -5,12 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strings"
+
+	"posta/internal/config"
 )
 
 // Preserve punctuation and all explicit qualifications in search intent.
 // In particular C++, C#, and C are different requests, not aliases.
 func openSearchProfileKey(query string) string {
-	return strings.ToLower(NormalizeTopic(query))
+	return literalIntentKey(NormalizeTopic(query))
 }
 
 func openSearchProfileID(query string) string {
@@ -50,4 +52,13 @@ func (a *App) ensureOpenSearchProfile(ctx context.Context, query string) (*Topic
 		ID: openSearchProfileID(query), Title: query, Scope: "narrow",
 		Classified: true, Smart: true, Manual: true,
 	})
+}
+
+// Full compound intent keys must not truncate to the primary topic length.
+func literalIntentKey(query string) string {
+	return strings.ToLower(collapseSpaces(query))
+}
+
+func NormalizeOpenQuery(query string) string {
+	return trimRunes(collapseSpaces(query), config.TopicQueryMaxLen)
 }

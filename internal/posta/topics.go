@@ -586,7 +586,7 @@ func (a *App) TopicsAreEquivalent(entryTopic, topic string) bool {
 
 func (a *App) TopicSame(x, y string) bool {
 	if a.openProfilesEnabled() {
-		return openSearchProfileKey(x) == openSearchProfileKey(y)
+		return literalIntentKey(x) == literalIntentKey(y)
 	}
 	if TopicNorm(x) == TopicNorm(y) {
 		return true

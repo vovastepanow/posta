@@ -1,6 +1,11 @@
 package posta
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"posta/internal/jx"
+)
 
 func TestOpenSearchProfileIdentity(t *testing.T) {
 	for _, pair := range [][2]string{
@@ -29,5 +34,16 @@ func TestExactSearchProfileWinsOverLegacyAlias(t *testing.T) {
 	a := &App{catalog: &Catalog{idx: buildTopicIndex([]*Topic{legacy, other, exact})}}
 	if a.TopicLookup("C++") != exact || a.TopicLookup("C#") != other {
 		t.Fatal("legacy normalization swallowed exact query")
+	}
+}
+
+func TestOpenSettingsPreserveLiteralIntent(t *testing.T) {
+	s := normalizedSettingsForMode(DefaultSettings(), jx.M{"topic":"C++", "topic2":"C#", "query":"C++ ? без рекламы"}, true)
+	if jx.Str(s,"topic") != "C++" || jx.Str(s,"topic2") != "C#" || jx.Str(s,"query") != "C++ ? без рекламы" {
+		t.Fatalf("search intent lost: %v", s)
+	}
+	long := strings.Repeat("a", 200)
+	if literalIntentKey(long+" C++") == literalIntentKey(long+" C#") {
+		t.Fatal("compound key was truncated")
 	}
 }

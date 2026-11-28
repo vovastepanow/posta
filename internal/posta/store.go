@@ -77,20 +77,32 @@ func (u *U) settingsDefaults() jx.M {
 
 // Settings — настройки с нормализацией (бывший load_settings).
 func (u *U) Settings() jx.M {
-	return normalizedSettings(u.settingsDefaults(), u.settingsRaw(u.Ctx, u.ID))
+	return normalizedSettingsForMode(u.settingsDefaults(), u.settingsRaw(u.Ctx, u.ID), u.openProfilesEnabled())
 }
 
 func normalizedSettings(base, raw jx.M) jx.M {
+	return normalizedSettingsForMode(base, raw, false)
+}
+
+func normalizedSettingsForMode(base, raw jx.M, open bool) jx.M {
 	s := jx.Merge(base, raw)
 	s["topic"] = NormalizeTopic(jx.Str(s, "topic"))
 	if s["topic"] == "" {
 		s["topic"] = base["topic"]
 	}
 	s["topic2"] = NormalizeTopic(jx.Str(s, "topic2"))
-	if TopicNorm(jx.Str(s, "topic2")) == TopicNorm(jx.Str(s, "topic")) {
+	key := TopicNorm
+	if open {
+		key = literalIntentKey
+	}
+	if key(jx.Str(s, "topic2")) == key(jx.Str(s, "topic")) {
 		s["topic2"] = ""
 	}
-	s["query"] = NormalizeQuery(jx.Str(s, "query"))
+	if open {
+		s["query"] = NormalizeOpenQuery(jx.Str(s, "query"))
+	} else {
+		s["query"] = NormalizeQuery(jx.Str(s, "query"))
+	}
 	for _, k := range ContentFilters {
 		s[k] = jx.Bool(s, k)
 	}
@@ -113,7 +125,7 @@ func (u *U) SaveSettings(changes jx.M) error {
 		if current == nil {
 			current = DefaultSettings()
 		}
-		s := jx.Merge(normalizedSettings(base, current), changes)
+		s := jx.Merge(normalizedSettingsForMode(base, current, u.openProfilesEnabled()), changes)
 		_, err := tx.Exec(u.Ctx, `UPDATE users SET settings = $1 WHERE id = $2`, db.JSON(s), u.ID)
 		return err
 	})
