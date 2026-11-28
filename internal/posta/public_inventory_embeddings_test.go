@@ -45,3 +45,14 @@ func TestPublicInventoryRankFusion(t *testing.T) {
 		t.Fatalf("rank fusion failed: %v",got)
 	}
 }
+
+func TestPublicEmbeddingUsesNeutralMediaObservation(t *testing.T) {
+	post := jx.M{"image": "https://example.com/image.jpg"}
+	if got := publicEmbeddingTextWithObservation(post, "A cat asleep on a laptop keyboard"); got == "" {
+		t.Fatal("image-only observation cannot enter semantic search")
+	}
+	post["source_sensitive"] = true
+	if got := publicEmbeddingTextWithObservation(post, "A cat asleep on a laptop keyboard"); got != "" {
+		t.Fatal("sensitive image observation must not be sent for embedding")
+	}
+}

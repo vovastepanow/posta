@@ -9,16 +9,23 @@ import (
 	"posta/internal/jx"
 )
 
-const publicEmbeddingVersion = ":document:512:v1"
+const publicEmbeddingVersion = ":multimodal-description:512:v2"
 
 // All vectors use the same provider, model, input mode and normalization.
 // Do not silently mix fallback models or index incomplete/account data.
 func publicEmbeddingText(post jx.M) string {
+	return publicEmbeddingTextWithObservation(post, "")
+}
+
+func publicEmbeddingTextWithObservation(post jx.M, observation string) string {
 	if sourceReviewSensitive(post) || jx.Bool(post, "text_incomplete") ||
 		jx.Bool(post, "media_incomplete") || jx.Bool(post, "video_unavailable") {
 		return ""
 	}
 	text := strings.TrimSpace(jx.Str(post, "title") + " " + jx.Str(post, "text"))
+	if observation = strings.TrimSpace(observation); observation != "" {
+		text = strings.TrimSpace(trimRunes(text, 300) + "\n" + trimRunes(observation, 500))
+	}
 	if len([]rune(text)) < 12 {
 		return ""
 	}
@@ -46,10 +53,10 @@ const publicEmbeddingSafeSQL = `NOT (p.data @> '{"text_incomplete":true}' OR p.d
  AND coalesce(p.data->>'fetched_via','') <> 'telegram_mtproto'
  AND coalesce(p.data->'safety','[]'::jsonb) IN ('[]'::jsonb,'null'::jsonb)`
 
-const publicEmbeddingBackfillSQL = `SELECT p.source_key,p.post_key,p.data
-FROM public_posts p
+const publicEmbeddingBackfillSQL = `SELECT p.source_key,p.post_key,p.data,coalesce(m.description,''),p.media_observation_revision
+FROM public_posts p LEFT JOIN public_post_media_observations m USING(source_key,post_key)
 WHERE p.source_key=ANY($1::text[]) AND ` + publicEmbeddingSafeSQL + `
- AND length(btrim(coalesce(p.data->>'title','') || ' ' || coalesce(p.data->>'text',''))) >= 12
+ AND length(btrim(coalesce(p.data->>'title','') || ' ' || coalesce(p.data->>'text','') || ' ' || coalesce(m.description,''))) >= 12
  AND NOT EXISTS (SELECT 1 FROM public_post_embeddings e
   WHERE e.source_key=p.source_key AND e.post_key=p.post_key AND e.model=$2)
 ORDER BY p.last_seen DESC,p.source_key,p.post_key LIMIT 10`
@@ -60,6 +67,17 @@ const publicEmbeddingSaveSQL = `WITH current_post AS (
  SELECT source_key,post_key FROM public_posts
  WHERE source_key=$1 AND post_key=$2
  AND posta_public_revision(data)=posta_public_revision($3::jsonb) FOR UPDATE
+)
+INSERT INTO public_post_embeddings(source_key,post_key,model,embedding,indexed_at)
+SELECT source_key,post_key,$4,$5,$6 FROM current_post
+ON CONFLICT(source_key,post_key,model) DO UPDATE SET embedding=EXCLUDED.embedding,indexed_at=EXCLUDED.indexed_at`
+
+// Fence against both the original post revision and a new media observation.
+const publicEmbeddingSaveWithObservationSQL = `WITH current_post AS (
+ SELECT source_key,post_key FROM public_posts
+ WHERE source_key=$1 AND post_key=$2
+ AND posta_public_revision(data)=posta_public_revision($3::jsonb)
+ AND media_observation_revision=$7 FOR UPDATE
 )
 INSERT INTO public_post_embeddings(source_key,post_key,model,embedding,indexed_at)
 SELECT source_key,post_key,$4,$5,$6 FROM current_post
@@ -107,15 +125,17 @@ func (a *App) backfillPublicEmbeddings(ctx context.Context) {
 	type candidate struct {
 		source, key, text string
 		raw []byte
+		observation string
+		revision int64
 	}
 	var candidates []candidate
 	for rows.Next() {
 		var c candidate
-		if err := rows.Scan(&c.source, &c.key, &c.raw); err != nil {
+		if err := rows.Scan(&c.source, &c.key, &c.raw, &c.observation, &c.revision); err != nil {
 			rows.Close()
 			return
 		}
-		c.text = publicEmbeddingText(jx.Unmarshal(c.raw))
+		c.text = publicEmbeddingTextWithObservation(jx.Unmarshal(c.raw), c.observation)
 		if c.text != "" {
 			candidates = append(candidates, c)
 		}
@@ -159,7 +179,7 @@ func (a *App) backfillPublicEmbeddings(ctx context.Context) {
 	}
 	for _, c := range candidates {
 		if v := vectors[c.text]; v != nil {
-			if _, err := a.DB.Pool.Exec(ctx, publicEmbeddingSaveSQL, c.source, c.key, c.raw, model, v, now()); err != nil && ctx.Err() == nil {
+			if _, err := a.DB.Pool.Exec(ctx, publicEmbeddingSaveWithObservationSQL, c.source, c.key, c.raw, model, v, now(), c.revision); err != nil && ctx.Err() == nil {
 				log.Printf("public embedding save: %v", err)
 			}
 		}

@@ -85,6 +85,11 @@ func (a *App) classifyStoredPublicPost(ctx context.Context, source, key, descrip
 		return
 	}
 	worker := a.User(ctx, "", nil)
+	// Shared observations describe the actual publication, not an earlier
+	// user's profile-conditioned analysis or editorial judgment.
+	if imageURL != "" || PostItemHasVideo(item) {
+		description = PostCaptionForAI(item)
+	}
 	tags, imageUnsafe := worker.classifyPublicItem(item, description, imageURL)
 	if imageUnsafe {
 		return
