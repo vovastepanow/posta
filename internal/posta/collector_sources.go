@@ -565,7 +565,7 @@ func (u *U) collectPostsByPlatform(topic string) map[string][]jx.M {
 		by[platform] = mergePublicPosts(by[platform], posts)
 	}
 	// Search across legacy topic boundaries; candidates still need admission.
-	if !u.TopicIsRestricted(topic) {
+	if u.CurrentQuery() == "" && !u.TopicIsRestricted(topic) {
 		query := TopicQueryOf(topic)
 		if query == "" {
 			query = TopicBase(topic)

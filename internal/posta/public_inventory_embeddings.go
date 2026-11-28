@@ -81,6 +81,11 @@ func (a *App) publicEmbeddingSources() []string {
 // A conservative independent quota preserves the free model pool for actual
 // editorial decisions. Reservations survive restarts and multiple processes.
 func (a *App) publicEmbeddingReserve(ctx context.Context, resource string) bool {
+	if a.Mem != nil {
+		if _, unavailable := a.Mem.Get("public_embedding_unavailable"); unavailable {
+			return false
+		}
+	}
 	limit := min(int64(20), int64(a.LLM.Settings().FreeDailyLimit)/20)
 	return limit > 0 && reserveAutopilotBudget(ctx, a.DB, randHex(16), "server", resource, time.Now(), 1, limit) == nil
 }
@@ -139,7 +144,11 @@ func (a *App) backfillPublicEmbeddings(ctx context.Context) {
 		callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		got, err := a.LLM.EmbedSource(callCtx, target, missing)
 		cancel()
-		if err == nil && len(got) == len(missing) {
+		if err != nil || len(got) != len(missing) {
+			if a.Mem != nil && ctx.Err() == nil {
+				a.Mem.Set("public_embedding_unavailable", true, 10*time.Minute)
+			}
+		} else {
 			for i, text := range missing {
 				if v := publicEmbeddingArray(got[i]); v != nil {
 					vectors[text] = v
@@ -187,6 +196,9 @@ func (u *U) publicQueryEmbedding(query string) (string, []float32) {
 	defer cancel()
 	got, err := u.LLM.EmbedSource(ctx, target, []string{query})
 	if err != nil || len(got) != 1 {
+		if u.Mem != nil && u.Ctx.Err() == nil {
+			u.Mem.Set("public_embedding_unavailable", true, 10*time.Minute)
+		}
 		return "", nil
 	}
 	v := publicEmbeddingArray(got[0])

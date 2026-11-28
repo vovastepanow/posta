@@ -52,7 +52,7 @@ func fusePublicInventory(lists ...[]publicInventoryCandidate) map[string][]jx.M 
 }
 
 // Search eligible public sources without requiring legacy topic labels.
-func (u *U) searchPublicInventory(query string, sourceAllowed func(string) bool) map[string][]jx.M {
+func (u *U) searchPublicInventory(query string, sourceAllowed func(string) bool, variants ...string) map[string][]jx.M {
 	query = trimRunes(strings.TrimSpace(query), 300)
 	if query == "" {
 		return nil
@@ -66,7 +66,41 @@ func (u *U) searchPublicInventory(query string, sourceAllowed func(string) bool)
 	if len(allowed) == 0 {
 		return nil
 	}
+	// Keep the exact original wording and a small set of existing search
+	// plan variants. No extra LLM call and no taxonomy required.
+	terms := publicInventoryTerms(query, variants)
 	ctx, cancel := context.WithTimeout(u.Ctx, 3*time.Second)
+	defer cancel()
+	lists := make([][]publicInventoryCandidate, 0, len(terms)+1)
+	for _, term := range terms {
+		lists = append(lists, u.searchPublicLexical(ctx, term, allowed))
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	cancel()
+	lists = append(lists, u.searchPublicEmbeddings(query, allowed))
+	return fusePublicInventory(lists...)
+}
+
+func publicInventoryTerms(query string, variants []string) []string {
+	var terms []string
+	seen := map[string]bool{}
+	for _, term := range append([]string{query}, variants...) {
+		term = trimRunes(strings.TrimSpace(term), 300)
+		key := strings.ToLower(term)
+		if key != "" && !seen[key] {
+			seen[key] = true
+			terms = append(terms, term)
+		}
+		if len(terms) >= 4 {
+			break
+		}
+	}
+	return terms
+}
+
+func (u *U) searchPublicLexical(ctx context.Context, query string, allowed []string) []publicInventoryCandidate {
 	rows, err := u.DB.Pool.Query(ctx, publicInventorySearchSQL, query, allowed, 240)
 	var lexical []publicInventoryCandidate
 	if err == nil {
@@ -85,11 +119,10 @@ func (u *U) searchPublicInventory(query string, sourceAllowed func(string) bool)
 		}
 		rows.Close()
 	}
-	cancel()
-	if err != nil && u.Ctx.Err() == nil {
+	if err != nil && u.Ctx.Err() == nil && ctx.Err() == nil {
 		u.Log("Общий текстовый индекс: %v", err)
 	}
-	return fusePublicInventory(lexical, u.searchPublicEmbeddings(query, allowed))
+	return lexical
 }
 
 const publicInventorySearchSQL = `WITH q AS (

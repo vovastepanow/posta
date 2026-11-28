@@ -161,12 +161,22 @@ func (u *U) QuerySearchCollect(key string) map[string][]jx.M {
 		counts["каталог"] += len(posts)
 	}
 	ranked := rankQuerySearch(got, plan, u.TInt("content_max_age"), func(it jx.M) bool { return u.UAItemBlocked(it) != "" })
+	// Semantic candidates must enter after the lexical gate. Otherwise a
+	// relevant synonym or a translation can be rejected before the judge.
+	if !u.TopicIsRestricted(topic) && !u.TopicIsRestricted(query) {
+		if policy, err := u.collectorSourcePolicy(key); err == nil {
+			allowed := func(id string) bool { return policy(jx.M{"source_key": id}) == "" }
+			for platform, posts := range u.searchPublicInventory(query, allowed, append(append([]string(nil), plan.RU...), plan.EN...)...) {
+				ranked[platform] = mergePublicPosts(ranked[platform], posts)
+			}
+		}
+	}
 	ranked = u.queryRerank(query, topic, plan, ranked)
 	n := 0
 	for _, posts := range ranked {
 		n += len(posts)
 	}
-	u.Log("После отбора по словам запроса: %d постов.", n)
+	u.Log("После текстового и семантического поиска: %d кандидатов.", n)
 	return ranked
 }
 
